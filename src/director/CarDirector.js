@@ -5,8 +5,8 @@ import { PHASE_CONFIG, HP_MINIMUM, HP_VARIANCE, HP_BASE } from './DirectorConfig
 import { Car } from '../models/Car.js';
 
 // Base HP before world/phase multipliers are applied.
-// Chosen so W1+CALM produces values ~5–7 and W5+CLIMAX approaches the 20-unit ceiling.
-const BASE_HP = 9;
+// Chosen so W1+CALM produces values ~3–4 and W5+CLIMAX reaches ~10.
+const BASE_HP = 7.2;
 
 export class CarDirector {
   constructor(config, rng) {

@@ -80,15 +80,15 @@ describe('generateCar — HP formula', () => {
   })
 
   it('formula: average HP is close to BASE_HP × worldMult × phaseMult over many samples', () => {
-    // E[variance] = 1.0, so E[HP] ≈ 9 × 1.0 × 1.0 = 9 for W1+PRESSURE
+    // E[variance] = 1.0, so E[HP] ≈ BASE_HP × 1.0 × 1.0 ≈ 7.2 for W1+PRESSURE
     const SAMPLES = 2000
     const d = makeDirector(123)
     let sum = 0
     for (let i = 0; i < SAMPLES; i++) sum += d.generateCar(makeLane(), 'PRESSURE', W1, PALETTE).hp
     const avg = sum / SAMPLES
-    // Expected ~9; allow ±1.5 for rounding and variance
-    expect(avg).toBeGreaterThan(7.5)
-    expect(avg).toBeLessThan(10.5)
+    // Expected ~7.2; allow ±1.5 for rounding and variance
+    expect(avg).toBeGreaterThan(5.7)
+    expect(avg).toBeLessThan(8.7)
   })
 
   it('speed is within worldConfig.speed.base ± variance', () => {

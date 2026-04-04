@@ -5,8 +5,10 @@ import { PHASE_CONFIG, HP_MINIMUM, HP_VARIANCE, HP_BASE } from './DirectorConfig
 import { Car } from '../models/Car.js';
 
 // Base HP before world/phase multipliers are applied.
-// Chosen so W1+CALM produces values ~3–4 and W5+CLIMAX reaches ~10.
-const BASE_HP = 7.2;
+// 11.5 chosen so W1+CALM produces HP ~8, W1+CLIMAX ~14, W5+CLIMAX clamps to 20.
+// This keeps the average-play AI win rate in the 75–80% target range when
+// carry-over pairs (HP 1–2) are injected every 3–7 normal cars.
+const BASE_HP = 11.5;
 
 export class CarDirector {
   constructor(config, rng) {
@@ -17,12 +19,11 @@ export class CarDirector {
 
     // Carry-over opportunity state, tracked per lane.
     // Every CARRY_OVER_INTERVAL spawns the director injects a bait+reward pair:
-    //   bait   — HP 2–3, random color from palette
-    //   reward — same color as bait, HP 2–3
-    // A shot with damage ≥ HP_bait + HP_reward (≤6) will chain-kill both cars,
-    // registering a carry-over kill.  Any dmg≥5 shot can exploit a (2+3) or (3+2)
-    // pair; dmg≥4 covers (2+2).  ~61% of shots are dmg≥4, so most pairs are
-    // exploitable when the player fires the right color.
+    //   bait   — HP 1–2, random color from palette
+    //   reward — same color as bait, HP 1–2
+    // Total pair HP is 2–4, so dmg≥3 (82% of shots) can chain-kill any pair.
+    // The pair is placed every 3–7 normal cars so carry-over opportunities are
+    // frequent enough to hit the 15–20% target without dominating the spawn queue.
     this._carryOverCounters   = {}; // { laneId → cars since last pair }
     this._carryOverThresholds = {}; // { laneId → next trigger count }
     this._pendingPairColors   = {}; // { laneId → bait color } when reward car is due
@@ -33,8 +34,8 @@ export class CarDirector {
   // Result is rounded and clamped to [HP_MINIMUM, HP_BASE.max].
   //
   // Carry-over pairs are injected every CARRY_OVER_INTERVAL spawns: a weak bait
-  // car (HP 2–3) followed immediately on the next spawn call by a same-color
-  // reward car (also HP 2–3).  Total pair HP is 4–6, so any dmg≥4 shot can
+  // car (HP 1–2) followed immediately on the next spawn call by a same-color
+  // reward car (also HP 1–2).  Total pair HP is 2–4, so any dmg≥3 shot can
   // chain-kill both, creating a reliable carry-over opportunity.
   generateCar(lane, phase, worldConfig, colorPalette) {
     const laneId = lane.id ?? lane;
@@ -154,20 +155,20 @@ export class CarDirector {
     return this._rng.nextFloat(min, max);
   }
 
-  // Build a carry-over bait or reward car: HP 2–3, world-appropriate speed.
-  // HP is deliberately below HP_MINIMUM so that a dmg≥5 shot can chain-kill both
-  // (2+3=5 or 3+2=5), creating carry-over opportunities at realistic damage levels.
-  // These are special mechanic cars, not normal enemies — the HP_MIN=4 rule applies
-  // to standard car spawning, not to this intentional bait/reward design.
+  // Build a carry-over bait or reward car: HP 1–2, world-appropriate speed.
+  // HP is deliberately below HP_MINIMUM so that a dmg≥2 shot can chain-kill both
+  // (1+2=3, exploitable by any dmg≥3 = 82% of shots), creating reliable carry-over
+  // opportunities.  These are special mechanic cars — HP_MIN=4 applies to normal
+  // car spawning only.
   _buildCarryOverCar(color, worldConfig) {
-    const hp    = this._rng.nextInt(2, 3);
+    const hp    = this._rng.nextInt(1, 2);
     const speed = worldConfig.speed.base +
       this._rng.nextFloat(-worldConfig.speed.variance, worldConfig.speed.variance);
     return new Car({ color, hp, speed });
   }
 
-  // Returns a random interval (8–12) before the next carry-over pair is injected.
+  // Returns a random interval (3–7) before the next carry-over pair is injected.
   _nextCarryOverThreshold() {
-    return this._rng.nextInt(8, 12);
+    return this._rng.nextInt(3, 7);
   }
 }

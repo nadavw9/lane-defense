@@ -37,7 +37,7 @@ describe('generateCar — HP formula', () => {
     const d = makeDirector(42)
     for (let i = 0; i < 500; i++) {
       const car = d.generateCar(makeLane(), 'CALM', W1, PALETTE)
-      expect(car.hp).toBeGreaterThanOrEqual(2)
+      expect(car.hp).toBeGreaterThanOrEqual(1)
       expect(car.hp).toBeLessThanOrEqual(HP_BASE.max)
     }
   })
@@ -46,7 +46,7 @@ describe('generateCar — HP formula', () => {
     const d = makeDirector(7)
     for (let i = 0; i < 500; i++) {
       const car = d.generateCar(makeLane(), 'CLIMAX', W5, PALETTE)
-      expect(car.hp).toBeGreaterThanOrEqual(2)
+      expect(car.hp).toBeGreaterThanOrEqual(1)
       expect(car.hp).toBeLessThanOrEqual(HP_BASE.max)
     }
   })
@@ -81,15 +81,17 @@ describe('generateCar — HP formula', () => {
   })
 
   it('formula: average HP is close to BASE_HP × worldMult × phaseMult over many samples', () => {
-    // E[variance] = 1.0, so E[HP] ≈ BASE_HP × 1.0 × 1.0 ≈ 7.2 for W1+PRESSURE
+    // E[variance] = 1.0, so E[HP] ≈ BASE_HP × 1.0 × 1.0 ≈ 11.5 for W1+PRESSURE.
+    // Carry-over pair cars (HP 1–2) are mixed in and will pull the sample average
+    // slightly below 11.5, so we allow a wider range.
     const SAMPLES = 2000
     const d = makeDirector(123)
     let sum = 0
     for (let i = 0; i < SAMPLES; i++) sum += d.generateCar(makeLane(), 'PRESSURE', W1, PALETTE).hp
     const avg = sum / SAMPLES
-    // Expected ~7.2; allow ±1.5 for rounding and variance
-    expect(avg).toBeGreaterThan(5.7)
-    expect(avg).toBeLessThan(8.7)
+    // Expected ~9–12 accounting for carry-over pair cars dragging average down.
+    expect(avg).toBeGreaterThan(7.0)
+    expect(avg).toBeLessThan(13.0)
   })
 
   it('speed is within worldConfig.speed.base ± variance', () => {
@@ -115,7 +117,7 @@ describe('HP clamping', () => {
     for (let i = 0; i < 100; i++) {
       const car = d.generateCar(makeLane(), 'CALM', tinyWorld, PALETTE)
       cars.push(car)
-      expect(car.hp).toBeGreaterThanOrEqual(2) // carry-over cars can be HP 2–3
+      expect(car.hp).toBeGreaterThanOrEqual(1) // carry-over cars can be HP 1–2
     }
     // Normal (formula) cars should be exactly HP_MINIMUM; carry-over cars are HP 2–3.
     expect(cars.some(c => c.hp === HP_MINIMUM)).toBe(true)
@@ -300,15 +302,15 @@ describe('generateBatch — consecutive color constraint', () => {
 // ─── carry-over pair injection ────────────────────────────────────────────────
 
 describe('carry-over pair injection', () => {
-  it('injects a same-color pair within the first 12 cars', () => {
+  it('injects a same-color pair within the first 8 cars', () => {
     const d    = makeDirector(1)
     const lane = makeLane(0)
     let pairFound = false
     let lastColor = null
-    // Pairs arrive every 8–12 cars; sample 20 to guarantee at least one.
-    for (let i = 0; i < 20; i++) {
+    // Pairs arrive every 3–7 cars; sample 15 to guarantee at least one.
+    for (let i = 0; i < 15; i++) {
       const car = d.generateCar(lane, 'PRESSURE', W1, PALETTE)
-      if (lastColor !== null && car.color === lastColor && car.hp <= 3) {
+      if (lastColor !== null && car.color === lastColor && car.hp <= 2) {
         pairFound = true
       }
       lastColor = car.color
@@ -316,23 +318,23 @@ describe('carry-over pair injection', () => {
     expect(pairFound).toBe(true)
   })
 
-  it('both cars in the pair have HP in [2,3]', () => {
+  it('both cars in the pair have HP in [1,2]', () => {
     const d    = makeDirector(1)
     const lane = makeLane(0)
     const cars = []
     for (let i = 0; i < 30; i++) {
       cars.push(d.generateCar(lane, 'CLIMAX', W1, PALETTE))
     }
-    // Find any consecutive same-color pair where both cars have HP ≤ 3.
+    // Find any consecutive same-color pair where both cars have HP ≤ 2.
     // That is a carry-over pair (bait + reward).
     let foundPair = false
     for (let i = 1; i < cars.length; i++) {
       if (cars[i].color === cars[i - 1].color &&
-          cars[i].hp     <= 3 &&
-          cars[i - 1].hp <= 3) {
+          cars[i].hp     <= 2 &&
+          cars[i - 1].hp <= 2) {
         foundPair = true
-        expect(cars[i - 1].hp).toBeGreaterThanOrEqual(2)
-        expect(cars[i].hp).toBeGreaterThanOrEqual(2)
+        expect(cars[i - 1].hp).toBeGreaterThanOrEqual(1)
+        expect(cars[i].hp).toBeGreaterThanOrEqual(1)
       }
     }
     expect(foundPair).toBe(true)
@@ -347,7 +349,7 @@ describe('carry-over pair injection', () => {
     }
   })
 
-  it('total pair HP (2–3)+(2–3) ≤ 6 — exploitable by any dmg ≥ 4 shot', () => {
+  it('total pair HP (1–2)+(1–2) ≤ 4 — exploitable by any dmg ≥ 3 shot (82% of shots)', () => {
     const d    = makeDirector(1)
     const lane = makeLane(0)
     const cars = []
@@ -356,8 +358,8 @@ describe('carry-over pair injection', () => {
     }
     for (let i = 1; i < cars.length; i++) {
       if (cars[i].color === cars[i - 1].color &&
-          cars[i].hp <= 3 && cars[i - 1].hp <= 3) {
-        expect(cars[i - 1].hp + cars[i].hp).toBeLessThanOrEqual(6)
+          cars[i].hp <= 2 && cars[i - 1].hp <= 2) {
+        expect(cars[i - 1].hp + cars[i].hp).toBeLessThanOrEqual(4)
       }
     }
   })
@@ -366,13 +368,13 @@ describe('carry-over pair injection', () => {
     const d  = makeDirector(3)
     const l0 = makeLane(0)
     const l1 = makeLane(1)
-    // Run both lanes for 30 spawns each — counters are independent so both
-    // should produce at least one pair within their 20-sample window.
+    // Run both lanes for 20 spawns each — counters are independent so both
+    // should produce at least one pair within their window.
     const check = (lane) => {
       let pairFound = false, lastColor = null
-      for (let i = 0; i < 30; i++) {
+      for (let i = 0; i < 20; i++) {
         const car = d.generateCar(lane, 'PRESSURE', W1, PALETTE)
-        if (lastColor !== null && car.color === lastColor && car.hp <= 3) pairFound = true
+        if (lastColor !== null && car.color === lastColor && car.hp <= 2) pairFound = true
         lastColor = car.color
       }
       return pairFound

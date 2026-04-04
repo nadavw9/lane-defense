@@ -17,11 +17,12 @@ export class CarDirector {
 
     // Carry-over opportunity state, tracked per lane.
     // Every CARRY_OVER_INTERVAL spawns the director injects a bait+reward pair:
-    //   bait   — HP 4–5, random color from palette
-    //   reward — same color as bait, HP 4–5
-    // A shot with damage ≥ HP_bait + HP_reward (≤10) will chain-kill both cars,
-    // registering a carry-over kill.  With HP_bait = HP_reward = 4 this fires on
-    // any dmg=8 shot; the pair is deliberately spawned to create the opportunity.
+    //   bait   — HP 2–3, random color from palette
+    //   reward — same color as bait, HP 2–3
+    // A shot with damage ≥ HP_bait + HP_reward (≤6) will chain-kill both cars,
+    // registering a carry-over kill.  Any dmg≥5 shot can exploit a (2+3) or (3+2)
+    // pair; dmg≥4 covers (2+2).  ~61% of shots are dmg≥4, so most pairs are
+    // exploitable when the player fires the right color.
     this._carryOverCounters   = {}; // { laneId → cars since last pair }
     this._carryOverThresholds = {}; // { laneId → next trigger count }
     this._pendingPairColors   = {}; // { laneId → bait color } when reward car is due
@@ -32,9 +33,9 @@ export class CarDirector {
   // Result is rounded and clamped to [HP_MINIMUM, HP_BASE.max].
   //
   // Carry-over pairs are injected every CARRY_OVER_INTERVAL spawns: a weak bait
-  // car (HP 4–5) followed immediately on the next spawn call by a same-color
-  // reward car (also HP 4–5).  Both share a forced speed from worldConfig so they
-  // travel together and the player can chain them with one high-damage shot.
+  // car (HP 2–3) followed immediately on the next spawn call by a same-color
+  // reward car (also HP 2–3).  Total pair HP is 4–6, so any dmg≥4 shot can
+  // chain-kill both, creating a reliable carry-over opportunity.
   generateCar(lane, phase, worldConfig, colorPalette) {
     const laneId = lane.id ?? lane;
 
@@ -153,10 +154,13 @@ export class CarDirector {
     return this._rng.nextFloat(min, max);
   }
 
-  // Build a carry-over bait or reward car: HP 4–5, world-appropriate speed.
-  // HP is forced below the normal formula so a dmg=8 shot can chain-kill the pair.
+  // Build a carry-over bait or reward car: HP 2–3, world-appropriate speed.
+  // HP is deliberately below HP_MINIMUM so that a dmg≥5 shot can chain-kill both
+  // (2+3=5 or 3+2=5), creating carry-over opportunities at realistic damage levels.
+  // These are special mechanic cars, not normal enemies — the HP_MIN=4 rule applies
+  // to standard car spawning, not to this intentional bait/reward design.
   _buildCarryOverCar(color, worldConfig) {
-    const hp    = this._rng.nextInt(4, 5);
+    const hp    = this._rng.nextInt(2, 3);
     const speed = worldConfig.speed.base +
       this._rng.nextFloat(-worldConfig.speed.variance, worldConfig.speed.variance);
     return new Car({ color, hp, speed });

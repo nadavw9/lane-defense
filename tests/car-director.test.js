@@ -105,23 +105,34 @@ describe('generateCar — HP formula', () => {
 
 describe('HP clamping', () => {
   it('clamps to HP_MINIMUM (4) when formula would produce less', () => {
-    // worldConfig.hpMultiplier = 0.05 forces rawHp ≈ 9 × 0.05 × 0.7 × 0.9 ≈ 0.28
+    // worldConfig.hpMultiplier = 0.05 forces rawHp ≈ 7.2 × 0.05 × 0.7 ≈ 0.25 → clamped.
+    // Carry-over pair cars bypass the formula and can have HP 4–5, so every car is
+    // still ≥ HP_MINIMUM.  Normal (formula) cars all land exactly at HP_MINIMUM.
     const tinyWorld = { hpMultiplier: 0.05, speed: { base: 5, variance: 0.5 } }
     const d = makeDirector(1)
+    const cars = []
     for (let i = 0; i < 100; i++) {
       const car = d.generateCar(makeLane(), 'CALM', tinyWorld, PALETTE)
-      expect(car.hp).toBe(HP_MINIMUM)
+      cars.push(car)
+      expect(car.hp).toBeGreaterThanOrEqual(HP_MINIMUM)
     }
+    // At least the non-carry-over-pair cars should be exactly HP_MINIMUM.
+    expect(cars.some(c => c.hp === HP_MINIMUM)).toBe(true)
   })
 
   it('clamps to HP_BASE.max (20) when formula would exceed it', () => {
-    // hpMultiplier = 10 forces rawHp ≈ 9 × 10 × 1.2 × 1.1 ≈ 118
+    // hpMultiplier = 10 forces rawHp ≈ 7.2 × 10 × 1.2 ≈ 86 → clamped to HP_BASE.max.
+    // Carry-over pair cars bypass the formula and have low HP, but no car exceeds max.
     const hugeWorld = { hpMultiplier: 10, speed: { base: 5, variance: 0.5 } }
     const d = makeDirector(1)
+    const cars = []
     for (let i = 0; i < 100; i++) {
       const car = d.generateCar(makeLane(), 'CLIMAX', hugeWorld, PALETTE)
-      expect(car.hp).toBe(HP_BASE.max)
+      cars.push(car)
+      expect(car.hp).toBeLessThanOrEqual(HP_BASE.max)
     }
+    // At least the non-carry-over-pair cars should be exactly HP_BASE.max.
+    expect(cars.some(c => c.hp === HP_BASE.max)).toBe(true)
   })
 
   it('HP is always an integer', () => {
@@ -282,6 +293,76 @@ describe('generateBatch — consecutive color constraint', () => {
       expect(car.hp).toBeLessThanOrEqual(HP_BASE.max)
       expect(car.speed).toBeGreaterThan(0)
     }
+  })
+})
+
+// ─── carry-over pair injection ────────────────────────────────────────────────
+
+describe('carry-over pair injection', () => {
+  it('injects a same-color pair within the first 12 cars', () => {
+    const d    = makeDirector(1)
+    const lane = makeLane(0)
+    let pairFound = false
+    let lastColor = null
+    // Pairs arrive every 8–12 cars; sample 20 to guarantee at least one.
+    for (let i = 0; i < 20; i++) {
+      const car = d.generateCar(lane, 'PRESSURE', W1, PALETTE)
+      if (lastColor !== null && car.color === lastColor && car.hp <= 5) {
+        pairFound = true
+      }
+      lastColor = car.color
+    }
+    expect(pairFound).toBe(true)
+  })
+
+  it('both cars in the pair have HP in [4,5]', () => {
+    const d    = makeDirector(1)
+    const lane = makeLane(0)
+    const cars = []
+    for (let i = 0; i < 30; i++) {
+      cars.push(d.generateCar(lane, 'CLIMAX', W1, PALETTE))
+    }
+    // Find any consecutive same-color pair where both cars have HP ≤ 5.
+    // That is a carry-over pair (bait + reward).
+    let foundPair = false
+    for (let i = 1; i < cars.length; i++) {
+      if (cars[i].color === cars[i - 1].color &&
+          cars[i].hp     <= 5 &&
+          cars[i - 1].hp <= 5) {
+        foundPair = true
+        expect(cars[i - 1].hp).toBeGreaterThanOrEqual(4)
+        expect(cars[i].hp).toBeGreaterThanOrEqual(4)
+      }
+    }
+    expect(foundPair).toBe(true)
+  })
+
+  it('pair cars always have a color from the palette', () => {
+    const d    = makeDirector(7)
+    const lane = makeLane(0)
+    for (let i = 0; i < 50; i++) {
+      const car = d.generateCar(lane, 'PRESSURE', W1, PALETTE)
+      expect(PALETTE).toContain(car.color)
+    }
+  })
+
+  it('independent lanes get independent carry-over cycles', () => {
+    const d  = makeDirector(3)
+    const l0 = makeLane(0)
+    const l1 = makeLane(1)
+    // Run both lanes for 30 spawns each — counters are independent so both
+    // should produce at least one pair within their 20-sample window.
+    const check = (lane) => {
+      let pairFound = false, lastColor = null
+      for (let i = 0; i < 30; i++) {
+        const car = d.generateCar(lane, 'PRESSURE', W1, PALETTE)
+        if (lastColor !== null && car.color === lastColor && car.hp <= 5) pairFound = true
+        lastColor = car.color
+      }
+      return pairFound
+    }
+    expect(check(l0)).toBe(true)
+    expect(check(l1)).toBe(true)
   })
 })
 

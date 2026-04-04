@@ -14,13 +14,55 @@ export class CarDirector {
     this._rng    = rng;
     // { laneId → remainingCooldownSeconds }
     this._spawnTimers = {};
+
+    // Carry-over opportunity state, tracked per lane.
+    // Every CARRY_OVER_INTERVAL spawns the director injects a bait+reward pair:
+    //   bait   — HP 4–5, random color from palette
+    //   reward — same color as bait, HP 4–5
+    // A shot with damage ≥ HP_bait + HP_reward (≤10) will chain-kill both cars,
+    // registering a carry-over kill.  With HP_bait = HP_reward = 4 this fires on
+    // any dmg=8 shot; the pair is deliberately spawned to create the opportunity.
+    this._carryOverCounters   = {}; // { laneId → cars since last pair }
+    this._carryOverThresholds = {}; // { laneId → next trigger count }
+    this._pendingPairColors   = {}; // { laneId → bait color } when reward car is due
   }
 
   // Generate a single car for the given lane, phase, and world settings.
   // HP formula: BASE_HP × worldHpMultiplier × phaseHpMultiplier × variance(0.85–1.15)
   // Result is rounded and clamped to [HP_MINIMUM, HP_BASE.max].
+  //
+  // Carry-over pairs are injected every CARRY_OVER_INTERVAL spawns: a weak bait
+  // car (HP 4–5) followed immediately on the next spawn call by a same-color
+  // reward car (also HP 4–5).  Both share a forced speed from worldConfig so they
+  // travel together and the player can chain them with one high-damage shot.
   generateCar(lane, phase, worldConfig, colorPalette) {
+    const laneId = lane.id ?? lane;
+
+    // Lazy-init per-lane carry-over counters.
+    if (this._carryOverCounters[laneId] === undefined) {
+      this._carryOverCounters[laneId]   = 0;
+      this._carryOverThresholds[laneId] = this._nextCarryOverThreshold();
+    }
+
+    // If the previous car in this lane was a bait, emit the same-color reward car.
+    if (this._pendingPairColors[laneId] !== undefined) {
+      const color = this._pendingPairColors[laneId];
+      delete this._pendingPairColors[laneId];
+      return this._buildCarryOverCar(color, worldConfig);
+    }
+
+    // Normal spawn: pick color, increment counter.
     const color = this.assignColor(colorPalette, null);
+    this._carryOverCounters[laneId]++;
+
+    // Time to start a carry-over pair?
+    if (this._carryOverCounters[laneId] >= this._carryOverThresholds[laneId]) {
+      this._carryOverCounters[laneId]   = 0;
+      this._carryOverThresholds[laneId] = this._nextCarryOverThreshold();
+      this._pendingPairColors[laneId]   = color; // next spawn will match
+      return this._buildCarryOverCar(color, worldConfig); // bait car
+    }
+
     return this._buildCar(color, phase, worldConfig);
   }
 
@@ -109,5 +151,19 @@ export class CarDirector {
   _randomCooldown(phaseParams) {
     const { min, max } = phaseParams.spawnCooldown;
     return this._rng.nextFloat(min, max);
+  }
+
+  // Build a carry-over bait or reward car: HP 4–5, world-appropriate speed.
+  // HP is forced below the normal formula so a dmg=8 shot can chain-kill the pair.
+  _buildCarryOverCar(color, worldConfig) {
+    const hp    = this._rng.nextInt(4, 5);
+    const speed = worldConfig.speed.base +
+      this._rng.nextFloat(-worldConfig.speed.variance, worldConfig.speed.variance);
+    return new Car({ color, hp, speed });
+  }
+
+  // Returns a random interval (8–12) before the next carry-over pair is injected.
+  _nextCarryOverThreshold() {
+    return this._rng.nextInt(8, 12);
   }
 }

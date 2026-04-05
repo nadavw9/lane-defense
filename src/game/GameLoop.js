@@ -48,6 +48,10 @@ export class GameLoop {
   start() { this._app.ticker.add(this._bound); }
   stop()  { this._app.ticker.remove(this._bound); }
 
+  // Update the base duration used by restart() to reset gs.duration.
+  // Call this before restart() when changing levels.
+  set baseDuration(d) { this._baseDuration = d; }
+
   // Called by DragDrop → onDeploy.
   // Applies combat immediately, then triggers dilation and callbacks.
   deploy(colIdx, laneIdx) {
@@ -98,6 +102,8 @@ export class GameLoop {
   }
 
   // Full level restart — resets state and reprimes cars/columns.
+  // Before calling, update gs.activeLaneCount/activeColCount/world/colors if
+  // the level config changed (e.g. on level advancement).
   restart() {
     const gs = this._gs;
     gs.duration = this._baseDuration;   // undo any rescue-added time
@@ -105,7 +111,7 @@ export class GameLoop {
     gs.phaseMan.update(0);
     this._accumulator = 0;
     this._primeInitialCars();
-    this._sDir.fillColumns(gs.columns, gs.asDirectorState(), gs.phaseMan.getParams());
+    this._sDir.fillColumns(gs.activeCols, gs.asDirectorState(), gs.phaseMan.getParams());
   }
 
   // ── Private ────────────────────────────────────────────────────────────────
@@ -146,10 +152,10 @@ export class GameLoop {
     const dirState    = gs.asDirectorState();
 
     // 1. Advance cars — apply deploy time dilation if active.
-    for (const lane of gs.lanes) lane.advance(dt * gs.speedMultiplier);
+    for (const lane of gs.activeLanes) lane.advance(dt * gs.speedMultiplier);
 
     // 2. Track the highest car position reached (used for star rating on win).
-    for (const lane of gs.lanes) {
+    for (const lane of gs.activeLanes) {
       const front = lane.frontCar();
       if (front && front.position > gs.maxCarPosition) {
         gs.maxCarPosition = front.position;
@@ -157,7 +163,7 @@ export class GameLoop {
     }
 
     // 3. Check for breach — any car reaching the endpoint is a loss.
-    for (let li = 0; li < gs.lanes.length; li++) {
+    for (let li = 0; li < gs.activeLaneCount; li++) {
       if (gs.lanes[li].frontCar()?.position >= 100) {
         gs.endGame(false);
         this._onEnd(false, li);
@@ -166,23 +172,24 @@ export class GameLoop {
     }
 
     // 4. Spawn new cars.
-    this._carDir.updateSpawnTimers(gs.lanes, dt, phaseCfg);
-    for (const lane of gs.lanes) {
+    this._carDir.updateSpawnTimers(gs.activeLanes, dt, phaseCfg);
+    for (const lane of gs.activeLanes) {
       if (this._carDir.isReadyToSpawn(lane)) {
         lane.addCar(this._carDir.generateCar(lane, gs.phase, gs.world, gs.colors));
         this._carDir.resetSpawnTimer(lane, phaseCfg);
       }
     }
 
-    // 5. Refill shooter columns.
-    this._sDir.fillColumns(gs.columns, dirState, phaseParams);
+    // 5. Refill active shooter columns.
+    this._sDir.fillColumns(gs.activeCols, dirState, phaseParams);
   }
 
   // Stagger initial cars so the level looks alive from frame 1.
+  // Only primes active lanes so inactive lanes stay empty.
   _primeInitialCars() {
     const gs      = this._gs;
     const calmCfg = PHASE_CONFIG['CALM'];
-    for (const lane of gs.lanes) {
+    for (const lane of gs.activeLanes) {
       const car     = this._carDir.generateCar(lane, 'CALM', gs.world, gs.colors);
       car.position  = this._rng.nextFloat(8, 50);
       lane.addCar(car);

@@ -3,6 +3,8 @@
 // Responsibilities:
 //   • Create all subsystems (directors, game state, loop, renderers, input)
 //   • Run the RENDER ticker (variable rate, reads GameState, never writes it)
+//   • Manage level progression via LevelManager (FTUE L1→L2→L4→standard)
+//   • Show FTUEOverlay dim mask + tutorial arrow for early levels
 //   • Route end-of-game events to WinScreen / RescueOverlay
 //
 // Data flow:
@@ -23,6 +25,7 @@ import { InputManager }    from '../input/InputManager.js';
 import { GameState }       from '../game/GameState.js';
 import { GameLoop }        from '../game/GameLoop.js';
 import { CombatResolver }  from '../game/CombatResolver.js';
+import { LevelManager }    from '../game/LevelManager.js';
 
 import { CarDirector }     from '../director/CarDirector.js';
 import { ShooterDirector } from '../director/ShooterDirector.js';
@@ -31,19 +34,18 @@ import { IntensityPhase }  from '../director/IntensityPhase.js';
 import { SeededRandom }    from '../utils/SeededRandom.js';
 import { Lane }            from '../models/Lane.js';
 import { Column }          from '../models/Column.js';
-import { WORLD_CONFIG, PHASE_CONFIG } from '../director/DirectorConfig.js';
+import { PHASE_CONFIG }    from '../director/DirectorConfig.js';
 
 import { WinScreen }      from '../screens/WinScreen.js';
 import { RescueOverlay }  from '../screens/RescueOverlay.js';
+import { FTUEOverlay }    from '../screens/FTUEOverlay.js';
 import { AudioManager }   from '../audio/AudioManager.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const APP_W          = 390;
-const APP_H          = 844;
-const LEVEL_DURATION = 90;
-const COLORS         = ['Red', 'Blue'];
-const LANE_COUNT     = 4;
-const COL_COUNT      = 4;
+const APP_W      = 390;
+const APP_H      = 844;
+const TOTAL_LANES = 4;
+const TOTAL_COLS  = 4;
 
 // ── Floating chain-hit labels ─────────────────────────────────────────────────
 
@@ -102,15 +104,28 @@ async function main() {
   const arbiter    = new FairnessArbiter();
   const carDir     = new CarDirector({}, rng);
   const shooterDir = new ShooterDirector({}, rng, arbiter);
-  const phaseMan   = new IntensityPhase(LEVEL_DURATION);
+
+  // ── Level manager — determines active lane/col count, HP, speed, duration ─
+  const levelManager = new LevelManager();
+  const initialCfg   = levelManager.current;
+
+  // ── Fixed arrays: always 4 lanes and 4 columns ───────────────────────────
+  // Renderers iterate all 4; only activeLanes/activeCols are used by game logic.
+  const lanes   = Array.from({ length: TOTAL_LANES }, (_, id) => new Lane({ id }));
+  const columns = Array.from({ length: TOTAL_COLS },  (_, id) => new Column({ id }));
 
   // ── Game state ───────────────────────────────────────────────────────────
-  const lanes   = Array.from({ length: LANE_COUNT }, (_, id) => new Lane({ id }));
-  const columns = Array.from({ length: COL_COUNT },  (_, id) => new Column({ id }));
+  const phaseMan = new IntensityPhase(initialCfg.duration);
 
   const gs = new GameState({
-    lanes, columns, colors: COLORS, world: WORLD_CONFIG[1],
-    duration: LEVEL_DURATION, phaseMan,
+    lanes,
+    columns,
+    colors:    initialCfg.colors,
+    world:     initialCfg.worldConfig,
+    duration:  initialCfg.duration,
+    phaseMan,
+    laneCount: initialCfg.laneCount,
+    colCount:  initialCfg.colCount,
   });
 
   // ── Combat ───────────────────────────────────────────────────────────────
@@ -124,18 +139,42 @@ async function main() {
   const particles     = new ParticleSystem(layers);
   const floatingTexts = [];
 
+  // ── FTUE overlay (dim mask + tutorial arrow) ──────────────────────────────
+  // Recreated on each level change; null when full-board with no FTUE needed.
+  let ftueOverlay = _makeFTUEOverlay(app.stage, APP_W, APP_H, initialCfg);
+
   // ── End-of-game screens (created lazily on demand) ────────────────────────
   let winScreen     = null;
   let rescueOverlay = null;
 
-  // Stage shake state — triggered on breach for tactile feedback.
+  // Stage shake state — triggered on breach.
   let shakeTime = 0;
 
+  // ── Level advancement ─────────────────────────────────────────────────────
+  function applyLevelConfig(cfg) {
+    gs.activeLaneCount = cfg.laneCount;
+    gs.activeColCount  = cfg.colCount;
+    gs.colors          = cfg.colors;
+    gs.world           = cfg.worldConfig;
+    // Recreate phaseMan so transition boundaries fit the new duration.
+    gs.phaseMan        = new IntensityPhase(cfg.duration);
+    gameLoop.baseDuration = cfg.duration;
+  }
+
+  function advanceLevel() {
+    const cfg = levelManager.advance();
+    ftueOverlay?.destroy();
+    ftueOverlay = _makeFTUEOverlay(app.stage, APP_W, APP_H, cfg);
+    applyLevelConfig(cfg);
+    gameLoop.restart();
+  }
+
+  // ── Screen helpers ────────────────────────────────────────────────────────
   function showWin() {
     winScreen = new WinScreen(app.stage, APP_W, APP_H, gs, () => {
       winScreen.destroy();
       winScreen = null;
-      gameLoop.restart();
+      advanceLevel();
     });
   }
 
@@ -167,7 +206,6 @@ async function main() {
 
     onKill: (combo) => {
       hudRenderer.bumpCombo(combo);
-      // Chime fires at the combo tier boundaries where the display changes color.
       if (combo === 4 || combo === 7 || combo === 11) {
         audio.play('combo_milestone', { combo });
       }
@@ -179,6 +217,8 @@ async function main() {
 
     onShoot: (damage) => {
       audio.play('shoot', { damage });
+      // Hide tutorial hint on the player's first deploy.
+      ftueOverlay?.onFirstDeploy();
     },
 
     onHit: (laneIdx, gameX, color, damage, isKill) => {
@@ -201,23 +241,22 @@ async function main() {
       if (won) {
         showWin();
       } else {
-        // Brief stage shake to sell the breach impact, then rescue overlay.
         shakeTime = 0.35;
         showRescue();
       }
     },
   });
 
-  // Prime initial cars + columns before starting the loop.
+  // Prime initial cars + columns for the starting level.
   phaseMan.update(0);
   const calmCfg = PHASE_CONFIG['CALM'];
-  for (const lane of lanes) {
+  for (const lane of gs.activeLanes) {
     const car    = carDir.generateCar(lane, 'CALM', gs.world, gs.colors);
     car.position = rng.nextFloat(8, 50);
     lane.addCar(car);
     carDir.resetSpawnTimer(lane, calmCfg);
   }
-  shooterDir.fillColumns(columns, gs.asDirectorState(), phaseMan.getParams());
+  shooterDir.fillColumns(gs.activeCols, gs.asDirectorState(), phaseMan.getParams());
 
   gameLoop.start();
 
@@ -228,13 +267,16 @@ async function main() {
   // ── Input ────────────────────────────────────────────────────────────────
   const dragDrop = new DragDrop(
     layers, columns, shooterRenderer,
-    (colIdx, laneIdx) => gameLoop.deploy(colIdx, laneIdx),
+    (colIdx, laneIdx) => {
+      // Reject drags outside the active subset — inactive areas are dimmed
+      // and should not be interactive.
+      if (colIdx >= gs.activeColCount || laneIdx >= gs.activeLaneCount) return;
+      gameLoop.deploy(colIdx, laneIdx);
+    },
   );
   new InputManager(app, dragDrop);
 
   // ── Render ticker (variable rate) ────────────────────────────────────────
-  // Logic already ran in gameLoop's ticker (added first).
-  // This ticker only updates visuals — it never mutates game state.
   app.ticker.add((ticker) => {
     const dt = Math.min(ticker.deltaMS / 1000, 0.05);
 
@@ -257,9 +299,16 @@ async function main() {
       app.stage.y = 0;
     }
 
-    // Tick the rescue flash animation
     if (rescueOverlay) rescueOverlay.update(dt);
+    if (ftueOverlay)   ftueOverlay.update(dt);
   });
+}
+
+// Create an FTUEOverlay only when the level needs one (FTUE levels with
+// fewer than 4 lanes/cols, or with a tutorial arrow).
+function _makeFTUEOverlay(stage, w, h, cfg) {
+  if (cfg.laneCount >= 4 && cfg.colCount >= 4 && !cfg.showArrow) return null;
+  return new FTUEOverlay(stage, w, h, cfg);
 }
 
 main();

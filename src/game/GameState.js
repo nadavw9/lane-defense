@@ -6,10 +6,18 @@
 import { COMBO_WINDOW, DEPLOY_DILATION, CARRYOVER_COIN_BONUS } from '../director/DirectorConfig.js';
 
 export class GameState {
-  constructor({ lanes, columns, colors, world, duration, phaseMan }) {
+  // laneCount / colCount — how many of the 4 lanes/columns are active.
+  // The renderers always see all 4; inactive ones just have no cars/shooters.
+  constructor({ lanes, columns, colors, world, duration, phaseMan,
+                laneCount, colCount }) {
     // ── Core collections ───────────────────────────────────────────────────
     this.lanes   = lanes;
     this.columns = columns;
+
+    // Active subset sizes — can be changed between levels without recreating
+    // the lane/column arrays.  Default: all active.
+    this.activeLaneCount = laneCount ?? lanes.length;
+    this.activeColCount  = colCount  ?? columns.length;
 
     // ── Level config ───────────────────────────────────────────────────────
     this.colors   = colors;
@@ -47,6 +55,13 @@ export class GameState {
     // after every shooter deploy.  GameLoop reads this when advancing cars.
     this.dilationUntil = -Infinity;
   }
+
+  // ── Active subsets ────────────────────────────────────────────────────────
+
+  // The lanes/columns actually in play for the current level.
+  // Directors, GameLoop logic, and breach detection all use these.
+  get activeLanes() { return this.lanes.slice(0, this.activeLaneCount); }
+  get activeCols()  { return this.columns.slice(0, this.activeColCount); }
 
   // ── Computed ──────────────────────────────────────────────────────────────
 
@@ -140,10 +155,11 @@ export class GameState {
   // ── Director API ─────────────────────────────────────────────────────────
 
   // Shape expected by ShooterDirector and FairnessArbiter.
+  // Passes only the active subsets so directors never fill inactive slots.
   asDirectorState() {
     return {
-      lanes:        this.lanes,
-      columns:      this.columns,
+      lanes:        this.activeLanes,
+      columns:      this.activeCols,
       colorPalette: this.colors,
       elapsedTime:  this.elapsed,
       phase:        this.phase,

@@ -4,7 +4,10 @@
       "Bash(npm install:*)",
       "Bash(npm test:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git config:*)",
+      "Bash(node:*)",
+      "Bash"
     ]
   }
 }

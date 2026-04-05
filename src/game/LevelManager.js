@@ -14,8 +14,10 @@
 //   FTUE_W2: 11.5 × 0.65 × 0.70 ≈ 5.2  → ~5 HP                 ✓ gentle ramp
 import { WORLD_CONFIG } from '../director/DirectorConfig.js';
 
-const FTUE_WORLD_1 = { hpMultiplier: 0.50, speed: { base: 4.0, variance: 0.0 } };
-const FTUE_WORLD_2 = { hpMultiplier: 0.65, speed: { base: 4.5, variance: 0.3 } };
+// FTUE worlds are deliberately forgiving: low HP (clamps to HP_MIN=4) and
+// slow speed so new players can learn mechanics without being overwhelmed.
+const FTUE_WORLD_1 = { hpMultiplier: 0.50, speed: { base: 3.0, variance: 0.0 } };
+const FTUE_WORLD_2 = { hpMultiplier: 0.55, speed: { base: 3.5, variance: 0.2 } };
 
 const PROGRESSION = [
   {

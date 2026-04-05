@@ -2,12 +2,12 @@ import { describe, it, expect } from 'vitest'
 import { IntensityPhase } from '../src/director/IntensityPhase.js'
 import { PHASE_CONFIG, PHASE_TRANSITION_DURATION, CRISIS } from '../src/director/DirectorConfig.js'
 
-// With levelDuration=100 and the proportions [0.15, 0.22, 0.25, 0.18, 0.20]:
-//   CALM:     0  – 15
-//   BUILD:    15 – 37
-//   PRESSURE: 37 – 62
-//   CLIMAX:   62 – 80
-//   RELIEF:   80 – 100
+// With levelDuration=100 and the proportions [0.16, 0.22, 0.25, 0.18, 0.19]:
+//   CALM:     0  – 16
+//   BUILD:    16 – 38
+//   PRESSURE: 38 – 63
+//   CLIMAX:   63 – 81
+//   RELIEF:   81 – 100
 const DURATION = 100
 
 function make(duration = DURATION) {
@@ -29,9 +29,9 @@ describe('Phase timeline', () => {
     expect(ip.getCurrentPhase()).toBe('CALM')
   })
 
-  it('enters BUILD at the CALM boundary (t=15)', () => {
+  it('enters BUILD at the CALM boundary (t=16)', () => {
     const ip = make()
-    ip.update(15)
+    ip.update(16)
     expect(ip.getCurrentPhase()).toBe('BUILD')
   })
 
@@ -41,21 +41,21 @@ describe('Phase timeline', () => {
     expect(ip.getCurrentPhase()).toBe('BUILD')
   })
 
-  it('enters PRESSURE at t=37', () => {
+  it('enters PRESSURE at t=38', () => {
     const ip = make()
-    ip.update(37)
+    ip.update(38)
     expect(ip.getCurrentPhase()).toBe('PRESSURE')
   })
 
-  it('enters CLIMAX at t=62', () => {
+  it('enters CLIMAX at t=63', () => {
     const ip = make()
-    ip.update(62)
+    ip.update(63)
     expect(ip.getCurrentPhase()).toBe('CLIMAX')
   })
 
-  it('enters RELIEF at t=80', () => {
+  it('enters RELIEF at t=81', () => {
     const ip = make()
-    ip.update(80)
+    ip.update(81)
     expect(ip.getCurrentPhase()).toBe('RELIEF')
   })
 
@@ -80,7 +80,7 @@ describe('Phase timeline', () => {
   it('phases advance in correct sequence when updated sequentially', () => {
     const ip = make()
     const seen = []
-    const checkpoints = [0, 15, 37, 62, 80]
+    const checkpoints = [0, 16, 38, 63, 81]
     for (const t of checkpoints) {
       ip.update(t)
       seen.push(ip.getCurrentPhase())
@@ -199,10 +199,10 @@ describe('getParams — steady state', () => {
 
 // ─── Transition Interpolation ─────────────────────────────────────────────────
 
-describe('Transition interpolation (CALM → BUILD at t=15)', () => {
-  it('at transition start (t=15) params are near CALM values', () => {
+describe('Transition interpolation (CALM → BUILD at t=16)', () => {
+  it('at transition start (t=16) params are near CALM values', () => {
     const ip = make()
-    ip.update(15)
+    ip.update(16)
     const p = ip.getParams()
     const calm  = PHASE_CONFIG.CALM
     const build = PHASE_CONFIG.BUILD
@@ -212,9 +212,9 @@ describe('Transition interpolation (CALM → BUILD at t=15)', () => {
     expect(p.speedMultiplier).toBeCloseTo(calm.speedMultiplier)
   })
 
-  it('at transition end (t=18) params are near BUILD values', () => {
+  it('at transition end (t=19) params are near BUILD values', () => {
     const ip = make()
-    ip.update(15 + PHASE_TRANSITION_DURATION) // t=18
+    ip.update(16 + PHASE_TRANSITION_DURATION) // t=19
     const p = ip.getParams()
     const build = PHASE_CONFIG.BUILD
     expect(p.spawnCooldownMultiplier).toBeCloseTo(build.spawnMultiplier)
@@ -222,9 +222,9 @@ describe('Transition interpolation (CALM → BUILD at t=15)', () => {
     expect(p.speedMultiplier).toBeCloseTo(build.speedMultiplier)
   })
 
-  it('at transition midpoint (t=16.5) params are halfway between phases', () => {
+  it('at transition midpoint (t=17.5) params are halfway between phases', () => {
     const ip = make()
-    ip.update(15 + PHASE_TRANSITION_DURATION / 2) // t=16.5
+    ip.update(16 + PHASE_TRANSITION_DURATION / 2) // t=17.5
     const p = ip.getParams()
     const calm  = PHASE_CONFIG.CALM
     const build = PHASE_CONFIG.BUILD
@@ -234,9 +234,9 @@ describe('Transition interpolation (CALM → BUILD at t=15)', () => {
     expect(p.speedMultiplier).toBeCloseTo(mid(calm.speedMultiplier, build.speedMultiplier))
   })
 
-  it('just after transition window (t=18.1) params fully equal BUILD', () => {
+  it('just after transition window (t=19.1) params fully equal BUILD', () => {
     const ip = make()
-    ip.update(18.1)
+    ip.update(19.1)
     const p = ip.getParams()
     const build = PHASE_CONFIG.BUILD
     expect(p.spawnCooldownMultiplier).toBeCloseTo(build.spawnMultiplier)
@@ -247,7 +247,7 @@ describe('Transition interpolation (CALM → BUILD at t=15)', () => {
     const samples = []
     for (let dt = 0; dt <= PHASE_TRANSITION_DURATION; dt += 0.5) {
       const ip = make()
-      ip.update(15 + dt)
+      ip.update(16 + dt)
       samples.push(ip.getParams().hpMultiplier)
     }
     // CALM hpMultiplier(0.7) < BUILD hpMultiplier(0.85) → should increase
@@ -257,34 +257,34 @@ describe('Transition interpolation (CALM → BUILD at t=15)', () => {
   })
 })
 
-describe('Transition interpolation (BUILD → PRESSURE at t=37)', () => {
+describe('Transition interpolation (BUILD → PRESSURE at t=38)', () => {
   it('crisisEnabled becomes true immediately on entering PRESSURE', () => {
     const ip = make()
-    ip.update(37) // just entered PRESSURE
+    ip.update(38) // just entered PRESSURE
     expect(ip.getParams().crisisEnabled).toBe(true)
   })
 
-  it('crisisEnabled is false just before PRESSURE (t=36.9)', () => {
+  it('crisisEnabled is false just before PRESSURE (t=37.9)', () => {
     const ip = make()
-    ip.update(36.9)
+    ip.update(37.9)
     expect(ip.getParams().crisisEnabled).toBe(false)
   })
 })
 
-describe('Transition interpolation (PRESSURE → CLIMAX at t=62)', () => {
+describe('Transition interpolation (PRESSURE → CLIMAX at t=63)', () => {
   it('at midpoint damageSkew switches from source to target', () => {
-    // PRESSURE=standard, CLIMAX=hard; switch at midpoint (t=62+1.5=63.5)
-    const before = make(); before.update(62 + PHASE_TRANSITION_DURATION * 0.4)
-    const after  = make(); after.update(62 + PHASE_TRANSITION_DURATION * 0.6)
+    // PRESSURE=standard, CLIMAX=hard; switch at midpoint (t=63+1.5=64.5)
+    const before = make(); before.update(63 + PHASE_TRANSITION_DURATION * 0.4)
+    const after  = make(); after.update(63 + PHASE_TRANSITION_DURATION * 0.6)
     expect(before.getParams().damageSkew).toBe('standard')
     expect(after.getParams().damageSkew).toBe('hard')
   })
 })
 
-describe('Transition interpolation (CLIMAX → RELIEF at t=80)', () => {
+describe('Transition interpolation (CLIMAX → RELIEF at t=81)', () => {
   it('hpMultiplier decreases from CLIMAX(1.2) to RELIEF(0.8) through transition', () => {
-    const start = make(); start.update(80)
-    const end   = make(); end.update(80 + PHASE_TRANSITION_DURATION)
+    const start = make(); start.update(81)
+    const end   = make(); end.update(81 + PHASE_TRANSITION_DURATION)
     expect(start.getParams().hpMultiplier).toBeCloseTo(PHASE_CONFIG.CLIMAX.hpMultiplier)
     expect(end.getParams().hpMultiplier).toBeCloseTo(PHASE_CONFIG.RELIEF.hpMultiplier)
   })

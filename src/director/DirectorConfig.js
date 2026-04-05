@@ -31,24 +31,25 @@ export const FIRE_DURATION_BY_DAMAGE = {
 
 // Weighted damage pools for each difficulty mode.
 // Higher weight = proportionally more likely to be picked.
+// Target: 5-8 = 60% of spawns, 2-4 = 40% across standard/easy pools.
 export const DAMAGE_WEIGHTS = {
   standard: [
-    { value: 2, weight: 10 },
-    { value: 3, weight: 20 },
-    { value: 4, weight: 30 },
-    { value: 5, weight: 25 },
-    { value: 6, weight: 10 },
-    { value: 7, weight: 4 },
-    { value: 8, weight: 1 },
+    { value: 2, weight: 5  },
+    { value: 3, weight: 15 },
+    { value: 4, weight: 20 },
+    { value: 5, weight: 28 },
+    { value: 6, weight: 18 },
+    { value: 7, weight: 10 },
+    { value: 8, weight: 4  },
   ],
   hard: [
     { value: 2, weight: 25 },
     { value: 3, weight: 30 },
     { value: 4, weight: 25 },
     { value: 5, weight: 12 },
-    { value: 6, weight: 5 },
-    { value: 7, weight: 2 },
-    { value: 8, weight: 1 },
+    { value: 6, weight: 5  },
+    { value: 7, weight: 2  },
+    { value: 8, weight: 1  },
   ],
   easy: [
     { value: 2, weight: 2 },
@@ -110,7 +111,7 @@ export const PHASE_TRANSITION_DURATION = 3; // seconds
 // ─── World Config ─────────────────────────────────────────────────────────────
 
 export const WORLD_CONFIG = {
-  1: { hpMultiplier: 1.0,  speed: { base: 5.0, variance: 0.5 } },
+  1: { hpMultiplier: 1.00, speed: { base: 5.0, variance: 0.5 } },
   2: { hpMultiplier: 1.15, speed: { base: 6.0, variance: 0.5 } },
   3: { hpMultiplier: 1.3,  speed: { base: 7.0, variance: 0.7 } },
   4: { hpMultiplier: 1.5,  speed: { base: 8.0, variance: 0.8 } },

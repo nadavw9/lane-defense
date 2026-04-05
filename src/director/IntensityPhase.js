@@ -11,12 +11,13 @@ import {
 // Proportional share of level duration each phase occupies.
 // Chosen to create a smooth intensity curve: slow start, hard middle, graceful end.
 // Must sum to exactly 1.0.
+// CALM increased to 16% (from 15%) to give players slightly more breathing room at the start.
 const PHASE_PROPORTIONS = [
-  { phase: 'CALM',     proportion: 0.15 },
+  { phase: 'CALM',     proportion: 0.16 },
   { phase: 'BUILD',    proportion: 0.22 },
   { phase: 'PRESSURE', proportion: 0.25 },
   { phase: 'CLIMAX',   proportion: 0.18 },
-  { phase: 'RELIEF',   proportion: 0.20 },
+  { phase: 'RELIEF',   proportion: 0.19 },
 ];
 
 export class IntensityPhase {

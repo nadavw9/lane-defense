@@ -111,9 +111,11 @@ export class GameState {
     this.won         = false;
     this.rescueUsed  = true;
     this.duration   += extraSeconds;
+    // Only push back cars that have crossed the 75% mark — targeted save,
+    // not a full reset.  Cars below 75 stay where they are.
     for (const lane of this.lanes) {
       for (const car of lane.cars) {
-        car.position = Math.max(0, car.position - 25);
+        if (car.position > 75) car.position = 50;
       }
     }
   }

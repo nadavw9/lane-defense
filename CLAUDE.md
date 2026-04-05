@@ -162,6 +162,15 @@ lane-defense/
 - Monetization / ads integration (Phase 3)
 - Capacitor / mobile packaging (Phase 4)
 
+## GDD Key Rules
+- **Combo rewards**: 3 kills = 1.2x speed 4s +3 coins | 5 kills = 1.4x speed 5s +8 coins | 8 kills = 1.6x speed 6s +15 coins | 12+ kills = 2.0x speed 8s +25 coins
+- **Rescue**: +10 seconds, push cars past 75% back to 50%, available once per attempt via ad or 50 coins
+- **Boss levels**: single boss car, 3-5x HP, 0.6x speed, color cycles every 6s, spawns at 60% timer mark
+- **Stars**: 1 star = survived | 2 stars = no car past 80% | 3 stars = no car past 60%
+- **Boosters**: Swap (level 8), Peek (level 12), Double Time (level 18), Joker (level 25), Bomb (level 35)
+- **Wrong color**: 0 damage in World 1-2; interference slowdown 20% from World 3+
+- **Shooter fire duration**: damage 2=1.5s, 3=1.7s, 4=1.9s, 5=2.0s, 6=2.2s, 7=2.3s, 8=2.5s
+
 ## Communication Style
 - Be direct. No enterprise theater.
 - If something in the spec seems wrong, say so and propose a fix.

@@ -12,8 +12,8 @@ const STAR_COLOR_EMPTY = 0x3a3a3a;
 
 function calcStars(gs) {
   if (gs.rescueUsed)              return 1;
-  if (gs.maxCarPosition < 65)     return 3;
-  if (gs.maxCarPosition < 82)     return 2;
+  if (gs.maxCarPosition < 60)     return 3;
+  if (gs.maxCarPosition < 80)     return 2;
   return 1;
 }
 

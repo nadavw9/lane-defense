@@ -20,14 +20,16 @@ export class CombatResolver {
       return { kills: 0, carryOverKills: 0, damageDealt: 0 };
     }
 
-    return this._applyDamage(shooter.damage, lane);
+    return this._applyDamage(shooter.damage, shooter.color, lane);
   }
 
   // ── Private ────────────────────────────────────────────────────────────────
 
   // Cascade damage through the front cars of the lane.
-  // Overflow from killing a car carries into the next car.
-  _applyDamage(damage, lane) {
+  // Color is re-checked on EVERY car: overflow that reaches a mismatched car
+  // stops dead — the remaining damage is lost.  This is the World 1-2 rule
+  // applied per-car, not just for the initial shot.
+  _applyDamage(damage, shooterColor, lane) {
     let remaining      = damage;
     let kills          = 0;
     let carryOverKills = 0;
@@ -35,8 +37,11 @@ export class CombatResolver {
 
     while (remaining > 0 && lane.frontCar()) {
       const car = lane.frontCar();
-      const hp  = car.hp;
 
+      // Color mismatch stops the carry-over chain.
+      if (car.color !== shooterColor) break;
+
+      const hp = car.hp;
       car.takeDamage(remaining);
       damageDealt += Math.min(remaining, hp);
 

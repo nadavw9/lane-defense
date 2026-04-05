@@ -136,6 +136,7 @@ async function main() {
 
   // ── HUD + Particles ───────────────────────────────────────────────────────
   const hudRenderer   = new HUDRenderer(layers, gs, APP_W, audio);
+  hudRenderer.setLevel(levelManager.levelNumber);
   const particles     = new ParticleSystem(layers);
   const floatingTexts = [];
 
@@ -163,6 +164,7 @@ async function main() {
 
   function advanceLevel() {
     const cfg = levelManager.advance();
+    hudRenderer.setLevel(levelManager.levelNumber);
     ftueOverlay?.destroy();
     ftueOverlay = _makeFTUEOverlay(app.stage, APP_W, APP_H, cfg);
     applyLevelConfig(cfg);

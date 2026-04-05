@@ -106,11 +106,31 @@ export class HUDRenderer {
     this._layer.addChild(this._muteBtn);
     this._drawSpeaker(false);
 
+    // ── Level number label (top-left, right of mute btn) ─────────────────
+    this._levelText = new Text({
+      text: 'L1',
+      style: {
+        fontSize:   15,
+        fontWeight: 'bold',
+        fill:       0xaaaaaa,
+        dropShadow: { color: 0x000000, blur: 2, distance: 1, alpha: 0.6 },
+      },
+    });
+    this._levelText.anchor.set(0, 0.5);
+    this._levelText.x = 42;
+    this._levelText.y = HUD_H / 2 - BAR_H / 2;
+    this._layer.addChild(this._levelText);
+
     // ── Spring bounce state ───────────────────────────────────────────────
     this._bounceScale = 1;
     this._bounceVel   = 0;
     this._lastCoins   = -1;
     this._lastCombo   = 0;
+  }
+
+  // Call whenever the level changes so the label stays in sync.
+  setLevel(n) {
+    this._levelText.text = `L${n}`;
   }
 
   // Call when the combo increments so the text pops with a spring bounce.

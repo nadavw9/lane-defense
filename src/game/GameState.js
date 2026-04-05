@@ -54,6 +54,11 @@ export class GameState {
     // All cars slow to DEPLOY_DILATION.speedMultiplier for .duration seconds
     // after every shooter deploy.  GameLoop reads this when advancing cars.
     this.dilationUntil = -Infinity;
+
+    // ── Rescue recovery window ─────────────────────────────────────────────
+    // After a rescue, all cars slow to 70% for 5 seconds so the player can
+    // breathe before the onslaught resumes.
+    this.recoveryUntil = -Infinity;
   }
 
   // ── Active subsets ────────────────────────────────────────────────────────
@@ -74,9 +79,9 @@ export class GameState {
   }
 
   get speedMultiplier() {
-    return this.elapsed < this.dilationUntil
-      ? DEPLOY_DILATION.speedMultiplier
-      : 1.0;
+    if (this.elapsed < this.dilationUntil)  return DEPLOY_DILATION.speedMultiplier;
+    if (this.elapsed < this.recoveryUntil)  return 0.70; // post-rescue recovery
+    return 1.0;
   }
 
   // ── Mutation helpers (GameLoop only) ─────────────────────────────────────
@@ -105,17 +110,17 @@ export class GameState {
     this.won    = won;
   }
 
-  // Accept a rescue: add extra seconds, push all cars back 25 units, and resume.
+  // Accept a rescue: add extra seconds, push ALL cars back 40 units, and
+  // apply a 5-second 30% speed reduction so the player can recover.
   rescue(extraSeconds) {
-    this.isOver      = false;
-    this.won         = false;
-    this.rescueUsed  = true;
-    this.duration   += extraSeconds;
-    // Only push back cars that have crossed the 75% mark — targeted save,
-    // not a full reset.  Cars below 75 stay where they are.
+    this.isOver        = false;
+    this.won           = false;
+    this.rescueUsed    = true;
+    this.duration     += extraSeconds;
+    this.recoveryUntil = this.elapsed + 5;
     for (const lane of this.lanes) {
       for (const car of lane.cars) {
-        if (car.position > 75) car.position = 50;
+        car.position = Math.max(0, car.position - 40);
       }
     }
   }
@@ -134,6 +139,7 @@ export class GameState {
     this.isOver        = false;
     this.won           = false;
     this.dilationUntil = -Infinity;
+    this.recoveryUntil = -Infinity;
     // Restore original duration (rescues add to it; reset removes those additions).
     // Duration is re-supplied by GameLoop.restart() which knows the base value.
     for (const lane of this.lanes)   lane.cars.length = 0;

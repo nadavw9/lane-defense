@@ -1,22 +1,29 @@
-// LaneFlash — brief white flash overlay on a lane when a shooter is deployed.
+// LaneFlash — brief white flash overlay on a lane column when a shooter is deployed.
+// Each lane is a perspective trapezoid; the flash polygon matches that shape.
 // Lives on activeShooterLayer so it renders between cars and shooter columns.
 import { Graphics } from 'pixi.js';
-import { LANE_AREA_Y, LANE_HEIGHT, ENDPOINT_X, GUTTER } from './LaneRenderer.js';
+import {
+  ROAD_TOP_Y, ROAD_BOTTOM_Y,
+  ROAD_TOP_X, ROAD_TOP_W, ROAD_BOTTOM_W,
+  LANE_COUNT,
+} from './LaneRenderer.js';
 
 const FLASH_DURATION = 0.18; // seconds
 const FLASH_ALPHA    = 0.38;
-const LANE_COUNT     = 4;
 
 export class LaneFlash {
   constructor(layerManager) {
-    const layer    = layerManager.get('activeShooterLayer');
-    this._flashes  = [];
+    const layer   = layerManager.get('activeShooterLayer');
+    this._flashes = [];
 
     for (let i = 0; i < LANE_COUNT; i++) {
-      const g     = new Graphics();
-      const roadY = LANE_AREA_Y + i * LANE_HEIGHT + GUTTER;
-      const roadH = LANE_HEIGHT - GUTTER * 2;
-      g.rect(0, roadY, ENDPOINT_X, roadH);
+      const g = new Graphics();
+      // Trapezoid polygon matching lane i's perspective shape
+      const topLx = ROAD_TOP_X + i       * ROAD_TOP_W  / LANE_COUNT;
+      const topRx = ROAD_TOP_X + (i + 1) * ROAD_TOP_W  / LANE_COUNT;
+      const botLx =              i       * ROAD_BOTTOM_W / LANE_COUNT;
+      const botRx =              (i + 1) * ROAD_BOTTOM_W / LANE_COUNT;
+      g.poly([topLx, ROAD_TOP_Y, topRx, ROAD_TOP_Y, botRx, ROAD_BOTTOM_Y, botLx, ROAD_BOTTOM_Y]);
       g.fill(0xffffff);
       g.alpha   = 0;
       g.visible = false;

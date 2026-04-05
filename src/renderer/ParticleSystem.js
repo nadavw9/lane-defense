@@ -3,11 +3,7 @@
 // All methods accept game-space coordinates (laneIdx + gameX) and convert to
 // screen pixels internally, so callers never need to know the pixel layout.
 import { Graphics, Text } from 'pixi.js';
-import { LANE_AREA_Y, LANE_HEIGHT, PX_PER_UNIT } from './LaneRenderer.js';
-
-// Must mirror CarRenderer dimensions so particles spawn at the car's visual centre.
-const CAR_W = 50;
-const CAR_H = 68;
+import { laneCenterX, posToScreenY } from './LaneRenderer.js';
 
 // Color palette — matches CLAUDE.md spec.
 const COLOR_MAP = {
@@ -20,9 +16,10 @@ const COLOR_MAP = {
 };
 
 function carCenter(laneIdx, gameX) {
+  const t = gameX / 100;
   return {
-    x: gameX * PX_PER_UNIT + CAR_W / 2,
-    y: LANE_AREA_Y + laneIdx * LANE_HEIGHT + LANE_HEIGHT / 2,
+    x: laneCenterX(laneIdx, t),
+    y: posToScreenY(gameX),
   };
 }
 

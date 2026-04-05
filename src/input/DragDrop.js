@@ -7,7 +7,9 @@
 // the onDeploy callback hands control back to GameApp.
 import { Graphics, Container, Text } from 'pixi.js';
 import {
-  LANE_AREA_Y, LANE_HEIGHT, ENDPOINT_X, GUTTER,
+  ROAD_TOP_Y, ROAD_BOTTOM_Y,
+  ROAD_TOP_X, ROAD_TOP_W, ROAD_BOTTOM_W,
+  LANE_COUNT,
 } from '../renderer/LaneRenderer.js';
 import {
   COL_W, COL_COUNT, TOP_RADIUS, TOP_Y,
@@ -23,8 +25,6 @@ const COLOR_MAP = {
   Orange: 0xD85A30,
 };
 
-const LANE_COUNT   = 4;
-
 // Hit-test radius for the top shooter (slightly larger than visual for fat fingers).
 const HIT_RADIUS = TOP_RADIUS + 14;
 
@@ -35,16 +35,6 @@ const HIGHLIGHT_ALPHA = 0.28;
 // Animation durations (seconds)
 const FLY_DURATION  = 0.10;  // valid drop: ghost flies to lane
 const SNAP_DURATION = 0.15;  // invalid drop: ghost snaps back
-
-// Ghost fly target: left side of the lane (simulates the car appearing)
-const FLY_TARGET_X = 30;
-
-const GHOST_TEXT_STYLE = {
-  fontSize:   22,
-  fontWeight: 'bold',
-  fill:       0xffffff,
-  dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 0.7 },
-};
 
 // Cubic ease-out: fast start, slow finish
 function easeOut(t) {
@@ -68,7 +58,6 @@ export class DragDrop {
     this._dragCol     = -1;
     this._dragShooter = null;
     this._ghost       = null;
-    this._ghostText   = null;
 
     // Pointer offset at grab time (so ghost doesn't jump to finger centre)
     this._offsetX = 0;
@@ -83,13 +72,15 @@ export class DragDrop {
     this._animToY      = 0;
     this._animOnDone   = null;
 
-    // ── Lane highlight overlays (created once, toggled during drag) ────────
+    // ── Lane highlight overlays — trapezoid polygons (created once, toggled during drag)
     this._highlights = [];
     for (let i = 0; i < LANE_COUNT; i++) {
       const g    = new Graphics();
-      const roadY = LANE_AREA_Y + i * LANE_HEIGHT + GUTTER;
-      const roadH = LANE_HEIGHT - GUTTER * 2;
-      g.rect(0, roadY, ENDPOINT_X, roadH);
+      const topLx = ROAD_TOP_X + i       * ROAD_TOP_W  / LANE_COUNT;
+      const topRx = ROAD_TOP_X + (i + 1) * ROAD_TOP_W  / LANE_COUNT;
+      const botLx =              i       * ROAD_BOTTOM_W / LANE_COUNT;
+      const botRx =              (i + 1) * ROAD_BOTTOM_W / LANE_COUNT;
+      g.poly([topLx, ROAD_TOP_Y, topRx, ROAD_TOP_Y, botRx, ROAD_BOTTOM_Y, botLx, ROAD_BOTTOM_Y]);
       g.fill({ color: HIGHLIGHT_COLOR, alpha: HIGHLIGHT_ALPHA });
       g.visible = false;
       this._laneLayer.addChild(g);
@@ -144,14 +135,16 @@ export class DragDrop {
     const lane = this._hitTestLane(x, y);
 
     if (lane !== -1) {
-      // Valid drop — call game logic immediately, then animate ghost to lane.
+      // Valid drop — call game logic immediately, then animate ghost into the lane.
       this._onDeploy(this._dragCol, lane);
       this._shooterRenderer.draggingColumn = -1;
 
-      const targetY = LANE_AREA_Y + lane * LANE_HEIGHT + LANE_HEIGHT / 2;
+      // Fly toward the bottom-centre of the dropped lane column (near breach line).
+      const targetX = (lane + 0.5) * ROAD_BOTTOM_W / LANE_COUNT;
+      const targetY = ROAD_BOTTOM_Y - 15;
       this._startAnim(
         this._ghost.x, this._ghost.y,
-        FLY_TARGET_X,  targetY,
+        targetX, targetY,
         FLY_DURATION,
         () => this._destroyGhost(),
       );
@@ -199,10 +192,12 @@ export class DragDrop {
     return -1;
   }
 
+  // Valid drop zone: anywhere in the road area (ROAD_TOP_Y to ROAD_BOTTOM_Y).
+  // Lane is determined by x position (which of the 4 vertical column bands).
   _hitTestLane(x, y) {
-    if (y < LANE_AREA_Y || y > LANE_AREA_Y + LANE_COUNT * LANE_HEIGHT) return -1;
-    // Accept drops anywhere horizontally on-screen for ergonomics, not just over road.
-    return Math.floor((y - LANE_AREA_Y) / LANE_HEIGHT);
+    if (y < ROAD_TOP_Y || y > ROAD_BOTTOM_Y) return -1;
+    const laneIdx = Math.floor(x / (ROAD_BOTTOM_W / LANE_COUNT));
+    return Math.max(0, Math.min(LANE_COUNT - 1, laneIdx));
   }
 
   _createGhost(shooter, x, y) {
@@ -217,6 +212,12 @@ export class DragDrop {
     g.circle(-10, -13, 10);
     g.fill({ color: 0xffffff, alpha: 0.18 });        // glint
 
+    const GHOST_TEXT_STYLE = {
+      fontSize:   22,
+      fontWeight: 'bold',
+      fill:       0xffffff,
+      dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 0.7 },
+    };
     const text = new Text({ text: String(shooter.damage), style: GHOST_TEXT_STYLE });
     text.anchor.set(0.5);
     text.y = -3;

@@ -15,7 +15,7 @@
 import { Application, Text } from 'pixi.js';
 
 import { LayerManager }    from './LayerManager.js';
-import { LaneRenderer, LANE_AREA_Y, LANE_HEIGHT, ENDPOINT_X } from './LaneRenderer.js';
+import { LaneRenderer, laneCenterX, posToScreenY, ROAD_BOTTOM_Y } from './LaneRenderer.js';
 import { CarRenderer }     from './CarRenderer.js';
 import { ShooterRenderer } from './ShooterRenderer.js';
 import { HUDRenderer }     from './HUDRenderer.js';
@@ -69,8 +69,9 @@ const CHAIN_HIT_STYLE = {
 };
 
 function spawnChainHit(parent, laneIdx) {
-  const x = ENDPOINT_X / 2 + (Math.random() - 0.5) * 60;
-  const y = LANE_AREA_Y + laneIdx * LANE_HEIGHT + LANE_HEIGHT / 2;
+  // Spawn near the front of the lane (near the breach line at position ~85)
+  const x = laneCenterX(laneIdx, 0.85) + (Math.random() - 0.5) * 40;
+  const y = posToScreenY(85);
   const t = new Text({ text: 'CHAIN HIT!', style: CHAIN_HIT_STYLE });
   t.anchor.set(0.5);
   t.x     = x;
@@ -190,6 +191,7 @@ async function main() {
     ftueOverlay?.destroy();
     ftueOverlay = _makeFTUEOverlay(app.stage, APP_W, APP_H, cfg);
     applyLevelConfig(cfg);
+    carRenderer.clearAll();
     gameLoop.restart();
   }
 
@@ -222,6 +224,7 @@ async function main() {
       onRetry: () => {
         rescueOverlay.destroy();
         rescueOverlay = null;
+        carRenderer.clearAll();
         gameLoop.restart();
       },
     });
@@ -333,7 +336,8 @@ async function main() {
       const zoomAmt = BREACH_CAM_ZOOM * Math.sin(Math.PI * progress);
       const scale   = 1 + zoomAmt;
       const pivotX  = APP_W / 2;
-      const pivotY  = LANE_AREA_Y + breachCam.laneIdx * LANE_HEIGHT + LANE_HEIGHT / 2;
+      // Zoom toward the breach line at the bottom of the breaching lane column.
+      const pivotY  = ROAD_BOTTOM_Y;
 
       app.stage.scale.set(scale);
       app.stage.pivot.set(pivotX, pivotY);

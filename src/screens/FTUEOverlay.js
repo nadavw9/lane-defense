@@ -1,18 +1,20 @@
 // FTUEOverlay — two visual layers for FTUE levels:
 //
-//   1. Dim mask — dark transparent rects covering inactive lanes/columns so
-//      the player's attention stays on the active area.
+//   1. Dim mask — dark transparent shapes covering inactive lane columns and
+//      shooter columns so the player's attention stays on the active area.
 //
 //   2. Tutorial hint (shown when levelConfig.showArrow is true) —
 //        • pulsing highlight ring around the active column's top shooter
-//        • upward-pointing animated arrow in the gap between shooter and lane
+//        • upward-pointing animated arrow in the active lane area
 //        • "Drag the shooter to the lane" instruction text
 //      The hint disappears on the first deploy (call onFirstDeploy()).
 //
 // update(dt) must be called from the render ticker while the overlay is live.
 import { Container, Graphics, Text } from 'pixi.js';
 import {
-  LANE_AREA_Y, LANE_HEIGHT, LANE_COUNT as TOTAL_LANES,
+  ROAD_TOP_Y, ROAD_BOTTOM_Y,
+  ROAD_TOP_X, ROAD_TOP_W, ROAD_BOTTOM_W,
+  LANE_COUNT as TOTAL_LANES,
 } from '../renderer/LaneRenderer.js';
 import {
   SHOOTER_AREA_Y, SHOOTER_AREA_H,
@@ -81,14 +83,18 @@ export class FTUEOverlay {
     const { laneCount, colCount } = cfg;
     const g = new Graphics();
 
-    // Dim lanes below the active set.
+    // Dim the inactive lane columns — the right portion of the perspective road.
+    // Each lane is a trapezoid; cover from lane `laneCount` to TOTAL_LANES.
     if (laneCount < TOTAL_LANES) {
-      g.rect(0, LANE_AREA_Y + laneCount * LANE_HEIGHT,
-             w, (TOTAL_LANES - laneCount) * LANE_HEIGHT);
+      const topLx = ROAD_TOP_X + laneCount * ROAD_TOP_W  / TOTAL_LANES;
+      const topRx = ROAD_TOP_X + ROAD_TOP_W;   // right edge of road at top
+      const botLx =              laneCount * ROAD_BOTTOM_W / TOTAL_LANES;
+      const botRx =              ROAD_BOTTOM_W;  // right edge of road at bottom
+      g.poly([topLx, ROAD_TOP_Y, topRx, ROAD_TOP_Y, botRx, ROAD_BOTTOM_Y, botLx, ROAD_BOTTOM_Y]);
       g.fill({ color: 0x000000, alpha: 0.72 });
     }
 
-    // Dim columns to the right of the active set.
+    // Dim shooter columns to the right of the active set.
     if (colCount < TOTAL_COLS) {
       g.rect(colCount * COL_W, SHOOTER_AREA_Y,
              w - colCount * COL_W, SHOOTER_AREA_H);
@@ -105,23 +111,21 @@ export class FTUEOverlay {
     this._container.addChild(ring);
 
     // ── Arrow + instruction text ─────────────────────────────────────────────
-    // Place the arrow group in the dead-space between the active lane's bottom
-    // and the shooter area.  For L1 this falls inside the dim region (lanes 1–3)
-    // so it floats visibly above the dark overlay.
+    // Arrow sits in the active lane area (lane 0), pointing upward to show the
+    // player the direction to drag (shooter at bottom → lane at top).
     const grp = new Container();
     this._container.addChild(grp);
     this._arrowGroup = grp;
 
-    // Horizontal: centre on the active column strip.
-    grp.x = (colCount * COL_W) / 2;
+    // Centre the arrow group on lane 0's bottom column centre.
+    grp.x = COL_W * 0.5;
 
-    // Vertical: midpoint between active-lane-bottom and shooter-area-top.
-    const midY = (LANE_AREA_Y + laneCount * LANE_HEIGHT + SHOOTER_AREA_Y) / 2;
-    this._arrowBaseY = midY;
-    grp.y = midY;
+    // Place it in the lower portion of the road (near where the car would arrive).
+    const baseY = ROAD_BOTTOM_Y - 80;
+    this._arrowBaseY = baseY;
+    grp.y = baseY;
 
     // Upward-pointing arrow (drawn at group-local coords, tip at top).
-    // Tip: (0, -80)  Arrowhead base: (±22, -48)  Shaft: 10×48px below base
     const ag = new Graphics();
     ag.poly([0, -80, -22, -48, 22, -48]);
     ag.fill(0xffee44);

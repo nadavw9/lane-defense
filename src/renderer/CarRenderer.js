@@ -1,27 +1,26 @@
-// CarRenderer — renders every live car as a colored rounded rectangle
-// with an HP bar above it.  Each frame it reconciles the visual pool
-// against the current lane state: new cars get graphics, killed cars
-// play a scale-up + fade-out death animation before being destroyed.
+// CarRenderer — renders every live car in the perspective road view.
+//
+// Cars travel from position 0 (top/far) to 100 (bottom/near).
+// Each car's container is positioned via laneCenterX / posToScreenY,
+// scaled via posToScale, and z-sorted so nearer cars draw on top.
 //
 // Reads lane state, never writes it.
 import { Graphics, Container } from 'pixi.js';
 import {
-  LANE_AREA_Y,
-  LANE_HEIGHT,
-  PX_PER_UNIT,
-  ENDPOINT_X,
-  GUTTER,
+  laneCenterX,
+  posToScreenY,
+  posToScale,
 } from './LaneRenderer.js';
 
-// Car body dimensions
-const CAR_W  = 50;
-const CAR_H  = 68;
-const RADIUS = 9;
+// Car body dimensions at scale 1.0 (perspective scaling applied via container.scale)
+const CAR_W  = 44;
+const CAR_H  = 56;
+const RADIUS = 8;
 
-// HP bar sits just above the car body
-const HP_BAR_H       = 5;
-const HP_BAR_OFFSET  = 8;  // px above car top
-const HP_BAR_BG      = 0x222222;
+// HP bar sits above the car body (negative y relative to container centre)
+const HP_BAR_H      = 5;
+const HP_BAR_OFFSET = 6;  // px above car top
+const HP_BAR_BG     = 0x222222;
 
 // Color palette — matches CLAUDE.md spec exactly
 const COLOR_MAP = {
@@ -38,23 +37,34 @@ const HP_COLOR_HIGH = 0x55cc55;  // > 60%
 const HP_COLOR_MID  = 0xeecc22;  // 25-60%
 const HP_COLOR_LOW  = 0xee3333;  // < 25%
 
-// Death animation: scale to 1.4x and fade to 0 over this duration.
+// Death animation: scale to 1.4× and fade over this duration.
 const DEATH_DURATION = 0.30; // seconds
 const DEATH_SCALE    = 1.40;
-
-// Cars within this pixel distance of the endpoint are treated as breachers,
-// not deaths — no death animation plays for them.
-const BREACH_THRESHOLD_PX = ENDPOINT_X * 0.94;
 
 export class CarRenderer {
   // lanes: Lane[] — the live Lane objects owned by the game loop
   constructor(layerManager, lanes) {
-    this._layer   = layerManager.get('carLayer');
+    this._layer = layerManager.get('carLayer');
+    this._layer.sortableChildren = true;  // nearer cars (higher position) draw on top
     this._lanes   = lanes;
     // Map<Car, { container: Container, hpFill: Graphics }>
     this._visuals = new Map();
     // Containers playing the death animation, no longer tied to a Car object.
-    this._dying   = [];  // [{ container, life }]
+    this._dying   = [];  // [{ container, startScale, life }]
+  }
+
+  // Destroy all car visuals immediately (no animation).
+  // Call before gameLoop.restart() so dying list doesn't ghost into the new level.
+  clearAll() {
+    for (const [, vis] of this._visuals) {
+      vis.container.destroy({ children: true });
+    }
+    this._visuals.clear();
+
+    for (const d of this._dying) {
+      d.container.destroy({ children: true });
+    }
+    this._dying.length = 0;
   }
 
   // Call once per render frame.  dt (seconds) drives death animations.
@@ -65,34 +75,28 @@ export class CarRenderer {
       for (const car of lane.cars) liveCars.add(car);
     }
 
-    // ── Move removed cars into the dying list or destroy breachers ───────────
+    // ── Move removed cars into the dying list ────────────────────────────────
     for (const [car, vis] of this._visuals) {
       if (!liveCars.has(car)) {
-        // Cars near the endpoint breached — skip death animation.
-        if (vis.container.x >= BREACH_THRESHOLD_PX) {
-          vis.container.destroy({ children: true });
-        } else {
-          this._dying.push({ container: vis.container, life: DEATH_DURATION });
-        }
+        const startScale = vis.container.scale.x;
+        this._dying.push({ container: vis.container, startScale, life: DEATH_DURATION });
         this._visuals.delete(car);
       }
     }
 
     // ── Create / update visuals for live cars ────────────────────────────────
     for (let laneIdx = 0; laneIdx < this._lanes.length; laneIdx++) {
-      const lane  = this._lanes[laneIdx];
-      const roadY = LANE_AREA_Y + laneIdx * LANE_HEIGHT + GUTTER;
-      const roadH = LANE_HEIGHT - GUTTER * 2;
-      const carY  = roadY + (roadH - CAR_H) / 2;
-
-      for (const car of lane.cars) {
+      for (const car of this._lanes[laneIdx].cars) {
         if (!this._visuals.has(car)) {
           this._visuals.set(car, this._createVisual(car));
         }
 
-        const vis      = this._visuals.get(car);
-        vis.container.x = car.position * PX_PER_UNIT;
-        vis.container.y = carY;
+        const vis = this._visuals.get(car);
+        const t   = car.position / 100;
+        vis.container.x      = laneCenterX(laneIdx, t);
+        vis.container.y      = posToScreenY(car.position);
+        vis.container.scale.set(posToScale(car.position));
+        vis.container.zIndex = Math.round(car.position);
         this._refreshHpBar(vis.hpFill, car);
       }
     }
@@ -107,7 +111,7 @@ export class CarRenderer {
         continue;
       }
       const progress = 1 - (d.life / DEATH_DURATION); // 0 → 1
-      d.container.scale.set(1 + (DEATH_SCALE - 1) * progress);
+      d.container.scale.set(d.startScale * (1 + (DEATH_SCALE - 1) * progress));
       d.container.alpha = 1 - progress;
     }
   }
@@ -118,27 +122,31 @@ export class CarRenderer {
     const container = new Container();
     const color     = COLOR_MAP[car.color] ?? 0x888888;
 
-    // Car body — rounded rectangle in the car's color.
+    // Car body — top-down perspective view, front faces the player (bottom of screen).
+    // Container is centred at (0,0) so perspective scale anchors to the car centre.
     const body = new Graphics();
-    body.roundRect(0, 0, CAR_W, CAR_H, RADIUS);
+    // Main body
+    body.roundRect(-CAR_W / 2, -CAR_H / 2, CAR_W, CAR_H, RADIUS);
     body.fill(color);
-    // Subtle dark inner shadow to give the rectangle some depth.
-    body.roundRect(3, 3, CAR_W - 6, CAR_H - 6, RADIUS - 3);
+    // Inner shadow gives the rectangle depth
+    body.roundRect(-CAR_W / 2 + 3, -CAR_H / 2 + 3, CAR_W - 6, CAR_H - 6, RADIUS - 2);
     body.fill({ color, alpha: 0.4 });
+    // Windshield (dark glass strip) — near the rear/top of the car
+    body.roundRect(-CAR_W / 2 + 6, -CAR_H / 2 + 6, CAR_W - 12, 14, 3);
+    body.fill({ color: 0x111111, alpha: 0.55 });
     container.addChild(body);
 
-    // Carry-over bait cars (HP 1-2) get a visual "fragile" marker: a
-    // small white stripe across the top so the player can spot them quickly.
+    // Carry-over bait cars (HP 1-2) get a white stripe so players spot them quickly.
     if (car.maxHp <= 2) {
       const stripe = new Graphics();
-      stripe.rect(6, 6, CAR_W - 12, 4);
-      stripe.fill({ color: 0xffffff, alpha: 0.5 });
+      stripe.rect(-CAR_W / 2 + 6, -CAR_H / 2 + 22, CAR_W - 12, 4);
+      stripe.fill({ color: 0xffffff, alpha: 0.55 });
       container.addChild(stripe);
     }
 
-    // HP bar background
+    // HP bar background — sits above the car body in screen space
     const hpBg = new Graphics();
-    hpBg.rect(0, -(HP_BAR_OFFSET + HP_BAR_H), CAR_W, HP_BAR_H);
+    hpBg.rect(-CAR_W / 2, -CAR_H / 2 - HP_BAR_OFFSET - HP_BAR_H, CAR_W, HP_BAR_H);
     hpBg.fill(HP_BAR_BG);
     container.addChild(hpBg);
 
@@ -158,7 +166,7 @@ export class CarRenderer {
                 : HP_COLOR_LOW;
 
     hpFill.clear();
-    hpFill.rect(0, -(HP_BAR_OFFSET + HP_BAR_H), fillW, HP_BAR_H);
+    hpFill.rect(-CAR_W / 2, -CAR_H / 2 - HP_BAR_OFFSET - HP_BAR_H, fillW, HP_BAR_H);
     hpFill.fill(color);
   }
 }

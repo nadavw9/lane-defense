@@ -19,11 +19,12 @@ export class GameLoop {
   //   rng            — SeededRandom (shared with directors)
   //   onKill(combo)              — called after each kill with updated combo
   //   onChainHit(laneIdx)        — called when a carry-over kill occurs
+  //   onShoot(damage)            — fires on every deploy (before hit/miss check)
   //   onHit(laneIdx,gameX,color,damage,isKill) — every shot that deals damage
   //   onMiss(laneIdx,gameX)      — color-mismatch shot (0 damage)
   //   onEnd(won, laneIdx?)       — win or lose; laneIdx provided on breach
   constructor({ app, gameState, carDir, shooterDir, combatResolver, rng,
-                onKill, onChainHit, onHit, onMiss, onEnd }) {
+                onKill, onChainHit, onShoot, onHit, onMiss, onEnd }) {
     this._app      = app;
     this._gs       = gameState;
     this._carDir   = carDir;
@@ -32,6 +33,7 @@ export class GameLoop {
     this._rng      = rng;
     this._onKill   = onKill     ?? (() => {});
     this._onChain  = onChainHit ?? (() => {});
+    this._onShoot  = onShoot    ?? (() => {});
     this._onHit    = onHit      ?? (() => {});
     this._onMiss   = onMiss     ?? (() => {});
     this._onEnd    = onEnd      ?? (() => {});
@@ -61,6 +63,10 @@ export class GameLoop {
 
     // Consume the shooter before resolving so the column starts refilling.
     col.consume();
+
+    // Notify audio of the deploy (fires before we know if it's a hit or miss,
+    // so the shoot sound always plays regardless of color match).
+    this._onShoot(shooter.damage);
 
     // Deploy time dilation — cars slow briefly on every deploy regardless of hit.
     gs.triggerDilation();

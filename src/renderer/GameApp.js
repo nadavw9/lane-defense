@@ -35,6 +35,7 @@ import { WORLD_CONFIG, PHASE_CONFIG } from '../director/DirectorConfig.js';
 
 import { WinScreen }      from '../screens/WinScreen.js';
 import { RescueOverlay }  from '../screens/RescueOverlay.js';
+import { AudioManager }   from '../audio/AudioManager.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const APP_W          = 390;
@@ -115,8 +116,11 @@ async function main() {
   // ── Combat ───────────────────────────────────────────────────────────────
   const combatResolver = new CombatResolver();
 
+  // ── Audio ─────────────────────────────────────────────────────────────────
+  const audio = new AudioManager();
+
   // ── HUD + Particles ───────────────────────────────────────────────────────
-  const hudRenderer   = new HUDRenderer(layers, gs, APP_W);
+  const hudRenderer   = new HUDRenderer(layers, gs, APP_W, audio);
   const particles     = new ParticleSystem(layers);
   const floatingTexts = [];
 
@@ -161,20 +165,36 @@ async function main() {
     app, gameState: gs, carDir, shooterDir,
     combatResolver, rng,
 
-    onKill: (combo) => hudRenderer.bumpCombo(combo),
+    onKill: (combo) => {
+      hudRenderer.bumpCombo(combo);
+      // Chime fires at the combo tier boundaries where the display changes color.
+      if (combo === 4 || combo === 7 || combo === 11) {
+        audio.play('combo_milestone', { combo });
+      }
+    },
 
     onChainHit: (laneIdx) => {
       floatingTexts.push(spawnChainHit(layers.get('particleLayer'), laneIdx));
     },
 
+    onShoot: (damage) => {
+      audio.play('shoot', { damage });
+    },
+
     onHit: (laneIdx, gameX, color, damage, isKill) => {
       particles.spawnHit(laneIdx, gameX, color);
       particles.spawnDamageNumber(laneIdx, gameX, damage);
-      if (isKill) particles.spawnExplosion(laneIdx, gameX, color);
+      if (isKill) {
+        particles.spawnExplosion(laneIdx, gameX, color);
+        audio.play('car_destroy');
+      } else {
+        audio.play('hit_match');
+      }
     },
 
     onMiss: (laneIdx, gameX) => {
       particles.spawnMiss(laneIdx, gameX);
+      audio.play('hit_miss');
     },
 
     onEnd: (won, laneIdx) => {

@@ -6,6 +6,7 @@
 //   • Combo text — centred; hidden when combo < 2.  Pops with a spring-physics
 //                  bounce every time the combo increments.
 //   • Coins text — top-right; updates whenever coins change.
+//   • Mute btn   — top-left speaker icon; toggles AudioManager on click.
 import { Graphics, Text } from 'pixi.js';
 
 const HUD_H      = 44;
@@ -44,10 +45,12 @@ function timerColor(ratio) {
 }
 
 export class HUDRenderer {
-  constructor(layerManager, gameState, appWidth) {
+  // audioManager is optional — mute button is hidden when not provided.
+  constructor(layerManager, gameState, appWidth, audioManager = null) {
     this._gs     = gameState;
     this._appW   = appWidth;
     this._layer  = layerManager.get('hudLayer');
+    this._audio  = audioManager;
 
     // ── Background + timer bar (redrawn each frame) ──────────────────────
     this._bg = new Graphics();
@@ -82,6 +85,26 @@ export class HUDRenderer {
     this._coinsText.x = appWidth - 10;
     this._coinsText.y = HUD_H / 2 - BAR_H / 2;
     this._layer.addChild(this._coinsText);
+
+    // ── Mute button (top-left speaker icon) ──────────────────────────────
+    this._muteBtn = new Graphics();
+    // Place the icon centre at x=20, vertically centred in the non-bar area.
+    this._muteBtn.x = 10;
+    this._muteBtn.y = Math.round((HUD_H - BAR_H) / 2) - 10;
+    if (audioManager) {
+      // Expand the clickable hit area beyond the small icon.
+      this._muteBtn.hitArea = {
+        contains: (x, y) => x >= -6 && x <= 34 && y >= -6 && y <= 28,
+      };
+      this._muteBtn.eventMode = 'static';
+      this._muteBtn.cursor    = 'pointer';
+      this._muteBtn.on('pointerdown', () => {
+        const muted = audioManager.toggleMute();
+        this._drawSpeaker(muted);
+      });
+    }
+    this._layer.addChild(this._muteBtn);
+    this._drawSpeaker(false);
 
     // ── Spring bounce state ───────────────────────────────────────────────
     this._bounceScale = 1;
@@ -174,5 +197,36 @@ export class HUDRenderer {
     }
     this._comboText.style.fill     = tier.color;
     this._comboText.style.fontSize = tier.size;
+  }
+
+  // Draw a minimal speaker icon at origin (0,0).
+  // Icon fits in a ~22×20 px bounding box.
+  _drawSpeaker(muted) {
+    const g   = this._muteBtn;
+    const col = muted ? 0x444444 : 0xcccccc;
+    g.clear();
+
+    // Speaker body (small filled rect)
+    g.rect(0, 6, 5, 8);
+    g.fill(col);
+
+    // Cone (trapezoid: wide at right, narrow at left — pointing right)
+    g.poly([5, 4, 5, 16, 13, 20, 13, 0]);
+    g.fill(col);
+
+    if (muted) {
+      // Red × over the right half
+      g.moveTo(15, 4);
+      g.lineTo(22, 12);
+      g.moveTo(22, 4);
+      g.lineTo(15, 12);
+      g.stroke({ color: 0xdd2222, width: 2.2 });
+    } else {
+      // Two concentric sound-wave arcs (centred on right edge of cone)
+      g.arc(13, 10, 5, -0.65, 0.65);
+      g.stroke({ color: col, width: 1.8 });
+      g.arc(13, 10, 9, -0.65, 0.65);
+      g.stroke({ color: col, width: 1.8 });
+    }
   }
 }

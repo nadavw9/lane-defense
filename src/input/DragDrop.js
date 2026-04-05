@@ -53,12 +53,15 @@ function easeOut(t) {
 
 export class DragDrop {
   // onDeploy(colIdx, laneIdx) — called immediately when a valid drop occurs.
-  constructor(layerManager, columns, shooterRenderer, onDeploy) {
-    this._dragLayer      = layerManager.get('dragLayer');
-    this._laneLayer      = layerManager.get('laneLayer');
-    this._columns        = columns;
+  // boosterState (optional) — when swap mode is active, column taps are
+  //   intercepted for the swap mechanic instead of starting a drag.
+  constructor(layerManager, columns, shooterRenderer, onDeploy, boosterState = null) {
+    this._dragLayer       = layerManager.get('dragLayer');
+    this._laneLayer       = layerManager.get('laneLayer');
+    this._columns         = columns;
     this._shooterRenderer = shooterRenderer;
-    this._onDeploy       = onDeploy;
+    this._onDeploy        = onDeploy;
+    this._boosterState    = boosterState;
 
     // ── State ──────────────────────────────────────────────────────────────
     this._state       = 'idle';
@@ -99,6 +102,13 @@ export class DragDrop {
   onPointerDown(x, y) {
     if (this._state !== 'idle') return;
     const col = this._hitTestColumn(x, y);
+
+    // Swap booster: intercept column tap — don't start a drag.
+    if (col !== -1 && this._boosterState?.swapMode) {
+      this._boosterState.tapSwapColumn(col, this._columns);
+      return;
+    }
+
     if (col === -1 || !this._columns[col].top()) return;
 
     const shooter = this._columns[col].top();

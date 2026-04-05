@@ -14,6 +14,7 @@ const LAYER_NAMES = [
   'shooterColumnLayer',
   'activeShooterLayer',
   'particleLayer',
+  'glowLayer',       // combo screen-edge glow — above particles, below HUD
   'hudLayer',
   'dragLayer',       // always on top — dragged shooter lives here
 ];

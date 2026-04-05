@@ -68,9 +68,9 @@ export class GameLoop {
     // Consume the shooter before resolving so the column starts refilling.
     col.consume();
 
-    // Notify audio of the deploy (fires before we know if it's a hit or miss,
-    // so the shoot sound always plays regardless of color match).
-    this._onShoot(shooter.damage);
+    // Notify audio/visuals of the deploy (fires before we know if it's a hit
+    // or miss, so the shoot sound always plays regardless of color match).
+    this._onShoot(shooter.damage, laneIdx, colIdx);
 
     // Deploy time dilation — cars slow briefly on every deploy regardless of hit.
     gs.triggerDilation();

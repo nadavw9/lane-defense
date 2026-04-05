@@ -1,56 +1,71 @@
-// GameApp — PixiJS entry point.
-// Creates the application, wires LayerManager, LaneRenderer, and CarRenderer,
-// then runs the game loop: advance cars, spawn new ones, render.
+// GameApp — PixiJS entry point and main game loop.
 //
-// Director modules (CarDirector, IntensityPhase) drive spawning so the
-// cars reflect real difficulty curves from the Phase 1 director.
-import { Application }  from 'pixi.js';
-import { LayerManager } from './LayerManager.js';
-import { LaneRenderer } from './LaneRenderer.js';
-import { CarRenderer }  from './CarRenderer.js';
+// Owns all subsystem instances and wires them together:
+//   Director modules (read-only from renderer's perspective)
+//   Renderer modules (CarRenderer, ShooterRenderer)
+//   Input modules    (InputManager → DragDrop)
+//
+// Data flow: Director → GameState → Renderers.  Input → onDeploy callback →
+// mutates column (consume) → Director refills on next tick → ShooterRenderer reads.
+import { Application }      from 'pixi.js';
+import { LayerManager }     from './LayerManager.js';
+import { LaneRenderer }     from './LaneRenderer.js';
+import { CarRenderer }      from './CarRenderer.js';
+import { ShooterRenderer }  from './ShooterRenderer.js';
+import { DragDrop }         from '../input/DragDrop.js';
+import { InputManager }     from '../input/InputManager.js';
 
-import { CarDirector }   from '../director/CarDirector.js';
-import { IntensityPhase } from '../director/IntensityPhase.js';
-import { SeededRandom }  from '../utils/SeededRandom.js';
-import { Lane }          from '../models/Lane.js';
+import { CarDirector }      from '../director/CarDirector.js';
+import { ShooterDirector }  from '../director/ShooterDirector.js';
+import { FairnessArbiter }  from '../director/FairnessArbiter.js';
+import { IntensityPhase }   from '../director/IntensityPhase.js';
+import { SeededRandom }     from '../utils/SeededRandom.js';
+import { Lane }             from '../models/Lane.js';
+import { Column }           from '../models/Column.js';
 import { WORLD_CONFIG, PHASE_CONFIG } from '../director/DirectorConfig.js';
 
-// ── Layout ────────────────────────────────────────────────────────────────────
+// ── App dimensions ────────────────────────────────────────────────────────────
 const APP_W = 390;
 const APP_H = 844;
 
-// ── Level config ─────────────────────────────────────────────────────────────
-const LEVEL_DURATION = 90;          // seconds
+// ── Level config ──────────────────────────────────────────────────────────────
+const LEVEL_DURATION = 90;
 const COLORS         = ['Red', 'Blue'];
 const WORLD          = WORLD_CONFIG[1];
 const LANE_COUNT     = 4;
+const COL_COUNT      = 4;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+function buildGameState(lanes, columns, elapsed, phaseMan) {
+  return {
+    lanes,
+    columns,
+    colorPalette:  COLORS,
+    elapsedTime:   elapsed,
+    phase:         phaseMan.getCurrentPhase(),
+  };
+}
+
 // Stagger initial car positions so the level looks alive from frame 1.
-// Each lane gets one car placed at a random position in its first third.
 function primeInitialCars(carDir, lanes, rng) {
   const calmCfg = PHASE_CONFIG['CALM'];
   for (const lane of lanes) {
     const car = carDir.generateCar(lane, 'CALM', WORLD, COLORS);
-    car.position = rng.nextFloat(5, 45);   // staggered across the near half
+    car.position = rng.nextFloat(8, 50);
     lane.addCar(car);
     carDir.resetSpawnTimer(lane, calmCfg);
   }
 }
 
-// Remove any car that has reached or passed the breach line (position >= 100).
-// In the demo loop we reset the level rather than ending it, so cars cycle.
+// Remove cars that have reached the breach point so the demo loops forever.
 function removeBreachers(lanes) {
   for (const lane of lanes) {
-    // frontCar() is the most-advanced car (index 0).
-    while (lane.frontCar() !== null && lane.frontCar().position >= 100) {
-      lane.removeFrontCar();
-    }
+    while (lane.frontCar()?.position >= 100) lane.removeFrontCar();
   }
 }
 
-// ── Bootstrap ─────────────────────────────────────────────────────────────────
+// ── Bootstrap ──────────────────────────────────────────────────────────────────
 
 async function main() {
   const app = new Application();
@@ -64,62 +79,91 @@ async function main() {
   });
   document.body.appendChild(app.canvas);
 
-  // ── Layer stack ─────────────────────────────────────────────────────────
+  // ── Layer stack ──────────────────────────────────────────────────────────
   const layers = new LayerManager(app.stage);
 
-  // ── Static background ───────────────────────────────────────────────────
+  // ── Static lane backgrounds ──────────────────────────────────────────────
   new LaneRenderer(layers, APP_W);
 
-  // ── Director + game state ────────────────────────────────────────────────
-  const rng     = new SeededRandom(1);
-  const carDir  = new CarDirector({}, rng);
-  const phaseMan = new IntensityPhase(LEVEL_DURATION);
-  const lanes   = Array.from({ length: LANE_COUNT }, (_, id) => new Lane({ id }));
+  // ── Director + shared RNG ────────────────────────────────────────────────
+  // Both directors share one SeededRandom so the sequence is fully deterministic.
+  const rng        = new SeededRandom(1);
+  const arbiter    = new FairnessArbiter();
+  const carDir     = new CarDirector({}, rng);
+  const shooterDir = new ShooterDirector({}, rng, arbiter);
+  const phaseMan   = new IntensityPhase(LEVEL_DURATION);
+
+  // ── Game state ───────────────────────────────────────────────────────────
+  const lanes   = Array.from({ length: LANE_COUNT },  (_, id) => new Lane({ id }));
+  const columns = Array.from({ length: COL_COUNT },   (_, id) => new Column({ id }));
 
   primeInitialCars(carDir, lanes, rng);
 
-  // ── Renderers ────────────────────────────────────────────────────────────
-  const carRenderer = new CarRenderer(layers, lanes);
+  // Prime columns with an initial fill before the first render.
+  phaseMan.update(0);
+  const initState  = buildGameState(lanes, columns, 0, phaseMan);
+  const initParams = phaseMan.getParams();
+  shooterDir.fillColumns(columns, initState, initParams);
 
-  // ── Game loop ────────────────────────────────────────────────────────────
+  // ── Renderers ────────────────────────────────────────────────────────────
+  const carRenderer     = new CarRenderer(layers, lanes);
+  const shooterRenderer = new ShooterRenderer(layers, columns);
+
+  // ── Input ─────────────────────────────────────────────────────────────────
+  // onDeploy: called by DragDrop when a shooter is successfully dropped on a lane.
+  // Consumes the top shooter; ShooterDirector refills the column next tick.
+  const dragDrop = new DragDrop(
+    layers,
+    columns,
+    shooterRenderer,
+    (colIdx /*, laneIdx — combat handled in step 6 */) => {
+      columns[colIdx].consume();
+    },
+  );
+  new InputManager(app, dragDrop);
+
+  // ── Main loop ─────────────────────────────────────────────────────────────
   let elapsed = 0;
 
   app.ticker.add((ticker) => {
-    // Cap delta so a paused/hidden tab doesn't fire a huge catch-up tick.
     const dt = Math.min(ticker.deltaMS / 1000, 0.05);
     elapsed += dt;
 
-    // Restart demo loop after level duration so it runs indefinitely.
+    // Restart demo after level duration.
     if (elapsed >= LEVEL_DURATION) {
       elapsed = 0;
       for (const lane of lanes) lane.cars.length = 0;
+      for (const col  of columns) col.shooters.length = 0;
       primeInitialCars(carDir, lanes, rng);
-      return;
     }
 
-    // 1. Update phase — drives spawn cadence and car HP.
+    // 1. Advance phase clock.
     phaseMan.update(elapsed);
     const currentPhase = phaseMan.getCurrentPhase();
     const phaseCfg     = PHASE_CONFIG[currentPhase];
+    const phaseParams  = phaseMan.getParams();
+    const gameState    = buildGameState(lanes, columns, elapsed, phaseMan);
 
-    // 2. Advance all cars toward the breach.
+    // 2. Advance cars.
     for (const lane of lanes) lane.advance(dt);
-
-    // 3. Remove cars that breached (demo keeps running rather than ending).
     removeBreachers(lanes);
 
-    // 4. Spawn new cars when each lane's cooldown expires.
+    // 3. Spawn new cars.
     carDir.updateSpawnTimers(lanes, dt, phaseCfg);
     for (const lane of lanes) {
       if (carDir.isReadyToSpawn(lane)) {
-        const car = carDir.generateCar(lane, currentPhase, WORLD, COLORS);
-        lane.addCar(car);
+        lane.addCar(carDir.generateCar(lane, currentPhase, WORLD, COLORS));
         carDir.resetSpawnTimer(lane, phaseCfg);
       }
     }
 
-    // 5. Sync visuals to state — renderer reads, never writes.
+    // 4. Refill shooter columns.
+    shooterDir.fillColumns(columns, gameState, phaseParams);
+
+    // 5. Sync visuals.
     carRenderer.update();
+    shooterRenderer.update(elapsed);
+    dragDrop.update(dt);
   });
 }
 

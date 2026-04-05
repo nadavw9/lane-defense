@@ -3,7 +3,7 @@
 // and GameLoop is the only writer.
 //
 // Rule: nothing outside GameLoop ever writes to GameState.
-import { COMBO_WINDOW, DEPLOY_DILATION } from '../director/DirectorConfig.js';
+import { COMBO_WINDOW, DEPLOY_DILATION, CARRYOVER_COIN_BONUS } from '../director/DirectorConfig.js';
 
 export class GameState {
   constructor({ lanes, columns, colors, world, duration, phaseMan }) {
@@ -27,6 +27,13 @@ export class GameState {
     // ── Stats ─────────────────────────────────────────────────────────────
     this.totalKills = 0;
     this.carryOvers = 0;
+
+    // ── Economy ───────────────────────────────────────────────────────────
+    this.coins = 0;
+
+    // ── Game over ─────────────────────────────────────────────────────────
+    this.isOver = false;
+    this.won    = false;
 
     // ── Deploy time dilation ───────────────────────────────────────────────
     // All cars slow to DEPLOY_DILATION.speedMultiplier for .duration seconds
@@ -62,7 +69,16 @@ export class GameState {
       ? this.combo + 1
       : 1;
     this.lastKillTime = this.elapsed;
+
+    this.coins += 1 + (isCarryOver ? CARRYOVER_COIN_BONUS : 0);
+
     return this.combo;
+  }
+
+  // Freeze the game and record outcome.
+  endGame(won) {
+    this.isOver = true;
+    this.won    = won;
   }
 
   // True when a combo was active but the window has since expired.

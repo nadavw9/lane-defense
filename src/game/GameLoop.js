@@ -18,7 +18,7 @@ export class GameLoop {
   //   rng            — SeededRandom (shared with directors)
   //   onKill(combo)      — called after each kill with updated combo count
   //   onChainHit(laneIdx)— called when a carry-over kill occurs
-  constructor({ app, gameState, carDir, shooterDir, combatResolver, rng, onKill, onChainHit }) {
+  constructor({ app, gameState, carDir, shooterDir, combatResolver, rng, onKill, onChainHit, onEnd }) {
     this._app      = app;
     this._gs       = gameState;
     this._carDir   = carDir;
@@ -27,6 +27,7 @@ export class GameLoop {
     this._rng      = rng;
     this._onKill   = onKill   ?? (() => {});
     this._onChain  = onChainHit ?? (() => {});
+    this._onEnd    = onEnd    ?? (() => {});
 
     this._accumulator = 0;
     this._bound       = this._tick.bind(this);
@@ -67,16 +68,19 @@ export class GameLoop {
   // ── Private ────────────────────────────────────────────────────────────────
 
   _tick(ticker) {
+    if (this._gs.isOver) return;
+
     const frameDt     = Math.min(ticker.deltaMS / 1000, 0.05);
     this._accumulator += frameDt;
 
     while (this._accumulator >= FIXED_DT) {
       this._step(FIXED_DT);
       this._accumulator -= FIXED_DT;
+      if (this._gs.isOver) break;
     }
 
     // Expire combo if the kill window closed.
-    if (this._gs.isComboExpired()) {
+    if (!this._gs.isOver && this._gs.isComboExpired()) {
       this._gs.resetCombo();
       this._onKill(0);  // notify renderer to clear combo display
     }
@@ -86,9 +90,10 @@ export class GameLoop {
     const gs = this._gs;
     gs.elapsed += dt;
 
-    // Auto-restart demo loop after level duration.
+    // Win: timer reached zero.
     if (gs.elapsed >= gs.duration) {
-      this._resetLevel();
+      gs.endGame(true);
+      this._onEnd(true);
       return;
     }
 
@@ -100,9 +105,13 @@ export class GameLoop {
     // 1. Advance cars — apply deploy time dilation if active.
     for (const lane of gs.lanes) lane.advance(dt * gs.speedMultiplier);
 
-    // 2. Remove cars that breached the endpoint (demo loops, not game-over).
+    // 2. Check for breach — any car reaching the endpoint is a loss.
     for (const lane of gs.lanes) {
-      while (lane.frontCar()?.position >= 100) lane.removeFrontCar();
+      if (lane.frontCar()?.position >= 100) {
+        gs.endGame(false);
+        this._onEnd(false);
+        return;
+      }
     }
 
     // 3. Spawn new cars.

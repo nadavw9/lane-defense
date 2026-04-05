@@ -8,12 +8,13 @@
 // Data flow:
 //   InputManager → DragDrop → GameLoop.deploy() → GameState mutation
 //   GameState → CarRenderer / ShooterRenderer / combo display
-import { Application, Text } from 'pixi.js';
+import { Application, Container, Graphics, Text } from 'pixi.js';
 
 import { LayerManager }    from './LayerManager.js';
 import { LaneRenderer, LANE_AREA_Y, LANE_HEIGHT, ENDPOINT_X } from './LaneRenderer.js';
 import { CarRenderer }     from './CarRenderer.js';
 import { ShooterRenderer } from './ShooterRenderer.js';
+import { HUDRenderer }     from './HUDRenderer.js';
 
 import { DragDrop }        from '../input/DragDrop.js';
 import { InputManager }    from '../input/InputManager.js';
@@ -38,37 +39,6 @@ const LEVEL_DURATION = 90;
 const COLORS         = ['Red', 'Blue'];
 const LANE_COUNT     = 4;
 const COL_COUNT      = 4;
-
-// ── Combo display ─────────────────────────────────────────────────────────────
-
-const COMBO_COLORS = [0xffffff, 0xffffff, 0xffee44, 0xffcc00, 0xff8800, 0xff4400];
-
-function makeComboText(parent) {
-  const t = new Text({
-    text: '',
-    style: { fontSize: 28, fontWeight: 'bold', fill: 0xffffff,
-             dropShadow: { color: 0x000000, blur: 4, distance: 2, alpha: 0.8 } },
-  });
-  t.anchor.set(0.5, 0.5);
-  t.x = APP_W / 2;
-  t.y = 22;       // centre of 44px HUD bar
-  parent.addChild(t);
-  return t;
-}
-
-function updateComboText(comboText, combo) {
-  if (combo < 2) {
-    comboText.text  = '';
-    comboText.alpha = 0;
-    return;
-  }
-  const idx   = Math.min(combo - 1, COMBO_COLORS.length - 1);
-  comboText.style.fill  = COMBO_COLORS[idx];
-  comboText.style.fontSize = Math.min(22 + combo * 3, 42);
-  comboText.text  = `×${combo} COMBO!`;
-  comboText.alpha = 1;
-  comboText.scale.set(1.25);  // brief pop — eases back each frame
-}
 
 // ── Floating chain-hit labels ─────────────────────────────────────────────────
 
@@ -102,6 +72,37 @@ function tickFloatingTexts(texts, dt) {
       texts.splice(i, 1);
     }
   }
+}
+
+// ── End-of-game overlay ───────────────────────────────────────────────────────
+
+function makeEndOverlay(stage, w, h) {
+  const container = new Container();
+  stage.addChild(container);
+  return { w, h, container };
+}
+
+function showEndOverlay({ w, h, container }, won) {
+  // Dark semi-transparent backdrop
+  const bg = new Graphics();
+  bg.rect(0, 0, w, h);
+  bg.fill({ color: 0x000000, alpha: won ? 0.55 : 0.70 });
+  container.addChild(bg);
+
+  // Result text
+  const label = new Text({
+    text: won ? 'YOU WIN' : 'GAME OVER',
+    style: {
+      fontSize:   64,
+      fontWeight: 'bold',
+      fill:       won ? 0x44ff88 : 0xff4444,
+      dropShadow: { color: 0x000000, blur: 8, distance: 3, alpha: 0.9 },
+    },
+  });
+  label.anchor.set(0.5, 0.5);
+  label.x = w / 2;
+  label.y = h / 2;
+  container.addChild(label);
 }
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
@@ -141,20 +142,24 @@ async function main() {
   // ── Combat ───────────────────────────────────────────────────────────────
   const combatResolver = new CombatResolver();
 
-  // ── HUD / FX display objects ─────────────────────────────────────────────
-  const comboText    = makeComboText(layers.get('hudLayer'));
+  // ── HUD ──────────────────────────────────────────────────────────────────
+  const hudRenderer   = new HUDRenderer(layers, gs, APP_W);
   const floatingTexts = [];
+
+  // ── Win / lose overlay (hidden until game ends) ──────────────────────────
+  const overlay = makeEndOverlay(app.stage, APP_W, APP_H);
 
   // ── Game loop (logic, fixed 60fps) ───────────────────────────────────────
   const gameLoop = new GameLoop({
     app, gameState: gs, carDir, shooterDir,
     combatResolver, rng,
-    onKill: (combo) => updateComboText(comboText, combo),
+    onKill:     (combo) => hudRenderer.bumpCombo(combo),
     onChainHit: (laneIdx) => {
       floatingTexts.push(
         spawnChainHit(layers.get('particleLayer'), laneIdx)
       );
     },
+    onEnd: (won) => showEndOverlay(overlay, won),
   });
 
   // Prime initial cars + columns before starting the loop.
@@ -187,15 +192,10 @@ async function main() {
   app.ticker.add((ticker) => {
     const dt = Math.min(ticker.deltaMS / 1000, 0.05);
 
+    hudRenderer.update(dt);
     carRenderer.update();
     shooterRenderer.update(gs.elapsed);
     dragDrop.update(dt);
-
-    // Ease combo text scale back to 1
-    if (comboText.scale.x > 1) {
-      const s = comboText.scale.x - dt * 4;
-      comboText.scale.set(Math.max(1, s));
-    }
 
     tickFloatingTexts(floatingTexts, dt);
   });

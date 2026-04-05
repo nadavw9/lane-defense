@@ -26,7 +26,7 @@ const DASH_H = 3;
 const DASH_GAP = 18;
 
 // Vertical gutter between the road surface and lane edge.
-const GUTTER = 6;
+export const GUTTER = 6;
 
 export class LaneRenderer {
   constructor(layerManager, appWidth) {

@@ -31,6 +31,13 @@ export class GameState {
     // ── Economy ───────────────────────────────────────────────────────────
     this.coins = 0;
 
+    // ── Win-screen stats ──────────────────────────────────────────────────
+    this.maxCombo       = 0;    // highest combo reached this level
+    this.maxCarPosition = 0;    // highest position any car reached (0-100 units)
+
+    // ── Rescue ────────────────────────────────────────────────────────────
+    this.rescueUsed = false;
+
     // ── Game over ─────────────────────────────────────────────────────────
     this.isOver = false;
     this.won    = false;
@@ -70,6 +77,8 @@ export class GameState {
       : 1;
     this.lastKillTime = this.elapsed;
 
+    if (this.combo > this.maxCombo) this.maxCombo = this.combo;
+
     this.coins += 1 + (isCarryOver ? CARRYOVER_COIN_BONUS : 0);
 
     return this.combo;
@@ -79,6 +88,39 @@ export class GameState {
   endGame(won) {
     this.isOver = true;
     this.won    = won;
+  }
+
+  // Accept a rescue: add extra seconds, push all cars back 25 units, and resume.
+  rescue(extraSeconds) {
+    this.isOver      = false;
+    this.won         = false;
+    this.rescueUsed  = true;
+    this.duration   += extraSeconds;
+    for (const lane of this.lanes) {
+      for (const car of lane.cars) {
+        car.position = Math.max(0, car.position - 25);
+      }
+    }
+  }
+
+  // Full level reset — call before restarting to clear all accumulated state.
+  resetLevel() {
+    this.elapsed       = 0;
+    this.combo         = 0;
+    this.lastKillTime  = -Infinity;
+    this.totalKills    = 0;
+    this.carryOvers    = 0;
+    this.coins         = 0;
+    this.maxCombo      = 0;
+    this.maxCarPosition = 0;
+    this.rescueUsed    = false;
+    this.isOver        = false;
+    this.won           = false;
+    this.dilationUntil = -Infinity;
+    // Restore original duration (rescues add to it; reset removes those additions).
+    // Duration is re-supplied by GameLoop.restart() which knows the base value.
+    for (const lane of this.lanes)   lane.cars.length = 0;
+    for (const col  of this.columns) col.shooters.length = 0;
   }
 
   // True when a combo was active but the window has since expired.

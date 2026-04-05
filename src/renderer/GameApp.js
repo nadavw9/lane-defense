@@ -3,18 +3,19 @@
 // Responsibilities:
 //   • Create all subsystems (directors, game state, loop, renderers, input)
 //   • Run the RENDER ticker (variable rate, reads GameState, never writes it)
-//   • Host the combo display and floating chain-hit text
+//   • Route end-of-game events to WinScreen / RescueOverlay
 //
 // Data flow:
 //   InputManager → DragDrop → GameLoop.deploy() → GameState mutation
-//   GameState → CarRenderer / ShooterRenderer / combo display
-import { Application, Container, Graphics, Text } from 'pixi.js';
+//   GameState → CarRenderer / ShooterRenderer / HUDRenderer / ParticleSystem
+import { Application, Text } from 'pixi.js';
 
 import { LayerManager }    from './LayerManager.js';
 import { LaneRenderer, LANE_AREA_Y, LANE_HEIGHT, ENDPOINT_X } from './LaneRenderer.js';
 import { CarRenderer }     from './CarRenderer.js';
 import { ShooterRenderer } from './ShooterRenderer.js';
 import { HUDRenderer }     from './HUDRenderer.js';
+import { ParticleSystem }  from './ParticleSystem.js';
 
 import { DragDrop }        from '../input/DragDrop.js';
 import { InputManager }    from '../input/InputManager.js';
@@ -31,6 +32,9 @@ import { SeededRandom }    from '../utils/SeededRandom.js';
 import { Lane }            from '../models/Lane.js';
 import { Column }          from '../models/Column.js';
 import { WORLD_CONFIG, PHASE_CONFIG } from '../director/DirectorConfig.js';
+
+import { WinScreen }      from '../screens/WinScreen.js';
+import { RescueOverlay }  from '../screens/RescueOverlay.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const APP_W          = 390;
@@ -74,37 +78,6 @@ function tickFloatingTexts(texts, dt) {
   }
 }
 
-// ── End-of-game overlay ───────────────────────────────────────────────────────
-
-function makeEndOverlay(stage, w, h) {
-  const container = new Container();
-  stage.addChild(container);
-  return { w, h, container };
-}
-
-function showEndOverlay({ w, h, container }, won) {
-  // Dark semi-transparent backdrop
-  const bg = new Graphics();
-  bg.rect(0, 0, w, h);
-  bg.fill({ color: 0x000000, alpha: won ? 0.55 : 0.70 });
-  container.addChild(bg);
-
-  // Result text
-  const label = new Text({
-    text: won ? 'YOU WIN' : 'GAME OVER',
-    style: {
-      fontSize:   64,
-      fontWeight: 'bold',
-      fill:       won ? 0x44ff88 : 0xff4444,
-      dropShadow: { color: 0x000000, blur: 8, distance: 3, alpha: 0.9 },
-    },
-  });
-  label.anchor.set(0.5, 0.5);
-  label.x = w / 2;
-  label.y = h / 2;
-  container.addChild(label);
-}
-
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -142,24 +115,77 @@ async function main() {
   // ── Combat ───────────────────────────────────────────────────────────────
   const combatResolver = new CombatResolver();
 
-  // ── HUD ──────────────────────────────────────────────────────────────────
+  // ── HUD + Particles ───────────────────────────────────────────────────────
   const hudRenderer   = new HUDRenderer(layers, gs, APP_W);
+  const particles     = new ParticleSystem(layers);
   const floatingTexts = [];
 
-  // ── Win / lose overlay (hidden until game ends) ──────────────────────────
-  const overlay = makeEndOverlay(app.stage, APP_W, APP_H);
+  // ── End-of-game screens (created lazily on demand) ────────────────────────
+  let winScreen     = null;
+  let rescueOverlay = null;
+
+  // Stage shake state — triggered on breach for tactile feedback.
+  let shakeTime = 0;
+
+  function showWin() {
+    winScreen = new WinScreen(app.stage, APP_W, APP_H, gs, () => {
+      winScreen.destroy();
+      winScreen = null;
+      gameLoop.restart();
+    });
+  }
+
+  function showRescue() {
+    rescueOverlay = new RescueOverlay(app.stage, APP_W, APP_H, gs, {
+      onRescueAd: () => {
+        gs.rescue(10);
+        rescueOverlay.destroy();
+        rescueOverlay = null;
+      },
+      onRescueCoins: () => {
+        gs.coins -= 50;
+        gs.rescue(10);
+        rescueOverlay.destroy();
+        rescueOverlay = null;
+      },
+      onRetry: () => {
+        rescueOverlay.destroy();
+        rescueOverlay = null;
+        gameLoop.restart();
+      },
+    });
+  }
 
   // ── Game loop (logic, fixed 60fps) ───────────────────────────────────────
   const gameLoop = new GameLoop({
     app, gameState: gs, carDir, shooterDir,
     combatResolver, rng,
-    onKill:     (combo) => hudRenderer.bumpCombo(combo),
+
+    onKill: (combo) => hudRenderer.bumpCombo(combo),
+
     onChainHit: (laneIdx) => {
-      floatingTexts.push(
-        spawnChainHit(layers.get('particleLayer'), laneIdx)
-      );
+      floatingTexts.push(spawnChainHit(layers.get('particleLayer'), laneIdx));
     },
-    onEnd: (won) => showEndOverlay(overlay, won),
+
+    onHit: (laneIdx, gameX, color, damage, isKill) => {
+      particles.spawnHit(laneIdx, gameX, color);
+      particles.spawnDamageNumber(laneIdx, gameX, damage);
+      if (isKill) particles.spawnExplosion(laneIdx, gameX, color);
+    },
+
+    onMiss: (laneIdx, gameX) => {
+      particles.spawnMiss(laneIdx, gameX);
+    },
+
+    onEnd: (won, laneIdx) => {
+      if (won) {
+        showWin();
+      } else {
+        // Brief stage shake to sell the breach impact, then rescue overlay.
+        shakeTime = 0.35;
+        showRescue();
+      }
+    },
   });
 
   // Prime initial cars + columns before starting the loop.
@@ -193,11 +219,26 @@ async function main() {
     const dt = Math.min(ticker.deltaMS / 1000, 0.05);
 
     hudRenderer.update(dt);
+    particles.update(dt);
     carRenderer.update();
     shooterRenderer.update(gs.elapsed);
     dragDrop.update(dt);
 
     tickFloatingTexts(floatingTexts, dt);
+
+    // Screen shake on breach
+    if (shakeTime > 0) {
+      shakeTime = Math.max(0, shakeTime - dt);
+      const mag = (shakeTime / 0.35) * 7;
+      app.stage.x = (Math.random() - 0.5) * 2 * mag;
+      app.stage.y = (Math.random() - 0.5) * 2 * mag;
+    } else {
+      app.stage.x = 0;
+      app.stage.y = 0;
+    }
+
+    // Tick the rescue flash animation
+    if (rescueOverlay) rescueOverlay.update(dt);
   });
 }
 

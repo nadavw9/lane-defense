@@ -2,8 +2,9 @@
 // Adds its own PixiJS ticker listener for deterministic game logic at 60fps.
 // The render ticker in GameApp runs separately at display refresh rate.
 //
-// Exposes deploy(colIdx, laneIdx) — called by the onDeploy callback wired
-// through DragDrop.  Combat and state updates all live here.
+// Public API:
+//   deploy(colIdx, laneIdx) — called by DragDrop; resolves combat immediately
+//   restart()               — full level reset + reprime; called by screens
 import { PHASE_CONFIG } from '../director/DirectorConfig.js';
 
 const FIXED_DT = 1 / 60; // logic step in seconds
@@ -16,18 +17,27 @@ export class GameLoop {
   //   shooterDir     — ShooterDirector
   //   combatResolver — CombatResolver
   //   rng            — SeededRandom (shared with directors)
-  //   onKill(combo)      — called after each kill with updated combo count
-  //   onChainHit(laneIdx)— called when a carry-over kill occurs
-  constructor({ app, gameState, carDir, shooterDir, combatResolver, rng, onKill, onChainHit, onEnd }) {
+  //   onKill(combo)              — called after each kill with updated combo
+  //   onChainHit(laneIdx)        — called when a carry-over kill occurs
+  //   onHit(laneIdx,gameX,color,damage,isKill) — every shot that deals damage
+  //   onMiss(laneIdx,gameX)      — color-mismatch shot (0 damage)
+  //   onEnd(won, laneIdx?)       — win or lose; laneIdx provided on breach
+  constructor({ app, gameState, carDir, shooterDir, combatResolver, rng,
+                onKill, onChainHit, onHit, onMiss, onEnd }) {
     this._app      = app;
     this._gs       = gameState;
     this._carDir   = carDir;
     this._sDir     = shooterDir;
     this._combat   = combatResolver;
     this._rng      = rng;
-    this._onKill   = onKill   ?? (() => {});
+    this._onKill   = onKill     ?? (() => {});
     this._onChain  = onChainHit ?? (() => {});
-    this._onEnd    = onEnd    ?? (() => {});
+    this._onHit    = onHit      ?? (() => {});
+    this._onMiss   = onMiss     ?? (() => {});
+    this._onEnd    = onEnd      ?? (() => {});
+
+    // Base level duration — used to reset gs.duration on restart.
+    this._baseDuration = gameState.duration;
 
     this._accumulator = 0;
     this._bound       = this._tick.bind(this);
@@ -45,13 +55,29 @@ export class GameLoop {
     const shooter = col.top();
     if (!shooter) return;
 
+    // Capture front car position BEFORE combat removes cars.
+    const frontCar = lane.frontCar();
+    const carGameX = frontCar?.position ?? 50;
+
     // Consume the shooter before resolving so the column starts refilling.
     col.consume();
 
-    const { kills, carryOverKills } = this._combat.resolve(shooter, lane);
-
     // Deploy time dilation — cars slow briefly on every deploy regardless of hit.
     gs.triggerDilation();
+
+    // Nothing to shoot at — consume silently.
+    if (!frontCar) return;
+
+    const { kills, carryOverKills, damageDealt } = this._combat.resolve(shooter, lane);
+
+    if (damageDealt === 0) {
+      // Color mismatch — grey dud puff.
+      this._onMiss(laneIdx, carGameX);
+      return;
+    }
+
+    // Damage was dealt: sparks + damage number on the first car.
+    this._onHit(laneIdx, carGameX, shooter.color, damageDealt, kills > 0);
 
     if (kills === 0) return;
 
@@ -63,6 +89,17 @@ export class GameLoop {
       const combo = gs.recordKill(isCarryOver);
       this._onKill(combo);
     }
+  }
+
+  // Full level restart — resets state and reprimes cars/columns.
+  restart() {
+    const gs = this._gs;
+    gs.duration = this._baseDuration;   // undo any rescue-added time
+    gs.resetLevel();
+    gs.phaseMan.update(0);
+    this._accumulator = 0;
+    this._primeInitialCars();
+    this._sDir.fillColumns(gs.columns, gs.asDirectorState(), gs.phaseMan.getParams());
   }
 
   // ── Private ────────────────────────────────────────────────────────────────
@@ -105,16 +142,24 @@ export class GameLoop {
     // 1. Advance cars — apply deploy time dilation if active.
     for (const lane of gs.lanes) lane.advance(dt * gs.speedMultiplier);
 
-    // 2. Check for breach — any car reaching the endpoint is a loss.
+    // 2. Track the highest car position reached (used for star rating on win).
     for (const lane of gs.lanes) {
-      if (lane.frontCar()?.position >= 100) {
+      const front = lane.frontCar();
+      if (front && front.position > gs.maxCarPosition) {
+        gs.maxCarPosition = front.position;
+      }
+    }
+
+    // 3. Check for breach — any car reaching the endpoint is a loss.
+    for (let li = 0; li < gs.lanes.length; li++) {
+      if (gs.lanes[li].frontCar()?.position >= 100) {
         gs.endGame(false);
-        this._onEnd(false);
+        this._onEnd(false, li);
         return;
       }
     }
 
-    // 3. Spawn new cars.
+    // 4. Spawn new cars.
     this._carDir.updateSpawnTimers(gs.lanes, dt, phaseCfg);
     for (const lane of gs.lanes) {
       if (this._carDir.isReadyToSpawn(lane)) {
@@ -123,18 +168,8 @@ export class GameLoop {
       }
     }
 
-    // 4. Refill shooter columns.
+    // 5. Refill shooter columns.
     this._sDir.fillColumns(gs.columns, dirState, phaseParams);
-  }
-
-  _resetLevel() {
-    const gs      = this._gs;
-    gs.elapsed    = 0;
-    gs.combo      = 0;
-    gs.lastKillTime = -Infinity;
-    for (const lane of gs.lanes)   lane.cars.length = 0;
-    for (const col  of gs.columns) col.shooters.length = 0;
-    this._primeInitialCars();
   }
 
   // Stagger initial cars so the level looks alive from frame 1.

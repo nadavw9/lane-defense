@@ -72,7 +72,7 @@ export class WinScreen {
 
     this._button('NEXT LEVEL', cx, y, 0x1a6a3a, 0x55ff99, onNext);
     y += 58;
-    this._button('MENU', cx, y, 0x1a2a3a, 0x88bbdd, onMenu);
+    this._button('LEVEL SELECT', cx, y, 0x1a2a3a, 0x88bbdd, onMenu);
   }
 
   _text(str, x, y, style) {

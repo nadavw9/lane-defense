@@ -47,6 +47,7 @@ import { FTUEOverlay }            from '../screens/FTUEOverlay.js';
 import { TransitionOverlay }      from '../screens/TransitionOverlay.js';
 import { TitleScreen }            from '../screens/TitleScreen.js';
 import { LevelSelectScreen }      from '../screens/LevelSelectScreen.js';
+import { ShopScreen }             from '../screens/ShopScreen.js';
 import { AudioManager }           from '../audio/AudioManager.js';
 import { BoosterBar }             from './BoosterBar.js';
 
@@ -189,8 +190,9 @@ async function main() {
   let rescueOverlay = null;
 
   // ── Meta screens ─────────────────────────────────────────────────────────
-  let titleScreen      = null;
+  let titleScreen       = null;
   let levelSelectScreen = null;
+  let shopScreen        = null;
 
   // ── Transition overlay (always topmost) ───────────────────────────────────
   const transition = new TransitionOverlay(app.stage, APP_W, APP_H);
@@ -278,6 +280,22 @@ async function main() {
         levelSelectScreen.destroy();
         levelSelectScreen = null;
         showTitle();
+      },
+      onShop: () => {
+        levelSelectScreen.destroy();
+        levelSelectScreen = null;
+        showShop();
+      },
+    });
+  }
+
+  // ── Screen: Shop ──────────────────────────────────────────────────────────
+  function showShop() {
+    shopScreen = new ShopScreen(app.stage, APP_W, APP_H, progress, boosterState, {
+      onBack: () => {
+        shopScreen.destroy();
+        shopScreen = null;
+        showLevelSelect();
       },
     });
   }
@@ -458,6 +476,7 @@ async function main() {
 
     if (rescueOverlay)    rescueOverlay.update(dt);
     if (ftueOverlay)      ftueOverlay.update(dt);
+    if (levelSelectScreen) levelSelectScreen.update(dt);
   });
 
   // ── Boot: show title screen (game loop not started yet) ───────────────────

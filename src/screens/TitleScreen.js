@@ -10,10 +10,10 @@ import { Container, Graphics, Text } from 'pixi.js';
 export class TitleScreen {
   // callbacks: { onPlay, onDaily, hasDailyReward }
   // hasDailyReward — true if a daily reward is ready to claim (shows glow badge)
-  constructor(stage, appW, appH, { onPlay, onDaily, hasDailyReward, onSettings }) {
+  constructor(stage, appW, appH, { onPlay, onDaily, hasDailyReward, onSettings, audio }) {
     this._container = new Container();
     stage.addChild(this._container);
-    this._build(appW, appH, onPlay, onDaily, hasDailyReward, onSettings);
+    this._build(appW, appH, onPlay, onDaily, hasDailyReward, onSettings, audio);
   }
 
   destroy() {
@@ -22,7 +22,7 @@ export class TitleScreen {
 
   // ── Private ────────────────────────────────────────────────────────────────
 
-  _build(w, h, onPlay, onDaily, hasDailyReward, onSettings) {
+  _build(w, h, onPlay, onDaily, hasDailyReward, onSettings, audio) {
     // Full-screen background — also absorbs pointer events so game layers stay inert.
     const bg = new Graphics();
     bg.rect(0, 0, w, h);
@@ -71,7 +71,7 @@ export class TitleScreen {
     btn.y = h * 0.56;
     btn.eventMode = 'static';
     btn.cursor    = 'pointer';
-    btn.on('pointerdown', onPlay);
+    btn.on('pointerdown', () => { audio?.play('button_tap'); onPlay(); });
     btn.on('pointerover',  () => { btn.alpha = 0.80; });
     btn.on('pointerout',   () => { btn.alpha = 1.00; });
 
@@ -97,7 +97,7 @@ export class TitleScreen {
       daily.y = h * 0.56 + 68;
       daily.eventMode = 'static';
       daily.cursor    = 'pointer';
-      daily.on('pointerdown', onDaily);
+      daily.on('pointerdown', () => { audio?.play('button_tap'); onDaily(); });
       daily.on('pointerover',  () => { daily.alpha = 0.78; });
       daily.on('pointerout',   () => { daily.alpha = 1.00; });
 

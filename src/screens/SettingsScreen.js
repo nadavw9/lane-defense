@@ -69,7 +69,7 @@ export class SettingsScreen {
     backBtn.y = 34;
     backBtn.eventMode = 'static';
     backBtn.cursor    = 'pointer';
-    backBtn.on('pointerdown', this._onClose);
+    backBtn.on('pointerdown', () => { this._audio?.play('button_tap'); this._onClose(); });
     this._container.addChild(backBtn);
 
     this._addText('SETTINGS', w / 2, 34, { fontSize: 22, fill: 0xffffff });
@@ -208,7 +208,8 @@ export class SettingsScreen {
     btn.eventMode = 'static';
     btn.cursor    = 'pointer';
     btn.on('pointerdown', () => {
-      this._audio.toggleMute();
+      this._audio?.play('button_tap');
+      this._audio?.toggleMute();
       this._rebuildToggle(btn, rx, y);
     });
     btn.on('pointerover',  () => { btn.alpha = 0.75; });

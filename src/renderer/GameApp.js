@@ -181,8 +181,8 @@ async function main() {
   const comboGlow     = new ComboGlow(layers, APP_W, APP_H);
   const boosterBar    = new BoosterBar(
     layers, boosterState, gs, APP_W,
-    () => { boosterState.activateSwap(); },
-    () => { boosterState.activatePeek(gs.elapsed); },
+    () => { audio.play('booster_activate'); boosterState.activateSwap(); },
+    () => { audio.play('booster_activate'); boosterState.activatePeek(gs.elapsed); },
   );
 
   // ── FTUE overlay ──────────────────────────────────────────────────────────
@@ -283,6 +283,11 @@ async function main() {
 
     pauseBtn.visible = true;
 
+    // Start gameplay music from CALM; phase updates will crossfade as needed.
+    audio.resetMusicPhase();
+    audio.playMusic('gameplay_calm');
+    audio.play('level_start');
+
     // Restore accumulated coins AFTER restart() (which zeros gs.coins).
     gs.coins = progress.coins;
   }
@@ -290,23 +295,22 @@ async function main() {
   // ── Screen: Title ─────────────────────────────────────────────────────────
   function showTitle() {
     pauseBtn.visible = false;
+    audio.playMusic('title');
     titleScreen = new TitleScreen(app.stage, APP_W, APP_H, {
       onPlay: () => {
         titleScreen?.destroy();
         titleScreen = null;
         showLevelSelect();
       },
-      onDaily: () => {
-        showDailyReward();
-      },
+      onDaily:        () => { showDailyReward(); },
       hasDailyReward: progress.canClaimDaily(),
       onSettings: () => {
         showSettings(() => {
           settingsScreen.destroy();
           settingsScreen = null;
-          // TitleScreen is still underneath — no rebuild needed.
         });
       },
+      audio,
     });
   }
 
@@ -316,19 +320,20 @@ async function main() {
       onClose: () => {
         dailyRewardScreen.destroy();
         dailyRewardScreen = null;
-        // Rebuild title so the reward badge reflects the new claim state.
         if (titleScreen) {
           titleScreen.destroy();
           titleScreen = null;
           showTitle();
         }
       },
+      audio,
     });
   }
 
   // ── Screen: Level Select ──────────────────────────────────────────────────
   function showLevelSelect() {
     pauseBtn.visible = false;
+    audio.playMusic('title');   // title pad plays on all meta screens
     levelSelectScreen = new LevelSelectScreen(app.stage, APP_W, APP_H, progress, {
       onSelectLevel: (levelId) => {
         levelSelectScreen.destroy();
@@ -348,6 +353,7 @@ async function main() {
         levelSelectScreen = null;
         showShop();
       },
+      audio,
     });
   }
 
@@ -359,6 +365,7 @@ async function main() {
         shopScreen = null;
         showLevelSelect();
       },
+      audio,
     });
   }
 
@@ -398,12 +405,16 @@ async function main() {
           transition.fadeIn(0.25, null);
         });
       },
+      audio,
     });
   }
 
   // ── Screen: Win ───────────────────────────────────────────────────────────
   function showWin() {
     pauseBtn.visible = false;
+    audio.stopMusic();
+    // Delay fanfare slightly so the screen fade-in completes first.
+    setTimeout(() => audio.play('win_fanfare'), 300);
     const levelId = levelManager.levelNumber;
     const stars   = calcStars(gs);
 
@@ -435,34 +446,43 @@ async function main() {
           transition.fadeIn(0.25, null);
         });
       },
+      audio,
     );
   }
 
   // ── Screen: Rescue ────────────────────────────────────────────────────────
   function showRescue() {
     pauseBtn.visible = false;
+    audio.play('rescue_offer');
     rescueOverlay = new RescueOverlay(app.stage, APP_W, APP_H, gs, {
       onRescueAd: () => {
         gs.rescue(10);
         rescueOverlay.destroy();
         rescueOverlay = null;
+        audio.resetMusicPhase();
+        audio.playMusic('gameplay_calm');
+        pauseBtn.visible = true;
       },
       onRescueCoins: () => {
         gs.coins -= 50;
-        progress.setCoins(gs.coins);  // persist the deduction
+        progress.setCoins(gs.coins);
         gs.rescue(10);
         rescueOverlay.destroy();
         rescueOverlay = null;
+        audio.resetMusicPhase();
+        audio.playMusic('gameplay_calm');
+        pauseBtn.visible = true;
       },
       onRetry: () => {
         rescueOverlay.destroy();
         rescueOverlay = null;
-        // Restore coins to saved state — level earnings are lost on retry.
         gs.coins = progress.coins;
         carRenderer.clearAll();
         gameLoop.resume();
         gameLoop.restart();
         gs.coins = progress.coins;
+        audio.resetMusicPhase();
+        audio.playMusic('gameplay_calm');
         pauseBtn.visible = true;
       },
     });
@@ -511,6 +531,8 @@ async function main() {
       if (won) {
         showWin();
       } else {
+        audio.stopMusic();
+        audio.play('lose_tone');
         shakeTime = 0;
         breachCam = { laneIdx: laneIdx ?? 0, t: 0, done: false };
       }
@@ -582,6 +604,11 @@ async function main() {
     if (rescueOverlay)    rescueOverlay.update(dt);
     if (ftueOverlay)      ftueOverlay.update(dt);
     if (levelSelectScreen) levelSelectScreen.update(dt);
+
+    // Phase-based music transitions during active gameplay only.
+    if (gameLoopStarted && !gameLoop.paused && !gs.isOver) {
+      audio.updateMusicPhase(gs.phase);
+    }
   });
 
   // ── Boot: show title screen (game loop not started yet) ───────────────────

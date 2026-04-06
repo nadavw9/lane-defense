@@ -19,11 +19,12 @@ export function calcStars(gs) {
 
 export class WinScreen {
   // onNext — callback for the "Next Level" button
-  // onMenu — callback for the "Menu" button (go to level select)
-  constructor(stage, appW, appH, gs, onNext, onMenu) {
+  // onMenu — callback for the "LEVEL SELECT" button
+  // audio  — AudioManager (optional; plays star chimes + button taps)
+  constructor(stage, appW, appH, gs, onNext, onMenu, audio) {
     this._container = new Container();
     stage.addChild(this._container);
-    this._build(appW, appH, gs, onNext, onMenu);
+    this._build(appW, appH, gs, onNext, onMenu, audio);
   }
 
   destroy() {
@@ -32,7 +33,7 @@ export class WinScreen {
 
   // ── Private ────────────────────────────────────────────────────────────────
 
-  _build(w, h, gs, onNext, onMenu) {
+  _build(w, h, gs, onNext, onMenu, audio) {
     // Full-screen dim
     const backdrop = new Graphics();
     backdrop.rect(0, 0, w, h);
@@ -58,7 +59,10 @@ export class WinScreen {
     this._text('LEVEL COMPLETE', cx, y, { fontSize: 28, fill: 0x44ff88 });
     y += 52;
 
-    this._stars(cx, y, calcStars(gs));
+    const stars = calcStars(gs);
+    this._stars(cx, y, stars);
+    // Stagger one sparkle chime per earned star.
+    for (let i = 0; i < stars; i++) audio?.play('star_earn', { index: i });
     y += 68;
 
     this._text(`◆ ${gs.coins}`, cx, y, { fontSize: 26, fill: 0xf5c842 });
@@ -70,9 +74,9 @@ export class WinScreen {
     this._text('best combo', cx, y + 22, { fontSize: 14, fill: 0x999999, fontWeight: 'normal' });
     y += 58;
 
-    this._button('NEXT LEVEL', cx, y, 0x1a6a3a, 0x55ff99, onNext);
+    this._button('NEXT LEVEL',   cx, y, 0x1a6a3a, 0x55ff99, () => { audio?.play('button_tap'); onNext(); });
     y += 58;
-    this._button('LEVEL SELECT', cx, y, 0x1a2a3a, 0x88bbdd, onMenu);
+    this._button('LEVEL SELECT', cx, y, 0x1a2a3a, 0x88bbdd, () => { audio?.play('button_tap'); onMenu(); });
   }
 
   _text(str, x, y, style) {

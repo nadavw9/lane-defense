@@ -25,12 +25,12 @@ const GLOW_PERIOD = 1.2; // seconds per pulse cycle
 export class LevelSelectScreen {
   // progress    — ProgressManager instance (read-only here)
   // callbacks   — { onSelectLevel(levelId), onBack, onShop }
-  constructor(stage, appW, appH, progress, { onSelectLevel, onBack, onShop }) {
+  constructor(stage, appW, appH, progress, { onSelectLevel, onBack, onShop, audio }) {
     this._container = new Container();
     stage.addChild(this._container);
     this._glowOverlay = null;
     this._glowTime    = 0;
-    this._build(appW, appH, progress, onSelectLevel, onBack, onShop);
+    this._build(appW, appH, progress, onSelectLevel, onBack, onShop, audio);
   }
 
   destroy() {
@@ -48,7 +48,7 @@ export class LevelSelectScreen {
 
   // ── Private ────────────────────────────────────────────────────────────────
 
-  _build(w, h, progress, onSelectLevel, onBack, onShop) {
+  _build(w, h, progress, onSelectLevel, onBack, onShop, audio) {
     // Background — absorbs all pointer events.
     const bg = new Graphics();
     bg.rect(0, 0, w, h);
@@ -68,7 +68,7 @@ export class LevelSelectScreen {
     backBtn.y = NAV_Y;
     backBtn.eventMode = 'static';
     backBtn.cursor    = 'pointer';
-    backBtn.on('pointerdown', onBack);
+    backBtn.on('pointerdown', () => { audio?.play('button_tap'); onBack(); });
     this._container.addChild(backBtn);
 
     const hdr = new Text({
@@ -89,7 +89,7 @@ export class LevelSelectScreen {
     shopBtn.y = NAV_Y;
     shopBtn.eventMode = 'static';
     shopBtn.cursor    = 'pointer';
-    shopBtn.on('pointerdown', onShop || (() => {}));
+    shopBtn.on('pointerdown', () => { audio?.play('button_tap'); (onShop || (() => {}))(); });
     shopBtn.on('pointerover',  () => { shopBtn.alpha = 0.70; });
     shopBtn.on('pointerout',   () => { shopBtn.alpha = 1.00; });
     this._container.addChild(shopBtn);
@@ -134,7 +134,7 @@ export class LevelSelectScreen {
       const isUnlocked = levelId <= unlocked;
 
       this._buildCard(levelId, x, y, stars, isUnlocked, () => {
-        if (isUnlocked) onSelectLevel(levelId);
+        if (isUnlocked) { audio?.play('button_tap'); onSelectLevel(levelId); }
       });
     }
 

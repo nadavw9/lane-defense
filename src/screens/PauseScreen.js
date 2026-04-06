@@ -9,10 +9,10 @@ import { Container, Graphics, Text } from 'pixi.js';
 
 export class PauseScreen {
   // callbacks: { onResume, onSettings, onQuit }
-  constructor(stage, appW, appH, { onResume, onSettings, onQuit }) {
+  constructor(stage, appW, appH, { onResume, onSettings, onQuit, audio }) {
     this._container = new Container();
     stage.addChild(this._container);
-    this._build(appW, appH, onResume, onSettings, onQuit);
+    this._build(appW, appH, onResume, onSettings, onQuit, audio);
   }
 
   destroy() {
@@ -21,7 +21,7 @@ export class PauseScreen {
 
   // ── Private ────────────────────────────────────────────────────────────────
 
-  _build(w, h, onResume, onSettings, onQuit) {
+  _build(w, h, onResume, onSettings, onQuit, audio) {
     // Semi-transparent backdrop — blocks clicks to game layers.
     const backdrop = new Graphics();
     backdrop.rect(0, 0, w, h);
@@ -55,9 +55,10 @@ export class PauseScreen {
     this._container.addChild(title);
     y += 56;
 
-    this._btn('RESUME',       cx, y, 0x1a5a2a, 0x55ff99, onResume);   y += 58;
-    this._btn('SETTINGS',     cx, y, 0x1a2a4a, 0x55aaff, onSettings); y += 58;
-    this._btn('QUIT TO MENU', cx, y, 0x2a0d0d, 0xff6666, onQuit);
+    const tap = (fn) => () => { audio?.play('button_tap'); fn(); };
+    this._btn('RESUME',       cx, y, 0x1a5a2a, 0x55ff99, tap(onResume));   y += 58;
+    this._btn('SETTINGS',     cx, y, 0x1a2a4a, 0x55aaff, tap(onSettings)); y += 58;
+    this._btn('QUIT TO MENU', cx, y, 0x2a0d0d, 0xff6666, tap(onQuit));
   }
 
   _btn(label, cx, y, bg, fg, onClick) {

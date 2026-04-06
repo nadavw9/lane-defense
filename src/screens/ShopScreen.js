@@ -50,13 +50,14 @@ export class ShopScreen {
   // progress     — ProgressManager (reads coins/boosters, persists changes)
   // boosterState — BoosterState instance for in-memory sync (may be null)
   // callbacks    — { onBack }
-  constructor(stage, appW, appH, progress, boosterState, { onBack }) {
+  constructor(stage, appW, appH, progress, boosterState, { onBack, audio }) {
     this._stage        = stage;
     this._appW         = appW;
     this._appH         = appH;
     this._progress     = progress;
     this._boosterState = boosterState;
     this._onBack       = onBack;
+    this._audio        = audio;
     this._container    = new Container();
     stage.addChild(this._container);
     this._build();
@@ -97,7 +98,7 @@ export class ShopScreen {
     backBtn.y = 34;
     backBtn.eventMode = 'static';
     backBtn.cursor    = 'pointer';
-    backBtn.on('pointerdown', this._onBack);
+    backBtn.on('pointerdown', () => { this._audio?.play('button_tap'); this._onBack(); });
     this._container.addChild(backBtn);
 
     const title = new Text({
@@ -219,7 +220,8 @@ export class ShopScreen {
 
   _purchase(def) {
     const p = this._progress;
-    if (!p.spendCoins(def.cost)) return;   // insufficient funds
+    if (!p.spendCoins(def.cost)) { this._audio?.play('button_tap'); return; }
+    this._audio?.play('coin_collect');
 
     // Increment the booster count in progress.
     const saved = p.getBoosters();

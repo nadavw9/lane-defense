@@ -27,12 +27,13 @@ export class DailyRewardScreen {
   // progress  — ProgressManager instance
   // callbacks — { onClose }
   // stage     — PixiJS stage (needed for _rebuild)
-  constructor(stage, appW, appH, progress, { onClose }) {
+  constructor(stage, appW, appH, progress, { onClose, audio }) {
     this._stage    = stage;
     this._appW     = appW;
     this._appH     = appH;
     this._progress = progress;
     this._onClose  = onClose;
+    this._audio    = audio;
     this._container = new Container();
     stage.addChild(this._container);
     this._build();
@@ -119,6 +120,7 @@ export class DailyRewardScreen {
     const btnY = py + PANEL_H - 130;
     if (canClaim && !justCompleted) {
       this._button('CLAIM REWARD', cx, btnY, 0x1a5a2a, 0x44ff88, () => {
+        this._audio?.play('daily_reward');
         p.claimDaily();
         this._rebuild();
       });
@@ -131,7 +133,8 @@ export class DailyRewardScreen {
     }
 
     // ── CLOSE button ──────────────────────────────────────────────────────
-    this._button('CLOSE', cx, py + PANEL_H - 52, 0x1a1a2a, 0x88aacc, this._onClose);
+    this._button('CLOSE', cx, py + PANEL_H - 52, 0x1a1a2a, 0x88aacc,
+      () => { this._audio?.play('button_tap'); this._onClose(); });
   }
 
   _buildDayBox(dayIdx, x, y, state) {

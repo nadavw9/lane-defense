@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host",
+    "build": "vite build",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -17,5 +18,11 @@
     "pixi.js": "^8.17.1",
     "vite": "^8.0.3",
     "vitest": "^4.1.2"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.3.0",
+    "@capacitor/cli": "^8.3.0",
+    "@capacitor/core": "^8.3.0",
+    "@capacitor/haptics": "^8.0.2"
   }
 }

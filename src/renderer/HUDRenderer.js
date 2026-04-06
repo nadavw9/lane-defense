@@ -10,10 +10,12 @@
 import { Graphics, Text } from 'pixi.js';
 
 const HUD_H      = 44;
-const BAR_H      = 7;          // height of the timer bar
-const BAR_Y      = HUD_H - BAR_H;
+const BAR_H      = 10;         // height of the timer bar (prominent strip at top)
+const BAR_Y      = 0;          // bar sits at the very top of the screen
 const HUD_BG     = 0x0d0d1a;
 const BAR_BG     = 0x1a1a2e;
+// Vertical centre of the text area (below the bar)
+const TEXT_MID   = BAR_H + (HUD_H - BAR_H) / 2;
 
 // Timer bar colour breakpoints
 const COLOR_GREEN  = 0x44cc44;
@@ -68,7 +70,7 @@ export class HUDRenderer {
     });
     this._comboText.anchor.set(0.5, 0.5);
     this._comboText.x = appWidth / 2;
-    this._comboText.y = HUD_H / 2 - BAR_H / 2;  // centred in the non-bar area
+    this._comboText.y = TEXT_MID;
     this._layer.addChild(this._comboText);
 
     // ── Coins text ────────────────────────────────────────────────────────
@@ -83,14 +85,14 @@ export class HUDRenderer {
     });
     this._coinsText.anchor.set(1, 0.5);
     this._coinsText.x = appWidth - 10;
-    this._coinsText.y = HUD_H / 2 - BAR_H / 2;
+    this._coinsText.y = TEXT_MID;
     this._layer.addChild(this._coinsText);
 
     // ── Mute button (top-left speaker icon) ──────────────────────────────
     this._muteBtn = new Graphics();
-    // Place the icon centre at x=20, vertically centred in the non-bar area.
+    // Place the icon centre at x=20, vertically centred in the text area.
     this._muteBtn.x = 10;
-    this._muteBtn.y = Math.round((HUD_H - BAR_H) / 2) - 10;
+    this._muteBtn.y = Math.round(TEXT_MID) - 10;
     if (audioManager) {
       // Expand the clickable hit area beyond the small icon.
       this._muteBtn.hitArea = {
@@ -118,7 +120,7 @@ export class HUDRenderer {
     });
     this._levelText.anchor.set(0, 0.5);
     this._levelText.x = 42;
-    this._levelText.y = HUD_H / 2 - BAR_H / 2;
+    this._levelText.y = TEXT_MID;
     this._layer.addChild(this._levelText);
 
     // ── Spring bounce state ───────────────────────────────────────────────

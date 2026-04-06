@@ -5,7 +5,7 @@
 // scaled via posToScale, and z-sorted so nearer cars draw on top.
 //
 // Reads lane state, never writes it.
-import { Graphics, Container } from 'pixi.js';
+import { Graphics, Container, Text } from 'pixi.js';
 import {
   laneCenterX,
   posToScreenY,
@@ -36,6 +36,13 @@ const COLOR_MAP = {
 const HP_COLOR_HIGH = 0x55cc55;  // > 60%
 const HP_COLOR_MID  = 0xeecc22;  // 25-60%
 const HP_COLOR_LOW  = 0xee3333;  // < 25%
+
+const HP_TEXT_STYLE = {
+  fontSize:   16,
+  fontWeight: 'bold',
+  fill:       0xffffff,
+  dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 0.85 },
+};
 
 // Death animation: scale to 1.4× and fade over this duration.
 const DEATH_DURATION = 0.30; // seconds
@@ -98,6 +105,7 @@ export class CarRenderer {
         vis.container.scale.set(posToScale(car.position));
         vis.container.zIndex = Math.round(car.position);
         this._refreshHpBar(vis.hpFill, car);
+        vis.hpText.text = String(car.hp);
       }
     }
 
@@ -154,8 +162,15 @@ export class CarRenderer {
     const hpFill = new Graphics();
     container.addChild(hpFill);
 
+    // HP number — centered on the car body, scales with container perspective scale
+    const hpText = new Text({ text: String(car.hp), style: HP_TEXT_STYLE });
+    hpText.anchor.set(0.5, 0.5);
+    hpText.x = 0;
+    hpText.y = 0;
+    container.addChild(hpText);
+
     this._layer.addChild(container);
-    return { container, hpFill };
+    return { container, hpFill, hpText };
   }
 
   _refreshHpBar(hpFill, car) {

@@ -108,6 +108,17 @@ async function main() {
   });
   document.body.appendChild(app.canvas);
 
+  // ── Fit canvas to viewport (scale-to-fit, preserving 390×844 aspect) ─────
+  // Without this, body's `align-items: center` clips the top of the canvas
+  // (and the HUD) whenever the browser window is shorter than APP_H pixels.
+  const _fitCanvas = () => {
+    const scale = Math.min(window.innerWidth / APP_W, window.innerHeight / APP_H);
+    app.canvas.style.width  = `${APP_W * scale}px`;
+    app.canvas.style.height = `${APP_H * scale}px`;
+  };
+  _fitCanvas();
+  window.addEventListener('resize', _fitCanvas);
+
   // ── Layers ───────────────────────────────────────────────────────────────
   const layers = new LayerManager(app.stage);
   new LaneRenderer(layers, APP_W);

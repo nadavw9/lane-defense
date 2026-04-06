@@ -124,10 +124,11 @@ export class HUDRenderer {
     this._layer.addChild(this._levelText);
 
     // ── Spring bounce state ───────────────────────────────────────────────
-    this._bounceScale = 1;
-    this._bounceVel   = 0;
-    this._lastCoins   = -1;
-    this._lastCombo   = 0;
+    this._bounceScale  = 1;
+    this._bounceVel    = 0;
+    this._lastCoins    = -1;
+    this._lastCombo    = 0;
+    this._debugLogged  = false;
   }
 
   // Call whenever the level changes so the label stays in sync.
@@ -144,6 +145,13 @@ export class HUDRenderer {
 
   // Call once per render frame.
   update(dt) {
+    if (!this._debugLogged) {
+      this._debugLogged = true;
+      console.log('[HUD] elapsed:', this._gs.elapsed,
+                  'duration:', this._gs.duration,
+                  'timeRemaining:', this._gs.timeRemaining,
+                  'ratio:', this._gs.timeRemaining / this._gs.duration);
+    }
     this._drawBg();
     this._stepSpring(dt);
     this._refreshComboText();

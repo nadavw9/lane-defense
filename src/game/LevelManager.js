@@ -91,12 +91,17 @@ export class LevelManager {
     return this.current.id;
   }
 
-  // Move to the next entry.  Stays at the last entry once L20 is reached
-  // so the final configuration loops indefinitely.
+  // Move to the next entry.  Stays at the last entry once L20 is reached.
   // Returns the new current config.
   advance() {
     if (this._idx < PROGRESSION.length - 1) this._idx++;
     return this.current;
+  }
+
+  // Jump directly to a level by id (1-20).  No-op for unknown ids.
+  goToLevel(id) {
+    const idx = PROGRESSION.findIndex(cfg => cfg.id === id);
+    if (idx >= 0) this._idx = idx;
   }
 
   // True once we've reached the last level.

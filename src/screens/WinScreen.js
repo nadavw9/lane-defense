@@ -10,7 +10,7 @@ import { Container, Graphics, Text } from 'pixi.js';
 const STAR_COLOR_FULL  = 0xffcc00;
 const STAR_COLOR_EMPTY = 0x3a3a3a;
 
-function calcStars(gs) {
+export function calcStars(gs) {
   if (gs.rescueUsed)              return 1;
   if (gs.maxCarPosition < 60)     return 3;
   if (gs.maxCarPosition < 80)     return 2;
@@ -19,10 +19,11 @@ function calcStars(gs) {
 
 export class WinScreen {
   // onNext — callback for the "Next Level" button
-  constructor(stage, appW, appH, gs, onNext) {
+  // onMenu — callback for the "Menu" button (go to level select)
+  constructor(stage, appW, appH, gs, onNext, onMenu) {
     this._container = new Container();
     stage.addChild(this._container);
-    this._build(appW, appH, gs, onNext);
+    this._build(appW, appH, gs, onNext, onMenu);
   }
 
   destroy() {
@@ -31,7 +32,7 @@ export class WinScreen {
 
   // ── Private ────────────────────────────────────────────────────────────────
 
-  _build(w, h, gs, onNext) {
+  _build(w, h, gs, onNext, onMenu) {
     // Full-screen dim
     const backdrop = new Graphics();
     backdrop.rect(0, 0, w, h);
@@ -39,8 +40,8 @@ export class WinScreen {
     backdrop.eventMode = 'static';   // block clicks reaching game layers
     this._container.addChild(backdrop);
 
-    // Centred panel
-    const panelW = 310, panelH = 370;
+    // Centred panel — taller to fit two buttons
+    const panelW = 310, panelH = 400;
     const px = (w - panelW) / 2;
     const py = (h - panelH) / 2 - 20;
 
@@ -62,14 +63,16 @@ export class WinScreen {
 
     this._text(`◆ ${gs.coins}`, cx, y, { fontSize: 26, fill: 0xf5c842 });
     y += 8;
-    this._text('coins earned', cx, y + 22, { fontSize: 14, fill: 0x999999, fontWeight: 'normal' });
+    this._text('coins', cx, y + 22, { fontSize: 14, fill: 0x999999, fontWeight: 'normal' });
     y += 52;
 
     this._text(`×${gs.maxCombo}`, cx, y, { fontSize: 24, fill: 0xffffff });
     this._text('best combo', cx, y + 22, { fontSize: 14, fill: 0x999999, fontWeight: 'normal' });
-    y += 60;
+    y += 58;
 
     this._button('NEXT LEVEL', cx, y, 0x1a6a3a, 0x55ff99, onNext);
+    y += 58;
+    this._button('MENU', cx, y, 0x1a2a3a, 0x88bbdd, onMenu);
   }
 
   _text(str, x, y, style) {

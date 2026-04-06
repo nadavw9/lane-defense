@@ -3,9 +3,8 @@
 // Responsibilities:
 //   • Create all subsystems (directors, game state, loop, renderers, input)
 //   • Run the RENDER ticker (variable rate, reads GameState, never writes it)
-//   • Manage level progression via LevelManager (FTUE L1 → L20+)
-//   • Show FTUEOverlay dim mask + tutorial arrow for early levels
-//   • Route end-of-game events to WinScreen / RescueOverlay
+//   • Screen routing: Title → LevelSelect → Game → Win/Lose → LevelSelect
+//   • Persist progress (stars, coins, boosters) to localStorage via ProgressManager
 //   • Phase 3A juice: lane flash, deploy punch, car death, combo glow,
 //     screen transitions, breach camera, Swap/Peek boosters
 //
@@ -31,6 +30,7 @@ import { GameLoop }        from '../game/GameLoop.js';
 import { CombatResolver }  from '../game/CombatResolver.js';
 import { LevelManager }    from '../game/LevelManager.js';
 import { BoosterState }    from '../game/BoosterState.js';
+import { ProgressManager } from '../game/ProgressManager.js';
 
 import { CarDirector }     from '../director/CarDirector.js';
 import { ShooterDirector } from '../director/ShooterDirector.js';
@@ -41,12 +41,14 @@ import { Lane }            from '../models/Lane.js';
 import { Column }          from '../models/Column.js';
 import { PHASE_CONFIG }    from '../director/DirectorConfig.js';
 
-import { WinScreen }          from '../screens/WinScreen.js';
-import { RescueOverlay }      from '../screens/RescueOverlay.js';
-import { FTUEOverlay }        from '../screens/FTUEOverlay.js';
-import { TransitionOverlay }  from '../screens/TransitionOverlay.js';
-import { AudioManager }       from '../audio/AudioManager.js';
-import { BoosterBar }         from './BoosterBar.js';
+import { WinScreen, calcStars }   from '../screens/WinScreen.js';
+import { RescueOverlay }          from '../screens/RescueOverlay.js';
+import { FTUEOverlay }            from '../screens/FTUEOverlay.js';
+import { TransitionOverlay }      from '../screens/TransitionOverlay.js';
+import { TitleScreen }            from '../screens/TitleScreen.js';
+import { LevelSelectScreen }      from '../screens/LevelSelectScreen.js';
+import { AudioManager }           from '../audio/AudioManager.js';
+import { BoosterBar }             from './BoosterBar.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const APP_W       = 390;
@@ -119,6 +121,9 @@ async function main() {
   _fitCanvas();
   window.addEventListener('resize', _fitCanvas);
 
+  // ── Progress (localStorage) ──────────────────────────────────────────────
+  const progress = new ProgressManager();
+
   // ── Layers ───────────────────────────────────────────────────────────────
   const layers = new LayerManager(app.stage);
   new LaneRenderer(layers, APP_W);
@@ -155,8 +160,13 @@ async function main() {
   // ── Audio ─────────────────────────────────────────────────────────────────
   const audio = new AudioManager();
 
-  // ── Boosters ──────────────────────────────────────────────────────────────
+  // ── Boosters — init from saved inventory ──────────────────────────────────
   const boosterState = new BoosterState();
+  {
+    const saved = progress.getBoosters();
+    boosterState.swap = saved.swap;
+    boosterState.peek = saved.peek;
+  }
 
   // ── HUD + Particles + juice effects ───────────────────────────────────────
   const hudRenderer   = new HUDRenderer(layers, gs, APP_W, audio);
@@ -172,53 +182,143 @@ async function main() {
   );
 
   // ── FTUE overlay ──────────────────────────────────────────────────────────
-  let ftueOverlay = _makeFTUEOverlay(app.stage, APP_W, APP_H, initialCfg);
+  let ftueOverlay = null;  // created in _startLevel
 
   // ── End-of-game screens ───────────────────────────────────────────────────
   let winScreen     = null;
   let rescueOverlay = null;
 
+  // ── Meta screens ─────────────────────────────────────────────────────────
+  let titleScreen      = null;
+  let levelSelectScreen = null;
+
   // ── Transition overlay (always topmost) ───────────────────────────────────
   const transition = new TransitionOverlay(app.stage, APP_W, APP_H);
 
   // ── Stage effects ─────────────────────────────────────────────────────────
-  let shakeTime = 0;          // seconds of shake remaining
-  // Breach camera: zoom toward the breaching lane for BREACH_CAM_DURATION.
+  let shakeTime = 0;
   let breachCam = null;       // null | { laneIdx, t, done }
 
-  // ── Level advancement ─────────────────────────────────────────────────────
+  // ── Game-loop flag — start() called only once ─────────────────────────────
+  let gameLoopStarted = false;
+
+  // ── Renderers ────────────────────────────────────────────────────────────
+  const carRenderer     = new CarRenderer(layers, lanes);
+  const shooterRenderer = new ShooterRenderer(layers, columns, boosterState);
+
+  // ── Level config helper ───────────────────────────────────────────────────
   function applyLevelConfig(cfg) {
-    gs.activeLaneCount = cfg.laneCount;
-    gs.activeColCount  = cfg.colCount;
-    gs.colors          = cfg.colors;
-    gs.world           = cfg.worldConfig;
-    gs.phaseMan        = new IntensityPhase(cfg.duration);
+    gs.activeLaneCount    = cfg.laneCount;
+    gs.activeColCount     = cfg.colCount;
+    gs.colors             = cfg.colors;
+    gs.world              = cfg.worldConfig;
+    gs.phaseMan           = new IntensityPhase(cfg.duration);
     gameLoop.baseDuration = cfg.duration;
   }
 
-  function advanceLevel() {
-    const cfg = levelManager.advance();
-    hudRenderer.setLevel(levelManager.levelNumber);
-    ftueOverlay?.destroy();
-    ftueOverlay = _makeFTUEOverlay(app.stage, APP_W, APP_H, cfg);
+  // ── Core level-start routine ──────────────────────────────────────────────
+  // Called both for first play and for every subsequent level.
+  function _startLevel(levelId) {
+    // Tear down any lingering overlay screens.
+    winScreen?.destroy();      winScreen      = null;
+    rescueOverlay?.destroy();  rescueOverlay  = null;
+    ftueOverlay?.destroy();    ftueOverlay    = null;
+
+    levelManager.goToLevel(levelId);
+    const cfg = levelManager.current;
+
+    // Restore persistent booster inventory for this level.
+    const savedBoosters = progress.getBoosters();
+    boosterState.swap      = savedBoosters.swap;
+    boosterState.peek      = savedBoosters.peek;
+    boosterState.swapMode  = false;
+    boosterState.swapFirst = -1;
+    boosterState.peekUntil = -Infinity;
+
     applyLevelConfig(cfg);
+    hudRenderer.setLevel(levelManager.levelNumber);
+    ftueOverlay = _makeFTUEOverlay(app.stage, APP_W, APP_H, cfg);
+
     carRenderer.clearAll();
+
+    // Start the game-loop ticker exactly once; restart() resets state each time.
+    if (!gameLoopStarted) {
+      gameLoopStarted = true;
+      gameLoop.start();
+    }
     gameLoop.restart();
+
+    // Restore accumulated coins AFTER restart() (which zeros gs.coins).
+    gs.coins = progress.coins;
   }
 
-  // ── Screen helpers ────────────────────────────────────────────────────────
-  function showWin() {
-    winScreen = new WinScreen(app.stage, APP_W, APP_H, gs, () => {
-      // "Next Level" pressed: fade to black → reset → fade in.
-      winScreen.destroy();
-      winScreen = null;
-      transition.fadeOut(0.30, () => {
-        advanceLevel();
-        transition.fadeIn(0.30, null);
-      });
+  // ── Screen: Title ─────────────────────────────────────────────────────────
+  function showTitle() {
+    titleScreen = new TitleScreen(app.stage, APP_W, APP_H, {
+      onPlay: () => {
+        titleScreen.destroy();
+        titleScreen = null;
+        showLevelSelect();
+      },
     });
   }
 
+  // ── Screen: Level Select ──────────────────────────────────────────────────
+  function showLevelSelect() {
+    levelSelectScreen = new LevelSelectScreen(app.stage, APP_W, APP_H, progress, {
+      onSelectLevel: (levelId) => {
+        levelSelectScreen.destroy();
+        levelSelectScreen = null;
+        transition.fadeOut(0.25, () => {
+          _startLevel(levelId);
+          transition.fadeIn(0.25, null);
+        });
+      },
+      onBack: () => {
+        levelSelectScreen.destroy();
+        levelSelectScreen = null;
+        showTitle();
+      },
+    });
+  }
+
+  // ── Screen: Win ───────────────────────────────────────────────────────────
+  function showWin() {
+    const levelId = levelManager.levelNumber;
+    const stars   = calcStars(gs);
+
+    // Persist: stars, unlocked level, coins, boosters used this level.
+    progress.recordWin(levelId, stars);
+    progress.setCoins(gs.coins);
+    progress.setBoosters(boosterState.swap, boosterState.peek);
+
+    winScreen = new WinScreen(
+      app.stage, APP_W, APP_H, gs,
+
+      // ── Next Level ──────────────────────────────────────────────────────
+      () => {
+        winScreen.destroy();
+        winScreen = null;
+        const nextId = Math.min(20, levelId + 1);
+        transition.fadeOut(0.30, () => {
+          _startLevel(nextId);
+          transition.fadeIn(0.30, null);
+        });
+      },
+
+      // ── Menu (Level Select) ─────────────────────────────────────────────
+      () => {
+        winScreen.destroy();
+        winScreen = null;
+        transition.fadeOut(0.25, () => {
+          showLevelSelect();
+          transition.fadeIn(0.25, null);
+        });
+      },
+    );
+  }
+
+  // ── Screen: Rescue ────────────────────────────────────────────────────────
   function showRescue() {
     rescueOverlay = new RescueOverlay(app.stage, APP_W, APP_H, gs, {
       onRescueAd: () => {
@@ -228,6 +328,7 @@ async function main() {
       },
       onRescueCoins: () => {
         gs.coins -= 50;
+        progress.setCoins(gs.coins);  // persist the deduction
         gs.rescue(10);
         rescueOverlay.destroy();
         rescueOverlay = null;
@@ -235,8 +336,11 @@ async function main() {
       onRetry: () => {
         rescueOverlay.destroy();
         rescueOverlay = null;
+        // Restore coins to saved state — level earnings are lost on retry.
+        gs.coins = progress.coins;
         carRenderer.clearAll();
         gameLoop.restart();
+        gs.coins = progress.coins;
       },
     });
   }
@@ -257,7 +361,6 @@ async function main() {
       floatingTexts.push(spawnChainHit(layers.get('particleLayer'), laneIdx));
     },
 
-    // laneIdx and colIdx are now forwarded so we can trigger juice effects.
     onShoot: (damage, laneIdx, colIdx) => {
       audio.play('shoot', { damage });
       ftueOverlay?.onFirstDeploy();
@@ -285,29 +388,11 @@ async function main() {
       if (won) {
         showWin();
       } else {
-        // Breach camera: pause, zoom in over 500 ms, then show rescue.
-        shakeTime = 0;  // stop shake — breach cam handles the drama
+        shakeTime = 0;
         breachCam = { laneIdx: laneIdx ?? 0, t: 0, done: false };
       }
     },
   });
-
-  // Prime initial state
-  phaseMan.update(0);
-  const calmCfg = PHASE_CONFIG['CALM'];
-  for (const lane of gs.activeLanes) {
-    const car    = carDir.generateCar(lane, 'CALM', gs.world, gs.colors);
-    car.position = rng.nextFloat(8, 50);
-    lane.addCar(car);
-    carDir.resetSpawnTimer(lane, calmCfg);
-  }
-  shooterDir.fillColumns(gs.activeCols, gs.asDirectorState(), phaseMan.getParams());
-
-  gameLoop.start();
-
-  // ── Renderers ────────────────────────────────────────────────────────────
-  const carRenderer     = new CarRenderer(layers, lanes);
-  const shooterRenderer = new ShooterRenderer(layers, columns, boosterState);
 
   // ── Input ────────────────────────────────────────────────────────────────
   const dragDrop = new DragDrop(
@@ -342,12 +427,10 @@ async function main() {
     // ── Breach camera ──────────────────────────────────────────────────────
     if (breachCam && !breachCam.done) {
       breachCam.t += dt;
-      const progress = Math.min(1, breachCam.t / BREACH_CAM_DURATION);
-      // Zoom peaks at 50% of the animation (sin curve), then returns to 1.
-      const zoomAmt = BREACH_CAM_ZOOM * Math.sin(Math.PI * progress);
+      const prog    = Math.min(1, breachCam.t / BREACH_CAM_DURATION);
+      const zoomAmt = BREACH_CAM_ZOOM * Math.sin(Math.PI * prog);
       const scale   = 1 + zoomAmt;
       const pivotX  = APP_W / 2;
-      // Zoom toward the breach line at the bottom of the breaching lane column.
       const pivotY  = ROAD_BOTTOM_Y;
 
       app.stage.scale.set(scale);
@@ -356,15 +439,12 @@ async function main() {
 
       if (breachCam.t >= BREACH_CAM_DURATION) {
         breachCam.done = true;
-        // Restore stage transform before showing overlay.
         app.stage.scale.set(1);
         app.stage.pivot.set(0, 0);
         app.stage.position.set(0, 0);
         showRescue();
       }
-      // While breach cam is running, skip shake so they don't conflict.
     } else {
-      // ── Screen shake on breach (runs only when breach cam is finished) ─────
       if (shakeTime > 0) {
         shakeTime = Math.max(0, shakeTime - dt);
         const mag = (shakeTime / 0.35) * 7;
@@ -376,9 +456,12 @@ async function main() {
       }
     }
 
-    if (rescueOverlay) rescueOverlay.update(dt);
-    if (ftueOverlay)   ftueOverlay.update(dt);
+    if (rescueOverlay)    rescueOverlay.update(dt);
+    if (ftueOverlay)      ftueOverlay.update(dt);
   });
+
+  // ── Boot: show title screen (game loop not started yet) ───────────────────
+  showTitle();
 }
 
 function _makeFTUEOverlay(stage, w, h, cfg) {

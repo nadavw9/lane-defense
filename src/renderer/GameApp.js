@@ -49,6 +49,8 @@ import { TitleScreen }            from '../screens/TitleScreen.js';
 import { LevelSelectScreen }      from '../screens/LevelSelectScreen.js';
 import { ShopScreen }             from '../screens/ShopScreen.js';
 import { DailyRewardScreen }      from '../screens/DailyRewardScreen.js';
+import { SettingsScreen }         from '../screens/SettingsScreen.js';
+import { PauseScreen }            from '../screens/PauseScreen.js';
 import { AudioManager }           from '../audio/AudioManager.js';
 import { BoosterBar }             from './BoosterBar.js';
 
@@ -195,9 +197,35 @@ async function main() {
   let levelSelectScreen  = null;
   let shopScreen         = null;
   let dailyRewardScreen  = null;
+  let settingsScreen     = null;
+  let pauseScreen        = null;
 
   // ── Transition overlay (always topmost) ───────────────────────────────────
   const transition = new TransitionOverlay(app.stage, APP_W, APP_H);
+
+  // ── Pause button (|| icon, top-right of HUD, shown during gameplay) ──────
+  const pauseBtn = (() => {
+    const HIT = 40;           // tap-target size
+    const g   = new Graphics();
+    // Background pill
+    g.roundRect(0, 0, HIT, HIT, 8);
+    g.fill({ color: 0x000000, alpha: 0.40 });
+    // Two vertical bars of the || symbol
+    g.rect(10, 10, 6, 20);
+    g.fill({ color: 0xffffff, alpha: 0.90 });
+    g.rect(24, 10, 6, 20);
+    g.fill({ color: 0xffffff, alpha: 0.90 });
+    g.x       = APP_W - HIT - 4;
+    g.y       = 2;
+    g.eventMode = 'static';
+    g.cursor    = 'pointer';
+    g.visible   = false;
+    g.on('pointerdown', () => showPause());
+    g.on('pointerover',  () => { g.alpha = 0.70; });
+    g.on('pointerout',   () => { g.alpha = 1.00; });
+    layers.get('hudLayer').addChild(g);
+    return g;
+  })();
 
   // ── Stage effects ─────────────────────────────────────────────────────────
   let shakeTime = 0;
@@ -250,7 +278,10 @@ async function main() {
       gameLoopStarted = true;
       gameLoop.start();
     }
+    gameLoop.resume();   // un-pause if coming from a Quit
     gameLoop.restart();
+
+    pauseBtn.visible = true;
 
     // Restore accumulated coins AFTER restart() (which zeros gs.coins).
     gs.coins = progress.coins;
@@ -258,6 +289,7 @@ async function main() {
 
   // ── Screen: Title ─────────────────────────────────────────────────────────
   function showTitle() {
+    pauseBtn.visible = false;
     titleScreen = new TitleScreen(app.stage, APP_W, APP_H, {
       onPlay: () => {
         titleScreen.destroy();
@@ -268,6 +300,13 @@ async function main() {
         showDailyReward();
       },
       hasDailyReward: progress.canClaimDaily(),
+      onSettings: () => {
+        showSettings(() => {
+          settingsScreen.destroy();
+          settingsScreen = null;
+          // TitleScreen is still underneath — no rebuild needed.
+        });
+      },
     });
   }
 
@@ -289,6 +328,7 @@ async function main() {
 
   // ── Screen: Level Select ──────────────────────────────────────────────────
   function showLevelSelect() {
+    pauseBtn.visible = false;
     levelSelectScreen = new LevelSelectScreen(app.stage, APP_W, APP_H, progress, {
       onSelectLevel: (levelId) => {
         levelSelectScreen.destroy();
@@ -322,8 +362,48 @@ async function main() {
     });
   }
 
+  // ── Screen: Settings ─────────────────────────────────────────────────────
+  // onClose is provided by the caller so the same screen works from both
+  // the title gear and the in-game pause menu.
+  function showSettings(onClose) {
+    settingsScreen = new SettingsScreen(app.stage, APP_W, APP_H, audio, { onClose });
+  }
+
+  // ── Screen: Pause ─────────────────────────────────────────────────────────
+  function showPause() {
+    gameLoop.pause();
+    pauseBtn.visible = false;
+    pauseScreen = new PauseScreen(app.stage, APP_W, APP_H, {
+      onResume: () => {
+        pauseScreen.destroy();
+        pauseScreen   = null;
+        pauseBtn.visible = true;
+        gameLoop.resume();
+      },
+      onSettings: () => {
+        pauseScreen.destroy();
+        pauseScreen = null;
+        showSettings(() => {
+          settingsScreen.destroy();
+          settingsScreen = null;
+          showPause();   // rebuild pause screen on settings close
+        });
+      },
+      onQuit: () => {
+        pauseScreen.destroy();
+        pauseScreen = null;
+        // Leave gameLoop paused — _startLevel() will resume it.
+        transition.fadeOut(0.25, () => {
+          showLevelSelect();
+          transition.fadeIn(0.25, null);
+        });
+      },
+    });
+  }
+
   // ── Screen: Win ───────────────────────────────────────────────────────────
   function showWin() {
+    pauseBtn.visible = false;
     const levelId = levelManager.levelNumber;
     const stars   = calcStars(gs);
 
@@ -360,6 +440,7 @@ async function main() {
 
   // ── Screen: Rescue ────────────────────────────────────────────────────────
   function showRescue() {
+    pauseBtn.visible = false;
     rescueOverlay = new RescueOverlay(app.stage, APP_W, APP_H, gs, {
       onRescueAd: () => {
         gs.rescue(10);
@@ -379,8 +460,10 @@ async function main() {
         // Restore coins to saved state — level earnings are lost on retry.
         gs.coins = progress.coins;
         carRenderer.clearAll();
+        gameLoop.resume();
         gameLoop.restart();
         gs.coins = progress.coins;
+        pauseBtn.visible = true;
       },
     });
   }

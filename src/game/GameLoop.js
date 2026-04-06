@@ -42,11 +42,15 @@ export class GameLoop {
     this._baseDuration = gameState.duration;
 
     this._accumulator = 0;
+    this._paused      = false;
     this._bound       = this._tick.bind(this);
   }
 
-  start() { this._app.ticker.add(this._bound); }
-  stop()  { this._app.ticker.remove(this._bound); }
+  start()  { this._app.ticker.add(this._bound); }
+  stop()   { this._app.ticker.remove(this._bound); }
+  pause()  { this._paused = true; }
+  resume() { this._paused = false; }
+  get paused() { return this._paused; }
 
   // Update the base duration used by restart() to reset gs.duration.
   // Call this before restart() when changing levels.
@@ -117,7 +121,7 @@ export class GameLoop {
   // ── Private ────────────────────────────────────────────────────────────────
 
   _tick(ticker) {
-    if (this._gs.isOver) return;
+    if (this._paused || this._gs.isOver) return;
 
     const frameDt     = Math.min(ticker.deltaMS / 1000, 0.05);
     this._accumulator += frameDt;

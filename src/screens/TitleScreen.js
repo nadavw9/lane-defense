@@ -109,8 +109,8 @@ export class TitleScreen {
       this._container.addChild(daily);
     }
 
-    // ── Settings gear (top-right, placeholder) ────────────────────────────────
-    this._drawGear(w - 36, 36);
+    // ── Settings gear (top-right) ─────────────────────────────────────────────
+    this._drawGear(w - 36, 36, onSettings);
   }
 
   _drawRoadLines(w, h) {
@@ -130,7 +130,7 @@ export class TitleScreen {
     this._container.addChild(g);
   }
 
-  _drawGear(cx, cy) {
+  _drawGear(cx, cy, onClick) {
     const g     = new Graphics();
     const r     = 12, innerR = 6.5, teeth = 8, toothH = 4.5;
 
@@ -153,6 +153,17 @@ export class TitleScreen {
     // Center hole
     g.circle(cx, cy, innerR);
     g.fill(0x050510);
+
+    // Make gear tappable if a callback was provided.
+    if (onClick) {
+      // Hit-area slightly larger than the visual for easy tapping.
+      g.eventMode = 'static';
+      g.cursor    = 'pointer';
+      g.hitArea   = { contains: (px, py) => Math.hypot(px - cx, py - cy) <= r + toothH + 6 };
+      g.on('pointerdown', onClick);
+      g.on('pointerover',  () => { g.tint = 0xaaddff; });
+      g.on('pointerout',   () => { g.tint = 0xffffff; });
+    }
 
     this._container.addChild(g);
   }

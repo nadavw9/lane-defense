@@ -8,11 +8,12 @@
 import { Container, Graphics, Text } from 'pixi.js';
 
 export class TitleScreen {
-  // callbacks: { onPlay }
-  constructor(stage, appW, appH, { onPlay }) {
+  // callbacks: { onPlay, onDaily, hasDailyReward }
+  // hasDailyReward — true if a daily reward is ready to claim (shows glow badge)
+  constructor(stage, appW, appH, { onPlay, onDaily, hasDailyReward }) {
     this._container = new Container();
     stage.addChild(this._container);
-    this._build(appW, appH, onPlay);
+    this._build(appW, appH, onPlay, onDaily, hasDailyReward);
   }
 
   destroy() {
@@ -21,7 +22,7 @@ export class TitleScreen {
 
   // ── Private ────────────────────────────────────────────────────────────────
 
-  _build(w, h, onPlay) {
+  _build(w, h, onPlay, onDaily, hasDailyReward) {
     // Full-screen background — also absorbs pointer events so game layers stay inert.
     const bg = new Graphics();
     bg.rect(0, 0, w, h);
@@ -81,6 +82,32 @@ export class TitleScreen {
     btnText.anchor.set(0.5, 0.5);
     btn.addChild(btnText);
     this._container.addChild(btn);
+
+    // ── DAILY REWARD button ───────────────────────────────────────────────────
+    if (onDaily) {
+      const dailyW = 160, dailyH = 44;
+      const daily  = new Graphics();
+      daily.roundRect(-dailyW / 2, -dailyH / 2, dailyW, dailyH, 12);
+      daily.fill(hasDailyReward ? 0x2a1a00 : 0x111122);
+      if (hasDailyReward) {
+        daily.roundRect(-dailyW / 2, -dailyH / 2, dailyW, dailyH, 12);
+        daily.stroke({ color: 0xf5c842, width: 2, alpha: 0.80 });
+      }
+      daily.x = w / 2;
+      daily.y = h * 0.56 + 68;
+      daily.eventMode = 'static';
+      daily.cursor    = 'pointer';
+      daily.on('pointerdown', onDaily);
+      daily.on('pointerover',  () => { daily.alpha = 0.78; });
+      daily.on('pointerout',   () => { daily.alpha = 1.00; });
+
+      const dailyLabel = hasDailyReward ? '◆ DAILY REWARD' : 'DAILY REWARD';
+      const dailyColor = hasDailyReward ? 0xf5c842 : 0x556677;
+      const dt = new Text({ text: dailyLabel, style: { fontSize: 16, fontWeight: 'bold', fill: dailyColor } });
+      dt.anchor.set(0.5, 0.5);
+      daily.addChild(dt);
+      this._container.addChild(daily);
+    }
 
     // ── Settings gear (top-right, placeholder) ────────────────────────────────
     this._drawGear(w - 36, 36);

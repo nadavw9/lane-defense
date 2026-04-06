@@ -48,6 +48,7 @@ import { TransitionOverlay }      from '../screens/TransitionOverlay.js';
 import { TitleScreen }            from '../screens/TitleScreen.js';
 import { LevelSelectScreen }      from '../screens/LevelSelectScreen.js';
 import { ShopScreen }             from '../screens/ShopScreen.js';
+import { DailyRewardScreen }      from '../screens/DailyRewardScreen.js';
 import { AudioManager }           from '../audio/AudioManager.js';
 import { BoosterBar }             from './BoosterBar.js';
 
@@ -190,9 +191,10 @@ async function main() {
   let rescueOverlay = null;
 
   // ── Meta screens ─────────────────────────────────────────────────────────
-  let titleScreen       = null;
-  let levelSelectScreen = null;
-  let shopScreen        = null;
+  let titleScreen        = null;
+  let levelSelectScreen  = null;
+  let shopScreen         = null;
+  let dailyRewardScreen  = null;
 
   // ── Transition overlay (always topmost) ───────────────────────────────────
   const transition = new TransitionOverlay(app.stage, APP_W, APP_H);
@@ -261,6 +263,26 @@ async function main() {
         titleScreen.destroy();
         titleScreen = null;
         showLevelSelect();
+      },
+      onDaily: () => {
+        showDailyReward();
+      },
+      hasDailyReward: progress.canClaimDaily(),
+    });
+  }
+
+  // ── Screen: Daily Reward ──────────────────────────────────────────────────
+  function showDailyReward() {
+    dailyRewardScreen = new DailyRewardScreen(app.stage, APP_W, APP_H, progress, {
+      onClose: () => {
+        dailyRewardScreen.destroy();
+        dailyRewardScreen = null;
+        // Rebuild title so the reward badge reflects the new claim state.
+        if (titleScreen) {
+          titleScreen.destroy();
+          titleScreen = null;
+          showTitle();
+        }
       },
     });
   }

@@ -292,7 +292,7 @@ async function main() {
     pauseBtn.visible = false;
     titleScreen = new TitleScreen(app.stage, APP_W, APP_H, {
       onPlay: () => {
-        titleScreen.destroy();
+        titleScreen?.destroy();
         titleScreen = null;
         showLevelSelect();
       },

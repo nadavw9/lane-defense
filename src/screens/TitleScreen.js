@@ -10,10 +10,10 @@ import { Container, Graphics, Text } from 'pixi.js';
 export class TitleScreen {
   // callbacks: { onPlay, onDaily, hasDailyReward }
   // hasDailyReward — true if a daily reward is ready to claim (shows glow badge)
-  constructor(stage, appW, appH, { onPlay, onDaily, hasDailyReward }) {
+  constructor(stage, appW, appH, { onPlay, onDaily, hasDailyReward, onSettings }) {
     this._container = new Container();
     stage.addChild(this._container);
-    this._build(appW, appH, onPlay, onDaily, hasDailyReward);
+    this._build(appW, appH, onPlay, onDaily, hasDailyReward, onSettings);
   }
 
   destroy() {
@@ -22,7 +22,7 @@ export class TitleScreen {
 
   // ── Private ────────────────────────────────────────────────────────────────
 
-  _build(w, h, onPlay, onDaily, hasDailyReward) {
+  _build(w, h, onPlay, onDaily, hasDailyReward, onSettings) {
     // Full-screen background — also absorbs pointer events so game layers stay inert.
     const bg = new Graphics();
     bg.rect(0, 0, w, h);

@@ -11,7 +11,7 @@
 // Data flow:
 //   InputManager → DragDrop → GameLoop.deploy() → GameState mutation
 //   GameState → CarRenderer / ShooterRenderer / HUDRenderer / ParticleSystem
-import { Application, Text } from 'pixi.js';
+import { Application, Graphics, Text } from 'pixi.js';
 
 import { LayerManager }    from './LayerManager.js';
 import { LaneRenderer, laneCenterX, posToScreenY, ROAD_BOTTOM_Y } from './LaneRenderer.js';

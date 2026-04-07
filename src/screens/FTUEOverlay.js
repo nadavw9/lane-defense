@@ -3,11 +3,10 @@
 //   1. Dim mask — dark transparent shapes covering inactive lane columns and
 //      shooter columns so the player's attention stays on the active area.
 //
-//   2. Tutorial hint (shown when levelConfig.showArrow is true) —
-//        • pulsing highlight ring around the active column's top shooter
-//        • upward-pointing animated arrow in the active lane area
-//        • "Drag the shooter to the lane" instruction text
-//      The hint disappears on the first deploy (call onFirstDeploy()).
+//   2. Tutorial hint (shown when levelConfig.hintText is set) —
+//        • For L1 (showArrow: true): animated arrow + pulsing ring + text,
+//          dismisses on first deploy.
+//        • For other levels: a text banner at the bottom that auto-hides after 8 s.
 //
 // update(dt) must be called from the render ticker while the overlay is live.
 import { Container, Graphics, Text } from 'pixi.js';
@@ -21,28 +20,30 @@ import {
   COL_W, COL_COUNT as TOTAL_COLS,
   TOP_Y, TOP_RADIUS,
 } from '../renderer/ShooterRenderer.js';
-import { BENCH_Y, BENCH_SLOT_H } from '../renderer/BenchRenderer.js';
+
+const HINT_AUTO_HIDE = 8; // seconds before text banner fades out
 
 export class FTUEOverlay {
-  // levelConfig: { laneCount, colCount, showArrow, ... }
+  // levelConfig: { laneCount, colCount, showArrow, hintText, ... }
   constructor(stage, appW, appH, levelConfig) {
     this._container = new Container();
     stage.addChild(this._container);
 
     this._appW        = appW;
     this._elapsed     = 0;
-    this._hintVisible = !!levelConfig.showArrow;
+    this._hintVisible = !!levelConfig.hintText;
+    this._isArrow     = !!levelConfig.showArrow;
     this._ring        = null;
     this._arrowGroup  = null;
     this._arrowBaseY  = 0;
+    this._banner      = null;
 
     this._buildDimMask(appW, levelConfig);
 
-    if (levelConfig.showArrow) {
-      this._buildHint(appW, levelConfig.laneCount, levelConfig.colCount);
-    }
-    if (levelConfig.showBenchHint) {
-      this._buildBenchHint(appW);
+    if (levelConfig.showArrow && levelConfig.hintText) {
+      this._buildArrowHint(appW, levelConfig.hintText);
+    } else if (levelConfig.hintText) {
+      this._buildBanner(appW, levelConfig.hintText);
     }
   }
 
@@ -50,9 +51,9 @@ export class FTUEOverlay {
     this._container.destroy({ children: true });
   }
 
-  // Call on the first deploy action to hide the tutorial hint.
+  // Call on the first deploy action to hide the arrow-style tutorial hint.
   onFirstDeploy() {
-    if (!this._hintVisible) return;
+    if (!this._isArrow || !this._hintVisible) return;
     this._hintVisible = false;
     if (this._arrowGroup) this._arrowGroup.visible = false;
     if (this._ring)       this._ring.visible       = false;
@@ -63,21 +64,35 @@ export class FTUEOverlay {
     if (!this._hintVisible) return;
     this._elapsed += dt;
 
-    // Animate the arrow group — gentle bounce + opacity pulse.
-    if (this._arrowGroup) {
-      this._arrowGroup.y     = this._arrowBaseY + Math.sin(this._elapsed * 2.8) * 8;
-      this._arrowGroup.alpha = 0.68 + Math.sin(this._elapsed * 2.1) * 0.28;
-    }
+    if (this._isArrow) {
+      // Animate the arrow group — gentle bounce + opacity pulse.
+      if (this._arrowGroup) {
+        this._arrowGroup.y     = this._arrowBaseY + Math.sin(this._elapsed * 2.8) * 8;
+        this._arrowGroup.alpha = 0.68 + Math.sin(this._elapsed * 2.1) * 0.28;
+      }
 
-    // Animate the highlight ring — radius + opacity pulse.
-    if (this._ring) {
-      const t      = this._elapsed * 4.2;
-      const scale  = 1 + Math.sin(t) * 0.14;
-      const alpha  = 0.42 + Math.sin(t) * 0.38;
-      const cx = COL_W * 0.5;
-      this._ring.clear();
-      this._ring.circle(cx, TOP_Y, TOP_RADIUS * 1.45 * scale);
-      this._ring.stroke({ color: 0xffee44, width: 3.5, alpha });
+      // Animate the highlight ring — radius + opacity pulse.
+      if (this._ring) {
+        const t      = this._elapsed * 4.2;
+        const scale  = 1 + Math.sin(t) * 0.14;
+        const alpha  = 0.42 + Math.sin(t) * 0.38;
+        const cx = COL_W * 0.5;
+        this._ring.clear();
+        this._ring.circle(cx, TOP_Y, TOP_RADIUS * 1.45 * scale);
+        this._ring.stroke({ color: 0xffee44, width: 3.5, alpha });
+      }
+    } else {
+      // Auto-hide banner after HINT_AUTO_HIDE seconds.
+      if (this._elapsed >= HINT_AUTO_HIDE) {
+        this._hintVisible = false;
+        if (this._banner) this._banner.visible = false;
+      } else {
+        // Fade out in the last 2 seconds.
+        const fadeStart = HINT_AUTO_HIDE - 2;
+        if (this._elapsed > fadeStart && this._banner) {
+          this._banner.alpha = 1 - (this._elapsed - fadeStart) / 2;
+        }
+      }
     }
   }
 
@@ -88,12 +103,11 @@ export class FTUEOverlay {
     const g = new Graphics();
 
     // Dim the inactive lane columns — the right portion of the perspective road.
-    // Each lane is a trapezoid; cover from lane `laneCount` to TOTAL_LANES.
     if (laneCount < TOTAL_LANES) {
       const topLx = ROAD_TOP_X + laneCount * ROAD_TOP_W  / TOTAL_LANES;
-      const topRx = ROAD_TOP_X + ROAD_TOP_W;   // right edge of road at top
+      const topRx = ROAD_TOP_X + ROAD_TOP_W;
       const botLx =              laneCount * ROAD_BOTTOM_W / TOTAL_LANES;
-      const botRx =              ROAD_BOTTOM_W;  // right edge of road at bottom
+      const botRx =              ROAD_BOTTOM_W;
       g.poly([topLx, ROAD_TOP_Y, topRx, ROAD_TOP_Y, botRx, ROAD_BOTTOM_Y, botLx, ROAD_BOTTOM_Y]);
       g.fill({ color: 0x000000, alpha: 0.72 });
     }
@@ -108,51 +122,48 @@ export class FTUEOverlay {
     this._container.addChild(g);
   }
 
-  _buildBenchHint(w) {
-    // Static hint arrow + text pointing at the bench row.
-    // Stays visible for the whole level — no dismiss needed for L2 FTUE.
+  _buildBanner(w, text) {
+    // Static-ish text banner near the bottom of the road — auto-fades after 8s.
     const grp = new Container();
     this._container.addChild(grp);
+    this._banner = grp;
 
-    const hintY = BENCH_Y - 28;
-
-    // Small downward-pointing arrow above the bench
-    const ag = new Graphics();
-    ag.poly([0, 20, -14, 0, 14, 0]);
-    ag.fill({ color: 0x44aaff, alpha: 0.88 });
-    ag.rect(-3, -18, 6, 18);
-    ag.fill({ color: 0x44aaff, alpha: 0.88 });
-    ag.x = w / 2;
-    ag.y = hintY;
-    grp.addChild(ag);
+    // Semi-transparent pill background
+    const bg = new Graphics();
+    bg.roundRect(20, 0, w - 40, 44, 10);
+    bg.fill({ color: 0x000000, alpha: 0.65 });
+    bg.roundRect(20, 0, w - 40, 44, 10);
+    bg.stroke({ color: 0x44aaff, width: 1.5, alpha: 0.50 });
+    grp.addChild(bg);
 
     const txt = new Text({
-      text: 'Store unwanted shooters in the bench — use them later!',
+      text,
       style: {
-        fontSize:      14,
+        fontSize:      15,
         fontWeight:    'bold',
         fill:          0x88ccff,
         align:         'center',
         wordWrap:      true,
-        wordWrapWidth: w - 40,
+        wordWrapWidth: w - 60,
         dropShadow:    { color: 0x000000, blur: 4, distance: 2, alpha: 0.9 },
       },
     });
-    txt.anchor.set(0.5, 1);
+    txt.anchor.set(0.5, 0.5);
     txt.x = w / 2;
-    txt.y = hintY - 6;
+    txt.y = 22;
     grp.addChild(txt);
+
+    // Position banner just above the shooter area
+    grp.y = SHOOTER_AREA_Y - 54;
   }
 
-  _buildHint(w, laneCount, colCount) {
+  _buildArrowHint(w, text) {
     // ── Pulsing ring over column 0's top shooter ─────────────────────────────
     const ring = new Graphics();
     this._ring = ring;
     this._container.addChild(ring);
 
     // ── Arrow + instruction text ─────────────────────────────────────────────
-    // Arrow sits in the active lane area (lane 0), pointing upward to show the
-    // player the direction to drag (shooter at bottom → lane at top).
     const grp = new Container();
     this._container.addChild(grp);
     this._arrowGroup = grp;
@@ -175,7 +186,7 @@ export class FTUEOverlay {
 
     // Instruction text centred on the full screen width, offset relative to grp.x.
     const txt = new Text({
-      text: 'Drag the matching shooter to the lane',
+      text,
       style: {
         fontSize:      17,
         fontWeight:    'bold',

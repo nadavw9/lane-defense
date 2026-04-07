@@ -3,11 +3,13 @@
 // No PixiJS dependencies — pure logic.
 export class BoosterState {
   constructor() {
-    this.swap = 3;           // remaining swap charges
-    this.peek = 3;           // remaining peek charges
-    this.swapMode  = false;  // true while waiting for two column taps
-    this.swapFirst = -1;     // first column selected in swap mode (-1 = none yet)
-    this.peekUntil = -Infinity; // game elapsed time when peek expires
+    this.swap   = 3;           // remaining swap charges
+    this.peek   = 3;           // remaining peek charges
+    this.freeze = 0;           // remaining freeze charges
+    this.swapMode    = false;          // true while waiting for two column taps
+    this.swapFirst   = -1;             // first column selected in swap mode (-1 = none yet)
+    this.peekUntil   = -Infinity;      // game elapsed time when peek expires
+    this.freezeUntil = -Infinity;      // game elapsed time when freeze expires
   }
 
   // Enter swap mode if charges remain.  Returns true on success.
@@ -67,5 +69,17 @@ export class BoosterState {
 
   isPeeking(elapsed) {
     return elapsed < this.peekUntil;
+  }
+
+  // Freeze all cars for 10 seconds.  Returns true on success.
+  activateFreeze(elapsed) {
+    if (this.freeze <= 0) return false;
+    this.freeze--;
+    this.freezeUntil = elapsed + 10;
+    return true;
+  }
+
+  isFrozen(elapsed) {
+    return elapsed < this.freezeUntil;
   }
 }

@@ -1,9 +1,10 @@
-// ShooterRenderer — draws the 4 shooter columns in the shooter area (y 520–760).
+// ShooterRenderer — draws the 4 shooter columns in the shooter area (y 520–700).
 // Each column shows:
 //   • a background panel
 //   • the top shooter as a full-opacity colored circle with damage number
-//   • the second shooter at 40% opacity (peeking)
-//   • while Peek booster is active: a third shooter at 25% opacity
+//   • the second shooter at 40% opacity
+//   • the third shooter at 45% opacity (always visible)
+//   • while Peek booster is active: 4th+5th as tiny pips (radius 9) at cx±22
 //
 // The top shooter has a continuous idle bounce.  On deploy, it punches to 1.3×
 // scale and eases back to 1.0 over 150 ms (call triggerDeployPunch(colIdx)).
@@ -12,17 +13,19 @@ import { Graphics, Container, Text } from 'pixi.js';
 
 // ── Layout ────────────────────────────────────────────────────────────────────
 export const SHOOTER_AREA_Y  = 520;
-export const SHOOTER_AREA_H  = 200;   // 520-720 (bench row follows at 723)
+export const SHOOTER_AREA_H  = 180;   // 520-700 (bench row follows at 703)
 export const COL_COUNT       = 4;
 export const COL_W           = 390 / COL_COUNT;  // 97.5 px
 
-export const TOP_RADIUS    = 36;
-export const SECOND_RADIUS = 26;
-const        THIRD_RADIUS  = 18;
+export const TOP_RADIUS    = 34;
+export const SECOND_RADIUS = 24;
+const        THIRD_RADIUS  = 17;
+const        PIP_RADIUS    = 9;
 
-export const TOP_Y    = SHOOTER_AREA_Y + 55;   // 575 — top shooter center
-export const SECOND_Y = SHOOTER_AREA_Y + 140;  // 660 — second shooter center
-const        THIRD_Y  = SHOOTER_AREA_Y + 178;  // 698 — peek-only third slot
+export const TOP_Y    = SHOOTER_AREA_Y + 46;   // 566 — top shooter center
+export const SECOND_Y = SHOOTER_AREA_Y + 108;  // 628 — second shooter center
+const        THIRD_Y  = SHOOTER_AREA_Y + 156;  // 676 — third shooter center (always visible)
+const        PIP_Y    = SHOOTER_AREA_Y + 169;  // 689 — peek pips row
 
 // Idle bounce amplitude and speed
 const BOUNCE_AMP   = 4;
@@ -97,7 +100,6 @@ export class ShooterRenderer {
 
       const thirdText = new Text({ text: '', style: SECOND_TEXT_STYLE });
       thirdText.anchor.set(0.5);
-      thirdText.visible = false;
       colContainer.addChild(thirdText);
       this._thirdTexts.push(thirdText);
 
@@ -174,19 +176,33 @@ export class ShooterRenderer {
         this._secondTexts[i].visible = false;
       }
 
-      // ── Third shooter (25% opacity, visible only during Peek) ───────────────
-      const third = isPeeking ? (col.shooters[2] ?? null) : null;
+      // ── Third shooter (45% opacity, always visible) ─────────────────────────
+      const third = col.shooters[2] ?? null;
       if (third) {
         const c3 = COLOR_MAP[third.color] ?? 0x888888;
         g.circle(cx, THIRD_Y, THIRD_RADIUS);
-        g.fill({ color: c3, alpha: 0.25 });
+        g.fill({ color: c3, alpha: 0.45 });
         this._thirdTexts[i].text    = String(third.damage);
         this._thirdTexts[i].x       = cx;
         this._thirdTexts[i].y       = THIRD_Y;
-        this._thirdTexts[i].alpha   = 0.25;
+        this._thirdTexts[i].alpha   = 0.45;
         this._thirdTexts[i].visible = true;
       } else {
         this._thirdTexts[i].visible = false;
+      }
+
+      // ── Peek pips (4th + 5th shooters, tiny dots at cx±22) ──────────────────
+      if (isPeeking) {
+        const fourth = col.shooters[3] ?? null;
+        const fifth  = col.shooters[4] ?? null;
+        if (fourth) {
+          g.circle(cx - 22, PIP_Y, PIP_RADIUS);
+          g.fill({ color: COLOR_MAP[fourth.color] ?? 0x888888, alpha: 0.45 });
+        }
+        if (fifth) {
+          g.circle(cx + 22, PIP_Y, PIP_RADIUS);
+          g.fill({ color: COLOR_MAP[fifth.color] ?? 0x888888, alpha: 0.45 });
+        }
       }
 
       // ── Top shooter — scaleable container ────────────────────────────────────

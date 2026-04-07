@@ -1,9 +1,9 @@
 // ShopScreen — booster purchase screen accessible from Level Select.
 //
 // Shows three booster rows:
-//   Swap        — 20 coins, +1 charge; swap two shooter column colors
-//   Peek        — 20 coins, +1 charge; reveal next 3 incoming car colors
-//   Double Time — 30 coins; reserved (not yet implemented)
+//   Swap   — 20 coins, +1 charge; swap two shooter column colors
+//   Peek   — 20 coins, +1 charge; reveal upcoming shooter colors
+//   Freeze — 30 coins, +1 charge; freeze all cars for 10 seconds
 //
 // Coin balance and booster counts update immediately on purchase.
 // Buying deducts coins via ProgressManager.spendCoins() and increments
@@ -34,15 +34,14 @@ const BOOSTER_DEFS = [
     btnLabel: 0x66ff88,
   },
   {
-    key:      'doubletime',
-    label:    'DOUBLE TIME',
-    desc:     'Slow all cars for 5s\n(coming soon)',
+    key:      'freeze',
+    label:    'FREEZE',
+    desc:     'Freeze all cars\nfor 10 seconds',
     cost:     30,
-    bg:       0x1a1000,
-    border:   0x443300,
-    btnColor: 0x2a1a00,
-    btnLabel: 0x886633,
-    reserved: true,
+    bg:       0x001a2a,
+    border:   0x004466,
+    btnColor: 0x002a44,
+    btnLabel: 0x44ccff,
   },
 ];
 
@@ -176,8 +175,8 @@ export class ShopScreen {
     this._container.addChild(desc);
 
     // Count badge (e.g. "×3 owned")
-    const countKey  = def.key === 'doubletime' ? null : def.key;
-    const ownedCt   = countKey ? (boosters[countKey] ?? 0) : 0;
+    const countKey  = def.key;
+    const ownedCt   = boosters[countKey] ?? 0;
     const countTxt  = new Text({
       text: countKey ? `×${ownedCt} owned` : '—',
       style: { fontSize: 14, fontWeight: 'bold', fill: 0xaaccee },
@@ -201,7 +200,7 @@ export class ShopScreen {
     this._container.addChild(btn);
 
     const btnLabelTxt = new Text({
-      text: def.reserved ? 'SOON' : `◆ ${def.cost}`,
+      text: `◆ ${def.cost}`,
       style: { fontSize: 15, fontWeight: 'bold', fill: enabled ? def.btnLabel : 0x555555 },
     });
     btnLabelTxt.anchor.set(0.5, 0.5);
@@ -226,11 +225,14 @@ export class ShopScreen {
     // Increment the booster count in progress.
     const saved = p.getBoosters();
     if (def.key === 'swap') {
-      p.setBoosters(saved.swap + 1, saved.peek);
+      p.setBoosters(saved.swap + 1, saved.peek, saved.freeze);
       if (this._boosterState) this._boosterState.swap = saved.swap + 1;
     } else if (def.key === 'peek') {
-      p.setBoosters(saved.swap, saved.peek + 1);
+      p.setBoosters(saved.swap, saved.peek + 1, saved.freeze);
       if (this._boosterState) this._boosterState.peek = saved.peek + 1;
+    } else if (def.key === 'freeze') {
+      p.setBoosters(saved.swap, saved.peek, saved.freeze + 1);
+      if (this._boosterState) this._boosterState.freeze = saved.freeze + 1;
     }
 
     // Rebuild UI to reflect new coin balance and counts.

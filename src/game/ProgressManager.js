@@ -4,7 +4,7 @@
 //   unlockedLevel  — highest level the player may start (1-20)
 //   stars          — { "1": 3, "2": 2, ... }  best star count per level
 //   coins          — total accumulated coins across sessions
-//   boosters       — { swap: n, peek: n }  persistent booster inventory
+//   boosters       — { swap: n, peek: n, freeze: n }  persistent booster inventory
 //   dailyReward    — { day: 0-6, lastClaim: ms-timestamp | null }
 const STORAGE_KEY = 'lane-defense-v1';
 
@@ -26,7 +26,7 @@ function defaults() {
     unlockedLevel: 1,
     stars:         {},
     coins:         0,
-    boosters:      { swap: 3, peek: 3 },
+    boosters:      { swap: 3, peek: 3, freeze: 0 },
     dailyReward:   { day: 0, lastClaim: null },
   };
 }
@@ -75,8 +75,12 @@ export class ProgressManager {
   }
 
   // Persist booster counts at end of a level.
-  setBoosters(swap, peek) {
-    this._data.boosters = { swap: Math.max(0, swap), peek: Math.max(0, peek) };
+  setBoosters(swap, peek, freeze = 0) {
+    this._data.boosters = {
+      swap:   Math.max(0, swap),
+      peek:   Math.max(0, peek),
+      freeze: Math.max(0, freeze),
+    };
     this._save();
   }
 
@@ -105,6 +109,8 @@ export class ProgressManager {
       this._data.boosters.swap += reward.amount;
     } else if (reward.type === 'peek') {
       this._data.boosters.peek += reward.amount;
+    } else if (reward.type === 'freeze') {
+      this._data.boosters.freeze += reward.amount;
     }
 
     this._data.dailyReward.lastClaim = Date.now();

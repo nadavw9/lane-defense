@@ -23,14 +23,17 @@ export class GameLoop {
   //   onHit(laneIdx,gameX,color,damage,isKill) — every shot that deals damage
   //   onMiss(laneIdx,gameX)      — color-mismatch shot (0 damage)
   //   onEnd(won, laneIdx?)       — win or lose; laneIdx provided on breach
+  //   boosterState               — optional BoosterState; cars freeze when isFrozen()
   constructor({ app, gameState, carDir, shooterDir, combatResolver, rng,
-                onKill, onChainHit, onShoot, onHit, onMiss, onEnd }) {
-    this._app      = app;
-    this._gs       = gameState;
-    this._carDir   = carDir;
-    this._sDir     = shooterDir;
-    this._combat   = combatResolver;
-    this._rng      = rng;
+                onKill, onChainHit, onShoot, onHit, onMiss, onEnd,
+                boosterState = null }) {
+    this._app          = app;
+    this._gs           = gameState;
+    this._carDir       = carDir;
+    this._sDir         = shooterDir;
+    this._combat       = combatResolver;
+    this._rng          = rng;
+    this._boosterState = boosterState;
     this._onKill   = onKill     ?? (() => {});
     this._onChain  = onChainHit ?? (() => {});
     this._onShoot  = onShoot    ?? (() => {});
@@ -161,33 +164,36 @@ export class GameLoop {
     const phaseCfg    = PHASE_CONFIG[gs.phase];
     const phaseParams = gs.phaseMan.getParams();
     const dirState    = gs.asDirectorState();
+    const isFrozen    = this._boosterState?.isFrozen(gs.elapsed) ?? false;
 
-    // 1. Advance cars — apply deploy time dilation if active.
-    for (const lane of gs.activeLanes) lane.advance(dt * gs.speedMultiplier);
+    if (!isFrozen) {
+      // 1. Advance cars — apply deploy time dilation if active.
+      for (const lane of gs.activeLanes) lane.advance(dt * gs.speedMultiplier);
 
-    // 2. Track the highest car position reached (used for star rating on win).
-    for (const lane of gs.activeLanes) {
-      const front = lane.frontCar();
-      if (front && front.position > gs.maxCarPosition) {
-        gs.maxCarPosition = front.position;
+      // 2. Track the highest car position reached (used for star rating on win).
+      for (const lane of gs.activeLanes) {
+        const front = lane.frontCar();
+        if (front && front.position > gs.maxCarPosition) {
+          gs.maxCarPosition = front.position;
+        }
       }
-    }
 
-    // 3. Check for breach — any car reaching the endpoint is a loss.
-    for (let li = 0; li < gs.activeLaneCount; li++) {
-      if (gs.lanes[li].frontCar()?.position >= 100) {
-        gs.endGame(false);
-        this._onEnd(false, li);
-        return;
+      // 3. Check for breach — any car reaching the endpoint is a loss.
+      for (let li = 0; li < gs.activeLaneCount; li++) {
+        if (gs.lanes[li].frontCar()?.position >= 100) {
+          gs.endGame(false);
+          this._onEnd(false, li);
+          return;
+        }
       }
-    }
 
-    // 4. Spawn new cars.
-    this._carDir.updateSpawnTimers(gs.activeLanes, dt, phaseCfg);
-    for (const lane of gs.activeLanes) {
-      if (this._carDir.isReadyToSpawn(lane)) {
-        lane.addCar(this._carDir.generateCar(lane, gs.phase, gs.world, gs.colors));
-        this._carDir.resetSpawnTimer(lane, phaseCfg);
+      // 4. Spawn new cars.
+      this._carDir.updateSpawnTimers(gs.activeLanes, dt, phaseCfg);
+      for (const lane of gs.activeLanes) {
+        if (this._carDir.isReadyToSpawn(lane)) {
+          lane.addCar(this._carDir.generateCar(lane, gs.phase, gs.world, gs.colors));
+          this._carDir.resetSpawnTimer(lane, phaseCfg);
+        }
       }
     }
 

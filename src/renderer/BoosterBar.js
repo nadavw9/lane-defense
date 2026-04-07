@@ -1,21 +1,25 @@
-// BoosterBar — two booster buttons rendered in the 760-800px booster bar area.
-//   • SWAP: tap two columns to exchange their top shooters (3 charges)
-//   • PEEK: reveals the 3rd shooter in each column for 4 seconds (3 charges)
-// Button labels show remaining charges and dim when depleted or swap mode active.
+// BoosterBar — three booster buttons rendered in the 756–796px booster bar area.
+//   • SWAP: tap two columns to exchange their top shooters
+//   • PEEK: reveals 4th+5th shooter pips per column for 4 seconds
+//   • FREEZE: freezes all cars for 10 seconds
+// Button labels show remaining charges and dim when depleted.
+// Call setButtonVisibility(swap, peek, freeze) to gate buttons during early levels.
 import { Graphics, Text } from 'pixi.js';
 
-const BAR_Y = 760;
+const BAR_Y = 756;
 const BAR_H = 40;
 const BTN_W = 100;
 const BTN_H = 30;
-const GAP   = 20;
+const GAP   = 15;
+
+// Three-button centred layout: total = 3*100 + 2*15 = 330; start = (390-330)/2 = 30
+const BTN_X = [30, 145, 260];
 
 export class BoosterBar {
-  constructor(layerManager, boosterState, gameState, appW, onSwap, onPeek) {
+  constructor(layerManager, boosterState, gameState, appW, onSwap, onPeek, onFreeze) {
     this._state = boosterState;
     this._gs    = gameState;
     const layer = layerManager.get('hudLayer');
-    const cx    = appW / 2;
 
     // Background strip + top divider line
     const bg = new Graphics();
@@ -27,17 +31,16 @@ export class BoosterBar {
 
     const btnY = BAR_Y + (BAR_H - BTN_H) / 2;
 
-    this._swapBtn = _makeBtn(
-      layer, 'SWAP ×3',
-      cx - BTN_W - GAP / 2, btnY, BTN_W, BTN_H,
-      0x0d2040, 0x66aaff, onSwap,
-    );
+    this._swapBtn   = _makeBtn(layer, 'SWAP ×0',   BTN_X[0], btnY, BTN_W, BTN_H, 0x0d2040, 0x66aaff, onSwap);
+    this._peekBtn   = _makeBtn(layer, 'PEEK ×0',   BTN_X[1], btnY, BTN_W, BTN_H, 0x0d2040, 0xaaff66, onPeek);
+    this._freezeBtn = _makeBtn(layer, 'FREEZE ×0', BTN_X[2], btnY, BTN_W, BTN_H, 0x0a1a2a, 0x44ccff, onFreeze);
+  }
 
-    this._peekBtn = _makeBtn(
-      layer, 'PEEK ×3',
-      cx + GAP / 2, btnY, BTN_W, BTN_H,
-      0x0d2040, 0xaaff66, onPeek,
-    );
+  // Show or hide individual buttons (feature gating).
+  setButtonVisibility(swap, peek, freeze) {
+    this._swapBtn.visible   = swap;
+    this._peekBtn.visible   = peek;
+    this._freezeBtn.visible = freeze;
   }
 
   // Call once per render frame to keep labels and opacity current.
@@ -45,15 +48,17 @@ export class BoosterBar {
     const s  = this._state;
     const el = this._gs.elapsed;
 
-    const swapLabel = `SWAP ×${s.swap}`;
-    const peekLabel = `PEEK ×${s.peek}`;
+    const swapLabel   = `SWAP ×${s.swap}`;
+    const peekLabel   = `PEEK ×${s.peek}`;
+    const freezeLabel = `FREEZE ×${s.freeze}`;
 
-    if (this._swapBtn.label.text !== swapLabel) this._swapBtn.label.text = swapLabel;
-    if (this._peekBtn.label.text !== peekLabel) this._peekBtn.label.text = peekLabel;
+    if (this._swapBtn.label.text   !== swapLabel)   this._swapBtn.label.text   = swapLabel;
+    if (this._peekBtn.label.text   !== peekLabel)   this._peekBtn.label.text   = peekLabel;
+    if (this._freezeBtn.label.text !== freezeLabel) this._freezeBtn.label.text = freezeLabel;
 
-    // Dim when depleted or during swap selection mode.
-    this._swapBtn.alpha = s.swap <= 0 ? 0.28 : s.swapMode ? 0.55 : 1.0;
-    this._peekBtn.alpha = (s.peek <= 0 || s.isPeeking(el)) ? 0.28 : 1.0;
+    this._swapBtn.alpha   = s.swap   <= 0 ? 0.28 : s.swapMode ? 0.55 : 1.0;
+    this._peekBtn.alpha   = (s.peek  <= 0 || s.isPeeking(el)) ? 0.28 : 1.0;
+    this._freezeBtn.alpha = (s.freeze <= 0 || s.isFrozen(el)) ? 0.28 : 1.0;
   }
 }
 
@@ -71,7 +76,7 @@ function _makeBtn(layer, label, x, y, w, h, bgColor, fgColor, onClick) {
   btn.cursor    = 'pointer';
   btn.on('pointerdown', onClick);
 
-  const t = new Text({ text: label, style: { fontSize: 13, fontWeight: 'bold', fill: fgColor } });
+  const t = new Text({ text: label, style: { fontSize: 12, fontWeight: 'bold', fill: fgColor } });
   t.anchor.set(0.5, 0.5);
   t.x = w / 2;
   t.y = h / 2;

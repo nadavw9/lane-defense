@@ -1,4 +1,4 @@
-// BenchRenderer — draws the 4-slot shooter bench row at y 723–757, between
+// BenchRenderer — draws the 4-slot shooter bench row at y 703–753, between
 // the shooter columns and the booster bar.
 //
 // Each slot shows:
@@ -11,10 +11,10 @@
 import { Graphics, Text } from 'pixi.js';
 import { COL_W } from './ShooterRenderer.js';
 
-export const BENCH_Y      = 723;
-export const BENCH_SLOT_H = 34;
+export const BENCH_Y      = 703;
+export const BENCH_SLOT_H = 50;
 
-const BENCH_CIRCLE_R = 12;
+const BENCH_CIRCLE_R = 16;
 
 const COLOR_MAP = {
   Red:    0xE24B4A,
@@ -47,6 +47,7 @@ export class BenchRenderer {
     this.draggingSlot = -1;
 
     this._highlight = -1;   // slot to draw blue ring on (-1 = none)
+    this._visible   = true; // hidden before bench unlocks (L6+)
 
     this._graphics = [];
     this._texts    = [];
@@ -60,6 +61,15 @@ export class BenchRenderer {
       t.anchor.set(0.5);
       this._layer.addChild(t);
       this._texts.push(t);
+    }
+  }
+
+  // Show or hide the entire bench row (feature gating for early levels).
+  setVisible(visible) {
+    this._visible = visible;
+    if (!visible) {
+      for (const g of this._graphics) g.clear();
+      for (const t of this._texts)    t.visible = false;
     }
   }
 
@@ -86,6 +96,7 @@ export class BenchRenderer {
 
   // Call every render frame.
   update() {
+    if (!this._visible) return;
     const cy = BENCH_Y + BENCH_SLOT_H / 2;
 
     for (let i = 0; i < 4; i++) {

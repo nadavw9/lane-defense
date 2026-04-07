@@ -75,7 +75,8 @@ export class CarRenderer {
   }
 
   // Call once per render frame.  dt (seconds) drives death animations.
-  update(dt) {
+  // isFrozen: when true, applies a blue tint to all car visuals.
+  update(dt, isFrozen = false) {
     // ── Build set of currently live cars ────────────────────────────────────
     const liveCars = new Set();
     for (const lane of this._lanes) {
@@ -104,6 +105,7 @@ export class CarRenderer {
         vis.container.y      = posToScreenY(car.position);
         vis.container.scale.set(posToScale(car.position));
         vis.container.zIndex = Math.round(car.position);
+        vis.container.tint   = isFrozen ? 0x88aaff : 0xffffff;
         this._refreshHpBar(vis.hpFill, car);
         vis.hpText.text = String(car.hp);
       }

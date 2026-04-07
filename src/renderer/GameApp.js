@@ -194,8 +194,9 @@ async function main() {
   const boosterState = new BoosterState();
   {
     const saved = progress.getBoosters();
-    boosterState.swap = saved.swap;
-    boosterState.peek = saved.peek;
+    boosterState.swap   = saved.swap;
+    boosterState.peek   = saved.peek;
+    boosterState.freeze = saved.freeze ?? 0;
   }
 
   // ── Bench storage + renderer ──────────────────────────────────────────────
@@ -213,6 +214,7 @@ async function main() {
     layers, boosterState, gs, APP_W,
     () => { audio.play('booster_activate'); boosterState.activateSwap(); boostersUsedThisLevel.push('swap'); },
     () => { audio.play('booster_activate'); boosterState.activatePeek(gs.elapsed); boostersUsedThisLevel.push('peek'); },
+    () => { audio.play('booster_activate'); boosterState.activateFreeze(gs.elapsed); boostersUsedThisLevel.push('freeze'); },
   );
 
   // ── Per-level booster tracking (for analytics) ───────────────────────────
@@ -293,19 +295,34 @@ async function main() {
     const cfg = levelManager.current;
 
     // Restore persistent booster inventory for this level.
+    // L14 first-visit: grant 2 free freeze charges if player has none.
     const savedBoosters = progress.getBoosters();
-    boosterState.swap      = savedBoosters.swap;
-    boosterState.peek      = savedBoosters.peek;
-    boosterState.swapMode  = false;
-    boosterState.swapFirst = -1;
-    boosterState.peekUntil = -Infinity;
+    if (levelId === 14 && savedBoosters.freeze === 0) {
+      progress.setBoosters(savedBoosters.swap, savedBoosters.peek, 2);
+      savedBoosters.freeze = 2;
+    }
+    boosterState.swap        = savedBoosters.swap;
+    boosterState.peek        = savedBoosters.peek;
+    boosterState.freeze      = savedBoosters.freeze ?? 0;
+    boosterState.swapMode    = false;
+    boosterState.swapFirst   = -1;
+    boosterState.peekUntil   = -Infinity;
+    boosterState.freezeUntil = -Infinity;
 
     applyLevelConfig(cfg);
     hudRenderer.setLevel(levelManager.levelNumber);
     ftueOverlay = _makeFTUEOverlay(app.stage, APP_W, APP_H, cfg);
 
+    // Feature gating: show/hide bench and booster buttons based on level id.
+    const benchUnlocked  = levelId >= 6;
+    const swapUnlocked   = levelId >= 8;
+    const peekUnlocked   = levelId >= 12;
+    const freezeUnlocked = levelId >= 14;
+    benchStorage.reset();  // always reset bench
+    benchRenderer.setVisible(benchUnlocked);
+    boosterBar.setButtonVisibility(swapUnlocked, peekUnlocked, freezeUnlocked);
+
     boostersUsedThisLevel = [];
-    benchStorage.reset();
     carRenderer.clearAll();
 
     // Start the game-loop ticker exactly once; restart() resets state each time.
@@ -456,7 +473,7 @@ async function main() {
     // Persist: stars, unlocked level, coins, boosters used this level.
     progress.recordWin(levelId, stars);
     progress.setCoins(gs.coins);
-    progress.setBoosters(boosterState.swap, boosterState.peek);
+    progress.setBoosters(boosterState.swap, boosterState.peek, boosterState.freeze);
 
     winScreen = new WinScreen(
       app.stage, APP_W, APP_H, gs,
@@ -526,7 +543,7 @@ async function main() {
   // ── Game loop ─────────────────────────────────────────────────────────────
   const gameLoop = new GameLoop({
     app, gameState: gs, carDir, shooterDir,
-    combatResolver, rng,
+    combatResolver, rng, boosterState,
 
     onKill: (combo) => {
       hudRenderer.bumpCombo(combo);
@@ -638,7 +655,7 @@ async function main() {
     // Core renderer updates
     hudRenderer.update(dt);
     particles.update(dt);
-    carRenderer.update(dt);
+    carRenderer.update(dt, boosterState.isFrozen(gs.elapsed));
     shooterRenderer.update(gs.elapsed, dt);
     benchRenderer.update();
     dragDrop.update(dt);
@@ -692,7 +709,7 @@ async function main() {
 }
 
 function _makeFTUEOverlay(stage, w, h, cfg) {
-  if (cfg.laneCount >= 4 && cfg.colCount >= 4 && !cfg.showArrow) return null;
+  if (cfg.laneCount >= 4 && cfg.colCount >= 4 && !cfg.showArrow && !cfg.hintText) return null;
   return new FTUEOverlay(stage, w, h, cfg);
 }
 

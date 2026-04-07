@@ -49,6 +49,7 @@ export class Analytics {
     carryOvers,
     rescueUsed,      // boolean
     boostersUsed,    // string[] — names of activated boosters
+    benchUsed,       // number of times a shooter was deployed from bench
   }) {
     this._post('sessions', {
       playerId:      this._playerId,
@@ -63,6 +64,7 @@ export class Analytics {
       carryOvers,
       rescueUsed,
       boostersUsed,
+      benchUsed,
       timestamp:     Date.now(),
       deviceWidth:   window.innerWidth,
       deviceHeight:  window.innerHeight,

@@ -21,6 +21,7 @@ import {
   COL_W, COL_COUNT as TOTAL_COLS,
   TOP_Y, TOP_RADIUS,
 } from '../renderer/ShooterRenderer.js';
+import { BENCH_Y, BENCH_SLOT_H } from '../renderer/BenchRenderer.js';
 
 export class FTUEOverlay {
   // levelConfig: { laneCount, colCount, showArrow, ... }
@@ -39,6 +40,9 @@ export class FTUEOverlay {
 
     if (levelConfig.showArrow) {
       this._buildHint(appW, levelConfig.laneCount, levelConfig.colCount);
+    }
+    if (levelConfig.showBenchHint) {
+      this._buildBenchHint(appW);
     }
   }
 
@@ -104,6 +108,42 @@ export class FTUEOverlay {
     this._container.addChild(g);
   }
 
+  _buildBenchHint(w) {
+    // Static hint arrow + text pointing at the bench row.
+    // Stays visible for the whole level — no dismiss needed for L2 FTUE.
+    const grp = new Container();
+    this._container.addChild(grp);
+
+    const hintY = BENCH_Y - 28;
+
+    // Small downward-pointing arrow above the bench
+    const ag = new Graphics();
+    ag.poly([0, 20, -14, 0, 14, 0]);
+    ag.fill({ color: 0x44aaff, alpha: 0.88 });
+    ag.rect(-3, -18, 6, 18);
+    ag.fill({ color: 0x44aaff, alpha: 0.88 });
+    ag.x = w / 2;
+    ag.y = hintY;
+    grp.addChild(ag);
+
+    const txt = new Text({
+      text: 'Store unwanted shooters in the bench — use them later!',
+      style: {
+        fontSize:      14,
+        fontWeight:    'bold',
+        fill:          0x88ccff,
+        align:         'center',
+        wordWrap:      true,
+        wordWrapWidth: w - 40,
+        dropShadow:    { color: 0x000000, blur: 4, distance: 2, alpha: 0.9 },
+      },
+    });
+    txt.anchor.set(0.5, 1);
+    txt.x = w / 2;
+    txt.y = hintY - 6;
+    grp.addChild(txt);
+  }
+
   _buildHint(w, laneCount, colCount) {
     // ── Pulsing ring over column 0's top shooter ─────────────────────────────
     const ring = new Graphics();
@@ -135,7 +175,7 @@ export class FTUEOverlay {
 
     // Instruction text centred on the full screen width, offset relative to grp.x.
     const txt = new Text({
-      text: 'Drag the shooter to the lane',
+      text: 'Drag the matching shooter to the lane',
       style: {
         fontSize:      17,
         fontWeight:    'bold',

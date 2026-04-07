@@ -12,7 +12,7 @@ import { Graphics, Container, Text } from 'pixi.js';
 
 // ── Layout ────────────────────────────────────────────────────────────────────
 export const SHOOTER_AREA_Y  = 520;
-export const SHOOTER_AREA_H  = 240;   // 760 - 520
+export const SHOOTER_AREA_H  = 200;   // 520-720 (bench row follows at 723)
 export const COL_COUNT       = 4;
 export const COL_W           = 390 / COL_COUNT;  // 97.5 px
 
@@ -20,9 +20,9 @@ export const TOP_RADIUS    = 36;
 export const SECOND_RADIUS = 26;
 const        THIRD_RADIUS  = 18;
 
-export const TOP_Y    = SHOOTER_AREA_Y + 78;   // ~top-third of area
-export const SECOND_Y = SHOOTER_AREA_Y + 165;  // ~bottom-third
-const        THIRD_Y  = SHOOTER_AREA_Y + 210;  // peek-only third slot
+export const TOP_Y    = SHOOTER_AREA_Y + 55;   // 575 — top shooter center
+export const SECOND_Y = SHOOTER_AREA_Y + 140;  // 660 — second shooter center
+const        THIRD_Y  = SHOOTER_AREA_Y + 178;  // 698 — peek-only third slot
 
 // Idle bounce amplitude and speed
 const BOUNCE_AMP   = 4;

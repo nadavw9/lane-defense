@@ -1,10 +1,21 @@
-// DragDrop — the core interaction layer.
+// DragDrop — core interaction layer.
+//
 // State machine: IDLE → DRAGGING → FLYING (valid drop) | SNAPPING (invalid)
 //
-// On pointer-down over a top shooter, creates a ghost in dragLayer that
-// follows the finger.  Valid lane drops animate the ghost to the lane;
-// invalid drops snap it back.  Neither read nor write game state directly —
-// the onDeploy callback hands control back to GameApp.
+// Two drag sources:
+//   • Column top  — drag UP to a lane (deploy) or DOWN to bench (store)
+//   • Bench slot  — drag UP to a lane (deploy from bench)
+//
+// Color-match enforcement:
+//   • Dropping a shooter on a lane with a mismatched front car is REJECTED
+//     (snap back + onColorMismatch callback). An empty lane is always allowed.
+//
+// Lane highlights during drag:
+//   • GREEN  — color matches the front car (or lane is empty)
+//   • RED    — color mismatch (drop will be rejected)
+//
+// Bench highlights during drag from column:
+//   • BLUE ring on the hovered empty bench slot
 import { Graphics, Container, Text } from 'pixi.js';
 import {
   ROAD_TOP_Y, ROAD_BOTTOM_Y,
@@ -14,8 +25,9 @@ import {
 import {
   COL_W, COL_COUNT, TOP_RADIUS, TOP_Y,
 } from '../renderer/ShooterRenderer.js';
+import { BENCH_Y, BENCH_SLOT_H } from '../renderer/BenchRenderer.js';
 
-// Re-export color map so we can use it here without a circular dep on ShooterRenderer.
+// Re-export color map so we can use it without a circular dep on ShooterRenderer.
 const COLOR_MAP = {
   Red:    0xE24B4A,
   Blue:   0x378ADD,
@@ -25,45 +37,67 @@ const COLOR_MAP = {
   Orange: 0xD85A30,
 };
 
-// Hit-test radius for the top shooter (slightly larger than visual for fat fingers).
-const HIT_RADIUS = TOP_RADIUS + 14;
-
-// Lane highlight color during drag
-const HIGHLIGHT_COLOR = 0x44ff88;
+const HIT_RADIUS      = TOP_RADIUS + 14;  // fat-finger tolerance
+const HIGHLIGHT_GREEN = 0x44ff88;
+const HIGHLIGHT_RED   = 0xff4444;
 const HIGHLIGHT_ALPHA = 0.28;
 
-// Animation durations (seconds)
-const FLY_DURATION  = 0.10;  // valid drop: ghost flies to lane
-const SNAP_DURATION = 0.15;  // invalid drop: ghost snaps back
+const FLY_DURATION  = 0.10;  // valid drop: ghost flies to target
+const SNAP_DURATION = 0.15;  // invalid: ghost snaps back
 
-// Cubic ease-out: fast start, slow finish
 function easeOut(t) {
   return 1 - Math.pow(1 - Math.min(t, 1), 3);
 }
 
 export class DragDrop {
-  // onDeploy(colIdx, laneIdx) — called immediately when a valid drop occurs.
-  // boosterState (optional) — when swap mode is active, column taps are
-  //   intercepted for the swap mechanic instead of starting a drag.
-  constructor(layerManager, columns, shooterRenderer, onDeploy, boosterState = null) {
+  // columns        — Column[] (live reference from GameState)
+  // lanes          — Lane[]   (live reference from GameState, for color-match checks)
+  // benchStorage   — BenchStorage
+  // shooterRenderer, benchRenderer — for visual coordination during drag
+  // callbacks:
+  //   onDeploy(colIdx, laneIdx)       — column-to-lane deploy
+  //   onDeployFromBench(shooter, laneIdx) — bench-to-lane deploy
+  //   onBenchStore(colIdx)            — shooter stored to bench (column consumed)
+  //   onColorMismatch()               — rejected drop due to color mismatch
+  //   onBenchFull()                   — rejected bench store (all 4 slots full)
+  // boosterState — optional; intercepts column taps when swap mode is active
+  constructor(
+    layerManager,
+    columns,
+    lanes,
+    benchStorage,
+    shooterRenderer,
+    benchRenderer,
+    { onDeploy, onDeployFromBench, onBenchStore, onColorMismatch, onBenchFull } = {},
+    boosterState = null,
+  ) {
     this._dragLayer       = layerManager.get('dragLayer');
     this._laneLayer       = layerManager.get('laneLayer');
     this._columns         = columns;
+    this._lanes           = lanes;
+    this._benchStorage    = benchStorage;
     this._shooterRenderer = shooterRenderer;
-    this._onDeploy        = onDeploy;
+    this._benchRenderer   = benchRenderer;
     this._boosterState    = boosterState;
 
-    // ── State ──────────────────────────────────────────────────────────────
-    this._state       = 'idle';
-    this._dragCol     = -1;
-    this._dragShooter = null;
-    this._ghost       = null;
+    this._onDeploy          = onDeploy          ?? (() => {});
+    this._onDeployFromBench = onDeployFromBench  ?? (() => {});
+    this._onBenchStore      = onBenchStore       ?? (() => {});
+    this._onColorMismatch   = onColorMismatch    ?? (() => {});
+    this._onBenchFull       = onBenchFull        ?? (() => {});
 
-    // Pointer offset at grab time (so ghost doesn't jump to finger centre)
+    // ── State ──────────────────────────────────────────────────────────────
+    this._state         = 'idle';
+    this._dragSource    = 'column';   // 'column' | 'bench'
+    this._dragSourceIdx = -1;         // column or bench slot index
+    this._dragShooter   = null;
+    this._ghost         = null;
+
+    // Pointer offset at grab time — keeps ghost anchored to finger contact point
     this._offsetX = 0;
     this._offsetY = 0;
 
-    // Animation state (flying / snapping)
+    // Animation state (FLYING or SNAPPING)
     this._animT        = 0;
     this._animDuration = 0;
     this._animFromX    = 0;
@@ -72,16 +106,11 @@ export class DragDrop {
     this._animToY      = 0;
     this._animOnDone   = null;
 
-    // ── Lane highlight overlays — trapezoid polygons (created once, toggled during drag)
+    // Lane highlights — one Graphics per lane, redrawn dynamically with
+    // the correct color so a single object supports both GREEN and RED.
     this._highlights = [];
     for (let i = 0; i < LANE_COUNT; i++) {
-      const g    = new Graphics();
-      const topLx = ROAD_TOP_X + i       * ROAD_TOP_W  / LANE_COUNT;
-      const topRx = ROAD_TOP_X + (i + 1) * ROAD_TOP_W  / LANE_COUNT;
-      const botLx =              i       * ROAD_BOTTOM_W / LANE_COUNT;
-      const botRx =              (i + 1) * ROAD_BOTTOM_W / LANE_COUNT;
-      g.poly([topLx, ROAD_TOP_Y, topRx, ROAD_TOP_Y, botRx, ROAD_BOTTOM_Y, botLx, ROAD_BOTTOM_Y]);
-      g.fill({ color: HIGHLIGHT_COLOR, alpha: HIGHLIGHT_ALPHA });
+      const g = new Graphics();
       g.visible = false;
       this._laneLayer.addChild(g);
       this._highlights.push(g);
@@ -92,78 +121,65 @@ export class DragDrop {
 
   onPointerDown(x, y) {
     if (this._state !== 'idle') return;
-    const col = this._hitTestColumn(x, y);
 
-    // Swap booster: intercept column tap — don't start a drag.
+    // Swap booster intercept: column tap handled by booster, not drag.
+    const col = this._hitTestColumn(x, y);
     if (col !== -1 && this._boosterState?.swapMode) {
       this._boosterState.tapSwapColumn(col, this._columns);
       return;
     }
 
-    if (col === -1 || !this._columns[col].top()) return;
+    // Try starting a drag from a column top.
+    if (col !== -1 && this._columns[col].top()) {
+      const shooter = this._columns[col].top();
+      const { x: cx, y: cy } = this._shooterRenderer.getTopShooterCenter(col);
+      this._startDrag('column', col, shooter, cx, cy, x, y);
+      return;
+    }
 
-    const shooter = this._columns[col].top();
-    const { x: cx, y: cy } = this._shooterRenderer.getTopShooterCenter(col);
-
-    this._dragCol     = col;
-    this._dragShooter = shooter;
-    this._offsetX     = cx - x;   // keep ghost anchored to grab point
-    this._offsetY     = cy - y;
-    this._state       = 'dragging';
-
-    this._shooterRenderer.draggingColumn = col;
-    this._ghost = this._createGhost(shooter, x + this._offsetX, y + this._offsetY);
+    // Try starting a drag from an occupied bench slot.
+    const slot = this._benchRenderer?.hitTestSlot(x, y) ?? -1;
+    if (slot !== -1 && this._benchStorage?.getSlot(slot)) {
+      const shooter = this._benchStorage.getSlot(slot);
+      const { x: cx, y: cy } = this._benchRenderer.getSlotCenter(slot);
+      this._startDrag('bench', slot, shooter, cx, cy, x, y);
+    }
   }
 
   onPointerMove(x, y) {
     if (this._state !== 'dragging') return;
-
     this._ghost.x = x + this._offsetX;
     this._ghost.y = y + this._offsetY;
-
-    // Highlight whichever lane the finger is over.
-    const hoveredLane = this._hitTestLane(x, y);
-    for (let i = 0; i < LANE_COUNT; i++) {
-      this._highlights[i].visible = (i === hoveredLane);
-    }
+    this._updateHighlights(x, y);
   }
 
   onPointerUp(x, y) {
     if (this._state !== 'dragging') return;
-
     this._clearHighlights();
-    const lane = this._hitTestLane(x, y);
+    this._benchRenderer?.setHighlight(-1);
 
-    if (lane !== -1) {
-      // Valid drop — call game logic immediately, then animate ghost into the lane.
-      this._onDeploy(this._dragCol, lane);
-      this._shooterRenderer.draggingColumn = -1;
+    // Column source: check for bench drop (dragging downward toward bench).
+    if (this._dragSource === 'column' && this._hitTestBenchArea(x, y)) {
+      this._handleBenchDrop();
+      return;
+    }
 
-      // Fly toward the bottom-centre of the dropped lane column (near breach line).
-      const targetX = (lane + 0.5) * ROAD_BOTTOM_W / LANE_COUNT;
-      const targetY = ROAD_BOTTOM_Y - 15;
-      this._startAnim(
-        this._ghost.x, this._ghost.y,
-        targetX, targetY,
-        FLY_DURATION,
-        () => this._destroyGhost(),
-      );
-      this._state = 'flying';
+    // Try lane drop (both sources).
+    const laneIdx = this._hitTestLane(x, y);
+    if (laneIdx !== -1) {
+      if (!this._checkColorMatch(laneIdx)) {
+        // Color mismatch — reject.
+        this._onColorMismatch();
+        this._snapBack();
+        return;
+      }
+      this._handleLaneDrop(laneIdx);
     } else {
-      // Invalid drop — snap ghost back to column origin.
-      this._shooterRenderer.draggingColumn = -1;
-      const { x: cx, y: cy } = this._shooterRenderer.getTopShooterCenter(this._dragCol);
-      this._startAnim(
-        this._ghost.x, this._ghost.y,
-        cx, cy,
-        SNAP_DURATION,
-        () => this._destroyGhost(),
-      );
-      this._state = 'snapping';
+      this._snapBack();
     }
   }
 
-  // Call from the main game-loop ticker.
+  // Call from the main render ticker.
   update(dt) {
     if (this._state !== 'flying' && this._state !== 'snapping') return;
 
@@ -183,6 +199,140 @@ export class DragDrop {
 
   // ── Private ────────────────────────────────────────────────────────────────
 
+  _startDrag(source, sourceIdx, shooter, cx, cy, px, py) {
+    this._dragSource    = source;
+    this._dragSourceIdx = sourceIdx;
+    this._dragShooter   = shooter;
+    this._offsetX       = cx - px;
+    this._offsetY       = cy - py;
+    this._state         = 'dragging';
+
+    if (source === 'column') {
+      this._shooterRenderer.draggingColumn = sourceIdx;
+    } else {
+      if (this._benchRenderer) this._benchRenderer.draggingSlot = sourceIdx;
+    }
+
+    this._ghost = this._createGhost(shooter, px + this._offsetX, py + this._offsetY);
+  }
+
+  _handleLaneDrop(laneIdx) {
+    if (this._dragSource === 'column') {
+      this._onDeploy(this._dragSourceIdx, laneIdx);
+      this._shooterRenderer.draggingColumn = -1;
+    } else {
+      // Bench → lane: extract shooter from bench, then deploy.
+      const shooter = this._benchStorage.take(this._dragSourceIdx);
+      if (this._benchRenderer) this._benchRenderer.draggingSlot = -1;
+      this._onDeployFromBench(shooter, laneIdx);
+    }
+    // Fly ghost to bottom-centre of the dropped lane.
+    const targetX = (laneIdx + 0.5) * ROAD_BOTTOM_W / LANE_COUNT;
+    const targetY = ROAD_BOTTOM_Y - 15;
+    this._startAnim(
+      this._ghost.x, this._ghost.y, targetX, targetY,
+      FLY_DURATION, () => this._destroyGhost(),
+    );
+    this._state = 'flying';
+  }
+
+  _handleBenchDrop() {
+    if (!this._benchStorage || !this._benchRenderer) {
+      this._snapBack();
+      return;
+    }
+    if (this._benchStorage.isFull) {
+      this._onBenchFull();
+      this._snapBack();
+      return;
+    }
+    // Consume shooter from column and store in bench.
+    const col     = this._columns[this._dragSourceIdx];
+    const shooter = col.top();
+    col.consume();
+    const slotIdx = this._benchStorage.store(shooter);
+    this._shooterRenderer.draggingColumn = -1;
+    this._onBenchStore(this._dragSourceIdx);
+    // Fly ghost to the slot it landed in.
+    const { x: tx, y: ty } = this._benchRenderer.getSlotCenter(slotIdx);
+    this._startAnim(
+      this._ghost.x, this._ghost.y, tx, ty,
+      FLY_DURATION, () => this._destroyGhost(),
+    );
+    this._state = 'flying';
+  }
+
+  _snapBack() {
+    let cx, cy;
+    if (this._dragSource === 'column') {
+      ({ x: cx, y: cy } = this._shooterRenderer.getTopShooterCenter(this._dragSourceIdx));
+      this._shooterRenderer.draggingColumn = -1;
+    } else {
+      ({ x: cx, y: cy } = this._benchRenderer.getSlotCenter(this._dragSourceIdx));
+      if (this._benchRenderer) this._benchRenderer.draggingSlot = -1;
+    }
+    this._startAnim(
+      this._ghost.x, this._ghost.y, cx, cy,
+      SNAP_DURATION, () => this._destroyGhost(),
+    );
+    this._state = 'snapping';
+  }
+
+  _updateHighlights(x, y) {
+    this._clearHighlights();
+    this._benchRenderer?.setHighlight(-1);
+
+    if (this._dragSource === 'bench') {
+      // Bench-source drag: only lanes are valid drop targets.
+      const laneIdx = this._hitTestLane(x, y);
+      if (laneIdx !== -1) {
+        this._showLaneHighlight(laneIdx, this._checkColorMatch(laneIdx)
+          ? HIGHLIGHT_GREEN : HIGHLIGHT_RED);
+      }
+      return;
+    }
+
+    // Column-source drag: bench or lane.
+    if (y > BENCH_Y - 50) {
+      // Approaching or in bench area — show blue highlight on hovered empty slot.
+      const slot = this._benchRenderer?.hitTestSlot(x, y) ?? -1;
+      if (slot !== -1 && !this._benchStorage?.getSlot(slot)) {
+        this._benchRenderer?.setHighlight(slot);
+      }
+      return;
+    }
+
+    // In lane area.
+    const laneIdx = this._hitTestLane(x, y);
+    if (laneIdx !== -1) {
+      this._showLaneHighlight(laneIdx, this._checkColorMatch(laneIdx)
+        ? HIGHLIGHT_GREEN : HIGHLIGHT_RED);
+    }
+  }
+
+  // Redraw a lane highlight polygon with the given color.
+  // Called on every pointer-move so the color reflects the current front car.
+  _showLaneHighlight(laneIdx, color) {
+    const g     = this._highlights[laneIdx];
+    const topLx = ROAD_TOP_X + laneIdx       * ROAD_TOP_W  / LANE_COUNT;
+    const topRx = ROAD_TOP_X + (laneIdx + 1) * ROAD_TOP_W  / LANE_COUNT;
+    const botLx =              laneIdx       * ROAD_BOTTOM_W / LANE_COUNT;
+    const botRx =              (laneIdx + 1) * ROAD_BOTTOM_W / LANE_COUNT;
+    g.clear();
+    g.poly([topLx, ROAD_TOP_Y, topRx, ROAD_TOP_Y, botRx, ROAD_BOTTOM_Y, botLx, ROAD_BOTTOM_Y]);
+    g.fill({ color, alpha: HIGHLIGHT_ALPHA });
+    g.visible = true;
+  }
+
+  // Returns true if the shooter's color matches the front car in this lane,
+  // or if the lane is empty (empty lanes are always valid drop targets).
+  _checkColorMatch(laneIdx) {
+    if (!this._lanes || !this._dragShooter) return true;
+    const frontCar = this._lanes[laneIdx]?.frontCar?.();
+    if (!frontCar) return true;
+    return this._dragShooter.color === frontCar.color;
+  }
+
   _hitTestColumn(x, y) {
     for (let i = 0; i < COL_COUNT; i++) {
       const { x: cx, y: cy } = this._shooterRenderer.getTopShooterCenter(i);
@@ -192,12 +342,15 @@ export class DragDrop {
     return -1;
   }
 
-  // Valid drop zone: anywhere in the road area (ROAD_TOP_Y to ROAD_BOTTOM_Y).
-  // Lane is determined by x position (which of the 4 vertical column bands).
   _hitTestLane(x, y) {
     if (y < ROAD_TOP_Y || y > ROAD_BOTTOM_Y) return -1;
     const laneIdx = Math.floor(x / (ROAD_BOTTOM_W / LANE_COUNT));
     return Math.max(0, Math.min(LANE_COUNT - 1, laneIdx));
+  }
+
+  // True when the pointer is in the vertical zone that maps to the bench.
+  _hitTestBenchArea(x, y) {
+    return y >= BENCH_Y - 30 && y <= BENCH_Y + BENCH_SLOT_H + 10;
   }
 
   _createGhost(shooter, x, y) {
@@ -206,19 +359,21 @@ export class DragDrop {
 
     const g = new Graphics();
     g.circle(0, 0, TOP_RADIUS);
-    g.fill({ color: 0x000000, alpha: 0.2 });        // drop shadow
+    g.fill({ color: 0x000000, alpha: 0.2 });
     g.circle(0, -3, TOP_RADIUS);
     g.fill(color);
     g.circle(-10, -13, 10);
-    g.fill({ color: 0xffffff, alpha: 0.18 });        // glint
+    g.fill({ color: 0xffffff, alpha: 0.18 });
 
-    const GHOST_TEXT_STYLE = {
-      fontSize:   22,
-      fontWeight: 'bold',
-      fill:       0xffffff,
-      dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 0.7 },
-    };
-    const text = new Text({ text: String(shooter.damage), style: GHOST_TEXT_STYLE });
+    const text = new Text({
+      text: String(shooter.damage),
+      style: {
+        fontSize:   22,
+        fontWeight: 'bold',
+        fill:       0xffffff,
+        dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 0.7 },
+      },
+    });
     text.anchor.set(0.5);
     text.y = -3;
 
@@ -227,7 +382,7 @@ export class DragDrop {
     container.x     = x;
     container.y     = y;
     container.alpha = 0.88;
-    container.scale.set(1.08);   // slightly larger while dragging — feels "lifted"
+    container.scale.set(1.08);
 
     this._dragLayer.addChild(container);
     return container;

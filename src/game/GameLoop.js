@@ -56,27 +56,34 @@ export class GameLoop {
   // Call this before restart() when changing levels.
   set baseDuration(d) { this._baseDuration = d; }
 
-  // Called by DragDrop → onDeploy.
-  // Applies combat immediately, then triggers dilation and callbacks.
+  // Called by DragDrop → onDeploy (column source).
   deploy(colIdx, laneIdx) {
-    const gs      = this._gs;
-    const col     = gs.columns[colIdx];
-    const lane    = gs.lanes[laneIdx];
+    const col     = this._gs.columns[colIdx];
     const shooter = col.top();
     if (!shooter) return;
+    col.consume();
+    this._deployShooter(shooter, laneIdx, colIdx);
+  }
 
-    // Capture front car position BEFORE combat removes cars.
+  // Called by DragDrop → onDeployFromBench (bench source).
+  // Shooter is already extracted from BenchStorage by DragDrop.
+  deployFromBench(shooter, laneIdx) {
+    this._gs.benchUsed++;
+    this._deployShooter(shooter, laneIdx, -1);
+  }
+
+  // Shared combat resolution path for both column and bench deploys.
+  // colIdx === -1 means the shooter came from the bench (no punch animation).
+  _deployShooter(shooter, laneIdx, colIdx) {
+    const gs       = this._gs;
+    const lane     = gs.lanes[laneIdx];
     const frontCar = lane.frontCar();
     const carGameX = frontCar?.position ?? 50;
 
-    // Consume the shooter before resolving so the column starts refilling.
-    col.consume();
-
-    // Notify audio/visuals of the deploy (fires before we know if it's a hit
-    // or miss, so the shoot sound always plays regardless of color match).
+    // Shoot sound always plays regardless of hit/miss.
     this._onShoot(shooter.damage, laneIdx, colIdx);
 
-    // Deploy time dilation — cars slow briefly on every deploy regardless of hit.
+    // Cars slow briefly on every deploy.
     gs.triggerDilation();
 
     // Nothing to shoot at — consume silently.
@@ -88,17 +95,14 @@ export class GameLoop {
     const { kills, carryOverKills, damageDealt } = this._combat.resolve(shooter, lane);
 
     if (damageDealt === 0) {
-      // Color mismatch — grey dud puff.
       this._onMiss(laneIdx, carGameX);
       return;
     }
 
-    // Damage was dealt: sparks + damage number on the first car.
     this._onHit(laneIdx, carGameX, shooter.color, damageDealt, kills > 0);
 
     if (kills === 0) return;
 
-    // Fire onChainHit before onKill so the overlay appears with the kill count.
     if (carryOverKills > 0) this._onChain(laneIdx);
 
     for (let i = 0; i < kills; i++) {

@@ -38,6 +38,7 @@ export class GameState {
     this.totalDeploys   = 0;
     this.correctDeploys = 0;
     this.wrongDeploys   = 0;
+    this.benchUsed      = 0;
 
     // ── Economy ───────────────────────────────────────────────────────────
     this.coins = 0;
@@ -138,6 +139,7 @@ export class GameState {
     this.totalDeploys   = 0;
     this.correctDeploys = 0;
     this.wrongDeploys   = 0;
+    this.benchUsed      = 0;
     this.coins          = 0;
     this.maxCombo      = 0;
     this.maxCarPosition = 0;

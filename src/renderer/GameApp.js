@@ -24,6 +24,8 @@ import { ComboGlow }       from './ComboGlow.js';
 
 import { DragDrop }        from '../input/DragDrop.js';
 import { InputManager }    from '../input/InputManager.js';
+import { BenchStorage }    from '../game/BenchStorage.js';
+import { BenchRenderer }   from './BenchRenderer.js';
 
 import { GameState }       from '../game/GameState.js';
 import { GameLoop }        from '../game/GameLoop.js';
@@ -101,6 +103,25 @@ function tickFloatingTexts(texts, dt) {
   }
 }
 
+// Spawn a short-lived floating text centred horizontally at (x, y).
+function spawnFloatingText(parent, x, y, text, color = 0xffffff) {
+  const t = new Text({
+    text,
+    style: {
+      fontSize:   18,
+      fontWeight: 'bold',
+      fill:       color,
+      dropShadow: { color: 0x000000, blur: 5, distance: 2, alpha: 0.9 },
+    },
+  });
+  t.anchor.set(0.5);
+  t.x     = x;
+  t.y     = y;
+  t.alpha = 1;
+  parent.addChild(t);
+  return { sprite: t, vy: -30, life: 1.2 };
+}
+
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -176,6 +197,10 @@ async function main() {
     boosterState.swap = saved.swap;
     boosterState.peek = saved.peek;
   }
+
+  // ── Bench storage + renderer ──────────────────────────────────────────────
+  const benchStorage  = new BenchStorage();
+  const benchRenderer = new BenchRenderer(layers, benchStorage, APP_W);
 
   // ── HUD + Particles + juice effects ───────────────────────────────────────
   const hudRenderer   = new HUDRenderer(layers, gs, APP_W, audio);
@@ -280,6 +305,7 @@ async function main() {
     ftueOverlay = _makeFTUEOverlay(app.stage, APP_W, APP_H, cfg);
 
     boostersUsedThisLevel = [];
+    benchStorage.reset();
     carRenderer.clearAll();
 
     // Start the game-loop ticker exactly once; restart() resets state each time.
@@ -553,6 +579,7 @@ async function main() {
         carryOvers:     gs.carryOvers,
         rescueUsed:     gs.rescueUsed,
         boostersUsed:   [...boostersUsedThisLevel],
+        benchUsed:      gs.benchUsed,
       });
 
       if (won) {
@@ -568,10 +595,31 @@ async function main() {
 
   // ── Input ────────────────────────────────────────────────────────────────
   const dragDrop = new DragDrop(
-    layers, columns, shooterRenderer,
-    (colIdx, laneIdx) => {
-      if (colIdx >= gs.activeColCount || laneIdx >= gs.activeLaneCount) return;
-      gameLoop.deploy(colIdx, laneIdx);
+    layers, columns, gs.lanes, benchStorage, shooterRenderer, benchRenderer,
+    {
+      onDeploy: (colIdx, laneIdx) => {
+        if (colIdx >= gs.activeColCount || laneIdx >= gs.activeLaneCount) return;
+        gameLoop.deploy(colIdx, laneIdx);
+      },
+      onDeployFromBench: (shooter, laneIdx) => {
+        if (laneIdx >= gs.activeLaneCount) return;
+        gameLoop.deployFromBench(shooter, laneIdx);
+      },
+      onBenchStore: (_colIdx) => {
+        // Column refills automatically via ShooterDirector next tick.
+        // No audio currently — bench storage is a silent action.
+      },
+      onColorMismatch: () => {
+        audio.play('hit_miss');
+      },
+      onBenchFull: () => {
+        audio.play('hit_miss');
+        floatingTexts.push(spawnFloatingText(
+          layers.get('particleLayer'),
+          APP_W / 2, 700,
+          'BENCH FULL', 0xff6644,
+        ));
+      },
     },
     boosterState,
   );
@@ -592,6 +640,7 @@ async function main() {
     particles.update(dt);
     carRenderer.update(dt);
     shooterRenderer.update(gs.elapsed, dt);
+    benchRenderer.update();
     dragDrop.update(dt);
 
     tickFloatingTexts(floatingTexts, dt);

@@ -33,8 +33,11 @@ export class GameState {
     this.lastKillTime = -Infinity;
 
     // ── Stats ─────────────────────────────────────────────────────────────
-    this.totalKills = 0;
-    this.carryOvers = 0;
+    this.totalKills     = 0;
+    this.carryOvers     = 0;
+    this.totalDeploys   = 0;
+    this.correctDeploys = 0;
+    this.wrongDeploys   = 0;
 
     // ── Economy ───────────────────────────────────────────────────────────
     this.coins = 0;
@@ -130,9 +133,12 @@ export class GameState {
     this.elapsed       = 0;
     this.combo         = 0;
     this.lastKillTime  = -Infinity;
-    this.totalKills    = 0;
-    this.carryOvers    = 0;
-    this.coins         = 0;
+    this.totalKills     = 0;
+    this.carryOvers     = 0;
+    this.totalDeploys   = 0;
+    this.correctDeploys = 0;
+    this.wrongDeploys   = 0;
+    this.coins          = 0;
     this.maxCombo      = 0;
     this.maxCarPosition = 0;
     this.rescueUsed    = false;
@@ -158,6 +164,13 @@ export class GameState {
   // Trigger deploy time dilation starting from now.
   triggerDilation() {
     this.dilationUntil = this.elapsed + DEPLOY_DILATION.duration;
+  }
+
+  // Record a shooter deploy. Only called when a front car exists (no target = no stat).
+  recordDeploy(isCorrect) {
+    this.totalDeploys++;
+    if (isCorrect) this.correctDeploys++;
+    else           this.wrongDeploys++;
   }
 
   // ── Director API ─────────────────────────────────────────────────────────

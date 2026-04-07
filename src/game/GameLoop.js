@@ -82,6 +82,9 @@ export class GameLoop {
     // Nothing to shoot at — consume silently.
     if (!frontCar) return;
 
+    // Track deploy accuracy now that we know a target exists.
+    gs.recordDeploy(shooter.color === frontCar.color);
+
     const { kills, carryOverKills, damageDealt } = this._combat.resolve(shooter, lane);
 
     if (damageDealt === 0) {

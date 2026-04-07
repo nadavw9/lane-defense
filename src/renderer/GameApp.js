@@ -53,6 +53,7 @@ import { SettingsScreen }         from '../screens/SettingsScreen.js';
 import { PauseScreen }            from '../screens/PauseScreen.js';
 import { AudioManager }           from '../audio/AudioManager.js';
 import { BoosterBar }             from './BoosterBar.js';
+import { Analytics }              from '../analytics/Analytics.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const APP_W       = 390;
@@ -125,6 +126,10 @@ async function main() {
   _fitCanvas();
   window.addEventListener('resize', _fitCanvas);
 
+  // ── Analytics (fire-and-forget, anonymous) ────────────────────────────────
+  const analytics = new Analytics();
+  analytics.recordSessionStart();
+
   // ── Progress (localStorage) ──────────────────────────────────────────────
   const progress = new ProgressManager();
 
@@ -181,9 +186,12 @@ async function main() {
   const comboGlow     = new ComboGlow(layers, APP_W, APP_H);
   const boosterBar    = new BoosterBar(
     layers, boosterState, gs, APP_W,
-    () => { audio.play('booster_activate'); boosterState.activateSwap(); },
-    () => { audio.play('booster_activate'); boosterState.activatePeek(gs.elapsed); },
+    () => { audio.play('booster_activate'); boosterState.activateSwap(); boostersUsedThisLevel.push('swap'); },
+    () => { audio.play('booster_activate'); boosterState.activatePeek(gs.elapsed); boostersUsedThisLevel.push('peek'); },
   );
+
+  // ── Per-level booster tracking (for analytics) ───────────────────────────
+  let boostersUsedThisLevel = [];
 
   // ── FTUE overlay ──────────────────────────────────────────────────────────
   let ftueOverlay = null;  // created in _startLevel
@@ -271,6 +279,7 @@ async function main() {
     hudRenderer.setLevel(levelManager.levelNumber);
     ftueOverlay = _makeFTUEOverlay(app.stage, APP_W, APP_H, cfg);
 
+    boostersUsedThisLevel = [];
     carRenderer.clearAll();
 
     // Start the game-loop ticker exactly once; restart() resets state each time.
@@ -528,6 +537,24 @@ async function main() {
     },
 
     onEnd: (won, laneIdx) => {
+      // 'rescue' = first breach (rescue still available)
+      // 'lose'   = breach after rescue already used (true final loss)
+      // 'win'    = timer ran out
+      const result = won ? 'win' : (gs.rescueUsed ? 'lose' : 'rescue');
+      analytics.recordSession({
+        levelId:        levelManager.levelNumber,
+        result,
+        duration:       gs.elapsed,
+        deploys:        gs.totalDeploys,
+        correctDeploys: gs.correctDeploys,
+        wrongDeploys:   gs.wrongDeploys,
+        maxCombo:       gs.maxCombo,
+        carsKilled:     gs.totalKills,
+        carryOvers:     gs.carryOvers,
+        rescueUsed:     gs.rescueUsed,
+        boostersUsed:   [...boostersUsedThisLevel],
+      });
+
       if (won) {
         showWin();
       } else {

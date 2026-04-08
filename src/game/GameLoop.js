@@ -24,9 +24,10 @@ export class GameLoop {
   //   onMiss(laneIdx,gameX)      — color-mismatch shot (0 damage)
   //   onEnd(won, laneIdx?)       — win or lose; laneIdx provided on breach
   //   boosterState               — optional BoosterState; cars freeze when isFrozen()
+  //   benchStorage               — optional BenchStorage; included in viability checks (L6+)
   constructor({ app, gameState, carDir, shooterDir, combatResolver, rng,
                 onKill, onChainHit, onShoot, onHit, onMiss, onEnd,
-                boosterState = null }) {
+                boosterState = null, benchStorage = null }) {
     this._app          = app;
     this._gs           = gameState;
     this._carDir       = carDir;
@@ -34,6 +35,7 @@ export class GameLoop {
     this._combat       = combatResolver;
     this._rng          = rng;
     this._boosterState = boosterState;
+    this._benchStorage = benchStorage;
     this._onKill   = onKill     ?? (() => {});
     this._onChain  = onChainHit ?? (() => {});
     this._onShoot  = onShoot    ?? (() => {});
@@ -199,6 +201,74 @@ export class GameLoop {
 
     // 5. Refill active shooter columns.
     this._sDir.fillColumns(gs.activeCols, dirState, phaseParams);
+
+    // 6. Viability guard: ensure the player always has at least one valid move.
+    //    Checks column tops + bench (when unlocked) against front car colors.
+    //    If no overlap, forces a column top to match a front car color.
+    this._enforceViableMove(gs);
+  }
+
+  // After a rescue, force at least 2 column tops to match a front car color,
+  // giving the player a real fighting chance with the extra time.
+  shuffleForRescue() {
+    const gs = this._gs;
+    const frontColors = [];
+    for (const lane of gs.activeLanes) {
+      const fc = lane.frontCar();
+      if (fc) frontColors.push(fc.color);
+    }
+    if (frontColors.length === 0) return;
+
+    // Count how many column tops already match a front car color.
+    const activeCols = gs.activeCols;
+    let matchesNeeded = 2 - activeCols.filter(col => {
+      const top = col.top();
+      return top && frontColors.includes(top.color);
+    }).length;
+
+    // Re-color non-matching tops until we have 2 matches.
+    let colorIdx = 0;
+    for (const col of activeCols) {
+      if (matchesNeeded <= 0) break;
+      const top = col.top();
+      if (!top || frontColors.includes(top.color)) continue;
+      top.color = frontColors[colorIdx % frontColors.length];
+      colorIdx++;
+      matchesNeeded--;
+    }
+  }
+
+  // Guarantee the player always has at least one viable move:
+  // at least one source (column top or bench slot) must color-match a front car.
+  // If not, force-recolor the first available column top to a matching color.
+  _enforceViableMove(gs) {
+    // Collect front car colors.
+    const frontColors = new Set();
+    for (const lane of gs.activeLanes) {
+      const fc = lane.frontCar();
+      if (fc) frontColors.add(fc.color);
+    }
+    if (frontColors.size === 0) return; // no cars yet — nothing to enforce
+
+    // Check column tops.
+    for (const col of gs.activeCols) {
+      if (frontColors.has(col.top()?.color)) return;
+    }
+    // Check bench slots (if bench is in play).
+    if (this._benchStorage) {
+      for (let i = 0; i < this._benchStorage.size; i++) {
+        if (frontColors.has(this._benchStorage.getSlot(i)?.color)) return;
+      }
+    }
+
+    // No viable move — force-recolor the first non-empty column top.
+    const target = [...frontColors][0];
+    for (const col of gs.activeCols) {
+      if (col.top()) {
+        col.top().color = target;
+        return;
+      }
+    }
   }
 
   // Stagger initial cars so the level looks alive from frame 1.

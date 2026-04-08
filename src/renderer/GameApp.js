@@ -220,6 +220,14 @@ async function main() {
   // ── Per-level booster tracking (for analytics) ───────────────────────────
   let boostersUsedThisLevel = [];
 
+  // ── Per-level tutorial state ───────────────────────────────────────────────
+  let firstDeployTooltipShown = false;
+  let firstKillDoneThisLevel  = false;
+
+  // ── Combo popup ────────────────────────────────────────────────────────────
+  let comboPopup      = null;
+  let comboPopupTimer = 0;
+
   // ── FTUE overlay ──────────────────────────────────────────────────────────
   let ftueOverlay = null;  // created in _startLevel
 
@@ -322,7 +330,9 @@ async function main() {
     benchRenderer.setVisible(benchUnlocked);
     boosterBar.setButtonVisibility(swapUnlocked, peekUnlocked, freezeUnlocked);
 
-    boostersUsedThisLevel = [];
+    boostersUsedThisLevel       = [];
+    firstDeployTooltipShown     = false;
+    firstKillDoneThisLevel      = false;
     carRenderer.clearAll();
 
     // Start the game-loop ticker exactly once; restart() resets state each time.
@@ -509,6 +519,7 @@ async function main() {
     rescueOverlay = new RescueOverlay(app.stage, APP_W, APP_H, gs, {
       onRescueAd: () => {
         gs.rescue(10);
+        gameLoop.shuffleForRescue();
         rescueOverlay.destroy();
         rescueOverlay = null;
         audio.resetMusicPhase();
@@ -519,6 +530,7 @@ async function main() {
         gs.coins -= 50;
         progress.setCoins(gs.coins);
         gs.rescue(10);
+        gameLoop.shuffleForRescue();
         rescueOverlay.destroy();
         rescueOverlay = null;
         audio.resetMusicPhase();
@@ -543,12 +555,24 @@ async function main() {
   // ── Game loop ─────────────────────────────────────────────────────────────
   const gameLoop = new GameLoop({
     app, gameState: gs, carDir, shooterDir,
-    combatResolver, rng, boosterState,
+    combatResolver, rng, boosterState, benchStorage,
 
     onKill: (combo) => {
       hudRenderer.bumpCombo(combo);
       if (combo === 4 || combo === 7 || combo === 11) {
         audio.play('combo_milestone', { combo });
+      }
+
+      // L2: notify FTUE overlay on first kill so it can show the combo hint.
+      if (!firstKillDoneThisLevel) {
+        firstKillDoneThisLevel = true;
+        ftueOverlay?.onFirstKill();
+      }
+
+      // One-time combo explanation popup the first time combo reaches 3.
+      if (combo >= 3 && !comboPopup && !progress.seenComboTip) {
+        comboPopup      = _buildComboPopup(layers.get('hudLayer'), APP_W);
+        comboPopupTimer = 3;
       }
     },
 
@@ -558,7 +582,13 @@ async function main() {
 
     onShoot: (damage, laneIdx, colIdx) => {
       audio.play('shoot', { damage });
-      ftueOverlay?.onFirstDeploy();
+
+      // On very first deploy: dismiss arrow hint and (for L1-L5) show damage tooltip.
+      const tipDamage = (!firstDeployTooltipShown && levelManager.levelNumber <= 5)
+        ? damage : undefined;
+      firstDeployTooltipShown = true;
+      ftueOverlay?.onFirstDeploy(tipDamage);
+
       if (laneIdx >= 0) laneFlash.flash(laneIdx);
       if (colIdx  >= 0) shooterRenderer.triggerDeployPunch(colIdx);
     },
@@ -696,6 +726,17 @@ async function main() {
 
     if (rescueOverlay)    rescueOverlay.update(dt);
     if (ftueOverlay)      ftueOverlay.update(dt);
+
+    // Combo explanation popup — auto-dismiss after 3 s.
+    if (comboPopup) {
+      comboPopupTimer -= dt;
+      if (comboPopupTimer < 1) comboPopup.alpha = Math.max(0, comboPopupTimer);
+      if (comboPopupTimer <= 0) {
+        comboPopup.destroy({ children: true });
+        comboPopup = null;
+        progress.markSeenComboTip();
+      }
+    }
     if (levelSelectScreen) levelSelectScreen.update(dt);
 
     // Phase-based music transitions during active gameplay only.
@@ -709,8 +750,45 @@ async function main() {
 }
 
 function _makeFTUEOverlay(stage, w, h, cfg) {
-  if (cfg.laneCount >= 4 && cfg.colCount >= 4 && !cfg.showArrow && !cfg.hintText) return null;
+  if (cfg.laneCount >= 4 && cfg.colCount >= 4 && !cfg.showArrow && !cfg.hintText && !cfg.showAreaLabels) return null;
   return new FTUEOverlay(stage, w, h, cfg);
+}
+
+function _buildComboPopup(layer, w) {
+  const grp = new Container();
+
+  const bg = new Graphics();
+  bg.roundRect(30, 0, w - 60, 64, 14);
+  bg.fill({ color: 0x1a0800, alpha: 0.92 });
+  bg.roundRect(30, 0, w - 60, 64, 14);
+  bg.stroke({ color: 0xff9922, width: 2, alpha: 0.85 });
+  grp.addChild(bg);
+
+  const title = new Text({
+    text: 'COMBO ×3!',
+    style: { fontSize: 20, fontWeight: 'bold', fill: 0xffcc22,
+      dropShadow: { color: 0x000000, blur: 4, distance: 2, alpha: 0.9 } },
+  });
+  title.anchor.set(0.5, 0);
+  title.x = w / 2;
+  title.y = 6;
+  grp.addChild(title);
+
+  const body = new Text({
+    text: 'Chain kills for bonus coins and fire speed!',
+    style: { fontSize: 13, fontWeight: 'bold', fill: 0xffe8aa, align: 'center',
+      wordWrap: true, wordWrapWidth: w - 80,
+      dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 0.9 } },
+  });
+  body.anchor.set(0.5, 0);
+  body.x = w / 2;
+  body.y = 32;
+  grp.addChild(body);
+
+  // Centre vertically between HUD and road
+  grp.y = 44 + 12;
+  layer.addChild(grp);
+  return grp;
 }
 
 main();

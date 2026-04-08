@@ -45,7 +45,7 @@ const PROGRESSION = [
   // ── FTUE: near-impossible to lose — learn the controls ────────────────────
   { id: 1,  laneCount: 1, colCount: 1, colors: ['Red'],           worldConfig: FTUE_WORLD_1, duration:  60, showArrow: true,  hintText: 'Drag the matching shooter to the lane' },
   { id: 2,  laneCount: 2, colCount: 2, colors: ['Red', 'Blue'],   worldConfig: FTUE_WORLD_2, duration:  70, showArrow: false, hintText: 'Color must match! Wrong color = no damage' },
-  { id: 3,  laneCount: 3, colCount: 3, colors: ['Red', 'Blue'],   worldConfig: EARLY_3,      duration:  90, showArrow: false, hintText: null },
+  { id: 3,  laneCount: 3, colCount: 3, colors: ['Red', 'Blue'],   worldConfig: EARLY_3,      duration:  90, showArrow: false, hintText: null, showAreaLabels: true },
   { id: 4,  laneCount: 4, colCount: 4, colors: ['Red', 'Blue'],   worldConfig: EARLY_4,      duration:  90, showArrow: false, hintText: null },
 
   // ── Early full board: forgiving, still learning ────────────────────────────

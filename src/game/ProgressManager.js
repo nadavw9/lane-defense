@@ -28,6 +28,7 @@ function defaults() {
     coins:         0,
     boosters:      { swap: 3, peek: 3, freeze: 0 },
     dailyReward:   { day: 0, lastClaim: null },
+    seenComboTip:  false,
   };
 }
 
@@ -36,8 +37,10 @@ export class ProgressManager {
     this._data = this._load();
   }
 
-  get unlockedLevel() { return this._data.unlockedLevel; }
-  get coins()         { return this._data.coins; }
+  get unlockedLevel()  { return this._data.unlockedLevel; }
+  get coins()          { return this._data.coins; }
+  get seenComboTip()   { return this._data.seenComboTip; }
+  markSeenComboTip()   { this._data.seenComboTip = true; this._save(); }
 
   getStars(levelId) {
     return this._data.stars[String(levelId)] ?? 0;

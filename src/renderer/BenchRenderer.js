@@ -8,22 +8,16 @@
 // DragDrop drives two transient visual states:
 //   draggingSlot  — which slot is being dragged FROM (shown as empty)
 //   setHighlight  — which slot to blue-highlight as a drop target
-import { Graphics, Text } from 'pixi.js';
+import { Sprite, Graphics, Text, Assets } from 'pixi.js';
 import { COL_W } from './ShooterRenderer.js';
 
 export const BENCH_Y      = 703;
 export const BENCH_SLOT_H = 50;
 
-const BENCH_CIRCLE_R = 16;
+// Target size for bench shooter sprites — fits within the slot.
+const BENCH_SPRITE_SIZE = 32;
 
-const COLOR_MAP = {
-  Red:    0xE24B4A,
-  Blue:   0x378ADD,
-  Green:  0x639922,
-  Yellow: 0xEF9F27,
-  Purple: 0x7F77DD,
-  Orange: 0xD85A30,
-};
+function idleUrl(color) { return `/sprites/sprites/shooters/shooter-${color.toLowerCase()}-idle.png`; }
 
 const SLOT_BG   = 0x0d0d1a;
 const SLOT_EDGE = 0x223344;
@@ -50,12 +44,19 @@ export class BenchRenderer {
     this._visible   = true; // hidden before bench unlocks (L6+)
 
     this._graphics = [];
+    this._sprites  = [];
     this._texts    = [];
 
     for (let i = 0; i < 4; i++) {
       const g = new Graphics();
       this._layer.addChild(g);
       this._graphics.push(g);
+
+      const sp = new Sprite();
+      sp.anchor.set(0.5);
+      sp.visible = false;
+      this._layer.addChild(sp);
+      this._sprites.push(sp);
 
       const t = new Text({ text: '', style: DMG_STYLE });
       t.anchor.set(0.5);
@@ -68,8 +69,9 @@ export class BenchRenderer {
   setVisible(visible) {
     this._visible = visible;
     if (!visible) {
-      for (const g of this._graphics) g.clear();
-      for (const t of this._texts)    t.visible = false;
+      for (const g  of this._graphics) g.clear();
+      for (const sp of this._sprites)  sp.visible = false;
+      for (const t  of this._texts)    t.visible  = false;
     }
   }
 
@@ -125,16 +127,28 @@ export class BenchRenderer {
       }
 
       if (shooter) {
-        const clr = COLOR_MAP[shooter.color] ?? 0x888888;
-        // Small color circle left-of-center, damage number right-of-center
-        g.circle(cx - 14, cy, BENCH_CIRCLE_R);
-        g.fill(clr);
+        // Idle sprite left-of-center, damage number right-of-center.
+        const sp  = this._sprites[i];
+        const tex = Assets.get(idleUrl(shooter.color));
+        if (tex) {
+          if (sp.texture !== tex) {
+            sp.texture = tex;
+            const max = Math.max(tex.width, tex.height);
+            sp.scale.set(BENCH_SPRITE_SIZE / max);
+          }
+          sp.x       = cx - 14;
+          sp.y       = cy;
+          sp.visible = true;
+        } else {
+          sp.visible = false;
+        }
 
         this._texts[i].text    = String(shooter.damage);
         this._texts[i].x       = cx + 10;
         this._texts[i].y       = cy;
         this._texts[i].visible = true;
       } else {
+        this._sprites[i].visible = false;
         // Empty slot indicator — small dim dot
         g.circle(cx, cy, 3.5);
         g.fill({ color: 0x334455, alpha: 0.55 });

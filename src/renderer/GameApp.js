@@ -11,7 +11,7 @@
 // Data flow:
 //   InputManager → DragDrop → GameLoop.deploy() → GameState mutation
 //   GameState → CarRenderer / ShooterRenderer / HUDRenderer / ParticleSystem
-import { Application, Container, Graphics, Text } from 'pixi.js';
+import { Application, Assets, Container, Graphics, Text } from 'pixi.js';
 
 import { LayerManager }    from './LayerManager.js';
 import { LaneRenderer, laneCenterX, posToScreenY, ROAD_BOTTOM_Y } from './LaneRenderer.js';
@@ -125,6 +125,20 @@ function spawnFloatingText(parent, x, y, text, color = 0xffffff) {
   return { sprite: t, vy: -30, life: 1.2 };
 }
 
+// ── Sprite manifest ───────────────────────────────────────────────────────────
+
+const COLORS   = ['red', 'blue', 'green', 'yellow', 'purple', 'orange'];
+const CAR_URLS = [
+  ...COLORS.map(c => `/sprites/sprites/cars/car-${c}.png`),
+  '/sprites/sprites/cars/car-boss.png',
+];
+const SHOOTER_URLS = COLORS.flatMap(c => [
+  `/sprites/sprites/shooters/shooter-${c}-idle.png`,
+  `/sprites/sprites/shooters/shooter-${c}-fire.png`,
+  `/sprites/sprites/shooters/shooter-${c}-side.png`,
+]);
+const ALL_SPRITE_URLS = [...CAR_URLS, ...SHOOTER_URLS];
+
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -139,9 +153,8 @@ async function main() {
   });
   document.body.appendChild(app.canvas);
 
-  // ── Fit canvas to viewport (scale-to-fit, preserving 390×844 aspect) ─────
-  // Without this, body's `align-items: center` clips the top of the canvas
-  // (and the HUD) whenever the browser window is shorter than APP_H pixels.
+  // ── Fit canvas to viewport ────────────────────────────────────────────────
+  // (Declared early so the loading screen is already correctly sized.)
   const _fitCanvas = () => {
     const scale = Math.min(window.innerWidth / APP_W, window.innerHeight / APP_H);
     app.canvas.style.width  = `${APP_W * scale}px`;
@@ -149,6 +162,28 @@ async function main() {
   };
   _fitCanvas();
   window.addEventListener('resize', _fitCanvas);
+
+  // ── Loading screen ────────────────────────────────────────────────────────
+  const loadBg = new Graphics();
+  loadBg.rect(0, 0, APP_W, APP_H);
+  loadBg.fill(0x060610);
+  app.stage.addChild(loadBg);
+
+  const loadText = new Text({
+    text: 'Loading...',
+    style: { fontSize: 28, fontWeight: 'bold', fill: 0x44ff88,
+      dropShadow: { color: 0x00cc44, blur: 16, distance: 0, alpha: 0.7 } },
+  });
+  loadText.anchor.set(0.5);
+  loadText.x = APP_W / 2;
+  loadText.y = APP_H / 2;
+  app.stage.addChild(loadText);
+
+  // Preload all sprite textures before any renderer is created.
+  await Assets.load(ALL_SPRITE_URLS);
+
+  loadBg.destroy();
+  loadText.destroy();
 
   // ── Analytics (fire-and-forget, anonymous) ────────────────────────────────
   const analytics = new Analytics();

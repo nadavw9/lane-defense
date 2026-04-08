@@ -8,12 +8,12 @@
 import { Container, Graphics, Text } from 'pixi.js';
 
 export class TitleScreen {
-  // callbacks: { onPlay, onDaily, hasDailyReward }
+  // callbacks: { onPlay, onDaily, hasDailyReward, onDailyChallenge, onAchievements, onSettings }
   // hasDailyReward — true if a daily reward is ready to claim (shows glow badge)
-  constructor(stage, appW, appH, { onPlay, onDaily, hasDailyReward, onSettings, audio }) {
+  constructor(stage, appW, appH, { onPlay, onDaily, hasDailyReward, onDailyChallenge, onAchievements, onSettings, audio }) {
     this._container = new Container();
     stage.addChild(this._container);
-    this._build(appW, appH, onPlay, onDaily, hasDailyReward, onSettings, audio);
+    this._build(appW, appH, onPlay, onDaily, hasDailyReward, onDailyChallenge, onAchievements, onSettings, audio);
   }
 
   destroy() {
@@ -22,7 +22,7 @@ export class TitleScreen {
 
   // ── Private ────────────────────────────────────────────────────────────────
 
-  _build(w, h, onPlay, onDaily, hasDailyReward, onSettings, audio) {
+  _build(w, h, onPlay, onDaily, hasDailyReward, onDailyChallenge, onAchievements, onSettings, audio) {
     // Full-screen background — also absorbs pointer events so game layers stay inert.
     const bg = new Graphics();
     bg.rect(0, 0, w, h);
@@ -107,6 +107,47 @@ export class TitleScreen {
       dt.anchor.set(0.5, 0.5);
       daily.addChild(dt);
       this._container.addChild(daily);
+    }
+
+    // ── DAILY CHALLENGE + ACHIEVEMENTS buttons (side-by-side row) ─────────────
+    const ROW_Y  = h * 0.56 + 122;
+    const BTN_W  = 145, BTN_H = 44;
+    const BTN_GAP = 10;
+
+    if (onDailyChallenge) {
+      const dc = new Graphics();
+      dc.roundRect(-BTN_W / 2, -BTN_H / 2, BTN_W, BTN_H, 12);
+      dc.fill(0x0a1a28);
+      dc.roundRect(-BTN_W / 2, -BTN_H / 2, BTN_W, BTN_H, 12);
+      dc.stroke({ color: 0x2255aa, width: 1.5, alpha: 0.70 });
+      dc.x = w / 2 - BTN_W / 2 - BTN_GAP / 2;
+      dc.y = ROW_Y;
+      dc.eventMode = 'static'; dc.cursor = 'pointer';
+      dc.on('pointerdown', () => { audio?.play('button_tap'); onDailyChallenge(); });
+      dc.on('pointerover',  () => { dc.alpha = 0.78; });
+      dc.on('pointerout',   () => { dc.alpha = 1.00; });
+      const dcTxt = new Text({ text: '⚡ DAILY', style: { fontSize: 16, fontWeight: 'bold', fill: 0x66aaff } });
+      dcTxt.anchor.set(0.5, 0.5);
+      dc.addChild(dcTxt);
+      this._container.addChild(dc);
+    }
+
+    if (onAchievements) {
+      const ab = new Graphics();
+      ab.roundRect(-BTN_W / 2, -BTN_H / 2, BTN_W, BTN_H, 12);
+      ab.fill(0x1a1400);
+      ab.roundRect(-BTN_W / 2, -BTN_H / 2, BTN_W, BTN_H, 12);
+      ab.stroke({ color: 0x7a6a10, width: 1.5, alpha: 0.70 });
+      ab.x = w / 2 + BTN_W / 2 + BTN_GAP / 2;
+      ab.y = ROW_Y;
+      ab.eventMode = 'static'; ab.cursor = 'pointer';
+      ab.on('pointerdown', () => { audio?.play('button_tap'); onAchievements(); });
+      ab.on('pointerover',  () => { ab.alpha = 0.78; });
+      ab.on('pointerout',   () => { ab.alpha = 1.00; });
+      const abTxt = new Text({ text: '★ ACHIEV.', style: { fontSize: 16, fontWeight: 'bold', fill: 0xf5c842 } });
+      abTxt.anchor.set(0.5, 0.5);
+      ab.addChild(abTxt);
+      this._container.addChild(ab);
     }
 
     // ── Settings gear (top-right) ─────────────────────────────────────────────

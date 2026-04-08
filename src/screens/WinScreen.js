@@ -74,8 +74,10 @@ export class WinScreen {
     this._text('best combo', cx, y + 22, { fontSize: 14, fill: 0x999999, fontWeight: 'normal' });
     y += 58;
 
-    this._button('NEXT LEVEL',   cx, y, 0x1a6a3a, 0x55ff99, () => { audio?.play('button_tap'); onNext(); });
-    y += 58;
+    if (onNext) {
+      this._button('NEXT LEVEL', cx, y, 0x1a6a3a, 0x55ff99, () => { audio?.play('button_tap'); onNext(); });
+      y += 58;
+    }
     this._button('LEVEL SELECT', cx, y, 0x1a2a3a, 0x88bbdd, () => { audio?.play('button_tap'); onMenu(); });
   }
 

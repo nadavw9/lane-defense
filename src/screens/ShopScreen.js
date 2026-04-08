@@ -48,14 +48,15 @@ const BOOSTER_DEFS = [
 export class ShopScreen {
   // progress     — ProgressManager (reads coins/boosters, persists changes)
   // boosterState — BoosterState instance for in-memory sync (may be null)
-  // callbacks    — { onBack }
-  constructor(stage, appW, appH, progress, boosterState, { onBack, audio }) {
+  // callbacks    — { onBack, onPurchase }
+  constructor(stage, appW, appH, progress, boosterState, { onBack, onPurchase, audio }) {
     this._stage        = stage;
     this._appW         = appW;
     this._appH         = appH;
     this._progress     = progress;
     this._boosterState = boosterState;
     this._onBack       = onBack;
+    this._onPurchase   = onPurchase ?? null;
     this._audio        = audio;
     this._container    = new Container();
     stage.addChild(this._container);
@@ -234,6 +235,10 @@ export class ShopScreen {
       p.setBoosters(saved.swap, saved.peek, saved.freeze + 1);
       if (this._boosterState) this._boosterState.freeze = saved.freeze + 1;
     }
+
+    // Track cumulative purchases for Shopkeeper achievement.
+    p.incrementBoostersPurchased();
+    this._onPurchase?.();
 
     // Rebuild UI to reflect new coin balance and counts.
     this._rebuild();

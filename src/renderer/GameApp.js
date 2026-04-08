@@ -11,7 +11,7 @@
 // Data flow:
 //   InputManager → DragDrop → GameLoop.deploy() → GameState mutation
 //   GameState → CarRenderer / ShooterRenderer / HUDRenderer / ParticleSystem
-import { Application, Graphics, Text } from 'pixi.js';
+import { Application, Container, Graphics, Text } from 'pixi.js';
 
 import { LayerManager }    from './LayerManager.js';
 import { LaneRenderer, laneCenterX, posToScreenY, ROAD_BOTTOM_Y } from './LaneRenderer.js';
@@ -53,9 +53,12 @@ import { ShopScreen }             from '../screens/ShopScreen.js';
 import { DailyRewardScreen }      from '../screens/DailyRewardScreen.js';
 import { SettingsScreen }         from '../screens/SettingsScreen.js';
 import { PauseScreen }            from '../screens/PauseScreen.js';
+import { AchievementsScreen }     from '../screens/AchievementsScreen.js';
 import { AudioManager }           from '../audio/AudioManager.js';
 import { BoosterBar }             from './BoosterBar.js';
 import { Analytics }              from '../analytics/Analytics.js';
+import { AchievementManager }     from '../game/AchievementManager.js';
+import { DailyChallengeManager }  from '../game/DailyChallengeManager.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const APP_W       = 390;
@@ -242,6 +245,20 @@ async function main() {
   let dailyRewardScreen  = null;
   let settingsScreen     = null;
   let pauseScreen        = null;
+  let achievementsScreen = null;
+
+  // ── Achievement system ────────────────────────────────────────────────────
+  const achievementManager    = new AchievementManager(progress);
+  const dailyChallengeManager = new DailyChallengeManager();
+  const achievementQueue      = [];    // pending popup notifications
+  let   activeAchievementPopup  = null;
+  let   activeAchievementTimer  = 0;
+
+  // ── Per-level daily/no-rescue flags ───────────────────────────────────────
+  let currentLevelIsDaily  = false;
+  let noRescueThisLevel    = false;
+  let dailyDateKey         = '';
+  let coinsAtLevelStart    = 0;
 
   // ── Transition overlay (always topmost) ───────────────────────────────────
   const transition = new TransitionOverlay(app.stage, APP_W, APP_H);
@@ -292,15 +309,29 @@ async function main() {
   }
 
   // ── Core level-start routine ──────────────────────────────────────────────
-  // Called both for first play and for every subsequent level.
-  function _startLevel(levelId) {
+  // Called both for normal levels (levelId: number) and for the daily challenge
+  // (levelIdOrConfig: full config object with isDaily:true).
+  function _startLevel(levelIdOrConfig) {
     // Tear down any lingering overlay screens.
     winScreen?.destroy();      winScreen      = null;
     rescueOverlay?.destroy();  rescueOverlay  = null;
     ftueOverlay?.destroy();    ftueOverlay    = null;
 
-    levelManager.goToLevel(levelId);
-    const cfg = levelManager.current;
+    // Resolve config from either a number or a pre-built config object.
+    let cfg;
+    let levelId;
+    if (typeof levelIdOrConfig === 'object' && levelIdOrConfig !== null) {
+      cfg     = levelIdOrConfig;
+      levelId = 'daily';
+    } else {
+      levelManager.goToLevel(levelIdOrConfig);
+      cfg     = levelManager.current;
+      levelId = levelIdOrConfig;
+    }
+
+    currentLevelIsDaily = cfg.isDaily ?? false;
+    noRescueThisLevel   = cfg.noRescue ?? false;
+    dailyDateKey        = currentLevelIsDaily ? dailyChallengeManager.getTodayKey() : '';
 
     // Restore persistent booster inventory for this level.
     // L14 first-visit: grant 2 free freeze charges if player has none.
@@ -318,15 +349,16 @@ async function main() {
     boosterState.freezeUntil = -Infinity;
 
     applyLevelConfig(cfg);
-    hudRenderer.setLevel(levelManager.levelNumber);
+    // Use levelNumber for normal levels; 'D' label for daily challenge.
+    hudRenderer.setLevel(currentLevelIsDaily ? 'D' : levelManager.levelNumber);
     ftueOverlay = _makeFTUEOverlay(app.stage, APP_W, APP_H, cfg);
 
-    // Feature gating: show/hide bench and booster buttons based on level id.
-    const benchUnlocked  = levelId >= 6;
-    const swapUnlocked   = levelId >= 8;
-    const peekUnlocked   = levelId >= 12;
-    const freezeUnlocked = levelId >= 14;
-    benchStorage.reset();  // always reset bench
+    // Feature gating: daily challenge unlocks everything; normal levels gate by id.
+    const benchUnlocked  = currentLevelIsDaily || levelId >= 6;
+    const swapUnlocked   = currentLevelIsDaily || levelId >= 8;
+    const peekUnlocked   = currentLevelIsDaily || levelId >= 12;
+    const freezeUnlocked = currentLevelIsDaily || levelId >= 14;
+    benchStorage.reset();
     benchRenderer.setVisible(benchUnlocked);
     boosterBar.setButtonVisibility(swapUnlocked, peekUnlocked, freezeUnlocked);
 
@@ -351,7 +383,8 @@ async function main() {
     audio.play('level_start');
 
     // Restore accumulated coins AFTER restart() (which zeros gs.coins).
-    gs.coins = progress.coins;
+    gs.coins         = progress.coins;
+    coinsAtLevelStart = progress.coins;
   }
 
   // ── Screen: Title ─────────────────────────────────────────────────────────
@@ -364,8 +397,10 @@ async function main() {
         titleScreen = null;
         showLevelSelect();
       },
-      onDaily:        () => { showDailyReward(); },
-      hasDailyReward: progress.canClaimDaily(),
+      onDaily:            () => { showDailyReward(); },
+      hasDailyReward:     progress.canClaimDaily(),
+      onDailyChallenge:   () => { startDailyChallenge(); },
+      onAchievements:     () => { showAchievements(() => { achievementsScreen?.destroy(); achievementsScreen = null; showTitle(); }); },
       onSettings: () => {
         showSettings(() => {
           settingsScreen.destroy();
@@ -382,6 +417,9 @@ async function main() {
       onClose: () => {
         dailyRewardScreen.destroy();
         dailyRewardScreen = null;
+        // Check if the daily_claim achievement was just earned.
+        const newAch = achievementManager.check('daily_claim');
+        newAch.forEach(a => achievementQueue.push(a));
         if (titleScreen) {
           titleScreen.destroy();
           titleScreen = null;
@@ -415,6 +453,15 @@ async function main() {
         levelSelectScreen = null;
         showShop();
       },
+      onAchievements: () => {
+        levelSelectScreen.destroy();
+        levelSelectScreen = null;
+        showAchievements(() => {
+          achievementsScreen?.destroy();
+          achievementsScreen = null;
+          showLevelSelect();
+        });
+      },
       audio,
     });
   }
@@ -427,7 +474,32 @@ async function main() {
         shopScreen = null;
         showLevelSelect();
       },
+      onPurchase: () => {
+        const newAch = achievementManager.check('shop_purchase');
+        newAch.forEach(a => achievementQueue.push(a));
+      },
       audio,
+    });
+  }
+
+  // ── Screen: Achievements ─────────────────────────────────────────────────
+  function showAchievements(onBack) {
+    pauseBtn.visible = false;
+    audio.playMusic('title');
+    achievementsScreen = new AchievementsScreen(app.stage, APP_W, APP_H, progress, {
+      onBack,
+      audio,
+    });
+  }
+
+  // ── Daily Challenge ───────────────────────────────────────────────────────
+  function startDailyChallenge() {
+    titleScreen?.destroy();
+    titleScreen = null;
+    const cfg = dailyChallengeManager.getChallenge();
+    transition.fadeOut(0.25, () => {
+      _startLevel(cfg);
+      transition.fadeIn(0.25, null);
     });
   }
 
@@ -477,19 +549,37 @@ async function main() {
     audio.stopMusic();
     // Delay fanfare slightly so the screen fade-in completes first.
     setTimeout(() => audio.play('win_fanfare'), 300);
-    const levelId = levelManager.levelNumber;
-    const stars   = calcStars(gs);
 
-    // Persist: stars, unlocked level, coins, boosters used this level.
-    progress.recordWin(levelId, stars);
+    // Persist coins and boosters.
     progress.setCoins(gs.coins);
     progress.setBoosters(boosterState.swap, boosterState.peek, boosterState.freeze);
 
-    winScreen = new WinScreen(
-      app.stage, APP_W, APP_H, gs,
+    // Track coins earned this level for the Collector achievement.
+    const coinsEarned = Math.max(0, gs.coins - coinsAtLevelStart);
+    if (coinsEarned > 0) progress.addEarnedCoins(coinsEarned);
+    const coinAch = achievementManager.check('coins_earned');
+    coinAch.forEach(a => achievementQueue.push(a));
 
-      // ── Next Level ──────────────────────────────────────────────────────
-      () => {
+    // Level-end achievements.
+    const endAch = achievementManager.check('level_end', {
+      won:          true,
+      totalDeploys: gs.totalDeploys,
+      wrongDeploys: gs.wrongDeploys,
+      elapsed:      gs.elapsed,
+      rescueUsed:   gs.rescueUsed,
+    });
+    endAch.forEach(a => achievementQueue.push(a));
+
+    let onNext;
+    if (currentLevelIsDaily) {
+      // Daily challenge win: award bonus, no level progression.
+      progress.completeDailyChallenge(dailyDateKey);
+      onNext = null;
+    } else {
+      const levelId = levelManager.levelNumber;
+      const stars   = calcStars(gs);
+      progress.recordWin(levelId, stars);
+      onNext = () => {
         winScreen.destroy();
         winScreen = null;
         const nextId = Math.min(20, levelId + 1);
@@ -497,7 +587,14 @@ async function main() {
           _startLevel(nextId);
           transition.fadeIn(0.30, null);
         });
-      },
+      };
+    }
+
+    winScreen = new WinScreen(
+      app.stage, APP_W, APP_H, gs,
+
+      // ── Next Level (null for daily challenge) ────────────────────────────
+      onNext,
 
       // ── Menu (Level Select) ─────────────────────────────────────────────
       () => {
@@ -510,6 +607,77 @@ async function main() {
       },
       audio,
     );
+  }
+
+  // ── No-rescue game-over (Daily Challenge "Sudden Death") ─────────────────
+  // Shows a minimal GAME OVER panel with RETRY and LEVEL SELECT, no rescue option.
+  function _showNoRescueLose() {
+    pauseBtn.visible = false;
+    audio.stopMusic();
+    audio.play('lose_tone');
+
+    const c = new Container();
+    app.stage.addChild(c);
+
+    const backdrop = new Graphics();
+    backdrop.rect(0, 0, APP_W, APP_H);
+    backdrop.fill({ color: 0x000000, alpha: 0.80 });
+    backdrop.eventMode = 'static';
+    c.addChild(backdrop);
+
+    const panelW = 310, panelH = 240;
+    const px = (APP_W - panelW) / 2;
+    const py = (APP_H - panelH) / 2 - 20;
+
+    const panel = new Graphics();
+    panel.roundRect(px, py, panelW, panelH, 18);
+    panel.fill({ color: 0x1a0505, alpha: 0.97 });
+    panel.roundRect(px, py, panelW, panelH, 18);
+    panel.stroke({ color: 0xdd2222, width: 2, alpha: 0.6 });
+    c.addChild(panel);
+
+    const cx  = APP_W / 2;
+    let   cy  = py + 44;
+
+    const addText = (text, x, y, style) => {
+      const t = new Text({ text, style: { fontWeight: 'bold', ...style } });
+      t.anchor.set(0.5, 0.5); t.x = x; t.y = y;
+      c.addChild(t);
+    };
+    addText('GAME OVER', cx, cy, { fontSize: 32, fill: 0xff4444 });
+    cy += 38;
+    addText('No rescue on this challenge.', cx, cy, { fontSize: 14, fill: 0x999999, fontWeight: 'normal' });
+    cy += 52;
+
+    const addBtn = (label, bx, by, bgCol, lblCol, onClick) => {
+      const btnW = 210, btnH = 48;
+      const btn  = new Graphics();
+      btn.roundRect(-btnW / 2, -btnH / 2, btnW, btnH, 12);
+      btn.fill(bgCol);
+      btn.x = bx; btn.y = by;
+      btn.eventMode = 'static'; btn.cursor = 'pointer';
+      btn.on('pointerdown', () => { audio.play('button_tap'); onClick(); });
+      btn.on('pointerover',  () => { btn.alpha = 0.78; });
+      btn.on('pointerout',   () => { btn.alpha = 1.00; });
+      const t = new Text({ text: label, style: { fontSize: 20, fontWeight: 'bold', fill: lblCol } });
+      t.anchor.set(0.5, 0.5);
+      btn.addChild(t);
+      c.addChild(btn);
+    };
+
+    addBtn('RETRY', cx, cy, 0x3a1010, 0xff7777, () => {
+      c.destroy({ children: true });
+      const cfg = dailyChallengeManager.getChallenge();
+      transition.fadeOut(0.20, () => { _startLevel(cfg); transition.fadeIn(0.20, null); });
+    });
+    cy += 60;
+    addBtn('LEVEL SELECT', cx, cy, 0x1a2a3a, 0x88bbdd, () => {
+      c.destroy({ children: true });
+      transition.fadeOut(0.20, () => { showLevelSelect(); transition.fadeIn(0.20, null); });
+    });
+
+    // Reuse rescueOverlay slot so the overlay slot is cleaned up on _startLevel.
+    rescueOverlay = { update() {}, destroy() { c.destroy({ children: true }); } };
   }
 
   // ── Screen: Rescue ────────────────────────────────────────────────────────
@@ -574,6 +742,10 @@ async function main() {
         comboPopup      = _buildComboPopup(layers.get('hudLayer'), APP_W);
         comboPopupTimer = 3;
       }
+
+      // Achievement checks for kill events.
+      const killAch = achievementManager.check('kill', { combo });
+      killAch.forEach(a => achievementQueue.push(a));
     },
 
     onChainHit: (laneIdx) => {
@@ -615,7 +787,7 @@ async function main() {
       // 'win'    = timer ran out
       const result = won ? 'win' : (gs.rescueUsed ? 'lose' : 'rescue');
       analytics.recordSession({
-        levelId:        levelManager.levelNumber,
+        levelId:        currentLevelIsDaily ? 'daily' : levelManager.levelNumber,
         result,
         duration:       gs.elapsed,
         deploys:        gs.totalDeploys,
@@ -635,7 +807,8 @@ async function main() {
         audio.stopMusic();
         audio.play('lose_tone');
         shakeTime = 0;
-        breachCam = { laneIdx: laneIdx ?? 0, t: 0, done: false };
+        // noRescue levels (e.g. Sudden Death daily challenge) skip the rescue panel.
+        breachCam = { laneIdx: laneIdx ?? 0, t: 0, done: false, skipRescue: noRescueThisLevel };
       }
     },
   });
@@ -651,6 +824,9 @@ async function main() {
       onDeployFromBench: (shooter, laneIdx) => {
         if (laneIdx >= gs.activeLaneCount) return;
         gameLoop.deployFromBench(shooter, laneIdx);
+        // progress.incrementBenchUses() was called inside deployFromBench.
+        const benchAch = achievementManager.check('bench_deploy');
+        benchAch.forEach(a => achievementQueue.push(a));
       },
       onBenchStore: (_colIdx) => {
         // Column refills automatically via ShooterDirector next tick.
@@ -710,7 +886,11 @@ async function main() {
         app.stage.scale.set(1);
         app.stage.pivot.set(0, 0);
         app.stage.position.set(0, 0);
-        showRescue();
+        if (breachCam.skipRescue) {
+          _showNoRescueLose();
+        } else {
+          showRescue();
+        }
       }
     } else {
       if (shakeTime > 0) {
@@ -738,6 +918,20 @@ async function main() {
       }
     }
     if (levelSelectScreen) levelSelectScreen.update(dt);
+
+    // ── Achievement popup queue ────────────────────────────────────────────
+    if (activeAchievementPopup) {
+      activeAchievementTimer -= dt;
+      if (activeAchievementTimer < 1) activeAchievementPopup.alpha = Math.max(0, activeAchievementTimer);
+      if (activeAchievementTimer <= 0) {
+        activeAchievementPopup.destroy({ children: true });
+        activeAchievementPopup = null;
+      }
+    } else if (achievementQueue.length > 0) {
+      const ach = achievementQueue.shift();
+      activeAchievementPopup = _buildAchievementPopup(layers.get('hudLayer'), APP_W, ach);
+      activeAchievementTimer = 3.0;
+    }
 
     // Phase-based music transitions during active gameplay only.
     if (gameLoopStarted && !gameLoop.paused && !gs.isOver) {
@@ -787,6 +981,49 @@ function _buildComboPopup(layer, w) {
 
   // Centre vertically between HUD and road
   grp.y = 44 + 12;
+  layer.addChild(grp);
+  return grp;
+}
+
+function _buildAchievementPopup(layer, w, achievement) {
+  const grp = new Container();
+
+  const bg = new Graphics();
+  bg.roundRect(18, 0, w - 36, 72, 14);
+  bg.fill({ color: 0x120a00, alpha: 0.94 });
+  bg.roundRect(18, 0, w - 36, 72, 14);
+  bg.stroke({ color: 0xf5c842, width: 2, alpha: 0.90 });
+  grp.addChild(bg);
+
+  const label = new Text({
+    text: 'ACHIEVEMENT UNLOCKED',
+    style: { fontSize: 11, fontWeight: 'bold', fill: 0xf5c842, letterSpacing: 1.5 },
+  });
+  label.anchor.set(0.5, 0);
+  label.x = w / 2;
+  label.y = 8;
+  grp.addChild(label);
+
+  const name = new Text({
+    text: achievement.name,
+    style: { fontSize: 18, fontWeight: 'bold', fill: 0xffeebb,
+      dropShadow: { color: 0x000000, blur: 4, distance: 2, alpha: 0.8 } },
+  });
+  name.anchor.set(0.5, 0);
+  name.x = w / 2;
+  name.y = 24;
+  grp.addChild(name);
+
+  const desc = new Text({
+    text: achievement.desc,
+    style: { fontSize: 12, fill: 0xaa9966, fontWeight: 'normal' },
+  });
+  desc.anchor.set(0.5, 0);
+  desc.x = w / 2;
+  desc.y = 48;
+  grp.addChild(desc);
+
+  grp.y = 44 + 8;
   layer.addChild(grp);
   return grp;
 }

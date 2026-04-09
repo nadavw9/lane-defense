@@ -9,6 +9,9 @@ import { PHASE_CONFIG } from '../director/DirectorConfig.js';
 
 const FIXED_DT = 1 / 60; // logic step in seconds
 
+// Fire duration in seconds per shooter damage value (from GDD v1.1).
+const FIRE_DURATIONS = { 2: 1.5, 3: 1.7, 4: 1.9, 5: 2.0, 6: 2.2, 7: 2.3, 8: 2.5 };
+
 export class GameLoop {
   // opts:
   //   app            — PixiJS Application
@@ -66,35 +69,42 @@ export class GameLoop {
     const col     = this._gs.columns[colIdx];
     const shooter = col.top();
     if (!shooter) return;
+    // Slot occupancy is enforced by DragDrop; guard here defensively.
+    if (this._gs.firingSlots[laneIdx]) return;
     col.consume();
-    this._deployShooter(shooter, laneIdx, colIdx);
+    this._startFiring(shooter, laneIdx, colIdx);
   }
 
   // Called by DragDrop → onDeployFromBench (bench source).
   // Shooter is already extracted from BenchStorage by DragDrop.
   deployFromBench(shooter, laneIdx) {
+    if (this._gs.firingSlots[laneIdx]) return;
     this._gs.benchUsed++;
-    this._deployShooter(shooter, laneIdx, -1);
+    this._startFiring(shooter, laneIdx, -1);
   }
 
-  // Shared combat resolution path for both column and bench deploys.
+  // Phase 1 — immediate effects: place shooter in the firing slot, trigger
+  // audio/animation callbacks, and start time dilation.  Combat resolves later.
   // colIdx === -1 means the shooter came from the bench (no punch animation).
-  _deployShooter(shooter, laneIdx, colIdx) {
+  _startFiring(shooter, laneIdx, colIdx) {
+    const gs       = this._gs;
+    const duration = FIRE_DURATIONS[shooter.damage] ?? 2.0;
+    gs.firingSlots[laneIdx] = { shooter, colIdx, timeLeft: duration };
+    this._onShoot(shooter.damage, laneIdx, colIdx);
+    gs.triggerDilation();
+  }
+
+  // Phase 2 — delayed combat resolution once the fire duration elapses.
+  // Called from _step() when firingSlots[laneIdx].timeLeft reaches 0.
+  _resolveShot(shooter, laneIdx) {
     const gs       = this._gs;
     const lane     = gs.lanes[laneIdx];
     const frontCar = lane.frontCar();
-    const carGameX = frontCar?.position ?? 50;
 
-    // Shoot sound always plays regardless of hit/miss.
-    this._onShoot(shooter.damage, laneIdx, colIdx);
-
-    // Cars slow briefly on every deploy.
-    gs.triggerDilation();
-
-    // Nothing to shoot at — consume silently.
+    // Nothing to shoot at — slot clears silently.
     if (!frontCar) return;
 
-    // Track deploy accuracy now that we know a target exists.
+    const carGameX = frontCar.position;
     gs.recordDeploy(shooter.color === frontCar.color);
 
     const { kills, carryOverKills, damageDealt } = this._combat.resolve(shooter, lane);
@@ -206,6 +216,19 @@ export class GameLoop {
     //    Checks column tops + bench (when unlocked) against front car colors.
     //    If no overlap, forces a column top to match a front car color.
     this._enforceViableMove(gs);
+
+    // 7. Tick firing slots — resolve shots after the per-damage fire duration.
+    for (let i = 0; i < gs.activeLaneCount; i++) {
+      const slot = gs.firingSlots[i];
+      if (!slot) continue;
+      slot.timeLeft -= dt;
+      if (slot.timeLeft <= 0) {
+        const { shooter } = slot;
+        gs.firingSlots[i] = null;
+        this._resolveShot(shooter, i);
+        if (gs.isOver) return;   // breach may occur during resolution
+      }
+    }
   }
 
   // After a rescue, force at least 2 column tops to match a front car color,

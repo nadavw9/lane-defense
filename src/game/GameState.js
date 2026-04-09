@@ -54,6 +54,11 @@ export class GameState {
     this.isOver = false;
     this.won    = false;
 
+    // ── Firing line slots ─────────────────────────────────────────────────────
+    // firingSlots[laneIdx] = { shooter, colIdx, timeLeft } | null
+    // Populated by GameLoop._startFiring(); cleared when timeLeft reaches 0.
+    this.firingSlots = [null, null, null, null];
+
     // ── Deploy time dilation ───────────────────────────────────────────────
     // All cars slow to DEPLOY_DILATION.speedMultiplier for .duration seconds
     // after every shooter deploy.  GameLoop reads this when advancing cars.
@@ -148,6 +153,7 @@ export class GameState {
     this.won           = false;
     this.dilationUntil = -Infinity;
     this.recoveryUntil = -Infinity;
+    for (let i = 0; i < this.firingSlots.length; i++) this.firingSlots[i] = null;
     // Restore original duration (rescues add to it; reset removes those additions).
     // Duration is re-supplied by GameLoop.restart() which knows the base value.
     for (const lane of this.lanes)   lane.cars.length = 0;

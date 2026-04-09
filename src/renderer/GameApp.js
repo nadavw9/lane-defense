@@ -22,6 +22,7 @@ import { ParticleSystem }  from './ParticleSystem.js';
 import { LaneFlash }       from './LaneFlash.js';
 import { ComboGlow }       from './ComboGlow.js';
 
+import { FiringLineRenderer } from './FiringLineRenderer.js';
 import { DragDrop }        from '../input/DragDrop.js';
 import { InputManager }    from '../input/InputManager.js';
 import { BenchStorage }    from '../game/BenchStorage.js';
@@ -330,8 +331,9 @@ async function main() {
   let gameLoopStarted = false;
 
   // ── Renderers ────────────────────────────────────────────────────────────
-  const carRenderer     = new CarRenderer(layers, lanes);
-  const shooterRenderer = new ShooterRenderer(layers, columns, boosterState);
+  const carRenderer        = new CarRenderer(layers, lanes);
+  const shooterRenderer    = new ShooterRenderer(layers, columns, boosterState);
+  const firingLineRenderer = new FiringLineRenderer(layers, gs.firingSlots);
 
   // ── Level config helper ───────────────────────────────────────────────────
   function applyLevelConfig(cfg) {
@@ -401,6 +403,7 @@ async function main() {
     firstDeployTooltipShown     = false;
     firstKillDoneThisLevel      = false;
     carRenderer.clearAll();
+    firingLineRenderer.reset();
 
     // Start the game-loop ticker exactly once; restart() resets state each time.
     if (!gameLoopStarted) {
@@ -880,6 +883,8 @@ async function main() {
       },
     },
     boosterState,
+    firingLineRenderer,
+    gs.firingSlots,
   );
   new InputManager(app, dragDrop);
 
@@ -899,6 +904,7 @@ async function main() {
     carRenderer.update(dt, boosterState.isFrozen(gs.elapsed));
     shooterRenderer.update(gs.elapsed, dt);
     benchRenderer.update();
+    firingLineRenderer.update(dt);
     dragDrop.update(dt);
 
     tickFloatingTexts(floatingTexts, dt);

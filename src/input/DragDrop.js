@@ -16,7 +16,7 @@
 //
 // Bench highlights during drag from column:
 //   • BLUE ring on the hovered empty bench slot
-import { Graphics, Container, Text } from 'pixi.js';
+import { Graphics, Container, Text, Sprite, Assets } from 'pixi.js';
 import {
   ROAD_TOP_Y, ROAD_BOTTOM_Y,
   ROAD_TOP_X, ROAD_TOP_W, ROAD_BOTTOM_W,
@@ -60,7 +60,9 @@ export class DragDrop {
   //   onBenchStore(colIdx)            — shooter stored to bench (column consumed)
   //   onColorMismatch()               — rejected drop due to color mismatch
   //   onBenchFull()                   — rejected bench store (all 4 slots full)
-  // boosterState — optional; intercepts column taps when swap mode is active
+  // boosterState       — optional; intercepts column taps when swap mode is active
+  // firingLineRenderer — optional FiringLineRenderer; receives hover notifications
+  // firingSlots        — optional live ref to gs.firingSlots; occupancy checks
   constructor(
     layerManager,
     columns,
@@ -70,6 +72,8 @@ export class DragDrop {
     benchRenderer,
     { onDeploy, onDeployFromBench, onBenchStore, onColorMismatch, onBenchFull } = {},
     boosterState = null,
+    firingLineRenderer = null,
+    firingSlots = null,
   ) {
     this._dragLayer       = layerManager.get('dragLayer');
     this._laneLayer       = layerManager.get('laneLayer');
@@ -85,6 +89,9 @@ export class DragDrop {
     this._onBenchStore      = onBenchStore       ?? (() => {});
     this._onColorMismatch   = onColorMismatch    ?? (() => {});
     this._onBenchFull       = onBenchFull        ?? (() => {});
+
+    this._firingLineRenderer = firingLineRenderer;
+    this._firingSlots        = firingSlots;
 
     // ── State ──────────────────────────────────────────────────────────────
     this._state         = 'idle';
@@ -173,6 +180,11 @@ export class DragDrop {
         this._snapBack();
         return;
       }
+      if (this._firingSlots?.[laneIdx]) {
+        // Firing slot already occupied — snap back silently.
+        this._snapBack();
+        return;
+      }
       this._handleLaneDrop(laneIdx);
     } else {
       this._snapBack();
@@ -226,9 +238,9 @@ export class DragDrop {
       if (this._benchRenderer) this._benchRenderer.draggingSlot = -1;
       this._onDeployFromBench(shooter, laneIdx);
     }
-    // Fly ghost to bottom-centre of the dropped lane.
+    // Fly ghost to the firing slot at the road/shooter boundary.
     const targetX = (laneIdx + 0.5) * ROAD_BOTTOM_W / LANE_COUNT;
-    const targetY = ROAD_BOTTOM_Y - 15;
+    const targetY = ROAD_BOTTOM_Y;
     this._startAnim(
       this._ghost.x, this._ghost.y, targetX, targetY,
       FLY_DURATION, () => this._destroyGhost(),
@@ -286,8 +298,10 @@ export class DragDrop {
       // Bench-source drag: only lanes are valid drop targets.
       const laneIdx = this._hitTestLane(x, y);
       if (laneIdx !== -1) {
-        this._showLaneHighlight(laneIdx, this._checkColorMatch(laneIdx)
-          ? HIGHLIGHT_GREEN : HIGHLIGHT_RED);
+        const isOccupied = this._firingSlots?.[laneIdx] != null;
+        const isMatch    = this._checkColorMatch(laneIdx);
+        this._showLaneHighlight(laneIdx, (isMatch && !isOccupied) ? HIGHLIGHT_GREEN : HIGHLIGHT_RED);
+        if (!isOccupied) this._firingLineRenderer?.setHoverSlot(laneIdx, isMatch);
       }
       return;
     }
@@ -305,8 +319,10 @@ export class DragDrop {
     // In lane area.
     const laneIdx = this._hitTestLane(x, y);
     if (laneIdx !== -1) {
-      this._showLaneHighlight(laneIdx, this._checkColorMatch(laneIdx)
-        ? HIGHLIGHT_GREEN : HIGHLIGHT_RED);
+      const isOccupied = this._firingSlots?.[laneIdx] != null;
+      const isMatch    = this._checkColorMatch(laneIdx);
+      this._showLaneHighlight(laneIdx, (isMatch && !isOccupied) ? HIGHLIGHT_GREEN : HIGHLIGHT_RED);
+      if (!isOccupied) this._firingLineRenderer?.setHoverSlot(laneIdx, isMatch);
     }
   }
 
@@ -354,16 +370,27 @@ export class DragDrop {
   }
 
   _createGhost(shooter, x, y) {
-    const color     = COLOR_MAP[shooter.color] ?? 0x888888;
     const container = new Container();
 
-    const g = new Graphics();
-    g.circle(0, 0, TOP_RADIUS);
-    g.fill({ color: 0x000000, alpha: 0.2 });
-    g.circle(0, -3, TOP_RADIUS);
-    g.fill(color);
-    g.circle(-10, -13, 10);
-    g.fill({ color: 0xffffff, alpha: 0.18 });
+    // Use idle sprite if already loaded; fall back to a programmatic circle.
+    const idleUrl = `/sprites/sprites/shooters/shooter-${shooter.color.toLowerCase()}-idle.png`;
+    const tex     = Assets.get(idleUrl);
+    if (tex) {
+      const sp = new Sprite(tex);
+      sp.anchor.set(0.5);
+      sp.scale.set((TOP_RADIUS * 2) / Math.max(tex.width, tex.height));
+      container.addChild(sp);
+    } else {
+      const color = COLOR_MAP[shooter.color] ?? 0x888888;
+      const g = new Graphics();
+      g.circle(0, 0, TOP_RADIUS);
+      g.fill({ color: 0x000000, alpha: 0.2 });
+      g.circle(0, -3, TOP_RADIUS);
+      g.fill(color);
+      g.circle(-10, -13, 10);
+      g.fill({ color: 0xffffff, alpha: 0.18 });
+      container.addChild(g);
+    }
 
     const text = new Text({
       text: String(shooter.damage),
@@ -375,9 +402,7 @@ export class DragDrop {
       },
     });
     text.anchor.set(0.5);
-    text.y = -3;
 
-    container.addChild(g);
     container.addChild(text);
     container.x     = x;
     container.y     = y;
@@ -397,6 +422,7 @@ export class DragDrop {
 
   _clearHighlights() {
     for (const h of this._highlights) h.visible = false;
+    this._firingLineRenderer?.clearHover();
   }
 
   _startAnim(fromX, fromY, toX, toY, duration, onDone) {

@@ -36,7 +36,7 @@ const COLOR_MAP = {
 };
 
 function fireUrl(color) {
-  return `/sprites/sprites/shooters/shooter-${color.toLowerCase()}-fire.png`;
+  return `/sprites/shooters/shooter-${color.toLowerCase()}-fire.png`;
 }
 
 export class FiringLineRenderer {

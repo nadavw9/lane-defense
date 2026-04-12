@@ -60,8 +60,8 @@ const SECOND_TEXT_STYLE = {
 function easeOut(t) { return 1 - Math.pow(1 - Math.min(t, 1), 3); }
 
 // Sprite URL helpers
-function idleUrl(color)  { return `/sprites/sprites/shooters/shooter-${color.toLowerCase()}-idle.png`; }
-function fireUrl(color)  { return `/sprites/sprites/shooters/shooter-${color.toLowerCase()}-fire.png`; }
+function idleUrl(color)  { return `/sprites/shooters/shooter-${color.toLowerCase()}-idle.png`; }
+function fireUrl(color)  { return `/sprites/shooters/shooter-${color.toLowerCase()}-fire.png`; }
 
 // Scale a sprite so its largest dimension equals targetDiam.
 function fitSprite(sprite, targetDiam) {

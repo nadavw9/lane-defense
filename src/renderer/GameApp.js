@@ -58,6 +58,7 @@ import { AchievementsScreen }     from '../screens/AchievementsScreen.js';
 import { AudioManager }           from '../audio/AudioManager.js';
 import { BoosterBar }             from './BoosterBar.js';
 import { Analytics }              from '../analytics/Analytics.js';
+import { AutoTuner }             from '../analytics/AutoTuner.js';
 import { AchievementManager }     from '../game/AchievementManager.js';
 import { DailyChallengeManager }  from '../game/DailyChallengeManager.js';
 
@@ -130,13 +131,12 @@ function spawnFloatingText(parent, x, y, text, color = 0xffffff) {
 
 const COLORS   = ['red', 'blue', 'green', 'yellow', 'purple', 'orange'];
 const CAR_URLS = [
-  ...COLORS.map(c => `/sprites/sprites/cars/car-${c}.png`),
-  '/sprites/sprites/cars/car-boss.png',
+  ...COLORS.map(c => `/sprites/cars/car-${c}.png`),
+  '/sprites/cars/car-boss.png',
 ];
 const SHOOTER_URLS = COLORS.flatMap(c => [
-  `/sprites/sprites/shooters/shooter-${c}-idle.png`,
-  `/sprites/sprites/shooters/shooter-${c}-fire.png`,
-  `/sprites/sprites/shooters/shooter-${c}-side.png`,
+  `/sprites/shooters/shooter-${c}-idle.png`,
+  `/sprites/shooters/shooter-${c}-fire.png`,
 ]);
 const ALL_SPRITE_URLS = [...CAR_URLS, ...SHOOTER_URLS];
 
@@ -205,7 +205,14 @@ async function main() {
 
   // ── Level manager ─────────────────────────────────────────────────────────
   const levelManager = new LevelManager();
-  const initialCfg   = levelManager.current;
+
+  // AutoTuner: load cached modifiers from localStorage, then fetch fresh data
+  // from Firebase in the background.  Never blocks startup.
+  const autoTuner = new AutoTuner();
+  levelManager.setAutoTuner(autoTuner);
+  autoTuner.startFetch();
+
+  const initialCfg = levelManager.current;
 
   // ── Fixed arrays: always 4 lanes and 4 columns ───────────────────────────
   const lanes   = Array.from({ length: TOTAL_LANES }, (_, id) => new Lane({ id }));

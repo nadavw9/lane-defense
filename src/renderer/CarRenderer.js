@@ -42,8 +42,8 @@ const DEATH_SCALE    = 1.40;
 
 // Map color name → sprite URL
 function carTextureUrl(car) {
-  if (car.type === 'boss') return '/sprites/sprites/cars/car-boss.png';
-  return `/sprites/sprites/cars/car-${car.color.toLowerCase()}.png`;
+  if (car.type === 'boss') return '/sprites/cars/car-boss.png';
+  return `/sprites/cars/car-${car.color.toLowerCase()}.png`;
 }
 
 export class CarRenderer {

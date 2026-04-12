@@ -17,7 +17,7 @@ export const BENCH_SLOT_H = 50;
 // Target size for bench shooter sprites — fits within the slot.
 const BENCH_SPRITE_SIZE = 32;
 
-function idleUrl(color) { return `/sprites/sprites/shooters/shooter-${color.toLowerCase()}-idle.png`; }
+function idleUrl(color) { return `/sprites/shooters/shooter-${color.toLowerCase()}-idle.png`; }
 
 const SLOT_BG   = 0x0d0d1a;
 const SLOT_EDGE = 0x223344;

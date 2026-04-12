@@ -81,12 +81,35 @@ const PROGRESSION = [
 
 export class LevelManager {
   constructor() {
-    this._idx = 0;
+    this._idx       = 0;
+    this._autoTuner = null;
   }
 
-  // The current level config object.
+  // Wire up AutoTuner so difficulty modifiers are applied to level configs.
+  // Call once on app startup, before the first level is started.
+  setAutoTuner(autoTuner) {
+    this._autoTuner = autoTuner;
+  }
+
+  // The current level config object, with AutoTuner modifiers applied if any.
   get current() {
-    return PROGRESSION[this._idx];
+    const cfg = PROGRESSION[this._idx];
+    if (!this._autoTuner) return cfg;
+
+    const mod = this._autoTuner.getModifier(cfg.id);
+    // Only copy when a modifier is actually non-trivial, to avoid churn.
+    if (mod.speedFactor === 1.0 && mod.hpFactor === 1.0) return cfg;
+
+    return {
+      ...cfg,
+      worldConfig: {
+        hpMultiplier: cfg.worldConfig.hpMultiplier * mod.hpFactor,
+        speed: {
+          base:     cfg.worldConfig.speed.base     * mod.speedFactor,
+          variance: cfg.worldConfig.speed.variance,
+        },
+      },
+    };
   }
 
   // Display number shown in the HUD / win screen.

@@ -176,3 +176,10 @@ lane-defense/
 - If something in the spec seems wrong, say so and propose a fix.
 - When running simulations, show the data first, then interpret.
 - Flag any edge case where a fairness rule might be violated.
+
+## Token Rules
+- Use /clear between unrelated tasks
+- Use /compact when context gets long
+- Default model: sonnet. Use opus only for complex architecture
+- Batch multiple tasks into single prompts
+- Name exact files to modify, don't explore

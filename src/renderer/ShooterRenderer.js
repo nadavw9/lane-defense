@@ -8,6 +8,7 @@
 //
 // Textures must be preloaded by GameApp before ShooterRenderer is instantiated.
 import { Sprite, Graphics, Container, Text, Assets } from 'pixi.js';
+import { spriteFlags } from './SpriteFlags.js';
 
 // ── Layout ────────────────────────────────────────────────────────────────────
 export const SHOOTER_AREA_Y  = 520;
@@ -57,6 +58,16 @@ const SECOND_TEXT_STYLE = {
   fill:       0xffffff,
 };
 
+// Programmatic fallback colors (used when sprite loading failed).
+const COLOR_MAP = {
+  Red:    0xE24B4A,
+  Blue:   0x378ADD,
+  Green:  0x639922,
+  Yellow: 0xEF9F27,
+  Purple: 0x7F77DD,
+  Orange: 0xD85A30,
+};
+
 function easeOut(t) { return 1 - Math.pow(1 - Math.min(t, 1), 3); }
 
 // Sprite URL helpers
@@ -81,6 +92,7 @@ export class ShooterRenderer {
     this._bgGraphics    = [];   // panel bg + swap highlight
     this._topContainers = [];   // Container at (cx, topY) — scale-animated
     this._topSprites    = [];   // Sprite inside topContainer
+    this._topCircles    = [];   // Graphics fallback circle inside topContainer
     this._topTexts      = [];   // damage number
     this._punchState    = [];   // { active, t }
 
@@ -150,6 +162,13 @@ export class ShooterRenderer {
       topContainer.addChild(sp1);
       this._topSprites.push(sp1);
 
+      // Programmatic fallback — a plain Graphics circle drawn when sprites
+      // are unavailable.  Drawn inside topContainer so punch animation applies.
+      const circ1 = new Graphics();
+      circ1.visible = false;
+      topContainer.addChild(circ1);
+      this._topCircles.push(circ1);
+
       const t1 = new Text({ text: '', style: TOP_TEXT_STYLE });
       t1.anchor.set(0.5);
       topContainer.addChild(t1);
@@ -190,6 +209,20 @@ export class ShooterRenderer {
       if (bs?.swapMode && bs.swapFirst === i) {
         g.roundRect(panelX, SHOOTER_AREA_Y + PANEL_PAD, panelW, SHOOTER_AREA_H - PANEL_PAD * 2, PANEL_RADIUS);
         g.stroke({ color: 0x66aaff, width: 3, alpha: 0.85 });
+      }
+
+      // ── Programmatic fallback (no sprites) ──────────────────────────────────
+      if (!spriteFlags.loaded) {
+        this._drawFallback(i, col, g, cx, bounce);
+        // Still run punch animation so the top circle scales on deploy.
+        const punch = this._punchState[i];
+        if (punch.active) {
+          punch.t += dt;
+          const prog = Math.min(1, punch.t / PUNCH_DURATION);
+          this._topContainers[i].scale.set(PUNCH_SCALE - (PUNCH_SCALE - 1) * easeOut(prog));
+          if (punch.t >= PUNCH_DURATION) { punch.active = false; this._topContainers[i].scale.set(1); }
+        }
+        continue;
       }
 
       // ── Second shooter ──────────────────────────────────────────────────────
@@ -280,6 +313,75 @@ export class ShooterRenderer {
   }
 
   // ── Private ──────────────────────────────────────────────────────────────────
+
+  // Draw circles for all visible shooters in column i directly onto the panel
+  // graphics.  Used when spriteFlags.loaded is false.
+  _drawFallback(i, col, g, cx, bounce) {
+    // Hide all sprite objects for this column.
+    this._secondSprites[i].visible   = false;
+    this._thirdSprites[i].visible    = false;
+    this._pipLeft[i].visible         = false;
+    this._pipRight[i].visible        = false;
+    this._topSprites[i].visible      = false;
+
+    // Second shooter
+    const second = col.shooters[1] ?? null;
+    if (second) {
+      const color = COLOR_MAP[second.color] ?? 0x888888;
+      g.circle(cx, SECOND_Y, SECOND_RADIUS);
+      g.fill({ color, alpha: 0.40 });
+      this._secondTexts[i].text    = String(second.damage);
+      this._secondTexts[i].x       = cx;
+      this._secondTexts[i].y       = SECOND_Y;
+      this._secondTexts[i].alpha   = 0.40;
+      this._secondTexts[i].visible = true;
+    } else {
+      this._secondTexts[i].visible = false;
+    }
+
+    // Third shooter
+    const third = col.shooters[2] ?? null;
+    if (third) {
+      const color = COLOR_MAP[third.color] ?? 0x888888;
+      g.circle(cx, THIRD_Y, THIRD_RADIUS);
+      g.fill({ color, alpha: 0.45 });
+      this._thirdTexts[i].text    = String(third.damage);
+      this._thirdTexts[i].x       = cx;
+      this._thirdTexts[i].y       = THIRD_Y;
+      this._thirdTexts[i].alpha   = 0.45;
+      this._thirdTexts[i].visible = true;
+    } else {
+      this._thirdTexts[i].visible = false;
+    }
+
+    // Top shooter — drawn inside topCont so punch scale animation still applies.
+    const top     = col.top();
+    const topCont = this._topContainers[i];
+    const circ    = this._topCircles[i];
+    const topText = this._topTexts[i];
+    topCont.x = cx;
+    topCont.y = TOP_Y + (this.draggingColumn === i ? 0 : bounce);
+
+    if (top && this.draggingColumn !== i) {
+      const color = COLOR_MAP[top.color] ?? 0x888888;
+      circ.clear();
+      // Shadow circle
+      circ.circle(0, 3, TOP_RADIUS);
+      circ.fill({ color: 0x000000, alpha: 0.20 });
+      // Body circle
+      circ.circle(0, -3, TOP_RADIUS);
+      circ.fill(color);
+      // Gloss highlight
+      circ.circle(-10, -13, 10);
+      circ.fill({ color: 0xffffff, alpha: 0.18 });
+      circ.visible  = true;
+      topText.text    = String(top.damage);
+      topText.visible = true;
+    } else {
+      circ.visible    = false;
+      topText.visible = false;
+    }
+  }
 
   _showPip(pipSprite, shooter, x, y) {
     if (!shooter) { pipSprite.visible = false; return; }

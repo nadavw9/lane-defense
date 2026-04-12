@@ -12,6 +12,7 @@ import {
   posToScreenY,
   posToScale,
 } from './LaneRenderer.js';
+import { spriteFlags } from './SpriteFlags.js';
 
 // Target sprite size at scale 1.0 (perspective scaling via container.scale).
 // Cars are portrait-oriented top-down; we fit them to this box keeping aspect ratio.
@@ -28,6 +29,16 @@ const HP_BAR_W      = CAR_TARGET_W;   // matches the target car width
 const HP_COLOR_HIGH = 0x55cc55;   // > 60 %
 const HP_COLOR_MID  = 0xeecc22;   // 25–60 %
 const HP_COLOR_LOW  = 0xee3333;   // < 25 %
+
+// Programmatic fallback colors (used when sprite loading failed).
+const CAR_COLORS = {
+  Red:    0xE24B4A,
+  Blue:   0x378ADD,
+  Green:  0x639922,
+  Yellow: 0xEF9F27,
+  Purple: 0x7F77DD,
+  Orange: 0xD85A30,
+};
 
 const HP_TEXT_STYLE = {
   fontSize:   16,
@@ -113,18 +124,25 @@ export class CarRenderer {
   _createVisual(car) {
     const container = new Container();
 
-    // ── Sprite body ──────────────────────────────────────────────────────────
-    const texture = Assets.get(carTextureUrl(car));
-    const sprite  = new Sprite(texture);
-    sprite.anchor.set(0.5, 0.5);
-
-    // Scale to fit within the target bounding box, preserving aspect ratio.
-    const scaleX = CAR_TARGET_W / sprite.texture.width;
-    const scaleY = CAR_TARGET_H / sprite.texture.height;
-    const fit    = Math.min(scaleX, scaleY);
-    sprite.scale.set(fit);
-
-    container.addChild(sprite);
+    // ── Body — sprite when loaded, colored rectangle as fallback ────────────
+    if (spriteFlags.loaded) {
+      const texture = Assets.get(carTextureUrl(car));
+      const sprite  = new Sprite(texture);
+      sprite.anchor.set(0.5, 0.5);
+      const scaleX = CAR_TARGET_W / sprite.texture.width;
+      const scaleY = CAR_TARGET_H / sprite.texture.height;
+      sprite.scale.set(Math.min(scaleX, scaleY));
+      container.addChild(sprite);
+    } else {
+      const body  = new Graphics();
+      const color = car.type === 'boss' ? 0xcc44cc : (CAR_COLORS[car.color] ?? 0x888888);
+      body.rect(-CAR_TARGET_W / 2, -CAR_TARGET_H / 2, CAR_TARGET_W, CAR_TARGET_H);
+      body.fill(color);
+      // Rounded corners hint
+      body.rect(-CAR_TARGET_W / 2 + 2, -CAR_TARGET_H / 2 + 2, CAR_TARGET_W - 4, CAR_TARGET_H - 4);
+      body.stroke({ color: 0xffffff, width: 1, alpha: 0.25 });
+      container.addChild(body);
+    }
 
     // Carry-over bait cars (HP 1-2) get a white stripe overlay for quick ID.
     if (car.maxHp <= 2) {

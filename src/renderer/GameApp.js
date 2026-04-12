@@ -15,6 +15,7 @@ import { Application, Assets, Container, Graphics, Text } from 'pixi.js';
 
 import { LayerManager }    from './LayerManager.js';
 import { LaneRenderer, laneCenterX, posToScreenY, ROAD_BOTTOM_Y } from './LaneRenderer.js';
+import { spriteFlags }     from './SpriteFlags.js';
 import { CarRenderer }     from './CarRenderer.js';
 import { ShooterRenderer } from './ShooterRenderer.js';
 import { HUDRenderer }     from './HUDRenderer.js';
@@ -181,7 +182,14 @@ async function main() {
   app.stage.addChild(loadText);
 
   // Preload all sprite textures before any renderer is created.
-  await Assets.load(ALL_SPRITE_URLS);
+  // If loading fails (corrupt files, 404s, etc.) the game falls back to
+  // programmatic Graphics — spriteFlags.loaded stays false.
+  try {
+    await Assets.load(ALL_SPRITE_URLS);
+    spriteFlags.loaded = true;
+  } catch (e) {
+    console.warn('[GameApp] Sprite loading failed — using programmatic graphics fallback.', e);
+  }
 
   loadBg.destroy();
   loadText.destroy();

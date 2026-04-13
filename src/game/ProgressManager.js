@@ -43,6 +43,11 @@ function defaults() {
     totalBoostersPurchased: 0,
     totalDailyClaims:       0,
     dailyChallenge:         { date: '', completed: false },
+    totalCarsDestroyed:     0,
+    longestCombo:           0,
+    totalAccurateShots:     0,
+    totalShots:             0,
+    boosterUseCounts:       { swap: 0, peek: 0, freeze: 0 },
   };
 }
 
@@ -128,6 +133,10 @@ export class ProgressManager {
   get totalBenchUses()         { return this._data.totalBenchUses; }
   get totalBoostersPurchased() { return this._data.totalBoostersPurchased; }
   get totalDailyClaims()       { return this._data.totalDailyClaims; }
+  get totalCarsDestroyed()     { return this._data.totalCarsDestroyed; }
+  get longestCombo()           { return this._data.longestCombo; }
+  get totalAccurateShots()     { return this._data.totalAccurateShots; }
+  get totalShots()             { return this._data.totalShots; }
 
   addEarnedCoins(amount) {
     if (amount > 0) {
@@ -144,6 +153,51 @@ export class ProgressManager {
   incrementBoostersPurchased() {
     this._data.totalBoostersPurchased++;
     this._save();
+  }
+
+  recordKill() {
+    this._data.totalCarsDestroyed++;
+    this._save();
+  }
+
+  recordCombo(comboCount) {
+    if (comboCount > this._data.longestCombo) {
+      this._data.longestCombo = comboCount;
+      this._save();
+    }
+  }
+
+  recordShot(isAccurate = false) {
+    this._data.totalShots++;
+    if (isAccurate) {
+      this._data.totalAccurateShots++;
+    }
+    this._save();
+  }
+
+  recordBoosterUsed(boosterType) {
+    // boosterType: 'swap', 'peek', or 'freeze'
+    if (this._data.boosterUseCounts[boosterType] !== undefined) {
+      this._data.boosterUseCounts[boosterType]++;
+      this._save();
+    }
+  }
+
+  getAccuracy() {
+    return Math.round((this._data.totalAccurateShots / Math.max(1, this._data.totalShots)) * 100);
+  }
+
+  getFavoriteBooster() {
+    const counts = this._data.boosterUseCounts;
+    const max = Math.max(counts.swap ?? 0, counts.peek ?? 0, counts.freeze ?? 0);
+    if (max === 0) return 'None';
+    if (counts.swap === max) return 'Swap';
+    if (counts.peek === max) return 'Peek';
+    return 'Freeze';
+  }
+
+  getTotalStars() {
+    return Object.values(this._data.stars).reduce((sum, val) => sum + val, 0);
   }
 
   // ── Daily reward ──────────────────────────────────────────────────────────
@@ -200,11 +254,12 @@ export class ProgressManager {
         const saved = JSON.parse(raw);
         Object.assign(d, saved);
         // Deep-merge nested objects so new sub-fields survive schema additions.
-        d.boosters        = Object.assign(defaults().boosters,        saved.boosters        ?? {});
-        d.dailyReward     = Object.assign(defaults().dailyReward,     saved.dailyReward     ?? {});
-        d.dailyChallenge  = Object.assign(defaults().dailyChallenge,  saved.dailyChallenge  ?? {});
-        d.achievements    = saved.achievements  ?? {};
-        d.seenUnlocks     = saved.seenUnlocks   ?? {};
+        d.boosters           = Object.assign(defaults().boosters,           saved.boosters           ?? {});
+        d.dailyReward        = Object.assign(defaults().dailyReward,        saved.dailyReward        ?? {});
+        d.dailyChallenge     = Object.assign(defaults().dailyChallenge,     saved.dailyChallenge     ?? {});
+        d.boosterUseCounts   = Object.assign(defaults().boosterUseCounts,   saved.boosterUseCounts   ?? {});
+        d.achievements       = saved.achievements  ?? {};
+        d.seenUnlocks        = saved.seenUnlocks   ?? {};
         return d;
       }
     } catch {

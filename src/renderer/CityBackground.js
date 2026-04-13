@@ -7,34 +7,45 @@
 // Parallax: two depth layers (far / near) are separate Containers so
 // only their x position changes each frame — no Graphics redraw.
 // A third small Graphics redraws only the flickering window lights.
+//
+// Enhanced with:
+// - Building variety: rectangles, antenna towers, stepped tops
+// - Animated clouds that drift across the sky
+// - Moon in upper-right with glow
 import { Graphics, Container } from 'pixi.js';
 import { ROAD_TOP_Y } from './LaneRenderer.js';
 
 // ── Building definitions ──────────────────────────────────────────────────────
 // depth 0 = far (slow), depth 1 = near (faster).
 // x, w in screen pixels; h = full building height (clipped to sky strip).
+// type: 'rect' (default), 'antenna' (tall tower on top), 'stepped' (descending width steps)
 const BUILDINGS = [
   // far layer
-  { x:   0, w: 30, h: 70, depth: 0 },
-  { x:  24, w: 18, h: 40, depth: 0 },
-  { x:  44, w: 32, h: 60, depth: 0 },
-  { x:  82, w: 20, h: 48, depth: 0 },
-  { x: 108, w: 14, h: 32, depth: 0 },
-  { x: 188, w: 22, h: 38, depth: 0 },
-  { x: 214, w: 26, h: 54, depth: 0 },
-  { x: 258, w: 18, h: 42, depth: 0 },
-  { x: 288, w: 32, h: 62, depth: 0 },
-  { x: 328, w: 20, h: 46, depth: 0 },
-  { x: 352, w: 22, h: 40, depth: 0 },
-  { x: 374, w: 16, h: 68, depth: 0 },
+  { x:   0, w: 30, h: 70, depth: 0, type: 'antenna' },
+  { x:  24, w: 18, h: 40, depth: 0, type: 'rect' },
+  { x:  44, w: 32, h: 60, depth: 0, type: 'stepped' },
+  { x:  82, w: 20, h: 48, depth: 0, type: 'rect' },
+  { x: 108, w: 14, h: 32, depth: 0, type: 'antenna' },
+  { x: 130, w: 22, h: 50, depth: 0, type: 'rect' },
+  { x: 158, w: 28, h: 65, depth: 0, type: 'stepped' },
+  { x: 188, w: 22, h: 38, depth: 0, type: 'antenna' },
+  { x: 214, w: 26, h: 54, depth: 0, type: 'rect' },
+  { x: 258, w: 18, h: 42, depth: 0, type: 'stepped' },
+  { x: 288, w: 32, h: 62, depth: 0, type: 'antenna' },
+  { x: 328, w: 20, h: 46, depth: 0, type: 'rect' },
+  { x: 352, w: 22, h: 40, depth: 0, type: 'rect' },
+  { x: 374, w: 16, h: 68, depth: 0, type: 'antenna' },
   // near layer
-  { x:   8, w: 36, h: 44, depth: 1 },
-  { x:  58, w: 28, h: 52, depth: 1 },
-  { x: 128, w: 24, h: 38, depth: 1 },
-  { x: 158, w: 42, h: 60, depth: 1 },
-  { x: 238, w: 26, h: 46, depth: 1 },
-  { x: 308, w: 32, h: 54, depth: 1 },
-  { x: 346, w: 22, h: 42, depth: 1 },
+  { x:   8, w: 36, h: 44, depth: 1, type: 'rect' },
+  { x:  58, w: 28, h: 52, depth: 1, type: 'antenna' },
+  { x: 100, w: 24, h: 48, depth: 1, type: 'stepped' },
+  { x: 128, w: 24, h: 38, depth: 1, type: 'rect' },
+  { x: 158, w: 42, h: 60, depth: 1, type: 'antenna' },
+  { x: 210, w: 30, h: 55, depth: 1, type: 'stepped' },
+  { x: 238, w: 26, h: 46, depth: 1, type: 'rect' },
+  { x: 270, w: 32, h: 58, depth: 1, type: 'antenna' },
+  { x: 308, w: 32, h: 54, depth: 1, type: 'rect' },
+  { x: 346, w: 22, h: 42, depth: 1, type: 'stepped' },
 ];
 
 // Window coords: [x, y] relative to screen (fixed — parallax containers handle shift).
@@ -71,6 +82,18 @@ export class CityBackground {
     sky.fill({ color: 0x0f1c2a, alpha: 0.65 });
     layer.addChild(sky);
 
+    // ── Moon (static, drawn once) ────────────────────────────────────────────
+    const moonG = new Graphics();
+    const moonX = appW - 50, moonY = 18;
+    const moonRadius = 16;
+    // Glow ring (larger, low alpha)
+    moonG.circle(moonX, moonY, moonRadius + 6);
+    moonG.fill({ color: 0xfff5cc, alpha: 0.08 });
+    // Moon (full circle)
+    moonG.circle(moonX, moonY, moonRadius);
+    moonG.fill({ color: 0xfff5cc, alpha: 0.85 });
+    layer.addChild(moonG);
+
     // ── Building containers (one per depth, shifted for parallax) ─────────────
     this._containers = [new Container(), new Container()];
     for (const con of this._containers) layer.addChild(con);
@@ -80,6 +103,18 @@ export class CityBackground {
     // ── Window lights (redrawn each frame for flicker) ────────────────────────
     this._winG = new Graphics();
     layer.addChild(this._winG);
+
+    // ── Clouds (animated, redrawn each frame) ────────────────────────────────
+    this._cloudG = new Graphics();
+    layer.addChild(this._cloudG);
+
+    // Initialize cloud state: { x, y, w, h, speed }
+    this._clouds = [
+      { x: 20, y: 10, w: 35, h: 12, speed: 8 },
+      { x: 120, y: 6, w: 42, h: 14, speed: 12 },
+      { x: 240, y: 16, w: 38, h: 11, speed: 10 },
+      { x: 340, y: 8, w: 40, h: 13, speed: 15 },
+    ];
   }
 
   // Call every render frame.  elapsed = gs.elapsed (seconds).
@@ -92,6 +127,9 @@ export class CityBackground {
 
     // Redraw window flicker (cheap: ~22 tiny rect calls).
     this._drawWindows(elapsed);
+
+    // Update and redraw clouds.
+    this._updateClouds(elapsed);
   }
 
   // ── Private ──────────────────────────────────────────────────────────────────
@@ -105,22 +143,53 @@ export class CityBackground {
       const bh  = Math.min(b.h, ROAD_TOP_Y);   // clip to sky strip height
       const by  = ROAD_TOP_Y - bh;
       const col = b.depth === 0 ? 0x0b1520 : 0x0f1d2c;
+      const type = b.type || 'rect';
 
-      // Building body
-      g.rect(b.x, by, b.w, bh);
-      g.fill(col);
+      if (type === 'antenna') {
+        // Main rectangle body
+        g.rect(b.x, by, b.w, bh);
+        g.fill(col);
 
-      // Rooftop accent — single-pixel brighter line for definition
-      g.rect(b.x, by, b.w, 1.5);
-      g.fill({ color: 0x1e3045, alpha: 0.70 });
+        // Rooftop accent
+        g.rect(b.x, by, b.w, 1.5);
+        g.fill({ color: 0x1e3045, alpha: 0.70 });
 
-      // Water tower / antenna on taller buildings (depth 0 only, every 3rd)
-      if (b.depth === 0 && b.h > 50) {
-        const tx = b.x + b.w * 0.6;
-        g.rect(tx,     by - 6, 3, 6);
+        // Antenna tower on top: narrow tall rectangle (12-20px tall, 3px wide)
+        const towerH = 12 + Math.random() * 8;
+        const tx = b.x + b.w * 0.5 - 1.5;  // centered
+        g.rect(tx, by - towerH, 3, towerH);
         g.fill({ color: 0x1a2c3c, alpha: 0.75 });
-        g.rect(tx - 2, by - 10, 7, 4);
-        g.fill({ color: 0x1e3348, alpha: 0.65 });
+
+        // Antenna tip
+        g.circle(tx + 1.5, by - towerH - 2, 1.2);
+        g.fill({ color: 0xff6b35, alpha: 0.60 });
+
+      } else if (type === 'stepped') {
+        // Stepped roofline: 2-3 descending steps
+        // Bottom section (full width)
+        g.rect(b.x, by, b.w, bh * 0.6);
+        g.fill(col);
+        // Middle section (80% width, offset 10%)
+        g.rect(b.x + b.w * 0.1, by + bh * 0.6 * 0.5, b.w * 0.8, bh * 0.3);
+        g.fill({ color: col, alpha: 0.95 });
+        // Top section (60% width, offset 20%)
+        g.rect(b.x + b.w * 0.2, by + bh * 0.9 * 0.5, b.w * 0.6, bh * 0.1);
+        g.fill({ color: col, alpha: 0.90 });
+
+        // Rooftop accent on each step
+        g.rect(b.x, by, b.w, 1.5);
+        g.fill({ color: 0x1e3045, alpha: 0.70 });
+        g.rect(b.x + b.w * 0.1, by + bh * 0.6 * 0.5, b.w * 0.8, 1.0);
+        g.fill({ color: 0x1e3045, alpha: 0.55 });
+
+      } else {
+        // Standard rectangle (default)
+        g.rect(b.x, by, b.w, bh);
+        g.fill(col);
+
+        // Rooftop accent
+        g.rect(b.x, by, b.w, 1.5);
+        g.fill({ color: 0x1e3045, alpha: 0.70 });
       }
     }
 
@@ -141,6 +210,38 @@ export class CityBackground {
       const brightness = 0.55 + 0.45 * Math.sin(elapsed * 1.8 + i * 1.27);
       g.rect(wx, wy, 2.5, 2.5);
       g.fill({ color: 0xffee88, alpha: 0.38 * brightness });
+    }
+  }
+
+  _updateClouds(elapsed) {
+    // Update cloud positions (wrap around screen)
+    for (const cloud of this._clouds) {
+      cloud.x += cloud.speed * 0.016;  // roughly 16ms per frame
+      // Wrap to left when cloud exits right edge
+      if (cloud.x > this._appW + 50) {
+        cloud.x = -cloud.w - 20;
+      }
+    }
+
+    // Redraw all clouds
+    this._drawClouds();
+  }
+
+  _drawClouds() {
+    const g = this._cloudG;
+    g.clear();
+
+    for (const cloud of this._clouds) {
+      // Each cloud is 2-3 overlapping ellipses (approximated as circles)
+      // Left circle
+      g.circle(cloud.x, cloud.y, cloud.w * 0.35);
+      g.fill({ color: 0xffffff, alpha: 0.15 });
+      // Middle circle (largest)
+      g.circle(cloud.x + cloud.w * 0.25, cloud.y + cloud.h * 0.15, cloud.w * 0.45);
+      g.fill({ color: 0xffffff, alpha: 0.18 });
+      // Right circle
+      g.circle(cloud.x + cloud.w * 0.5, cloud.y - cloud.h * 0.10, cloud.w * 0.40);
+      g.fill({ color: 0xffffff, alpha: 0.12 });
     }
   }
 }

@@ -5,6 +5,9 @@
 //   3 stars — maxCarPosition < 65  (dominant win, no rescue)
 //   2 stars — maxCarPosition < 82  (clean win, no rescue)
 //   1 star  — rescue used, or cars reached the danger zone
+//
+// Stars flip in one-at-a-time with 250ms delay between each, overshoot scale animation,
+// and sparkle particles spawning at peak scale.
 import { Container, Graphics, Text } from 'pixi.js';
 
 const STAR_COLOR_FULL  = 0xffcc00;
@@ -24,11 +27,97 @@ export class WinScreen {
   constructor(stage, appW, appH, gs, onNext, onMenu, audio) {
     this._container = new Container();
     stage.addChild(this._container);
+    this._appW = appW;
+    this._appH = appH;
+    this._starAnims = [];  // { starSprite, phase, t, startDelay, sparkles[] }
+    this._particleLayer = new Container();
+    this._container.addChild(this._particleLayer);
     this._build(appW, appH, gs, onNext, onMenu, audio);
   }
 
   destroy() {
     this._container.destroy({ children: true });
+  }
+
+  // Called each frame to update star animations and sparkle particles.
+  update(dt) {
+    // Update star animations
+    for (let i = 0; i < this._starAnims.length; i++) {
+      const anim = this._starAnims[i];
+      anim.t += dt;
+      if (anim.t < anim.startDelay) continue;  // Waiting to start
+
+      const elapsed = anim.t - anim.startDelay;
+      const progress = Math.min(elapsed / 400, 1);  // 400ms animation duration
+
+      if (progress < 1) {
+        // Ease-out cubic + overshoot: scale grows to 1.4 at ~200ms, settles to 1.0
+        // Using cubic easing: t^3, then add overshoot factor
+        const eased = 1 - Math.pow(1 - progress, 3);  // ease-out cubic
+        const scale = 0.2 + eased * 1.2 + (progress < 0.5 ? (0.5 - progress) * 0.4 : 0);  // overshoot peak at 0.5
+        anim.starSprite.scale.set(scale);
+
+        // Spawn sparkles at peak scale (~200ms = progress 0.5)
+        if (anim.phase === 1 && progress >= 0.49 && progress < 0.51) {
+          this._spawnSparkles(anim.starSprite.x, anim.starSprite.y);
+          anim.phase = 2;
+        }
+      } else {
+        anim.starSprite.scale.set(1);
+        anim.phase = 2;  // Mark as done
+      }
+    }
+
+    // Update sparkle particles
+    for (let i = this._particleLayer.children.length - 1; i >= 0; i--) {
+      const spark = this._particleLayer.children[i];
+      if (spark._sparkleLife !== undefined) {
+        spark._sparkleAge += dt;
+        const progress = spark._sparkleAge / 400;
+        if (progress >= 1) {
+          this._particleLayer.removeChild(spark);
+          spark.destroy();
+        } else {
+          // Fade out alpha
+          spark.alpha = 1 - progress;
+        }
+      }
+    }
+  }
+
+  _spawnSparkles(cx, cy) {
+    const count = 6;
+    const radius = 30;
+    const duration = 400;
+
+    for (let i = 0; i < count; i++) {
+      const angle = (i / count) * Math.PI * 2;
+      const endX = cx + Math.cos(angle) * radius;
+      const endY = cy + Math.sin(angle) * radius;
+
+      const spark = new Graphics();
+      spark.circle(0, 0, 3);
+      spark.fill({ color: 0xffdd00, alpha: 1.0 });
+      spark.x = cx;
+      spark.y = cy;
+      this._particleLayer.addChild(spark);
+
+      spark._startX = cx;
+      spark._startY = cy;
+      spark._endX = endX;
+      spark._endY = endY;
+      spark._sparkleAge = 0;
+      spark._duration = duration;
+
+      // Animate in next update calls
+      spark._updateSparkle = (dt) => {
+        spark._sparkleAge += dt;
+        const p = spark._sparkleAge / spark._duration;
+        if (p >= 1) return;
+        spark.x = spark._startX + (spark._endX - spark._startX) * p;
+        spark.y = spark._startY + (spark._endY - spark._startY) * p;
+      };
+    }
   }
 
   // ── Private ────────────────────────────────────────────────────────────────
@@ -104,6 +193,18 @@ export class WinScreen {
       g.x = x0 + i * (R * 2 + GAP);
       g.y = cy;
       this._container.addChild(g);
+
+      // Set up animation for earned stars
+      if (filled) {
+        this._starAnims.push({
+          starSprite: g,
+          phase: 1,  // 1=animating, 2=done
+          t: 0,
+          startDelay: i * 250,  // 250ms delay between each star
+          sparkles: [],
+        });
+        g.scale.set(0);  // Start at scale 0
+      }
     }
   }
 

@@ -58,6 +58,7 @@ import { DailyRewardScreen }      from '../screens/DailyRewardScreen.js';
 import { SettingsScreen }         from '../screens/SettingsScreen.js';
 import { PauseScreen }            from '../screens/PauseScreen.js';
 import { AchievementsScreen }     from '../screens/AchievementsScreen.js';
+import { StatsScreen }            from '../screens/StatsScreen.js';
 import { AudioManager }           from '../audio/AudioManager.js';
 import { BoosterBar }             from './BoosterBar.js';
 import { Analytics }              from '../analytics/Analytics.js';
@@ -317,6 +318,7 @@ async function main() {
   let settingsScreen     = null;
   let pauseScreen        = null;
   let achievementsScreen = null;
+  let statsScreen        = null;
 
   // ── Achievement system ────────────────────────────────────────────────────
   const achievementManager    = new AchievementManager(progress);
@@ -489,6 +491,7 @@ async function main() {
       hasDailyReward:     progress.canClaimDaily(),
       onDailyChallenge:   () => { startDailyChallenge(); },
       onAchievements:     () => { showAchievements(() => { achievementsScreen?.destroy(); achievementsScreen = null; showTitle(); }); },
+      onStats:            () => { showStats(); },
       onSettings: () => {
         showSettings(() => {
           settingsScreen.destroy();
@@ -578,6 +581,25 @@ async function main() {
       onBack,
       audio,
     });
+  }
+
+  // ── Screen: Stats ─────────────────────────────────────────────────────────
+  function showStats() {
+    pauseBtn.visible = false;
+    audio.playMusic('title');
+    titleScreen?.destroy();
+    titleScreen = null;
+    statsScreen = new StatsScreen(app.stage, APP_W, APP_H, {
+      app,
+      progressManager: progress,
+      onBack: () => {
+        statsScreen?.destroy();
+        statsScreen = null;
+        showTitle();
+      },
+      audio,
+    });
+    statsScreen.show();
   }
 
   // ── Daily Challenge ───────────────────────────────────────────────────────

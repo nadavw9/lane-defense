@@ -8,12 +8,12 @@
 import { Container, Graphics, Text } from 'pixi.js';
 
 export class TitleScreen {
-  // callbacks: { onPlay, onDaily, hasDailyReward, onDailyChallenge, onAchievements, onSettings }
+  // callbacks: { onPlay, onDaily, hasDailyReward, onDailyChallenge, onAchievements, onStats, onSettings }
   // hasDailyReward — true if a daily reward is ready to claim (shows glow badge)
-  constructor(stage, appW, appH, { onPlay, onDaily, hasDailyReward, onDailyChallenge, onAchievements, onSettings, audio }) {
+  constructor(stage, appW, appH, { onPlay, onDaily, hasDailyReward, onDailyChallenge, onAchievements, onStats, onSettings, audio }) {
     this._container = new Container();
     stage.addChild(this._container);
-    this._build(appW, appH, onPlay, onDaily, hasDailyReward, onDailyChallenge, onAchievements, onSettings, audio);
+    this._build(appW, appH, onPlay, onDaily, hasDailyReward, onDailyChallenge, onAchievements, onStats, onSettings, audio);
   }
 
   destroy() {
@@ -22,7 +22,7 @@ export class TitleScreen {
 
   // ── Private ────────────────────────────────────────────────────────────────
 
-  _build(w, h, onPlay, onDaily, hasDailyReward, onDailyChallenge, onAchievements, onSettings, audio) {
+  _build(w, h, onPlay, onDaily, hasDailyReward, onDailyChallenge, onAchievements, onStats, onSettings, audio) {
     // Full-screen background — also absorbs pointer events so game layers stay inert.
     const bg = new Graphics();
     bg.rect(0, 0, w, h);
@@ -148,6 +148,25 @@ export class TitleScreen {
       abTxt.anchor.set(0.5, 0.5);
       ab.addChild(abTxt);
       this._container.addChild(ab);
+    }
+
+    // ── STATS button (below achievements row) ─────────────────────────────────
+    if (onStats) {
+      const statsBtn = new Graphics();
+      statsBtn.roundRect(-BTN_W / 2, -BTN_H / 2, BTN_W, BTN_H, 12);
+      statsBtn.fill(0x1a1620);
+      statsBtn.roundRect(-BTN_W / 2, -BTN_H / 2, BTN_W, BTN_H, 12);
+      statsBtn.stroke({ color: 0xaa77dd, width: 1.5, alpha: 0.70 });
+      statsBtn.x = w / 2;
+      statsBtn.y = ROW_Y + 58;
+      statsBtn.eventMode = 'static'; statsBtn.cursor = 'pointer';
+      statsBtn.on('pointerdown', () => { audio?.play('button_tap'); onStats(); });
+      statsBtn.on('pointerover',  () => { statsBtn.alpha = 0.78; });
+      statsBtn.on('pointerout',   () => { statsBtn.alpha = 1.00; });
+      const statsTxt = new Text({ text: '📊 STATS', style: { fontSize: 16, fontWeight: 'bold', fill: 0xaa77dd } });
+      statsTxt.anchor.set(0.5, 0.5);
+      statsBtn.addChild(statsTxt);
+      this._container.addChild(statsBtn);
     }
 
     // ── Settings gear (top-right) ─────────────────────────────────────────────

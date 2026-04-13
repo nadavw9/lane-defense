@@ -211,6 +211,44 @@ export class LaneRenderer {
       }
     }
 
+    // ── Lamp posts on barrier inner faces (perspective-scaled) ──────────────────
+    for (let lampY = ROAD_TOP_Y + 30; lampY < ROAD_BOTTOM_Y; lampY += 120) {
+      const t = (lampY - ROAD_TOP_Y) / ROAD_HEIGHT;
+      const scale = 0.25 + 0.75 * t;
+      const poleW = Math.max(1, 2 * scale);
+      const poleH = 16 * scale;
+      const headR = Math.max(1.5, 3 * scale);
+      const glowR = Math.max(2, 5 * scale);
+
+      // Left post
+      const leftPostX = LEFT_BARRIER_INNER * (1 - t) - 8;
+      if (leftPostX > 6) {
+        // Pole (drawn upward from lampY)
+        g.rect(leftPostX - poleW / 2, lampY - poleH, poleW, poleH);
+        g.fill({ color: 0x555555 });
+        // Glow (larger circle, lower alpha)
+        g.circle(leftPostX, lampY - poleH, glowR);
+        g.fill({ color: 0xffee88, alpha: 0.20 });
+        // Lamp head (bright circle at top of pole)
+        g.circle(leftPostX, lampY - poleH, headR);
+        g.fill({ color: 0xffee88 });
+      }
+
+      // Right post
+      const rightPostX = RIGHT_BARRIER_INNER + (w - RIGHT_BARRIER_INNER) * t + 8;
+      if (rightPostX < w - 6) {
+        // Pole (drawn upward from lampY)
+        g.rect(rightPostX - poleW / 2, lampY - poleH, poleW, poleH);
+        g.fill({ color: 0x555555 });
+        // Glow (larger circle, lower alpha)
+        g.circle(rightPostX, lampY - poleH, glowR);
+        g.fill({ color: 0xffee88, alpha: 0.20 });
+        // Lamp head (bright circle at top of pole)
+        g.circle(rightPostX, lampY - poleH, headR);
+        g.fill({ color: 0xffee88 });
+      }
+    }
+
     // ── Distance haze: blue-grey fog at road top (alpha 0.30→0 over 76px) ─────
     const FOG_H     = 76;
     const FOG_BANDS = 10;

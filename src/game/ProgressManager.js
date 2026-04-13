@@ -36,6 +36,7 @@ function defaults() {
     boosters:               { swap: 3, peek: 3, freeze: 0 },
     dailyReward:            { day: 0, lastClaim: null },
     seenComboTip:           false,
+    seenUnlocks:            {},   // { "6": true, "8": true, ... }
     achievements:           {},
     totalCoinsEarned:       0,
     totalBenchUses:         0,
@@ -56,6 +57,16 @@ export class ProgressManager {
   get coins()          { return this._data.coins; }
   get seenComboTip()   { return this._data.seenComboTip; }
   markSeenComboTip()   { this._data.seenComboTip = true; this._save(); }
+
+  hasSeenUnlock(levelId) {
+    return !!(this._data.seenUnlocks ?? {})[String(levelId)];
+  }
+
+  markSeenUnlock(levelId) {
+    if (!this._data.seenUnlocks) this._data.seenUnlocks = {};
+    this._data.seenUnlocks[String(levelId)] = true;
+    this._save();
+  }
 
   getStars(levelId) {
     return this._data.stars[String(levelId)] ?? 0;
@@ -192,7 +203,8 @@ export class ProgressManager {
         d.boosters        = Object.assign(defaults().boosters,        saved.boosters        ?? {});
         d.dailyReward     = Object.assign(defaults().dailyReward,     saved.dailyReward     ?? {});
         d.dailyChallenge  = Object.assign(defaults().dailyChallenge,  saved.dailyChallenge  ?? {});
-        d.achievements    = saved.achievements ?? {};
+        d.achievements    = saved.achievements  ?? {};
+        d.seenUnlocks     = saved.seenUnlocks   ?? {};
         return d;
       }
     } catch {

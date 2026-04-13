@@ -16,6 +16,7 @@ import { Application, Assets, Container, Graphics, Text } from 'pixi.js';
 import { LayerManager }    from './LayerManager.js';
 import { LaneRenderer, laneCenterX, posToScreenY, ROAD_BOTTOM_Y } from './LaneRenderer.js';
 import { spriteFlags }     from './SpriteFlags.js';
+import { CityBackground }  from './CityBackground.js';
 import { CarRenderer }     from './CarRenderer.js';
 import { ShooterRenderer } from './ShooterRenderer.js';
 import { HUDRenderer }     from './HUDRenderer.js';
@@ -45,8 +46,9 @@ import { Lane }            from '../models/Lane.js';
 import { Column }          from '../models/Column.js';
 import { PHASE_CONFIG }    from '../director/DirectorConfig.js';
 
-import { WinScreen, calcStars }   from '../screens/WinScreen.js';
-import { RescueOverlay }          from '../screens/RescueOverlay.js';
+import { WinScreen, calcStars }       from '../screens/WinScreen.js';
+import { RescueOverlay }              from '../screens/RescueOverlay.js';
+import { BoosterUnlockScreen }        from '../screens/BoosterUnlockScreen.js';
 import { FTUEOverlay }            from '../screens/FTUEOverlay.js';
 import { TransitionOverlay }      from '../screens/TransitionOverlay.js';
 import { TitleScreen }            from '../screens/TitleScreen.js';
@@ -204,6 +206,7 @@ async function main() {
   // ── Layers ───────────────────────────────────────────────────────────────
   const layers = new LayerManager(app.stage);
   new LaneRenderer(layers, APP_W);
+  const cityBg = new CityBackground(layers, APP_W);
 
   // ── Directors ────────────────────────────────────────────────────────────
   const rng        = new SeededRandom(1);
@@ -286,8 +289,9 @@ async function main() {
   let ftueOverlay = null;  // created in _startLevel
 
   // ── End-of-game screens ───────────────────────────────────────────────────
-  let winScreen     = null;
-  let rescueOverlay = null;
+  let winScreen      = null;
+  let rescueOverlay  = null;
+  let unlockScreen   = null;
 
   // ── Meta screens ─────────────────────────────────────────────────────────
   let titleScreen        = null;
@@ -368,6 +372,7 @@ async function main() {
     winScreen?.destroy();      winScreen      = null;
     rescueOverlay?.destroy();  rescueOverlay  = null;
     ftueOverlay?.destroy();    ftueOverlay    = null;
+    unlockScreen?.destroy();   unlockScreen   = null;
 
     // Resolve config from either a number or a pre-built config object.
     let cfg;
@@ -429,6 +434,20 @@ async function main() {
     gameLoop.restart();
 
     pauseBtn.visible = true;
+
+    // ── Booster unlock popup (once per feature, normal levels only) ───────────
+    const UNLOCK_LEVELS = [6, 8, 12, 14];
+    if (!currentLevelIsDaily && UNLOCK_LEVELS.includes(levelId) && !progress.hasSeenUnlock(levelId)) {
+      gameLoop.pause();
+      unlockScreen = new BoosterUnlockScreen(app.stage, APP_W, APP_H, levelId, {
+        onPlay: () => {
+          progress.markSeenUnlock(levelId);
+          unlockScreen?.destroy();
+          unlockScreen = null;
+          gameLoop.resume();
+        },
+      });
+    }
 
     // Start gameplay music from CALM; phase updates will crossfade as needed.
     audio.resetMusicPhase();
@@ -906,6 +925,10 @@ async function main() {
   // ── Render ticker (variable rate) ────────────────────────────────────────
   app.ticker.add((ticker) => {
     const dt = Math.min(ticker.deltaMS / 1000, 0.05);
+
+    // Background + overlay updates
+    cityBg.update(gs.elapsed);
+    unlockScreen?.update(dt);
 
     // Juice updates
     laneFlash.update(dt);

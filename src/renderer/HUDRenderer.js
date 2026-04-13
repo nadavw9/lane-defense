@@ -58,14 +58,15 @@ export class HUDRenderer {
     this._bg = new Graphics();
     this._layer.addChild(this._bg);
 
-    // ── Combo text ────────────────────────────────────────────────────────
+    // ── Combo text — dark stroke outline for legibility ───────────────────
     this._comboText = new Text({
       text: '',
       style: {
         fontSize:   22,
         fontWeight: 'bold',
         fill:       0xffffff,
-        dropShadow: { color: 0x000000, blur: 4, distance: 2, alpha: 0.85 },
+        stroke:     { color: 0x000000, width: 3 },
+        dropShadow: { color: 0x000000, blur: 6, distance: 0, alpha: 0.70 },
       },
     });
     this._comboText.anchor.set(0.5, 0.5);
@@ -73,9 +74,22 @@ export class HUDRenderer {
     this._comboText.y = TEXT_MID;
     this._layer.addChild(this._comboText);
 
+    // ── Coin icon — yellow circle drawn once to the left of coins text ───
+    this._coinIcon = new Graphics();
+    this._coinIcon.circle(0, 0, 8);
+    this._coinIcon.fill(0xf5c842);
+    this._coinIcon.circle(0, 0, 8);
+    this._coinIcon.stroke({ color: 0xcc9900, width: 1.5 });
+    // Inner shine
+    this._coinIcon.circle(-2, -2, 3);
+    this._coinIcon.fill({ color: 0xffffff, alpha: 0.30 });
+    this._coinIcon.x = appWidth - 86;
+    this._coinIcon.y = TEXT_MID;
+    this._layer.addChild(this._coinIcon);
+
     // ── Coins text ────────────────────────────────────────────────────────
     this._coinsText = new Text({
-      text: '◆ 0',
+      text: '0',
       style: {
         fontSize:   17,
         fontWeight: 'bold',
@@ -165,6 +179,7 @@ export class HUDRenderer {
     const ratio = gs.timeRemaining / gs.duration;
     const barW  = Math.max(0, Math.round(this._appW * ratio));
     const color = timerColor(Math.max(0, ratio));
+    const R     = BAR_H / 2;   // corner radius = half bar height → pill ends
 
     this._bg.clear();
 
@@ -172,12 +187,17 @@ export class HUDRenderer {
     this._bg.rect(0, 0, this._appW, HUD_H);
     this._bg.fill(HUD_BG);
 
-    // Timer bar track
-    this._bg.rect(0, BAR_Y, this._appW, BAR_H);
+    // Timer bar track — dark outline, then dark fill, pill-shaped
+    this._bg.roundRect(-1, BAR_Y - 1, this._appW + 2, BAR_H + 2, R + 1);
+    this._bg.fill({ color: 0x000000, alpha: 0.70 });
+    this._bg.roundRect(0, BAR_Y, this._appW, BAR_H, R);
     this._bg.fill(BAR_BG);
 
-    // Timer bar fill — shrinks from right to left
-    if (barW > 0) {
+    // Timer bar fill — shrinks from right to left, pill left-end only
+    if (barW >= BAR_H) {
+      this._bg.roundRect(0, BAR_Y, barW, BAR_H, R);
+      this._bg.fill(color);
+    } else if (barW > 0) {
       this._bg.rect(0, BAR_Y, barW, BAR_H);
       this._bg.fill(color);
     }
@@ -214,8 +234,8 @@ export class HUDRenderer {
   _refreshCoinsText() {
     const coins = this._gs.coins;
     if (coins !== this._lastCoins) {
-      this._coinsText.text  = `◆ ${coins}`;
-      this._lastCoins       = coins;
+      this._coinsText.text = String(coins);
+      this._lastCoins      = coins;
     }
   }
 

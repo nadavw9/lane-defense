@@ -58,47 +58,76 @@ export function posToScale(position) {
 // ── Colors ────────────────────────────────────────────────────────────────────
 
 const BG_COLOR      = 0x141414;  // outside the road
-const ROAD_COLOR    = 0x303030;  // asphalt
-const EDGE_COLOR    = 0xdddddd;  // road shoulder / outer edges
+const ROAD_TOP_COL  = 0x282828;  // asphalt at horizon (darker / further away)
+const ROAD_BOT_COL  = 0x3c3c3c;  // asphalt near camera (lighter)
+const EDGE_COLOR    = 0xffffff;  // road shoulder / outer edges (bright white)
 const DIVIDER_COLOR = 0x666666;  // inner lane divider lines
-const DASH_COLOR    = 0x888888;  // perspective centre-line dashes
-const HORIZON_COLOR = 0xaaaaaa;  // thin line at the road top
+const DASH_COLOR    = 0x999999;  // perspective centre-line dashes
+const HORIZON_COLOR = 0xcccccc;  // thin line at the road top
 const BREACH_COLOR  = 0xdd2222;  // red breach line at bottom
 
 // ── Renderer ──────────────────────────────────────────────────────────────────
 
 export class LaneRenderer {
   constructor(layerManager, appWidth) {
-    this._layer = layerManager.get('laneLayer');
+    this._layer  = layerManager.get('laneLayer');
+    this._appW   = appWidth;
     this._draw(appWidth);
+
+    // Separate Graphics for the pulsing breach line so only it gets redrawn.
+    this._breachG = new Graphics();
+    this._layer.addChild(this._breachG);
+    this._drawBreach(1.0);
+  }
+
+  // Call every render frame with gs.elapsed for breach-line pulse.
+  update(elapsed) {
+    const alpha = 0.65 + 0.35 * Math.sin(elapsed * 5.5);
+    this._drawBreach(alpha);
+  }
+
+  _drawBreach(alpha) {
+    this._breachG.clear();
+    this._breachG.moveTo(0, ROAD_BOTTOM_Y);
+    this._breachG.lineTo(this._appW, ROAD_BOTTOM_Y);
+    this._breachG.stroke({ color: BREACH_COLOR, width: 5, alpha });
   }
 
   _draw(w) {
     const g = new Graphics();
 
-    // ── Dark background behind the road (fills the full road area height) ─────
+    // ── Dark background behind the road ───────────────────────────────────────
     g.rect(0, ROAD_TOP_Y, w, ROAD_HEIGHT);
     g.fill(BG_COLOR);
 
-    // ── Road surface trapezoid ────────────────────────────────────────────────
-    g.poly([
-      ROAD_TOP_X,               ROAD_TOP_Y,
-      ROAD_TOP_X + ROAD_TOP_W,  ROAD_TOP_Y,
-      ROAD_BOTTOM_W,             ROAD_BOTTOM_Y,
-      0,                         ROAD_BOTTOM_Y,
-    ]);
-    g.fill(ROAD_COLOR);
+    // ── Road surface — simulated top-dark / bottom-light gradient via strips ──
+    // Divide road height into 8 bands with linearly interpolated shade.
+    const BANDS = 8;
+    for (let b = 0; b < BANDS; b++) {
+      const t0 = b / BANDS, t1 = (b + 1) / BANDS;
+      const shade = ROAD_TOP_COL + Math.round((ROAD_BOT_COL - ROAD_TOP_COL) * (b / (BANDS - 1)));
+      const y0  = ROAD_TOP_Y + t0 * ROAD_HEIGHT;
+      const y1  = ROAD_TOP_Y + t1 * ROAD_HEIGHT;
+      const lx0 = ROAD_TOP_X + (0 - ROAD_TOP_X) * t0;
+      const rx0 = ROAD_TOP_X + ROAD_TOP_W + (w - (ROAD_TOP_X + ROAD_TOP_W)) * t0;
+      const lx1 = ROAD_TOP_X + (0 - ROAD_TOP_X) * t1;
+      const rx1 = ROAD_TOP_X + ROAD_TOP_W + (w - (ROAD_TOP_X + ROAD_TOP_W)) * t1;
+      g.poly([lx0, y0, rx0, y0, rx1, y1, lx1, y1]);
+      g.fill(shade);
+    }
 
-    // ── Perspective distance lines across the road (gives depth illusion) ─────
-    const DIST_LINES = 12;
-    for (let d = 1; d < DIST_LINES; d++) {
-      const t  = d / DIST_LINES;
+    // ── Faint horizontal texture lines for asphalt feel ───────────────────────
+    const TEXTURE_LINES = 20;
+    for (let d = 1; d < TEXTURE_LINES; d++) {
+      const t  = d / TEXTURE_LINES;
       const y  = ROAD_TOP_Y + t * ROAD_HEIGHT;
-      const lx = ROAD_TOP_X + (0            - ROAD_TOP_X) * t;
-      const rx = ROAD_TOP_X + ROAD_TOP_W + (ROAD_BOTTOM_W - (ROAD_TOP_X + ROAD_TOP_W)) * t;
+      const lx = ROAD_TOP_X + (0 - ROAD_TOP_X) * t;
+      const rx = ROAD_TOP_X + ROAD_TOP_W + (w - (ROAD_TOP_X + ROAD_TOP_W)) * t;
+      // Alternate slightly brighter and dimmer lines for texture
+      const a = (d % 3 === 0) ? 0.20 : 0.10;
       g.moveTo(lx, y);
       g.lineTo(rx, y);
-      g.stroke({ color: DIVIDER_COLOR, width: 0.5, alpha: 0.25 });
+      g.stroke({ color: 0x000000, width: 0.6, alpha: a });
     }
 
     // ── Lane boundary lines (perspective lines from top corners → bottom) ─────
@@ -111,8 +140,31 @@ export class LaneRenderer {
       g.stroke({
         color: isEdge ? EDGE_COLOR : DIVIDER_COLOR,
         width: isEdge ? 2.5 : 1.5,
-        alpha: isEdge ? 0.90 : 0.65,
+        alpha: isEdge ? 0.90 : 0.60,
       });
+    }
+
+    // ── White dashed edge markings along both outer road edges ────────────────
+    const EDGE_DASH_COUNT = 14;
+    for (let d = 0; d < EDGE_DASH_COUNT; d++) {
+      const t0 = (d + 0.1) / EDGE_DASH_COUNT;
+      const t1 = (d + 0.6) / EDGE_DASH_COUNT;
+      if (t1 > 1) continue;
+      // Left edge
+      const lx0 = ROAD_TOP_X + (0 - ROAD_TOP_X) * t0;
+      const ly0 = ROAD_TOP_Y + t0 * ROAD_HEIGHT;
+      const lx1 = ROAD_TOP_X + (0 - ROAD_TOP_X) * t1;
+      const ly1 = ROAD_TOP_Y + t1 * ROAD_HEIGHT;
+      const thick = 1.2 + 1.8 * t0;   // thicker toward camera
+      g.moveTo(lx0 + 3, ly0);
+      g.lineTo(lx1 + 3, ly1);
+      g.stroke({ color: 0xffffff, width: thick, alpha: 0.55 });
+      // Right edge
+      const rx0 = ROAD_TOP_X + ROAD_TOP_W + (w - (ROAD_TOP_X + ROAD_TOP_W)) * t0;
+      const rx1 = ROAD_TOP_X + ROAD_TOP_W + (w - (ROAD_TOP_X + ROAD_TOP_W)) * t1;
+      g.moveTo(rx0 - 3, ly0);
+      g.lineTo(rx1 - 3, ly1);
+      g.stroke({ color: 0xffffff, width: thick, alpha: 0.55 });
     }
 
     // ── Perspective-scaled centre dashes in each lane ─────────────────────────
@@ -122,22 +174,17 @@ export class LaneRenderer {
         const cx  = laneCenterX(lane, t);
         const cy  = posToScreenY(p);
         const sc  = posToScale(p);
-        const dw  = 13 * sc;
-        const dh  = 2.4 * sc;
+        const dw  = 14 * sc;
+        const dh  = 2.8 * sc;
         g.rect(cx - dw / 2, cy - dh / 2, dw, dh);
-        g.fill({ color: DASH_COLOR, alpha: 0.50 });
+        g.fill({ color: DASH_COLOR, alpha: 0.55 });
       }
     }
 
     // ── Horizon line at road top ───────────────────────────────────────────────
     g.moveTo(ROAD_TOP_X, ROAD_TOP_Y);
     g.lineTo(ROAD_TOP_X + ROAD_TOP_W, ROAD_TOP_Y);
-    g.stroke({ color: HORIZON_COLOR, width: 1.5, alpha: 0.55 });
-
-    // ── Breach line at road bottom (red) ─────────────────────────────────────
-    g.moveTo(0, ROAD_BOTTOM_Y);
-    g.lineTo(w, ROAD_BOTTOM_Y);
-    g.stroke({ color: BREACH_COLOR, width: 4 });
+    g.stroke({ color: HORIZON_COLOR, width: 2, alpha: 0.65 });
 
     this._layer.addChild(g);
   }

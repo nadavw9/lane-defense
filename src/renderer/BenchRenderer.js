@@ -19,10 +19,16 @@ const BENCH_SPRITE_SIZE = 32;
 
 function idleUrl(color) { return `/sprites/shooters/shooter-${color.toLowerCase()}-idle.png`; }
 
-const SLOT_BG   = 0x0d0d1a;
-const SLOT_EDGE = 0x223344;
-const HI_COLOR  = 0x44aaff;
-const HI_ALPHA  = 0.35;
+const SLOT_BG    = 0x0d0d1a;
+const SLOT_EDGE  = 0x223344;
+const HI_COLOR   = 0x44aaff;
+const HI_ALPHA   = 0.35;
+
+// Shooter color → hex for glow tint on occupied slots.
+const GLOW_MAP = {
+  Red:    0xE24B4A, Blue:   0x378ADD, Green:  0x639922,
+  Yellow: 0xEF9F27, Purple: 0x7F77DD, Orange: 0xD85A30,
+};
 
 const DMG_STYLE = {
   fontSize:   13,
@@ -127,6 +133,13 @@ export class BenchRenderer {
       }
 
       if (shooter) {
+        // Soft colored glow stroke around occupied slot
+        const glowCol = GLOW_MAP[shooter.color] ?? 0x44aaff;
+        g.roundRect(sx, BENCH_Y, sw, BENCH_SLOT_H, 7);
+        g.fill({ color: glowCol, alpha: 0.08 });
+        g.roundRect(sx, BENCH_Y, sw, BENCH_SLOT_H, 7);
+        g.stroke({ color: glowCol, width: 1.5, alpha: 0.45 });
+
         // Idle sprite left-of-center, damage number right-of-center.
         const sp  = this._sprites[i];
         const tex = Assets.get(idleUrl(shooter.color));

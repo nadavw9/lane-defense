@@ -68,6 +68,42 @@ const COLOR_MAP = {
   Orange: 0xD85A30,
 };
 
+// Draw a cannon shape centred at (0,0) into Graphics g.
+// size = diameter of the bounding circle.
+// color = barrel color. dark = use dark palette.
+function drawCannon(g, color, size, alpha = 1) {
+  const R  = size / 2;
+  const bw = Math.round(R * 0.42);   // barrel width
+  const bh = Math.round(R * 1.20);   // barrel height (extends above centre)
+  const tw = Math.round(R * 1.60);   // track (base) width
+  const th = Math.round(R * 0.52);   // track height
+
+  // Drop shadow
+  g.ellipse(3, R * 0.55, R * 0.80, R * 0.22);
+  g.fill({ color: 0x000000, alpha: 0.22 * alpha });
+
+  // Track base (dark rectangle with rounded ends)
+  g.roundRect(-tw / 2, R - th, tw, th, 4);
+  g.fill({ color: 0x1a1a1a, alpha: 0.92 * alpha });
+  // Track highlight strip
+  g.roundRect(-tw / 2, R - th, tw, Math.max(2, th * 0.30), 4);
+  g.fill({ color: 0x333333, alpha: 0.55 * alpha });
+
+  // Barrel body (colored)
+  g.roundRect(-bw / 2, -bh + R * 0.10, bw, bh, 3);
+  g.fill({ color, alpha: 1.0 * alpha });
+  // Barrel metallic sheen (left edge lighter strip)
+  g.roundRect(-bw / 2, -bh + R * 0.10, Math.max(2, bw * 0.30), bh, 3);
+  g.fill({ color: 0xffffff, alpha: 0.18 * alpha });
+
+  // Muzzle cap (dark circle at barrel tip)
+  const muzzleY = -bh + R * 0.10 - 1;
+  g.circle(0, muzzleY, bw * 0.62);
+  g.fill({ color: 0x111111, alpha: 0.95 * alpha });
+  g.circle(0, muzzleY, bw * 0.62);
+  g.stroke({ color: 0x444444, width: 1, alpha: 0.70 * alpha });
+}
+
 function easeOut(t) { return 1 - Math.pow(1 - Math.min(t, 1), 3); }
 
 // Sprite URL helpers
@@ -314,47 +350,54 @@ export class ShooterRenderer {
 
   // ── Private ──────────────────────────────────────────────────────────────────
 
-  // Draw circles for all visible shooters in column i directly onto the panel
-  // graphics.  Used when spriteFlags.loaded is false.
+  // Draw cannon shapes for all visible shooters in column i.
+  // Used when spriteFlags.loaded is false.
   _drawFallback(i, col, g, cx, bounce) {
     // Hide all sprite objects for this column.
-    this._secondSprites[i].visible   = false;
-    this._thirdSprites[i].visible    = false;
-    this._pipLeft[i].visible         = false;
-    this._pipRight[i].visible        = false;
-    this._topSprites[i].visible      = false;
+    this._secondSprites[i].visible = false;
+    this._thirdSprites[i].visible  = false;
+    this._pipLeft[i].visible       = false;
+    this._pipRight[i].visible      = false;
+    this._topSprites[i].visible    = false;
 
-    // Second shooter
+    // ── Second shooter — small cannon on bgGraphics ───────────────────────────
     const second = col.shooters[1] ?? null;
     if (second) {
       const color = COLOR_MAP[second.color] ?? 0x888888;
-      g.circle(cx, SECOND_Y, SECOND_RADIUS);
-      g.fill({ color, alpha: 0.40 });
+      // Translate to column centre then draw cannon
+      const prevMatrix = g.transform?.localTransform;  // save isn't needed — just offset coords
+      // Draw cannon centred at (cx, SECOND_Y) using absolute coords via a temp offset
+      g.setTransform(cx, SECOND_Y);
+      drawCannon(g, color, SECOND_RADIUS * 2, 0.45);
+      g.setTransform(0, 0);
+
       this._secondTexts[i].text    = String(second.damage);
       this._secondTexts[i].x       = cx;
-      this._secondTexts[i].y       = SECOND_Y;
-      this._secondTexts[i].alpha   = 0.40;
+      this._secondTexts[i].y       = SECOND_Y + SECOND_RADIUS + 8;
+      this._secondTexts[i].alpha   = 0.45;
       this._secondTexts[i].visible = true;
     } else {
       this._secondTexts[i].visible = false;
     }
 
-    // Third shooter
+    // ── Third shooter ─────────────────────────────────────────────────────────
     const third = col.shooters[2] ?? null;
     if (third) {
       const color = COLOR_MAP[third.color] ?? 0x888888;
-      g.circle(cx, THIRD_Y, THIRD_RADIUS);
-      g.fill({ color, alpha: 0.45 });
+      g.setTransform(cx, THIRD_Y);
+      drawCannon(g, color, THIRD_RADIUS * 2, 0.40);
+      g.setTransform(0, 0);
+
       this._thirdTexts[i].text    = String(third.damage);
       this._thirdTexts[i].x       = cx;
-      this._thirdTexts[i].y       = THIRD_Y;
-      this._thirdTexts[i].alpha   = 0.45;
+      this._thirdTexts[i].y       = THIRD_Y + THIRD_RADIUS + 6;
+      this._thirdTexts[i].alpha   = 0.40;
       this._thirdTexts[i].visible = true;
     } else {
       this._thirdTexts[i].visible = false;
     }
 
-    // Top shooter — drawn inside topCont so punch scale animation still applies.
+    // ── Top shooter — drawn inside topCont so punch animation applies ─────────
     const top     = col.top();
     const topCont = this._topContainers[i];
     const circ    = this._topCircles[i];
@@ -365,17 +408,10 @@ export class ShooterRenderer {
     if (top && this.draggingColumn !== i) {
       const color = COLOR_MAP[top.color] ?? 0x888888;
       circ.clear();
-      // Shadow circle
-      circ.circle(0, 3, TOP_RADIUS);
-      circ.fill({ color: 0x000000, alpha: 0.20 });
-      // Body circle
-      circ.circle(0, -3, TOP_RADIUS);
-      circ.fill(color);
-      // Gloss highlight
-      circ.circle(-10, -13, 10);
-      circ.fill({ color: 0xffffff, alpha: 0.18 });
-      circ.visible  = true;
+      drawCannon(circ, color, TOP_RADIUS * 2, 1.0);
+      circ.visible    = true;
       topText.text    = String(top.damage);
+      topText.y       = 6;   // nudge number onto the barrel
       topText.visible = true;
     } else {
       circ.visible    = false;

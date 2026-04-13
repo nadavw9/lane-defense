@@ -40,6 +40,18 @@ const CAR_COLORS = {
   Orange: 0xD85A30,
 };
 
+// Slightly lighter fill and darker border for each base color.
+function lightenHex(hex, amt = 0x282828) {
+  return (Math.min(255, ((hex >> 16) & 0xff) + ((amt >> 16) & 0xff)) << 16)
+       | (Math.min(255, ((hex >>  8) & 0xff) + ((amt >>  8) & 0xff)) <<  8)
+       |  Math.min(255, ( hex        & 0xff) + ( amt        & 0xff));
+}
+function darkenHex(hex, amt = 0x202020) {
+  return (Math.max(0, ((hex >> 16) & 0xff) - ((amt >> 16) & 0xff)) << 16)
+       | (Math.max(0, ((hex >>  8) & 0xff) - ((amt >>  8) & 0xff)) <<  8)
+       |  Math.max(0, ( hex        & 0xff) - ( amt        & 0xff));
+}
+
 const HP_TEXT_STYLE = {
   fontSize:   16,
   fontWeight: 'bold',
@@ -134,13 +146,26 @@ export class CarRenderer {
       sprite.scale.set(Math.min(scaleX, scaleY));
       container.addChild(sprite);
     } else {
-      const body  = new Graphics();
-      const color = car.type === 'boss' ? 0xcc44cc : (CAR_COLORS[car.color] ?? 0x888888);
-      body.rect(-CAR_TARGET_W / 2, -CAR_TARGET_H / 2, CAR_TARGET_W, CAR_TARGET_H);
-      body.fill(color);
-      // Rounded corners hint
-      body.rect(-CAR_TARGET_W / 2 + 2, -CAR_TARGET_H / 2 + 2, CAR_TARGET_W - 4, CAR_TARGET_H - 4);
-      body.stroke({ color: 0xffffff, width: 1, alpha: 0.25 });
+      const base   = car.type === 'boss' ? 0xcc44cc : (CAR_COLORS[car.color] ?? 0x888888);
+      const fill   = lightenHex(base, 0x1c1c1c);
+      const border = darkenHex(base, 0x282828);
+      const body   = new Graphics();
+      const HW = CAR_TARGET_W / 2, HH = CAR_TARGET_H / 2;
+
+      // Drop shadow
+      body.ellipse(3, HH + 3, HW - 2, 6);
+      body.fill({ color: 0x000000, alpha: 0.28 });
+
+      // Car body — rounded rect with lighter fill + darker border
+      body.roundRect(-HW, -HH, CAR_TARGET_W, CAR_TARGET_H, 6);
+      body.fill(fill);
+      body.roundRect(-HW, -HH, CAR_TARGET_W, CAR_TARGET_H, 6);
+      body.stroke({ color: border, width: 2 });
+
+      // Glossy highlight ellipse top-left
+      body.ellipse(-HW + 10, -HH + 8, 9, 5);
+      body.fill({ color: 0xffffff, alpha: 0.28 });
+
       container.addChild(body);
     }
 
@@ -156,6 +181,9 @@ export class CarRenderer {
     const barY = -CAR_TARGET_H / 2 - HP_BAR_OFFSET - HP_BAR_H;
 
     const hpBg = new Graphics();
+    // Dark outline around the HP bar track
+    hpBg.rect(-HP_BAR_W / 2 - 1, barY - 1, HP_BAR_W + 2, HP_BAR_H + 2);
+    hpBg.fill({ color: 0x000000, alpha: 0.70 });
     hpBg.rect(-HP_BAR_W / 2, barY, HP_BAR_W, HP_BAR_H);
     hpBg.fill(HP_BAR_BG);
     container.addChild(hpBg);

@@ -22,7 +22,7 @@ const FIRE_DIAM  = SLOT_R * 2;
 
 // Projectile settings — faster and smaller to match reduced fire durations.
 const PROJ_R     = 4;      // radius (down from 6 — less chunky)
-const PROJ_SPEED = 520;    // px/s upward (up from 380 — zippier)
+const PROJ_SPEED = 700;    // px/s upward
 const PROJ_LIFE  = 0.28;   // seconds until fully faded (down from 0.40)
 const PROJ_SPAWN = 0.18;   // seconds between spawns (down from 0.35 — more shots)
 

@@ -55,17 +55,6 @@ export function posToScale(position) {
   return SCALE_MIN + (SCALE_MAX - SCALE_MIN) * (position / 100);
 }
 
-// ── Colors ────────────────────────────────────────────────────────────────────
-
-const BG_COLOR      = 0x141414;  // outside the road
-const ROAD_TOP_COL  = 0x282828;  // asphalt at horizon (darker / further away)
-const ROAD_BOT_COL  = 0x3c3c3c;  // asphalt near camera (lighter)
-const EDGE_COLOR    = 0xffffff;  // road shoulder / outer edges (bright white)
-const DIVIDER_COLOR = 0x666666;  // inner lane divider lines
-const DASH_COLOR    = 0x999999;  // perspective centre-line dashes
-const HORIZON_COLOR = 0xcccccc;  // thin line at the road top
-const BREACH_COLOR  = 0xdd2222;  // red breach line at bottom
-
 // ── Renderer ──────────────────────────────────────────────────────────────────
 
 export class LaneRenderer {
@@ -88,103 +77,160 @@ export class LaneRenderer {
 
   _drawBreach(alpha) {
     this._breachG.clear();
+    // Soft red bloom behind the breach line
+    this._breachG.rect(0, ROAD_BOTTOM_Y - 8, this._appW, 16);
+    this._breachG.fill({ color: 0xdd2222, alpha: 0.15 * alpha });
+    // Crisp 4px glowing red line
     this._breachG.moveTo(0, ROAD_BOTTOM_Y);
     this._breachG.lineTo(this._appW, ROAD_BOTTOM_Y);
-    this._breachG.stroke({ color: BREACH_COLOR, width: 5, alpha });
+    this._breachG.stroke({ color: 0xff3333, width: 4, alpha });
   }
 
   _draw(w) {
     const g = new Graphics();
 
-    // ── Dark background behind the road ───────────────────────────────────────
-    g.rect(0, ROAD_TOP_Y, w, ROAD_HEIGHT);
-    g.fill(BG_COLOR);
+    const RIGHT_ROAD_TOP_X   = ROAD_TOP_X + ROAD_TOP_W;  // 275
+    const SH_TOP             = 8;    // shoulder width at top of road, px
+    const LEFT_BARRIER_INNER = ROAD_TOP_X - SH_TOP;      // 107
+    const RIGHT_BARRIER_INNER = RIGHT_ROAD_TOP_X + SH_TOP; // 283
 
-    // ── Road surface — simulated top-dark / bottom-light gradient via strips ──
-    // Divide road height into 8 bands with linearly interpolated shade.
-    const BANDS = 8;
-    for (let b = 0; b < BANDS; b++) {
-      const t0 = b / BANDS, t1 = (b + 1) / BANDS;
-      const shade = ROAD_TOP_COL + Math.round((ROAD_BOT_COL - ROAD_TOP_COL) * (b / (BANDS - 1)));
-      const y0  = ROAD_TOP_Y + t0 * ROAD_HEIGHT;
-      const y1  = ROAD_TOP_Y + t1 * ROAD_HEIGHT;
-      const lx0 = ROAD_TOP_X + (0 - ROAD_TOP_X) * t0;
-      const rx0 = ROAD_TOP_X + ROAD_TOP_W + (w - (ROAD_TOP_X + ROAD_TOP_W)) * t0;
-      const lx1 = ROAD_TOP_X + (0 - ROAD_TOP_X) * t1;
-      const rx1 = ROAD_TOP_X + ROAD_TOP_W + (w - (ROAD_TOP_X + ROAD_TOP_W)) * t1;
+    // Helper: road left x at normalised position t [0=top, 1=bottom]
+    const roadLeft  = t => ROAD_TOP_X * (1 - t);
+    const roadRight = t => RIGHT_ROAD_TOP_X + (w - RIGHT_ROAD_TOP_X) * t;
+
+    // ── Dark background (fills entire lane area, visible behind barriers) ──────
+    g.rect(0, ROAD_TOP_Y, w, ROAD_HEIGHT);
+    g.fill(0x141414);
+
+    // ── Left barrier wall: light grey concrete triangle ───────────────────────
+    g.poly([0, ROAD_TOP_Y, LEFT_BARRIER_INNER, ROAD_TOP_Y, 0, ROAD_BOTTOM_Y]);
+    g.fill({ color: 0x666666 });
+    // Darker top face for 3-D depth
+    g.rect(0, ROAD_TOP_Y, LEFT_BARRIER_INNER, 4);
+    g.fill({ color: 0x444444 });
+
+    // ── Right barrier wall ────────────────────────────────────────────────────
+    g.poly([RIGHT_BARRIER_INNER, ROAD_TOP_Y, w, ROAD_TOP_Y, w, ROAD_BOTTOM_Y]);
+    g.fill({ color: 0x666666 });
+    g.rect(RIGHT_BARRIER_INNER, ROAD_TOP_Y, w - RIGHT_BARRIER_INNER, 4);
+    g.fill({ color: 0x444444 });
+
+    // ── Left shoulder: dark strip between barrier inner face and road edge ─────
+    g.poly([LEFT_BARRIER_INNER, ROAD_TOP_Y, ROAD_TOP_X, ROAD_TOP_Y, 0, ROAD_BOTTOM_Y]);
+    g.fill({ color: 0x222222 });
+
+    // ── Right shoulder ─────────────────────────────────────────────────────────
+    g.poly([RIGHT_ROAD_TOP_X, ROAD_TOP_Y, RIGHT_BARRIER_INNER, ROAD_TOP_Y, w, ROAD_BOTTOM_Y]);
+    g.fill({ color: 0x222222 });
+
+    // ── Asphalt surface: thin alternating strips, darker at top, lighter at bottom
+    // Alternates #383838 / #404040 grain, with perspective gradient overlay.
+    const STRIP_H  = 3;
+    const nStrips  = Math.ceil(ROAD_HEIGHT / STRIP_H);
+    for (let s = 0; s < nStrips; s++) {
+      const t0   = s / nStrips;
+      const t1   = Math.min(1, (s + 1) / nStrips);
+      const tMid = (t0 + t1) / 2;
+      const y0   = ROAD_TOP_Y + t0 * ROAD_HEIGHT;
+      const y1   = ROAD_TOP_Y + t1 * ROAD_HEIGHT;
+      const lx0  = roadLeft(t0),  rx0 = roadRight(t0);
+      const lx1  = roadLeft(t1),  rx1 = roadRight(t1);
+      // Perspective gradient: dark grey at horizon, lighter near player
+      const isDark  = s % 2 === 0;
+      const topGray = isDark ? 0x2a : 0x32;
+      const botGray = isDark ? 0x42 : 0x4a;
+      const gray    = Math.round(topGray + (botGray - topGray) * tMid);
+      const color   = (gray << 16) | (gray << 8) | gray;
       g.poly([lx0, y0, rx0, y0, rx1, y1, lx1, y1]);
-      g.fill(shade);
+      g.fill(color);
     }
 
-    // ── Faint horizontal texture lines for asphalt feel ───────────────────────
-    const TEXTURE_LINES = 20;
-    for (let d = 1; d < TEXTURE_LINES; d++) {
-      const t  = d / TEXTURE_LINES;
+    // ── Road surface markings: faint transverse lines (expansion joints) ───────
+    for (let p = 5; p < 100; p += 12) {
+      const t  = p / 100;
       const y  = ROAD_TOP_Y + t * ROAD_HEIGHT;
-      const lx = ROAD_TOP_X + (0 - ROAD_TOP_X) * t;
-      const rx = ROAD_TOP_X + ROAD_TOP_W + (w - (ROAD_TOP_X + ROAD_TOP_W)) * t;
-      // Alternate slightly brighter and dimmer lines for texture
-      const a = (d % 3 === 0) ? 0.20 : 0.10;
+      const lx = roadLeft(t), rx = roadRight(t);
       g.moveTo(lx, y);
       g.lineTo(rx, y);
-      g.stroke({ color: 0x000000, width: 0.6, alpha: a });
+      g.stroke({ color: 0xffffff, width: 1, alpha: 0.06 });
     }
 
-    // ── Lane boundary lines (perspective lines from top corners → bottom) ─────
-    for (let i = 0; i <= LANE_COUNT; i++) {
-      const topX = ROAD_TOP_X + i * ROAD_TOP_W  / LANE_COUNT;
-      const botX =              i * ROAD_BOTTOM_W / LANE_COUNT;
-      g.moveTo(topX, ROAD_TOP_Y);
-      g.lineTo(botX, ROAD_BOTTOM_Y);
-      const isEdge = (i === 0 || i === LANE_COUNT);
-      g.stroke({
-        color: isEdge ? EDGE_COLOR : DIVIDER_COLOR,
-        width: isEdge ? 2.5 : 1.5,
-        alpha: isEdge ? 0.90 : 0.60,
-      });
-    }
-
-    // ── White dashed edge markings along both outer road edges ────────────────
-    const EDGE_DASH_COUNT = 14;
-    for (let d = 0; d < EDGE_DASH_COUNT; d++) {
-      const t0 = (d + 0.1) / EDGE_DASH_COUNT;
-      const t1 = (d + 0.6) / EDGE_DASH_COUNT;
-      if (t1 > 1) continue;
-      // Left edge
-      const lx0 = ROAD_TOP_X + (0 - ROAD_TOP_X) * t0;
-      const ly0 = ROAD_TOP_Y + t0 * ROAD_HEIGHT;
-      const lx1 = ROAD_TOP_X + (0 - ROAD_TOP_X) * t1;
-      const ly1 = ROAD_TOP_Y + t1 * ROAD_HEIGHT;
-      const thick = 1.2 + 1.8 * t0;   // thicker toward camera
-      g.moveTo(lx0 + 3, ly0);
-      g.lineTo(lx1 + 3, ly1);
-      g.stroke({ color: 0xffffff, width: thick, alpha: 0.55 });
-      // Right edge
-      const rx0 = ROAD_TOP_X + ROAD_TOP_W + (w - (ROAD_TOP_X + ROAD_TOP_W)) * t0;
-      const rx1 = ROAD_TOP_X + ROAD_TOP_W + (w - (ROAD_TOP_X + ROAD_TOP_W)) * t1;
-      g.moveTo(rx0 - 3, ly0);
-      g.lineTo(rx1 - 3, ly1);
-      g.stroke({ color: 0xffffff, width: thick, alpha: 0.55 });
-    }
-
-    // ── Perspective-scaled centre dashes in each lane ─────────────────────────
-    for (let lane = 0; lane < LANE_COUNT; lane++) {
-      for (let p = 6; p <= 96; p += 11) {
-        const t   = p / 100;
-        const cx  = laneCenterX(lane, t);
-        const cy  = posToScreenY(p);
-        const sc  = posToScale(p);
-        const dw  = 14 * sc;
-        const dh  = 2.8 * sc;
-        g.rect(cx - dw / 2, cy - dh / 2, dw, dh);
-        g.fill({ color: DASH_COLOR, alpha: 0.55 });
+    // ── Lane divider dashes (white, 1px at top → 3px at bottom) ──────────────
+    const DASH_COUNT = 14;
+    for (let lane = 1; lane < LANE_COUNT; lane++) {
+      const topX = ROAD_TOP_X + lane * ROAD_TOP_W  / LANE_COUNT;
+      const botX =              lane * ROAD_BOTTOM_W / LANE_COUNT;
+      for (let d = 0; d < DASH_COUNT; d++) {
+        const t0 = (d + 0.1) / DASH_COUNT;
+        const t1 = (d + 0.6) / DASH_COUNT;
+        if (t1 > 1) continue;
+        const y0 = ROAD_TOP_Y + t0 * ROAD_HEIGHT;
+        const y1 = ROAD_TOP_Y + t1 * ROAD_HEIGHT;
+        const x0 = topX + (botX - topX) * t0;
+        const x1 = topX + (botX - topX) * t1;
+        const lw = 1 + 2 * ((t0 + t1) / 2);  // 1px at top, 3px at bottom
+        g.moveTo(x0, y0);
+        g.lineTo(x1, y1);
+        g.stroke({ color: 0xffffff, width: lw, alpha: 0.80 });
       }
+    }
+
+    // ── Road edge lines (solid white on outer road boundary) ──────────────────
+    g.moveTo(ROAD_TOP_X, ROAD_TOP_Y);
+    g.lineTo(0, ROAD_BOTTOM_Y);
+    g.stroke({ color: 0xffffff, width: 2.5, alpha: 0.90 });
+
+    g.moveTo(RIGHT_ROAD_TOP_X, ROAD_TOP_Y);
+    g.lineTo(w, ROAD_BOTTOM_Y);
+    g.stroke({ color: 0xffffff, width: 2.5, alpha: 0.90 });
+
+    // ── Barrier inner-face highlight (thin bright line for 3-D depth) ─────────
+    g.moveTo(LEFT_BARRIER_INNER, ROAD_TOP_Y);
+    g.lineTo(0, ROAD_BOTTOM_Y);
+    g.stroke({ color: 0xaaaaaa, width: 1, alpha: 0.50 });
+
+    g.moveTo(RIGHT_BARRIER_INNER, ROAD_TOP_Y);
+    g.lineTo(w, ROAD_BOTTOM_Y);
+    g.stroke({ color: 0xaaaaaa, width: 1, alpha: 0.50 });
+
+    // ── Yellow reflector dots on barrier inner faces ──────────────────────────
+    for (let dotY = ROAD_TOP_Y + 30; dotY < ROAD_BOTTOM_Y - 30; dotY += 60) {
+      const t  = (dotY - ROAD_TOP_Y) / ROAD_HEIGHT;
+      const r  = Math.max(1.5, 3 * (1 - t * 0.8));
+      // Left barrier inner face converges from LEFT_BARRIER_INNER at top to 0 at bottom
+      const leftDotX = LEFT_BARRIER_INNER * (1 - t) - 2;
+      if (leftDotX > 2) {
+        g.circle(leftDotX, dotY, r);
+        g.fill({ color: 0xffdd00 });
+      }
+      // Right barrier inner face: RIGHT_BARRIER_INNER at top, w at bottom
+      const rightDotX = RIGHT_BARRIER_INNER + (w - RIGHT_BARRIER_INNER) * t + 2;
+      if (rightDotX < w - 2) {
+        g.circle(rightDotX, dotY, r);
+        g.fill({ color: 0xffdd00 });
+      }
+    }
+
+    // ── Distance haze: blue-grey fog at road top (alpha 0.30→0 over 76px) ─────
+    const FOG_H     = 76;
+    const FOG_BANDS = 10;
+    for (let fb = 0; fb < FOG_BANDS; fb++) {
+      const t0    = fb / FOG_BANDS;
+      const t1    = (fb + 1) / FOG_BANDS;
+      const alpha = 0.30 * (1 - t0) * (1 - t0);   // quadratic fade
+      if (alpha < 0.01) continue;
+      const y0  = ROAD_TOP_Y + t0 * FOG_H;
+      const y1  = ROAD_TOP_Y + t1 * FOG_H;
+      const tR0 = t0 * FOG_H / ROAD_HEIGHT;
+      const tR1 = t1 * FOG_H / ROAD_HEIGHT;
+      g.poly([roadLeft(tR0), y0, roadRight(tR0), y0, roadRight(tR1), y1, roadLeft(tR1), y1]);
+      g.fill({ color: 0x8899aa, alpha });
     }
 
     // ── Horizon line at road top ───────────────────────────────────────────────
     g.moveTo(ROAD_TOP_X, ROAD_TOP_Y);
-    g.lineTo(ROAD_TOP_X + ROAD_TOP_W, ROAD_TOP_Y);
-    g.stroke({ color: HORIZON_COLOR, width: 2, alpha: 0.65 });
+    g.lineTo(RIGHT_ROAD_TOP_X, ROAD_TOP_Y);
+    g.stroke({ color: 0xdddddd, width: 1.5, alpha: 0.55 });
 
     this._layer.addChild(g);
   }

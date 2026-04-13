@@ -268,12 +268,12 @@ export class ShooterRenderer {
         const tex = Assets.get(idleUrl(second.color));
         if (tex && sp2.texture !== tex) { sp2.texture = tex; fitSprite(sp2, SECOND_DIAM); }
         sp2.x = cx; sp2.y = SECOND_Y;
-        sp2.alpha   = 0.40;
+        sp2.alpha   = 0.65;
         sp2.visible = true;
         this._secondTexts[i].text    = String(second.damage);
         this._secondTexts[i].x       = cx;
         this._secondTexts[i].y       = SECOND_Y;
-        this._secondTexts[i].alpha   = 0.40;
+        this._secondTexts[i].alpha   = 0.65;
         this._secondTexts[i].visible = true;
       } else {
         sp2.visible = false;
@@ -287,12 +287,12 @@ export class ShooterRenderer {
         const tex = Assets.get(idleUrl(third.color));
         if (tex && sp3.texture !== tex) { sp3.texture = tex; fitSprite(sp3, THIRD_DIAM); }
         sp3.x = cx; sp3.y = THIRD_Y;
-        sp3.alpha   = 0.45;
+        sp3.alpha   = 0.40;
         sp3.visible = true;
         this._thirdTexts[i].text    = String(third.damage);
         this._thirdTexts[i].x       = cx;
         this._thirdTexts[i].y       = THIRD_Y;
-        this._thirdTexts[i].alpha   = 0.45;
+        this._thirdTexts[i].alpha   = 0.40;
         this._thirdTexts[i].visible = true;
       } else {
         sp3.visible = false;
@@ -368,13 +368,13 @@ export class ShooterRenderer {
       const prevMatrix = g.transform?.localTransform;  // save isn't needed — just offset coords
       // Draw cannon centred at (cx, SECOND_Y) using absolute coords via a temp offset
       g.setTransform(cx, SECOND_Y);
-      drawCannon(g, color, SECOND_RADIUS * 2, 0.45);
+      drawCannon(g, color, SECOND_RADIUS * 2, 0.65);
       g.setTransform(0, 0);
 
       this._secondTexts[i].text    = String(second.damage);
       this._secondTexts[i].x       = cx;
       this._secondTexts[i].y       = SECOND_Y + SECOND_RADIUS + 8;
-      this._secondTexts[i].alpha   = 0.45;
+      this._secondTexts[i].alpha   = 0.65;
       this._secondTexts[i].visible = true;
     } else {
       this._secondTexts[i].visible = false;

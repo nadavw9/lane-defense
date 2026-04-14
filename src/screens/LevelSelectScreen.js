@@ -160,17 +160,20 @@ export class LevelSelectScreen {
   }
 
   // Draw connecting lines between consecutive level nodes.
+  // All segments share one Graphics so each stroke() resets the path cleanly —
+  // separate Graphics objects leave the path cursor at (0,0) between calls,
+  // which PixiJS v8 renders as an extra segment from the canvas origin.
   _drawPath(unlockedLevel) {
+    const g = new Graphics();
     for (let id = 1; id < 20; id++) {
-      const a       = nodePos(id);
-      const b       = nodePos(id + 1);
+      const { x: ax, y: ay } = nodePos(id);
+      const { x: bx, y: by } = nodePos(id + 1);
       const reached = id < unlockedLevel;
-      const g = new Graphics();
-      g.moveTo(a.x, a.y);
-      g.lineTo(b.x, b.y);
+      g.moveTo(ax, ay);
+      g.lineTo(bx, by);
       g.stroke({ color: reached ? 0x2a7a4a : 0x151e28, width: reached ? 4 : 3, alpha: reached ? 0.85 : 0.55 });
-      this._container.addChild(g);
     }
+    this._container.addChild(g);
   }
 
   _buildNode(levelId, x, y, stars, isUnlocked, onClick) {

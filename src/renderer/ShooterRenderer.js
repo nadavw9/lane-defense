@@ -68,10 +68,10 @@ const COLOR_MAP = {
   Orange: 0xD85A30,
 };
 
-// Draw a cannon shape centred at (0,0) into Graphics g.
+// Draw a cannon shape centred at (ox, oy) into Graphics g.
 // size = diameter of the bounding circle.
-// color = barrel color. dark = use dark palette.
-function drawCannon(g, color, size, alpha = 1) {
+// ox, oy = absolute centre position within g's coordinate space (default 0,0).
+function drawCannon(g, color, size, alpha = 1, ox = 0, oy = 0) {
   const R  = size / 2;
   const bw = Math.round(R * 0.42);   // barrel width
   const bh = Math.round(R * 1.20);   // barrel height (extends above centre)
@@ -79,36 +79,36 @@ function drawCannon(g, color, size, alpha = 1) {
   const th = Math.round(R * 0.52);   // track height
 
   // Drop shadow
-  g.ellipse(3, R * 0.55, R * 0.80, R * 0.22);
+  g.ellipse(ox + 3, oy + R * 0.55, R * 0.80, R * 0.22);
   g.fill({ color: 0x000000, alpha: 0.22 * alpha });
 
   // Track base (dark rectangle with rounded ends)
-  g.roundRect(-tw / 2, R - th, tw, th, 4);
+  g.roundRect(ox - tw / 2, oy + R - th, tw, th, 4);
   g.fill({ color: 0x1a1a1a, alpha: 0.92 * alpha });
   // Track highlight strip
-  g.roundRect(-tw / 2, R - th, tw, Math.max(2, th * 0.30), 4);
+  g.roundRect(ox - tw / 2, oy + R - th, tw, Math.max(2, th * 0.30), 4);
   g.fill({ color: 0x333333, alpha: 0.55 * alpha });
 
   // Barrel body (colored)
-  g.roundRect(-bw / 2, -bh + R * 0.10, bw, bh, 3);
+  g.roundRect(ox - bw / 2, oy - bh + R * 0.10, bw, bh, 3);
   g.fill({ color, alpha: 1.0 * alpha });
   // Barrel metallic sheen (left edge lighter strip)
-  g.roundRect(-bw / 2, -bh + R * 0.10, Math.max(2, bw * 0.30), bh, 3);
+  g.roundRect(ox - bw / 2, oy - bh + R * 0.10, Math.max(2, bw * 0.30), bh, 3);
   g.fill({ color: 0xffffff, alpha: 0.18 * alpha });
 
   // Muzzle cap (dark circle at barrel tip)
-  const muzzleY = -bh + R * 0.10 - 1;
-  g.circle(0, muzzleY, bw * 0.62);
+  const muzzleY = oy - bh + R * 0.10 - 1;
+  g.circle(ox, muzzleY, bw * 0.62);
   g.fill({ color: 0x111111, alpha: 0.95 * alpha });
-  g.circle(0, muzzleY, bw * 0.62);
+  g.circle(ox, muzzleY, bw * 0.62);
   g.stroke({ color: 0x444444, width: 1, alpha: 0.70 * alpha });
 }
 
 function easeOut(t) { return 1 - Math.pow(1 - Math.min(t, 1), 3); }
 
 // Sprite URL helpers
-function idleUrl(color)  { return `/sprites/shooters/shooter-${color.toLowerCase()}-idle.png`; }
-function fireUrl(color)  { return `/sprites/shooters/shooter-${color.toLowerCase()}-fire.png`; }
+function idleUrl(color)  { return `/sprites/sprites/shooters/shooter-${color.toLowerCase()}-idle.png`; }
+function fireUrl(color)  { return `/sprites/sprites/shooters/shooter-${color.toLowerCase()}-fire.png`; }
 
 // Scale a sprite so its largest dimension equals targetDiam.
 function fitSprite(sprite, targetDiam) {
@@ -364,12 +364,7 @@ export class ShooterRenderer {
     const second = col.shooters[1] ?? null;
     if (second) {
       const color = COLOR_MAP[second.color] ?? 0x888888;
-      // Translate to column centre then draw cannon
-      const prevMatrix = g.transform?.localTransform;  // save isn't needed — just offset coords
-      // Draw cannon centred at (cx, SECOND_Y) using absolute coords via a temp offset
-      g.setTransform(cx, SECOND_Y);
-      drawCannon(g, color, SECOND_RADIUS * 2, 0.65);
-      g.setTransform(0, 0);
+      drawCannon(g, color, SECOND_RADIUS * 2, 0.65, cx, SECOND_Y);
 
       this._secondTexts[i].text    = String(second.damage);
       this._secondTexts[i].x       = cx;

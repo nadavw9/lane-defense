@@ -122,6 +122,10 @@ export class DragDrop {
       this._laneLayer.addChild(g);
       this._highlights.push(g);
     }
+
+    // Set to true while any tutorial/combo/achievement overlay is visible.
+    // Suppresses lane hover highlights so they don't bleed through the UI.
+    this.uiOverlayActive = false;
   }
 
   // ── Called by InputManager ─────────────────────────────────────────────────
@@ -291,6 +295,14 @@ export class DragDrop {
   }
 
   _updateHighlights(x, y) {
+    // Suppress lane color hints while any UI overlay is visible — they would
+    // bleed through tutorial panels or combo/achievement popups.
+    if (this.uiOverlayActive) {
+      this._clearHighlights();
+      this._benchRenderer?.setHighlight(-1);
+      return;
+    }
+
     this._clearHighlights();
     this._benchRenderer?.setHighlight(-1);
 

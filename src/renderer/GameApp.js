@@ -982,6 +982,11 @@ async function main() {
     shooterRenderer.update(gs.elapsed, dt);
     benchRenderer.update();
     firingLineRenderer.update(dt);
+
+    // Disable lane hover tints while any tutorial / combo / achievement overlay
+    // is on screen so the colored lane flash doesn't bleed through the UI.
+    dragDrop.uiOverlayActive = !!(ftueOverlay || comboPopup || activeAchievementPopup);
+
     dragDrop.update(dt);
 
     tickFloatingTexts(floatingTexts, dt);

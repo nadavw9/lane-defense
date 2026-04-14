@@ -9,8 +9,9 @@ import { PHASE_CONFIG } from '../director/DirectorConfig.js';
 
 const FIXED_DT = 1 / 60; // logic step in seconds
 
-// Fire duration in seconds per shooter damage value — further reduced for faster combat.
-const FIRE_DURATIONS = { 2: 0.7, 3: 0.85, 4: 0.9, 5: 1.0, 6: 1.05, 7: 1.1, 8: 1.2 };
+// Time in seconds for the single projectile to reach the car before damage lands.
+// Short enough to feel instant; long enough for the visual to register.
+const SHOT_TRAVEL_TIME = 0.12;
 
 export class GameLoop {
   // opts:
@@ -83,13 +84,13 @@ export class GameLoop {
     this._startFiring(shooter, laneIdx, -1);
   }
 
-  // Phase 1 — immediate effects: place shooter in the firing slot, trigger
-  // audio/animation callbacks, and start time dilation.  Combat resolves later.
+  // Place shooter in the firing slot for one short travel window, trigger
+  // audio/animation callbacks, and start time dilation.  Combat resolves once
+  // the single projectile travel time elapses.
   // colIdx === -1 means the shooter came from the bench (no punch animation).
   _startFiring(shooter, laneIdx, colIdx) {
-    const gs       = this._gs;
-    const duration = FIRE_DURATIONS[shooter.damage] ?? 2.0;
-    gs.firingSlots[laneIdx] = { shooter, colIdx, timeLeft: duration };
+    const gs = this._gs;
+    gs.firingSlots[laneIdx] = { shooter, colIdx, timeLeft: SHOT_TRAVEL_TIME };
     this._onShoot(shooter.damage, laneIdx, colIdx);
     gs.triggerDilation();
   }

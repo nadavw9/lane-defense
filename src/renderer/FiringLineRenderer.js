@@ -20,11 +20,10 @@ import {
 const SLOT_R     = 22;     // radius of the slot circle
 const FIRE_DIAM  = SLOT_R * 2;
 
-// Projectile settings — faster and smaller to match reduced fire durations.
-const PROJ_R     = 4;      // radius (down from 6 — less chunky)
-const PROJ_SPEED = 700;    // px/s upward
-const PROJ_LIFE  = 0.28;   // seconds until fully faded (down from 0.40)
-const PROJ_SPAWN = 0.18;   // seconds between spawns (down from 0.35 — more shots)
+// Single fast projectile per shot.
+const PROJ_R     = 5;      // radius — slightly larger for visibility
+const PROJ_SPEED = 1400;   // px/s upward — fast enough to feel instant
+const PROJ_LIFE  = 0.14;   // seconds — matches SHOT_TRAVEL_TIME in GameLoop
 
 const COLOR_MAP = {
   Red:    0xE24B4A,
@@ -48,9 +47,12 @@ export class FiringLineRenderer {
     this._hoverMatch = true;
 
     // Per-slot persistent display objects
-    this._bgGraphics  = [];
-    this._sprites     = [];
-    this._spawnTimers = new Float32Array(LANE_COUNT);  // countdown to next projectile
+    this._bgGraphics = [];
+    this._sprites    = [];
+
+    // Track previous slot occupancy to detect the moment a new shot fires.
+    // One projectile is spawned on that transition — no periodic loop.
+    this._slotWasActive = new Array(LANE_COUNT).fill(false);
 
     // Active projectiles: { g: Graphics, x, y, life }
     this._projectiles = [];
@@ -79,9 +81,9 @@ export class FiringLineRenderer {
     this._hoverIdx = -1;
   }
 
-  // Call on level restart to clear projectile pool and timers.
+  // Call on level restart to clear the projectile pool and shot-tracking state.
   reset() {
-    for (let i = 0; i < LANE_COUNT; i++) this._spawnTimers[i] = 0;
+    for (let i = 0; i < LANE_COUNT; i++) this._slotWasActive[i] = false;
     for (const p of this._projectiles) p.g.destroy();
     this._projectiles.length = 0;
   }
@@ -125,22 +127,21 @@ export class FiringLineRenderer {
           sp.visible = false;
         }
 
-        // Spawn a new projectile at the slot interval
-        this._spawnTimers[i] -= dt;
-        if (this._spawnTimers[i] <= 0) {
-          this._spawnTimers[i] = PROJ_SPAWN;
+        // Spawn exactly one projectile the frame this slot first becomes active.
+        if (!this._slotWasActive[i]) {
           const proj = new Graphics();
           proj.circle(0, 0, PROJ_R);
-          proj.fill({ color, alpha: 0.85 });
+          proj.fill({ color, alpha: 0.90 });
           proj.x = cx;
           proj.y = cy;
           this._layer.addChild(proj);
           this._projectiles.push({ g: proj, x: cx, y: cy, life: PROJ_LIFE });
         }
+        this._slotWasActive[i] = true;
       } else {
         // Empty slot
-        this._sprites[i].visible = false;
-        this._spawnTimers[i]     = 0;
+        this._sprites[i].visible  = false;
+        this._slotWasActive[i]    = false;
 
         g.circle(cx, cy, SLOT_R);
         g.fill({ color: 0x0d0d1a, alpha: 0.55 });

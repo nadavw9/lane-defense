@@ -135,12 +135,12 @@ function spawnFloatingText(parent, x, y, text, color = 0xffffff) {
 
 const COLORS   = ['red', 'blue', 'green', 'yellow', 'purple', 'orange'];
 const CAR_URLS = [
-  ...COLORS.map(c => `/sprites/sprites/cars/car-${c}.png`),
-  '/sprites/sprites/cars/car-boss.png',
+  ...COLORS.map(c => `/sprites/cars/car-${c}.png`),
+  '/sprites/cars/car-boss.png',
 ];
 const SHOOTER_URLS = COLORS.flatMap(c => [
-  `/sprites/sprites/shooters/shooter-${c}-idle.png`,
-  `/sprites/sprites/shooters/shooter-${c}-fire.png`,
+  `/sprites/shooters/shooter-${c}-idle.png`,
+  `/sprites/shooters/shooter-${c}-fire.png`,
 ]);
 const ALL_SPRITE_URLS = [...CAR_URLS, ...SHOOTER_URLS];
 

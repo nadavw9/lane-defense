@@ -13,6 +13,7 @@
 //   GameState → CarRenderer / ShooterRenderer / HUDRenderer / ParticleSystem
 import { Application, Assets, Container, Graphics, Text } from 'pixi.js';
 
+import { GameRenderer3D }  from '../renderer3d/GameRenderer3D.js';
 import { LayerManager }    from './LayerManager.js';
 import { LaneRenderer, laneCenterX, posToScreenY, ROAD_BOTTOM_Y } from './LaneRenderer.js';
 import { spriteFlags }     from './SpriteFlags.js';
@@ -36,6 +37,9 @@ import { CombatResolver }  from '../game/CombatResolver.js';
 import { LevelManager }    from '../game/LevelManager.js';
 import { BoosterState }    from '../game/BoosterState.js';
 import { ProgressManager } from '../game/ProgressManager.js';
+import { LivesManager }    from '../game/LivesManager.js';
+import { HapticsManager }  from '../game/HapticsManager.js';
+import { setColorblindMode } from '../game/ColorblindMode.js';
 
 import { CarDirector }     from '../director/CarDirector.js';
 import { ShooterDirector } from '../director/ShooterDirector.js';
@@ -47,6 +51,7 @@ import { Column }          from '../models/Column.js';
 import { PHASE_CONFIG }    from '../director/DirectorConfig.js';
 
 import { WinScreen, calcStars }       from '../screens/WinScreen.js';
+import { LoseScreen }                  from '../screens/LoseScreen.js';
 import { RescueOverlay }              from '../screens/RescueOverlay.js';
 import { BoosterUnlockScreen }        from '../screens/BoosterUnlockScreen.js';
 import { FTUEOverlay }            from '../screens/FTUEOverlay.js';
@@ -59,6 +64,7 @@ import { SettingsScreen }         from '../screens/SettingsScreen.js';
 import { PauseScreen }            from '../screens/PauseScreen.js';
 import { AchievementsScreen }     from '../screens/AchievementsScreen.js';
 import { StatsScreen }            from '../screens/StatsScreen.js';
+import { SurvivalScreen }          from '../screens/SurvivalScreen.js';
 import { AudioManager }           from '../audio/AudioManager.js';
 import { BoosterBar }             from './BoosterBar.js';
 import { Analytics }              from '../analytics/Analytics.js';
@@ -151,7 +157,8 @@ async function main() {
   await app.init({
     width:           APP_W,
     height:          APP_H,
-    backgroundColor: 0x111111,
+    background:      'transparent',   // Three.js canvas provides the game background
+    backgroundAlpha: 0,
     antialias:       true,
     resolution:      window.devicePixelRatio || 1,
     autoDensity:     true,
@@ -204,10 +211,31 @@ async function main() {
   // ── Progress (localStorage) ──────────────────────────────────────────────
   const progress = new ProgressManager();
 
+  // ── Lives + Haptics + Colorblind ─────────────────────────────────────────
+  const livesManager = new LivesManager(progress);
+  livesManager.tick();   // credit any regenerated hearts immediately
+
+  const haptics = new HapticsManager();
+  haptics.enabled = progress.hapticsEnabled;
+
+  // Apply saved colorblind preference immediately on startup.
+  setColorblindMode(progress.colorblindMode);
+
+  // Touch login streak (for title screen badge + achievements).
+  const loginStreak = progress.touchLoginStreak();
+
   // ── Layers ───────────────────────────────────────────────────────────────
   const layers      = new LayerManager(app.stage);
   const laneRenderer = new LaneRenderer(layers, APP_W);
   const cityBg       = new CityBackground(layers, APP_W);
+
+  // ── 3D Renderer — replaces LaneRenderer + CityBackground during gameplay ─
+  const gameRenderer3D = new GameRenderer3D(APP_W, APP_H);
+  gameRenderer3D.init();
+  gameRenderer3D.hide();   // hidden until gameplay starts
+
+  // Keep 3D canvas in sync when the window resizes.
+  window.addEventListener('resize', () => gameRenderer3D.onResize());
 
   // ── Vignette — dark edge overlay drawn once above all game layers ─────────
   // Two passes per edge (different alpha/width) for a soft gradient feel.
@@ -261,6 +289,11 @@ async function main() {
   // ── Combat ───────────────────────────────────────────────────────────────
   const combatResolver = new CombatResolver();
 
+  // ── Pass stable game-data refs to 3D renderer ─────────────────────────────
+  // lanes, columns, and gs.firingSlots are stable array objects; their
+  // contents change each frame but the refs never change.
+  gameRenderer3D.setGameData(lanes, columns, gs.firingSlots);
+
   // ── Audio ─────────────────────────────────────────────────────────────────
   const audio = new AudioManager();
 
@@ -313,6 +346,8 @@ async function main() {
   // ── Meta screens ─────────────────────────────────────────────────────────
   let titleScreen        = null;
   let levelSelectScreen  = null;
+  let survivalScreen     = null;
+  let survivalWave       = 1;   // current survival wave (increments on each wave win)
   let shopScreen         = null;
   let dailyRewardScreen  = null;
   let settingsScreen     = null;
@@ -330,6 +365,7 @@ async function main() {
   // ── Per-level daily/no-rescue flags ───────────────────────────────────────
   let currentLevelIsDaily  = false;
   let noRescueThisLevel    = false;
+  let isSurvivalRun        = false;
   let dailyDateKey         = '';
   let coinsAtLevelStart    = 0;
 
@@ -404,8 +440,9 @@ async function main() {
       levelId = levelIdOrConfig;
     }
 
-    currentLevelIsDaily = cfg.isDaily ?? false;
+    currentLevelIsDaily = cfg.isDaily  ?? false;
     noRescueThisLevel   = cfg.noRescue ?? false;
+    isSurvivalRun       = cfg.isSurvival ?? false;
     dailyDateKey        = currentLevelIsDaily ? dailyChallengeManager.getTodayKey() : '';
 
     // Restore persistent booster inventory for this level.
@@ -442,6 +479,8 @@ async function main() {
     firstKillDoneThisLevel      = false;
     carRenderer.clearAll();
     firingLineRenderer.reset();
+    gameRenderer3D.resetLevel();
+    gameRenderer3D.setCombo(0);
 
     // Start the game-loop ticker exactly once; restart() resets state each time.
     if (!gameLoopStarted) {
@@ -475,12 +514,75 @@ async function main() {
     // Restore accumulated coins AFTER restart() (which zeros gs.coins).
     gs.coins         = progress.coins;
     coinsAtLevelStart = progress.coins;
+
+    // ── Level intro splash ("LEVEL X" bounce-in) ──────────────────────────
+    if (typeof levelIdOrConfig === 'number') {
+      _showLevelIntroSplash(levelManager.levelNumber);
+    }
+
+    // ── Switch to 3D renderer for gameplay ────────────────────────────────
+    layers.get('backgroundLayer').visible = false;
+    layers.get('laneLayer').visible       = false;
+    layers.get('carLayer').visible        = false;
+    gameRenderer3D.show();
+  }
+
+  // ── Level intro splash ("LEVEL X" bounce-in, 1.5 s) ─────────────────────
+  function _showLevelIntroSplash(levelNumber) {
+    const c    = new Container();
+    app.stage.addChild(c);
+
+    // Semi-dark background flash
+    const flash = new Graphics();
+    flash.rect(0, 0, APP_W, APP_H);
+    flash.fill({ color: 0x000000, alpha: 0.40 });
+    c.addChild(flash);
+
+    const txt = new Text({
+      text: `LEVEL ${levelNumber}`,
+      style: {
+        fontSize:   52,
+        fontWeight: 'bold',
+        fill:       0xffffff,
+        dropShadow: { color: 0x00cc44, blur: 20, distance: 0, alpha: 0.8 },
+      },
+    });
+    txt.anchor.set(0.5, 0.5);
+    txt.x     = APP_W / 2;
+    txt.y     = APP_H / 2;
+    txt.scale.set(0.3);
+    txt.alpha = 0;
+    c.addChild(txt);
+
+    let t = 0;
+    const unsub = app.ticker.add((ticker) => {
+      t += ticker.deltaMS / 1000;
+      if (t < 0.25) {
+        const prog = t / 0.25;
+        const e    = 1 - Math.pow(1 - prog, 3);
+        txt.scale.set(0.3 + e * 0.7 + (prog < 0.5 ? (0.5 - prog) * 0.3 : 0));
+        txt.alpha  = prog;
+        flash.alpha = 0.40 * (1 - prog * 0.5);
+      } else if (t < 1.0) {
+        txt.scale.set(1); txt.alpha = 1; flash.alpha = 0;
+      } else if (t < 1.35) {
+        txt.alpha = 1 - (t - 1.0) / 0.35;
+      } else {
+        app.ticker.remove(unsub);
+        c.destroy({ children: true });
+      }
+    });
   }
 
   // ── Screen: Title ─────────────────────────────────────────────────────────
   function showTitle() {
     pauseBtn.visible = false;
     audio.playMusic('title');
+    // Return to 2D environment layers when leaving gameplay.
+    gameRenderer3D.hide();
+    layers.get('backgroundLayer').visible = true;
+    layers.get('laneLayer').visible       = true;
+    layers.get('carLayer').visible        = true;
     titleScreen = new TitleScreen(app.stage, APP_W, APP_H, {
       onPlay: () => {
         titleScreen?.destroy();
@@ -492,6 +594,11 @@ async function main() {
       onDailyChallenge:   () => { startDailyChallenge(); },
       onAchievements:     () => { showAchievements(() => { achievementsScreen?.destroy(); achievementsScreen = null; showTitle(); }); },
       onStats:            () => { showStats(); },
+      loginStreak:        progress.loginStreak,
+      onSurvival: () => {
+        titleScreen?.destroy(); titleScreen = null;
+        showSurvival();
+      },
       onSettings: () => {
         showSettings(() => {
           settingsScreen.destroy();
@@ -499,6 +606,24 @@ async function main() {
         });
       },
       audio,
+    });
+  }
+
+  // ── Screen: Survival ─────────────────────────────────────────────────────
+  function showSurvival() {
+    survivalWave  = 1;
+    survivalScreen = new SurvivalScreen(app.stage, APP_W, APP_H, {
+      progress,
+      audio,
+      onBack: () => {
+        survivalScreen?.destroy(); survivalScreen = null;
+        showTitle();
+      },
+      onStart: () => {
+        survivalScreen?.destroy(); survivalScreen = null;
+        const cfg = { ...LevelManager.getSurvivalConfig(survivalWave), isSurvival: true };
+        transition.fadeOut(0.25, () => { _startLevel(cfg); transition.fadeIn(0.25, null); });
+      },
     });
   }
 
@@ -522,11 +647,95 @@ async function main() {
   }
 
   // ── Screen: Level Select ──────────────────────────────────────────────────
+  // ── No Hearts panel ─────────────────────────────────────────────────────
+  // Shown when player tries to start a level with 0 hearts.
+  function _showNoHeartsPanel() {
+    const c = new Container();
+    app.stage.addChild(c);
+
+    const backdrop = new Graphics();
+    backdrop.rect(0, 0, APP_W, APP_H);
+    backdrop.fill({ color: 0x000000, alpha: 0.75 });
+    backdrop.eventMode = 'static';
+    c.addChild(backdrop);
+
+    const PW = 300, PH = 260, px = (APP_W - PW) / 2, py = (APP_H - PH) / 2 - 20;
+    const panel = new Graphics();
+    panel.roundRect(px, py, PW, PH, 18);
+    panel.fill({ color: 0x1a0510, alpha: 0.97 });
+    panel.roundRect(px, py, PW, PH, 18);
+    panel.stroke({ color: 0xff4466, width: 2, alpha: 0.6 });
+    c.addChild(panel);
+
+    const cx = APP_W / 2;
+    let cy = py + 44;
+
+    const addT = (text, x, y, style) => {
+      const t = new Text({ text, style: { fontWeight: 'bold', ...style } });
+      t.anchor.set(0.5, 0.5); t.x = x; t.y = y;
+      c.addChild(t);
+    };
+
+    addT('OUT OF HEARTS', cx, cy, { fontSize: 24, fill: 0xff4466 });
+    cy += 34;
+
+    // Hearts row
+    for (let i = 0; i < 5; i++) {
+      const hx = cx - 4 * 22 / 2 + i * 22;
+      const ht = new Text({ text: '♥', style: { fontSize: 20, fill: 0x333344 } });
+      ht.anchor.set(0.5, 0.5); ht.x = hx; ht.y = cy;
+      c.addChild(ht);
+    }
+    cy += 32;
+
+    // Timer until next heart
+    const timerTxt = new Text({
+      text: `Next heart in ${livesManager.formatTimeUntilNext()}`,
+      style: { fontSize: 13, fill: 0x7799aa, fontWeight: 'normal' },
+    });
+    timerTxt.anchor.set(0.5, 0.5); timerTxt.x = cx; timerTxt.y = cy;
+    c.addChild(timerTxt);
+
+    // Update timer every second
+    let timerInterval = setInterval(() => {
+      livesManager.tick();
+      if (livesManager.hasHearts()) {
+        clearInterval(timerInterval);
+        c.destroy({ children: true });
+        return;
+      }
+      timerTxt.text = `Next heart in ${livesManager.formatTimeUntilNext()}`;
+    }, 1000);
+
+    cy += 40;
+
+    // OK button
+    const btn = new Graphics();
+    btn.roundRect(-90, -22, 180, 44, 12); btn.fill(0x1a1a2e);
+    btn.x = cx; btn.y = cy;
+    btn.eventMode = 'static'; btn.cursor = 'pointer';
+    btn.on('pointerdown', () => {
+      clearInterval(timerInterval);
+      c.destroy({ children: true });
+      audio.play('button_tap');
+    });
+    btn.on('pointerover', () => { btn.alpha = 0.78; });
+    btn.on('pointerout',  () => { btn.alpha = 1.00; });
+    const bt = new Text({ text: 'OK', style: { fontSize: 18, fontWeight: 'bold', fill: 0x88aacc } });
+    bt.anchor.set(0.5, 0.5); btn.addChild(bt); c.addChild(btn);
+  }
+
   function showLevelSelect() {
     pauseBtn.visible = false;
-    audio.playMusic('title');   // title pad plays on all meta screens
+    audio.playMusic('title');
+    livesManager.tick();   // credit any regenerated hearts before showing
     levelSelectScreen = new LevelSelectScreen(app.stage, APP_W, APP_H, progress, {
       onSelectLevel: (levelId) => {
+        // ── Hearts gate ────────────────────────────────────────────────────
+        if (!livesManager.hasHearts()) {
+          _showNoHeartsPanel();
+          return;
+        }
         levelSelectScreen.destroy();
         levelSelectScreen = null;
         transition.fadeOut(0.25, () => {
@@ -554,10 +763,8 @@ async function main() {
         });
       },
       audio,
-    });
+    }, livesManager);
   }
-
-  // ── Screen: Shop ──────────────────────────────────────────────────────────
   function showShop() {
     shopScreen = new ShopScreen(app.stage, APP_W, APP_H, progress, boosterState, {
       onBack: () => {
@@ -617,7 +824,7 @@ async function main() {
   // onClose is provided by the caller so the same screen works from both
   // the title gear and the in-game pause menu.
   function showSettings(onClose) {
-    settingsScreen = new SettingsScreen(app.stage, APP_W, APP_H, audio, { onClose });
+    settingsScreen = new SettingsScreen(app.stage, APP_W, APP_H, audio, { onClose }, progress, haptics);
   }
 
   // ── Screen: Pause ─────────────────────────────────────────────────────────
@@ -681,32 +888,41 @@ async function main() {
     endAch.forEach(a => achievementQueue.push(a));
 
     let onNext;
+    let improved   = [];
+    let winLevelId = null;
     if (currentLevelIsDaily) {
-      // Daily challenge win: award bonus, no level progression.
       progress.completeDailyChallenge(dailyDateKey);
       onNext = null;
     } else {
       const levelId = levelManager.levelNumber;
       const stars   = calcStars(gs);
       progress.recordWin(levelId, stars);
+      // Update personal best and detect new records.
+      improved   = progress.updateBestStats(levelId, { combo: gs.maxCombo, time: gs.elapsed, stars });
+      winLevelId = levelId;
       onNext = () => {
         winScreen.destroy();
         winScreen = null;
-        const nextId = Math.min(20, levelId + 1);
+        const nextId = Math.min(40, levelId + 1);
         transition.fadeOut(0.30, () => {
           _startLevel(nextId);
           transition.fadeIn(0.30, null);
         });
       };
+
+      // Rating prompt: show after first ever 3-star win.
+      if (stars === 3 && !progress.ratingPromptShown) {
+        progress.markRatingPromptShown();
+        // Defer slightly so win screen is visible first.
+        setTimeout(() => {
+          if (typeof ratingPrompt !== 'undefined') ratingPrompt?.();
+        }, 2500);
+      }
     }
 
     winScreen = new WinScreen(
       app.stage, APP_W, APP_H, gs,
-
-      // ── Next Level (null for daily challenge) ────────────────────────────
       onNext,
-
-      // ── Menu (Level Select) ─────────────────────────────────────────────
       () => {
         winScreen.destroy();
         winScreen = null;
@@ -716,78 +932,43 @@ async function main() {
         });
       },
       audio,
+      improved,
+      winLevelId,
     );
-  }
-
-  // ── No-rescue game-over (Daily Challenge "Sudden Death") ─────────────────
-  // Shows a minimal GAME OVER panel with RETRY and LEVEL SELECT, no rescue option.
+  } (uses new LoseScreen with stats + near-miss) ────────
   function _showNoRescueLose() {
     pauseBtn.visible = false;
     audio.stopMusic();
     audio.play('lose_tone');
 
-    const c = new Container();
-    app.stage.addChild(c);
+    let loseScreen = null;
+    loseScreen = new LoseScreen(
+      app.stage, APP_W, APP_H,
+      {
+        onRetry: () => {
+          loseScreen?.destroy();
+          loseScreen = null;
+          rescueOverlay = null;
+          const cfg = currentLevelIsDaily ? dailyChallengeManager.getChallenge() : levelManager.levelNumber;
+          transition.fadeOut(0.20, () => { _startLevel(cfg); transition.fadeIn(0.20, null); });
+        },
+        onMenu: () => {
+          loseScreen?.destroy();
+          loseScreen = null;
+          rescueOverlay = null;
+          transition.fadeOut(0.20, () => { showLevelSelect(); transition.fadeIn(0.20, null); });
+        },
+        audio,
+      },
+      gs,
+      livesManager.hearts,
+    );
 
-    const backdrop = new Graphics();
-    backdrop.rect(0, 0, APP_W, APP_H);
-    backdrop.fill({ color: 0x000000, alpha: 0.80 });
-    backdrop.eventMode = 'static';
-    c.addChild(backdrop);
-
-    const panelW = 310, panelH = 240;
-    const px = (APP_W - panelW) / 2;
-    const py = (APP_H - panelH) / 2 - 20;
-
-    const panel = new Graphics();
-    panel.roundRect(px, py, panelW, panelH, 18);
-    panel.fill({ color: 0x1a0505, alpha: 0.97 });
-    panel.roundRect(px, py, panelW, panelH, 18);
-    panel.stroke({ color: 0xdd2222, width: 2, alpha: 0.6 });
-    c.addChild(panel);
-
-    const cx  = APP_W / 2;
-    let   cy  = py + 44;
-
-    const addText = (text, x, y, style) => {
-      const t = new Text({ text, style: { fontWeight: 'bold', ...style } });
-      t.anchor.set(0.5, 0.5); t.x = x; t.y = y;
-      c.addChild(t);
+    // Reuse rescueOverlay slot so _startLevel cleans up correctly.
+    rescueOverlay = {
+      update(dt) { loseScreen?.update(dt); },
+      destroy()  { loseScreen?.destroy(); loseScreen = null; },
     };
-    addText('GAME OVER', cx, cy, { fontSize: 32, fill: 0xff4444 });
-    cy += 38;
-    addText('No rescue on this challenge.', cx, cy, { fontSize: 14, fill: 0x999999, fontWeight: 'normal' });
-    cy += 52;
-
-    const addBtn = (label, bx, by, bgCol, lblCol, onClick) => {
-      const btnW = 210, btnH = 48;
-      const btn  = new Graphics();
-      btn.roundRect(-btnW / 2, -btnH / 2, btnW, btnH, 12);
-      btn.fill(bgCol);
-      btn.x = bx; btn.y = by;
-      btn.eventMode = 'static'; btn.cursor = 'pointer';
-      btn.on('pointerdown', () => { audio.play('button_tap'); onClick(); });
-      btn.on('pointerover',  () => { btn.alpha = 0.78; });
-      btn.on('pointerout',   () => { btn.alpha = 1.00; });
-      const t = new Text({ text: label, style: { fontSize: 20, fontWeight: 'bold', fill: lblCol } });
-      t.anchor.set(0.5, 0.5);
-      btn.addChild(t);
-      c.addChild(btn);
-    };
-
-    addBtn('RETRY', cx, cy, 0x3a1010, 0xff7777, () => {
-      c.destroy({ children: true });
-      const cfg = dailyChallengeManager.getChallenge();
-      transition.fadeOut(0.20, () => { _startLevel(cfg); transition.fadeIn(0.20, null); });
-    });
-    cy += 60;
-    addBtn('LEVEL SELECT', cx, cy, 0x1a2a3a, 0x88bbdd, () => {
-      c.destroy({ children: true });
-      transition.fadeOut(0.20, () => { showLevelSelect(); transition.fadeIn(0.20, null); });
-    });
-
-    // Reuse rescueOverlay slot so the overlay slot is cleaned up on _startLevel.
-    rescueOverlay = { update() {}, destroy() { c.destroy({ children: true }); } };
   }
 
   // ── Screen: Rescue ────────────────────────────────────────────────────────
@@ -837,6 +1018,7 @@ async function main() {
 
     onKill: (combo) => {
       hudRenderer.bumpCombo(combo);
+      gameRenderer3D.setCombo(combo);
       if (combo === 4 || combo === 7 || combo === 11) {
         audio.play('combo_milestone', { combo });
       }
@@ -873,14 +1055,19 @@ async function main() {
 
       if (laneIdx >= 0) laneFlash.flash(laneIdx);
       if (colIdx  >= 0) shooterRenderer.triggerDeployPunch(colIdx);
+      if (colIdx  >= 0) gameRenderer3D.triggerDeployPunch(colIdx);
+      if (laneIdx >= 0) gameRenderer3D.onShoot(laneIdx);
+      haptics.light();
     },
 
     onHit: (laneIdx, gameX, color, damage, isKill) => {
       particles.spawnHit(laneIdx, gameX, color);
       particles.spawnDamageNumber(laneIdx, gameX, damage);
+      gameRenderer3D.onHit(laneIdx, color, damage, isKill);
       if (isKill) {
         particles.spawnExplosion(laneIdx, gameX, color);
         audio.play('car_destroy');
+        haptics.medium();
       } else {
         audio.play('hit_match');
       }
@@ -888,6 +1075,7 @@ async function main() {
 
     onMiss: (laneIdx, gameX) => {
       particles.spawnMiss(laneIdx, gameX);
+      gameRenderer3D.onMiss(laneIdx);
       audio.play('hit_miss');
     },
 
@@ -912,11 +1100,25 @@ async function main() {
       });
 
       if (won) {
-        showWin();
+        // ── Survival: wave complete — auto-advance to next wave ───────────
+        if (currentLevelIsDaily === false && isSurvivalRun) {
+          survivalWave++;
+          progress.recordSurvivalRun(survivalWave - 1, gs.totalKills);
+          const nextWaveCfg = { ...LevelManager.getSurvivalConfig(survivalWave), isSurvival: true };
+          transition.fadeOut(0.20, () => {
+            _startLevel(nextWaveCfg);
+            transition.fadeIn(0.20, null);
+          });
+        } else {
+          showWin();
+        }
       } else {
         audio.stopMusic();
         audio.play('lose_tone');
         shakeTime = 0;
+        gameRenderer3D.onBreach();
+        haptics.heavy();
+        livesManager.loseHeart();
         // noRescue levels (e.g. Sudden Death daily challenge) skip the rescue panel.
         breachCam = { laneIdx: laneIdx ?? 0, t: 0, done: false, skipRescue: noRescueThisLevel };
       }
@@ -964,6 +1166,10 @@ async function main() {
   app.ticker.add((ticker) => {
     const dt = Math.min(ticker.deltaMS / 1000, 0.05);
 
+    // 3D scene update + render (runs when gameRenderer3D is visible/active).
+    gameRenderer3D.update({ lanes: gs.lanes, boosterState }, dt, gs.elapsed);
+    gameRenderer3D.render();
+
     // Background + road + overlay updates
     cityBg.update(gs.elapsed);
     laneRenderer.update(gs.elapsed);
@@ -977,6 +1183,7 @@ async function main() {
 
     // Core renderer updates
     hudRenderer.update(dt);
+    hudRenderer.setHearts(livesManager.hearts);
     particles.update(dt);
     carRenderer.update(dt, boosterState.isFrozen(gs.elapsed));
     shooterRenderer.update(gs.elapsed, dt);
@@ -1029,6 +1236,8 @@ async function main() {
 
     if (rescueOverlay)    rescueOverlay.update(dt);
     if (ftueOverlay)      ftueOverlay.update(dt);
+    if (titleScreen)      titleScreen.update?.(dt);
+    if (winScreen)        winScreen.update?.(dt);
 
     // Combo explanation popup — auto-dismiss after 3 s.
     if (comboPopup) {

@@ -9,6 +9,7 @@
 // Textures must be preloaded by GameApp before ShooterRenderer is instantiated.
 import { Sprite, Graphics, Container, Text, Assets } from 'pixi.js';
 import { spriteFlags } from './SpriteFlags.js';
+import { isColorblind, SHAPES } from '../game/ColorblindMode.js';
 
 // ── Layout ────────────────────────────────────────────────────────────────────
 export const SHOOTER_AREA_Y  = 520;
@@ -270,7 +271,9 @@ export class ShooterRenderer {
         sp2.x = cx; sp2.y = SECOND_Y;
         sp2.alpha   = 0.65;
         sp2.visible = true;
-        this._secondTexts[i].text    = String(second.damage);
+        this._secondTexts[i].text    = isColorblind()
+          ? `${SHAPES[second.color] ?? ''}${second.damage}`
+          : String(second.damage);
         this._secondTexts[i].x       = cx;
         this._secondTexts[i].y       = SECOND_Y;
         this._secondTexts[i].alpha   = 0.65;
@@ -289,7 +292,9 @@ export class ShooterRenderer {
         sp3.x = cx; sp3.y = THIRD_Y;
         sp3.alpha   = 0.40;
         sp3.visible = true;
-        this._thirdTexts[i].text    = String(third.damage);
+        this._thirdTexts[i].text    = isColorblind()
+          ? `${SHAPES[third.color] ?? ''}${third.damage}`
+          : String(third.damage);
         this._thirdTexts[i].x       = cx;
         this._thirdTexts[i].y       = THIRD_Y;
         this._thirdTexts[i].alpha   = 0.40;
@@ -328,7 +333,9 @@ export class ShooterRenderer {
         const tex = Assets.get(url);
         if (tex && sp1.texture !== tex) { sp1.texture = tex; fitSprite(sp1, TOP_DIAM); }
         sp1.visible       = true;
-        topText.text      = String(top.damage);
+        topText.text      = isColorblind()
+          ? `${SHAPES[top.color] ?? ''}${top.damage}`
+          : String(top.damage);
         topText.visible   = true;
       } else {
         sp1.visible     = false;

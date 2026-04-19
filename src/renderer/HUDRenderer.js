@@ -137,6 +137,19 @@ export class HUDRenderer {
     this._levelText.y = TEXT_MID;
     this._layer.addChild(this._levelText);
 
+    // ── Hearts display ─────────────────────────────────────────────────────
+    // 5 small heart symbols right of the level label — filled (♥) or empty (♡).
+    this._heartTexts = [];
+    for (let i = 0; i < 5; i++) {
+      const ht = new Text({ text: '♥', style: { fontSize: 11, fill: 0xff4466 } });
+      ht.anchor.set(0, 0.5);
+      ht.x = 70 + i * 13;
+      ht.y = TEXT_MID;
+      this._layer.addChild(ht);
+      this._heartTexts.push(ht);
+    }
+    this._lastHearts = -1;
+
     // ── Spring bounce state ───────────────────────────────────────────────
     this._bounceScale  = 1;
     this._bounceVel    = 0;
@@ -148,6 +161,17 @@ export class HUDRenderer {
   // Call whenever the level changes so the label stays in sync.
   setLevel(n) {
     this._levelText.text = `L${n}`;
+  }
+
+  /** Update the hearts row display. n = current hearts (0-5). */
+  setHearts(n) {
+    if (n === this._lastHearts) return;
+    this._lastHearts = n;
+    for (let i = 0; i < 5; i++) {
+      const ht = this._heartTexts[i];
+      ht.text  = i < n ? '♥' : '♡';
+      ht.style = { fontSize: 11, fill: i < n ? 0xff4466 : 0x444455 };
+    }
   }
 
   // Call when the combo increments so the text pops with a spring bounce.

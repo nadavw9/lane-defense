@@ -77,6 +77,38 @@ const PROGRESSION = [
 
   // ── L20: 3-lane special, Yellow unlocked ──────────────────────────────────
   { id: 20, laneCount: 3, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow'], worldConfig: WORLD_CONFIG[1], duration: 100, showArrow: false, hintText: 'NEW! Yellow shooters unlocked!' },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // WORLD 2 — Full palette unlocked, escalating difficulty
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ── W2 intro: reintroduce with Yellow, slightly harder ─────────────────────
+  { id: 21, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow'], worldConfig: { hpMultiplier: 1.0,  speed: { base: 5.0, variance: 0.5 } }, duration: 100, hintText: 'Welcome to World 2!' },
+  { id: 22, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow'], worldConfig: { hpMultiplier: 1.05, speed: { base: 5.2, variance: 0.5 } }, duration: 100, hintText: null },
+  { id: 23, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow'], worldConfig: { hpMultiplier: 1.1,  speed: { base: 5.4, variance: 0.5 } }, duration:  95, hintText: null },
+
+  // ── L24: Purple unlocked ──────────────────────────────────────────────────
+  { id: 24, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple'], worldConfig: { hpMultiplier: 1.0,  speed: { base: 5.2, variance: 0.5 } }, duration: 100, hintText: 'NEW! Purple shooters!' },
+  { id: 25, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple'], worldConfig: { hpMultiplier: 1.1,  speed: { base: 5.4, variance: 0.5 } }, duration:  95, hintText: null },
+  { id: 26, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple'], worldConfig: { hpMultiplier: 1.15, speed: { base: 5.5, variance: 0.6 } }, duration:  90, hintText: null }, // hard
+  { id: 27, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple'], worldConfig: { hpMultiplier: 0.70, speed: { base: 5.5, variance: 0.6 } }, duration:  90, hintText: null }, // rush
+  { id: 28, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple'], worldConfig: { hpMultiplier: 1.2,  speed: { base: 5.6, variance: 0.6 } }, duration:  90, hintText: null },
+  { id: 29, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple'], worldConfig: { hpMultiplier: 1.2,  speed: { base: 5.8, variance: 0.6 } }, duration:  90, hintText: null },
+
+  // ── L30: Orange unlocked — full 6-color palette ────────────────────────────
+  { id: 30, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'], worldConfig: { hpMultiplier: 1.1,  speed: { base: 5.5, variance: 0.6 } }, duration: 100, hintText: 'NEW! Orange unlocked — all 6 colors!' },
+  { id: 31, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'], worldConfig: { hpMultiplier: 1.15, speed: { base: 5.6, variance: 0.6 } }, duration:  95, hintText: null },
+  { id: 32, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'], worldConfig: { hpMultiplier: 1.2,  speed: { base: 5.8, variance: 0.7 } }, duration:  90, hintText: null },
+  { id: 33, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'], worldConfig: { hpMultiplier: 0.70, speed: { base: 6.0, variance: 0.7 } }, duration:  85, hintText: null }, // rush
+  { id: 34, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'], worldConfig: { hpMultiplier: 1.25, speed: { base: 6.0, variance: 0.7 } }, duration:  90, hintText: null }, // hard
+  { id: 35, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'], worldConfig: { hpMultiplier: 1.25, speed: { base: 6.2, variance: 0.7 } }, duration:  90, hintText: null },
+  { id: 36, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'], worldConfig: { hpMultiplier: 1.3,  speed: { base: 6.2, variance: 0.8 } }, duration:  85, hintText: null },
+  { id: 37, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'], worldConfig: { hpMultiplier: 0.75, speed: { base: 6.5, variance: 0.8 } }, duration:  80, hintText: null }, // sprint rush
+  { id: 38, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'], worldConfig: { hpMultiplier: 1.35, speed: { base: 6.5, variance: 0.8 } }, duration:  85, hintText: null }, // hard
+  { id: 39, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'], worldConfig: { hpMultiplier: 1.35, speed: { base: 6.8, variance: 0.8 } }, duration:  85, hintText: null },
+
+  // ── L40: 3-lane grandmaster finale ────────────────────────────────────────
+  { id: 40, laneCount: 3, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'], worldConfig: { hpMultiplier: 1.5, speed: { base: 7.0, variance: 0.8 } }, duration: 120, hintText: 'GRANDMASTER FINALE — good luck!' },
 ];
 
 export class LevelManager {
@@ -124,7 +156,7 @@ export class LevelManager {
     return this.current;
   }
 
-  // Jump directly to a level by id (1-20).  No-op for unknown ids.
+  // Jump directly to a level by id (1-40).  No-op for unknown ids.
   goToLevel(id) {
     const idx = PROGRESSION.findIndex(cfg => cfg.id === id);
     if (idx >= 0) this._idx = idx;
@@ -133,5 +165,44 @@ export class LevelManager {
   // True once we've reached the last level.
   get isFinalLevel() {
     return this._idx === PROGRESSION.length - 1;
+  }
+
+  // World number for the current level (1 = L1-20, 2 = L21-40).
+  get world() { return this.current.id <= 20 ? 1 : 2; }
+
+  // Total number of levels.
+  get totalLevels() { return PROGRESSION.length; }
+
+  // Returns all level configs for a given world number.
+  getLevelsForWorld(worldNum) {
+    const start = (worldNum - 1) * 20 + 1;
+    const end   = worldNum * 20;
+    return PROGRESSION.filter(cfg => cfg.id >= start && cfg.id <= end);
+  }
+
+  /**
+   * Generate an escalating config for Survival mode.
+   * Each wave is 30s. Difficulty increases every wave.
+   * @param {number} wave — starting from 1
+   */
+  static getSurvivalConfig(wave) {
+    const speed   = Math.min(9.5, 4.0 + wave * 0.28);
+    const hp      = Math.min(2.0, 0.65 + wave * 0.04);
+    const colors  = wave < 4  ? ['Red', 'Blue']
+                  : wave < 8  ? ['Red', 'Blue', 'Green']
+                  : wave < 12 ? ['Red', 'Blue', 'Green', 'Yellow']
+                  : wave < 16 ? ['Red', 'Blue', 'Green', 'Yellow', 'Purple']
+                  :              ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'];
+    return {
+      id:          `survival_w${wave}`,
+      isSurvival:  true,
+      wave,
+      laneCount:   4,
+      colCount:    4,
+      colors,
+      worldConfig: { hpMultiplier: hp, speed: { base: speed, variance: 0.6 } },
+      duration:    30,   // 30s per wave
+      noRescue:    true,
+    };
   }
 }

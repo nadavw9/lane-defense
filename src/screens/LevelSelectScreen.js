@@ -42,13 +42,20 @@ function nodePos(levelId) {
 // ── Main class ───────────────────────────────────────────────────────────────
 
 export class LevelSelectScreen {
-  // progress    — ProgressManager instance (read-only here)
-  // callbacks   — { onSelectLevel(levelId), onBack, onShop, onAchievements, audio }
-  constructor(stage, appW, appH, progress, { onSelectLevel, onBack, onShop, onAchievements, audio }) {
+  // progress      — ProgressManager instance (read-only here)
+  // livesManager  — LivesManager (optional; shows hearts in header)
+  // callbacks     — { onSelectLevel(levelId), onBack, onShop, onAchievements, audio }
+  constructor(stage, appW, appH, progress, { onSelectLevel, onBack, onShop, onAchievements, audio }, livesManager = null) {
     this._container = new Container();
     stage.addChild(this._container);
-    this._glowNode  = null;
-    this._glowTime  = 0;
+    this._glowNode    = null;
+    this._glowTime    = 0;
+    this._lives       = livesManager;
+    this._worldPage   = 1;
+    this._progress    = progress;
+    this._appW        = appW;
+    this._appH        = appH;
+    this._callbacks   = { onSelectLevel, onBack, onShop, onAchievements, audio };
     this._build(appW, appH, progress, onSelectLevel, onBack, onShop, onAchievements, audio);
   }
 
@@ -83,9 +90,26 @@ export class LevelSelectScreen {
     backBtn.on('pointerdown', () => { audio?.play('button_tap'); onBack(); });
     this._container.addChild(backBtn);
 
-    const hdr = new Text({ text: 'WORLD 1', style: { fontSize: 22, fontWeight: 'bold', fill: 0xffffff } });
+    const hdr = new Text({ text: `WORLD ${this._worldPage}`, style: { fontSize: 22, fontWeight: 'bold', fill: 0xffffff } });
     hdr.anchor.set(0.5, 0.5); hdr.x = w / 2; hdr.y = NAV_Y;
     this._container.addChild(hdr);
+
+    // World page arrows — ◄ left (if W2) / right (if W1 completed) ►
+    const canGoW2 = (progress.unlockedLevel ?? 1) > 20;
+    if (this._worldPage === 1 && canGoW2) {
+      const w2Btn = new Text({ text: 'W2 ▶', style: { fontSize: 13, fontWeight: 'bold', fill: 0x66aaff } });
+      w2Btn.anchor.set(1, 0.5); w2Btn.x = w / 2 + 70; w2Btn.y = NAV_Y;
+      w2Btn.eventMode = 'static'; w2Btn.cursor = 'pointer';
+      w2Btn.on('pointerdown', () => { audio?.play('button_tap'); this._switchWorld(2); });
+      this._container.addChild(w2Btn);
+    }
+    if (this._worldPage === 2) {
+      const w1Btn = new Text({ text: '◀ W1', style: { fontSize: 13, fontWeight: 'bold', fill: 0x66aaff } });
+      w1Btn.anchor.set(0, 0.5); w1Btn.x = w / 2 - 70; w1Btn.y = NAV_Y;
+      w1Btn.eventMode = 'static'; w1Btn.cursor = 'pointer';
+      w1Btn.on('pointerdown', () => { audio?.play('button_tap'); this._switchWorld(1); });
+      this._container.addChild(w1Btn);
+    }
 
     const shopBtn = new Text({ text: 'SHOP', style: { fontSize: 15, fontWeight: 'bold', fill: 0xf5c842 } });
     shopBtn.anchor.set(1, 0.5); shopBtn.x = w - 14; shopBtn.y = NAV_Y;
@@ -95,12 +119,30 @@ export class LevelSelectScreen {
     shopBtn.on('pointerout',   () => { shopBtn.alpha = 1.00; });
     this._container.addChild(shopBtn);
 
-    // ── Header row 2 (y=50): coins | ACHIEVEMENTS ─────────────────────────
+    // ── Header row 2 (y=50): coins | hearts | ACHIEVEMENTS ────────────────
     const COINS_Y = 50;
 
     const coinsTxt = new Text({ text: `◆ ${progress.coins}`, style: { fontSize: 16, fontWeight: 'bold', fill: 0xf5c842 } });
     coinsTxt.anchor.set(0, 0.5); coinsTxt.x = 14; coinsTxt.y = COINS_Y;
     this._container.addChild(coinsTxt);
+
+    // Hearts row — centred in header
+    if (this._lives) {
+      const MAX = 5, h = this._lives.hearts;
+      for (let i = 0; i < MAX; i++) {
+        const ht = new Text({ text: i < h ? '♥' : '♡', style: { fontSize: 14, fill: i < h ? 0xff4466 : 0x444455 } });
+        ht.anchor.set(0.5, 0.5);
+        ht.x = w / 2 - (MAX - 1) * 10 / 2 + i * 10;
+        ht.y = COINS_Y;
+        this._container.addChild(ht);
+      }
+      // Time until next heart (if not full)
+      if (!this._lives.isFull()) {
+        const timer = new Text({ text: `+1 in ${this._lives.formatTimeUntilNext()}`, style: { fontSize: 10, fill: 0x7799aa, fontWeight: 'normal' } });
+        timer.anchor.set(0.5, 0.5); timer.x = w / 2; timer.y = COINS_Y + 12;
+        this._container.addChild(timer);
+      }
+    }
 
     if (onAchievements) {
       const achBtn = new Text({ text: '★ ACHIEVEMENTS', style: { fontSize: 13, fontWeight: 'bold', fill: 0xaabbcc } });
@@ -118,8 +160,9 @@ export class LevelSelectScreen {
     sep.fill({ color: 0x224466, alpha: 0.5 });
     this._container.addChild(sep);
 
-    // ── "World 2 Coming Soon" banner just below header ─────────────────────
-    const csBanner = new Text({ text: '· WORLD 2  COMING SOON ·', style: { fontSize: 12, fill: 0x2a3a4a } });
+    // ── World subtitle banner ──────────────────────────────────────────────
+    const worldSub = this._worldPage === 1 ? '20 levels · 3 colors' : '20 levels · 6 colors · Expert';
+    const csBanner = new Text({ text: worldSub, style: { fontSize: 12, fill: 0x2a4a3a } });
     csBanner.anchor.set(0.5, 0.5); csBanner.x = w / 2; csBanner.y = 81;
     this._container.addChild(csBanner);
 
@@ -136,10 +179,15 @@ export class LevelSelectScreen {
     this._drawPath(unlocked);
 
     // ── Level nodes ────────────────────────────────────────────────────────
-    const nextToPlay = (unlocked <= 20 && progress.getStars(unlocked) === 0) ? unlocked : null;
+    const worldBase  = (this._worldPage - 1) * 20;   // 0 for W1, 20 for W2
+    const firstId    = worldBase + 1;
+    const lastId     = worldBase + 20;
+    const nextToPlay = (unlocked >= firstId && unlocked <= lastId && progress.getStars(unlocked) === 0)
+      ? unlocked : null;
 
-    for (let levelId = 1; levelId <= 20; levelId++) {
-      const { x, y } = nodePos(levelId);
+    for (let levelId = firstId; levelId <= lastId; levelId++) {
+      const localId    = levelId - worldBase;     // 1-20 within this world
+      const { x, y }  = nodePos(localId);
       const stars      = progress.getStars(levelId);
       const isUnlocked = levelId <= unlocked;
       this._buildNode(levelId, x, y, stars, isUnlocked, () => {
@@ -149,7 +197,8 @@ export class LevelSelectScreen {
 
     // ── Pulsing glow ring for the next-to-play node ────────────────────────
     if (nextToPlay !== null) {
-      const { x, y } = nodePos(nextToPlay);
+      const localId = nextToPlay - worldBase;
+      const { x, y } = nodePos(localId);
       const glow = new Graphics();
       glow.circle(x, y, NODE_R + 9);
       glow.stroke({ color: 0x44ff88, width: 4, alpha: 1 });
@@ -159,16 +208,28 @@ export class LevelSelectScreen {
     }
   }
 
+  // Rebuild the screen for a different world page.
+  _switchWorld(worldNum) {
+    this._worldPage = worldNum;
+    this._glowNode  = null;
+    this._glowTime  = 0;
+    this._container.removeChildren().forEach(c => c.destroy({ children: true }));
+    const { onSelectLevel, onBack, onShop, onAchievements, audio } = this._callbacks;
+    this._build(this._appW, this._appH, this._progress, onSelectLevel, onBack, onShop, onAchievements, audio);
+  }
+
   // Draw connecting lines between consecutive level nodes.
   // All segments share one Graphics so each stroke() resets the path cleanly —
   // separate Graphics objects leave the path cursor at (0,0) between calls,
   // which PixiJS v8 renders as an extra segment from the canvas origin.
   _drawPath(unlockedLevel) {
+    const worldBase = (this._worldPage - 1) * 20;
     const g = new Graphics();
-    for (let id = 1; id < 20; id++) {
-      const { x: ax, y: ay } = nodePos(id);
-      const { x: bx, y: by } = nodePos(id + 1);
-      const reached = id < unlockedLevel;
+    for (let localId = 1; localId < 20; localId++) {
+      const levelId = worldBase + localId;
+      const { x: ax, y: ay } = nodePos(localId);
+      const { x: bx, y: by } = nodePos(localId + 1);
+      const reached = levelId < unlockedLevel;
       g.moveTo(ax, ay);
       g.lineTo(bx, by);
       g.stroke({ color: reached ? 0x2a7a4a : 0x151e28, width: reached ? 4 : 3, alpha: reached ? 0.85 : 0.55 });

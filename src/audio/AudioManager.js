@@ -29,7 +29,9 @@ export class AudioManager {
       this._ctx = null;
     }
 
-    this._muted = false;
+    this._muted    = false;
+    this._sfxVol   = 1.0;   // multiplier for setSfxVolume
+    this._musicVol = 1.0;   // multiplier for setMusicVolume
 
     if (this._ctx) {
       // Single master gain — ramping to 0 silences everything at once.
@@ -91,6 +93,28 @@ export class AudioManager {
   }
 
   get muted() { return this._muted; }
+
+  /** Set SFX (master) volume 0.0–1.0. Preserved across mute/unmute. */
+  setSfxVolume(v) {
+    this._sfxVol = Math.max(0, Math.min(1, v));
+    if (!this._muted && this._master) {
+      this._master.gain.linearRampToValueAtTime(
+        MASTER_VOL * this._sfxVol,
+        this._ctx.currentTime + 0.04,
+      );
+    }
+  }
+
+  /** Set music-specific volume multiplier 0.0–1.0. */
+  setMusicVolume(v) {
+    this._musicVol = Math.max(0, Math.min(1, v));
+    if (this._musicGain) {
+      this._musicGain.gain.linearRampToValueAtTime(
+        MUSIC_VOL * this._musicVol,
+        this._ctx.currentTime + 0.04,
+      );
+    }
+  }
 
   // ── Public: Music ──────────────────────────────────────────────────────────
 

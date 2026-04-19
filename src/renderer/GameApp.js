@@ -935,7 +935,7 @@ async function main() {
       improved,
       winLevelId,
     );
-  } (uses new LoseScreen with stats + near-miss) ────────
+  } 
   function _showNoRescueLose() {
     pauseBtn.visible = false;
     audio.stopMusic();

@@ -57,18 +57,7 @@ function defaults() {
     bestStats:           {},    // { [levelId]: { combo: N, time: N, stars: N } }
   };
 }
-    totalCoinsEarned:       0,
-    totalBenchUses:         0,
-    totalBoostersPurchased: 0,
-    totalDailyClaims:       0,
-    dailyChallenge:         { date: '', completed: false },
-    totalCarsDestroyed:     0,
-    longestCombo:           0,
-    totalAccurateShots:     0,
-    totalShots:             0,
-    boosterUseCounts:       { swap: 0, peek: 0, freeze: 0 },
-  };
-}
+    
 
 export class ProgressManager {
   constructor() {

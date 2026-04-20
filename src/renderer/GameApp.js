@@ -226,9 +226,6 @@ async function main() {
   const streakResult = progress.touchLoginStreak();
   const loginStreak  = streakResult.count;
 
-  // Weekly featured playlist — same 3 levels for all players this week.
-  const weeklyPlaylist = dailyChallengeManager.getWeeklyPlaylist();
-
   // Offline coin reward — computed once on startup; shown after title appears.
   const offlineReward = progress.claimOfflineReward();
 
@@ -373,6 +370,7 @@ async function main() {
   // ── Achievement system ────────────────────────────────────────────────────
   const achievementManager    = new AchievementManager(progress);
   const dailyChallengeManager = new DailyChallengeManager();
+  const weeklyPlaylist        = dailyChallengeManager.getWeeklyPlaylist();
   const achievementQueue      = [];    // pending popup notifications
   let   activeAchievementPopup  = null;
   let   activeAchievementTimer  = 0;

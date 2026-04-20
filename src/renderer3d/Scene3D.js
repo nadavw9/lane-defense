@@ -66,6 +66,26 @@ export class Scene3D {
     this.camera = new THREE.PerspectiveCamera(55, width / height, 0.1, 200);
     this.camera.position.set(0, 9, 16);
     this.camera.lookAt(0, 0, -8);
+    // Road camera only sees layer 0 objects; shooter objects live on layer 1.
+    this.camera.layers.set(0);
+
+    // ── Shooter viewport camera ──────────────────────────────────────────────
+    // Renders the 4 turret columns into the bottom 180 px of the canvas.
+    // FOV=60°, aspect=390/180; camera at Z=8 looking toward Z=0 frames all 4
+    // columns (X = ±4.5, ±1.5) with comfortable margins.
+    const SHOOTER_H = 180;
+    this.shooterCamera = new THREE.PerspectiveCamera(60, width / SHOOTER_H, 0.1, 50);
+    this.shooterCamera.position.set(0, 0.5, 8);
+    this.shooterCamera.lookAt(0, 0.5, 0);
+    this.shooterCamera.layers.set(1);  // only sees layer 1
+
+    // Dark background plane for the shooter viewport (layer 1).
+    this._shooterBgGeo = new THREE.PlaneGeometry(42, 16);
+    this._shooterBgMat = new THREE.MeshBasicMaterial({ color: 0x0d0d1a });
+    this._shooterBg    = new THREE.Mesh(this._shooterBgGeo, this._shooterBgMat);
+    this._shooterBg.position.set(0, 0.5, -2);
+    this._shooterBg.layers.set(1);
+    this.scene.add(this._shooterBg);
 
     // ── Post-Processing ─────────────────────────────────────────────────────
     // Pass order: RenderPass → BloomPass → [ChromaPass → VignettePass] → OutputPass
@@ -90,13 +110,51 @@ export class Scene3D {
     this.composer.setSize(width, height);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+    this.shooterCamera.aspect = width / 180;
+    this.shooterCamera.updateProjectionMatrix();
     this._bloomPass.resolution.set(width, height);
   }
 
+  // Standard single-pass render (used when no shooter viewport needed).
   render() { this.composer.render(); }
+
+  // Dual-pass render:
+  //   Pass 1 — road scene via bloom composer → full canvas (layer 0 objects)
+  //   Pass 2 — shooter columns via direct render → bottom 180 px (layer 1 objects)
+  // PixiJS shooter panel backgrounds must be transparent for this to show through.
+  //
+  // WebGL viewport origin is bottom-left. App height = 844 px.
+  // Shooter area (PixiJS y=520–700, h=180) → WebGL y = 844-700 = 144, h = 180.
+  renderDual() {
+    const { renderer, composer } = this;
+    const w = this.width;
+    const h = this.height;
+    const SHOOTER_GL_Y = h - 700;   // 844 - 700 = 144
+    const SHOOTER_GL_H = 180;
+
+    renderer.autoClear = false;
+
+    // Pass 1: road scene — full canvas, via bloom post-processing.
+    renderer.setViewport(0, 0, w, h);
+    renderer.clear(true, true, true);
+    composer.render();
+
+    // Pass 2: shooter columns — bottom viewport, direct render (no bloom).
+    renderer.clearDepth();
+    renderer.setViewport(0, SHOOTER_GL_Y, w, SHOOTER_GL_H);
+    renderer.setScissor(0, SHOOTER_GL_Y, w, SHOOTER_GL_H);
+    renderer.setScissorTest(true);
+    renderer.render(this.scene, this.shooterCamera);
+    renderer.setScissorTest(false);
+    renderer.setViewport(0, 0, w, h);   // restore
+
+    renderer.autoClear = true;
+  }
 
   destroy() {
     this._envMap?.dispose();
+    this._shooterBgGeo?.dispose();
+    this._shooterBgMat?.dispose();
     this.composer.dispose();
     this.renderer.dispose();
   }

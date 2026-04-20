@@ -252,7 +252,7 @@ export class GameRenderer3D {
   render() {
     if (!this._mounted) return;
     if (this._canvas?.style.display === 'none') return;
-    this._scene3d.render();
+    this._scene3d.renderDual();
   }
 
   // ── Teardown ────────────────────────────────────────────────────────────────

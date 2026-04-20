@@ -31,10 +31,10 @@ const BARREL_H   = 1.00;   // extends toward road (toward -Z from turret)
 const TORUS_R    = 0.52;   // ring radius
 const TORUS_TUBE = 0.04;
 
-// Turret placed just inside the near road edge, scaled so it appears in the
-// lower portion of the 3D view that's visible behind the semi-transparent
-// PixiJS shooter panel.
-const TURRET_Z = ROAD_Z_NEAR - 1.5;
+// Turret world position for the shooter viewport camera.
+// Camera at (0, 0.5, 8) looks at (0, 0.5, 0).
+// Turrets at Z=0 appear at the camera's focus point — fills the viewport well.
+const TURRET_Z = 0.0;
 const TURRET_Y = BASE_H + BODY_H / 2;
 
 // Barrel tip offset from body centre (points in +Z direction = toward road/camera).
@@ -268,6 +268,9 @@ export class Shooter3D {
     group.add(ring);
 
     this._scene.add(group);
+
+    // Layer 1: only visible to the shooter viewport camera (not the road camera).
+    group.traverse(obj => obj.layers.set(1));
 
     return {
       group, bodyMat, ringMat, barrelMat, barrel, tipGlowMat,

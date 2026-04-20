@@ -222,19 +222,25 @@ export class LevelSelectScreen {
   }
 
   // Draw connecting lines between consecutive level nodes.
-  // One Graphics object per segment — the only reliable way to draw multiple
-  // independent stroked lines in PixiJS v8 without phantom connections.
+  // Uses fill(rect) + rotation instead of moveTo/lineTo/stroke to avoid a
+  // PixiJS v8 bug where every moveTo implicitly draws a segment from (0,0).
   _drawPath(unlockedLevel) {
     const worldBase = (this._worldPage - 1) * 20;
     for (let localId = 1; localId < 20; localId++) {
       const levelId = worldBase + localId;
       const { x: ax, y: ay } = nodePos(localId);
       const { x: bx, y: by } = nodePos(localId + 1);
-      const reached = levelId < unlockedLevel;
+      const reached  = levelId < unlockedLevel;
+      const lineW    = reached ? 4 : 3;
+      const dx = bx - ax, dy = by - ay;
+      const len = Math.sqrt(dx * dx + dy * dy);
+
       const g = new Graphics();
-      g.moveTo(ax, ay);
-      g.lineTo(bx, by);
-      g.stroke({ color: reached ? 0x2a7a4a : 0x151e28, width: reached ? 4 : 3, alpha: reached ? 0.85 : 0.55 });
+      // Draw a thin rectangle centred at origin, then rotate + translate.
+      g.rect(-len / 2, -lineW / 2, len, lineW);
+      g.fill({ color: reached ? 0x2a7a4a : 0x151e28, alpha: reached ? 0.85 : 0.45 });
+      g.position.set((ax + bx) / 2, (ay + by) / 2);
+      g.rotation = Math.atan2(dy, dx);
       this._container.addChild(g);
     }
   }

@@ -248,11 +248,13 @@ export class ShooterRenderer {
       g.clear();
 
       // ── Panel background ────────────────────────────────────────────────────
-      // Semi-transparent so the 3D turrets from Shooter3D show through.
+      // Fully transparent — the 3D Shooter3D turrets rendered in the bottom
+      // Three.js viewport show through. PixiJS draws only damage numbers,
+      // drag hit areas, and the swap/peek highlights on top.
       const panelX = i * COL_W + PANEL_PAD;
       const panelW = COL_W - PANEL_PAD * 2;
       g.roundRect(panelX, SHOOTER_AREA_Y + PANEL_PAD, panelW, SHOOTER_AREA_H - PANEL_PAD * 2, PANEL_RADIUS);
-      g.fill({ color: PANEL_COLOR, alpha: 0.72 });
+      g.fill({ color: PANEL_COLOR, alpha: 0 });
 
       if (bs?.swapMode && bs.swapFirst === i) {
         g.roundRect(panelX, SHOOTER_AREA_Y + PANEL_PAD, panelW, SHOOTER_AREA_H - PANEL_PAD * 2, PANEL_RADIUS);

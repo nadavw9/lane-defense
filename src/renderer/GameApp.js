@@ -140,13 +140,14 @@ function spawnFloatingText(parent, x, y, text, color = 0xffffff) {
 // ── Sprite manifest ───────────────────────────────────────────────────────────
 
 const COLORS   = ['red', 'blue', 'green', 'yellow', 'purple', 'orange'];
+const _B       = import.meta.env.BASE_URL;   // '' in dev, '/lane-defense/' on GH Pages
 const CAR_URLS = [
-  ...COLORS.map(c => `/sprites/cars/car-${c}.png`),
-  '/sprites/cars/car-boss.png',
+  ...COLORS.map(c => `${_B}sprites/cars/car-${c}.png`),
+  `${_B}sprites/cars/car-boss.png`,
 ];
 const SHOOTER_URLS = COLORS.flatMap(c => [
-  `/sprites/shooters/shooter-${c}-idle.png`,
-  `/sprites/shooters/shooter-${c}-fire.png`,
+  `${_B}sprites/shooters/shooter-${c}-idle.png`,
+  `${_B}sprites/shooters/shooter-${c}-fire.png`,
 ]);
 const ALL_SPRITE_URLS = [...CAR_URLS, ...SHOOTER_URLS];
 

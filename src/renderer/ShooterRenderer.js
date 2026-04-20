@@ -108,8 +108,9 @@ function drawCannon(g, color, size, alpha = 1, ox = 0, oy = 0) {
 function easeOut(t) { return 1 - Math.pow(1 - Math.min(t, 1), 3); }
 
 // Sprite URL helpers
-function idleUrl(color)  { return `/sprites/shooters/shooter-${color.toLowerCase()}-idle.png`; }
-function fireUrl(color)  { return `/sprites/shooters/shooter-${color.toLowerCase()}-fire.png`; }
+const _B = import.meta.env.BASE_URL;
+function idleUrl(color)  { return `${_B}sprites/shooters/shooter-${color.toLowerCase()}-idle.png`; }
+function fireUrl(color)  { return `${_B}sprites/shooters/shooter-${color.toLowerCase()}-fire.png`; }
 
 // Scale a sprite so its largest dimension equals targetDiam.
 function fitSprite(sprite, targetDiam) {

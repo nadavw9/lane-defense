@@ -385,7 +385,7 @@ export class DragDrop {
     const container = new Container();
 
     // Use idle sprite if already loaded; fall back to a programmatic circle.
-    const idleUrl = `/sprites/shooters/shooter-${shooter.color.toLowerCase()}-idle.png`;
+    const idleUrl = `${import.meta.env.BASE_URL}sprites/shooters/shooter-${shooter.color.toLowerCase()}-idle.png`;
     const tex     = Assets.get(idleUrl);
     if (tex) {
       const sp = new Sprite(tex);

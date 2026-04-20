@@ -238,12 +238,19 @@ async function main() {
   const cityBg       = new CityBackground(layers, APP_W);
 
   // ── 3D Renderer — replaces LaneRenderer + CityBackground during gameplay ─
-  const gameRenderer3D = new GameRenderer3D(APP_W, APP_H);
-  gameRenderer3D.init();
-  gameRenderer3D.hide();   // hidden until gameplay starts
-
-  // Keep 3D canvas in sync when the window resizes.
-  window.addEventListener('resize', () => gameRenderer3D.onResize());
+  // Wrapped in try/catch: if WebGL is unavailable (some mobile browsers, quota
+  // limits, or low-end GPUs) the game falls back to 2D-only mode gracefully.
+  let gameRenderer3D;
+  try {
+    gameRenderer3D = new GameRenderer3D(APP_W, APP_H);
+    gameRenderer3D.init();
+    gameRenderer3D.hide();
+    window.addEventListener('resize', () => gameRenderer3D.onResize());
+  } catch (e) {
+    console.warn('[GameApp] 3D renderer init failed — running in 2D mode.', e);
+    // Null-safe stub: every method is a no-op so the rest of GameApp works unchanged.
+    gameRenderer3D = new Proxy({}, { get: () => () => {} });
+  }
 
   // ── Vignette — dark edge overlay drawn once above all game layers ─────────
   // Two passes per edge (different alpha/width) for a soft gradient feel.
@@ -1422,7 +1429,17 @@ function _buildAchievementPopup(layer, w, achievement) {
   return grp;
 }
 
-main();
+main().catch(err => {
+  // Surface fatal startup errors visibly so they're debuggable on mobile
+  // (where there's no easy access to DevTools).
+  console.error('[GameApp] Fatal startup error:', err);
+  document.body.innerHTML = `
+    <div style="color:#ff4466;font-family:monospace;padding:24px;background:#0a0a14;min-height:100vh">
+      <b>Lane Defense failed to start</b><br><br>
+      ${err?.message ?? String(err)}<br><br>
+      <small>Check browser console for full stack trace.</small>
+    </div>`;
+});
 
 // ── Simple toast helper ────────────────────────────────────────────────────────
 // Shows a timed banner at the top of the stage for 3.5 s then self-destructs.

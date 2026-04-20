@@ -281,18 +281,35 @@ export class HUDRenderer {
     g.fill(col);
 
     if (muted) {
-      // Red × over the right half
-      g.moveTo(15, 4);
-      g.lineTo(22, 12);
-      g.moveTo(22, 4);
-      g.lineTo(15, 12);
-      g.stroke({ color: 0xdd2222, width: 2.2 });
+      // Red × — two thin filled polygon bars, no stroke/moveTo (avoids PixiJS v8 phantom-line bug).
+      const bar = (x1, y1, x2, y2, hw) => {
+        const dx = x2 - x1, dy = y2 - y1;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        const nx = (-dy / len) * hw, ny = (dx / len) * hw;
+        g.poly([x1 + nx, y1 + ny,  x1 - nx, y1 - ny,
+                x2 - nx, y2 - ny,  x2 + nx, y2 + ny]);
+        g.fill(0xdd2222);
+      };
+      bar(15, 4, 22, 12, 1.1);
+      bar(22, 4, 15, 12, 1.1);
     } else {
-      // Two concentric sound-wave arcs (centred on right edge of cone)
-      g.arc(13, 10, 5, -0.65, 0.65);
-      g.stroke({ color: col, width: 1.8 });
-      g.arc(13, 10, 9, -0.65, 0.65);
-      g.stroke({ color: col, width: 1.8 });
+      // Sound-wave arcs as filled thick-arc polygons (no arc/stroke, avoids PixiJS v8 bug).
+      const arcPoly = (cx, cy, r, a0, a1, hw, steps = 10) => {
+        const pts = [];
+        for (let i = 0; i <= steps; i++) {
+          const a = a0 + (a1 - a0) * (i / steps);
+          pts.push(cx + (r + hw) * Math.cos(a), cy + (r + hw) * Math.sin(a));
+        }
+        for (let i = steps; i >= 0; i--) {
+          const a = a0 + (a1 - a0) * (i / steps);
+          pts.push(cx + (r - hw) * Math.cos(a), cy + (r - hw) * Math.sin(a));
+        }
+        return pts;
+      };
+      g.poly(arcPoly(13, 10, 5, -0.65, 0.65, 0.9));
+      g.fill(col);
+      g.poly(arcPoly(13, 10, 9, -0.65, 0.65, 0.9));
+      g.fill(col);
     }
   }
 }

@@ -49,12 +49,12 @@ const HEADLIGHT_XS = [-0.42, 0.42];
 // Car sits with its bottom at Y = 0 (road surface).
 const CAR_Y = BODY_H / 2 + WHEEL_R;
 
-// HP bar
-const HP_BAR_CANVAS_W = 80;
-const HP_BAR_CANVAS_H = 20;
-const HP_BAR_WIDTH    = BODY_W * 1.15;   // world units wide
-const HP_BAR_HEIGHT   = 0.30;            // taller to fit number
-const HP_BAR_Y_OFFSET = 0.60;            // above car centre
+// HP bar — larger canvas and world dimensions so it's readable at any distance
+const HP_BAR_CANVAS_W = 128;
+const HP_BAR_CANVAS_H = 36;
+const HP_BAR_WIDTH    = BODY_W * 3.2;   // 4.8 world units wide
+const HP_BAR_HEIGHT   = 0.70;           // was 0.30
+const HP_BAR_Y_OFFSET = 1.10;           // was 0.60
 
 // Death animation
 const DEATH_DURATION  = 0.30;
@@ -371,12 +371,12 @@ export class Car3D {
     hpCtx.fillRect(0, HP_BAR_CANVAS_H - barH, fillW, barH);
 
     // HP number (top portion) — use mid-grey so it stays below bloom threshold
-    hpCtx.font         = `bold ${HP_BAR_CANVAS_H - barH - 1}px Arial`;
+    hpCtx.font         = `bold ${HP_BAR_CANVAS_H - barH - 2}px Arial`;
     hpCtx.textAlign    = 'center';
     hpCtx.textBaseline = 'top';
     hpCtx.fillStyle    = '#dddddd';
     hpCtx.shadowColor  = '#000000';
-    hpCtx.shadowBlur   = 3;
+    hpCtx.shadowBlur   = 4;
     hpCtx.fillText(String(car.hp), HP_BAR_CANVAS_W / 2, 1);
     hpCtx.shadowBlur   = 0;
 

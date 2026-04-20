@@ -69,6 +69,15 @@ export class Scene3D {
     // Road camera only sees layer 0 objects; shooter objects live on layer 1.
     this.camera.layers.set(0);
 
+    // ── HP sprite camera ─────────────────────────────────────────────────────
+    // Same position/orientation as the road camera, but sees only layer 2.
+    // Rendered AFTER the bloom+PostFX composite so HP sprites are never washed
+    // out by the UnrealBloomPass or the VignettePass.
+    this.hpCamera = new THREE.PerspectiveCamera(55, width / height, 0.1, 200);
+    this.hpCamera.position.set(0, 9, 16);
+    this.hpCamera.lookAt(0, 0, -8);
+    this.hpCamera.layers.set(2);  // only sees layer 2 (HP sprites)
+
     // ── Shooter viewport camera ──────────────────────────────────────────────
     // Renders the 4 turret columns into the bottom 180 px of the canvas.
     // FOV=60°, aspect=390/180; camera at Z=8 looking toward Z=0 frames all 4
@@ -110,36 +119,39 @@ export class Scene3D {
     this.composer.setSize(width, height);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+    this.hpCamera.aspect = width / height;
+    this.hpCamera.updateProjectionMatrix();
     this.shooterCamera.aspect = width / 180;
     this.shooterCamera.updateProjectionMatrix();
     this._bloomPass.resolution.set(width, height);
   }
 
-  // Standard single-pass render (used when no shooter viewport needed).
+  // Standard single-pass render.
   render() { this.composer.render(); }
 
-  // Dual-pass render:
-  //   Pass 1 — road scene via bloom composer → full canvas (layer 0 objects)
-  //   Pass 2 — shooter columns via direct render → bottom 180 px (layer 1 objects)
-  // PixiJS shooter panel backgrounds must be transparent for this to show through.
-  //
-  // WebGL viewport origin is bottom-left. App height = 844 px.
-  // Shooter area (PixiJS y=520–700, h=180) → WebGL y = 844-700 = 144, h = 180.
+  // Three-pass render:
+  //   Pass 1 — road scene via bloom+PostFX composer → full canvas (layer 0)
+  //   Pass 2 — HP sprites → full canvas (layer 2, after PostFX so never bloomed)
+  //   Pass 3 — shooter columns → bottom 180 px (layer 1, no bloom)
   renderDual() {
     const { renderer, composer } = this;
     const w = this.width;
     const h = this.height;
-    const SHOOTER_GL_Y = h - 700;   // 844 - 700 = 144
+    const SHOOTER_GL_Y = h - 700;   // 844 - 700 = 144 in WebGL coords
     const SHOOTER_GL_H = 180;
 
     renderer.autoClear = false;
 
-    // Pass 1: road scene — full canvas, via bloom post-processing.
+    // Pass 1: road + PostFX (full canvas, layer 0).
     renderer.setViewport(0, 0, w, h);
     renderer.clear(true, true, true);
     composer.render();
 
-    // Pass 2: shooter columns — bottom viewport, direct render (no bloom).
+    // Pass 2: HP sprites on top of PostFX output (full canvas, layer 2).
+    renderer.clearDepth();
+    renderer.render(this.scene, this.hpCamera);
+
+    // Pass 3: shooter columns (bottom viewport, layer 1, no bloom).
     renderer.clearDepth();
     renderer.setViewport(0, SHOOTER_GL_Y, w, SHOOTER_GL_H);
     renderer.setScissor(0, SHOOTER_GL_Y, w, SHOOTER_GL_H);

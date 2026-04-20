@@ -221,24 +221,22 @@ export class LevelSelectScreen {
     this._build(this._appW, this._appH, this._progress, onSelectLevel, onBack, onShop, onAchievements, audio);
   }
 
-  // Draw connecting lines between consecutive level nodes.
-  // Uses fill(rect) + rotation instead of moveTo/lineTo/stroke to avoid a
-  // PixiJS v8 bug where every moveTo implicitly draws a segment from (0,0).
+  // Draw connecting lines between reached level nodes only.
+  // Unreached segments are not drawn — locked levels show only their node.
   _drawPath(unlockedLevel) {
     const worldBase = (this._worldPage - 1) * 20;
     for (let localId = 1; localId < 20; localId++) {
       const levelId = worldBase + localId;
+      if (levelId >= unlockedLevel) continue;   // skip unreached segments
+
       const { x: ax, y: ay } = nodePos(localId);
       const { x: bx, y: by } = nodePos(localId + 1);
-      const reached  = levelId < unlockedLevel;
-      const lineW    = reached ? 4 : 3;
       const dx = bx - ax, dy = by - ay;
       const len = Math.sqrt(dx * dx + dy * dy);
 
       const g = new Graphics();
-      // Draw a thin rectangle centred at origin, then rotate + translate.
-      g.rect(-len / 2, -lineW / 2, len, lineW);
-      g.fill({ color: reached ? 0x2a7a4a : 0x151e28, alpha: reached ? 0.85 : 0.45 });
+      g.rect(-len / 2, -2, len, 4);
+      g.fill({ color: 0x2a7a4a, alpha: 0.85 });
       g.position.set((ax + bx) / 2, (ay + by) / 2);
       g.rotation = Math.atan2(dy, dx);
       this._container.addChild(g);

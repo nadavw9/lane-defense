@@ -341,9 +341,9 @@ export class Car3D {
     const hpSprite = new THREE.Sprite(hpMat);
     hpSprite.scale.set(HP_BAR_WIDTH, HP_BAR_HEIGHT, 1);
     hpSprite.position.set(0, CAR_Y + HP_BAR_Y_OFFSET, 0);
-    // renderOrder > 0 ensures the sprite draws AFTER the bloom composite pass,
-    // so bloom doesn't wash out the HP text.
-    hpSprite.renderOrder = 999;
+    // Layer 2: rendered AFTER the bloom+PostFX composite in a dedicated pass,
+    // so the HP number is never washed out by UnrealBloomPass or VignettePass.
+    hpSprite.layers.set(2);
     // Sprite is added to scene (not group) so it doesn't inherit group scale during death.
     this._scene.add(hpSprite);
 

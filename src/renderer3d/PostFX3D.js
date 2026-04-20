@@ -120,6 +120,12 @@ export class PostFX3D {
     composer.insertPass(this._chromaPass,   outputIdx + 1);
     composer.insertPass(this._vignettePass, outputIdx + 2);
 
+    // Lens distortion: disabled — the barrel warp hides game content.
+    this._lensPass.uniforms.distortion.value = 0.0;
+
+    // Vignette: very subtle — just enough to frame the scene, not hide it.
+    this._vignettePass.uniforms.vigStrength.value = 0.12;
+
     // Chroma decay state.
     this._chromaTarget  = 0;
     this._chromaCurrent = 0;
@@ -132,39 +138,26 @@ export class PostFX3D {
     this._comboTarget   = 0;
     this._comboCurrent  = 0;
 
-    // Lens distortion target (ramps with combo + kill events).
-    this._lensTarget    = 0.10;
+    // Lens distortion target — kept at 0; lens warp is disabled.
+    this._lensTarget    = 0.0;
   }
 
   // ── Public API ───────────────────────────────────────────────────────────────
 
-  /**
-   * Spike chromatic aberration.
-   * @param {number} intensity  — 0.01 (subtle hit) … 0.04 (big kill)
-   * @param {number} duration   — decay time in seconds
-   */
-  triggerChroma(intensity = 0.015, duration = 0.25) {
-    // Additive spike — take the max of current and new.
-    this._chromaTarget = Math.max(this._chromaTarget, intensity);
-    this._chromaDecay  = intensity / duration;   // units per second
+  triggerChroma(intensity = 0.008, duration = 0.20) {
+    // Cap chroma at 0.010 — higher values create distracting colored edge lines.
+    this._chromaTarget = Math.max(this._chromaTarget, Math.min(0.010, intensity));
+    this._chromaDecay  = this._chromaTarget / duration;
   }
 
-  /**
-   * Set the breach red pulse intensity.
-   * @param {number} t  0 = no breach, 1 = full breach alarm
-   */
   setBreach(t) {
     this._breachTarget = Math.max(0, Math.min(1, t));
   }
 
-  /**
-   * Drive vignette warm tint from combo level.
-   * @param {number} combo
-   */
   setCombo(combo) {
-    this._comboTarget = combo >= 12 ? 1.0 : combo >= 7 ? 0.6 : combo >= 4 ? 0.3 : 0;
-    // Lens distortion subtly increases at high combo (tunnel-vision effect).
-    this._lensTarget = combo >= 12 ? 0.18 : combo >= 7 ? 0.14 : 0.10;
+    // Combo tint only at very high combos, kept subtle so it doesn't hide content.
+    this._comboTarget = combo >= 12 ? 0.35 : combo >= 8 ? 0.15 : 0;
+    this._lensTarget  = 0.0;  // lens distortion stays off
   }
 
   update(dt) {
@@ -182,11 +175,6 @@ export class PostFX3D {
     // Combo tint lerp.
     this._comboCurrent += (this._comboTarget - this._comboCurrent) * Math.min(1, dt * 4);
     this._vignettePass.uniforms.comboTint.value = this._comboCurrent;
-
-    // Lens distortion lerp.
-    const currentDistortion = this._lensPass.uniforms.distortion.value;
-    this._lensPass.uniforms.distortion.value +=
-      (this._lensTarget - currentDistortion) * Math.min(1, dt * 3);
   }
 
   dispose() {

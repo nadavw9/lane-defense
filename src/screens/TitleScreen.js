@@ -1,13 +1,18 @@
-// TitleScreen — full-screen splash with animated cars driving up the road.
+// TitleScreen — bright, colorful, kids-friendly splash screen.
 //
-// v1.1 additions:
-//   • Animated mini cars travel up the perspective road lines (scale as they approach)
-//   • Streak badge shown next to daily reward button
-//   • update(dt) needed for car animation — call from GameApp ticker
+// Design:
+//   • Sky-blue gradient background with fluffy cloud shapes
+//   • Big chunky "LANE DEFENSE" title in yellow/orange with black stroke
+//   • Animated colorful cars zooming across the screen
+//   • Large green PLAY button
+//   • Secondary buttons in pastel colors
 import { Container, Graphics, Text } from 'pixi.js';
 
-const CAR_COLORS = [0xE24B4A, 0x378ADD, 0x639922, 0xEF9F27, 0x7F77DD, 0xD85A30];
-const ROAD_LINES = 4;
+const CAR_COLORS  = [0xE24B4A, 0x378ADD, 0x639922, 0xEF9F27, 0x7F77DD, 0xD85A30];
+const SKY_TOP     = 0x4FC3F7;   // light sky blue
+const SKY_BOTTOM  = 0x81D4FA;   // slightly lighter horizon
+const GROUND_COL  = 0x66BB6A;   // fresh green ground
+const CLOUD_COL   = 0xFFFFFF;
 
 export class TitleScreen {
   constructor(stage, appW, appH, {
@@ -20,6 +25,8 @@ export class TitleScreen {
     this._appW      = appW;
     this._appH      = appH;
     this._cars      = [];
+    this._clouds    = [];
+    this._elapsed   = 0;
 
     stage.addChild(this._container);
     this._build(appW, appH, onPlay, onDaily, hasDailyReward, onDailyChallenge,
@@ -28,224 +35,281 @@ export class TitleScreen {
 
   destroy() { this._container.destroy({ children: true }); }
 
-  update(dt) { this._tickCars(dt); }
+  update(dt) {
+    this._elapsed += dt;
+    this._tickCars(dt);
+    this._tickClouds(dt);
+  }
 
   // ── Private ────────────────────────────────────────────────────────────────
 
   _build(w, h, onPlay, onDaily, hasDailyReward, onDailyChallenge,
          onAchievements, onStats, onSettings, audio, loginStreak, onSurvival) {
-    const bg = new Graphics();
-    bg.rect(0, 0, w, h);
-    bg.fill(0x050510);
-    bg.eventMode = 'static';
-    this._container.addChild(bg);
 
-    this._drawRoadLines(w, h);
+    // ── Sky background ─────────────────────────────────────────────────────
+    const sky = new Graphics();
+    // Sky blue gradient simulation (two overlapping rects)
+    sky.rect(0, 0, w, h * 0.72);
+    sky.fill(SKY_TOP);
+    sky.rect(0, h * 0.40, w, h * 0.32);
+    sky.fill(SKY_BOTTOM);
+    // Ground strip
+    sky.rect(0, h * 0.72, w, h * 0.28);
+    sky.fill(GROUND_COL);
+    // Ground highlight stripe
+    sky.rect(0, h * 0.72, w, 8);
+    sky.fill(0x81C784);
+    sky.eventMode = 'static';
+    this._container.addChild(sky);
+
+    // ── Clouds ─────────────────────────────────────────────────────────────
+    this._drawCloud(w * 0.15, h * 0.12, 1.1);
+    this._drawCloud(w * 0.72, h * 0.08, 0.85);
+    this._drawCloud(w * 0.45, h * 0.20, 0.70);
+    // Animated cloud layer
     this._container.addChild(this._carLayer);
-    this._spawnInitialCars(w, h);
+    this._spawnInitialClouds(w, h);
 
-    // Title
+    // ── Road strip ─────────────────────────────────────────────────────────
+    const road = new Graphics();
+    road.rect(0, h * 0.68, w, 60);
+    road.fill(0x546E7A);
+    // Lane lines
+    for (let i = 1; i < 4; i++) {
+      road.rect(0, h * 0.68 + 8 + i * 14, w, 4);
+      road.fill({ color: 0xFFFFFF, alpha: 0.25 });
+    }
+    this._container.addChild(road);
+
+    // ── Animated cars on the road ──────────────────────────────────────────
+    const carRoadLayer = new Container();
+    this._container.addChild(carRoadLayer);
+    this._carRoadLayer = carRoadLayer;
+    this._spawnRoadCars(w, h);
+
+    // ── Title ──────────────────────────────────────────────────────────────
+    // Shadow
+    const shadow = new Text({
+      text: 'LANE\nDEFENSE',
+      style: {
+        fontSize:    66,
+        fontWeight:  'bold',
+        fill:        0x000000,
+        align:       'center',
+        letterSpacing: 3,
+      },
+    });
+    shadow.anchor.set(0.5, 0.5);
+    shadow.x = w / 2 + 4; shadow.y = h * 0.28 + 4;
+    shadow.alpha = 0.35;
+    this._container.addChild(shadow);
+
+    // Main title
     const title = new Text({
       text: 'LANE\nDEFENSE',
-      style: { fontSize: 58, fontWeight: 'bold', fill: 0x44ff88, align: 'center',
-               letterSpacing: 5, dropShadow: { color: 0x00cc44, blur: 24, distance: 0, alpha: 0.75 } },
+      style: {
+        fontSize:    66,
+        fontWeight:  'bold',
+        fill:        [0xFFD600, 0xFF6F00],   // yellow → deep orange gradient
+        fillGradientStops: [0, 1],
+        fillGradientType: 0,
+        align:       'center',
+        letterSpacing: 3,
+        stroke:      { color: 0x4A1A00, width: 5 },
+        dropShadow:  { color: 0xFF6F00, blur: 18, distance: 0, alpha: 0.5 },
+      },
     });
-    title.anchor.set(0.5, 0.5); title.x = w / 2; title.y = h * 0.30;
+    title.anchor.set(0.5, 0.5);
+    title.x = w / 2; title.y = h * 0.28;
     this._container.addChild(title);
+    this._titleRef = title;
 
+    // Subtitle
     const sub = new Text({
-      text: 'Match colors. Survive the timer.',
-      style: { fontSize: 15, fill: 0x6688aa, fontWeight: 'normal' },
+      text: '🚗  Stop the cars!  🚗',
+      style: { fontSize: 17, fill: 0x1A237E, fontWeight: 'bold', align: 'center' },
     });
-    sub.anchor.set(0.5, 0.5); sub.x = w / 2; sub.y = h * 0.30 + 100;
+    sub.anchor.set(0.5, 0.5); sub.x = w / 2; sub.y = h * 0.28 + 104;
     this._container.addChild(sub);
 
-    // PLAY button
-    const btnW = 220, btnH = 62;
+    // ── PLAY button ────────────────────────────────────────────────────────
+    const btnW = 240, btnH = 72;
     const btn  = new Graphics();
-    btn.roundRect(-btnW / 2, -btnH / 2, btnW, btnH, 16);
-    btn.fill(0x1a6a3a);
-    btn.roundRect(-btnW / 2, -btnH / 2, btnW, btnH, 16);
-    btn.stroke({ color: 0x55ff99, width: 2, alpha: 0.65 });
-    btn.x = w / 2; btn.y = h * 0.56;
+    // Outer glow/shadow
+    btn.roundRect(-btnW / 2 + 3, 3, btnW, btnH, 20);
+    btn.fill({ color: 0x1B5E20, alpha: 0.6 });
+    // Button body
+    btn.roundRect(-btnW / 2, 0, btnW, btnH, 20);
+    btn.fill(0x43A047);
+    // Highlight stripe
+    btn.roundRect(-btnW / 2 + 6, 4, btnW - 12, btnH / 2 - 4, 14);
+    btn.fill({ color: 0xFFFFFF, alpha: 0.18 });
+    // Border
+    btn.roundRect(-btnW / 2, 0, btnW, btnH, 20);
+    btn.stroke({ color: 0x81C784, width: 3, alpha: 0.9 });
+    btn.x = w / 2; btn.y = h * 0.545;
     btn.eventMode = 'static'; btn.cursor = 'pointer';
     btn.on('pointerdown', () => { audio?.play('button_tap'); onPlay(); });
-    btn.on('pointerover',  () => { btn.alpha = 0.80; });
-    btn.on('pointerout',   () => { btn.alpha = 1.00; });
-    const btnTxt = new Text({ text: 'PLAY', style: { fontSize: 30, fontWeight: 'bold', fill: 0x55ff99 } });
-    btnTxt.anchor.set(0.5, 0.5); btn.addChild(btnTxt);
+    btn.on('pointerover',  () => { btn.scale.set(1.05); });
+    btn.on('pointerout',   () => { btn.scale.set(1.00); });
+    const btnTxt = new Text({
+      text: '▶  PLAY!',
+      style: { fontSize: 32, fontWeight: 'bold', fill: 0xFFFFFF,
+        dropShadow: { color: 0x1B5E20, blur: 6, distance: 2, alpha: 0.8 } },
+    });
+    btnTxt.anchor.set(0.5, 0.5); btnTxt.y = btnH / 2;
+    btn.addChild(btnTxt);
     this._container.addChild(btn);
 
-    let rowY = h * 0.56 + 68;
+    // ── Secondary row ──────────────────────────────────────────────────────
+    let rowY = h * 0.545 + 84;
+    const CX = w / 2;
 
-    // Daily reward
     if (onDaily) {
-      const dW = 160, dH = 44;
-      const daily = new Graphics();
-      daily.roundRect(-dW / 2, -dH / 2, dW, dH, 12);
-      daily.fill(hasDailyReward ? 0x2a1a00 : 0x111122);
-      if (hasDailyReward) { daily.roundRect(-dW / 2, -dH / 2, dW, dH, 12); daily.stroke({ color: 0xf5c842, width: 2, alpha: 0.80 }); }
-      daily.x = w / 2; daily.y = rowY;
-      daily.eventMode = 'static'; daily.cursor = 'pointer';
-      daily.on('pointerdown', () => { audio?.play('button_tap'); onDaily(); });
-      daily.on('pointerover',  () => { daily.alpha = 0.78; });
-      daily.on('pointerout',   () => { daily.alpha = 1.00; });
-      const dlbl = hasDailyReward ? '◆ DAILY REWARD' : 'DAILY REWARD';
-      const dcol = hasDailyReward ? 0xf5c842 : 0x556677;
-      const dt   = new Text({ text: dlbl, style: { fontSize: 16, fontWeight: 'bold', fill: dcol } });
-      dt.anchor.set(0.5, 0.5); daily.addChild(dt);
-      this._container.addChild(daily);
-
-      // Streak badge
+      this._addPillBtn(CX, rowY, hasDailyReward ? '⭐ DAILY REWARD!' : '📅 Daily Reward',
+        hasDailyReward ? 0xF9A825 : 0x78909C, hasDailyReward ? 0xFFF9C4 : 0xECEFF1,
+        () => { audio?.play('button_tap'); onDaily(); });
       if (loginStreak >= 2) {
-        const badge = new Text({
-          text: `🔥 ${loginStreak}`,
-          style: { fontSize: 14, fontWeight: 'bold', fill: 0xff8844,
-            dropShadow: { color: 0x000000, blur: 4, distance: 1, alpha: 0.8 } },
-        });
-        badge.anchor.set(0, 0.5); badge.x = w / 2 + dW / 2 + 10; badge.y = rowY;
+        const badge = new Text({ text: `🔥${loginStreak}`, style: { fontSize: 14, fontWeight: 'bold', fill: 0xFF6F00 } });
+        badge.anchor.set(0, 0.5); badge.x = CX + 100; badge.y = rowY;
         this._container.addChild(badge);
       }
     }
 
-    rowY += 58;
-
-    const BTN_W = 145, BTN_H = 44, BTN_GAP = 10;
-    const rcx   = w / 2;
+    rowY += 54;
+    const BTN_W2 = 150, GAP = 10;
 
     if (onDailyChallenge) {
-      const dc = new Graphics();
-      dc.roundRect(-BTN_W / 2, -BTN_H / 2, BTN_W, BTN_H, 12); dc.fill(0x0a1a28);
-      dc.roundRect(-BTN_W / 2, -BTN_H / 2, BTN_W, BTN_H, 12); dc.stroke({ color: 0x2255aa, width: 1.5, alpha: 0.70 });
-      dc.x = rcx - BTN_W / 2 - BTN_GAP / 2; dc.y = rowY;
-      dc.eventMode = 'static'; dc.cursor = 'pointer';
-      dc.on('pointerdown', () => { audio?.play('button_tap'); onDailyChallenge(); });
-      dc.on('pointerover',  () => { dc.alpha = 0.78; }); dc.on('pointerout', () => { dc.alpha = 1.00; });
-      const dct = new Text({ text: '⚡ DAILY', style: { fontSize: 16, fontWeight: 'bold', fill: 0x66aaff } });
-      dct.anchor.set(0.5, 0.5); dc.addChild(dct); this._container.addChild(dc);
+      this._addPillBtn(CX - BTN_W2 / 2 - GAP / 2, rowY, '⚡ CHALLENGE',
+        0x1565C0, 0xE3F2FD, () => { audio?.play('button_tap'); onDailyChallenge(); }, BTN_W2);
     }
-
-    if (onAchievements) {
-      const ab = new Graphics();
-      ab.roundRect(-BTN_W / 2, -BTN_H / 2, BTN_W, BTN_H, 12); ab.fill(0x1a1400);
-      ab.roundRect(-BTN_W / 2, -BTN_H / 2, BTN_W, BTN_H, 12); ab.stroke({ color: 0x7a6a10, width: 1.5, alpha: 0.70 });
-      ab.x = rcx + BTN_W / 2 + BTN_GAP / 2; ab.y = rowY;
-      ab.eventMode = 'static'; ab.cursor = 'pointer';
-      ab.on('pointerdown', () => { audio?.play('button_tap'); onAchievements(); });
-      ab.on('pointerover',  () => { ab.alpha = 0.78; }); ab.on('pointerout', () => { ab.alpha = 1.00; });
-      const abt = new Text({ text: '★ ACHIEV.', style: { fontSize: 16, fontWeight: 'bold', fill: 0xf5c842 } });
-      abt.anchor.set(0.5, 0.5); ab.addChild(abt); this._container.addChild(ab);
-    }
-
-    rowY += 58;
-    if (onStats) {
-      const sb = new Graphics();
-      sb.roundRect(-BTN_W / 2, -BTN_H / 2, BTN_W, BTN_H, 12); sb.fill(0x1a1620);
-      sb.roundRect(-BTN_W / 2, -BTN_H / 2, BTN_W, BTN_H, 12); sb.stroke({ color: 0xaa77dd, width: 1.5, alpha: 0.70 });
-      sb.x = rcx; sb.y = rowY;
-      sb.eventMode = 'static'; sb.cursor = 'pointer';
-      sb.on('pointerdown', () => { audio?.play('button_tap'); onStats(); });
-      sb.on('pointerover',  () => { sb.alpha = 0.78; }); sb.on('pointerout', () => { sb.alpha = 1.00; });
-      const sbt = new Text({ text: '📊 STATS', style: { fontSize: 16, fontWeight: 'bold', fill: 0xaa77dd } });
-      sbt.anchor.set(0.5, 0.5); sb.addChild(sbt); this._container.addChild(sb);
-    }
-
-    rowY += 58;
     if (onSurvival) {
-      const sv = new Graphics();
-      sv.roundRect(-BTN_W / 2, -BTN_H / 2, BTN_W, BTN_H, 12); sv.fill(0x1a0a00);
-      sv.roundRect(-BTN_W / 2, -BTN_H / 2, BTN_W, BTN_H, 12); sv.stroke({ color: 0xff8844, width: 1.5, alpha: 0.70 });
-      sv.x = rcx; sv.y = rowY;
-      sv.eventMode = 'static'; sv.cursor = 'pointer';
-      sv.on('pointerdown', () => { audio?.play('button_tap'); onSurvival(); });
-      sv.on('pointerover',  () => { sv.alpha = 0.78; }); sv.on('pointerout', () => { sv.alpha = 1.00; });
-      const svt = new Text({ text: '⚡ SURVIVAL', style: { fontSize: 16, fontWeight: 'bold', fill: 0xff8844 } });
-      svt.anchor.set(0.5, 0.5); sv.addChild(svt); this._container.addChild(sv);
+      this._addPillBtn(CX + BTN_W2 / 2 + GAP / 2, rowY, '♾ SURVIVAL',
+        0xB71C1C, 0xFFEBEE, () => { audio?.play('button_tap'); onSurvival(); }, BTN_W2);
     }
 
-    this._drawGear(w - 36, 36, onSettings);
+    rowY += 54;
+    if (onAchievements) {
+      this._addPillBtn(CX - BTN_W2 / 2 - GAP / 2, rowY, '★ TROPHIES',
+        0xF57F17, 0xFFF8E1, () => { audio?.play('button_tap'); onAchievements(); }, BTN_W2);
+    }
+    if (onStats) {
+      this._addPillBtn(CX + BTN_W2 / 2 + GAP / 2, rowY, '📊 STATS',
+        0x4527A0, 0xEDE7F6, () => { audio?.play('button_tap'); onStats(); }, BTN_W2);
+    }
+
+    // ── Settings gear (top-right) ──────────────────────────────────────────
+    if (onSettings) {
+      const gear = new Text({ text: '⚙️', style: { fontSize: 28 } });
+      gear.anchor.set(1, 0);  gear.x = w - 12; gear.y = 10;
+      gear.eventMode = 'static'; gear.cursor = 'pointer';
+      gear.on('pointerdown', onSettings);
+      this._container.addChild(gear);
+    }
   }
 
-  // ── Car animation ──────────────────────────────────────────────────────────
+  // ── Helper: pill-shaped secondary button ──────────────────────────────────
 
-  _spawnInitialCars(w, h) {
-    for (let i = 0; i < 4; i++) setTimeout(() => this._spawnCar(w, h), i * 900);
+  _addPillBtn(cx, cy, label, bgColor, labelColor, onClick, btnW = 200) {
+    const btnH = 40;
+    const btn  = new Graphics();
+    btn.roundRect(-btnW / 2, -btnH / 2, btnW, btnH, 20);
+    btn.fill(bgColor);
+    btn.roundRect(-btnW / 2, -btnH / 2, btnW, btnH, 20);
+    btn.stroke({ color: 0xFFFFFF, width: 1.5, alpha: 0.4 });
+    btn.x = cx; btn.y = cy;
+    btn.eventMode = 'static'; btn.cursor = 'pointer';
+    btn.on('pointerdown', onClick);
+    btn.on('pointerover',  () => { btn.alpha = 0.80; });
+    btn.on('pointerout',   () => { btn.alpha = 1.00; });
+    const t = new Text({ text: label, style: { fontSize: 15, fontWeight: 'bold', fill: labelColor } });
+    t.anchor.set(0.5, 0.5); btn.addChild(t);
+    this._container.addChild(btn);
   }
 
-  _spawnCar(w, h) {
-    const lane  = Math.floor(Math.random() * ROAD_LINES);
+  // ── Cloud drawing ──────────────────────────────────────────────────────────
+
+  _drawCloud(cx, cy, scale) {
+    const g = new Graphics();
+    const s = scale;
+    g.circle(cx,         cy,      32 * s); g.fill({ color: CLOUD_COL, alpha: 0.90 });
+    g.circle(cx + 28*s,  cy + 5*s, 24*s);  g.fill({ color: CLOUD_COL, alpha: 0.90 });
+    g.circle(cx - 22*s,  cy + 8*s, 20*s);  g.fill({ color: CLOUD_COL, alpha: 0.90 });
+    g.circle(cx + 8*s,   cy + 14*s, 28*s); g.fill({ color: CLOUD_COL, alpha: 0.90 });
+    this._container.addChild(g);
+  }
+
+  _spawnInitialClouds(w, h) {
+    for (let i = 0; i < 2; i++) {
+      setTimeout(() => this._spawnCloud(w, h), i * 3000);
+    }
+  }
+
+  _spawnCloud(w, h) {
+    const y  = h * 0.04 + Math.random() * h * 0.20;
+    const sc = 0.5 + Math.random() * 0.6;
+    const g  = new Graphics();
+    const cx = 0, cy = 0;
+    g.circle(cx,      cy,     32*sc); g.fill({ color: CLOUD_COL, alpha: 0.80 });
+    g.circle(cx+28*sc, cy+5*sc, 24*sc); g.fill({ color: CLOUD_COL, alpha: 0.80 });
+    g.circle(cx-22*sc, cy+8*sc, 20*sc); g.fill({ color: CLOUD_COL, alpha: 0.80 });
+    g.circle(cx+8*sc,  cy+14*sc, 28*sc); g.fill({ color: CLOUD_COL, alpha: 0.80 });
+    g.x = -80; g.y = y;
+    this._container.addChild(g);
+    this._clouds.push({ g, speed: 18 + Math.random() * 12, maxX: w + 100 });
+  }
+
+  _tickClouds(dt) {
+    const w = this._appW, h = this._appH;
+    for (let i = this._clouds.length - 1; i >= 0; i--) {
+      const c = this._clouds[i];
+      c.g.x += c.speed * dt;
+      if (c.g.x > c.maxX) {
+        this._container.removeChild(c.g); c.g.destroy();
+        this._clouds.splice(i, 1);
+        setTimeout(() => this._spawnCloud(w, h), Math.random() * 2000 + 500);
+      }
+    }
+  }
+
+  // ── Road car animation ────────────────────────────────────────────────────
+
+  _spawnRoadCars(w, h) {
+    for (let i = 0; i < 5; i++) {
+      setTimeout(() => this._spawnRoadCar(w, h), i * 700);
+    }
+  }
+
+  _spawnRoadCar(w, h) {
     const color = CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)];
+    const lane  = Math.floor(Math.random() * 3);
+    const roadY = h * 0.68 + 12 + lane * 14;
+    const speed = 90 + Math.random() * 60;
     const g     = new Graphics();
-    g.roundRect(-7, -11, 14, 22, 3); g.fill(color);
-    g.roundRect(-4, -8, 8, 5, 2);    g.fill({ color: 0xffffff, alpha: 0.25 });
-    this._carLayer.addChild(g);
-    this._cars.push({ g, lane, progress: Math.random() * 0.2, speed: 0.07 + Math.random() * 0.05 });
-    this._positionCar(this._cars[this._cars.length - 1], w, h);
-  }
-
-  _positionCar(car, w, h) {
-    const horizY   = h * 0.38;
-    const screenBotY = h;
-    const laneXBot = w * (0.12 + car.lane * 0.25);
-    const vanishX  = w / 2;
-    const t  = car.progress;
-    const y  = horizY + t * (screenBotY - horizY);
-    const x  = vanishX + t * (laneXBot - vanishX);
-    const sc = 0.15 + t * 0.85;
-    car.g.x = x; car.g.y = y;
-    car.g.scale.set(sc);
-    car.g.alpha = Math.min(1, t * 5);
+    // Car body
+    g.roundRect(-16, -7, 32, 14, 4); g.fill(color);
+    // Windshield
+    g.roundRect(-8, -5, 12, 10, 2);  g.fill({ color: 0xFFFFFF, alpha: 0.35 });
+    // Wheels
+    g.circle(-9, 7, 4);  g.fill(0x212121);
+    g.circle( 9, 7, 4);  g.fill(0x212121);
+    g.circle(-9, -7, 4); g.fill(0x212121);
+    g.circle( 9, -7, 4); g.fill(0x212121);
+    g.x = -30; g.y = roadY;
+    this._carRoadLayer?.addChild(g);
+    this._cars.push({ g, speed, maxX: w + 50 });
   }
 
   _tickCars(dt) {
     const w = this._appW, h = this._appH;
     for (let i = this._cars.length - 1; i >= 0; i--) {
       const car = this._cars[i];
-      car.progress += car.speed * dt;
-      if (car.progress > 1.05) {
-        this._carLayer.removeChild(car.g); car.g.destroy();
+      car.g.x += car.speed * dt;
+      if (car.g.x > car.maxX) {
+        car.g.parent?.removeChild(car.g); car.g.destroy();
         this._cars.splice(i, 1);
-        setTimeout(() => this._spawnCar(w, h), Math.random() * 600 + 200);
-        continue;
+        setTimeout(() => this._spawnRoadCar(w, h), Math.random() * 600 + 200);
       }
-      this._positionCar(car, w, h);
     }
-  }
-
-  _drawRoadLines(w, h) {
-    const g     = new Graphics();
-    const baseY = h * 0.72;
-    const cols  = [0x113322, 0x0d2218, 0x09180f];
-    for (let i = 0; i < ROAD_LINES; i++) {
-      const t  = i / (ROAD_LINES - 1);
-      const y  = baseY + t * (h - baseY);
-      const lx = w * 0.5 - (w * 0.08 + t * w * 0.46);
-      const rx = w * 0.5 + (w * 0.08 + t * w * 0.46);
-      g.moveTo(lx, y); g.lineTo(rx, y);
-      g.stroke({ color: cols[Math.min(i, 2)], width: 1.5 + t * 2, alpha: 0.4 + t * 0.3 });
-    }
-    this._container.addChild(g);
-  }
-
-  _drawGear(cx, cy, onClick) {
-    const g = new Graphics();
-    const r = 12, innerR = 6.5, teeth = 8, toothH = 4.5;
-    for (let i = 0; i < teeth; i++) {
-      const angle = (Math.PI * 2 * i) / teeth;
-      const a1 = angle - 0.28, a2 = angle + 0.28;
-      g.poly([Math.cos(a1)*r+cx, Math.sin(a1)*r+cy, Math.cos(a1)*(r+toothH)+cx, Math.sin(a1)*(r+toothH)+cy,
-              Math.cos(a2)*(r+toothH)+cx, Math.sin(a2)*(r+toothH)+cy, Math.cos(a2)*r+cx, Math.sin(a2)*r+cy]);
-      g.fill(0x446677);
-    }
-    g.circle(cx, cy, r); g.fill(0x446677);
-    g.circle(cx, cy, innerR); g.fill(0x050510);
-    if (onClick) {
-      g.eventMode = 'static'; g.cursor = 'pointer';
-      g.hitArea = { contains: (px, py) => Math.hypot(px - cx, py - cy) <= r + toothH + 6 };
-      g.on('pointerdown', onClick);
-      g.on('pointerover',  () => { g.tint = 0xaaddff; });
-      g.on('pointerout',   () => { g.tint = 0xffffff; });
-    }
-    this._container.addChild(g);
   }
 }

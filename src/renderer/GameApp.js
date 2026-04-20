@@ -249,22 +249,6 @@ async function main() {
     gameRenderer3D = new Proxy({}, { get: () => () => {} });
   }
 
-  // ── Vignette — dark edge overlay drawn once above all game layers ─────────
-  // Two passes per edge (different alpha/width) for a soft gradient feel.
-  const vigG = new Graphics();
-  const VW = 70, VH = 80, VA1 = 0.22, VA2 = 0.10;
-  // Left / right
-  vigG.rect(0,        0, VW,      APP_H); vigG.fill({ color: 0x000000, alpha: VA1 });
-  vigG.rect(0,        0, VW * .5, APP_H); vigG.fill({ color: 0x000000, alpha: VA2 });
-  vigG.rect(APP_W-VW, 0, VW,      APP_H); vigG.fill({ color: 0x000000, alpha: VA1 });
-  vigG.rect(APP_W-VW*.5, 0, VW*.5, APP_H); vigG.fill({ color: 0x000000, alpha: VA2 });
-  // Top / bottom
-  vigG.rect(0, 0,        APP_W, VH);     vigG.fill({ color: 0x000000, alpha: VA1 });
-  vigG.rect(0, 0,        APP_W, VH*.5);  vigG.fill({ color: 0x000000, alpha: VA2 });
-  vigG.rect(0, APP_H-VH, APP_W, VH);    vigG.fill({ color: 0x000000, alpha: VA1 });
-  vigG.rect(0, APP_H-VH*.5, APP_W, VH*.5); vigG.fill({ color: 0x000000, alpha: VA2 });
-  app.stage.addChild(vigG);
-
   // ── Directors ────────────────────────────────────────────────────────────
   const rng        = new SeededRandom(1);
   const arbiter    = new FairnessArbiter();

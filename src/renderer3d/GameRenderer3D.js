@@ -132,7 +132,7 @@ export class GameRenderer3D {
       this._particles?.spawnExplosion(laneIdx, color);
       this._cameraFX?.shake(0.12, 0.25);
       this._postFX?.triggerChroma(0.022, 0.30);
-      const strength = Math.min(1.6, (this._scene3d?.getBloomStrength() ?? 0.85) + 0.05);
+      const strength = Math.min(1.2, (this._scene3d?.getBloomStrength() ?? 0.65) + 0.05);
       this._scene3d?.setBloomStrength(strength);
       // Use cached car position — the car may already be removed from the lane
       // when this callback fires (game state updated before events).
@@ -168,7 +168,7 @@ export class GameRenderer3D {
     this._cameraFX?.setCombo(combo);
     this._postFX?.setCombo(combo);
     this._skybox?.setCombo(combo);   // drives aurora amplitude + colour shift
-    const strength = combo >= 12 ? 1.4 : combo >= 7 ? 1.1 : combo >= 3 ? 0.95 : 0.85;
+    const strength = combo >= 12 ? 1.1 : combo >= 7 ? 0.90 : combo >= 3 ? 0.78 : 0.65;
     this._scene3d?.setBloomStrength(strength);
   }
 
@@ -242,8 +242,8 @@ export class GameRenderer3D {
 
     // Bloom: decay toward resting strength (which rises with danger warning).
     if (this._scene3d) {
-      const cur  = this._scene3d?.getBloomStrength() ?? 0.85;
-      const rest = 0.85 + warningBoost;
+      const cur  = this._scene3d?.getBloomStrength() ?? 0.65;
+      const rest = 0.65 + warningBoost;
       if (cur > rest) this._scene3d.setBloomStrength(cur - dt * 0.8);
       else if (cur < rest) this._scene3d.setBloomStrength(Math.min(rest, cur + dt * 2.5));
     }

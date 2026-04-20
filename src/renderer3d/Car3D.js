@@ -367,11 +367,11 @@ export class Car3D {
     hpCtx.fillStyle = color;
     hpCtx.fillRect(0, HP_BAR_CANVAS_H - barH, fillW, barH);
 
-    // HP number (top portion)
+    // HP number (top portion) — use mid-grey so it stays below bloom threshold
     hpCtx.font         = `bold ${HP_BAR_CANVAS_H - barH - 1}px Arial`;
     hpCtx.textAlign    = 'center';
     hpCtx.textBaseline = 'top';
-    hpCtx.fillStyle    = '#ffffff';
+    hpCtx.fillStyle    = '#dddddd';
     hpCtx.shadowColor  = '#000000';
     hpCtx.shadowBlur   = 3;
     hpCtx.fillText(String(car.hp), HP_BAR_CANVAS_W / 2, 1);

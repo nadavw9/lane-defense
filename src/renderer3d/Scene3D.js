@@ -75,9 +75,9 @@ export class Scene3D {
 
     this._bloomPass = new UnrealBloomPass(
       new THREE.Vector2(width, height),
-      /* strength  */ 0.85,
+      /* strength  */ 0.65,
       /* radius    */ 0.45,
-      /* threshold */ 0.28,
+      /* threshold */ 0.55,  // raised from 0.28 — only very bright emissives bloom now
     );
     this.composer.addPass(this._bloomPass);
     this.composer.addPass(new OutputPass());

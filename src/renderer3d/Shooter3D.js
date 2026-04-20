@@ -31,10 +31,10 @@ const BARREL_H   = 1.00;   // extends toward road (toward -Z from turret)
 const TORUS_R    = 0.52;   // ring radius
 const TORUS_TUBE = 0.04;
 
-// Turret sits just inside the near road edge, visible in the 3D scene.
-// ROAD_Z_NEAR = 0; placing at -3.0 puts turrets 3 units into the road,
-// appearing at the front-bottom of the 3D view above the PixiJS shooter panel.
-const TURRET_Z = ROAD_Z_NEAR - 3.0;
+// Turret placed just inside the near road edge, scaled so it appears in the
+// lower portion of the 3D view that's visible behind the semi-transparent
+// PixiJS shooter panel.
+const TURRET_Z = ROAD_Z_NEAR - 1.5;
 const TURRET_Y = BASE_H + BODY_H / 2;
 
 // Barrel tip offset from body centre (points in +Z direction = toward road/camera).

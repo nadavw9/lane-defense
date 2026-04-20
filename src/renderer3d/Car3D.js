@@ -50,11 +50,11 @@ const HEADLIGHT_XS = [-0.42, 0.42];
 const CAR_Y = BODY_H / 2 + WHEEL_R;
 
 // HP bar
-const HP_BAR_CANVAS_W = 64;
-const HP_BAR_CANVAS_H = 8;
+const HP_BAR_CANVAS_W = 80;
+const HP_BAR_CANVAS_H = 20;
 const HP_BAR_WIDTH    = BODY_W * 1.15;   // world units wide
-const HP_BAR_HEIGHT   = 0.18;
-const HP_BAR_Y_OFFSET = 0.55;            // above car centre
+const HP_BAR_HEIGHT   = 0.30;            // taller to fit number
+const HP_BAR_Y_OFFSET = 0.60;            // above car centre
 
 // Death animation
 const DEATH_DURATION  = 0.30;
@@ -354,27 +354,37 @@ export class Car3D {
 
   _drawHpBar(entry, car) {
     const ratio  = car.maxHp > 0 ? car.hp / car.maxHp : 0;
+    const barH   = 8;   // bottom 8 px = colour bar
     const fillW  = Math.max(1, Math.round(ratio * HP_BAR_CANVAS_W));
     const color  = ratio > 0.6 ? '#55cc55' : ratio > 0.25 ? '#eecc22' : '#ee3333';
     const { hpCtx, hpCanvas, hpTex, hpSprite, group } = entry;
 
     hpCtx.clearRect(0, 0, HP_BAR_CANVAS_W, HP_BAR_CANVAS_H);
-    hpCtx.fillStyle = '#222';
-    hpCtx.fillRect(0, 0, HP_BAR_CANVAS_W, HP_BAR_CANVAS_H);
-    hpCtx.fillStyle = color;
-    hpCtx.fillRect(0, 0, fillW, HP_BAR_CANVAS_H);
 
-    // Colorblind mode: draw the shape symbol on the right of the HP bar.
+    // Bar background + fill (bottom strip)
+    hpCtx.fillStyle = '#222';
+    hpCtx.fillRect(0, HP_BAR_CANVAS_H - barH, HP_BAR_CANVAS_W, barH);
+    hpCtx.fillStyle = color;
+    hpCtx.fillRect(0, HP_BAR_CANVAS_H - barH, fillW, barH);
+
+    // HP number (top portion)
+    hpCtx.font         = `bold ${HP_BAR_CANVAS_H - barH - 1}px Arial`;
+    hpCtx.textAlign    = 'center';
+    hpCtx.textBaseline = 'top';
+    hpCtx.fillStyle    = '#ffffff';
+    hpCtx.shadowColor  = '#000000';
+    hpCtx.shadowBlur   = 3;
+    hpCtx.fillText(String(car.hp), HP_BAR_CANVAS_W / 2, 1);
+    hpCtx.shadowBlur   = 0;
+
+    // Colorblind mode: shape symbol
     if (isColorblind()) {
       const sym = SHAPES[car.color] ?? '?';
-      hpCtx.font         = `bold ${HP_BAR_CANVAS_H + 2}px Arial`;
+      hpCtx.font         = `bold ${barH + 2}px Arial`;
       hpCtx.textAlign    = 'right';
       hpCtx.textBaseline = 'middle';
       hpCtx.fillStyle    = '#ffffff';
-      hpCtx.shadowColor  = '#000000';
-      hpCtx.shadowBlur   = 2;
-      hpCtx.fillText(sym, HP_BAR_CANVAS_W - 1, HP_BAR_CANVAS_H / 2);
-      hpCtx.shadowBlur   = 0;
+      hpCtx.fillText(sym, HP_BAR_CANVAS_W - 1, HP_BAR_CANVAS_H - barH / 2);
     }
 
     hpTex.needsUpdate = true;

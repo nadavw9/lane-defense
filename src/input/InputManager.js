@@ -20,8 +20,10 @@ export class InputManager {
     c.addEventListener('pointerdown',   this._onDown);
     c.addEventListener('pointermove',   this._onMove);
     c.addEventListener('pointerup',     this._onUp);
-    c.addEventListener('pointercancel', this._onUp);   // treat cancel as release
-    c.addEventListener('pointerleave',  this._onUp);   // finger left canvas
+    c.addEventListener('pointercancel', this._onUp);
+    // Only treat pointerleave as a release when no button is held (e.g. finger
+    // still down on mobile).  Prevents premature drop cancellation mid-drag.
+    c.addEventListener('pointerleave',  (e) => { if (e.buttons === 0) this._onUp(e); });
   }
 
   destroy() {

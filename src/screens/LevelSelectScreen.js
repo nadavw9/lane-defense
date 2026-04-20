@@ -222,22 +222,28 @@ export class LevelSelectScreen {
   }
 
   // Draw connecting lines between consecutive level nodes.
-  // All segments share one Graphics so each stroke() resets the path cleanly —
-  // separate Graphics objects leave the path cursor at (0,0) between calls,
-  // which PixiJS v8 renders as an extra segment from the canvas origin.
+  // Two separate Graphics (one per style) so each set of moveTo/lineTo pairs
+  // is stroked once — avoids the PixiJS v8 behaviour where stroke() leaves
+  // the path cursor at the last drawn point, causing the next moveTo to
+  // draw an unwanted line back from the canvas origin.
   _drawPath(unlockedLevel) {
-    const worldBase = (this._worldPage - 1) * 20;
-    const g = new Graphics();
+    const worldBase  = (this._worldPage - 1) * 20;
+    const gReached   = new Graphics();
+    const gUnreached = new Graphics();
+
     for (let localId = 1; localId < 20; localId++) {
       const levelId = worldBase + localId;
       const { x: ax, y: ay } = nodePos(localId);
       const { x: bx, y: by } = nodePos(localId + 1);
-      const reached = levelId < unlockedLevel;
+      const g = levelId < unlockedLevel ? gReached : gUnreached;
       g.moveTo(ax, ay);
       g.lineTo(bx, by);
-      g.stroke({ color: reached ? 0x2a7a4a : 0x151e28, width: reached ? 4 : 3, alpha: reached ? 0.85 : 0.55 });
     }
-    this._container.addChild(g);
+
+    gReached.stroke({ color: 0x2a7a4a, width: 4, alpha: 0.85 });
+    gUnreached.stroke({ color: 0x151e28, width: 3, alpha: 0.55 });
+    this._container.addChild(gReached);
+    this._container.addChild(gUnreached);
   }
 
   _buildNode(levelId, x, y, stars, isUnlocked, isWeekly, onClick) {

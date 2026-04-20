@@ -223,15 +223,15 @@ export class Road3D {
           new THREE.MeshStandardMaterial({
             color:             COL_LAMP_HEAD,
             emissive:          COL_LAMP_HEAD,
-            emissiveIntensity: 1.4,
+            emissiveIntensity: 0.6,   // reduced from 1.4 to tame bloom halos
             roughness:         0.4,
           }),
         );
         head.position.set(bx - side * 1.4, 3.45 + 0.9, z);
         this._group.add(head);
 
-        // Point light for this lamp.
-        const light = new THREE.PointLight(0xffee88, 0.55, 7);
+        // Point light for this lamp — dimmed to avoid large halos with bloom.
+        const light = new THREE.PointLight(0xffee88, 0.20, 9);
         light.position.set(bx - side * 1.4, 3.2 + 0.9, z);
         this._group.add(light);
         this._lamps.push({ light });

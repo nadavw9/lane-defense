@@ -132,6 +132,7 @@ export class ShooterRenderer {
     this._topCircles    = [];   // Graphics fallback circle inside topContainer
     this._topTexts      = [];   // damage number
     this._punchState    = [];   // { active, t }
+    this._crisisState   = [];   // { t, duration } — gold ring flash on CRISIS assist
 
     // Second / third / pip sprites — one array of Sprite per slot
     this._secondSprites = [];
@@ -212,6 +213,7 @@ export class ShooterRenderer {
       this._topTexts.push(t1);
 
       this._punchState.push({ active: false, t: 0 });
+      this._crisisState.push({ active: false, t: 0 });
     }
   }
 
@@ -219,6 +221,13 @@ export class ShooterRenderer {
     if (colIdx < 0 || colIdx >= this._punchState.length) return;
     this._punchState[colIdx].active = true;
     this._punchState[colIdx].t      = 0;
+  }
+
+  /** Gold ring flash for ~1.5 s when CRISIS assist injects a shooter. */
+  triggerCrisisFlash(colIdx) {
+    if (colIdx < 0 || colIdx >= this._crisisState.length) return;
+    this._crisisState[colIdx].active = true;
+    this._crisisState[colIdx].t      = 0;
   }
 
   getTopShooterCenter(colIdx) {
@@ -246,6 +255,20 @@ export class ShooterRenderer {
       if (bs?.swapMode && bs.swapFirst === i) {
         g.roundRect(panelX, SHOOTER_AREA_Y + PANEL_PAD, panelW, SHOOTER_AREA_H - PANEL_PAD * 2, PANEL_RADIUS);
         g.stroke({ color: 0x66aaff, width: 3, alpha: 0.85 });
+      }
+
+      // CRISIS gold ring — pulses for 1.5 s when a guaranteed-match shooter is injected.
+      const crisis = this._crisisState[i];
+      if (crisis.active) {
+        crisis.t += dt;
+        const DURATION = 1.5;
+        if (crisis.t >= DURATION) {
+          crisis.active = false;
+        } else {
+          const pulse = Math.sin((crisis.t / DURATION) * Math.PI); // 0→1→0
+          g.roundRect(panelX - 2, SHOOTER_AREA_Y + PANEL_PAD - 2, panelW + 4, SHOOTER_AREA_H - PANEL_PAD * 2 + 4, PANEL_RADIUS + 2);
+          g.stroke({ color: 0xffcc00, width: 3, alpha: pulse * 0.90 });
+        }
       }
 
       // ── Programmatic fallback (no sprites) ──────────────────────────────────

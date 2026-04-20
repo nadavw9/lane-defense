@@ -103,4 +103,5 @@ export class Scene3D {
 
   add(obj) { this.scene.add(obj); return obj; }
   setBloomStrength(v) { this._bloomPass.strength = v; }
+  getBloomStrength()  { return this._bloomPass.strength; }
 }

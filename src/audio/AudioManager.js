@@ -76,6 +76,7 @@ export class AudioManager {
       case 'daily_reward':     return this._dailyReward();
       case 'win_fanfare':      return this._winFanfare();
       case 'lose_tone':        return this._loseTone();
+      case 'crisis_assist':    return this._crisisAssist();
     }
   }
 
@@ -558,6 +559,25 @@ export class AudioManager {
   }
 
   // ── Utilities ─────────────────────────────────────────────────────────────
+
+  // Cavalry-charge arpeggio — G4 B4 D5 G5 — punchy square wave.
+  // Signals CRISIS assist: cavalry has arrived, a guaranteed match is ready.
+  _crisisAssist() {
+    const ctx   = this._ctx, now = ctx.currentTime;
+    const notes = [392.0, 493.9, 587.3, 784.0]; // G4 B4 D5 G5
+    notes.forEach((f, i) => {
+      const t   = now + i * 0.070;
+      const osc = ctx.createOscillator(), g = ctx.createGain();
+      osc.type            = 'square';
+      osc.frequency.value = f;
+      g.gain.setValueAtTime(0.14, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+      osc.connect(g); g.connect(this._master);
+      osc.start(t); osc.stop(t + 0.20);
+    });
+    // Gold shimmer on top
+    this._noiseBurst(0.08, 5500, now + 0.22, 0.14);
+  }
 
   // Filtered noise burst helper.
   _noiseBurst(gainVal, cutoffHz, startTime, duration) {

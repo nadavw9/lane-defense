@@ -44,8 +44,9 @@ function nodePos(levelId) {
 export class LevelSelectScreen {
   // progress      — ProgressManager instance (read-only here)
   // livesManager  — LivesManager (optional; shows hearts in header)
-  // callbacks     — { onSelectLevel(levelId), onBack, onShop, onAchievements, audio }
-  constructor(stage, appW, appH, progress, { onSelectLevel, onBack, onShop, onAchievements, audio }, livesManager = null) {
+  // callbacks     — { onSelectLevel(levelId), onBack, onShop, onAchievements, audio,
+  //                   weeklyLevels: number[] }
+  constructor(stage, appW, appH, progress, { onSelectLevel, onBack, onShop, onAchievements, audio, weeklyLevels = [] }, livesManager = null) {
     this._container = new Container();
     stage.addChild(this._container);
     this._glowNode    = null;
@@ -55,7 +56,8 @@ export class LevelSelectScreen {
     this._progress    = progress;
     this._appW        = appW;
     this._appH        = appH;
-    this._callbacks   = { onSelectLevel, onBack, onShop, onAchievements, audio };
+    this._weeklyLevels = weeklyLevels;
+    this._callbacks   = { onSelectLevel, onBack, onShop, onAchievements, audio, weeklyLevels };
     this._build(appW, appH, progress, onSelectLevel, onBack, onShop, onAchievements, audio);
   }
 
@@ -190,7 +192,8 @@ export class LevelSelectScreen {
       const { x, y }  = nodePos(localId);
       const stars      = progress.getStars(levelId);
       const isUnlocked = levelId <= unlocked;
-      this._buildNode(levelId, x, y, stars, isUnlocked, () => {
+      const isWeekly   = this._weeklyLevels.includes(levelId);
+      this._buildNode(levelId, x, y, stars, isUnlocked, isWeekly, () => {
         if (isUnlocked) { audio?.play('button_tap'); onSelectLevel(levelId); }
       });
     }
@@ -237,7 +240,7 @@ export class LevelSelectScreen {
     this._container.addChild(g);
   }
 
-  _buildNode(levelId, x, y, stars, isUnlocked, onClick) {
+  _buildNode(levelId, x, y, stars, isUnlocked, isWeekly, onClick) {
     // Drop shadow
     const shadow = new Graphics();
     shadow.circle(x, y + 3, NODE_R + 1);
@@ -264,6 +267,18 @@ export class LevelSelectScreen {
 
       // Mini star row
       this._drawMiniStars(x, y + 11, stars);
+
+      // Weekly featured badge — gold ⭐ at top-right of node
+      if (isWeekly) {
+        const badge = new Text({
+          text: '⭐',
+          style: { fontSize: 13 },
+        });
+        badge.anchor.set(0.5, 0.5);
+        badge.x = x + NODE_R - 2;
+        badge.y = y - NODE_R + 4;
+        this._container.addChild(badge);
+      }
 
       // Hit area + pointer events
       g.eventMode = 'static'; g.cursor = 'pointer';

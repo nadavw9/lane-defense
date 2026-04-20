@@ -3,7 +3,7 @@
 // and GameLoop is the only writer.
 //
 // Rule: nothing outside GameLoop ever writes to GameState.
-import { COMBO_WINDOW, DEPLOY_DILATION, CARRYOVER_COIN_BONUS } from '../director/DirectorConfig.js';
+import { COMBO_WINDOW, DEPLOY_DILATION, CARRYOVER_COIN_BONUS, COMBO_TIERS } from '../director/DirectorConfig.js';
 
 export class GameState {
   // laneCount / colCount — how many of the 4 lanes/columns are active.
@@ -31,6 +31,9 @@ export class GameState {
     // ── Combo ─────────────────────────────────────────────────────────────
     this.combo        = 0;
     this.lastKillTime = -Infinity;
+    // Active combo tier multiplier — used by GameLoop to shorten shot travel
+    // time so the player can fire faster at high combos.  Resets when combo breaks.
+    this.comboFireMultiplier = 1.0;
 
     // ── Stats ─────────────────────────────────────────────────────────────
     this.totalKills     = 0;
@@ -110,6 +113,16 @@ export class GameState {
 
     this.coins += 1 + (isCarryOver ? CARRYOVER_COIN_BONUS : 0);
 
+    // Award milestone bonus coins and activate fire-speed boost when the
+    // combo hits a tier threshold exactly (first time each streak).
+    for (const tier of COMBO_TIERS) {
+      if (this.combo === tier.threshold) {
+        this.coins              += tier.coinBonus;
+        this.comboFireMultiplier = tier.fireSpeedMultiplier;
+        break;
+      }
+    }
+
     return this.combo;
   }
 
@@ -139,6 +152,7 @@ export class GameState {
     this.elapsed       = 0;
     this.combo         = 0;
     this.lastKillTime  = -Infinity;
+    this.comboFireMultiplier = 1.0;
     this.totalKills     = 0;
     this.carryOvers     = 0;
     this.totalDeploys   = 0;
@@ -166,7 +180,8 @@ export class GameState {
   }
 
   resetCombo() {
-    this.combo = 0;
+    this.combo               = 0;
+    this.comboFireMultiplier = 1.0;
   }
 
   // Trigger deploy time dilation starting from now.

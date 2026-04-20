@@ -43,6 +43,16 @@ const BOOSTER_DEFS = [
     btnColor: 0x002a44,
     btnLabel: 0x44ccff,
   },
+  {
+    key:      'shield',
+    label:    'STREAK SHIELD',
+    desc:     'Protect your streak\nif you miss a day',
+    cost:     30,
+    bg:       0x1a1200,
+    border:   0xaa7700,
+    btnColor: 0x3a2a00,
+    btnLabel: 0xffcc44,
+  },
 ];
 
 export class ShopScreen {
@@ -142,26 +152,24 @@ export class ShopScreen {
     const p        = this._progress;
     const CARD_W   = w - PAD * 2;
     const canAfford = p.coins >= def.cost;
-    const enabled  = !def.reserved && canAfford;
+    const enabled  = canAfford;
 
     // Card background
     const card = new Graphics();
     card.roundRect(PAD, cardY, CARD_W, CARD_H, 12);
     card.fill(def.bg);
     card.roundRect(PAD, cardY, CARD_W, CARD_H, 12);
-    card.stroke({ color: def.border, width: 1.5, alpha: def.reserved ? 0.25 : 0.7 });
+    card.stroke({ color: def.border, width: 1.5, alpha: 0.7 });
     this._container.addChild(card);
 
     // Booster label
-    const labelAlpha = def.reserved ? 0.40 : 1.0;
     const label = new Text({
       text: def.label,
-      style: { fontSize: 20, fontWeight: 'bold', fill: 0xffffff, alpha: labelAlpha },
+      style: { fontSize: 20, fontWeight: 'bold', fill: 0xffffff },
     });
     label.anchor.set(0, 0.5);
     label.x = PAD + 14;
     label.y = cardY + 28;
-    label.alpha = labelAlpha;
     this._container.addChild(label);
 
     // Description
@@ -172,20 +180,21 @@ export class ShopScreen {
     desc.anchor.set(0, 0.5);
     desc.x = PAD + 14;
     desc.y = cardY + 72;
-    desc.alpha = def.reserved ? 0.35 : 0.85;
+    desc.alpha = 0.85;
     this._container.addChild(desc);
 
     // Count badge (e.g. "×3 owned")
     const countKey  = def.key;
-    const ownedCt   = boosters[countKey] ?? 0;
+    const ownedCt   = countKey === 'shield'
+      ? (p.streakShields ?? 0)
+      : (boosters[countKey] ?? 0);
     const countTxt  = new Text({
-      text: countKey ? `×${ownedCt} owned` : '—',
+      text: `×${ownedCt} owned`,
       style: { fontSize: 14, fontWeight: 'bold', fill: 0xaaccee },
     });
     countTxt.anchor.set(1, 0);
     countTxt.x = PAD + CARD_W - 100;
     countTxt.y = cardY + 14;
-    countTxt.alpha = def.reserved ? 0.30 : 1.0;
     this._container.addChild(countTxt);
 
     // BUY button
@@ -234,6 +243,8 @@ export class ShopScreen {
     } else if (def.key === 'freeze') {
       p.setBoosters(saved.swap, saved.peek, saved.freeze + 1);
       if (this._boosterState) this._boosterState.freeze = saved.freeze + 1;
+    } else if (def.key === 'shield') {
+      p.addStreakShield(1);
     }
 
     // Track cumulative purchases for Shopkeeper achievement.

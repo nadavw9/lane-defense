@@ -222,7 +222,14 @@ async function main() {
   setColorblindMode(progress.colorblindMode);
 
   // Touch login streak (for title screen badge + achievements).
-  const loginStreak = progress.touchLoginStreak();
+  const streakResult = progress.touchLoginStreak();
+  const loginStreak  = streakResult.count;
+
+  // Weekly featured playlist — same 3 levels for all players this week.
+  const weeklyPlaylist = dailyChallengeManager.getWeeklyPlaylist();
+
+  // Offline coin reward — computed once on startup; shown after title appears.
+  const offlineReward = progress.claimOfflineReward();
 
   // ── Layers ───────────────────────────────────────────────────────────────
   const layers      = new LayerManager(app.stage);
@@ -730,8 +737,7 @@ async function main() {
     audio.playMusic('title');
     livesManager.tick();   // credit any regenerated hearts before showing
     levelSelectScreen = new LevelSelectScreen(app.stage, APP_W, APP_H, progress, {
-      onSelectLevel: (levelId) => {
-        // ── Hearts gate ────────────────────────────────────────────────────
+      onSelectLevel: (levelId) => {        // ── Hearts gate ────────────────────────────────────────────────────
         if (!livesManager.hasHearts()) {
           _showNoHeartsPanel();
           return;
@@ -763,6 +769,7 @@ async function main() {
         });
       },
       audio,
+      weeklyLevels: weeklyPlaylist.levels,
     }, livesManager);
   }
   function showShop() {
@@ -884,6 +891,7 @@ async function main() {
       wrongDeploys: gs.wrongDeploys,
       elapsed:      gs.elapsed,
       rescueUsed:   gs.rescueUsed,
+      boostersUsed: boostersUsedThisLevel.length > 0,
     });
     endAch.forEach(a => achievementQueue.push(a));
 
@@ -892,11 +900,27 @@ async function main() {
     let winLevelId = null;
     if (currentLevelIsDaily) {
       progress.completeDailyChallenge(dailyDateKey);
+      const dcAch = achievementManager.check('daily_challenge');
+      dcAch.forEach(a => achievementQueue.push(a));
       onNext = null;
     } else {
       const levelId = levelManager.levelNumber;
       const stars   = calcStars(gs);
       progress.recordWin(levelId, stars);
+
+      // Weekly playlist bonus: +15 coins for winning a featured level this week.
+      const { levels: featuredLevels, weekKey: wk } = weeklyPlaylist;
+      if (featuredLevels.includes(levelId) && !progress.hasClaimedWeeklyLevel(levelId, wk)) {
+        gs.coins += 15;
+        progress.markClaimedWeeklyLevel(levelId, wk);
+        floatingTexts.push(spawnFloatingText(
+          layers.get('particleLayer'), APP_W / 2, APP_H / 2 - 60,
+          '⭐ WEEKLY BONUS  +15', 0xffcc00,
+        ));
+        // weekly_hero achievement
+        const weeklyAch = achievementManager.check('weekly_win');
+        weeklyAch.forEach(a => achievementQueue.push(a));
+      }
       // Update personal best and detect new records.
       improved   = progress.updateBestStats(levelId, { combo: gs.maxCombo, time: gs.elapsed, stars });
       winLevelId = levelId;
@@ -910,13 +934,9 @@ async function main() {
         });
       };
 
-      // Rating prompt: show after first ever 3-star win.
+      // Rating prompt: show after first ever 3-star win (native integration TBD in Phase 4).
       if (stars === 3 && !progress.ratingPromptShown) {
         progress.markRatingPromptShown();
-        // Defer slightly so win screen is visible first.
-        setTimeout(() => {
-          if (typeof ratingPrompt !== 'undefined') ratingPrompt?.();
-        }, 2500);
       }
     }
 
@@ -1021,6 +1041,7 @@ async function main() {
       gameRenderer3D.setCombo(combo);
       if (combo === 4 || combo === 7 || combo === 11) {
         audio.play('combo_milestone', { combo });
+        haptics.comboMilestone();
       }
 
       // L2: notify FTUE overlay on first kill so it can show the combo hint.
@@ -1042,6 +1063,9 @@ async function main() {
 
     onChainHit: (laneIdx) => {
       floatingTexts.push(spawnChainHit(layers.get('particleLayer'), laneIdx));
+      // chain_reaction achievement: 2+ kills from one shot.
+      const chainAch = achievementManager.check('chain_kill');
+      chainAch.forEach(a => achievementQueue.push(a));
     },
 
     onShoot: (damage, laneIdx, colIdx) => {
@@ -1067,9 +1091,10 @@ async function main() {
       if (isKill) {
         particles.spawnExplosion(laneIdx, gameX, color);
         audio.play('car_destroy');
-        haptics.medium();
+        haptics.killDouble();
       } else {
         audio.play('hit_match');
+        haptics.medium();
       }
     },
 
@@ -1080,7 +1105,6 @@ async function main() {
     },
 
     onEnd: (won, laneIdx) => {
-      // 'rescue' = first breach (rescue still available)
       // 'lose'   = breach after rescue already used (true final loss)
       // 'win'    = timer ran out
       const result = won ? 'win' : (gs.rescueUsed ? 'lose' : 'rescue');
@@ -1104,6 +1128,8 @@ async function main() {
         if (currentLevelIsDaily === false && isSurvivalRun) {
           survivalWave++;
           progress.recordSurvivalRun(survivalWave - 1, gs.totalKills);
+          const survivalAch = achievementManager.check('survival', { wave: survivalWave - 1 });
+          survivalAch.forEach(a => achievementQueue.push(a));
           const nextWaveCfg = { ...LevelManager.getSurvivalConfig(survivalWave), isSurvival: true };
           transition.fadeOut(0.20, () => {
             _startLevel(nextWaveCfg);
@@ -1122,6 +1148,23 @@ async function main() {
         // noRescue levels (e.g. Sudden Death daily challenge) skip the rescue panel.
         breachCam = { laneIdx: laneIdx ?? 0, t: 0, done: false, skipRescue: noRescueThisLevel };
       }
+    },
+
+    onCrisis: (colIdx) => {
+      // CRISIS assist fired — a guaranteed-match shooter was injected at the
+      // top of this column. Gold flash + sound cue to signal the cavalry arrived.
+      gameRenderer3D.triggerCrisisGlow(colIdx);
+      shooterRenderer.triggerCrisisFlash(colIdx);
+      audio.play('crisis_assist');
+      haptics.medium();
+      floatingTexts.push(spawnFloatingText(
+        layers.get('particleLayer'),
+        (colIdx + 0.5) * (APP_W / 4), 560,
+        '⚡ CRISIS ASSIST', 0xffcc00,
+      ));
+      progress.incrementCrisisAssists();
+      const crisisAch = achievementManager.check('crisis_assist');
+      crisisAch.forEach(a => achievementQueue.push(a));
     },
   });
 
@@ -1167,7 +1210,7 @@ async function main() {
     const dt = Math.min(ticker.deltaMS / 1000, 0.05);
 
     // 3D scene update + render (runs when gameRenderer3D is visible/active).
-    gameRenderer3D.update({ lanes: gs.lanes, boosterState }, dt, gs.elapsed);
+    gameRenderer3D.update({ lanes: gs.lanes, boosterState, isBreaching: gs.isOver && !gs.won }, dt, gs.elapsed);
     gameRenderer3D.render();
 
     // Background + road + overlay updates
@@ -1273,6 +1316,24 @@ async function main() {
 
   // ── Boot: show title screen (game loop not started yet) ───────────────────
   showTitle();
+
+  // ── Post-boot overlays (deferred so title is visible first) ───────────────
+
+  // Streak master achievement — needs achievementManager which is declared later.
+  {
+    const sAch = achievementManager.check('login_streak', { streak: loginStreak });
+    sAch.forEach(a => achievementQueue.push(a));
+  }
+
+  // Offline coin reward popup.
+  if (offlineReward) {
+    setTimeout(() => _showOfflineRewardPopup(app, offlineReward), 800);
+  }
+
+  // Streak shield offer: player's streak was reset but they have a shield.
+  if (streakResult.wasReset && streakResult.prevCount >= 3 && progress.hasStreakShield()) {
+    setTimeout(() => _showStreakShieldOffer(app, streakResult, progress), offlineReward ? 3500 : 800);
+  }
 }
 
 function _makeFTUEOverlay(stage, w, h, cfg) {
@@ -1361,3 +1422,69 @@ function _buildAchievementPopup(layer, w, achievement) {
 }
 
 main();
+
+// ── Simple toast helper ────────────────────────────────────────────────────────
+// Shows a timed banner at the top of the stage for 3.5 s then self-destructs.
+// onMount (optional) is called immediately for any side-effects (e.g. shield use).
+function _buildSimpleToast(app, w, message, bgColor, textColor, onMount) {
+  onMount?.();
+  const stage = app.stage;
+  const grp = new Container();
+
+  const PW = w - 40, PH = 72;
+  const bg = new Graphics();
+  bg.roundRect(20, 0, PW, PH, 14);
+  bg.fill({ color: bgColor, alpha: 0.96 });
+  bg.roundRect(20, 0, PW, PH, 14);
+  bg.stroke({ color: textColor, width: 2, alpha: 0.70 });
+  grp.addChild(bg);
+
+  const txt = new Text({
+    text: message,
+    style: {
+      fontSize:    16,
+      fontWeight:  'bold',
+      fill:        textColor,
+      align:       'center',
+      wordWrap:    true,
+      wordWrapWidth: PW - 32,
+      dropShadow:  { color: 0x000000, blur: 5, distance: 0, alpha: 0.8 },
+    },
+  });
+  txt.anchor.set(0.5, 0.5);
+  txt.x = w / 2;
+  txt.y = PH / 2;
+  grp.addChild(txt);
+
+  grp.y = 50;
+  stage.addChild(grp);
+
+  const TOTAL = 3.5;
+  let elapsed = 0;
+  const unsub = app.ticker.add((ticker) => {
+    elapsed += ticker.deltaMS / 1000;
+    if (elapsed > TOTAL - 0.8) grp.alpha = Math.max(0, (TOTAL - elapsed) / 0.8);
+    if (elapsed >= TOTAL) {
+      app.ticker.remove(unsub);
+      grp.destroy({ children: true });
+    }
+  });
+}
+
+// ── Offline reward popup ───────────────────────────────────────────────────────
+function _showOfflineRewardPopup(app, reward) {
+  const hours = Math.floor(reward.awayMin / 60);
+  const mins  = reward.awayMin % 60;
+  const away  = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+  _buildSimpleToast(app, 390, `☁️ Away for ${away} — welcome back!  +${reward.coins} coins`, 0x0a1a08, 0x55ff99);
+}
+
+// ── Streak shield offer ────────────────────────────────────────────────────────
+function _showStreakShieldOffer(app, streakResult, progress) {
+  _buildSimpleToast(
+    app, 390,
+    `🛡 Streak shield activated! Your ${streakResult.prevCount}-day streak is safe.`,
+    0x120820, 0xaa77ff,
+    () => progress.useStreakShield(streakResult.prevCount),
+  );
+}

@@ -67,13 +67,30 @@ function dayIndex() {
   return Math.max(0, Math.floor((Date.now() - epoch) / (1000 * 60 * 60 * 24)));
 }
 
+// ISO week key (YYYY-Www) — same for every player in the same calendar week.
+function weekKey() {
+  const d   = new Date();
+  const jan1 = new Date(d.getFullYear(), 0, 1);
+  const week = Math.ceil(((d - jan1) / 86400000 + jan1.getDay() + 1) / 7);
+  return `${d.getFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+
+// Deterministic week index from weeks since 2026-01-05 (first Monday).
+function weekIndex() {
+  const epoch = new Date(2026, 0, 5).getTime();
+  return Math.max(0, Math.floor((Date.now() - epoch) / (7 * 24 * 60 * 60 * 1000)));
+}
+
 export class DailyChallengeManager {
   getTodayKey() {
     return todayDateKey();
   }
 
-  // Returns a full level config object for today's challenge.
-  // Merges the challenge definition with standard 4×4 full-board defaults.
+  getWeekKey() {
+    return weekKey();
+  }
+
+  // Returns today's challenge config.
   getChallenge() {
     const def = CHALLENGES[dayIndex() % CHALLENGES.length];
     return {
@@ -90,5 +107,21 @@ export class DailyChallengeManager {
       worldConfig: def.worldConfig,
       duration:   def.duration,
     };
+  }
+
+  // Returns 3 featured level ids for this week and the current week key.
+  // All players see the same 3 levels. Winning a featured level awards +15 bonus coins.
+  // Rotates through curated triples deterministically by week index.
+  getWeeklyPlaylist() {
+    const PLAYLISTS = [
+      [3, 8, 16],
+      [5, 13, 20],
+      [7, 11, 18],
+      [4,  9, 15],
+      [6, 12, 19],
+      [2, 10, 17],
+    ];
+    const levels = PLAYLISTS[weekIndex() % PLAYLISTS.length];
+    return { levels, weekKey: weekKey() };
   }
 }

@@ -47,6 +47,9 @@ export class GameRenderer3D {
     // the car has already been removed from the lane when the callback fires.
     this._laneCarPosCache = [50, 50, 50, 50];
 
+    // Accumulated time used to drive the 1Hz danger-warning bloom pulse.
+    this._warningPhase = 0;
+
     this._lanes       = null;
     this._columns     = null;
     this._firingSlots = null;
@@ -111,6 +114,7 @@ export class GameRenderer3D {
     this._postFX?.setBreach(0);
     this._postFX?.setCombo(0);
     this._skybox?.setCombo(0);
+    this._warningPhase = 0;
     if (this._mounted && this._lanes) {
       this._particles   = new Particles3D(this._scene3d.scene, this._lighting, this._lanes);
       this._laneFlash   = new LaneFlash3D(this._scene3d.scene);
@@ -128,7 +132,7 @@ export class GameRenderer3D {
       this._particles?.spawnExplosion(laneIdx, color);
       this._cameraFX?.shake(0.12, 0.25);
       this._postFX?.triggerChroma(0.022, 0.30);
-      const strength = Math.min(1.6, (this._scene3d._bloomPass?.strength ?? 0.85) + 0.05);
+      const strength = Math.min(1.6, (this._scene3d?.getBloomStrength() ?? 0.85) + 0.05);
       this._scene3d?.setBloomStrength(strength);
       // Use cached car position — the car may already be removed from the lane
       // when this callback fires (game state updated before events).
@@ -172,6 +176,13 @@ export class GameRenderer3D {
     this._shooters?.triggerPunch(colIdx);
   }
 
+  /** Gold bloom burst when CRISIS assist fires — the cavalry has arrived. */
+  triggerCrisisGlow(colIdx) {
+    this._shooters?.triggerPunch(colIdx);
+    this._scene3d?.setBloomStrength(1.8);
+    this._cameraFX?.shake(0.05, 0.20);
+  }
+
   // ── Per-frame update ────────────────────────────────────────────────────────
 
   update(gameState, dt, elapsed) {
@@ -207,11 +218,34 @@ export class GameRenderer3D {
       }
     }
 
-    // Decay bloom back to resting strength.
+    // Danger warning: when any front car is past 80% of the lane, pulse bloom
+    // and add a subtle red vignette so the player feels the threat viscerally.
+    // Only active when not already in a full breach state.
+    let warningBoost = 0;
+    if (!gameState?.isBreaching && this._lanes) {
+      let maxDanger = 0;
+      for (const lane of this._lanes) {
+        const fc = lane.cars[0];
+        if (fc) maxDanger = Math.max(maxDanger, (fc.position - 80) / 20); // 0@80% → 1@100%
+      }
+      maxDanger = Math.max(0, Math.min(1, maxDanger));
+      if (maxDanger > 0) {
+        this._warningPhase += dt * Math.PI * 2; // 1 Hz pulse
+        const pulse = (Math.sin(this._warningPhase) * 0.5 + 0.5); // 0–1
+        warningBoost = maxDanger * pulse * 0.55;
+        this._postFX?.setBreach(maxDanger * pulse * 0.28);
+      } else {
+        this._warningPhase = 0;
+        this._postFX?.setBreach(0);
+      }
+    }
+
+    // Bloom: decay toward resting strength (which rises with danger warning).
     if (this._scene3d) {
-      const cur  = this._scene3d._bloomPass?.strength ?? 0.85;
-      const rest = 0.85;
+      const cur  = this._scene3d?.getBloomStrength() ?? 0.85;
+      const rest = 0.85 + warningBoost;
       if (cur > rest) this._scene3d.setBloomStrength(cur - dt * 0.8);
+      else if (cur < rest) this._scene3d.setBloomStrength(Math.min(rest, cur + dt * 2.5));
     }
   }
 

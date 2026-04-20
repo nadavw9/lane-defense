@@ -30,7 +30,7 @@ export class GameLoop {
   //   boosterState               — optional BoosterState; cars freeze when isFrozen()
   //   benchStorage               — optional BenchStorage; included in viability checks (L6+)
   constructor({ app, gameState, carDir, shooterDir, combatResolver, rng,
-                onKill, onChainHit, onShoot, onHit, onMiss, onEnd,
+                onKill, onChainHit, onShoot, onHit, onMiss, onEnd, onCrisis,
                 boosterState = null, benchStorage = null }) {
     this._app          = app;
     this._gs           = gameState;
@@ -46,6 +46,7 @@ export class GameLoop {
     this._onHit    = onHit      ?? (() => {});
     this._onMiss   = onMiss     ?? (() => {});
     this._onEnd    = onEnd      ?? (() => {});
+    this._onCrisis = onCrisis   ?? (() => {});
 
     // Base level duration — used to reset gs.duration on restart.
     this._baseDuration = gameState.duration;
@@ -73,6 +74,7 @@ export class GameLoop {
     // Slot occupancy is enforced by DragDrop; guard here defensively.
     if (this._gs.firingSlots[laneIdx]) return;
     col.consume();
+    this._sDir.recordDeploy(this._gs.elapsed);
     this._startFiring(shooter, laneIdx, colIdx);
   }
 
@@ -81,16 +83,20 @@ export class GameLoop {
   deployFromBench(shooter, laneIdx) {
     if (this._gs.firingSlots[laneIdx]) return;
     this._gs.benchUsed++;
+    this._sDir.recordDeploy(this._gs.elapsed);
     this._startFiring(shooter, laneIdx, -1);
   }
 
   // Place shooter in the firing slot for one short travel window, trigger
   // audio/animation callbacks, and start time dilation.  Combat resolves once
   // the single projectile travel time elapses.
+  // Travel time is shortened by comboFireMultiplier so high-combo streaks
+  // feel snappier — at 2× the shot resolves in 0.06 s instead of 0.12 s.
   // colIdx === -1 means the shooter came from the bench (no punch animation).
   _startFiring(shooter, laneIdx, colIdx) {
-    const gs = this._gs;
-    gs.firingSlots[laneIdx] = { shooter, colIdx, timeLeft: SHOT_TRAVEL_TIME };
+    const gs         = this._gs;
+    const travelTime = SHOT_TRAVEL_TIME / (gs.comboFireMultiplier ?? 1.0);
+    gs.firingSlots[laneIdx] = { shooter, colIdx, timeLeft: travelTime };
     this._onShoot(shooter.damage, laneIdx, colIdx);
     gs.triggerDilation();
   }
@@ -217,6 +223,22 @@ export class GameLoop {
     //    Checks column tops + bench (when unlocked) against front car colors.
     //    If no overlap, forces a column top to match a front car color.
     this._enforceViableMove(gs);
+
+    // 6.5. CRISIS assist — inject a guaranteed-match shooter at the top of the
+    //      column aligned with the most dangerous lane. Only fires in PRESSURE,
+    //      CLIMAX, or RELIEF when the player has been active (2+ deploys in 10s).
+    if (phaseParams.crisisEnabled) {
+      const crisis = this._sDir.triggerCrisis(dirState);
+      if (crisis) {
+        const laneIdx = gs.activeLanes.indexOf(crisis.lane);
+        const colIdx  = Math.max(0, Math.min(laneIdx >= 0 ? laneIdx : 0, gs.activeColCount - 1));
+        crisis.shooter.column = colIdx;
+        gs.columns[colIdx].shooters.unshift(crisis.shooter);
+        // Keep column within capacity.
+        if (gs.columns[colIdx].shooters.length > 6) gs.columns[colIdx].shooters.length = 6;
+        this._onCrisis(colIdx, laneIdx);
+      }
+    }
 
     // 7. Tick firing slots — resolve shots after the per-damage fire duration.
     for (let i = 0; i < gs.activeLaneCount; i++) {

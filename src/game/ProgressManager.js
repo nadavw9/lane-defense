@@ -55,6 +55,14 @@ function defaults() {
     ratingPromptShown:   false,
     survivalBest:        { wave: 0, kills: 0 },
     bestStats:           {},    // { [levelId]: { combo: N, time: N, stars: N } }
+    // v1.2 additions
+    streakShields:       1,    // charges to protect a broken streak
+    lastSessionMs:       null, // ms timestamp of last app open (for offline reward)
+    weeklyClaimedLevels: {},   // { weekKey: [levelId, ...] }
+    // v1.3 additions
+    crisisAssistsReceived:    0,  // times CRISIS assist fired (for achievement)
+    totalCoinsSpent:          0,  // coins spent in shop (Big Spender achievement)
+    totalDailyChallengesDone: 0,  // completed daily challenges (Daily Challenger achievement)
   };
 }
     
@@ -111,6 +119,7 @@ export class ProgressManager {
   spendCoins(amount) {
     if (this._data.coins < amount) return false;
     this._data.coins -= amount;
+    this._data.totalCoinsSpent = (this._data.totalCoinsSpent ?? 0) + Math.floor(amount);
     this._save();
     return true;
   }
@@ -289,20 +298,22 @@ export class ProgressManager {
 
   get loginStreak() { return this._data.loginStreak?.count ?? 0; }
 
-  /** Call once per app open to update the streak. Returns new streak count. */
+  /** Call once per app open to update the streak.
+   *  Returns { count, wasReset, prevCount } so callers can offer a shield. */
   touchLoginStreak() {
     const today  = new Date().toISOString().slice(0, 10);
     const streak = this._data.loginStreak ?? { count: 0, lastLogin: '' };
     const last   = streak.lastLogin;
+    const prev   = streak.count;
 
-    if (last === today) return streak.count;   // already touched today
+    if (last === today) return { count: prev, wasReset: false, prevCount: prev };
 
-    // Check if yesterday (to continue streak) or further back (reset).
     const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-    const newCount  = last === yesterday ? streak.count + 1 : 1;
+    const continued = last === yesterday;
+    const newCount  = continued ? prev + 1 : 1;
     this._data.loginStreak = { count: newCount, lastLogin: today };
     this._save();
-    return newCount;
+    return { count: newCount, wasReset: !continued && prev > 0, prevCount: prev };
   }
 
   get dailyDay() { return this._data.dailyReward.day; }
@@ -344,6 +355,92 @@ export class ProgressManager {
     this._data.dailyChallenge = { date: dateKey, completed: true };
     this._data.coins         += bonusCoins;
     this._data.totalCoinsEarned += bonusCoins;
+    this._data.totalDailyChallengesDone = (this._data.totalDailyChallengesDone ?? 0) + 1;
+    this._save();
+  }
+
+  // ── Streak shield ─────────────────────────────────────────────────────────
+
+  get streakShields() { return this._data.streakShields ?? 1; }
+
+  hasStreakShield() { return (this._data.streakShields ?? 1) > 0; }
+
+  addStreakShield(n = 1) {
+    this._data.streakShields = (this._data.streakShields ?? 0) + n;
+    this._save();
+  }
+
+  /** Spend one shield to restore yesterday's streak count. Returns true on success. */
+  useStreakShield(prevCount) {
+    if (!this.hasStreakShield()) return false;
+    this._data.streakShields = Math.max(0, (this._data.streakShields ?? 1) - 1);
+    // Restore the streak as if today continues yesterday.
+    const today = new Date().toISOString().slice(0, 10);
+    this._data.loginStreak = { count: prevCount + 1, lastLogin: today };
+    this._save();
+    return true;
+  }
+
+  // ── Offline coin reward ────────────────────────────────────────────────────
+  // Awards 1 coin per 5 minutes away, capped at 20 coins. Min absence: 30 min.
+  // Stamps lastSessionMs on every call so the next call measures correctly.
+
+  claimOfflineReward() {
+    const now    = Date.now();
+    const last   = this._data.lastSessionMs ?? null;
+    this._data.lastSessionMs = now;
+    this._save();
+
+    if (last === null) return null;                      // first ever launch
+    const awayMin = (now - last) / 60000;
+    if (awayMin < 30) return null;                       // wasn't away long enough
+
+    const coins = Math.min(20, Math.floor(awayMin / 5));
+    if (coins <= 0) return null;
+
+    this._data.coins            += coins;
+    this._data.totalCoinsEarned += coins;
+    this._save();
+    return { coins, awayMin: Math.floor(awayMin) };
+  }
+
+  // ── Weekly playlist tracking ───────────────────────────────────────────────
+
+  hasClaimedWeeklyLevel(levelId, weekKey) {
+    const claimed = this._data.weeklyClaimedLevels?.[weekKey] ?? [];
+    return claimed.includes(levelId);
+  }
+
+  markClaimedWeeklyLevel(levelId, weekKey) {
+    if (!this._data.weeklyClaimedLevels) this._data.weeklyClaimedLevels = {};
+    const arr = this._data.weeklyClaimedLevels[weekKey] ?? [];
+    if (!arr.includes(levelId)) {
+      arr.push(levelId);
+      this._data.weeklyClaimedLevels[weekKey] = arr;
+      this._save();
+    }
+  }
+
+  // ── v1.3 counters ─────────────────────────────────────────────────────────
+
+  get crisisAssistsReceived()    { return this._data.crisisAssistsReceived    ?? 0; }
+  get totalCoinsSpent()          { return this._data.totalCoinsSpent          ?? 0; }
+  get totalDailyChallengesDone() { return this._data.totalDailyChallengesDone ?? 0; }
+
+  incrementCrisisAssists() {
+    this._data.crisisAssistsReceived = (this._data.crisisAssistsReceived ?? 0) + 1;
+    this._save();
+  }
+
+  addCoinsSpent(amount) {
+    if (amount > 0) {
+      this._data.totalCoinsSpent = (this._data.totalCoinsSpent ?? 0) + Math.floor(amount);
+      this._save();
+    }
+  }
+
+  incrementDailyChallengesDone() {
+    this._data.totalDailyChallengesDone = (this._data.totalDailyChallengesDone ?? 0) + 1;
     this._save();
   }
 

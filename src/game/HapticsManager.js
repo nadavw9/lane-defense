@@ -60,4 +60,26 @@ export class HapticsManager {
       await _Haptics.selectionEnd();
     } catch {}
   }
+
+  /** Double-tap — satisfying kill confirmation. */
+  async killDouble() {
+    if (!this._enabled || !(await _init())) return;
+    try {
+      await _Haptics.impact({ style: _ImpactStyle.Medium });
+      await new Promise(r => setTimeout(r, 60));
+      await _Haptics.impact({ style: _ImpactStyle.Heavy });
+    } catch {}
+  }
+
+  /** Rising triple — combo milestone (fires on 4, 7, 11). */
+  async comboMilestone() {
+    if (!this._enabled || !(await _init())) return;
+    try {
+      await _Haptics.impact({ style: _ImpactStyle.Light });
+      await new Promise(r => setTimeout(r, 55));
+      await _Haptics.impact({ style: _ImpactStyle.Medium });
+      await new Promise(r => setTimeout(r, 55));
+      await _Haptics.impact({ style: _ImpactStyle.Heavy });
+    } catch {}
+  }
 }

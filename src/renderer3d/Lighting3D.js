@@ -22,6 +22,13 @@ export class Lighting3D {
     // ── Ambient ─────────────────────────────────────────────────────────────
     const ambient = new THREE.AmbientLight(0x334466, 0.5);
     scene.add(ambient);
+    this._ambient     = ambient;
+    this._ambientBase = 0.5;   // resting intensity
+
+    // Ambient flash state (driven by ambientFlash()).
+    this._ambientFlashTimer    = 0;
+    this._ambientFlashDuration = 0.30;
+    this._ambientPeak          = 0;
 
     // ── Hemisphere (sky = deep blue, ground = near-black purple) ────────────
     const hemi = new THREE.HemisphereLight(0x223366, 0x110822, 0.35);
@@ -58,7 +65,7 @@ export class Lighting3D {
   // duration  — fade duration in seconds (default 0.35)
   acquireFlash(color, x, y, z, intensity = 3.0, duration = 0.35) {
     const slot = this._flPool.find(s => !s.active);
-    if (!slot) return;   // all busy; skip gracefully
+    if (!slot) return;
 
     slot.light.color.setHex(color);
     slot.light.intensity   = intensity;
@@ -78,21 +85,40 @@ export class Lighting3D {
         slot.light.intensity = 0;
         slot.active = false;
       } else {
-        // Ease-out fade: intensity tracks (timer/duration)²
         const t = slot.timer / slot.duration;
         slot.light.intensity = slot.peakIntensity * t * t;
       }
     }
+
+    // Decay ambient flash back to base.
+    if (this._ambientFlashTimer > 0) {
+      this._ambientFlashTimer -= dt;
+      const t = Math.max(0, this._ambientFlashTimer / this._ambientFlashDuration);
+      this._ambient.intensity = this._ambientBase + this._ambientPeak * t * t;
+      if (this._ambientFlashTimer <= 0) {
+        this._ambient.intensity = this._ambientBase;
+      }
+    }
   }
 
-  // Convenience: acquire a muzzle flash (short, bright, shooter-color).
+  // Gentle full-scene brightness pulse — replaces the localized PointLight flash
+  // that used to light up both side barriers as two bright parallel lines.
+  // boost    — how much to add on top of the base ambient (default 0.6)
+  // duration — fade time in seconds (default 0.30)
+  ambientFlash(boost = 0.6, duration = 0.30) {
+    this._ambientFlashTimer    = duration;
+    this._ambientFlashDuration = duration;
+    this._ambientPeak          = boost;
+  }
+
+  // Convenience: muzzle flash — kept but halved so it doesn't bleed to barriers.
   muzzleFlash(color, x, y, z) {
-    this.acquireFlash(color, x, y, z, 2.5, 0.12);
+    this.acquireFlash(color, x, y, z, 1.2, 0.10);
   }
 
-  // Convenience: acquire an explosion flash (longer, bigger radius).
+  // Convenience: explosion — now triggers ambient pulse instead of a PointLight.
   explosionFlash(color, x, y, z) {
-    this.acquireFlash(color, x, y, z, 4.5, 0.40);
+    this.ambientFlash(0.55, 0.28);
   }
 
   dispose() {

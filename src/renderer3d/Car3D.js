@@ -49,12 +49,12 @@ const HEADLIGHT_XS = [-0.42, 0.42];
 // Car sits with its bottom at Y = 0 (road surface).
 const CAR_Y = BODY_H / 2 + WHEEL_R;
 
-// HP bar — larger canvas and world dimensions so it's readable at any distance
-const HP_BAR_CANVAS_W = 128;
-const HP_BAR_CANVAS_H = 36;
-const HP_BAR_WIDTH    = BODY_W * 3.2;   // 4.8 world units wide
-const HP_BAR_HEIGHT   = 0.70;           // was 0.30
-const HP_BAR_Y_OFFSET = 1.10;           // was 0.60
+// HP bar — canvas and world dimensions
+const HP_BAR_CANVAS_W = 96;
+const HP_BAR_CANVAS_H = 26;
+const HP_BAR_WIDTH    = BODY_W * 2.0;   // 3.0 world units wide (was 4.8)
+const HP_BAR_HEIGHT   = 0.46;           // was 0.70
+const HP_BAR_Y_OFFSET = 0.95;           // was 1.10
 
 // Death animation
 const DEATH_DURATION  = 0.30;
@@ -359,7 +359,7 @@ export class Car3D {
     const ratio  = car.maxHp > 0 ? car.hp / car.maxHp : 0;
     const barH   = 8;   // bottom 8 px = colour bar
     const fillW  = Math.max(1, Math.round(ratio * HP_BAR_CANVAS_W));
-    const color  = ratio > 0.6 ? '#55cc55' : ratio > 0.25 ? '#eecc22' : '#ee3333';
+    const color  = ratio > 0.6 ? '#33ee44' : ratio > 0.25 ? '#ffdd00' : '#ff2222';
     const { hpCtx, hpCanvas, hpTex, hpSprite, group } = entry;
 
     hpCtx.clearRect(0, 0, HP_BAR_CANVAS_W, HP_BAR_CANVAS_H);
@@ -374,7 +374,7 @@ export class Car3D {
     hpCtx.font         = `bold ${HP_BAR_CANVAS_H - barH - 2}px Arial`;
     hpCtx.textAlign    = 'center';
     hpCtx.textBaseline = 'top';
-    hpCtx.fillStyle    = '#dddddd';
+    hpCtx.fillStyle    = '#ffffff';
     hpCtx.shadowColor  = '#000000';
     hpCtx.shadowBlur   = 4;
     hpCtx.fillText(String(car.hp), HP_BAR_CANVAS_W / 2, 1);

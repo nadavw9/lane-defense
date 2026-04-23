@@ -16,7 +16,7 @@
 //
 // Bench highlights during drag from column:
 //   • BLUE ring on the hovered empty bench slot
-import { Graphics, Container, Text, Sprite, Assets } from 'pixi.js';
+import { Graphics, Container, Text } from 'pixi.js';
 import {
   ROAD_TOP_Y, ROAD_BOTTOM_Y,
   ROAD_TOP_X, ROAD_TOP_W, ROAD_BOTTOM_W,
@@ -391,43 +391,64 @@ export class DragDrop {
 
   _createGhost(shooter, x, y) {
     const container = new Container();
+    const color     = COLOR_MAP[shooter.color] ?? 0x888888;
+    const R         = TOP_RADIUS + 4;   // slightly larger than hit radius
+    const g         = new Graphics();
 
-    // Use idle sprite if already loaded; fall back to a programmatic circle.
-    const idleUrl = `${import.meta.env.BASE_URL}sprites/shooters/shooter-${shooter.color.toLowerCase()}-idle.png`;
-    const tex     = Assets.get(idleUrl);
-    if (tex) {
-      const sp = new Sprite(tex);
-      sp.anchor.set(0.5);
-      sp.scale.set((TOP_RADIUS * 2) / Math.max(tex.width, tex.height));
-      container.addChild(sp);
-    } else {
-      const color = COLOR_MAP[shooter.color] ?? 0x888888;
-      const g = new Graphics();
-      g.circle(0, 0, TOP_RADIUS);
-      g.fill({ color: 0x000000, alpha: 0.2 });
-      g.circle(0, -3, TOP_RADIUS);
-      g.fill(color);
-      g.circle(-10, -13, 10);
-      g.fill({ color: 0xffffff, alpha: 0.18 });
-      container.addChild(g);
-    }
+    // ── Drop shadow (soft blur ring) ─────────────────────────────────────────
+    g.circle(2, 4, R + 6);
+    g.fill({ color: 0x000000, alpha: 0.30 });
 
+    // ── Outer metallic rim ────────────────────────────────────────────────────
+    g.circle(0, 0, R);
+    g.fill({ color: 0x2a2a3a });
+
+    // ── Turret base plate (dark gunmetal) ─────────────────────────────────────
+    g.circle(0, 0, R - 4);
+    g.fill({ color: 0x181828 });
+
+    // ── Turret body (shooter color) ───────────────────────────────────────────
+    g.circle(0, -2, R - 9);
+    g.fill(color);
+
+    // ── Metallic rim highlight (top-left arc simulating 3D lighting) ──────────
+    g.arc(0, -2, R - 9, Math.PI * 1.1, Math.PI * 1.65);
+    g.stroke({ color: 0xffffff, width: 3, alpha: 0.45 });
+
+    // ── Barrel (pointing downward — toward deployment zone) ───────────────────
+    const barrelW = 8, barrelL = R - 4;
+    g.roundRect(-barrelW / 2, -2, barrelW, barrelL, 3);
+    g.fill({ color: 0x1a1a2a });
+    // Barrel highlight stripe
+    g.roundRect(-2, -2, 3, barrelL - 4, 2);
+    g.fill({ color: 0xffffff, alpha: 0.20 });
+
+    // ── Turret center dot (emissive core) ─────────────────────────────────────
+    g.circle(0, -2, 5);
+    g.fill({ color: 0xffffff, alpha: 0.70 });
+    g.circle(0, -2, 3);
+    g.fill({ color: 0xffffff });
+
+    container.addChild(g);
+
+    // ── Damage number ─────────────────────────────────────────────────────────
     const text = new Text({
       text: String(shooter.damage),
       style: {
-        fontSize:   22,
+        fontSize:   18,
         fontWeight: 'bold',
         fill:       0xffffff,
-        dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 0.7 },
+        dropShadow: { color: 0x000000, blur: 4, distance: 0, alpha: 0.9 },
       },
     });
     text.anchor.set(0.5);
-
+    text.y = -R - 12;   // float above the turret
     container.addChild(text);
-    container.x     = x;
-    container.y     = y;
-    container.alpha = 0.88;
-    container.scale.set(1.08);
+
+    container.x = x;
+    container.y = y;
+    container.alpha = 0.92;
+    container.scale.set(1.0);
 
     this._dragLayer.addChild(container);
     return container;

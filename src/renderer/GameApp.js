@@ -601,13 +601,11 @@ async function main() {
   function showTitle() {
     pauseBtn.visible = false;
     audio.playMusic('title');
-    // Return to 2D environment layers when leaving gameplay.
+    // Keep 2D shooter layers hidden — 3D renderer handles shooter visuals.
     gameRenderer3D.hide();
     layers.get('backgroundLayer').visible    = true;
     layers.get('laneLayer').visible          = true;
     layers.get('carLayer').visible           = true;
-    layers.get('shooterColumnLayer').visible  = true;
-    layers.get('activeShooterLayer').visible  = true;
     titleScreen = new TitleScreen(app.stage, APP_W, APP_H, {
       onPlay: () => {
         titleScreen?.destroy();
@@ -1095,7 +1093,7 @@ async function main() {
       firstDeployTooltipShown = true;
       ftueOverlay?.onFirstDeploy(tipDamage);
 
-      if (laneIdx >= 0) laneFlash.flash(laneIdx);
+      // Lane flash disabled — no lane glow during gameplay.
       if (colIdx  >= 0) shooterRenderer.triggerDeployPunch(colIdx);
       if (colIdx  >= 0) gameRenderer3D.triggerDeployPunch(colIdx);
       if (laneIdx >= 0) gameRenderer3D.onShoot(laneIdx);

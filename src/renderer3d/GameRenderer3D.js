@@ -146,7 +146,7 @@ export class GameRenderer3D {
   }
 
   onShoot(laneIdx) {
-    if (laneIdx >= 0) this._laneFlash?.flash(laneIdx);
+    // Lane flash disabled — no lane glow during gameplay.
   }
 
   onBreach() {

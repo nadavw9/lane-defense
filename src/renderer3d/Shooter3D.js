@@ -32,15 +32,16 @@ const TORUS_R    = 0.52;   // ring radius
 const TORUS_TUBE = 0.04;
 
 // Turret world position for the shooter viewport camera.
-// Camera at (0, 0.5, 4.5) FOV=65° looks at (0, 0.5, 0).
-// Three slots per column stacked vertically in the 180px viewport (Y=520-700).
-//   Slot 0 (top/main) : world Y ≈ +0.355 → screen Y ≈ 614  (fully opaque)
-//   Slot 1 (2nd)      : world Y ≈ -0.65  → screen Y ≈ 651  (65% opacity)
-//   Slot 2 (3rd)      : world Y ≈ -1.55  → screen Y ≈ 679  (40% opacity)
+// TOP-DOWN camera at (0, 4.5, 0) looking down, up=(0,0,-1), vFOV=70°.
+// Main turret at Z=0 (camera focus) → screen Y ≈ 610.
+// Queue slots stacked in Z (further from camera origin = lower in viewport):
+//   Slot 0 (top/main) : Z=0.0  → screen Y ≈ 610  (fully opaque)
+//   Slot 1 (2nd)      : Z=1.8  → screen Y ≈ 661  (62% scale, 62% opacity)
+//   Slot 2 (3rd)      : Z=2.8  → screen Y ≈ 690  (40% scale, 40% opacity)
 const TURRET_Z    = 0.0;
-const TURRET_Y    = BASE_H + BODY_H / 2;   // slot 0 centre
-const SLOT1_Y     = -0.65;                 // slot 1 centre
-const SLOT2_Y     = -1.55;                 // slot 2 centre
+const TURRET_Y    = BASE_H + BODY_H / 2;   // slightly above ground so turret is proud
+const SLOT1_Z     = 1.8;
+const SLOT2_Z     = 2.8;
 const SLOT1_SCALE = 0.62;
 const SLOT2_SCALE = 0.40;
 
@@ -308,10 +309,10 @@ export class Shooter3D {
     this._scene.add(group);
 
     // ── Queue slot 1 (2nd shooter) ── smaller, dimmer
-    const slot1 = this._createQueueSlot(laneIdx, SLOT1_Y, SLOT1_SCALE);
+    const slot1 = this._createQueueSlot(laneIdx, SLOT1_Z, SLOT1_SCALE);
 
     // ── Queue slot 2 (3rd shooter) ── smallest, dimmest
-    const slot2 = this._createQueueSlot(laneIdx, SLOT2_Y, SLOT2_SCALE);
+    const slot2 = this._createQueueSlot(laneIdx, SLOT2_Z, SLOT2_SCALE);
 
     // Layer 1: only visible to the shooter viewport camera (not the road camera).
     group.traverse(obj => obj.layers.set(1));
@@ -331,9 +332,10 @@ export class Shooter3D {
   }
 
   // Create a simplified queue-slot turret (body + ring only, no barrel).
-  _createQueueSlot(laneIdx, worldY, scale) {
+  _createQueueSlot(laneIdx, worldZ, scale) {
     const group = new THREE.Group();
-    group.position.set(laneToX(laneIdx), worldY, TURRET_Z);
+    // Top-down view: queue stacks in Z (depth); Y same as main turret.
+    group.position.set(laneToX(laneIdx), TURRET_Y, worldZ);
     group.scale.set(scale, scale, scale);
 
     const bodyMat = new THREE.MeshStandardMaterial({

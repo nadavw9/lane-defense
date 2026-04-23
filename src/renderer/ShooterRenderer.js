@@ -22,9 +22,9 @@ export const SECOND_RADIUS = 24;
 const        THIRD_RADIUS  = 17;
 const        PIP_RADIUS    = 9;
 
-export const TOP_Y    = SHOOTER_AREA_Y + 93;    // 613 — matches 3D turret screen position
-export const SECOND_Y = SHOOTER_AREA_Y + 135;   // 655 — second shooter centre (below top)
-const        THIRD_Y  = SHOOTER_AREA_Y + 163;   // 683 — third shooter centre
+export const TOP_Y    = SHOOTER_AREA_Y + 90;    // 610 — top-down camera: turret at viewport centre
+export const SECOND_Y = SHOOTER_AREA_Y + 141;   // 661 — slot1 at Z=1.8 in top-down view
+const        THIRD_Y  = SHOOTER_AREA_Y + 170;   // 690 — slot2 at Z=2.8 in top-down view
 const        PIP_Y    = SHOOTER_AREA_Y + 174;   // 694 — peek pips row
 
 // Target rendered diameters (diameter, not radius) at 1× scale
@@ -281,8 +281,23 @@ export class ShooterRenderer {
       }
 
       // In 3D mode: panels are transparent and Shooter3D renders the visuals.
-      // Only swap/crisis indicators (drawn above) are kept.
-      if (this._mode3D) continue;
+      // Show only the damage number text overlay at the turret screen position.
+      if (this._mode3D) {
+        const top = col.top();
+        const tc  = this._topContainers[i];
+        const t1  = this._topTexts[i];
+        tc.x = cx;
+        tc.y = TOP_Y;
+        tc.scale.set(1);
+        if (top) {
+          t1.text    = String(top.damage);
+          t1.visible = true;
+          t1.y       = 0;   // centred in topContainer
+        } else {
+          t1.visible = false;
+        }
+        continue;
+      }
 
       // ── Programmatic fallback (no sprites) ──────────────────────────────────
       if (!spriteFlags.loaded) {

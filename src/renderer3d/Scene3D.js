@@ -79,22 +79,35 @@ export class Scene3D {
     this.hpCamera.layers.set(2);  // only sees layer 2 (HP sprites)
 
     // ── Shooter viewport camera ──────────────────────────────────────────────
-    // Renders the 4 turret columns into the bottom 180 px of the canvas.
-    // Camera moved to Z=4.5 (was Z=8) so turrets fill ~3× more screen area.
-    // FOV widened to 65° to keep all 4 columns (X = ±4.5) within frame.
+    // TOP-DOWN view: camera directly above the turrets looking straight down.
+    // up=(0,0,-1) so barrel (-Z direction) points "up" in the viewport — gives
+    // the classic overhead tank/shooter look.
+    // vFOV=70°, camera Y=4.5 → X visible ≈ ±6.8 units (columns at ±4.5 have margin).
     const SHOOTER_H = 180;
-    this.shooterCamera = new THREE.PerspectiveCamera(65, width / SHOOTER_H, 0.1, 50);
-    this.shooterCamera.position.set(0, 0.5, 4.5);
-    this.shooterCamera.lookAt(0, 0.5, 0);
+    this.shooterCamera = new THREE.PerspectiveCamera(70, width / SHOOTER_H, 0.1, 50);
+    this.shooterCamera.position.set(0, 4.5, 0);
+    this.shooterCamera.up.set(0, 0, -1);   // barrel (-Z) faces up in viewport
+    this.shooterCamera.lookAt(0, 0, 0);
     this.shooterCamera.layers.set(1);  // only sees layer 1
 
-    // Dark background plane for the shooter viewport (layer 1).
-    this._shooterBgGeo = new THREE.PlaneGeometry(42, 16);
-    this._shooterBgMat = new THREE.MeshBasicMaterial({ color: 0x0d0d1a });
+    // Flat dark-navy ground plane for the shooter viewport (layer 1).
+    // PlaneGeometry lies in XY by default; rotate -π/2 around X to lie flat (XZ plane).
+    this._shooterBgGeo = new THREE.PlaneGeometry(16, 8);
+    this._shooterBgMat = new THREE.MeshBasicMaterial({ color: 0x0d0f1e });
     this._shooterBg    = new THREE.Mesh(this._shooterBgGeo, this._shooterBgMat);
-    this._shooterBg.position.set(0, 0.5, -2);
+    this._shooterBg.rotation.x = -Math.PI / 2;
+    this._shooterBg.position.set(0, -0.2, 0.5);   // flat, centred in visible Z range
     this._shooterBg.layers.set(1);
     this.scene.add(this._shooterBg);
+
+    // Thin column dividers (layer 1) — faint lines at X=-3, 0, +3.
+    const divMat = new THREE.MeshBasicMaterial({ color: 0x1e2a48 });
+    for (const dx of [-3, 0, 3]) {
+      const div = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.01, 8), divMat);
+      div.position.set(dx, -0.19, 0.5);
+      div.layers.set(1);
+      this.scene.add(div);
+    }
 
     // ── Post-Processing ─────────────────────────────────────────────────────
     // Pass order: RenderPass → BloomPass → [ChromaPass → VignettePass] → OutputPass
@@ -121,8 +134,7 @@ export class Scene3D {
     this.camera.updateProjectionMatrix();
     this.hpCamera.aspect = width / height;
     this.hpCamera.updateProjectionMatrix();
-    this.shooterCamera.aspect = width / 180;
-    this.shooterCamera.updateProjectionMatrix();
+    this.shooterCamera.aspect = width / 180;    this.shooterCamera.updateProjectionMatrix();
     this._bloomPass.resolution.set(width, height);
   }
 

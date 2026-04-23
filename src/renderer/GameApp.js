@@ -15,7 +15,7 @@ import { Application, Assets, Container, Graphics, Text } from 'pixi.js';
 
 import { GameRenderer3D }  from '../renderer3d/GameRenderer3D.js';
 import { LayerManager }    from './LayerManager.js';
-import { LaneRenderer, laneCenterX, posToScreenY, ROAD_BOTTOM_Y } from './LaneRenderer.js';
+import { LaneRenderer, laneCenterX, posToScreenY, ROAD_TOP_Y, ROAD_BOTTOM_Y } from './LaneRenderer.js';
 import { spriteFlags }     from './SpriteFlags.js';
 import { CityBackground }  from './CityBackground.js';
 import { CarRenderer }     from './CarRenderer.js';
@@ -67,6 +67,7 @@ import { StatsScreen }            from '../screens/StatsScreen.js';
 import { SurvivalScreen }          from '../screens/SurvivalScreen.js';
 import { AudioManager }           from '../audio/AudioManager.js';
 import { BoosterBar }             from './BoosterBar.js';
+import { BombReticle }           from './BombReticle.js';
 import { Analytics }              from '../analytics/Analytics.js';
 import { AutoTuner }             from '../analytics/AutoTuner.js';
 import { AchievementManager }     from '../game/AchievementManager.js';
@@ -318,7 +319,25 @@ async function main() {
     () => { audio.play('booster_activate'); boosterState.activateSwap(); boostersUsedThisLevel.push('swap'); },
     () => { audio.play('booster_activate'); boosterState.activatePeek(gs.elapsed); boostersUsedThisLevel.push('peek'); },
     () => { audio.play('booster_activate'); boosterState.activateFreeze(gs.elapsed); boostersUsedThisLevel.push('freeze'); },
+    () => {
+      // BOMB button — toggle placement mode on/off.
+      if (boosterState.bombMode) {
+        boosterState.cancelBomb();
+        bombReticle.hide();
+      } else if (boosterState.activateBomb()) {
+        audio.play('booster_activate');
+        bombReticle.show();
+        boostersUsedThisLevel.push('bomb');
+      }
+    },
   );
+
+  // ── Bomb placement reticle ─────────────────────────────────────────────────
+  const bombReticle = new BombReticle(layers, APP_W);
+  bombReticle.onCancel(() => {
+    boosterState.cancelBomb();
+    bombReticle.hide();
+  });
 
   // ── Per-level booster tracking (for analytics) ───────────────────────────
   let boostersUsedThisLevel = [];
@@ -456,6 +475,8 @@ async function main() {
     boosterState.swapFirst   = -1;
     boosterState.peekUntil   = -Infinity;
     boosterState.freezeUntil = -Infinity;
+    boosterState.cancelBomb();
+    bombReticle.hide();
 
     applyLevelConfig(cfg);
     // Use levelNumber for normal levels; 'D' label for daily challenge.
@@ -518,9 +539,11 @@ async function main() {
     }
 
     // ── Switch to 3D renderer for gameplay ────────────────────────────────
-    layers.get('backgroundLayer').visible = false;
-    layers.get('laneLayer').visible       = false;
-    layers.get('carLayer').visible        = false;
+    layers.get('backgroundLayer').visible   = false;
+    layers.get('laneLayer').visible         = false;
+    layers.get('carLayer').visible          = false;
+    layers.get('shooterColumnLayer').visible = false;
+    layers.get('activeShooterLayer').visible = false;
     gameRenderer3D.show();
   }
 
@@ -577,9 +600,11 @@ async function main() {
     audio.playMusic('title');
     // Return to 2D environment layers when leaving gameplay.
     gameRenderer3D.hide();
-    layers.get('backgroundLayer').visible = true;
-    layers.get('laneLayer').visible       = true;
-    layers.get('carLayer').visible        = true;
+    layers.get('backgroundLayer').visible    = true;
+    layers.get('laneLayer').visible          = true;
+    layers.get('carLayer').visible           = true;
+    layers.get('shooterColumnLayer').visible  = true;
+    layers.get('activeShooterLayer').visible  = true;
     titleScreen = new TitleScreen(app.stage, APP_W, APP_H, {
       onPlay: () => {
         titleScreen?.destroy();
@@ -1158,6 +1183,31 @@ async function main() {
     },
   });
 
+  // ── Bomb system callbacks ─────────────────────────────────────────────────
+  gameLoop._onBombEarned = () => {
+    audio.play('coin_collect');
+    haptics.light();
+    // Floating text above bomb button area to celebrate earning.
+    floatingTexts.push(spawnFloatingText(
+      layers.get('particleLayer'), APP_W * 0.88, 748,
+      '💣 +1 BOMB', 0xffaa00,
+    ));
+  };
+  gameLoop._onBombExplode = (bombPos, carsHit) => {
+    gameRenderer3D.onBombExplode(bombPos, carsHit);
+    // 2D particle fallback: explosion at each hit car position.
+    // (GameRenderer3D handles 3D; we fire audio and 2D haptics here.)
+    audio.play('car_destroy');
+    haptics.heavy();
+    if (carsHit > 0) {
+      floatingTexts.push(spawnFloatingText(
+        layers.get('particleLayer'), APP_W / 2, 200,
+        carsHit === 1 ? 'DIRECT HIT!' : `BOOM! ×${carsHit}`,
+        0xffdd00,
+      ));
+    }
+  };
+
   // ── Input ────────────────────────────────────────────────────────────────
   const dragDrop = new DragDrop(
     layers, columns, gs.lanes, benchStorage, shooterRenderer, benchRenderer,
@@ -1165,6 +1215,17 @@ async function main() {
       onDeploy: (colIdx, laneIdx) => {
         if (colIdx >= gs.activeColCount || laneIdx >= gs.activeLaneCount) return;
         gameLoop.deploy(colIdx, laneIdx);
+      },
+      onBombPlaced: (x, y) => {
+        // Convert screen Y to road position, clamp to valid road area.
+        if (y < ROAD_TOP_Y || y > ROAD_BOTTOM_Y) {
+          boosterState.cancelBomb();
+          bombReticle.hide();
+          return;
+        }
+        const bombPos = (y - ROAD_TOP_Y) / (ROAD_BOTTOM_Y - ROAD_TOP_Y) * 100;
+        bombReticle.hide();
+        gameLoop.placeBomb(bombPos);
       },
       onDeployFromBench: (shooter, laneIdx) => {
         if (laneIdx >= gs.activeLaneCount) return;
@@ -1195,6 +1256,53 @@ async function main() {
   );
   new InputManager(app, dragDrop);
 
+  // Track raw pointer Y for bomb reticle targeting.
+  let _lastPointerY = 300;
+  app.canvas.addEventListener('pointermove', (e) => {
+    const rect   = app.canvas.getBoundingClientRect();
+    const scaleY = app.screen.height / rect.height;
+    _lastPointerY = (e.clientY - rect.top) * scaleY;
+  }, { passive: true });
+
+  // ── Tab-visibility auto-pause ─────────────────────────────────────────────
+  // When the player backgrounds the app the game loop should pause so that:
+  //   a) The game doesn't tick silently in the background wasting battery.
+  //   b) On return, the accumulated deltaTime doesn't cause a multi-frame
+  //      stutter spike (both tickers already cap dt at 50 ms, but pausing
+  //      removes the issue entirely).
+  let _hiddenWhilePlaying = false;
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      // Pause logic tick when tab is hidden (only if actively playing).
+      if (gameLoopStarted && !gameLoop.paused && !gs.isOver) {
+        gameLoop.pause();
+        _hiddenWhilePlaying = true;
+      }
+    } else {
+      // Resume on return — but only if WE paused it (not the user).
+      if (_hiddenWhilePlaying && pauseScreen === null) {
+        _hiddenWhilePlaying = false;
+        gameLoop.resume();
+      } else {
+        _hiddenWhilePlaying = false;
+      }
+      // Resume AudioContext if the browser suspended it.
+      if (audio._ctx?.state === 'suspended') audio._ctx.resume().catch(() => {});
+    }
+  });
+
+  // ── WebGL context-lost recovery ───────────────────────────────────────────
+  app.canvas.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault();
+    gameLoop.pause();
+    // A tiny non-intrusive toast — same helper used elsewhere in GameApp.
+    _buildSimpleToast(app, APP_W, 'Display connection lost — tap to reload', 0x1a0a0a, 0xff8866);
+  });
+  app.canvas.addEventListener('webglcontextrestored', () => {
+    // Safest recovery is a reload; the game auto-saves progress to localStorage.
+    location.reload();
+  });
+
   // ── Render ticker (variable rate) ────────────────────────────────────────
   app.ticker.add((ticker) => {
     const dt = Math.min(ticker.deltaMS / 1000, 0.05);
@@ -1211,7 +1319,7 @@ async function main() {
     // Juice updates
     laneFlash.update(dt);
     comboGlow.update(dt, gs.combo);
-    boosterBar.update();
+    boosterBar.update(dt);
     transition.update(dt);
 
     // Core renderer updates
@@ -1228,6 +1336,11 @@ async function main() {
     dragDrop.uiOverlayActive = !!(ftueOverlay || comboPopup || activeAchievementPopup);
 
     dragDrop.update(dt);
+    // Bomb reticle: track pointer and update targeting overlay.
+    if (boosterState.bombMode) {
+      bombReticle.setPointerY(_lastPointerY);
+      bombReticle.update(dt, gs.activeLanes);
+    }
 
     tickFloatingTexts(floatingTexts, dt);
 

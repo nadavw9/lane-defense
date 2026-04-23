@@ -4,8 +4,11 @@
 // Buttons:
 //   RESUME      — close overlay, unpause game
 //   SETTINGS    — open settings (game stays paused)
+//   SHARE       — copy/share the game URL
 //   QUIT TO MENU — end the current attempt, go to level select
 import { Container, Graphics, Text } from 'pixi.js';
+
+const GAME_URL = 'https://nadavw9.github.io/lane-defense/';
 
 export class PauseScreen {
   // callbacks: { onResume, onSettings, onQuit }
@@ -29,8 +32,8 @@ export class PauseScreen {
     backdrop.eventMode = 'static';
     this._container.addChild(backdrop);
 
-    // Panel
-    const panelW = 290, panelH = 300;
+    // Panel — tall enough for 4 buttons
+    const panelW = 290, panelH = 360;
     const px = (w - panelW) / 2;
     const py = (h - panelH) / 2 - 30;
 
@@ -58,6 +61,26 @@ export class PauseScreen {
     const tap = (fn) => () => { audio?.play('button_tap'); fn(); };
     this._btn('RESUME',       cx, y, 0x1a5a2a, 0x55ff99, tap(onResume));   y += 58;
     this._btn('SETTINGS',     cx, y, 0x1a2a4a, 0x55aaff, tap(onSettings)); y += 58;
+
+    // Share button — uses Web Share API on mobile, clipboard fallback on desktop.
+    const shareBtn = this._btn('SHARE GAME', cx, y, 0x1a1a3a, 0xaaaaff, tap(async () => {
+      if (navigator.share) {
+        try { await navigator.share({ title: 'Lane Defense', text: 'Can you beat my score?', url: GAME_URL }); } catch {}
+      } else {
+        try {
+          await navigator.clipboard.writeText(GAME_URL);
+          // Briefly update label to confirm the copy.
+          const lbl = shareBtn?.getChildAt(0);
+          if (lbl) {
+            const prev = lbl.text;
+            lbl.text = 'LINK COPIED!';
+            setTimeout(() => { if (lbl && !lbl.destroyed) lbl.text = prev; }, 1800);
+          }
+        } catch {}
+      }
+    }));
+    y += 58;
+
     this._btn('QUIT TO MENU', cx, y, 0x2a0d0d, 0xff6666, tap(onQuit));
   }
 
@@ -78,5 +101,6 @@ export class PauseScreen {
     t.anchor.set(0.5, 0.5);
     b.addChild(t);
     this._container.addChild(b);
+    return b;
   }
 }

@@ -259,7 +259,74 @@ export class Particles3D {
     this._dmgNums.push({ sprite, mat, tex, vy: 2.5, life: 0.5, maxLife: 0.5 });
   }
 
-  // ── Per-frame update ──────────────────────────────────────────────────────────
+  /**
+   * Spawn a large bomb explosion at road position bombPos (0-100).
+   * Covers all 4 lanes with a wide shockwave + concussion freeze ring.
+   * @param {number} bombPos  road-position 0-100
+   */
+  spawnBombExplosion(bombPos) {
+    const z   = posToZ(bombPos);
+    const count = 20;
+
+    // ── Large amber burst across all lanes ─────────────────────────────────
+    for (let i = 0; i < count; i++) {
+      const angle  = (i / count) * Math.PI * 2 + Math.random() * 0.3;
+      const spread = 3 + Math.random() * 5;  // wider than normal explosion
+      const size   = 0.14 + Math.random() * 0.18;
+      const geo    = explGeoForSize(size);
+      const hex    = i % 3 === 0 ? 0xff8800 : (i % 3 === 1 ? 0xffdd00 : 0xff4400);
+      const mat    = new THREE.MeshStandardMaterial({
+        color:             hex,
+        emissive:          hex,
+        emissiveIntensity: 1.8,
+        transparent:       true,
+        opacity:           1,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      // Spread X across the full road width (≈ ±3 lanes)
+      mesh.position.set(
+        (Math.random() - 0.5) * 6,
+        PARTICLE_Y + 0.2,
+        z + (Math.random() - 0.5) * 2,
+      );
+      this._scene.add(mesh);
+      this._sparks.push({
+        mesh, mat,
+        vx: Math.cos(angle) * spread * 0.8,
+        vy: 4 + Math.random() * 8,
+        vz: Math.sin(angle) * spread * 0.5,
+        life: 0.65, maxLife: 0.65,
+        isExplosion: true,
+      });
+    }
+
+    // ── Large amber shockwave ring ─────────────────────────────────────────
+    const waveMatAmber = new THREE.MeshBasicMaterial({
+      color: 0xff8800, transparent: true, opacity: 0.60, side: THREE.DoubleSide,
+    });
+    const bigRing = new THREE.Mesh(_ringGeo, waveMatAmber);
+    bigRing.rotation.x = -Math.PI / 2;
+    bigRing.position.set(0, 0.02, z);
+    this._scene.add(bigRing);
+    this._shockwaves.push({ mesh: bigRing, mat: waveMatAmber, life: 0.5, maxLife: 0.5, scaleRate: 20 });
+
+    // ── Ice-blue concussion freeze ring (second wave) ──────────────────────
+    const waveMatBlue = new THREE.MeshBasicMaterial({
+      color: 0x44ccff, transparent: true, opacity: 0.45, side: THREE.DoubleSide,
+    });
+    const iceRing = new THREE.Mesh(_ringGeo, waveMatBlue);
+    iceRing.rotation.x = -Math.PI / 2;
+    iceRing.position.set(0, 0.04, z);
+    this._scene.add(iceRing);
+    this._shockwaves.push({ mesh: iceRing, mat: waveMatBlue, life: 0.7, maxLife: 0.7, scaleRate: 14 });
+
+    // ── Three sequential dynamic light flashes ─────────────────────────────
+    this._lighting?.explosionFlash(0xff8800, 0, PARTICLE_Y + 0.5, z);
+    setTimeout(() => this._lighting?.explosionFlash(0xffffff, 0, PARTICLE_Y + 0.5, z), 80);
+    setTimeout(() => this._lighting?.explosionFlash(0x44ccff, 0, PARTICLE_Y + 0.5, z), 200);
+  }
+
+    // ── Per-frame update ──────────────────────────────────────────────────────────
 
   update(dt) {
     // ── Spark particles ──────────────────────────────────────────────────────

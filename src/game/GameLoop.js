@@ -7,6 +7,12 @@
 //   restart()               — full level reset + reprime; called by screens
 import { PHASE_CONFIG } from '../director/DirectorConfig.js';
 
+const KILLS_PER_BOMB      = 10;    // kills needed to earn one bomb charge
+const BOMB_MAX_CHARGES    = 3;     // max bombs a player can hold
+const BOMB_DAMAGE         = 8;     // HP damage dealt per car in blast zone
+const BOMB_POS_RADIUS     = 22;    // blast radius in road-position units (0-100 scale)
+const BOMB_FREEZE_DURATION = 2.0;  // seconds all cars are frozen after bomb detonation
+
 const FIXED_DT = 1 / 60; // logic step in seconds
 
 // Time in seconds for the single projectile to reach the car before damage lands.
@@ -46,7 +52,9 @@ export class GameLoop {
     this._onHit    = onHit      ?? (() => {});
     this._onMiss   = onMiss     ?? (() => {});
     this._onEnd    = onEnd      ?? (() => {});
-    this._onCrisis = onCrisis   ?? (() => {});
+    this._onCrisis      = onCrisis      ?? (() => {});
+    this._onBombEarned  = null;  // set by GameApp after construction
+    this._onBombExplode = null;  // set by GameApp after construction
 
     // Base level duration — used to reset gs.duration on restart.
     this._baseDuration = gameState.duration;
@@ -85,6 +93,43 @@ export class GameLoop {
     this._gs.benchUsed++;
     this._sDir.recordDeploy(this._gs.elapsed);
     this._startFiring(shooter, laneIdx, -1);
+  }
+
+  // Called by GameApp when the player taps the road during bomb placement mode.
+  // bombPos: 0-100 road-position units (0 = far end, 100 = breach line).
+  placeBomb(bombPos) {
+    const gs = this._gs;
+    const bs = this._boosterState;
+    if (!bs?.consumeBomb()) return;
+
+    // Damage all cars within BOMB_POS_RADIUS position units of the tap.
+    const killed = [];
+    for (let li = 0; li < gs.activeLaneCount; li++) {
+      for (const car of gs.lanes[li].cars) {
+        if (Math.abs(car.position - bombPos) <= BOMB_POS_RADIUS) {
+          car.hp -= BOMB_DAMAGE;
+          if (car.hp <= 0) killed.push({ car, lane: gs.lanes[li] });
+        }
+      }
+    }
+
+    // Register kills (in order, no carry-over between bomb kills).
+    for (const { car, lane } of killed) {
+      const idx = lane.cars.indexOf(car);
+      if (idx >= 0) lane.cars.splice(idx, 1);
+      const combo = gs.recordKill(false);
+      this._onKill(combo);
+      // Bomb kills also contribute toward the next bomb charge.
+      if (bs && gs.killsTowardBomb % KILLS_PER_BOMB === 0 && bs.bombs < BOMB_MAX_CHARGES) {
+        bs.bombs++;
+        this._onBombEarned?.();
+      }
+    }
+
+    // Concussion freeze: briefly stop all cars (separate from FREEZE booster).
+    gs.bombFreezeUntil = gs.elapsed + BOMB_FREEZE_DURATION;
+
+    this._onBombExplode?.(bombPos, killed.length);
   }
 
   // Place shooter in the firing slot for one short travel window, trigger
@@ -131,6 +176,12 @@ export class GameLoop {
       const isCarryOver = i > 0;
       const combo = gs.recordKill(isCarryOver);
       this._onKill(combo);
+      // Award bomb charge every KILLS_PER_BOMB kills.
+      const bs = this._boosterState;
+      if (bs && gs.killsTowardBomb % KILLS_PER_BOMB === 0 && bs.bombs < BOMB_MAX_CHARGES) {
+        bs.bombs++;
+        this._onBombEarned?.();
+      }
     }
   }
 
@@ -183,7 +234,7 @@ export class GameLoop {
     const phaseCfg    = PHASE_CONFIG[gs.phase];
     const phaseParams = gs.phaseMan.getParams();
     const dirState    = gs.asDirectorState();
-    const isFrozen    = this._boosterState?.isFrozen(gs.elapsed) ?? false;
+    const isFrozen    = (this._boosterState?.isFrozen(gs.elapsed) ?? false) || gs.elapsed < gs.bombFreezeUntil;
 
     if (!isFrozen) {
       // 1. Advance cars — apply deploy time dilation if active.

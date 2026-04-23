@@ -70,7 +70,7 @@ export class DragDrop {
     benchStorage,
     shooterRenderer,
     benchRenderer,
-    { onDeploy, onDeployFromBench, onBenchStore, onColorMismatch, onBenchFull } = {},
+    { onDeploy, onDeployFromBench, onBenchStore, onColorMismatch, onBenchFull, onBombPlaced } = {},
     boosterState = null,
     firingLineRenderer = null,
     firingSlots = null,
@@ -89,6 +89,7 @@ export class DragDrop {
     this._onBenchStore      = onBenchStore       ?? (() => {});
     this._onColorMismatch   = onColorMismatch    ?? (() => {});
     this._onBenchFull       = onBenchFull        ?? (() => {});
+    this._onBombPlaced      = onBombPlaced       ?? (() => {});
 
     this._firingLineRenderer = firingLineRenderer;
     this._firingSlots        = firingSlots;
@@ -132,6 +133,13 @@ export class DragDrop {
 
   onPointerDown(x, y) {
     if (this._state !== 'idle') return;
+
+    // Bomb placement intercept: when bomb mode is active, any tap on the
+    // road places the bomb.  Taps outside the road cancel placement.
+    if (this._boosterState?.bombMode) {
+      this._onBombPlaced(x, y);
+      return;
+    }
 
     // Swap booster intercept: column tap handled by booster, not drag.
     const col = this._hitTestColumn(x, y);

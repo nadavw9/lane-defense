@@ -42,6 +42,8 @@ export class GameState {
     this.correctDeploys = 0;
     this.wrongDeploys   = 0;
     this.benchUsed      = 0;
+    this.killsTowardBomb  = 0;   // kills this level; every 10 earns one bomb charge
+    this.bombFreezeUntil  = -Infinity;  // bomb concussion freeze expiry (elapsed time)
 
     // ── Economy ───────────────────────────────────────────────────────────
     this.coins = 0;
@@ -102,6 +104,7 @@ export class GameState {
   // Returns the updated combo count.
   recordKill(isCarryOver) {
     this.totalKills++;
+    this.killsTowardBomb++;
     if (isCarryOver) this.carryOvers++;
 
     this.combo = (this.elapsed - this.lastKillTime <= COMBO_WINDOW)
@@ -162,6 +165,8 @@ export class GameState {
     this.coins          = 0;
     this.maxCombo      = 0;
     this.maxCarPosition = 0;
+    this.killsTowardBomb  = 0;
+    this.bombFreezeUntil  = -Infinity;
     this.rescueUsed    = false;
     this.isOver        = false;
     this.won           = false;

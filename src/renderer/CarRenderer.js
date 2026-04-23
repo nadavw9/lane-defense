@@ -7,6 +7,9 @@
 // Textures must be preloaded by GameApp before CarRenderer is instantiated.
 // Reads lane state, never writes it.
 import { Sprite, Graphics, Container, Text, Assets } from 'pixi.js';
+// HP_SCALE_FACTOR — The HP elements (bar + number) are wrapped in a sub-container
+// whose scale is set to the inverse of the car container scale every frame.
+// This keeps the HP bar the same apparent screen size regardless of perspective distance.
 import {
   laneCenterX,
   posToScreenY,
@@ -74,7 +77,7 @@ export class CarRenderer {
     this._layer = layerManager.get('carLayer');
     this._layer.sortableChildren = true;
     this._lanes   = lanes;
-    this._visuals = new Map();   // Car → { container, hpFill, hpText }
+    this._visuals = new Map();   // Car → { container, hpFill, hpText, hpCont }
     this._dying   = [];          // { container, startScale, life }
   }
 
@@ -107,10 +110,13 @@ export class CarRenderer {
         const t   = car.position / 100;
         vis.container.x      = laneCenterX(laneIdx, t);
         vis.container.y      = posToScreenY(car.position);
-        vis.container.scale.set(posToScale(car.position));
+        const s = posToScale(car.position);
+        vis.container.scale.set(s);
         vis.container.zIndex = Math.round(car.position);
         // Frozen tint: blue overlay via container tint
         vis.container.tint   = isFrozen ? 0x88aaff : 0xffffff;
+        // Counter-scale the HP sub-container so it stays the same screen size at all distances.
+        vis.hpCont.scale.set(1 / s);
         this._refreshHpBar(vis.hpFill, car);
         vis.hpText.text = String(car.hp);
       }
@@ -178,6 +184,11 @@ export class CarRenderer {
     }
 
     // ── HP bar ───────────────────────────────────────────────────────────────
+    // All HP visuals live in hpCont whose scale is inverted in update() so
+    // the bar stays the same screen size regardless of perspective distance.
+    const hpCont = new Container();
+    container.addChild(hpCont);
+
     const barY = -CAR_TARGET_H / 2 - HP_BAR_OFFSET - HP_BAR_H;
 
     const hpBg = new Graphics();
@@ -186,18 +197,18 @@ export class CarRenderer {
     hpBg.fill({ color: 0x000000, alpha: 0.70 });
     hpBg.rect(-HP_BAR_W / 2, barY, HP_BAR_W, HP_BAR_H);
     hpBg.fill(HP_BAR_BG);
-    container.addChild(hpBg);
+    hpCont.addChild(hpBg);
 
     const hpFill = new Graphics();
-    container.addChild(hpFill);
+    hpCont.addChild(hpFill);
 
     // ── HP number ────────────────────────────────────────────────────────────
     const hpText = new Text({ text: String(car.hp), style: HP_TEXT_STYLE });
     hpText.anchor.set(0.5, 0.5);
-    container.addChild(hpText);
+    hpCont.addChild(hpText);
 
     this._layer.addChild(container);
-    return { container, hpFill, hpText };
+    return { container, hpFill, hpText, hpCont };
   }
 
   _refreshHpBar(hpFill, car) {

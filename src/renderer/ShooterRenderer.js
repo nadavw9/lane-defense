@@ -122,6 +122,7 @@ export class ShooterRenderer {
   constructor(layerManager, columns, boosterState = null) {
     this._layer        = layerManager.get('shooterColumnLayer');
     this._columns      = columns;
+    this._mode3D       = false;  // when true: panels transparent, 2D circles hidden
     this._boosterState = boosterState;
 
     this.draggingColumn = -1;
@@ -235,6 +236,10 @@ export class ShooterRenderer {
     return { x: (colIdx + 0.5) * COL_W, y: TOP_Y };
   }
 
+  // Call with true during gameplay so Shooter3D handles the visuals.
+  // Panels become transparent; 2D circles are hidden.
+  enable3DMode(enabled) { this._mode3D = !!enabled; }
+
   update(elapsed, dt = 0) {
     const bounce    = Math.sin(elapsed * BOUNCE_SPEED) * BOUNCE_AMP;
     const isPeeking = this._boosterState?.isPeeking(elapsed) ?? false;
@@ -254,7 +259,7 @@ export class ShooterRenderer {
       const panelX = i * COL_W + PANEL_PAD;
       const panelW = COL_W - PANEL_PAD * 2;
       g.roundRect(panelX, SHOOTER_AREA_Y + PANEL_PAD, panelW, SHOOTER_AREA_H - PANEL_PAD * 2, PANEL_RADIUS);
-      g.fill({ color: PANEL_COLOR, alpha: 0.92 });
+      g.fill({ color: PANEL_COLOR, alpha: this._mode3D ? 0.0 : 0.92 });
 
       if (bs?.swapMode && bs.swapFirst === i) {
         g.roundRect(panelX, SHOOTER_AREA_Y + PANEL_PAD, panelW, SHOOTER_AREA_H - PANEL_PAD * 2, PANEL_RADIUS);
@@ -274,6 +279,10 @@ export class ShooterRenderer {
           g.stroke({ color: 0xffcc00, width: 3, alpha: pulse * 0.90 });
         }
       }
+
+      // In 3D mode: panels are transparent and Shooter3D renders the visuals.
+      // Only swap/crisis indicators (drawn above) are kept.
+      if (this._mode3D) continue;
 
       // ── Programmatic fallback (no sprites) ──────────────────────────────────
       if (!spriteFlags.loaded) {

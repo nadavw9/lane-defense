@@ -134,11 +134,15 @@ export class DragDrop {
   onPointerDown(x, y) {
     if (this._state !== 'idle') return;
 
-    // Bomb placement intercept: when bomb mode is active, any tap on the
-    // road places the bomb.  Taps outside the road cancel placement.
+    // Bomb placement intercept: only fire when the tap is actually on the road.
+    // Guard: the bomb button tap that activates bombMode also triggers this
+    // handler (PixiJS button event fires first, then the raw canvas event).
+    // Without the road-range check the bomb would be cancelled on the same tap.
     if (this._boosterState?.bombMode) {
-      this._onBombPlaced(x, y);
-      return;
+      if (y >= ROAD_TOP_Y && y <= ROAD_BOTTOM_Y) {
+        this._onBombPlaced(x, y);
+      }
+      return;   // consume event regardless — no drag should start in bomb mode
     }
 
     // Swap booster intercept: column tap handled by booster, not drag.

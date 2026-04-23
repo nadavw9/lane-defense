@@ -502,6 +502,8 @@ async function main() {
     // Show only the lanes active in this level (1–4).
     laneRenderer.setActiveLaneCount(cfg.laneCount ?? 4);
     gameRenderer3D.setActiveLaneCount(cfg.laneCount ?? 4);
+    // Switch ShooterRenderer to 3D mode: transparent panels, 2D circles hidden.
+    shooterRenderer.enable3DMode(true);
 
     // Start the game-loop ticker exactly once; restart() resets state each time.
     if (!gameLoopStarted) {
@@ -1218,12 +1220,8 @@ async function main() {
         gameLoop.deploy(colIdx, laneIdx);
       },
       onBombPlaced: (x, y) => {
-        // Convert screen Y to road position, clamp to valid road area.
-        if (y < ROAD_TOP_Y || y > ROAD_BOTTOM_Y) {
-          boosterState.cancelBomb();
-          bombReticle.hide();
-          return;
-        }
+        // DragDrop pre-filters to road Y range, but guard here too.
+        if (y < ROAD_TOP_Y || y > ROAD_BOTTOM_Y) return;
         const bombPos = (y - ROAD_TOP_Y) / (ROAD_BOTTOM_Y - ROAD_TOP_Y) * 100;
         bombReticle.hide();
         gameLoop.placeBomb(bombPos);

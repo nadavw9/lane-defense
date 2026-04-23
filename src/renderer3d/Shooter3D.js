@@ -32,10 +32,17 @@ const TORUS_R    = 0.52;   // ring radius
 const TORUS_TUBE = 0.04;
 
 // Turret world position for the shooter viewport camera.
-// Camera at (0, 0.5, 8) looks at (0, 0.5, 0).
-// Turrets at Z=0 appear at the camera's focus point — fills the viewport well.
-const TURRET_Z = 0.0;
-const TURRET_Y = BASE_H + BODY_H / 2;
+// Camera at (0, 0.5, 4.5) FOV=65° looks at (0, 0.5, 0).
+// Three slots per column stacked vertically in the 180px viewport (Y=520-700).
+//   Slot 0 (top/main) : world Y ≈ +0.355 → screen Y ≈ 614  (fully opaque)
+//   Slot 1 (2nd)      : world Y ≈ -0.65  → screen Y ≈ 651  (65% opacity)
+//   Slot 2 (3rd)      : world Y ≈ -1.55  → screen Y ≈ 679  (40% opacity)
+const TURRET_Z    = 0.0;
+const TURRET_Y    = BASE_H + BODY_H / 2;   // slot 0 centre
+const SLOT1_Y     = -0.65;                 // slot 1 centre
+const SLOT2_Y     = -1.55;                 // slot 2 centre
+const SLOT1_SCALE = 0.62;
+const SLOT2_SCALE = 0.40;
 
 // Barrel tip offset from body centre (points in +Z direction = toward road/camera).
 // We rotate the barrel so it points in -Z (toward far road), i.e., up toward cars.
@@ -130,8 +137,10 @@ export class Shooter3D {
       const top    = col.top();
 
       if (!top) {
-        // No shooter in column — hide turret.
+        // No shooter in column — hide turret and all queue slots.
         turret.group.visible = false;
+        turret.slot1.group.visible = false;
+        turret.slot2.group.visible = false;
         continue;
       }
 
@@ -147,6 +156,26 @@ export class Shooter3D {
         turret.barrelMat.color.setHex(hex);
         turret.tipGlowMat.color.setHex(hex);
         turret.tipGlowMat.emissive.setHex(hex);
+      }
+
+      // Sync queue slot colours.
+      const s1 = col.shooters?.[1];
+      const s2 = col.shooters?.[2];
+      const h1 = s1 ? (COLOR_HEX[s1.color] ?? 0x888888) : null;
+      const h2 = s2 ? (COLOR_HEX[s2.color] ?? 0x888888) : null;
+      turret.slot1.group.visible = !!s1;
+      turret.slot2.group.visible = !!s2;
+      if (s1 && turret.slot1.lastColor !== h1) {
+        turret.slot1.lastColor = h1;
+        turret.slot1.bodyMat.color.setHex(h1);
+        turret.slot1.ringMat.color.setHex(h1);
+        turret.slot1.ringMat.emissive.setHex(h1);
+      }
+      if (s2 && turret.slot2.lastColor !== h2) {
+        turret.slot2.lastColor = h2;
+        turret.slot2.bodyMat.color.setHex(h2);
+        turret.slot2.ringMat.color.setHex(h2);
+        turret.slot2.ringMat.emissive.setHex(h2);
       }
 
       // Idle bounce (Y).
@@ -195,6 +224,15 @@ export class Shooter3D {
 
   dispose() {
     for (const t of this._turrets) {
+      // Remove queue slot meshes.
+      for (const slot of [t.slot1, t.slot2]) {
+        slot.group.traverse(obj => {
+          if (obj.geometry && obj.geometry !== _baseGeo && obj.geometry !== _bodyGeo &&
+              obj.geometry !== _torusGeo) obj.geometry.dispose();
+          if (obj.material && obj.material !== _baseMat) obj.material.dispose();
+        });
+        this._scene.remove(slot.group);
+      }
       t.group.traverse(obj => {
         // Skip module-level shared geometries and base material.
         const isSharedGeo = obj.geometry &&
@@ -269,11 +307,20 @@ export class Shooter3D {
 
     this._scene.add(group);
 
+    // ── Queue slot 1 (2nd shooter) ── smaller, dimmer
+    const slot1 = this._createQueueSlot(laneIdx, SLOT1_Y, SLOT1_SCALE);
+
+    // ── Queue slot 2 (3rd shooter) ── smallest, dimmest
+    const slot2 = this._createQueueSlot(laneIdx, SLOT2_Y, SLOT2_SCALE);
+
     // Layer 1: only visible to the shooter viewport camera (not the road camera).
     group.traverse(obj => obj.layers.set(1));
+    slot1.group.traverse(obj => obj.layers.set(1));
+    slot2.group.traverse(obj => obj.layers.set(1));
 
     return {
       group, bodyMat, ringMat, barrelMat, barrel, tipGlowMat,
+      slot1, slot2,
       lastColor:   -1,
       punchActive: false,
       punchT:      0,
@@ -281,5 +328,28 @@ export class Shooter3D {
       recoilT:      0,
       tipGlowT:     0.30,   // starts fully decayed (no glow at spawn)
     };
+  }
+
+  // Create a simplified queue-slot turret (body + ring only, no barrel).
+  _createQueueSlot(laneIdx, worldY, scale) {
+    const group = new THREE.Group();
+    group.position.set(laneToX(laneIdx), worldY, TURRET_Z);
+    group.scale.set(scale, scale, scale);
+
+    const bodyMat = new THREE.MeshStandardMaterial({
+      color: 0x888888, metalness: 0.5, roughness: 0.4, transparent: true, opacity: scale,
+    });
+    group.add(new THREE.Mesh(_bodyGeo, bodyMat));
+
+    const ringMat = new THREE.MeshStandardMaterial({
+      color: 0x888888, emissive: 0x888888, emissiveIntensity: 0.3,
+      roughness: 0.5, transparent: true, opacity: scale,
+    });
+    const ring = new THREE.Mesh(_torusGeo, ringMat);
+    ring.position.y = -(BODY_H / 2);
+    group.add(ring);
+
+    this._scene.add(group);
+    return { group, bodyMat, ringMat, lastColor: -1 };
   }
 }

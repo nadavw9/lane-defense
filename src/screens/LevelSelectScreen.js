@@ -1,40 +1,31 @@
-// LevelSelectScreen — World Map layout.
+// LevelSelectScreen — Car-themed world map, Candy Crush style.
 //
-// 20 levels arranged in a snake path from L1 (bottom-left) to L20 (top-right).
-// 5 rows × 4 columns.  Even data-rows go left→right; odd rows go right→left.
+// Visual design: night highway with city skyline, road markings path,
+// road-sign level nodes, reveal animation on new unlock.
 //
-// Header: ← BACK | WORLD 1 | SHOP
-//         ◆ coins | ★ ACHIEVEMENTS
-//
-// Features:
-//   • Path lines (green for reached, dark for locked)
-//   • Level nodes (circles) with stars and lock icons
-//   • Pulsing green ring on the next-to-play node
-//   • Decorative landmarks (trees/buildings) at screen edges
-//   • "WORLD 2 COMING SOON" banner above top row
+// Layout: 20 levels in a snaking path, 5 rows × 4 columns.
+// Even data-rows L→R; odd rows R→L (same snake as before).
 import { Container, Graphics, Text } from 'pixi.js';
 
 // ── Layout constants ────────────────────────────────────────────────────────
-const HEADER_H   = 68;
-const NODE_R     = 22;
-const GLOW_PERIOD = 1.2;   // seconds per pulse cycle
+const HEADER_H  = 68;
+const NODE_R    = 26;
 
-// Four column centres, spread across the 390px canvas.
-const COLS_X = [45, 145, 245, 345];
+// Column centres and row centres (same snake geometry as before).
+const COLS_X = [52, 150, 240, 338];
+const ROWS_Y = [138, 302, 466, 630, 794];
 
-// Five row centres, from top (row 0) to bottom (row 4).
-// visualRow 0 → L17-20; visualRow 4 → L1-4
-const ROWS_Y = [128, 296, 464, 632, 800];
+// Shooter color palette (cars on path use these).
+const CAR_COLORS = [0xE24B4A, 0x378ADD, 0x639922, 0xEF9F27, 0x7F77DD, 0xD85A30];
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-// Returns the screen {x, y} centre for a given level id (1-20).
 function nodePos(levelId) {
   const i        = levelId - 1;
-  const dataRow  = Math.floor(i / 4);   // 0 = L1-4 … 4 = L17-20
+  const dataRow  = Math.floor(i / 4);
   const posInRow = i % 4;
-  const visualRow = 4 - dataRow;        // flip so L1 ends up at bottom
-  const isRTL    = dataRow % 2 === 1;   // odd data-rows go right→left in the visual
+  const visualRow = 4 - dataRow;
+  const isRTL    = dataRow % 2 === 1;
   const col      = isRTL ? (3 - posInRow) : posInRow;
   return { x: COLS_X[col], y: ROWS_Y[visualRow] };
 }
@@ -42,339 +33,428 @@ function nodePos(levelId) {
 // ── Main class ───────────────────────────────────────────────────────────────
 
 export class LevelSelectScreen {
-  // progress      — ProgressManager instance (read-only here)
-  // livesManager  — LivesManager (optional; shows hearts in header)
-  // callbacks     — { onSelectLevel(levelId), onBack, onShop, onAchievements, audio,
-  //                   weeklyLevels: number[] }
-  constructor(stage, appW, appH, progress, { onSelectLevel, onBack, onShop, onAchievements, audio, weeklyLevels = [] }, livesManager = null) {
-    this._container = new Container();
+  constructor(stage, appW, appH, progress,
+    { onSelectLevel, onBack, onShop, onAchievements, audio, weeklyLevels = [] },
+    livesManager = null) {
+
+    this._container     = new Container();
     stage.addChild(this._container);
-    this._glowNode    = null;
-    this._glowTime    = 0;
-    this._lives       = livesManager;
-    this._worldPage   = 1;
-    this._progress    = progress;
-    this._appW        = appW;
-    this._appH        = appH;
-    this._weeklyLevels = weeklyLevels;
-    this._callbacks   = { onSelectLevel, onBack, onShop, onAchievements, audio, weeklyLevels };
+    this._glowNode      = null;
+    this._glowTime      = 0;
+    this._lives         = livesManager;
+    this._worldPage     = 1;
+    this._progress      = progress;
+    this._appW          = appW;
+    this._appH          = appH;
+    this._weeklyLevels  = weeklyLevels;
+    this._callbacks     = { onSelectLevel, onBack, onShop, onAchievements, audio, weeklyLevels };
+    // Reveal animations: { node: Container, t: 0, duration: 0.45 }
+    this._revealAnims   = [];
     this._build(appW, appH, progress, onSelectLevel, onBack, onShop, onAchievements, audio);
   }
 
-  destroy() {
-    this._container.destroy({ children: true });
-  }
+  destroy() { this._container.destroy({ children: true }); }
 
-  // Called each render frame by GameApp while this screen is active.
   update(dt) {
-    if (!this._glowNode) return;
-    this._glowTime += dt;
-    const t = (this._glowTime % GLOW_PERIOD) / GLOW_PERIOD;
-    this._glowNode.alpha = 0.28 + 0.52 * Math.abs(Math.sin(t * Math.PI));
+    // Pulse the "next to play" ring.
+    if (this._glowNode) {
+      this._glowTime += dt;
+      const t = (this._glowTime % 1.4) / 1.4;
+      this._glowNode.alpha = 0.30 + 0.55 * Math.abs(Math.sin(t * Math.PI));
+    }
+    // Drive reveal animations.
+    for (let i = this._revealAnims.length - 1; i >= 0; i--) {
+      const a = this._revealAnims[i];
+      a.t = Math.min(a.t + dt / a.duration, 1);
+      const ease = 1 - Math.pow(1 - a.t, 3);
+      const overshoot = a.t < 0.7 ? Math.sin(a.t / 0.7 * Math.PI) * 0.35 : 0;
+      const s = ease * (1 + overshoot);
+      a.node.scale.set(s);
+      a.node.alpha = Math.min(1, a.t * 2.5);
+      if (a.t >= 1) this._revealAnims.splice(i, 1);
+    }
   }
 
   // ── Private ────────────────────────────────────────────────────────────────
 
   _build(w, h, progress, onSelectLevel, onBack, onShop, onAchievements, audio) {
-    // Background — absorbs all pointer events.
-    const bg = new Graphics();
-    bg.rect(0, 0, w, h);
-    bg.fill(0x060610);
-    bg.eventMode = 'static';
-    this._container.addChild(bg);
+    // ── Background: night city highway ─────────────────────────────────────
+    this._drawBackground(w, h);
 
-    // ── Header row 1 (y=22): BACK | WORLD 1 | SHOP ────────────────────────
-    const NAV_Y = 22;
+    // ── Road path (grey road with dashed centre line) ──────────────────────
+    const unlocked = progress.unlockedLevel ?? 1;
+    this._drawRoadPath(unlocked);
 
-    const backBtn = new Text({ text: '← BACK', style: { fontSize: 15, fontWeight: 'bold', fill: 0x44aaff } });
-    backBtn.anchor.set(0, 0.5); backBtn.x = 14; backBtn.y = NAV_Y;
-    backBtn.eventMode = 'static'; backBtn.cursor = 'pointer';
-    backBtn.on('pointerdown', () => { audio?.play('button_tap'); onBack(); });
-    this._container.addChild(backBtn);
-
-    const hdr = new Text({ text: `WORLD ${this._worldPage}`, style: { fontSize: 22, fontWeight: 'bold', fill: 0xffffff } });
-    hdr.anchor.set(0.5, 0.5); hdr.x = w / 2; hdr.y = NAV_Y;
-    this._container.addChild(hdr);
-
-    // World page arrows — ◄ left (if W2) / right (if W1 completed) ►
-    const canGoW2 = (progress.unlockedLevel ?? 1) > 20;
-    if (this._worldPage === 1 && canGoW2) {
-      const w2Btn = new Text({ text: 'W2 ▶', style: { fontSize: 13, fontWeight: 'bold', fill: 0x66aaff } });
-      w2Btn.anchor.set(1, 0.5); w2Btn.x = w / 2 + 70; w2Btn.y = NAV_Y;
-      w2Btn.eventMode = 'static'; w2Btn.cursor = 'pointer';
-      w2Btn.on('pointerdown', () => { audio?.play('button_tap'); this._switchWorld(2); });
-      this._container.addChild(w2Btn);
-    }
-    if (this._worldPage === 2) {
-      const w1Btn = new Text({ text: '◀ W1', style: { fontSize: 13, fontWeight: 'bold', fill: 0x66aaff } });
-      w1Btn.anchor.set(0, 0.5); w1Btn.x = w / 2 - 70; w1Btn.y = NAV_Y;
-      w1Btn.eventMode = 'static'; w1Btn.cursor = 'pointer';
-      w1Btn.on('pointerdown', () => { audio?.play('button_tap'); this._switchWorld(1); });
-      this._container.addChild(w1Btn);
-    }
-
-    const shopBtn = new Text({ text: 'SHOP', style: { fontSize: 15, fontWeight: 'bold', fill: 0xf5c842 } });
-    shopBtn.anchor.set(1, 0.5); shopBtn.x = w - 14; shopBtn.y = NAV_Y;
-    shopBtn.eventMode = 'static'; shopBtn.cursor = 'pointer';
-    shopBtn.on('pointerdown', () => { audio?.play('button_tap'); onShop?.(); });
-    shopBtn.on('pointerover',  () => { shopBtn.alpha = 0.70; });
-    shopBtn.on('pointerout',   () => { shopBtn.alpha = 1.00; });
-    this._container.addChild(shopBtn);
-
-    // ── Header row 2 (y=50): coins | hearts | ACHIEVEMENTS ────────────────
-    const COINS_Y = 50;
-
-    const coinsTxt = new Text({ text: `◆ ${progress.coins}`, style: { fontSize: 16, fontWeight: 'bold', fill: 0xf5c842 } });
-    coinsTxt.anchor.set(0, 0.5); coinsTxt.x = 14; coinsTxt.y = COINS_Y;
-    this._container.addChild(coinsTxt);
-
-    // Hearts row — centred in header
-    if (this._lives) {
-      const MAX = 5, h = this._lives.hearts;
-      for (let i = 0; i < MAX; i++) {
-        const ht = new Text({ text: i < h ? '♥' : '♡', style: { fontSize: 14, fill: i < h ? 0xff4466 : 0x444455 } });
-        ht.anchor.set(0.5, 0.5);
-        ht.x = w / 2 - (MAX - 1) * 10 / 2 + i * 10;
-        ht.y = COINS_Y;
-        this._container.addChild(ht);
-      }
-      // Time until next heart (if not full)
-      if (!this._lives.isFull()) {
-        const timer = new Text({ text: `+1 in ${this._lives.formatTimeUntilNext()}`, style: { fontSize: 10, fill: 0x7799aa, fontWeight: 'normal' } });
-        timer.anchor.set(0.5, 0.5); timer.x = w / 2; timer.y = COINS_Y + 12;
-        this._container.addChild(timer);
-      }
-    }
-
-    if (onAchievements) {
-      const achBtn = new Text({ text: '★ ACHIEVEMENTS', style: { fontSize: 13, fontWeight: 'bold', fill: 0xaabbcc } });
-      achBtn.anchor.set(1, 0.5); achBtn.x = w - 14; achBtn.y = COINS_Y;
-      achBtn.eventMode = 'static'; achBtn.cursor = 'pointer';
-      achBtn.on('pointerdown', () => { audio?.play('button_tap'); onAchievements(); });
-      achBtn.on('pointerover',  () => { achBtn.alpha = 0.70; });
-      achBtn.on('pointerout',   () => { achBtn.alpha = 1.00; });
-      this._container.addChild(achBtn);
-    }
-
-    // Separator under header
-    const sep = new Graphics();
-    sep.rect(0, HEADER_H - 2, w, 1);
-    sep.fill({ color: 0x224466, alpha: 0.5 });
-    this._container.addChild(sep);
-
-    // ── World subtitle banner ──────────────────────────────────────────────
-    const worldSub = this._worldPage === 1 ? '20 levels · 3 colors' : '20 levels · 6 colors · Expert';
-    const csBanner = new Text({ text: worldSub, style: { fontSize: 12, fill: 0x2a4a3a } });
-    csBanner.anchor.set(0.5, 0.5); csBanner.x = w / 2; csBanner.y = 81;
-    this._container.addChild(csBanner);
-
-    const csLine = new Graphics();
-    csLine.rect(18, 94, w - 36, 1);
-    csLine.fill({ color: 0x1a2a3a, alpha: 0.6 });
-    this._container.addChild(csLine);
-
-    // ── Decorative landmarks ───────────────────────────────────────────────
-    this._drawLandmarks(w);
-
-    // ── Path lines (draw before nodes so nodes appear on top) ────────────
-    const unlocked = progress.unlockedLevel;
-    this._drawPath(unlocked);
+    // ── Decorative mini-cars along path ────────────────────────────────────
+    this._drawCars();
 
     // ── Level nodes ────────────────────────────────────────────────────────
-    const worldBase  = (this._worldPage - 1) * 20;   // 0 for W1, 20 for W2
+    const worldBase  = (this._worldPage - 1) * 20;
     const firstId    = worldBase + 1;
     const lastId     = worldBase + 20;
     const nextToPlay = (unlocked >= firstId && unlocked <= lastId && progress.getStars(unlocked) === 0)
       ? unlocked : null;
 
+    // Detect newly unlocked level for reveal animation.
+    const newlyUnlocked = (unlocked >= firstId && unlocked <= lastId) ? unlocked : null;
+
     for (let levelId = firstId; levelId <= lastId; levelId++) {
-      const localId    = levelId - worldBase;     // 1-20 within this world
+      const localId    = levelId - worldBase;
       const { x, y }  = nodePos(localId);
       const stars      = progress.getStars(levelId);
       const isUnlocked = levelId <= unlocked;
       const isWeekly   = this._weeklyLevels.includes(levelId);
-      this._buildNode(levelId, x, y, stars, isUnlocked, isWeekly, () => {
+      const isNew      = (levelId === newlyUnlocked && stars === 0);
+
+      const node = this._buildNode(levelId, x, y, stars, isUnlocked, isWeekly, () => {
         if (isUnlocked) { audio?.play('button_tap'); onSelectLevel(levelId); }
       });
+
+      // Queue reveal animation only for the brand-new next level.
+      if (isNew && isUnlocked) {
+        node.scale.set(0);
+        node.alpha = 0;
+        this._revealAnims.push({ node, t: 0, duration: 0.45 });
+      }
     }
 
-    // ── Pulsing glow ring for the next-to-play node ────────────────────────
+    // ── Pulsing glow ring on next-to-play node ─────────────────────────────
     if (nextToPlay !== null) {
       const localId = nextToPlay - worldBase;
       const { x, y } = nodePos(localId);
       const glow = new Graphics();
-      glow.circle(x, y, NODE_R + 9);
-      glow.stroke({ color: 0x44ff88, width: 4, alpha: 1 });
-      glow.alpha   = 0.28;
-      this._glowNode = glow;
+      glow.circle(x, y, NODE_R + 10);
+      glow.stroke({ color: 0xffcc00, width: 3, alpha: 1 });
       this._container.addChild(glow);
+      this._glowNode = glow;
     }
+
+    // ── Header ─────────────────────────────────────────────────────────────
+    this._buildHeader(w, progress, onBack, onShop, onAchievements, audio);
   }
 
-  // Rebuild the screen for a different world page.
-  _switchWorld(worldNum) {
-    this._worldPage = worldNum;
-    this._glowNode  = null;
-    this._glowTime  = 0;
-    this._container.removeChildren().forEach(c => c.destroy({ children: true }));
-    const { onSelectLevel, onBack, onShop, onAchievements, audio } = this._callbacks;
-    this._build(this._appW, this._appH, this._progress, onSelectLevel, onBack, onShop, onAchievements, audio);
+  _drawBackground(w, h) {
+    const g = new Graphics();
+
+    // Sky gradient: deep navy at top → dark blue-grey at horizon.
+    const SKY_H = HEADER_H + 72;
+    for (let i = 0; i < 16; i++) {
+      const t     = i / 15;
+      const r     = Math.round(4  + t * 10);
+      const gr    = Math.round(6  + t * 14);
+      const b     = Math.round(18 + t * 28);
+      const color = (r << 16) | (gr << 8) | b;
+      g.rect(0, HEADER_H + i * (SKY_H / 16), w, SKY_H / 16 + 1);
+      g.fill(color);
+    }
+
+    // Lower map area: asphalt grey with subtle grid.
+    g.rect(0, HEADER_H + SKY_H, w, h - HEADER_H - SKY_H);
+    g.fill(0x0d1020);
+
+    this._container.addChild(g);
+
+    // ── City skyline silhouette ──────────────────────────────────────────────
+    this._drawSkyline(w, h);
+
+    // ── Stars in sky ────────────────────────────────────────────────────────
+    this._drawStars(w);
+
+    // ── Subtle road grid on the lower map ────────────────────────────────────
+    const grid = new Graphics();
+    const gridTop = HEADER_H + SKY_H;
+    for (let gx = 0; gx < w; gx += 52) {
+      grid.moveTo(gx, gridTop); grid.lineTo(gx, h);
+      grid.stroke({ color: 0x1a2040, width: 1, alpha: 0.35 });
+    }
+    for (let gy = gridTop; gy < h; gy += 52) {
+      grid.moveTo(0, gy); grid.lineTo(w, gy);
+      grid.stroke({ color: 0x1a2040, width: 1, alpha: 0.35 });
+    }
+    this._container.addChild(grid);
   }
 
-  // Draw connecting lines between reached level nodes only.
-  // Uses moveTo→lineTo→stroke so PixiJS v8 never draws an implicit line from (0,0).
-  _drawPath(unlockedLevel) {
+  _drawStars(w) {
+    const stars = new Graphics();
+    // Deterministic star positions (no random).
+    const pos = [
+      [22, 80], [68, 95], [110, 74], [155, 88], [200, 72], [240, 92],
+      [290, 78], [340, 85], [375, 76], [45, 105], [188, 110], [320, 102],
+    ];
+    for (const [sx, sy] of pos) {
+      const r = (sx * 7 + sy * 3) % 3 === 0 ? 1.5 : 1.0;
+      stars.circle(sx, sy, r);
+      stars.fill({ color: 0xffffff, alpha: 0.55 + ((sx + sy) % 3) * 0.15 });
+    }
+    this._container.addChild(stars);
+  }
+
+  _drawSkyline(w, h) {
+    const sky = new Graphics();
+    const baseY = HEADER_H + 100;
+    // Buildings: [x, width, height, hasWindow]
+    const buildings = [
+      [0, 28, 62, true],  [28, 18, 44, false], [46, 32, 78, true],
+      [78, 22, 52, false], [100, 14, 36, false], [114, 40, 68, true],
+      [154, 20, 48, false], [174, 30, 84, true], [204, 16, 42, false],
+      [220, 36, 58, true], [256, 24, 70, false], [280, 18, 46, true],
+      [298, 40, 88, true], [338, 22, 50, false], [360, 30, 64, true],
+    ];
+    for (const [bx, bw, bh, hasWin] of buildings) {
+      sky.rect(bx, baseY - bh, bw, bh);
+      sky.fill({ color: 0x080c18, alpha: 0.85 });
+      if (hasWin) {
+        // Window grid: bright yellow/white dots.
+        for (let wy = baseY - bh + 6; wy < baseY - 6; wy += 10) {
+          for (let wx = bx + 4; wx < bx + bw - 4; wx += 8) {
+            if ((wx + wy) % 3 !== 0) continue;
+            sky.rect(wx, wy, 3, 4);
+            sky.fill({ color: 0xffee88, alpha: 0.45 + ((wx * wy) % 3) * 0.15 });
+          }
+        }
+      }
+    }
+    this._container.addChild(sky);
+  }
+
+  _drawRoadPath(unlockedLevel) {
     const worldBase = (this._worldPage - 1) * 20;
+
     for (let localId = 1; localId < 20; localId++) {
       const levelId = worldBase + localId;
-      if (levelId >= unlockedLevel) continue;   // only draw reached segments
-
       const { x: ax, y: ay } = nodePos(localId);
       const { x: bx, y: by } = nodePos(localId + 1);
+      const reached = levelId < unlockedLevel;
 
-      const g = new Graphics();
-      g.moveTo(ax, ay);
-      g.lineTo(bx, by);
-      g.stroke({ color: 0x2a7a4a, width: 4, alpha: 0.85, cap: 'round' });
-      this._container.addChild(g);
+      // Road surface (wide grey strip).
+      const road = new Graphics();
+      road.moveTo(ax, ay);
+      road.lineTo(bx, by);
+      road.stroke({ color: reached ? 0x3a5a2a : 0x1e2838, width: 12, cap: 'round' });
+      this._container.addChild(road);
+
+      // Dashed centre line.
+      if (reached) {
+        const dashCount = 5;
+        const dash = new Graphics();
+        for (let d = 0; d < dashCount; d++) {
+          const t0 = (d + 0.15) / dashCount;
+          const t1 = (d + 0.55) / dashCount;
+          dash.moveTo(ax + (bx - ax) * t0, ay + (by - ay) * t0);
+          dash.lineTo(ax + (bx - ax) * t1, ay + (by - ay) * t1);
+          dash.stroke({ color: 0x88ff66, width: 1.5, alpha: 0.55, cap: 'round' });
+        }
+        this._container.addChild(dash);
+      }
     }
+  }
+
+  _drawCars() {
+    // Small decorative cars between specific nodes (static positions).
+    const carPositions = [
+      { localId: 2, t: 0.50 }, { localId: 5, t: 0.35 }, { localId: 8, t: 0.60 },
+      { localId: 11, t: 0.45 }, { localId: 14, t: 0.55 }, { localId: 17, t: 0.40 },
+    ];
+    for (let ci = 0; ci < carPositions.length; ci++) {
+      const { localId, t } = carPositions[ci];
+      const { x: ax, y: ay } = nodePos(localId);
+      const { x: bx, y: by } = nodePos(localId + 1);
+      const cx = ax + (bx - ax) * t;
+      const cy = ay + (by - ay) * t;
+      const angle = Math.atan2(by - ay, bx - ax);
+      const color = CAR_COLORS[ci % CAR_COLORS.length];
+      this._drawMiniCar(cx, cy, angle, color);
+    }
+  }
+
+  _drawMiniCar(cx, cy, angle, color) {
+    const g = new Graphics();
+    // Simple top-down car: 18×9 rect with smaller 10×5 cabin on top.
+    const cw = 18, ch = 9, rw = 10, rh = 5;
+    g.rect(-cw / 2, -ch / 2, cw, ch);
+    g.fill({ color, alpha: 0.90 });
+    g.rect(-rw / 2, -rh / 2, rw, rh);
+    g.fill({ color: 0x111122, alpha: 0.75 });
+    // Headlights.
+    g.circle(-cw / 2 + 2, -ch / 4, 1.5);
+    g.circle(-cw / 2 + 2,  ch / 4, 1.5);
+    g.fill({ color: 0xffffcc, alpha: 0.90 });
+    g.x = cx; g.y = cy; g.rotation = angle;
+    this._container.addChild(g);
   }
 
   _buildNode(levelId, x, y, stars, isUnlocked, isWeekly, onClick) {
-    // Drop shadow
+    const node = new Container();
+    node.x = x; node.y = y;
+    this._container.addChild(node);
+
+    // ── Drop shadow ──────────────────────────────────────────────────────────
     const shadow = new Graphics();
-    shadow.circle(x, y + 3, NODE_R + 1);
-    shadow.fill({ color: 0x000000, alpha: 0.30 });
-    this._container.addChild(shadow);
+    shadow.circle(2, 4, NODE_R + 2);
+    shadow.fill({ color: 0x000000, alpha: 0.35 });
+    node.addChild(shadow);
 
-    // Main circle
-    const bgColor     = isUnlocked ? (stars > 0 ? 0x152818 : 0x0e1922) : 0x0d0d18;
-    const borderColor = isUnlocked ? (stars > 0 ? 0x44bb66 : 0x2a4a6a) : 0x1a2030;
-    const borderAlpha = isUnlocked ? 0.85 : 0.30;
+    // ── Road-sign ring (outer) ────────────────────────────────────────────────
+    const ringColor = isUnlocked
+      ? (stars > 0 ? 0x55cc77 : 0x4488bb)
+      : 0x2a3040;
+    const ring = new Graphics();
+    ring.circle(0, 0, NODE_R + 3);
+    ring.fill({ color: ringColor, alpha: isUnlocked ? 0.90 : 0.35 });
+    node.addChild(ring);
 
-    const g = new Graphics();
-    g.circle(x, y, NODE_R);
-    g.fill(bgColor);
-    g.circle(x, y, NODE_R);
-    g.stroke({ color: borderColor, width: 2, alpha: borderAlpha });
-    this._container.addChild(g);
+    // ── Inner disc (sign face) ────────────────────────────────────────────────
+    const bgColor = isUnlocked
+      ? (stars > 0 ? 0x1a3a22 : 0x0e1e2e)
+      : 0x0c0f18;
+    const disc = new Graphics();
+    disc.circle(0, 0, NODE_R);
+    disc.fill(bgColor);
+    node.addChild(disc);
 
     if (isUnlocked) {
-      // Level number
-      const numTxt = new Text({ text: String(levelId), style: { fontSize: 14, fontWeight: 'bold', fill: 0xffffff } });
-      numTxt.anchor.set(0.5, 0.5); numTxt.x = x; numTxt.y = y - 5;
-      this._container.addChild(numTxt);
+      // Level number.
+      const num = new Text({ text: String(levelId), style: {
+        fontSize: stars > 0 ? 13 : 15, fontWeight: 'bold', fill: 0xffffff,
+      }});
+      num.anchor.set(0.5, 0.5);
+      num.y = stars > 0 ? -7 : 0;
+      node.addChild(num);
 
-      // Mini star row
-      this._drawMiniStars(x, y + 11, stars);
+      // Star row.
+      if (stars > 0) this._drawMiniStars(node, stars);
 
-      // Weekly featured badge — gold ⭐ at top-right of node
+      // Weekly badge.
       if (isWeekly) {
-        const badge = new Text({
-          text: '⭐',
-          style: { fontSize: 13 },
-        });
+        const badge = new Text({ text: '⭐', style: { fontSize: 11 } });
         badge.anchor.set(0.5, 0.5);
-        badge.x = x + NODE_R - 2;
-        badge.y = y - NODE_R + 4;
-        this._container.addChild(badge);
+        badge.x = NODE_R - 4; badge.y = -NODE_R + 4;
+        node.addChild(badge);
       }
 
-      // Hit area + pointer events
-      g.eventMode = 'static'; g.cursor = 'pointer';
-      g.on('pointerdown', onClick);
-      g.on('pointerover',  () => { g.alpha = 0.80; });
-      g.on('pointerout',   () => { g.alpha = 1.00; });
+      // Speed stripe decoration (Candy Crush energy feel).
+      const stripe = new Graphics();
+      stripe.moveTo(-NODE_R + 4, NODE_R - 6);
+      stripe.lineTo(-NODE_R + 14, NODE_R - 6);
+      stripe.stroke({ color: 0x88ff66, width: 2, alpha: 0.40 });
+      node.addChild(stripe);
+
+      // Hit area.
+      disc.eventMode = 'static'; disc.cursor = 'pointer';
+      disc.on('pointerdown', onClick);
+      disc.on('pointerover',  () => { ring.alpha = 0.70; });
+      disc.on('pointerout',   () => { ring.alpha = 1.00; });
     } else {
-      // Lock icon
-      const lockG = new Graphics();
-      lockG.roundRect(x - 7, y - 3, 14, 11, 2);
-      lockG.fill(0x252f3a);
-      lockG.arc(x, y - 3, 5, Math.PI, 0, false);
-      lockG.stroke({ color: 0x252f3a, width: 2.5 });
-      this._container.addChild(lockG);
+      // Lock icon (padlock).
+      const lock = new Graphics();
+      // Shackle arc.
+      lock.arc(0, -4, 5, Math.PI, 0, false);
+      lock.stroke({ color: 0x445566, width: 2, alpha: 0.70 });
+      // Body.
+      lock.roundRect(-5, -2, 10, 8, 2);
+      lock.fill({ color: 0x2a3a4a, alpha: 0.80 });
+      // Keyhole.
+      lock.circle(0, 2, 2);
+      lock.fill({ color: 0x111828 });
+      node.addChild(lock);
     }
+
+    return node;
   }
 
-  // Three tiny star dots centred at (cx, cy).
-  _drawMiniStars(cx, cy, filledCount) {
-    const R = 4, GAP = 3;
-    const totalW = 3 * R * 2 + 2 * GAP;
-    const x0     = cx - totalW / 2 + R;
-    for (let i = 0; i < 3; i++) {
+  _drawMiniStars(parent, count) {
+    const starColors = { 1: 0xffaa00, 2: 0xffcc00, 3: 0xffee00 };
+    const color = starColors[count] ?? 0xffcc00;
+    const size  = 5;
+    const gap   = 11;
+    const startX = -(count - 1) * gap / 2;
+    for (let i = 0; i < count; i++) {
       const g = new Graphics();
-      this._starShape(g, R, i < filledCount ? 0xffcc00 : 0x252f3a);
-      g.x = x0 + i * (R * 2 + GAP);
-      g.y = cy;
-      this._container.addChild(g);
-    }
-  }
-
-  _starShape(g, outerR, color) {
-    const pts = 5, innerR = outerR * 0.42;
-    const pts2d = [];
-    for (let i = 0; i < pts * 2; i++) {
-      const angle = (Math.PI * i) / pts - Math.PI / 2;
-      const r     = (i % 2 === 0) ? outerR : innerR;
-      pts2d.push(Math.cos(angle) * r, Math.sin(angle) * r);
-    }
-    g.poly(pts2d); g.fill(color);
-  }
-
-  // Programmatic landmarks placed at left/right edges between rows.
-  // Use deterministic patterns (no Math.random) so they don't flicker on rebuild.
-  _drawLandmarks(w) {
-    // Between row 4 (y=800) and row 3 (y=632): midpoint ≈ 716
-    this._drawTree(14,     716);
-    this._drawTree(26,     704);
-    this._drawBuilding(w - 18, 724, 20, 48, false);
-
-    // Between row 3 (y=632) and row 2 (y=464): midpoint ≈ 548
-    this._drawBuilding(10,     558, 26, 44, true);
-    this._drawTree(w - 14, 548);
-    this._drawTree(w - 28, 558);
-
-    // Between row 2 (y=464) and row 1 (y=296): midpoint ≈ 380
-    this._drawTree(14,     380);
-    this._drawBuilding(w - 20, 392, 22, 52, false);
-
-    // Between row 1 (y=296) and row 0 (y=128): midpoint ≈ 212
-    this._drawBuilding(10,     220, 24, 46, true);
-    this._drawTree(w - 14, 212);
-  }
-
-  _drawTree(cx, cy) {
-    const g = new Graphics();
-    // Trunk
-    g.rect(cx - 3, cy, 6, 14);
-    g.fill(0x3a2a10);
-    // Lower canopy
-    g.poly([cx, cy - 20, cx - 11, cy + 4, cx + 11, cy + 4]);
-    g.fill(0x163a16);
-    // Upper canopy
-    g.poly([cx, cy - 30, cx - 8, cy - 14, cx + 8, cy - 14]);
-    g.fill(0x1e5020);
-    this._container.addChild(g);
-  }
-
-  // litAlt: alternating window-lit pattern (true = (r+c)%2===0 is lit, false = (r+c)%2===1)
-  _drawBuilding(cx, cy, bldW, bldH, litAlt) {
-    const g = new Graphics();
-    // Body
-    g.rect(cx - bldW / 2, cy - bldH, bldW, bldH);
-    g.fill(0x111a26);
-    g.rect(cx - bldW / 2, cy - bldH, bldW, bldH);
-    g.stroke({ color: 0x1e2e42, width: 1, alpha: 0.7 });
-    // Windows (deterministic pattern)
-    const wCols = Math.max(1, Math.floor(bldW / 10));
-    const wRows = Math.max(1, Math.floor(bldH / 13));
-    for (let r = 0; r < wRows; r++) {
-      for (let c = 0; c < wCols; c++) {
-        const lit = litAlt ? ((r + c) % 2 === 0) : ((r + c) % 2 === 1);
-        g.rect(cx - bldW / 2 + 3 + c * 10, cy - bldH + 4 + r * 13, 5, 7);
-        g.fill(lit ? 0x2a4a5a : 0x0a1420);
+      // 5-point star.
+      const pts = [];
+      for (let p = 0; p < 10; p++) {
+        const r  = p % 2 === 0 ? size : size * 0.42;
+        const a  = (p / 10) * Math.PI * 2 - Math.PI / 2;
+        pts.push(Math.cos(a) * r, Math.sin(a) * r);
       }
+      g.poly(pts); g.fill({ color, alpha: 0.95 });
+      g.x = startX + i * gap; g.y = 10;
+      parent.addChild(g);
     }
-    this._container.addChild(g);
+  }
+
+  _buildHeader(w, progress, onBack, onShop, onAchievements, audio) {
+    // Semi-dark header bar.
+    const headerBg = new Graphics();
+    headerBg.rect(0, 0, w, HEADER_H);
+    headerBg.fill({ color: 0x060c18, alpha: 0.95 });
+    headerBg.moveTo(0, HEADER_H); headerBg.lineTo(w, HEADER_H);
+    headerBg.stroke({ color: 0x334466, width: 1, alpha: 0.60 });
+    this._container.addChild(headerBg);
+
+    // BACK button.
+    const back = new Text({ text: '← BACK', style: { fontSize: 14, fontWeight: 'bold', fill: 0x66aaff } });
+    back.anchor.set(0, 0.5); back.x = 14; back.y = 22;
+    back.eventMode = 'static'; back.cursor = 'pointer';
+    back.on('pointerdown', () => { audio?.play('button_tap'); onBack(); });
+    this._container.addChild(back);
+
+    // World title with road-sign aesthetic.
+    const title = new Text({ text: `WORLD ${this._worldPage}`, style: {
+      fontSize: 20, fontWeight: 'bold', fill: 0xffffff,
+      dropShadow: { color: 0x00cc44, blur: 8, distance: 0, alpha: 0.6 },
+    }});
+    title.anchor.set(0.5, 0.5); title.x = w / 2; title.y = 22;
+    this._container.addChild(title);
+
+    // SHOP button.
+    const shop = new Text({ text: 'SHOP', style: { fontSize: 14, fontWeight: 'bold', fill: 0xf5c842 } });
+    shop.anchor.set(1, 0.5); shop.x = w - 14; shop.y = 22;
+    shop.eventMode = 'static'; shop.cursor = 'pointer';
+    shop.on('pointerdown', () => { audio?.play('button_tap'); onShop?.(); });
+    this._container.addChild(shop);
+
+    // Row 2: coins | achievements.
+    const coins = new Text({ text: `🏅 ${progress.coins ?? 0}`, style: {
+      fontSize: 14, fontWeight: 'bold', fill: 0xf5c842,
+    }});
+    coins.anchor.set(0, 0.5); coins.x = 14; coins.y = 50;
+    this._container.addChild(coins);
+
+    if (onAchievements) {
+      const ach = new Text({ text: '★ ACHIEVEMENTS', style: { fontSize: 12, fontWeight: 'bold', fill: 0x99bbcc } });
+      ach.anchor.set(1, 0.5); ach.x = w - 14; ach.y = 50;
+      ach.eventMode = 'static'; ach.cursor = 'pointer';
+      ach.on('pointerdown', () => { audio?.play('button_tap'); onAchievements(); });
+      this._container.addChild(ach);
+    }
+
+    // World page arrows.
+    const canW2 = (progress.unlockedLevel ?? 1) > 20;
+    if (this._worldPage === 1 && canW2) {
+      const w2 = new Text({ text: 'W2 ▶', style: { fontSize: 12, fontWeight: 'bold', fill: 0x66aaff } });
+      w2.anchor.set(1, 0.5); w2.x = w / 2 + 70; w2.y = 22;
+      w2.eventMode = 'static'; w2.cursor = 'pointer';
+      w2.on('pointerdown', () => { audio?.play('button_tap'); this._switchWorld(2); });
+      this._container.addChild(w2);
+    }
+    if (this._worldPage === 2) {
+      const w1 = new Text({ text: '◀ W1', style: { fontSize: 12, fontWeight: 'bold', fill: 0x66aaff } });
+      w1.anchor.set(0, 0.5); w1.x = w / 2 - 70; w1.y = 22;
+      w1.eventMode = 'static'; w1.cursor = 'pointer';
+      w1.on('pointerdown', () => { audio?.play('button_tap'); this._switchWorld(1); });
+      this._container.addChild(w1);
+    }
+  }
+
+  _switchWorld(page) {
+    this._worldPage = page;
+    this._container.removeChildren();
+    this._glowNode    = null;
+    this._glowTime    = 0;
+    this._revealAnims = [];
+    const { onSelectLevel, onBack, onShop, onAchievements, audio } = this._callbacks;
+    this._build(this._appW, this._appH, this._progress,
+      onSelectLevel, onBack, onShop, onAchievements, audio);
   }
 }

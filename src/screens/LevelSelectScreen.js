@@ -1,76 +1,72 @@
-// LevelSelectScreen — Car-themed world map, Candy Crush style.
-//
-// Visual design: night highway with city skyline, road markings path,
-// road-sign level nodes, reveal animation on new unlock.
-//
-// Layout: 20 levels in a snaking path, 5 rows × 4 columns.
-// Even data-rows L→R; odd rows R→L (same snake as before).
+// LevelSelectScreen — Car-themed world map + Candy Crush pre-level popup.
 import { Container, Graphics, Text } from 'pixi.js';
 
-// ── Layout constants ────────────────────────────────────────────────────────
-const HEADER_H  = 68;
-const NODE_R    = 26;
+const HEADER_H = 68;
+const NODE_R   = 26;
+const COLS_X   = [52, 150, 240, 338];
+const ROWS_Y   = [138, 302, 466, 630, 794];
 
-// Column centres and row centres (same snake geometry as before).
-const COLS_X = [52, 150, 240, 338];
-const ROWS_Y = [138, 302, 466, 630, 794];
+// Per-level colour palette — cycles through vivid hues.
+const LEVEL_COLORS = [
+  0xe74c3c, 0x3498db, 0x2ecc71, 0xf39c12,
+  0x9b59b6, 0x1abc9c, 0xe91e63, 0xff5722,
+  0x00bcd4, 0x8bc34a, 0xff9800, 0x673ab7,
+  0x4caf50, 0xf44336, 0x2196f3, 0xffeb3b,
+  0x9c27b0, 0x009688, 0xff5722, 0x03a9f4,
+];
 
-// Shooter color palette (cars on path use these).
-const CAR_COLORS = [0xE24B4A, 0x378ADD, 0x639922, 0xEF9F27, 0x7F77DD, 0xD85A30];
-
-// ── Helpers ─────────────────────────────────────────────────────────────────
+function levelColor(levelId) { return LEVEL_COLORS[(levelId - 1) % LEVEL_COLORS.length]; }
 
 function nodePos(levelId) {
-  const i        = levelId - 1;
-  const dataRow  = Math.floor(i / 4);
-  const posInRow = i % 4;
+  const i = levelId - 1;
+  const dataRow   = Math.floor(i / 4);
+  const posInRow  = i % 4;
   const visualRow = 4 - dataRow;
-  const isRTL    = dataRow % 2 === 1;
-  const col      = isRTL ? (3 - posInRow) : posInRow;
+  const isRTL     = dataRow % 2 === 1;
+  const col       = isRTL ? (3 - posInRow) : posInRow;
   return { x: COLS_X[col], y: ROWS_Y[visualRow] };
 }
-
-// ── Main class ───────────────────────────────────────────────────────────────
 
 export class LevelSelectScreen {
   constructor(stage, appW, appH, progress,
     { onSelectLevel, onBack, onShop, onAchievements, audio, weeklyLevels = [] },
     livesManager = null) {
 
-    this._container     = new Container();
+    this._container    = new Container();
     stage.addChild(this._container);
-    this._glowNode      = null;
-    this._glowTime      = 0;
-    this._lives         = livesManager;
-    this._worldPage     = 1;
-    this._progress      = progress;
-    this._appW          = appW;
-    this._appH          = appH;
-    this._weeklyLevels  = weeklyLevels;
-    this._callbacks     = { onSelectLevel, onBack, onShop, onAchievements, audio, weeklyLevels };
-    // Reveal animations: { node: Container, t: 0, duration: 0.45 }
-    this._revealAnims   = [];
+    this._stage        = stage;
+    this._glowNode     = null;
+    this._glowTime     = 0;
+    this._lives        = livesManager;
+    this._worldPage    = 1;
+    this._progress     = progress;
+    this._appW         = appW;
+    this._appH         = appH;
+    this._weeklyLevels = weeklyLevels;
+    this._callbacks    = { onSelectLevel, onBack, onShop, onAchievements, audio, weeklyLevels };
+    this._revealAnims  = [];
+    this._popup        = null;   // active pre-level popup
     this._build(appW, appH, progress, onSelectLevel, onBack, onShop, onAchievements, audio);
   }
 
-  destroy() { this._container.destroy({ children: true }); }
+  destroy() {
+    this._popup?.destroy({ children: true });
+    this._container.destroy({ children: true });
+  }
 
   update(dt) {
-    // Pulse the "next to play" ring.
     if (this._glowNode) {
       this._glowTime += dt;
       const t = (this._glowTime % 1.4) / 1.4;
       this._glowNode.alpha = 0.30 + 0.55 * Math.abs(Math.sin(t * Math.PI));
     }
-    // Drive reveal animations.
     for (let i = this._revealAnims.length - 1; i >= 0; i--) {
-      const a = this._revealAnims[i];
-      a.t = Math.min(a.t + dt / a.duration, 1);
-      const ease = 1 - Math.pow(1 - a.t, 3);
-      const overshoot = a.t < 0.7 ? Math.sin(a.t / 0.7 * Math.PI) * 0.35 : 0;
-      const s = ease * (1 + overshoot);
-      a.node.scale.set(s);
-      a.node.alpha = Math.min(1, a.t * 2.5);
+      const a  = this._revealAnims[i];
+      a.t      = Math.min(a.t + dt / a.duration, 1);
+      const e  = 1 - Math.pow(1 - a.t, 3);
+      const ov = a.t < 0.7 ? Math.sin(a.t / 0.7 * Math.PI) * 0.35 : 0;
+      a.node.scale.set(e * (1 + ov));
+      a.node.alpha = Math.min(1, a.t * 3);
       if (a.t >= 1) this._revealAnims.splice(i, 1);
     }
   }
@@ -78,25 +74,16 @@ export class LevelSelectScreen {
   // ── Private ────────────────────────────────────────────────────────────────
 
   _build(w, h, progress, onSelectLevel, onBack, onShop, onAchievements, audio) {
-    // ── Background: night city highway ─────────────────────────────────────
     this._drawBackground(w, h);
-
-    // ── Road path (grey road with dashed centre line) ──────────────────────
     const unlocked = progress.unlockedLevel ?? 1;
     this._drawRoadPath(unlocked);
-
-    // ── Decorative mini-cars along path ────────────────────────────────────
     this._drawCars();
 
-    // ── Level nodes ────────────────────────────────────────────────────────
     const worldBase  = (this._worldPage - 1) * 20;
     const firstId    = worldBase + 1;
     const lastId     = worldBase + 20;
     const nextToPlay = (unlocked >= firstId && unlocked <= lastId && progress.getStars(unlocked) === 0)
       ? unlocked : null;
-
-    // Detect newly unlocked level for reveal animation.
-    const newlyUnlocked = (unlocked >= firstId && unlocked <= lastId) ? unlocked : null;
 
     for (let levelId = firstId; levelId <= lastId; levelId++) {
       const localId    = levelId - worldBase;
@@ -104,153 +91,345 @@ export class LevelSelectScreen {
       const stars      = progress.getStars(levelId);
       const isUnlocked = levelId <= unlocked;
       const isWeekly   = this._weeklyLevels.includes(levelId);
-      const isNew      = (levelId === newlyUnlocked && stars === 0);
+      const isNew      = (levelId === unlocked && stars === 0);
 
       const node = this._buildNode(levelId, x, y, stars, isUnlocked, isWeekly, () => {
-        if (isUnlocked) { audio?.play('button_tap'); onSelectLevel(levelId); }
+        if (isUnlocked) {
+          audio?.play('button_tap');
+          this._showLevelPopup(levelId, stars, isWeekly, audio, onSelectLevel);
+        }
       });
 
-      // Queue reveal animation only for the brand-new next level.
       if (isNew && isUnlocked) {
-        node.scale.set(0);
-        node.alpha = 0;
+        node.scale.set(0); node.alpha = 0;
         this._revealAnims.push({ node, t: 0, duration: 0.45 });
       }
     }
 
-    // ── Pulsing glow ring on next-to-play node ─────────────────────────────
     if (nextToPlay !== null) {
       const localId = nextToPlay - worldBase;
       const { x, y } = nodePos(localId);
       const glow = new Graphics();
-      glow.circle(x, y, NODE_R + 10);
-      glow.stroke({ color: 0xffcc00, width: 3, alpha: 1 });
+      glow.circle(x, y, NODE_R + 12);
+      glow.stroke({ color: 0xffffff, width: 3.5, alpha: 1 });
       this._container.addChild(glow);
       this._glowNode = glow;
     }
 
-    // ── Header ─────────────────────────────────────────────────────────────
     this._buildHeader(w, progress, onBack, onShop, onAchievements, audio);
   }
 
-  _drawBackground(w, h) {
-    const g = new Graphics();
+  // ── Level popup (Candy Crush style) ──────────────────────────────────────
 
-    // Sky gradient: deep navy at top → dark blue-grey at horizon.
-    const SKY_H = HEADER_H + 72;
-    for (let i = 0; i < 16; i++) {
-      const t     = i / 15;
-      const r     = Math.round(4  + t * 10);
-      const gr    = Math.round(6  + t * 14);
-      const b     = Math.round(18 + t * 28);
-      const color = (r << 16) | (gr << 8) | b;
-      g.rect(0, HEADER_H + i * (SKY_H / 16), w, SKY_H / 16 + 1);
-      g.fill(color);
+  _showLevelPopup(levelId, stars, isWeekly, audio, onSelectLevel) {
+    if (this._popup) { this._popup.destroy({ children: true }); this._popup = null; }
+
+    const w = this._appW, h = this._appH;
+    const popup = new Container();
+    this._stage.addChild(popup);
+    this._popup = popup;
+
+    // Dim overlay
+    const dim = new Graphics();
+    dim.rect(0, 0, w, h);
+    dim.fill({ color: 0x000000, alpha: 0.65 });
+    dim.eventMode = 'static';   // block taps through overlay
+    popup.addChild(dim);
+
+    // Card
+    const CW = 310, CH = 370, CX = (w - CW) / 2, CY = (h - CH) / 2 - 30;
+    const color = levelColor(levelId);
+
+    const card = new Graphics();
+    // Shadow
+    card.roundRect(CX + 5, CY + 8, CW, CH, 22);
+    card.fill({ color: 0x000000, alpha: 0.45 });
+    // Card bg
+    card.roundRect(CX, CY, CW, CH, 20);
+    card.fill(0x0d1525);
+    // Coloured top bar
+    card.roundRect(CX, CY, CW, 56, 20);
+    card.fill(color);
+    card.rect(CX, CY + 36, CW, 20);
+    card.fill(color);
+    popup.addChild(card);
+
+    // Level label
+    const lbl = new Text({ text: `LEVEL ${levelId}`, style: {
+      fontSize: 26, fontWeight: 'bold', fill: 0xffffff,
+      dropShadow: { color: 0x000000, blur: 6, distance: 0, alpha: 0.7 },
+    }});
+    lbl.anchor.set(0.5, 0.5); lbl.x = w / 2; lbl.y = CY + 28;
+    popup.addChild(lbl);
+
+    if (isWeekly) {
+      const wb = new Text({ text: '⭐ WEEKLY', style: { fontSize: 11, fill: 0xffee44, fontWeight: 'bold' } });
+      wb.anchor.set(0.5, 0.5); wb.x = w / 2; wb.y = CY + 54;
+      popup.addChild(wb);
     }
 
-    // Lower map area: asphalt grey with subtle grid.
-    g.rect(0, HEADER_H + SKY_H, w, h - HEADER_H - SKY_H);
-    g.fill(0x0d1020);
-
-    this._container.addChild(g);
-
-    // ── City skyline silhouette ──────────────────────────────────────────────
-    this._drawSkyline(w, h);
-
-    // ── Stars in sky ────────────────────────────────────────────────────────
-    this._drawStars(w);
-
-    // ── Subtle road grid on the lower map ────────────────────────────────────
-    const grid = new Graphics();
-    const gridTop = HEADER_H + SKY_H;
-    for (let gx = 0; gx < w; gx += 52) {
-      grid.moveTo(gx, gridTop); grid.lineTo(gx, h);
-      grid.stroke({ color: 0x1a2040, width: 1, alpha: 0.35 });
+    // Stars row
+    const starY = CY + 88;
+    for (let s = 0; s < 3; s++) {
+      const filled = s < stars;
+      const sc = new Text({ text: filled ? '★' : '☆', style: {
+        fontSize: 28, fill: filled ? 0xffcc00 : 0x445566,
+      }});
+      sc.anchor.set(0.5, 0.5); sc.x = w / 2 - 28 + s * 28; sc.y = starY;
+      popup.addChild(sc);
     }
-    for (let gy = gridTop; gy < h; gy += 52) {
-      grid.moveTo(0, gy); grid.lineTo(w, gy);
-      grid.stroke({ color: 0x1a2040, width: 1, alpha: 0.35 });
-    }
-    this._container.addChild(grid);
+
+    // Booster section header
+    const bh = new Text({ text: 'WATCH AN AD FOR A BOOSTER', style: {
+      fontSize: 11, fill: 0x88aacc, fontWeight: 'bold',
+    }});
+    bh.anchor.set(0.5, 0.5); bh.x = w / 2; bh.y = CY + 126;
+    popup.addChild(bh);
+
+    // Ad booster buttons
+    const boosters = [
+      { label: '🔄 SWAP',   color: 0x1a4a8a, glow: 0x66aaff },
+      { label: '❄ FREEZE',  color: 0x0a3a5a, glow: 0x44ccff },
+      { label: '👁 PEEK',   color: 0x1a4a2a, glow: 0x66ff88 },
+    ];
+    boosters.forEach((b, idx) => {
+      const bx = CX + 16 + idx * 92, by = CY + 142;
+      const bg = new Graphics();
+      bg.roundRect(bx, by, 84, 36, 10);
+      bg.fill(b.color);
+      bg.roundRect(bx, by, 84, 36, 10);
+      bg.stroke({ color: b.glow, width: 1.5, alpha: 0.70 });
+      popup.addChild(bg);
+
+      const bt = new Text({ text: b.label, style: { fontSize: 11, fill: 0xffffff, fontWeight: 'bold' } });
+      bt.anchor.set(0.5, 0.5); bt.x = bx + 42; bt.y = by + 18;
+      bg.eventMode = 'static'; bg.cursor = 'pointer';
+      bg.on('pointerdown', () => {
+        audio?.play('button_tap');
+        // Ad integration placeholder — just shows visual tap feedback
+        bg.alpha = 0.6;
+        setTimeout(() => { bg.alpha = 1.0; }, 150);
+      });
+      popup.addChild(bt);
+    });
+
+    // START button
+    const sx = CX + 20, sy = CY + 202;
+    const startBg = new Graphics();
+    startBg.roundRect(sx, sy, CW - 40, 56, 14);
+    startBg.fill(color);
+    startBg.roundRect(sx + 2, sy + 2, CW - 44, 26, 12);
+    startBg.fill({ color: 0xffffff, alpha: 0.18 });   // sheen
+    popup.addChild(startBg);
+
+    const startTxt = new Text({ text: '▶  START LEVEL', style: {
+      fontSize: 20, fontWeight: 'bold', fill: 0xffffff,
+      dropShadow: { color: 0x000000, blur: 4, distance: 2, alpha: 0.6 },
+    }});
+    startTxt.anchor.set(0.5, 0.5); startTxt.x = w / 2; startTxt.y = sy + 28;
+    startBg.eventMode = 'static'; startBg.cursor = 'pointer';
+    startBg.on('pointerdown', () => {
+      audio?.play('button_tap');
+      popup.destroy({ children: true }); this._popup = null;
+      onSelectLevel(levelId);
+    });
+    startBg.on('pointerover',  () => { startBg.alpha = 0.85; });
+    startBg.on('pointerout',   () => { startBg.alpha = 1.00; });
+    popup.addChild(startTxt);
+
+    // Divider
+    const div = new Graphics();
+    div.moveTo(CX + 20, CY + 274); div.lineTo(CX + CW - 20, CY + 274);
+    div.stroke({ color: 0x223355, width: 1, alpha: 0.60 });
+    popup.addChild(div);
+
+    // Secondary buttons row
+    const btnStyle = { fontSize: 13, fontWeight: 'bold', fill: 0x88aacc };
+    const backBtn = new Text({ text: '← BACK', style: btnStyle });
+    backBtn.anchor.set(0, 0.5); backBtn.x = CX + 20; backBtn.y = CY + 298;
+    backBtn.eventMode = 'static'; backBtn.cursor = 'pointer';
+    backBtn.on('pointerdown', () => {
+      audio?.play('button_tap');
+      popup.destroy({ children: true }); this._popup = null;
+    });
+    popup.addChild(backBtn);
+
+    const lvlSel = new Text({ text: 'LEVEL SELECT ▶', style: btnStyle });
+    lvlSel.anchor.set(1, 0.5); lvlSel.x = CX + CW - 20; lvlSel.y = CY + 298;
+    lvlSel.eventMode = 'static'; lvlSel.cursor = 'pointer';
+    lvlSel.on('pointerdown', () => {
+      popup.destroy({ children: true }); this._popup = null;
+    });
+    popup.addChild(lvlSel);
+
+    // Animate card entrance: slide up from below
+    popup.y = 80; popup.alpha = 0;
+    let t = 0;
+    const tick = (ticker) => {
+      t += ticker.deltaMS / 1000;
+      const prog = Math.min(1, t / 0.22);
+      const ease = 1 - Math.pow(1 - prog, 3);
+      popup.y     = 80 * (1 - ease);
+      popup.alpha = ease;
+      if (prog >= 1) this._stage.app?.ticker?.remove(tick);
+    };
+    // Use a manual animation via requestAnimationFrame-style approach
+    const rafId = setInterval(() => {
+      t += 1 / 60;
+      const prog = Math.min(1, t / 0.22);
+      const ease = 1 - Math.pow(1 - prog, 3);
+      popup.y     = 80 * (1 - ease);
+      popup.alpha = ease;
+      if (prog >= 1) clearInterval(rafId);
+    }, 1000 / 60);
   }
 
-  _drawStars(w) {
-    const stars = new Graphics();
-    // Deterministic star positions (no random).
-    const pos = [
-      [22, 80], [68, 95], [110, 74], [155, 88], [200, 72], [240, 92],
-      [290, 78], [340, 85], [375, 76], [45, 105], [188, 110], [320, 102],
-    ];
-    for (const [sx, sy] of pos) {
-      const r = (sx * 7 + sy * 3) % 3 === 0 ? 1.5 : 1.0;
-      stars.circle(sx, sy, r);
-      stars.fill({ color: 0xffffff, alpha: 0.55 + ((sx + sy) % 3) * 0.15 });
+  // ── Background drawing ────────────────────────────────────────────────────
+
+  _drawBackground(w, h) {
+    const g = new Graphics();
+    // Deep gradient: navy → dark blue-purple
+    for (let i = 0; i < 20; i++) {
+      const t = i / 19;
+      const r = Math.round(4 + t * 15);
+      const gr = Math.round(5 + t * 10);
+      const b  = Math.round(20 + t * 40);
+      g.rect(0, HEADER_H + i * ((h - HEADER_H) / 20), w, (h - HEADER_H) / 20 + 1);
+      g.fill((r << 16) | (gr << 8) | b);
     }
-    this._container.addChild(stars);
+    this._container.addChild(g);
+    this._drawSkyline(w, h);
+    this._drawStarField(w);
+    this._drawStreetLights(w);
+    this._drawGridOverlay(w, h);
+  }
+
+  _drawStarField(w) {
+    const g = new Graphics();
+    const positions = [
+      [18,78],[65,92],[108,74],[150,86],[198,70],[238,90],[285,76],
+      [335,84],[372,74],[42,104],[185,108],[318,100],[88,118],[260,116],
+      [370,108],[12,130],[155,122],[295,132],[50,140],[220,136],
+    ];
+    for (const [sx, sy] of positions) {
+      const r = (sx % 3 === 0) ? 1.5 : 1.0;
+      const a = 0.4 + ((sx + sy) % 4) * 0.15;
+      g.circle(sx, sy, r);
+      g.fill({ color: 0xffffff, alpha: a });
+    }
+    // Coloured accent stars
+    for (const [sx, sy, col] of [[72,82,0xffd700],[188,96,0x88ccff],[330,72,0xff88cc]]) {
+      g.circle(sx, sy, 2); g.fill({ color: col, alpha: 0.60 });
+    }
+    this._container.addChild(g);
   }
 
   _drawSkyline(w, h) {
-    const sky = new Graphics();
-    const baseY = HEADER_H + 100;
-    // Buildings: [x, width, height, hasWindow]
+    const g = new Graphics();
+    const baseY = HEADER_H + 110;
     const buildings = [
-      [0, 28, 62, true],  [28, 18, 44, false], [46, 32, 78, true],
-      [78, 22, 52, false], [100, 14, 36, false], [114, 40, 68, true],
-      [154, 20, 48, false], [174, 30, 84, true], [204, 16, 42, false],
-      [220, 36, 58, true], [256, 24, 70, false], [280, 18, 46, true],
-      [298, 40, 88, true], [338, 22, 50, false], [360, 30, 64, true],
+      [0,30,68,0x0c1226,true],[30,20,46,0x0e1430,false],[50,36,82,0x0a0f22,true],
+      [86,24,54,0x0d1228,false],[110,14,38,0x0c1124,false],[124,44,72,0x0b1020,true],
+      [168,22,50,0x0d1228,false],[190,32,88,0x090e1e,true],[222,18,44,0x0c1226,false],
+      [240,38,62,0x0b1122,true],[278,26,74,0x0a1020,false],[304,20,48,0x0d1328,true],
+      [324,44,92,0x090e1e,true],[368,24,52,0x0c1126,false],[
+        392,32,68,0x0b1020,true],
     ];
-    for (const [bx, bw, bh, hasWin] of buildings) {
-      sky.rect(bx, baseY - bh, bw, bh);
-      sky.fill({ color: 0x080c18, alpha: 0.85 });
+    for (const [bx, bw, bh, bgc, hasWin] of buildings) {
+      g.rect(bx, baseY - bh, bw, bh); g.fill(bgc);
       if (hasWin) {
-        // Window grid: bright yellow/white dots.
-        for (let wy = baseY - bh + 6; wy < baseY - 6; wy += 10) {
+        for (let wy = baseY - bh + 8; wy < baseY - 8; wy += 10) {
           for (let wx = bx + 4; wx < bx + bw - 4; wx += 8) {
-            if ((wx + wy) % 3 !== 0) continue;
-            sky.rect(wx, wy, 3, 4);
-            sky.fill({ color: 0xffee88, alpha: 0.45 + ((wx * wy) % 3) * 0.15 });
+            if ((wx * 3 + wy * 2) % 5 < 3) {
+              const wc = (wx + wy) % 3 === 0 ? 0xffee66 : 0x88ccff;
+              g.rect(wx, wy, 3, 5); g.fill({ color: wc, alpha: 0.55 });
+            }
           }
         }
       }
     }
-    this._container.addChild(sky);
+    this._container.addChild(g);
   }
+
+  _drawStreetLights(w) {
+    const g = new Graphics();
+    // Pairs of street lights between node rows
+    const lightPositions = [
+      [0, 210], [w, 210], [0, 380], [w, 380],
+      [0, 545], [w, 545], [0, 710], [w, 710],
+    ];
+    for (const [lx, ly] of lightPositions) {
+      const side = lx === 0 ? 1 : -1;
+      const px = lx === 0 ? 8 : w - 8;
+      // Pole
+      g.rect(px - 2, ly - 30, 4, 30); g.fill(0x334466);
+      // Arm
+      g.rect(px, ly - 30, side * 20, 3); g.fill(0x334466);
+      // Lamp
+      const lampX = px + side * 20;
+      g.circle(lampX, ly - 30, 5); g.fill({ color: 0xffee88, alpha: 0.85 });
+      // Glow halo
+      g.circle(lampX, ly - 30, 10); g.fill({ color: 0xffee88, alpha: 0.18 });
+    }
+    this._container.addChild(g);
+  }
+
+  _drawGridOverlay(w, h) {
+    const g = new Graphics();
+    const top = HEADER_H + 120;
+    for (let gx = 40; gx < w; gx += 50) {
+      g.moveTo(gx, top); g.lineTo(gx, h);
+      g.stroke({ color: 0x1a2548, width: 1, alpha: 0.20 });
+    }
+    for (let gy = top; gy < h; gy += 50) {
+      g.moveTo(0, gy); g.lineTo(w, gy);
+      g.stroke({ color: 0x1a2548, width: 1, alpha: 0.20 });
+    }
+    this._container.addChild(g);
+  }
+
+  // ── Road path ─────────────────────────────────────────────────────────────
 
   _drawRoadPath(unlockedLevel) {
     const worldBase = (this._worldPage - 1) * 20;
-
     for (let localId = 1; localId < 20; localId++) {
       const levelId = worldBase + localId;
       const { x: ax, y: ay } = nodePos(localId);
       const { x: bx, y: by } = nodePos(localId + 1);
       const reached = levelId < unlockedLevel;
+      const c = levelColor(levelId);
 
-      // Road surface (wide grey strip).
+      // Road base
       const road = new Graphics();
-      road.moveTo(ax, ay);
-      road.lineTo(bx, by);
-      road.stroke({ color: reached ? 0x3a5a2a : 0x1e2838, width: 12, cap: 'round' });
+      road.moveTo(ax, ay); road.lineTo(bx, by);
+      road.stroke({ color: reached ? c : 0x1a2040, width: 14, alpha: reached ? 0.55 : 0.50, cap: 'round' });
       this._container.addChild(road);
 
-      // Dashed centre line.
+      // Road edge lines
       if (reached) {
-        const dashCount = 5;
+        const edge = new Graphics();
+        edge.moveTo(ax, ay); edge.lineTo(bx, by);
+        edge.stroke({ color: 0xffffff, width: 14, alpha: 0.10, cap: 'round' });
+        this._container.addChild(edge);
+      }
+
+      // Dashed centre line
+      if (reached) {
         const dash = new Graphics();
-        for (let d = 0; d < dashCount; d++) {
-          const t0 = (d + 0.15) / dashCount;
-          const t1 = (d + 0.55) / dashCount;
+        for (let d = 0; d < 5; d++) {
+          const t0 = (d + 0.15) / 5, t1 = (d + 0.55) / 5;
           dash.moveTo(ax + (bx - ax) * t0, ay + (by - ay) * t0);
           dash.lineTo(ax + (bx - ax) * t1, ay + (by - ay) * t1);
-          dash.stroke({ color: 0x88ff66, width: 1.5, alpha: 0.55, cap: 'round' });
+          dash.stroke({ color: 0xffffff, width: 2, alpha: 0.60, cap: 'round' });
         }
         this._container.addChild(dash);
       }
     }
   }
 
+  // ── Decorative cars ───────────────────────────────────────────────────────
+
   _drawCars() {
-    // Small decorative cars between specific nodes (static positions).
     const carPositions = [
       { localId: 2, t: 0.50 }, { localId: 5, t: 0.35 }, { localId: 8, t: 0.60 },
       { localId: 11, t: 0.45 }, { localId: 14, t: 0.55 }, { localId: 17, t: 0.40 },
@@ -259,200 +438,149 @@ export class LevelSelectScreen {
       const { localId, t } = carPositions[ci];
       const { x: ax, y: ay } = nodePos(localId);
       const { x: bx, y: by } = nodePos(localId + 1);
-      const cx = ax + (bx - ax) * t;
-      const cy = ay + (by - ay) * t;
-      const angle = Math.atan2(by - ay, bx - ax);
-      const color = CAR_COLORS[ci % CAR_COLORS.length];
-      this._drawMiniCar(cx, cy, angle, color);
+      const cx = ax + (bx - ax) * t, cy = ay + (by - ay) * t;
+      this._drawMiniCar(cx, cy, Math.atan2(by - ay, bx - ax),
+        LEVEL_COLORS[(localId + ci) % LEVEL_COLORS.length]);
     }
   }
 
   _drawMiniCar(cx, cy, angle, color) {
     const g = new Graphics();
-    // Simple top-down car: 18×9 rect with smaller 10×5 cabin on top.
-    const cw = 18, ch = 9, rw = 10, rh = 5;
-    g.rect(-cw / 2, -ch / 2, cw, ch);
-    g.fill({ color, alpha: 0.90 });
-    g.rect(-rw / 2, -rh / 2, rw, rh);
-    g.fill({ color: 0x111122, alpha: 0.75 });
-    // Headlights.
-    g.circle(-cw / 2 + 2, -ch / 4, 1.5);
-    g.circle(-cw / 2 + 2,  ch / 4, 1.5);
-    g.fill({ color: 0xffffcc, alpha: 0.90 });
+    g.rect(-9, -5, 18, 10); g.fill({ color, alpha: 0.92 });
+    g.rect(-5, -3, 10, 6);  g.fill({ color: 0x111122, alpha: 0.75 });
+    g.circle(-9, -3, 1.5);  g.fill({ color: 0xffffcc, alpha: 0.90 });
+    g.circle(-9,  3, 1.5);  g.fill({ color: 0xffffcc, alpha: 0.90 });
     g.x = cx; g.y = cy; g.rotation = angle;
     this._container.addChild(g);
   }
 
+  // ── Level nodes ───────────────────────────────────────────────────────────
+
   _buildNode(levelId, x, y, stars, isUnlocked, isWeekly, onClick) {
-    const node = new Container();
+    const color = levelColor(levelId);
+    const node  = new Container();
     node.x = x; node.y = y;
     this._container.addChild(node);
 
-    // ── Drop shadow ──────────────────────────────────────────────────────────
+    // Shadow
     const shadow = new Graphics();
-    shadow.circle(2, 4, NODE_R + 2);
-    shadow.fill({ color: 0x000000, alpha: 0.35 });
+    shadow.circle(3, 5, NODE_R + 3); shadow.fill({ color: 0x000000, alpha: 0.40 });
     node.addChild(shadow);
 
-    // ── Road-sign ring (outer) ────────────────────────────────────────────────
-    const ringColor = isUnlocked
-      ? (stars > 0 ? 0x55cc77 : 0x4488bb)
-      : 0x2a3040;
-    const ring = new Graphics();
-    ring.circle(0, 0, NODE_R + 3);
-    ring.fill({ color: ringColor, alpha: isUnlocked ? 0.90 : 0.35 });
-    node.addChild(ring);
-
-    // ── Inner disc (sign face) ────────────────────────────────────────────────
-    const bgColor = isUnlocked
-      ? (stars > 0 ? 0x1a3a22 : 0x0e1e2e)
-      : 0x0c0f18;
-    const disc = new Graphics();
-    disc.circle(0, 0, NODE_R);
-    disc.fill(bgColor);
-    node.addChild(disc);
-
     if (isUnlocked) {
-      // Level number.
-      const num = new Text({ text: String(levelId), style: {
-        fontSize: stars > 0 ? 13 : 15, fontWeight: 'bold', fill: 0xffffff,
-      }});
-      num.anchor.set(0.5, 0.5);
-      num.y = stars > 0 ? -7 : 0;
-      node.addChild(num);
+      // Outer coloured glow ring
+      const glow = new Graphics();
+      glow.circle(0, 0, NODE_R + 7);
+      glow.fill({ color, alpha: 0.30 });
+      node.addChild(glow);
 
-      // Star row.
-      if (stars > 0) this._drawMiniStars(node, stars);
+      // White border
+      const border = new Graphics();
+      border.circle(0, 0, NODE_R + 3);
+      border.fill({ color: 0xffffff, alpha: 0.85 });
+      node.addChild(border);
 
-      // Weekly badge.
-      if (isWeekly) {
-        const badge = new Text({ text: '⭐', style: { fontSize: 11 } });
-        badge.anchor.set(0.5, 0.5);
-        badge.x = NODE_R - 4; badge.y = -NODE_R + 4;
-        node.addChild(badge);
+      // Coloured disc
+      const disc = new Graphics();
+      disc.circle(0, 0, NODE_R);
+      disc.fill(color);
+      // Shine overlay
+      disc.arc(0, 0, NODE_R - 2, Math.PI * 1.1, Math.PI * 1.75);
+      disc.stroke({ color: 0xffffff, width: 4, alpha: 0.30 });
+      node.addChild(disc);
+
+      // Stars completed: show star count or level number
+      if (stars > 0) {
+        const starStr = '★'.repeat(stars) + '☆'.repeat(3 - stars);
+        const st = new Text({ text: starStr, style: { fontSize: 11, fill: 0xffee00 } });
+        st.anchor.set(0.5, 0.5); st.y = 9;
+        node.addChild(st);
+        const num = new Text({ text: String(levelId), style: { fontSize: 13, fontWeight: 'bold', fill: 0xffffff } });
+        num.anchor.set(0.5, 0.5); num.y = -7;
+        node.addChild(num);
+      } else {
+        const num = new Text({ text: String(levelId), style: { fontSize: 16, fontWeight: 'bold', fill: 0xffffff,
+          dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 0.6 },
+        }});
+        num.anchor.set(0.5, 0.5);
+        node.addChild(num);
       }
 
-      // Speed stripe decoration (Candy Crush energy feel).
-      const stripe = new Graphics();
-      stripe.moveTo(-NODE_R + 4, NODE_R - 6);
-      stripe.lineTo(-NODE_R + 14, NODE_R - 6);
-      stripe.stroke({ color: 0x88ff66, width: 2, alpha: 0.40 });
-      node.addChild(stripe);
+      if (isWeekly) {
+        const wk = new Text({ text: '⭐', style: { fontSize: 11 } });
+        wk.anchor.set(0.5, 0.5); wk.x = NODE_R - 3; wk.y = -NODE_R + 4;
+        node.addChild(wk);
+      }
 
-      // Hit area.
       disc.eventMode = 'static'; disc.cursor = 'pointer';
       disc.on('pointerdown', onClick);
-      disc.on('pointerover',  () => { ring.alpha = 0.70; });
-      disc.on('pointerout',   () => { ring.alpha = 1.00; });
+      disc.on('pointerover',  () => { node.scale.set(1.10); });
+      disc.on('pointerout',   () => { node.scale.set(1.00); });
     } else {
-      // Lock icon (padlock).
+      // Locked node — dim grey
+      const disc = new Graphics();
+      disc.circle(0, 0, NODE_R + 3); disc.fill({ color: 0x1a2030, alpha: 0.85 });
+      disc.circle(0, 0, NODE_R);     disc.fill(0x0d1020);
+      node.addChild(disc);
       const lock = new Graphics();
-      // Shackle arc.
       lock.arc(0, -4, 5, Math.PI, 0, false);
-      lock.stroke({ color: 0x445566, width: 2, alpha: 0.70 });
-      // Body.
-      lock.roundRect(-5, -2, 10, 8, 2);
-      lock.fill({ color: 0x2a3a4a, alpha: 0.80 });
-      // Keyhole.
-      lock.circle(0, 2, 2);
-      lock.fill({ color: 0x111828 });
+      lock.stroke({ color: 0x2a3a4a, width: 2, alpha: 0.70 });
+      lock.roundRect(-5, -2, 10, 8, 2); lock.fill({ color: 0x1a2a38, alpha: 0.85 });
+      lock.circle(0, 2, 2);            lock.fill(0x0d141e);
       node.addChild(lock);
     }
 
     return node;
   }
 
-  _drawMiniStars(parent, count) {
-    const starColors = { 1: 0xffaa00, 2: 0xffcc00, 3: 0xffee00 };
-    const color = starColors[count] ?? 0xffcc00;
-    const size  = 5;
-    const gap   = 11;
-    const startX = -(count - 1) * gap / 2;
-    for (let i = 0; i < count; i++) {
-      const g = new Graphics();
-      // 5-point star.
-      const pts = [];
-      for (let p = 0; p < 10; p++) {
-        const r  = p % 2 === 0 ? size : size * 0.42;
-        const a  = (p / 10) * Math.PI * 2 - Math.PI / 2;
-        pts.push(Math.cos(a) * r, Math.sin(a) * r);
-      }
-      g.poly(pts); g.fill({ color, alpha: 0.95 });
-      g.x = startX + i * gap; g.y = 10;
-      parent.addChild(g);
-    }
-  }
+  // ── Header ────────────────────────────────────────────────────────────────
 
   _buildHeader(w, progress, onBack, onShop, onAchievements, audio) {
-    // Semi-dark header bar.
-    const headerBg = new Graphics();
-    headerBg.rect(0, 0, w, HEADER_H);
-    headerBg.fill({ color: 0x060c18, alpha: 0.95 });
-    headerBg.moveTo(0, HEADER_H); headerBg.lineTo(w, HEADER_H);
-    headerBg.stroke({ color: 0x334466, width: 1, alpha: 0.60 });
-    this._container.addChild(headerBg);
+    const hg = new Graphics();
+    hg.rect(0, 0, w, HEADER_H); hg.fill({ color: 0x060c18, alpha: 0.96 });
+    hg.moveTo(0, HEADER_H); hg.lineTo(w, HEADER_H);
+    hg.stroke({ color: 0x2a4a7a, width: 1.5, alpha: 0.70 });
+    this._container.addChild(hg);
 
-    // BACK button.
-    const back = new Text({ text: '← BACK', style: { fontSize: 14, fontWeight: 'bold', fill: 0x66aaff } });
-    back.anchor.set(0, 0.5); back.x = 14; back.y = 22;
-    back.eventMode = 'static'; back.cursor = 'pointer';
-    back.on('pointerdown', () => { audio?.play('button_tap'); onBack(); });
-    this._container.addChild(back);
+    const mkBtn = (txt, x, anchorX, y, color, cb) => {
+      const t = new Text({ text: txt, style: { fontSize: 14, fontWeight: 'bold', fill: color } });
+      t.anchor.set(anchorX, 0.5); t.x = x; t.y = y;
+      t.eventMode = 'static'; t.cursor = 'pointer';
+      t.on('pointerdown', () => { audio?.play('button_tap'); cb(); });
+      t.on('pointerover', () => { t.alpha = 0.70; });
+      t.on('pointerout',  () => { t.alpha = 1.00; });
+      this._container.addChild(t);
+      return t;
+    };
 
-    // World title with road-sign aesthetic.
+    mkBtn('← BACK', 14,   0, 22, 0x66aaff, onBack);
+    mkBtn('SHOP',   w-14, 1, 22, 0xf5c842, () => onShop?.());
+    if (onAchievements) mkBtn('★ ACHIEVEMENTS', w - 14, 1, 50, 0x99bbcc, onAchievements);
+
     const title = new Text({ text: `WORLD ${this._worldPage}`, style: {
-      fontSize: 20, fontWeight: 'bold', fill: 0xffffff,
-      dropShadow: { color: 0x00cc44, blur: 8, distance: 0, alpha: 0.6 },
+      fontSize: 22, fontWeight: 'bold', fill: 0xffffff,
+      dropShadow: { color: 0x3399ff, blur: 10, distance: 0, alpha: 0.7 },
     }});
     title.anchor.set(0.5, 0.5); title.x = w / 2; title.y = 22;
     this._container.addChild(title);
 
-    // SHOP button.
-    const shop = new Text({ text: 'SHOP', style: { fontSize: 14, fontWeight: 'bold', fill: 0xf5c842 } });
-    shop.anchor.set(1, 0.5); shop.x = w - 14; shop.y = 22;
-    shop.eventMode = 'static'; shop.cursor = 'pointer';
-    shop.on('pointerdown', () => { audio?.play('button_tap'); onShop?.(); });
-    this._container.addChild(shop);
-
-    // Row 2: coins | achievements.
-    const coins = new Text({ text: `🏅 ${progress.coins ?? 0}`, style: {
-      fontSize: 14, fontWeight: 'bold', fill: 0xf5c842,
-    }});
+    const coins = new Text({ text: `🏅 ${progress.coins ?? 0}`, style: { fontSize: 14, fontWeight: 'bold', fill: 0xf5c842 } });
     coins.anchor.set(0, 0.5); coins.x = 14; coins.y = 50;
     this._container.addChild(coins);
 
-    if (onAchievements) {
-      const ach = new Text({ text: '★ ACHIEVEMENTS', style: { fontSize: 12, fontWeight: 'bold', fill: 0x99bbcc } });
-      ach.anchor.set(1, 0.5); ach.x = w - 14; ach.y = 50;
-      ach.eventMode = 'static'; ach.cursor = 'pointer';
-      ach.on('pointerdown', () => { audio?.play('button_tap'); onAchievements(); });
-      this._container.addChild(ach);
-    }
-
-    // World page arrows.
     const canW2 = (progress.unlockedLevel ?? 1) > 20;
     if (this._worldPage === 1 && canW2) {
-      const w2 = new Text({ text: 'W2 ▶', style: { fontSize: 12, fontWeight: 'bold', fill: 0x66aaff } });
-      w2.anchor.set(1, 0.5); w2.x = w / 2 + 70; w2.y = 22;
-      w2.eventMode = 'static'; w2.cursor = 'pointer';
-      w2.on('pointerdown', () => { audio?.play('button_tap'); this._switchWorld(2); });
-      this._container.addChild(w2);
+      mkBtn('W2 ▶', w / 2 + 70, 1, 22, 0x66aaff, () => this._switchWorld(2));
     }
     if (this._worldPage === 2) {
-      const w1 = new Text({ text: '◀ W1', style: { fontSize: 12, fontWeight: 'bold', fill: 0x66aaff } });
-      w1.anchor.set(0, 0.5); w1.x = w / 2 - 70; w1.y = 22;
-      w1.eventMode = 'static'; w1.cursor = 'pointer';
-      w1.on('pointerdown', () => { audio?.play('button_tap'); this._switchWorld(1); });
-      this._container.addChild(w1);
+      mkBtn('◀ W1', w / 2 - 70, 0, 22, 0x66aaff, () => this._switchWorld(1));
     }
   }
 
   _switchWorld(page) {
     this._worldPage = page;
     this._container.removeChildren();
-    this._glowNode    = null;
-    this._glowTime    = 0;
-    this._revealAnims = [];
+    this._glowNode = null; this._glowTime = 0; this._revealAnims = [];
     const { onSelectLevel, onBack, onShop, onAchievements, audio } = this._callbacks;
     this._build(this._appW, this._appH, this._progress,
       onSelectLevel, onBack, onShop, onAchievements, audio);

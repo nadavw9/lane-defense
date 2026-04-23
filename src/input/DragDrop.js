@@ -155,8 +155,8 @@ export class DragDrop {
     // Try starting a drag from a column top.
     if (col !== -1 && this._columns[col].top()) {
       const shooter = this._columns[col].top();
-      const { x: cx, y: cy } = this._shooterRenderer.getTopShooterCenter(col);
-      this._startDrag('column', col, shooter, cx, cy, x, y);
+      // Start ghost at finger position (not column centre) so it feels responsive.
+      this._startDrag('column', col, shooter, x, y, x, y);
       return;
     }
 
@@ -411,12 +411,12 @@ export class DragDrop {
     g.circle(0, 0, R);
     g.fill(color);
 
-    // ── Barrel pointing DOWN toward deployment lane ───────────────────────────
+    // ── Barrel pointing UP toward road (consistent with top-down 3D view) ──────
     const bw = 10, bl = R + 6;
-    g.roundRect(-bw / 2, 0, bw, bl, 4);
+    g.roundRect(-bw / 2, -bl, bw, bl, 4);           // extends upward from centre
     g.fill({ color: 0xffffff, alpha: 0.85 });
     // Dark barrel centre line
-    g.roundRect(-2, 2, 4, bl - 4, 2);
+    g.roundRect(-2, -bl + 2, 4, bl - 4, 2);
     g.fill({ color, alpha: 0.70 });
 
     // ── Inner highlight arc ───────────────────────────────────────────────────

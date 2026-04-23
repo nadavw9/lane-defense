@@ -40,10 +40,10 @@ const TORUS_TUBE = 0.04;
 //   Slot 2 (3rd)      : Z=2.8  → screen Y ≈ 690  (40% scale, 40% opacity)
 const TURRET_Z    = 0.0;
 const TURRET_Y    = BASE_H + BODY_H / 2;   // slightly above ground so turret is proud
-const SLOT1_Z     = 1.8;
-const SLOT2_Z     = 2.8;
-const SLOT1_SCALE = 0.62;
-const SLOT2_SCALE = 0.40;
+const SLOT1_Z     = 1.0;   // screen Y ≈ 638
+const SLOT2_Z     = 2.0;   // screen Y ≈ 667
+const SLOT3_Z     = 2.9;   // screen Y ≈ 693 (near viewport bottom)
+const SLOT_SCALE  = 1.0;   // all queue slots same size as main
 
 // Barrel tip offset from body centre (points in +Z direction = toward road/camera).
 // We rotate the barrel so it points in -Z (toward far road), i.e., up toward cars.
@@ -142,6 +142,7 @@ export class Shooter3D {
         turret.group.visible = false;
         turret.slot1.group.visible = false;
         turret.slot2.group.visible = false;
+        turret.slot3.group.visible = false;
         continue;
       }
 
@@ -164,8 +165,11 @@ export class Shooter3D {
       const s2 = col.shooters?.[2];
       const h1 = s1 ? (COLOR_HEX[s1.color] ?? 0x888888) : null;
       const h2 = s2 ? (COLOR_HEX[s2.color] ?? 0x888888) : null;
+      const s3 = col.shooters?.[3];
+      const h3 = s3 ? (COLOR_HEX[s3.color] ?? 0x888888) : null;
       turret.slot1.group.visible = !!s1;
       turret.slot2.group.visible = !!s2;
+      turret.slot3.group.visible = !!s3;
       if (s1 && turret.slot1.lastColor !== h1) {
         turret.slot1.lastColor = h1;
         turret.slot1.bodyMat.color.setHex(h1);
@@ -177,6 +181,12 @@ export class Shooter3D {
         turret.slot2.bodyMat.color.setHex(h2);
         turret.slot2.ringMat.color.setHex(h2);
         turret.slot2.ringMat.emissive.setHex(h2);
+      }
+      if (s3 && turret.slot3.lastColor !== h3) {
+        turret.slot3.lastColor = h3;
+        turret.slot3.bodyMat.color.setHex(h3);
+        turret.slot3.ringMat.color.setHex(h3);
+        turret.slot3.ringMat.emissive.setHex(h3);
       }
 
       // Idle bounce (Y).
@@ -226,7 +236,7 @@ export class Shooter3D {
   dispose() {
     for (const t of this._turrets) {
       // Remove queue slot meshes.
-      for (const slot of [t.slot1, t.slot2]) {
+      for (const slot of [t.slot1, t.slot2, t.slot3]) {
         slot.group.traverse(obj => {
           if (obj.geometry && obj.geometry !== _baseGeo && obj.geometry !== _bodyGeo &&
               obj.geometry !== _torusGeo) obj.geometry.dispose();
@@ -308,20 +318,20 @@ export class Shooter3D {
 
     this._scene.add(group);
 
-    // ── Queue slot 1 (2nd shooter) ── smaller, dimmer
-    const slot1 = this._createQueueSlot(laneIdx, SLOT1_Z, SLOT1_SCALE);
-
-    // ── Queue slot 2 (3rd shooter) ── smallest, dimmest
-    const slot2 = this._createQueueSlot(laneIdx, SLOT2_Z, SLOT2_SCALE);
+    // ── Queue slots (2nd, 3rd, 4th shooter) — all same size as main ──────
+    const slot1 = this._createQueueSlot(laneIdx, SLOT1_Z, SLOT_SCALE);
+    const slot2 = this._createQueueSlot(laneIdx, SLOT2_Z, SLOT_SCALE);
+    const slot3 = this._createQueueSlot(laneIdx, SLOT3_Z, SLOT_SCALE);
 
     // Layer 1: only visible to the shooter viewport camera (not the road camera).
     group.traverse(obj => obj.layers.set(1));
     slot1.group.traverse(obj => obj.layers.set(1));
     slot2.group.traverse(obj => obj.layers.set(1));
+    slot3.group.traverse(obj => obj.layers.set(1));
 
     return {
       group, bodyMat, ringMat, barrelMat, barrel, tipGlowMat,
-      slot1, slot2,
+      slot1, slot2, slot3,
       lastColor:   -1,
       punchActive: false,
       punchT:      0,

@@ -158,16 +158,7 @@ export class Road3D {
 
 
 
-    // Shoulder edge lines (solid white stripes at road edges).
-    for (const sx of [-ROAD_HALF_W + 0.2, ROAD_HALF_W - 0.2]) {
-      const edge = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.12, ROAD_LENGTH),
-        new THREE.MeshBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.25 }),
-      );
-      edge.rotation.x = -Math.PI / 2;
-      edge.position.set(sx, 0.002, ROAD_CENTER_Z);
-      this._group.add(edge);
-    }
+    // Shoulder edge lines removed — caused yellow bloom glow on screen sides.
   }
 
   // ── Concrete barriers (left + right) ─────────────────────────────────────────

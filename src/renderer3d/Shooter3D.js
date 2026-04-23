@@ -38,12 +38,16 @@ const TORUS_TUBE = 0.04;
 //   Slot 0 (top/main) : Z=0.0  → screen Y ≈ 610  (fully opaque)
 //   Slot 1 (2nd)      : Z=1.8  → screen Y ≈ 661  (62% scale, 62% opacity)
 //   Slot 2 (3rd)      : Z=2.8  → screen Y ≈ 690  (40% scale, 40% opacity)
-const TURRET_Z    = 0.0;
+
 const TURRET_Y    = BASE_H + BODY_H / 2;   // slightly above ground so turret is proud
-const SLOT1_Z     = 1.0;   // screen Y ≈ 638
-const SLOT2_Z     = 2.0;   // screen Y ≈ 667
-const SLOT3_Z     = 2.9;   // screen Y ≈ 693 (near viewport bottom)
-const SLOT_SCALE  = 1.0;   // all queue slots same size as main
+// Z positions — with top-down camera at Y=4.5, vFOV=70°:
+//   screen_Y = (1 - Z/3.15) / 2 * 180 + 520
+//   TURRET_Z=-1.5 → Y≈567  SLOT1_Z=-0.5 → Y≈596  SLOT2_Z=0.5 → Y≈624  SLOT3_Z=1.4 → Y≈650
+const TURRET_Z    = -1.5;  // main: barrel tip at Y≈529, body at Y≈567
+const SLOT1_Z     = -0.5;  // slot1: screen Y ≈ 596
+const SLOT2_Z     =  0.5;  // slot2: screen Y ≈ 624
+const SLOT3_Z     =  1.4;  // slot3: screen Y ≈ 650
+const SLOT_SCALE  =  1.0;  // all queue slots same size as main
 
 // Barrel tip offset from body centre (points in +Z direction = toward road/camera).
 // We rotate the barrel so it points in -Z (toward far road), i.e., up toward cars.
@@ -143,6 +147,10 @@ export class Shooter3D {
         turret.slot1.group.visible = false;
         turret.slot2.group.visible = false;
         turret.slot3.group.visible = false;
+        turret.numSprite0.sprite.visible  = false;
+        turret.slot1.numSprite.sprite.visible = false;
+        turret.slot2.numSprite.sprite.visible = false;
+        turret.slot3.numSprite.sprite.visible = false;
         continue;
       }
 
@@ -159,6 +167,9 @@ export class Shooter3D {
         turret.tipGlowMat.color.setHex(hex);
         turret.tipGlowMat.emissive.setHex(hex);
       }
+      // Always refresh main number sprite (damage can change without color change).
+      this._refreshNumberSprite(turret.numSprite0, top.damage ?? 1, hex);
+      turret.numSprite0.sprite.visible = true;
 
       // Sync queue slot colours.
       const s1 = col.shooters?.[1];
@@ -176,18 +187,29 @@ export class Shooter3D {
         turret.slot1.ringMat.color.setHex(h1);
         turret.slot1.ringMat.emissive.setHex(h1);
       }
+      if (turret.slot1.group.visible)
+        this._refreshNumberSprite(turret.slot1.numSprite, s1?.damage ?? 1, h1 ?? 0x888888);
+      turret.slot1.numSprite.sprite.visible = !!s1;
+
       if (s2 && turret.slot2.lastColor !== h2) {
         turret.slot2.lastColor = h2;
         turret.slot2.bodyMat.color.setHex(h2);
         turret.slot2.ringMat.color.setHex(h2);
         turret.slot2.ringMat.emissive.setHex(h2);
       }
+      if (turret.slot2.group.visible)
+        this._refreshNumberSprite(turret.slot2.numSprite, s2?.damage ?? 1, h2 ?? 0x888888);
+      turret.slot2.numSprite.sprite.visible = !!s2;
+
       if (s3 && turret.slot3.lastColor !== h3) {
         turret.slot3.lastColor = h3;
         turret.slot3.bodyMat.color.setHex(h3);
         turret.slot3.ringMat.color.setHex(h3);
         turret.slot3.ringMat.emissive.setHex(h3);
       }
+      if (turret.slot3.group.visible)
+        this._refreshNumberSprite(turret.slot3.numSprite, s3?.damage ?? 1, h3 ?? 0x888888);
+      turret.slot3.numSprite.sprite.visible = !!s3;
 
       // Idle bounce (Y).
       const baseY = TURRET_Y;
@@ -233,10 +255,65 @@ export class Shooter3D {
     }
   }
 
+  // ── Damage number sprites ────────────────────────────────────────────────────
+  // Builds a canvas-texture THREE.Sprite showing the damage value.
+  // Sprites are on layer 1 so they render in the shooter viewport alongside turrets.
+  _makeNumberSprite(damage, hexColor, z) {
+    const W = 64, H = 32;
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const ctx    = canvas.getContext('2d');
+    const mat    = new THREE.SpriteMaterial({ map: null, depthTest: false, transparent: true });
+    const sprite = new THREE.Sprite(mat);
+    sprite.scale.set(1.10, 0.52, 1);   // world units → ~34×16 px at viewport scale
+    sprite.layers.set(1);
+    const obj = { sprite, mat, canvas, ctx, lastDamage: -1, lastColor: -1 };
+    this._refreshNumberSprite(obj, damage, hexColor);
+    return obj;
+  }
+
+  _refreshNumberSprite(obj, damage, hexColor) {
+    if (obj.lastDamage === damage && obj.lastColor === hexColor) return;
+    obj.lastDamage = damage;
+    obj.lastColor  = hexColor;
+    const { canvas, ctx, mat } = obj;
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+    const r = ((hexColor >> 16) & 0xff).toString(16).padStart(2,'0');
+    const g = ((hexColor >>  8) & 0xff).toString(16).padStart(2,'0');
+    const b = ( hexColor        & 0xff).toString(16).padStart(2,'0');
+    ctx.fillStyle = `#${r}${g}${b}`;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(3, 3, W-6, H-6, 7);
+    else               ctx.rect(3, 3, W-6, H-6);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.lineWidth   = 2.5;
+    ctx.stroke();
+    ctx.font         = `bold ${H - 6}px Arial`;
+    ctx.fillStyle    = '#ffffff';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor  = 'rgba(0,0,0,0.7)';
+    ctx.shadowBlur   = 4;
+    ctx.fillText(String(damage), W / 2, H / 2);
+    if (mat.map) mat.map.dispose();
+    mat.map          = new THREE.CanvasTexture(canvas);
+    mat.needsUpdate  = true;
+  }
+
   dispose() {
     for (const t of this._turrets) {
       // Remove queue slot meshes.
+      // Clean up main number sprite.
+      t.numSprite0?.mat?.map?.dispose();
+      t.numSprite0?.mat?.dispose();
+      this._scene.remove(t.numSprite0?.sprite);
+      // Clean up queue slots and their number sprites.
       for (const slot of [t.slot1, t.slot2, t.slot3]) {
+        slot.numSprite?.mat?.map?.dispose();
+        slot.numSprite?.mat?.dispose();
+        this._scene.remove(slot.numSprite?.sprite);
         slot.group.traverse(obj => {
           if (obj.geometry && obj.geometry !== _baseGeo && obj.geometry !== _bodyGeo &&
               obj.geometry !== _torusGeo) obj.geometry.dispose();
@@ -318,6 +395,11 @@ export class Shooter3D {
 
     this._scene.add(group);
 
+    // Damage number sprite — follows main turret, always above body.
+    const numSprite0 = this._makeNumberSprite(1, 0x888888, TURRET_Z);
+    numSprite0.sprite.position.set(laneToX(laneIdx), TURRET_Y + 0.45, TURRET_Z);
+    this._scene.add(numSprite0.sprite);
+
     // ── Queue slots (2nd, 3rd, 4th shooter) — all same size as main ──────
     const slot1 = this._createQueueSlot(laneIdx, SLOT1_Z, SLOT_SCALE);
     const slot2 = this._createQueueSlot(laneIdx, SLOT2_Z, SLOT_SCALE);
@@ -331,7 +413,7 @@ export class Shooter3D {
 
     return {
       group, bodyMat, ringMat, barrelMat, barrel, tipGlowMat,
-      slot1, slot2, slot3,
+      numSprite0, slot1, slot2, slot3,
       lastColor:   -1,
       punchActive: false,
       punchT:      0,
@@ -362,6 +444,10 @@ export class Shooter3D {
     group.add(ring);
 
     this._scene.add(group);
-    return { group, bodyMat, ringMat, lastColor: -1 };
+    // Number sprite for this queue slot.
+    const numSprite = this._makeNumberSprite(1, 0x888888, worldZ);
+    numSprite.sprite.position.set(laneToX(laneIdx), TURRET_Y + 0.45, worldZ);
+    this._scene.add(numSprite.sprite);
+    return { group, bodyMat, ringMat, lastColor: -1, numSprite };
   }
 }

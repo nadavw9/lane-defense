@@ -22,10 +22,10 @@ export const SECOND_RADIUS = 24;
 const        THIRD_RADIUS  = 17;
 const        PIP_RADIUS    = 9;
 
-export const TOP_Y    = SHOOTER_AREA_Y + 90;    // 610 — main at Z=0 (viewport centre)
-export const SECOND_Y = SHOOTER_AREA_Y + 118;   // 638 — slot1 at Z=1.0
-const        THIRD_Y  = SHOOTER_AREA_Y + 147;   // 667 — slot2 at Z=2.0
-const        SLOT3_Y  = SHOOTER_AREA_Y + 173;   // 693 — slot3 at Z=2.9
+export const TOP_Y    = SHOOTER_AREA_Y + 47;    // 567 — main at TURRET_Z=-1.5
+export const SECOND_Y = SHOOTER_AREA_Y + 76;    // 596 — slot1 at Z=-0.5
+const        THIRD_Y  = SHOOTER_AREA_Y + 104;   // 624 — slot2 at Z=0.5
+const        SLOT3_Y  = SHOOTER_AREA_Y + 130;   // 650 — slot3 at Z=1.4
 const        PIP_Y    = SHOOTER_AREA_Y + 174;   // 694 — peek pips row
 
 // Target rendered diameters (diameter, not radius) at 1× scale
@@ -281,30 +281,14 @@ export class ShooterRenderer {
         }
       }
 
-      // In 3D mode: panels are transparent and Shooter3D renders the visuals.
-      // Show damage number text overlay for the main slot + 2 queue slots.
+      // In 3D mode: panels transparent, Shooter3D renders ALL visuals including
+      // damage numbers as canvas sprites attached to each turret mesh.
       if (this._mode3D) {
-        const top = col.top();
-        const s1  = col.shooters?.[1];
-        const s2  = col.shooters?.[2];
-
-        // Main turret damage text (centred at TOP_Y via its topContainer).
-        const tc = this._topContainers[i];
-        const t1 = this._topTexts[i];
-        tc.x = cx; tc.y = TOP_Y; tc.scale.set(1);
-        if (top) { t1.text = String(top.damage); t1.visible = true; t1.y = 0; }
-        else      { t1.visible = false; }
-
-        // Slot 1 damage text.
-        const t2 = this._secondTexts[i];
-        if (s1) { t2.text = String(s1.damage); t2.visible = true; t2.x = cx; t2.y = SECOND_Y; }
-        else    { t2.visible = false; }
-
-        // Slot 2 damage text.
-        const t3 = this._thirdTexts[i];
-        if (s2) { t3.text = String(s2.damage); t3.visible = true; t3.x = cx; t3.y = THIRD_Y; }
-        else    { t3.visible = false; }
-
+        // Hide all PixiJS text overlays — 3D sprites handle damage display.
+        this._topTexts[i].visible    = false;
+        this._secondTexts[i].visible = false;
+        this._thirdTexts[i].visible  = false;
+        this._topContainers[i].alpha = 0;
         continue;
       }
 

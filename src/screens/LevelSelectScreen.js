@@ -1,5 +1,6 @@
 // LevelSelectScreen — Car-themed world map + Candy Crush pre-level popup.
 import { Container, Graphics, Text } from 'pixi.js';
+import { adManager, AD_COSTS } from '../ads/AdManager.js';
 
 const HEADER_H = 68;
 const NODE_R   = 26;
@@ -186,31 +187,63 @@ export class LevelSelectScreen {
     bh.anchor.set(0.5, 0.5); bh.x = w / 2; bh.y = CY + 126;
     popup.addChild(bh);
 
-    // Ad booster buttons
-    const boosters = [
-      { label: '🔄 SWAP',   color: 0x1a4a8a, glow: 0x66aaff },
-      { label: '❄ FREEZE',  color: 0x0a3a5a, glow: 0x44ccff },
-      { label: '👁 PEEK',   color: 0x1a4a2a, glow: 0x66ff88 },
+    // Ad booster buttons — driven by AdManager
+    const boosterDefs = [
+      { key: 'swap',   label: '🔄 SWAP',  color: 0x1a4a8a, glow: 0x66aaff },
+      { key: 'freeze', label: '❄ FREEZE', color: 0x0a3a5a, glow: 0x44ccff },
+      { key: 'bomb',   label: '💣 BOMB',  color: 0x3a1a00, glow: 0xffaa00 },
     ];
-    boosters.forEach((b, idx) => {
+    boosterDefs.forEach((b, idx) => {
       const bx = CX + 16 + idx * 92, by = CY + 142;
+      const unlocked = adManager.isUnlocked(b.key);
+      const prog     = adManager.progressLabel(b.key);
+      const cost     = adManager.getCost(b.key);
+
       const bg = new Graphics();
-      bg.roundRect(bx, by, 84, 36, 10);
-      bg.fill(b.color);
-      bg.roundRect(bx, by, 84, 36, 10);
-      bg.stroke({ color: b.glow, width: 1.5, alpha: 0.70 });
+      bg.roundRect(bx, by, 84, 44, 10);
+      bg.fill(unlocked ? 0x1a3a1a : b.color);
+      bg.roundRect(bx, by, 84, 44, 10);
+      bg.stroke({ color: unlocked ? 0x44ff66 : b.glow, width: unlocked ? 2.5 : 1.5, alpha: 0.80 });
       popup.addChild(bg);
 
-      const bt = new Text({ text: b.label, style: { fontSize: 11, fill: 0xffffff, fontWeight: 'bold' } });
-      bt.anchor.set(0.5, 0.5); bt.x = bx + 42; bt.y = by + 18;
-      bg.eventMode = 'static'; bg.cursor = 'pointer';
-      bg.on('pointerdown', () => {
-        audio?.play('button_tap');
-        // Ad integration placeholder — just shows visual tap feedback
-        bg.alpha = 0.6;
-        setTimeout(() => { bg.alpha = 1.0; }, 150);
-      });
+      const bt = new Text({ text: unlocked ? '✓ ' + b.label : b.label,
+        style: { fontSize: 10, fill: unlocked ? 0x88ff88 : 0xffffff, fontWeight: 'bold' } });
+      bt.anchor.set(0.5, 0.5); bt.x = bx + 42; bt.y = by + 14;
       popup.addChild(bt);
+
+      // Progress sub-label: "1 / 3 ads" or "✓ Unlocked"
+      const sub = new Text({ text: unlocked ? '✓ Unlocked' : `${prog} ads`,
+        style: { fontSize: 9, fill: unlocked ? 0x66ee66 : 0xaaaaaa } });
+      sub.anchor.set(0.5, 0.5); sub.x = bx + 42; sub.y = by + 32;
+      popup.addChild(sub);
+
+      if (!unlocked) {
+        bg.eventMode = 'static'; bg.cursor = 'pointer';
+        bg.on('pointerdown', () => {
+          audio?.play('button_tap');
+          adManager.showRewardedAd(b.key,
+            (type) => {
+              // Reward: update progress label and check if fully unlocked.
+              const newProg = adManager.progressLabel(type);
+              const nowUnlocked = adManager.isUnlocked(type);
+              sub.text = nowUnlocked ? '✓ Unlocked' : `${newProg} ads`;
+              if (nowUnlocked) {
+                bt.style.fill = 0x88ff88;
+                bt.text = '✓ ' + b.label;
+                bg.clear();
+                bg.roundRect(bx, by, 84, 44, 10);
+                bg.fill(0x1a3a1a);
+                bg.roundRect(bx, by, 84, 44, 10);
+                bg.stroke({ color: 0x44ff66, width: 2.5, alpha: 0.80 });
+                sub.style.fill = 0x66ee66;
+              }
+            },
+            null,   // onDismissed — do nothing
+          );
+        });
+        bg.on('pointerover', () => { bg.alpha = 0.80; });
+        bg.on('pointerout',  () => { bg.alpha = 1.00; });
+      }
     });
 
     // START button
@@ -230,6 +263,8 @@ export class LevelSelectScreen {
     startBg.eventMode = 'static'; startBg.cursor = 'pointer';
     startBg.on('pointerdown', () => {
       audio?.play('button_tap');
+      // Reset ad tracking for new level attempt.
+      adManager.resetForLevel();
       popup.destroy({ children: true }); this._popup = null;
       onSelectLevel(levelId);
     });

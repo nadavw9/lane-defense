@@ -1319,7 +1319,7 @@ async function main() {
 
     // Juice updates
     laneFlash.update(dt);
-    comboGlow.update(dt, gs.combo);
+    comboGlow.update(dt, gameRenderer3D.isVisible() ? gs.combo : 0);
     boosterBar.update(dt);
     transition.update(dt);
 

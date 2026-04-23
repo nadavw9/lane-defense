@@ -222,8 +222,7 @@ export class LevelSelectScreen {
   }
 
   // Draw connecting lines between reached level nodes only.
-  // Uses poly() with ABSOLUTE world coordinates — no position/rotation transforms
-  // on the Graphics object, which avoids all PixiJS v8 moveTo phantom-line bugs.
+  // Uses moveTo→lineTo→stroke so PixiJS v8 never draws an implicit line from (0,0).
   _drawPath(unlockedLevel) {
     const worldBase = (this._worldPage - 1) * 20;
     for (let localId = 1; localId < 20; localId++) {
@@ -232,20 +231,11 @@ export class LevelSelectScreen {
 
       const { x: ax, y: ay } = nodePos(localId);
       const { x: bx, y: by } = nodePos(localId + 1);
-      const dx = bx - ax, dy = by - ay;
-      const len = Math.sqrt(dx * dx + dy * dy);
-      if (len === 0) continue;
 
-      // Perpendicular unit vector × half-width (4px line)
-      const hw = 2;
-      const nx = (-dy / len) * hw;
-      const ny = ( dx / len) * hw;
-
-      // Four corners of the line segment as a filled polygon.
       const g = new Graphics();
-      g.poly([ ax + nx, ay + ny,  ax - nx, ay - ny,
-               bx - nx, by - ny,  bx + nx, by + ny ]);
-      g.fill({ color: 0x2a7a4a, alpha: 0.85 });
+      g.moveTo(ax, ay);
+      g.lineTo(bx, by);
+      g.stroke({ color: 0x2a7a4a, width: 4, alpha: 0.85, cap: 'round' });
       this._container.addChild(g);
     }
   }

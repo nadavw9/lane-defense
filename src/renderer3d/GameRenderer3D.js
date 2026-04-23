@@ -100,6 +100,7 @@ export class GameRenderer3D {
 
   show() { if (this._canvas) this._canvas.style.display = ''; }
   hide() { if (this._canvas) this._canvas.style.display = 'none'; }
+  isVisible() { return !!this._canvas && this._canvas.style.display !== 'none'; }
 
   resetLevel() {
     this._cars?.clearAll();

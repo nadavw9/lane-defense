@@ -20,16 +20,16 @@
 import * as THREE from 'three';
 import { laneToX, ROAD_Z_NEAR } from './Scene3D.js';
 
-// ── Turret dimensions ─────────────────────────────────────────────────────────
-const BASE_R     = 0.55;
-const BASE_H     = 0.08;
-const BODY_W     = 0.70;
-const BODY_H     = 0.55;
-const BODY_D     = 0.70;
-const BARREL_R   = 0.12;
-const BARREL_H   = 1.00;   // extends toward road (toward -Z from turret)
-const TORUS_R    = 0.52;   // ring radius
-const TORUS_TUBE = 0.04;
+// ── Bomb dimensions ───────────────────────────────────────────────────────────
+const BASE_R     = 0.50;
+const BASE_H     = 0.06;
+const BOMB_R     = 0.38;   // sphere body radius
+const FUSE_R     = 0.05;   // fuse cylinder radius
+const FUSE_H     = 0.50;   // fuse length (points straight up)
+const TORUS_R    = 0.36;   // equatorial ring radius (slightly less than BOMB_R)
+const TORUS_TUBE = 0.045;
+// Legacy aliases used by queue slot code
+const BODY_H     = BOMB_R * 2;   // for ring/base positioning
 
 // Turret world position for the shooter viewport camera.
 // TOP-DOWN camera at (0, 4.5, 0) looking down, up=(0,0,-1), vFOV=70°.
@@ -39,7 +39,7 @@ const TORUS_TUBE = 0.04;
 //   Slot 1 (2nd)      : Z=1.8  → screen Y ≈ 661  (62% scale, 62% opacity)
 //   Slot 2 (3rd)      : Z=2.8  → screen Y ≈ 690  (40% scale, 40% opacity)
 
-const TURRET_Y    = BASE_H + BODY_H / 2;   // slightly above ground so turret is proud
+const TURRET_Y    = BASE_H + BOMB_R;   // sphere bottom at road surface, centre at BOMB_R above
 // Z positions — with top-down camera at Y=4.5, vFOV=70°:
 //   screen_Y = (1 - Z/3.15) / 2 * 180 + 520
 //   TURRET_Z=-1.5 → Y≈567  SLOT1_Z=-0.5 → Y≈596  SLOT2_Z=0.5 → Y≈624  SLOT3_Z=1.4 → Y≈650
@@ -49,9 +49,9 @@ const SLOT2_Z     =  0.5;  // slot2: screen Y ≈ 624
 const SLOT3_Z     =  1.4;  // slot3: screen Y ≈ 650
 const SLOT_SCALE  =  1.0;  // all queue slots same size as main
 
-// Barrel tip offset from body centre (points in +Z direction = toward road/camera).
-// We rotate the barrel so it points in -Z (toward far road), i.e., up toward cars.
-const BARREL_OFFSET_Z = -BARREL_H / 2 - BODY_D / 2;
+// Fuse centre Y above bomb body (fuse points straight up = +Y).
+const FUSE_OFFSET_Y = BOMB_R + FUSE_H / 2;
+const FUSE_TIP_Y    = BOMB_R + FUSE_H;
 
 // Idle bounce
 const BOUNCE_AMP   = 0.06;
@@ -94,10 +94,10 @@ let _baseMat   = null;
 function sharedGeo() {
   if (!_baseGeo) {
     _baseGeo   = new THREE.CylinderGeometry(BASE_R, BASE_R, BASE_H, 16);
-    _bodyGeo   = new THREE.BoxGeometry(BODY_W, BODY_H, BODY_D);
-    _barrelGeo = new THREE.CylinderGeometry(BARREL_R, BARREL_R * 0.85, BARREL_H, 10);
+    _bodyGeo   = new THREE.SphereGeometry(BOMB_R, 20, 14);   // bomb sphere body
+    _barrelGeo = new THREE.CylinderGeometry(FUSE_R, FUSE_R * 0.7, FUSE_H, 8);  // fuse (Y-aligned)
     _torusGeo  = new THREE.TorusGeometry(TORUS_R, TORUS_TUBE, 8, 24);
-    _tipGeo    = new THREE.SphereGeometry(TIP_GEO_R, 8, 6);
+    _tipGeo    = new THREE.SphereGeometry(TIP_GEO_R, 8, 6);   // fuse spark at tip
     _baseMat   = new THREE.MeshStandardMaterial({ color: 0x1a1a2e, roughness: 0.8, metalness: 0.2 });
   }
 }
@@ -240,10 +240,10 @@ export class Shooter3D {
         const kick = prog < 0.5
           ? prog * 2 * RECOIL_BACK
           : (1 - (prog - 0.5) * 2) * RECOIL_BACK;
-        turret.barrel.position.z = BARREL_OFFSET_Z + kick;
+        turret.barrel.position.y = FUSE_OFFSET_Y + kick;
         if (turret.recoilT >= RECOIL_DURATION) {
           turret.recoilActive = false;
-          turret.barrel.position.z = BARREL_OFFSET_Z;
+          turret.barrel.position.y = FUSE_OFFSET_Y;
         }
       }
 
@@ -343,9 +343,9 @@ export class Shooter3D {
     const group = new THREE.Group();
     group.position.set(laneToX(laneIdx), TURRET_Y, TURRET_Z);
 
-    // Base disc.
+    // Base platform beneath the bomb.
     const base = new THREE.Mesh(_baseGeo, _baseMat);
-    base.position.y = -(BODY_H / 2);
+    base.position.y = -BOMB_R;   // sits at bottom of sphere
     group.add(base);
 
     // Body.
@@ -358,39 +358,39 @@ export class Shooter3D {
     body.castShadow = true;
     group.add(body);
 
-    // Barrel — points in -Z direction (toward far road).
+    // Fuse — thin cylinder pointing straight up from bomb top.
     const barrelMat = new THREE.MeshStandardMaterial({
-      color:     0x888888,
-      metalness: 0.6,
-      roughness: 0.35,
+      color:     0x222222,
+      metalness: 0.3,
+      roughness: 0.8,
     });
     const barrel = new THREE.Mesh(_barrelGeo, barrelMat);
-    barrel.rotation.x = Math.PI / 2;
-    barrel.position.z = BARREL_OFFSET_Z;
+    // No rotation — CylinderGeometry is Y-aligned by default → fuse points up.
+    barrel.position.set(0, FUSE_OFFSET_Y, 0);
     barrel.castShadow = true;
     group.add(barrel);
 
-    // Barrel tip glow — emissive sphere at muzzle, brightens on fire.
+    // Fuse spark — emissive sphere at fuse tip, brightens when fired.
     const tipGlowMat = new THREE.MeshStandardMaterial({
-      color:             0xffffff,
-      emissive:          0xffffff,
+      color:             0xff8800,
+      emissive:          0xff8800,
       emissiveIntensity: 0,
       transparent:       true,
-      opacity:           0.3,
+      opacity:           0.85,
     });
     const tipGlow = new THREE.Mesh(_tipGeo, tipGlowMat);
-    tipGlow.position.z = BARREL_OFFSET_Z - BARREL_H / 2;
+    tipGlow.position.set(0, FUSE_TIP_Y, 0);
     group.add(tipGlow);
 
-    // Emissive ring at base.
+    // Equatorial emissive ring — glows with bomb colour.
     const ringMat = new THREE.MeshStandardMaterial({
       color:             0x888888,
       emissive:          0x888888,
       emissiveIntensity: 0.5,
-      roughness:         0.5,
+      roughness:         0.4,
     });
     const ring = new THREE.Mesh(_torusGeo, ringMat);
-    ring.position.y = -(BODY_H / 2);
+    ring.position.y = 0;   // equator of sphere
     group.add(ring);
 
     this._scene.add(group);
@@ -440,7 +440,7 @@ export class Shooter3D {
       roughness: 0.5, transparent: true, opacity: scale,
     });
     const ring = new THREE.Mesh(_torusGeo, ringMat);
-    ring.position.y = -(BODY_H / 2);
+    ring.position.y = 0;   // equator of bomb sphere
     group.add(ring);
 
     this._scene.add(group);

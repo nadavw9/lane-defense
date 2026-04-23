@@ -171,8 +171,13 @@ async function main() {
   // (Declared early so the loading screen is already correctly sized.)
   const _fitCanvas = () => {
     const scale = Math.min(window.innerWidth / APP_W, window.innerHeight / APP_H);
-    app.canvas.style.width  = `${APP_W * scale}px`;
-    app.canvas.style.height = `${APP_H * scale}px`;
+    app.canvas.style.width     = `${APP_W * scale}px`;
+    app.canvas.style.height    = `${APP_H * scale}px`;
+    // Match THREE.js canvas positioning (position:absolute, centred via transform).
+    app.canvas.style.position  = 'absolute';
+    app.canvas.style.top       = '50%';
+    app.canvas.style.left      = '50%';
+    app.canvas.style.transform = 'translate(-50%, -50%)';
   };
   _fitCanvas();
   window.addEventListener('resize', _fitCanvas);
@@ -499,10 +504,8 @@ async function main() {
     firingLineRenderer.reset();
     gameRenderer3D.resetLevel();
     gameRenderer3D.setCombo(0);
-    // Show only the lanes active in this level (1–4).
-    laneRenderer.setActiveLaneCount(cfg.laneCount ?? 4);
-    gameRenderer3D.setActiveLaneCount(cfg.laneCount ?? 4);
-    // Switch ShooterRenderer to 3D mode: transparent panels, 2D circles hidden.
+    // Lane count: no visual lane-covering — all lanes render identically.
+    // gameRenderer3D.setActiveLaneCount and laneRenderer.setActiveLaneCount removed per UX.
     shooterRenderer.enable3DMode(true);
 
     // Start the game-loop ticker exactly once; restart() resets state each time.

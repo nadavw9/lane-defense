@@ -49,11 +49,11 @@ const HEADLIGHT_XS = [-0.42, 0.42];
 const CAR_Y = BODY_H / 2 + WHEEL_R;
 
 // HP bar — canvas and world dimensions
-const HP_BAR_CANVAS_W = 64;
-const HP_BAR_CANVAS_H = 8;
-const HP_BAR_WIDTH    = BODY_W * 1.05;   // ~1.575 world units — matches car body width
-const HP_BAR_HEIGHT   = 0.16;            // very thin strip
-const HP_BAR_Y_OFFSET = 0.52;            // places bar on car roof (roof top ≈ CAR_Y+0.51)
+const HP_BAR_CANVAS_W = 40;
+const HP_BAR_CANVAS_H = 10;
+const HP_BAR_WIDTH    = BODY_W * 0.65;   // ~0.975 world units — short, unobtrusive
+const HP_BAR_HEIGHT   = 0.13;            // thin strip at car roof
+const HP_BAR_Y_OFFSET = 0.52;            // on car roof
 
 // Death animation
 const DEATH_DURATION  = 0.30;
@@ -358,24 +358,29 @@ export class Car3D {
     group.position.set(laneToX(laneIdx), CAR_Y, posToZ(car.position));
     this._scene.add(group);
 
-    const entry = { group, bodyMat, hpCanvas, hpCtx, hpTex, hpSprite, headLights, lastHp: -1, laneIdx, bossRing, bossRingMat, bossAngle: 0 };
+    const entry = { group, bodyMat, hpCanvas, hpCtx, hpTex, hpSprite, headLights, lastHp: -1, laneIdx, bossRing, bossRingMat, bossAngle: 0, hexColor: hex };
     this._drawHpBar(entry, car);
     return entry;
   }
 
   _drawHpBar(entry, car) {
     const ratio  = car.maxHp > 0 ? car.hp / car.maxHp : 0;
-    const fillW  = Math.max(1, Math.round(ratio * HP_BAR_CANVAS_W));
-    const color  = ratio > 0.6 ? '#33ee44' : ratio > 0.25 ? '#ffdd00' : '#ff2222';
-    const { hpCtx, hpTex, hpSprite, group } = entry;
+    const W = HP_BAR_CANVAS_W, H = HP_BAR_CANVAS_H;
+    const pad = 2;                                           // border thickness
+    const fillW = Math.max(0, Math.round(ratio * (W - pad * 2)));
+    const { hpCtx, hpTex, hpSprite, group, hexColor } = entry;
 
-    // Simple thin bar: dark background → colored fill proportional to remaining HP.
-    // No number text — bar lives on the car roof so it stays compact and uncluttered.
-    hpCtx.clearRect(0, 0, HP_BAR_CANVAS_W, HP_BAR_CANVAS_H);
-    hpCtx.fillStyle = '#222';
-    hpCtx.fillRect(0, 0, HP_BAR_CANVAS_W, HP_BAR_CANVAS_H);
-    hpCtx.fillStyle = color;
-    hpCtx.fillRect(0, 0, fillW, HP_BAR_CANVAS_H);
+    // Black outer frame.
+    hpCtx.clearRect(0, 0, W, H);
+    hpCtx.fillStyle = '#000000';
+    hpCtx.fillRect(0, 0, W, H);
+
+    // Car-colour fill — always the car's body color, width proportional to remaining HP.
+    const r = ((hexColor >> 16) & 0xff).toString(16).padStart(2, '0');
+    const g = ((hexColor >>  8) & 0xff).toString(16).padStart(2, '0');
+    const b = ( hexColor        & 0xff).toString(16).padStart(2, '0');
+    hpCtx.fillStyle = `#${r}${g}${b}`;
+    hpCtx.fillRect(pad, pad, fillW, H - pad * 2);
 
     hpTex.needsUpdate = true;
 

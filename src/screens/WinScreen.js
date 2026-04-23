@@ -225,16 +225,7 @@ export class WinScreen {
     }
     y += ROW_H + 16;
 
-    // ── Personal best badge ───────────────────────────────────────────────
-    if (improved.length > 0) {
-      const labels = { stars: '★ New star record!', combo: '⚡ New combo record!', time: '⏱ New speed record!' };
-      const msg    = labels[improved[0]] ?? '🏆 New personal best!';
-      const badge  = new Text({ text: msg, style: { fontSize: 16, fontWeight: 'bold', fill: 0xffcc00,
-        dropShadow: { color: 0x000000, blur: 6, distance: 0, alpha: 0.8 } } });
-      badge.anchor.set(0.5, 0.5); badge.x = cx; badge.y = y;
-      this._container.addChild(badge);
-      y += 28;
-    }
+    // Personal best badge removed — shown implicitly via star count.
 
     // Buttons
     if (onNext) {

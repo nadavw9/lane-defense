@@ -16,7 +16,6 @@
 
 import * as THREE from 'three';
 import { posToZ, laneToX } from './Scene3D.js';
-import { isColorblind, SHAPES } from '../game/ColorblindMode.js';
 
 // ── Car geometry dimensions (world units) ─────────────────────────────────────
 const BODY_W = 1.50;
@@ -50,11 +49,11 @@ const HEADLIGHT_XS = [-0.42, 0.42];
 const CAR_Y = BODY_H / 2 + WHEEL_R;
 
 // HP bar — canvas and world dimensions
-const HP_BAR_CANVAS_W = 96;
-const HP_BAR_CANVAS_H = 26;
-const HP_BAR_WIDTH    = BODY_W * 2.0;   // 3.0 world units wide (was 4.8)
-const HP_BAR_HEIGHT   = 0.46;           // was 0.70
-const HP_BAR_Y_OFFSET = 0.95;           // was 1.10
+const HP_BAR_CANVAS_W = 64;
+const HP_BAR_CANVAS_H = 8;
+const HP_BAR_WIDTH    = BODY_W * 1.05;   // ~1.575 world units — matches car body width
+const HP_BAR_HEIGHT   = 0.16;            // very thin strip
+const HP_BAR_Y_OFFSET = 0.52;            // places bar on car roof (roof top ≈ CAR_Y+0.51)
 
 // Death animation
 const DEATH_DURATION  = 0.30;
@@ -366,38 +365,17 @@ export class Car3D {
 
   _drawHpBar(entry, car) {
     const ratio  = car.maxHp > 0 ? car.hp / car.maxHp : 0;
-    const barH   = 8;   // bottom 8 px = colour bar
     const fillW  = Math.max(1, Math.round(ratio * HP_BAR_CANVAS_W));
     const color  = ratio > 0.6 ? '#33ee44' : ratio > 0.25 ? '#ffdd00' : '#ff2222';
-    const { hpCtx, hpCanvas, hpTex, hpSprite, group } = entry;
+    const { hpCtx, hpTex, hpSprite, group } = entry;
 
+    // Simple thin bar: dark background → colored fill proportional to remaining HP.
+    // No number text — bar lives on the car roof so it stays compact and uncluttered.
     hpCtx.clearRect(0, 0, HP_BAR_CANVAS_W, HP_BAR_CANVAS_H);
-
-    // Bar background + fill (bottom strip)
     hpCtx.fillStyle = '#222';
-    hpCtx.fillRect(0, HP_BAR_CANVAS_H - barH, HP_BAR_CANVAS_W, barH);
+    hpCtx.fillRect(0, 0, HP_BAR_CANVAS_W, HP_BAR_CANVAS_H);
     hpCtx.fillStyle = color;
-    hpCtx.fillRect(0, HP_BAR_CANVAS_H - barH, fillW, barH);
-
-    // HP number (top portion) — use mid-grey so it stays below bloom threshold
-    hpCtx.font         = `bold ${HP_BAR_CANVAS_H - barH - 2}px Arial`;
-    hpCtx.textAlign    = 'center';
-    hpCtx.textBaseline = 'top';
-    hpCtx.fillStyle    = '#ffffff';
-    hpCtx.shadowColor  = '#000000';
-    hpCtx.shadowBlur   = 4;
-    hpCtx.fillText(String(car.hp), HP_BAR_CANVAS_W / 2, 1);
-    hpCtx.shadowBlur   = 0;
-
-    // Colorblind mode: shape symbol
-    if (isColorblind()) {
-      const sym = SHAPES[car.color] ?? '?';
-      hpCtx.font         = `bold ${barH + 2}px Arial`;
-      hpCtx.textAlign    = 'right';
-      hpCtx.textBaseline = 'middle';
-      hpCtx.fillStyle    = '#ffffff';
-      hpCtx.fillText(sym, HP_BAR_CANVAS_W - 1, HP_BAR_CANVAS_H - barH / 2);
-    }
+    hpCtx.fillRect(0, 0, fillW, HP_BAR_CANVAS_H);
 
     hpTex.needsUpdate = true;
 

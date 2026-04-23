@@ -80,11 +80,11 @@ export class Scene3D {
 
     // ── Shooter viewport camera ──────────────────────────────────────────────
     // Renders the 4 turret columns into the bottom 180 px of the canvas.
-    // FOV=60°, aspect=390/180; camera at Z=8 looking toward Z=0 frames all 4
-    // columns (X = ±4.5, ±1.5) with comfortable margins.
+    // Camera moved to Z=4.5 (was Z=8) so turrets fill ~3× more screen area.
+    // FOV widened to 65° to keep all 4 columns (X = ±4.5) within frame.
     const SHOOTER_H = 180;
-    this.shooterCamera = new THREE.PerspectiveCamera(60, width / SHOOTER_H, 0.1, 50);
-    this.shooterCamera.position.set(0, 0.5, 8);
+    this.shooterCamera = new THREE.PerspectiveCamera(65, width / SHOOTER_H, 0.1, 50);
+    this.shooterCamera.position.set(0, 0.5, 4.5);
     this.shooterCamera.lookAt(0, 0.5, 0);
     this.shooterCamera.layers.set(1);  // only sees layer 1
 

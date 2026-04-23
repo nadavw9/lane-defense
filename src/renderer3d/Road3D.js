@@ -33,7 +33,7 @@ export class Road3D {
     this._buildRoadSurface();
     this._buildLaneDividers();
     this._buildBarriers();
-    this._buildLampPosts();
+    // lamp posts removed — their emissive heads caused yellow bloom halos on screen sides
     this._buildBreachLine();
 
     // Elapsed time for animations.
@@ -162,7 +162,7 @@ export class Road3D {
     for (const sx of [-ROAD_HALF_W + 0.2, ROAD_HALF_W - 0.2]) {
       const edge = new THREE.Mesh(
         new THREE.PlaneGeometry(0.12, ROAD_LENGTH),
-        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45 }),
+        new THREE.MeshBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.25 }),
       );
       edge.rotation.x = -Math.PI / 2;
       edge.position.set(sx, 0.002, ROAD_CENTER_Z);

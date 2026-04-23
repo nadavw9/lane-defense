@@ -194,6 +194,10 @@ export class GameRenderer3D {
     this._postFX?.triggerChroma(0.05, 0.60);
   }
 
+  setActiveLaneCount(n) {
+    this._road?.setActiveLaneCount(n);
+  }
+
   // ── Per-frame update ────────────────────────────────────────────────────────
 
   update(gameState, dt, elapsed) {

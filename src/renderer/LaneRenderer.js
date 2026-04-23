@@ -67,6 +67,38 @@ export class LaneRenderer {
     this._breachG = new Graphics();
     this._layer.addChild(this._breachG);
     this._drawBreach(1.0);
+
+    // Overlay that darkens inactive lanes — redrawn by setActiveLaneCount().
+    this._inactiveOverlay = new Graphics();
+    this._layer.addChild(this._inactiveOverlay);
+    this.setActiveLaneCount(4);  // default: all lanes active
+  }
+
+  // Call when the level starts to show only n lanes (1–4).
+  // Draws a dark overlay over inactive lane area and hides excess dividers.
+  setActiveLaneCount(n) {
+    this._activeLaneCount = n;
+    this._inactiveOverlay.clear();
+    if (n >= 4) return;  // all lanes active — no overlay needed
+
+    // Active lanes are 0..n-1 (left side of road).
+    // Right edge of active area at road top and bottom:
+    const topRightX = ROAD_TOP_X + n * (ROAD_TOP_W / LANE_COUNT);   // 115 + n*40
+    const botRightX = n * (ROAD_BOTTOM_W / LANE_COUNT);              // n*97.5
+
+    // Quadrilateral covering inactive (right) portion of road.
+    this._inactiveOverlay.poly([
+      topRightX, ROAD_TOP_Y,
+      ROAD_TOP_X + ROAD_TOP_W, ROAD_TOP_Y,
+      ROAD_BOTTOM_W, ROAD_BOTTOM_Y,
+      botRightX, ROAD_BOTTOM_Y,
+    ]);
+    this._inactiveOverlay.fill({ color: 0x000000, alpha: 0.72 });
+
+    // Bright divider line between active and inactive area (feels like a wall).
+    this._inactiveOverlay.moveTo(topRightX, ROAD_TOP_Y);
+    this._inactiveOverlay.lineTo(botRightX, ROAD_BOTTOM_Y);
+    this._inactiveOverlay.stroke({ color: 0xff5500, width: 3, alpha: 0.85 });
   }
 
   // Call every render frame with gs.elapsed for breach-line pulse.
@@ -74,6 +106,7 @@ export class LaneRenderer {
     const alpha = 0.65 + 0.35 * Math.sin(elapsed * 5.5);
     this._drawBreach(alpha);
   }
+
 
   _drawBreach(alpha) {
     this._breachG.clear();

@@ -22,10 +22,10 @@ export const SECOND_RADIUS = 24;
 const        THIRD_RADIUS  = 17;
 const        PIP_RADIUS    = 9;
 
-export const TOP_Y    = SHOOTER_AREA_Y + 46;    // 566 — top shooter centre
-export const SECOND_Y = SHOOTER_AREA_Y + 108;   // 628 — second shooter centre
-const        THIRD_Y  = SHOOTER_AREA_Y + 156;   // 676 — third shooter centre
-const        PIP_Y    = SHOOTER_AREA_Y + 169;   // 689 — peek pips row
+export const TOP_Y    = SHOOTER_AREA_Y + 93;    // 613 — matches 3D turret screen position
+export const SECOND_Y = SHOOTER_AREA_Y + 135;   // 655 — second shooter centre (below top)
+const        THIRD_Y  = SHOOTER_AREA_Y + 163;   // 683 — third shooter centre
+const        PIP_Y    = SHOOTER_AREA_Y + 174;   // 694 — peek pips row
 
 // Target rendered diameters (diameter, not radius) at 1× scale
 const TOP_DIAM    = TOP_RADIUS    * 2;   // 68 px

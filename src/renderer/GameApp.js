@@ -499,6 +499,9 @@ async function main() {
     firingLineRenderer.reset();
     gameRenderer3D.resetLevel();
     gameRenderer3D.setCombo(0);
+    // Show only the lanes active in this level (1–4).
+    laneRenderer.setActiveLaneCount(cfg.laneCount ?? 4);
+    gameRenderer3D.setActiveLaneCount(cfg.laneCount ?? 4);
 
     // Start the game-loop ticker exactly once; restart() resets state each time.
     if (!gameLoopStarted) {

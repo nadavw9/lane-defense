@@ -40,6 +40,36 @@ export class Road3D {
     this._elapsed = 0;
   }
 
+  // Show only the first n lanes visually. Hides excess lane dividers and
+  // draws a dark overlay on the inactive right portion of the road.
+  setActiveLaneCount(n) {
+    if (!this._dividers) return;
+
+    // Lane dividers: divider[0] = between lane 0-1, [1] = 1-2, [2] = 2-3
+    for (let di = 0; di < this._dividers.length; di++) {
+      const visible = (di < n - 1);  // show divider di if lane di+1 is active
+      for (const m of this._dividers[di]) m.visible = visible;
+    }
+
+    // Inactive overlay: covers X from (active right edge) to road right edge.
+    // Active lanes 0..n-1 span X = -ROAD_HALF_W to -ROAD_HALF_W + n*3.
+    // Road full width = ROAD_HALF_W*2 = 13 units (4 lanes × 3 units each).
+    const laneW       = (ROAD_HALF_W * 2) / 4;   // 3.25 units per lane
+    const activeRight = -ROAD_HALF_W + n * laneW; // right X of active lanes
+    const inactiveW   = ROAD_HALF_W - activeRight; // width of inactive area
+
+    if (n >= 4 || inactiveW <= 0) {
+      this._inactiveOverlay.visible = false;
+      return;
+    }
+
+    const centerX = activeRight + inactiveW / 2;
+    this._inactiveOverlay.visible = true;
+    this._inactiveOverlay.position.x = centerX;
+    this._inactiveOverlay.scale.x = inactiveW / (ROAD_HALF_W * 2);
+    this._inactiveOverlay.material.opacity = 0.75;
+  }
+
   // ── Road surface ─────────────────────────────────────────────────────────────
   _buildRoadSurface() {
     // Primary asphalt plane — lower roughness + some metalness for wet look.
@@ -126,7 +156,10 @@ export class Road3D {
       opacity:     0.75,
     });
 
-    for (const x of dividerXs) {
+    this._dividers = [];   // array of { dividerIdx, meshes[] } for show/hide
+    for (let di = 0; di < dividerXs.length; di++) {
+      const x = dividerXs[di];
+      const meshes = [];
       for (let d = 0; d < dashCount; d++) {
         const z = ROAD_Z_FAR + d * period + dashLen / 2;
         if (z > ROAD_Z_NEAR) break;
@@ -137,8 +170,24 @@ export class Road3D {
         dash.rotation.x = -Math.PI / 2;
         dash.position.set(x, 0.002, z);
         this._group.add(dash);
+        meshes.push(dash);
       }
+      this._dividers.push(meshes);
     }
+
+    // Inactive lane overlay — a dark plane covering inactive lane area.
+    // Updated by setActiveLaneCount().
+    const overlayGeo = new THREE.PlaneGeometry(ROAD_HALF_W * 2, ROAD_LENGTH);
+    const overlayMat = new THREE.MeshBasicMaterial({
+      color:       0x000000,
+      transparent: true,
+      opacity:     0.0,
+      depthWrite:  false,
+    });
+    this._inactiveOverlay = new THREE.Mesh(overlayGeo, overlayMat);
+    this._inactiveOverlay.rotation.x = -Math.PI / 2;
+    this._inactiveOverlay.position.set(0, 0.005, ROAD_CENTER_Z);
+    this._group.add(this._inactiveOverlay);
 
     // Shoulder edge lines (solid white stripes at road edges).
     for (const sx of [-ROAD_HALF_W + 0.2, ROAD_HALF_W - 0.2]) {

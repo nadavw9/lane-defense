@@ -545,8 +545,8 @@ async function main() {
     layers.get('backgroundLayer').visible   = false;
     layers.get('laneLayer').visible         = false;
     layers.get('carLayer').visible          = false;
-    layers.get('shooterColumnLayer').visible = false;
-    layers.get('activeShooterLayer').visible = false;
+    layers.get('shooterColumnLayer').visible = true;
+    layers.get('activeShooterLayer').visible = true;
     gameRenderer3D.show();
   }
 

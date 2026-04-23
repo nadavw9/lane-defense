@@ -254,7 +254,7 @@ export class ShooterRenderer {
       const panelX = i * COL_W + PANEL_PAD;
       const panelW = COL_W - PANEL_PAD * 2;
       g.roundRect(panelX, SHOOTER_AREA_Y + PANEL_PAD, panelW, SHOOTER_AREA_H - PANEL_PAD * 2, PANEL_RADIUS);
-      g.fill({ color: PANEL_COLOR, alpha: 0 });
+      g.fill({ color: PANEL_COLOR, alpha: 0.92 });
 
       if (bs?.swapMode && bs.swapFirst === i) {
         g.roundRect(panelX, SHOOTER_AREA_Y + PANEL_PAD, panelW, SHOOTER_AREA_H - PANEL_PAD * 2, PANEL_RADIUS);

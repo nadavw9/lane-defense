@@ -1279,67 +1279,6 @@ async function main() {
   );
   new InputManager(app, dragDrop);
 
-  // ── DEBUG GRID — added LAST so it renders on top of every layer ──────────
-  // bright white grid + yellow labels — clearly visible against any background
-  {
-    const dbg = new Container();
-    dbg.eventMode = 'none';   // never blocks taps/drags
-    app.stage.addChild(dbg);  // last child = topmost in PixiJS
-
-    const G = new Graphics();
-
-    // Vertical lines every 50px
-    for (let x = 0; x <= APP_W; x += 50) {
-      G.moveTo(x, 0); G.lineTo(x, APP_H);
-    }
-    // Horizontal lines every 50px
-    for (let y = 0; y <= APP_H; y += 50) {
-      G.moveTo(0, y); G.lineTo(APP_W, y);
-    }
-    G.stroke({ color: 0xffffff, width: 1, alpha: 0.55 });
-
-    // Colored zone boundary lines
-    const zoneBounds = [
-      { y: 44,  color: 0x00ffff },   // road start
-      { y: 510, color: 0xff3333 },   // road end / breach
-      { y: 520, color: 0xff8800 },   // shooter viewport start
-      { y: 700, color: 0xff8800 },   // shooter viewport end
-      { y: 752, color: 0x00ffff },   // booster bar start
-    ];
-    for (const { y, color } of zoneBounds) {
-      G.moveTo(0, y); G.lineTo(APP_W, y);
-      G.stroke({ color, width: 2, alpha: 0.9 });
-    }
-    dbg.addChild(G);
-
-    // Y labels every 50px — bright yellow, left edge
-    for (let y = 0; y <= APP_H; y += 50) {
-      const t = new Text({ text: String(y), style: { fontSize: 14, fill: 0xffff00, fontWeight: 'bold', dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 1 } } });
-      t.x = 2; t.y = y - 8;
-      dbg.addChild(t);
-    }
-
-    // X labels every 50px — bright yellow, top edge
-    for (let x = 50; x <= APP_W; x += 50) {
-      const t = new Text({ text: String(x), style: { fontSize: 14, fill: 0xffff00, fontWeight: 'bold', dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 1 } } });
-      t.x = x - 14; t.y = 2;
-      dbg.addChild(t);
-    }
-
-    // Lane center vertical ticks at X = 48.75, 146.25, 243.75, 341.25
-    const laneLabels = ['L0', 'L1', 'L2', 'L3'];
-    for (let i = 0; i < 4; i++) {
-      const cx = (i + 0.5) * (APP_W / 4);
-      const tick = new Graphics();
-      tick.moveTo(cx, 520); tick.lineTo(cx, 700);
-      tick.stroke({ color: 0x00ff00, width: 2, alpha: 0.9 });
-      dbg.addChild(tick);
-      const t = new Text({ text: laneLabels[i], style: { fontSize: 14, fill: 0x00ff00, fontWeight: 'bold' } });
-      t.anchor.set(0.5, 0); t.x = cx; t.y = 522;
-      dbg.addChild(t);
-    }
-  }
-
   // Track raw pointer Y for bomb reticle targeting.
   let _lastPointerY = 300;
   app.canvas.addEventListener('pointermove', (e) => {

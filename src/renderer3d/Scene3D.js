@@ -39,7 +39,7 @@ export class Scene3D {
       antialias:       true,
       powerPreference: 'high-performance',
     });
-    this.renderer.setSize(width, height);
+    this.renderer.setSize(width, height, false);  // false = don't override CSS (_syncCanvasSize owns that)
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled  = false;   // disabled — too expensive on mobile
     this.renderer.toneMapping        = THREE.ACESFilmicToneMapping;
@@ -138,7 +138,7 @@ export class Scene3D {
   resize(width, height) {
     this.width  = width;
     this.height = height;
-    this.renderer.setSize(width, height);
+    this.renderer.setSize(width, height, false);  // false = don't override CSS
     this.composer.setSize(width, height);
     // OrthographicCamera: frustum bounds are in absolute world units — no aspect update.
     // Bloom resolution must be refreshed.

@@ -425,31 +425,16 @@ export class GameLoop {
     }
   }
 
-  // Stagger initial cars so the level looks alive from frame 1.
-  // Only primes active lanes so inactive lanes stay empty.
+  // Start each active lane with exactly one car at row 0 (the far end).
+  // The player must shoot it to advance and the game gradually fills up.
   _primeInitialCars() {
     const gs   = this._gs;
-    const ROWS = gs.gridRows ?? 6;
-    // Populate the grid with cars at rows 0-2 (back rows) so the player
-    // starts with a partially filled grid to react to.
-    for (let row = 0; row <= 2; row++) {
-      for (let li = 0; li < gs.activeLaneCount; li++) {
-        // ~65% chance of a car at each starting cell.
-        if (this._rng.nextFloat(0, 1) >= 0.65) continue;
-        const car   = this._carDir.generateCar(gs.lanes[li], 'CALM', gs.world, gs.colors);
-        car.row      = row;
-        car.position = this._rowToPosition(row, ROWS);
-        gs.lanes[li].addCar(car);
-      }
-    }
-    // Ensure each active lane starts with at least one car visible.
+    const ROWS = gs.gridRows ?? 10;
     for (let li = 0; li < gs.activeLaneCount; li++) {
-      if (gs.lanes[li].cars.length === 0) {
-        const car   = this._carDir.generateCar(gs.lanes[li], 'CALM', gs.world, gs.colors);
-        car.row      = 1;
-        car.position = this._rowToPosition(1, ROWS);
-        gs.lanes[li].addCar(car);
-      }
+      const car    = this._carDir.generateCar(gs.lanes[li], 'CALM', gs.world, gs.colors);
+      car.row      = 0;
+      car.position = this._rowToPosition(0, ROWS);
+      gs.lanes[li].addCar(car);
     }
     this._enforceViableMove(gs);
   }

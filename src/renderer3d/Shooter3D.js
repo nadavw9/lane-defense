@@ -25,8 +25,6 @@ const TRACK_R    = 0.45;   // track base radius
 const TRACK_H    = 0.12;   // track height
 const BARREL_R_BASE = 0.12;  // barrel radius at base
 const BARREL_H   = 0.70;   // barrel length (points straight up)
-const MUZZLE_R   = 0.10;   // muzzle cap radius
-const MUZZLE_Y   = BARREL_H - 0.05;  // muzzle sits at barrel tip
 // Legacy aliases used by queue slot code
 const BODY_H     = BARREL_H;   // for positioning
 
@@ -81,15 +79,12 @@ const LANE_COUNT = 4;
 // ── Shared geometry ───────────────────────────────────────────────────────────
 let _trackGeo   = null;
 let _barrelGeo  = null;
-let _muzzleGeo  = null;
 let _trackMat   = null;
 
 function sharedGeo() {
   if (!_trackGeo) {
     _trackGeo   = new THREE.CylinderGeometry(TRACK_R, TRACK_R, TRACK_H, 16);
-    // Tapered barrel: cone from base radius to tip
     _barrelGeo  = new THREE.ConeGeometry(BARREL_R_BASE, BARREL_H, 12);
-    _muzzleGeo  = new THREE.SphereGeometry(MUZZLE_R, 10, 8);
     _trackMat   = new THREE.MeshStandardMaterial({ color: 0x1a1a2e, roughness: 0.8, metalness: 0.2 });
   }
 }
@@ -240,13 +235,13 @@ export class Shooter3D {
   // Builds a canvas-texture THREE.Sprite showing the damage value.
   // Sprites are on layer 1 so they render in the shooter viewport alongside turrets.
   _makeNumberSprite(damage, hexColor, z) {
-    const W = 64, H = 32;
+    const W = 128, H = 64;  // 2× canvas for sharper text on retina
     const canvas = document.createElement('canvas');
     canvas.width = W; canvas.height = H;
     const ctx    = canvas.getContext('2d');
     const mat    = new THREE.SpriteMaterial({ map: null, depthTest: false, transparent: true });
     const sprite = new THREE.Sprite(mat);
-    sprite.scale.set(1.10, 0.52, 1);   // world units → ~34×16 px at viewport scale
+    sprite.scale.set(1.6, 0.8, 1);   // world units — noticeably larger than before
     sprite.layers.set(1);
     const obj = { sprite, mat, canvas, ctx, lastDamage: -1, lastColor: -1 };
     this._refreshNumberSprite(obj, damage, hexColor);
@@ -260,28 +255,31 @@ export class Shooter3D {
     const { canvas, ctx, mat } = obj;
     const W = canvas.width, H = canvas.height;
     ctx.clearRect(0, 0, W, H);
+
+    // Dark pill background for contrast against any cannon color.
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
+    if (ctx.roundRect) ctx.roundRect(2, 2, W - 4, H - 4, 10);
+    else               ctx.rect(2, 2, W - 4, H - 4);
+    ctx.fill();
+
+    // Colored outline matching the shooter.
     const r = ((hexColor >> 16) & 0xff).toString(16).padStart(2,'0');
     const g = ((hexColor >>  8) & 0xff).toString(16).padStart(2,'0');
     const b = ( hexColor        & 0xff).toString(16).padStart(2,'0');
-    ctx.fillStyle = `#${r}${g}${b}`;
-    ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(3, 3, W-6, H-6, 7);
-    else               ctx.rect(3, 3, W-6, H-6);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-    ctx.lineWidth   = 2.5;
+    ctx.strokeStyle = `#${r}${g}${b}`;
+    ctx.lineWidth   = 4;
     ctx.stroke();
-    ctx.font         = `bold ${H - 6}px Arial`;
+
+    // Large bold white number.
+    ctx.font         = `bold ${H - 8}px Arial`;
     ctx.fillStyle    = '#ffffff';
     ctx.textAlign    = 'center';
     ctx.textBaseline = 'middle';
-    ctx.shadowColor  = 'rgba(0,0,0,0.7)';
-    ctx.shadowBlur   = 4;
+    ctx.shadowColor  = 'rgba(0,0,0,0.9)';
+    ctx.shadowBlur   = 6;
     ctx.fillText(String(damage), W / 2, H / 2);
     if (mat.map) mat.map.dispose();
     mat.map = new THREE.CanvasTexture(canvas);
-    // Do NOT set mat.needsUpdate=true — causes a full shader recompile each time,
-    // which is the primary source of gameplay freeze on mobile.
   }
 
   dispose() {
@@ -296,8 +294,8 @@ export class Shooter3D {
         slot.numSprite?.mat?.dispose();
         this._scene.remove(slot.numSprite?.sprite);
         slot.group.traverse(obj => {
-          if (obj.geometry && obj.geometry !== _trackGeo && obj.geometry !== _barrelGeo &&
-              obj.geometry !== _muzzleGeo) obj.geometry.dispose();
+          if (obj.geometry && obj.geometry !== _trackGeo && obj.geometry !== _barrelGeo)
+            obj.geometry.dispose();
           if (obj.material && obj.material !== _trackMat) obj.material.dispose();
         });
         this._scene.remove(slot.group);
@@ -344,17 +342,8 @@ export class Shooter3D {
     barrel.position.y = BARREL_H / 2;  // cone centre at half height
     barrelGroup.add(barrel);
 
-    // Muzzle cap (dark sphere at barrel tip).
-    const muzzleMat = new THREE.MeshStandardMaterial({
-      color:             0x111111,
-      emissive:          0x333333,
-      emissiveIntensity: 0,
-      transparent:       true,
-      opacity:           0.85,
-    });
-    const muzzle = new THREE.Mesh(_muzzleGeo, muzzleMat);
-    muzzle.position.y = BARREL_H - MUZZLE_R;  // sits at barrel tip
-    barrelGroup.add(muzzle);
+    // Muzzle cap removed — it appeared as a "black hole" at the barrel tip.
+    // The barrel color alone gives enough visual definition.
 
     this._scene.add(group);
 
@@ -405,14 +394,7 @@ export class Shooter3D {
     const barrel = new THREE.Mesh(_barrelGeo, barrelMat);
     barrel.position.y = TRACK_H / 2 + BARREL_H / 2;
     group.add(barrel);
-
-    // Muzzle.
-    const muzzleMat = new THREE.MeshStandardMaterial({
-      color: 0x111111, transparent: true, opacity: scale,
-    });
-    const muzzle = new THREE.Mesh(_muzzleGeo, muzzleMat);
-    muzzle.position.y = TRACK_H / 2 + BARREL_H - MUZZLE_R;
-    group.add(muzzle);
+    // Muzzle cap removed — caused "black hole" at barrel tip.
 
     this._scene.add(group);
     // Number sprite for this queue slot.

@@ -278,9 +278,9 @@ export class Shooter3D {
     base.position.y = -BODY_R;
     group.add(base);
 
-    // Sphere body (colored).
+    // Sphere body — starts grey, color updated in update() to match shooter color.
     const bodyMat = new THREE.MeshStandardMaterial({
-      color: 0x888888, metalness: 0.4, roughness: 0.45,
+      color: 0x888888, metalness: 0.2, roughness: 0.55,
     });
     const body = new THREE.Mesh(_bodyGeo, bodyMat);
     body.castShadow = true;

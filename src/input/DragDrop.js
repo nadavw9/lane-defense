@@ -418,10 +418,8 @@ export class DragDrop {
 
     // ── Fuse: thin line going up then curling right ───────────────────────────
     const fuseLen = R + 14;
-    // Main fuse stick (upward from top of sphere)
     g.roundRect(-2.5, -R - fuseLen, 5, fuseLen, 2.5);
     g.fill({ color: 0xaaaaaa, alpha: 0.95 });
-    // Fuse curl (small offset to the right at the top)
     g.roundRect(2, -R - fuseLen - 4, 8, 5, 2.5);
     g.fill({ color: 0xaaaaaa, alpha: 0.85 });
 
@@ -431,17 +429,22 @@ export class DragDrop {
     g.circle(10, -R - fuseLen - 2, 3);
     g.fill({ color: 0xffffff, alpha: 0.9 });
 
-    // ── Bomb body (dark sphere) ────────────────────────────────────────────────
+    // ── Bomb body — shooter's color so it's instantly recognisable ────────────
     g.circle(0, 0, R);
-    g.fill(0x111111);
+    g.fill(color);
 
-    // ── Coloured equatorial ring ───────────────────────────────────────────────
+    // ── Dark shading overlay (top half darker to look round/3D) ───────────────
+    g.arc(0, 0, R, Math.PI, 0);                 // bottom half: nothing extra
+    g.arc(0, 0, R, 0, Math.PI);                 // top half: darken
+    g.fill({ color: 0x000000, alpha: 0.28 });
+
+    // ── White border ───────────────────────────────────────────────────────────
     g.circle(0, 0, R);
-    g.stroke({ color, width: 4, alpha: 0.90 });
+    g.stroke({ color: 0xffffff, width: 2, alpha: 0.55 });
 
     // ── Shine highlight on top-left of bomb ───────────────────────────────────
     g.arc(-R * 0.3, -R * 0.3, R * 0.38, Math.PI * 1.1, Math.PI * 1.65);
-    g.stroke({ color: 0xffffff, width: 3, alpha: 0.35 });
+    g.stroke({ color: 0xffffff, width: 3, alpha: 0.50 });
 
     container.addChild(g);
 

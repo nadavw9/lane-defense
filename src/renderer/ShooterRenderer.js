@@ -72,7 +72,8 @@ const COLOR_MAP = {
 
 // Draw a cannon shape centred at (ox, oy) into Graphics g.
 // size = diameter of the bounding circle.
-// Draw a classic cartoon bomb: dark circle body + coloured ring + fuse + spark.
+// Draw a classic cartoon bomb colored in the shooter's color.
+// Color = shooter color (body), so you instantly know which car it matches.
 // ox, oy = absolute centre position within g's coordinate space (default 0,0).
 function drawCannon(g, color, size, alpha = 1, ox = 0, oy = 0) {
   const R = size / 2;
@@ -81,28 +82,32 @@ function drawCannon(g, color, size, alpha = 1, ox = 0, oy = 0) {
   g.circle(ox, oy, R + 4);
   g.fill({ color, alpha: 0.20 * alpha });
 
-  // Fuse (thin rectangle upward from bomb top, slight rightward curl)
+  // Fuse
   const fuseLen = R * 0.90;
   g.roundRect(ox - 2, oy - R - fuseLen, 4, fuseLen, 2);
   g.fill({ color: 0xaaaaaa, alpha: 0.90 * alpha });
   g.roundRect(ox + 1, oy - R - fuseLen - 3, 6, 4, 2);
   g.fill({ color: 0xaaaaaa, alpha: 0.80 * alpha });
 
-  // Spark at fuse tip
+  // Spark
   g.circle(ox + 7, oy - R - fuseLen - 1, Math.max(2, R * 0.12));
   g.fill({ color: 0xffee44, alpha: 1.0 * alpha });
 
-  // Bomb body (dark)
+  // Bomb body — shooter's color
   g.circle(ox, oy, R);
-  g.fill({ color: 0x111111, alpha: 0.95 * alpha });
+  g.fill({ color, alpha: 1.0 * alpha });
 
-  // Coloured ring
+  // Dark top-half shading (makes it look round)
+  g.arc(ox, oy, R, 0, Math.PI);
+  g.fill({ color: 0x000000, alpha: 0.25 * alpha });
+
+  // White border
   g.circle(ox, oy, R);
-  g.stroke({ color, width: Math.max(2, R * 0.12), alpha: 0.90 * alpha });
+  g.stroke({ color: 0xffffff, width: Math.max(1.5, R * 0.08), alpha: 0.50 * alpha });
 
   // Shine highlight
   g.arc(ox - R * 0.28, oy - R * 0.28, R * 0.35, Math.PI * 1.1, Math.PI * 1.65);
-  g.stroke({ color: 0xffffff, width: 2, alpha: 0.30 * alpha });
+  g.stroke({ color: 0xffffff, width: 2, alpha: 0.40 * alpha });
 }
 
 function easeOut(t) { return 1 - Math.pow(1 - Math.min(t, 1), 3); }

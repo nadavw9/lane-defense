@@ -168,13 +168,15 @@ export class Car3D {
         // Position on road.
         g.position.set(laneToX(laneIdx), CAR_Y, posToZ(car.position));
 
-        // HP sprite: positioned on the FRONT face of the car (positive Z = toward camera).
-        // THREE.Sprite auto-billboards toward the camera so it's always readable.
+        // HP sprite: float well above the car so THREE.Sprite billboards
+        // nearly upright from the angled perspective camera at (0,7,12).
+        // Low Y → sprite tilts almost flat (camera is far above it).
+        // Y=2.5 → camera angle is ~11° from horizontal → sprite ~79° upright ✓
         entry.hpSprite.scale.set(HP_BAR_WIDTH, HP_BAR_HEIGHT, 1);
         entry.hpSprite.position.set(
           g.position.x,
-          CAR_Y + BODY_H * 0.5,          // mid-height of car body
-          g.position.z + BODY_D * 0.5 + 0.15,  // just in front of car face
+          2.5,               // float high above car so billboard faces camera well
+          g.position.z,
         );
 
         // ── Boss ring orbit ─────────────────────────────────────────────────

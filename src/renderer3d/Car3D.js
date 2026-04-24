@@ -168,12 +168,14 @@ export class Car3D {
         // Position on road.
         g.position.set(laneToX(laneIdx), CAR_Y, posToZ(car.position));
 
-        // Keep HP sprite (scene-level, not group-child) in sync every frame.
-        // Scale it inversely to Z-distance so it stays the same apparent screen
-        // size at all distances (camera is at Z=16 per Scene3D.js).
-        // Orthographic camera: all objects appear the same size regardless of Z.
+        // HP sprite: positioned on the FRONT face of the car (positive Z = toward camera).
+        // THREE.Sprite auto-billboards toward the camera so it's always readable.
         entry.hpSprite.scale.set(HP_BAR_WIDTH, HP_BAR_HEIGHT, 1);
-        entry.hpSprite.position.set(g.position.x, CAR_Y + HP_BAR_Y_OFFSET, g.position.z);
+        entry.hpSprite.position.set(
+          g.position.x,
+          CAR_Y + BODY_H * 0.5,          // mid-height of car body
+          g.position.z + BODY_D * 0.5 + 0.15,  // just in front of car face
+        );
 
         // ── Boss ring orbit ─────────────────────────────────────────────────
         if (entry.bossRing) {

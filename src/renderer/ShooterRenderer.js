@@ -72,38 +72,37 @@ const COLOR_MAP = {
 
 // Draw a cannon shape centred at (ox, oy) into Graphics g.
 // size = diameter of the bounding circle.
+// Draw a classic cartoon bomb: dark circle body + coloured ring + fuse + spark.
 // ox, oy = absolute centre position within g's coordinate space (default 0,0).
 function drawCannon(g, color, size, alpha = 1, ox = 0, oy = 0) {
-  const R  = size / 2;
-  const bw = Math.round(R * 0.42);   // barrel width
-  const bh = Math.round(R * 1.20);   // barrel height (extends above centre)
-  const tw = Math.round(R * 1.60);   // track (base) width
-  const th = Math.round(R * 0.52);   // track height
+  const R = size / 2;
 
-  // Drop shadow
-  g.ellipse(ox + 3, oy + R * 0.55, R * 0.80, R * 0.22);
-  g.fill({ color: 0x000000, alpha: 0.22 * alpha });
+  // Outer colour glow
+  g.circle(ox, oy, R + 4);
+  g.fill({ color, alpha: 0.20 * alpha });
 
-  // Track base (dark rectangle with rounded ends)
-  g.roundRect(ox - tw / 2, oy + R - th, tw, th, 4);
-  g.fill({ color: 0x1a1a1a, alpha: 0.92 * alpha });
-  // Track highlight strip
-  g.roundRect(ox - tw / 2, oy + R - th, tw, Math.max(2, th * 0.30), 4);
-  g.fill({ color: 0x333333, alpha: 0.55 * alpha });
+  // Fuse (thin rectangle upward from bomb top, slight rightward curl)
+  const fuseLen = R * 0.90;
+  g.roundRect(ox - 2, oy - R - fuseLen, 4, fuseLen, 2);
+  g.fill({ color: 0xaaaaaa, alpha: 0.90 * alpha });
+  g.roundRect(ox + 1, oy - R - fuseLen - 3, 6, 4, 2);
+  g.fill({ color: 0xaaaaaa, alpha: 0.80 * alpha });
 
-  // Barrel body (colored)
-  g.roundRect(ox - bw / 2, oy - bh + R * 0.10, bw, bh, 3);
-  g.fill({ color, alpha: 1.0 * alpha });
-  // Barrel metallic sheen (left edge lighter strip)
-  g.roundRect(ox - bw / 2, oy - bh + R * 0.10, Math.max(2, bw * 0.30), bh, 3);
-  g.fill({ color: 0xffffff, alpha: 0.18 * alpha });
+  // Spark at fuse tip
+  g.circle(ox + 7, oy - R - fuseLen - 1, Math.max(2, R * 0.12));
+  g.fill({ color: 0xffee44, alpha: 1.0 * alpha });
 
-  // Muzzle cap (dark circle at barrel tip)
-  const muzzleY = oy - bh + R * 0.10 - 1;
-  g.circle(ox, muzzleY, bw * 0.62);
+  // Bomb body (dark)
+  g.circle(ox, oy, R);
   g.fill({ color: 0x111111, alpha: 0.95 * alpha });
-  g.circle(ox, muzzleY, bw * 0.62);
-  g.stroke({ color: 0x444444, width: 1, alpha: 0.70 * alpha });
+
+  // Coloured ring
+  g.circle(ox, oy, R);
+  g.stroke({ color, width: Math.max(2, R * 0.12), alpha: 0.90 * alpha });
+
+  // Shine highlight
+  g.arc(ox - R * 0.28, oy - R * 0.28, R * 0.35, Math.PI * 1.1, Math.PI * 1.65);
+  g.stroke({ color: 0xffffff, width: 2, alpha: 0.30 * alpha });
 }
 
 function easeOut(t) { return 1 - Math.pow(1 - Math.min(t, 1), 3); }

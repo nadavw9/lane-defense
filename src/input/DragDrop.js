@@ -409,51 +409,54 @@ export class DragDrop {
   _createGhost(shooter, x, y) {
     const container = new Container();
     const color     = COLOR_MAP[shooter.color] ?? 0x888888;
-    const R         = TOP_RADIUS + 6;   // clearly visible
+    const R         = TOP_RADIUS + 6;   // bomb body radius
     const g         = new Graphics();
 
-    // ── Outer glow ring (shooter colour, semi-transparent) ───────────────────
+    // ── Outer colour glow ─────────────────────────────────────────────────────
     g.circle(0, 0, R + 8);
     g.fill({ color, alpha: 0.25 });
 
-    // ── White border ring ──────────────────────────────────────────────────────
-    g.circle(0, 0, R + 2);
-    g.fill({ color: 0xffffff, alpha: 0.90 });
+    // ── Fuse: thin line going up then curling right ───────────────────────────
+    const fuseLen = R + 14;
+    // Main fuse stick (upward from top of sphere)
+    g.roundRect(-2.5, -R - fuseLen, 5, fuseLen, 2.5);
+    g.fill({ color: 0xaaaaaa, alpha: 0.95 });
+    // Fuse curl (small offset to the right at the top)
+    g.roundRect(2, -R - fuseLen - 4, 8, 5, 2.5);
+    g.fill({ color: 0xaaaaaa, alpha: 0.85 });
 
-    // ── Shooter colour body ────────────────────────────────────────────────────
+    // ── Spark at fuse tip ──────────────────────────────────────────────────────
+    g.circle(10, -R - fuseLen - 2, 5);
+    g.fill({ color: 0xffee44, alpha: 1.0 });
+    g.circle(10, -R - fuseLen - 2, 3);
+    g.fill({ color: 0xffffff, alpha: 0.9 });
+
+    // ── Bomb body (dark sphere) ────────────────────────────────────────────────
     g.circle(0, 0, R);
-    g.fill(color);
+    g.fill(0x111111);
 
-    // ── Barrel pointing UP toward road (consistent with top-down 3D view) ──────
-    const bw = 10, bl = R + 6;
-    g.roundRect(-bw / 2, -bl, bw, bl, 4);           // extends upward from centre
-    g.fill({ color: 0xffffff, alpha: 0.85 });
-    // Dark barrel centre line
-    g.roundRect(-2, -bl + 2, 4, bl - 4, 2);
-    g.fill({ color, alpha: 0.70 });
+    // ── Coloured equatorial ring ───────────────────────────────────────────────
+    g.circle(0, 0, R);
+    g.stroke({ color, width: 4, alpha: 0.90 });
 
-    // ── Inner highlight arc ───────────────────────────────────────────────────
-    g.arc(0, 0, R * 0.65, Math.PI * 1.1, Math.PI * 1.7);
-    g.stroke({ color: 0xffffff, width: 3, alpha: 0.55 });
-
-    // ── Centre dot ────────────────────────────────────────────────────────────
-    g.circle(0, 0, 6);
-    g.fill({ color: 0xffffff });
+    // ── Shine highlight on top-left of bomb ───────────────────────────────────
+    g.arc(-R * 0.3, -R * 0.3, R * 0.38, Math.PI * 1.1, Math.PI * 1.65);
+    g.stroke({ color: 0xffffff, width: 3, alpha: 0.35 });
 
     container.addChild(g);
 
-    // ── Damage badge (white pill above turret) ────────────────────────────────
-    const badge = new Graphics();
-    badge.roundRect(-14, -R - 24, 28, 18, 9);
-    badge.fill({ color: 0xffffff, alpha: 0.92 });
-    container.addChild(badge);
-
+    // ── Damage number centered on bomb body ───────────────────────────────────
     const text = new Text({
       text: String(shooter.damage),
-      style: { fontSize: 14, fontWeight: 'bold', fill: color },
+      style: {
+        fontSize:   18,
+        fontWeight: 'bold',
+        fill:       color,
+        dropShadow: { color: 0x000000, blur: 4, distance: 1, alpha: 0.9 },
+      },
     });
     text.anchor.set(0.5);
-    text.y = -R - 15;
+    text.y = 2;
     container.addChild(text);
 
     container.x = x;

@@ -94,28 +94,29 @@ export class BombReticle {
     const cy  = this._pointerY;
     const pos = this.screenYToPos(cy);
 
-    // Calculate top and bottom of blast band in screen Y
+    // Calculate top and bottom of blast zone in screen Y
     const topPos    = Math.max(0, pos - BLAST_POS_RADIUS);
     const botPos    = Math.min(100, pos + BLAST_POS_RADIUS);
     const topScreenY = posToScreenY(topPos);
     const botScreenY = posToScreenY(botPos);
+    const centerScreenY = cy;
 
-    // Band fill — semi-transparent amber rect clipped to road trapezoid
+    // Circular blast zone — shows which lanes will be hit
+    // Road is a trapezoid, so we draw a circle and let it clip naturally
     this._bg.clear();
-    // Gradient effect using two rects at different alphas
-    this._bg.rect(0, topScreenY, this._appW, botScreenY - topScreenY);
-    this._bg.fill({ color: 0xff6600, alpha: 0.22 });
-    // Bright center line at exact pointer position
-    this._bg.rect(0, cy - 1, this._appW, 3);
-    this._bg.fill({ color: 0xffaa00, alpha: 0.55 });
 
-    // Animated edge lines (sweep pulse)
+    // Calculate blast radius in screen pixels (approximate, based on center)
+    const blastRadiusScreenPx = (botScreenY - topScreenY) / 2;
+
+    // Draw filled circle for blast zone
+    this._bg.circle(this._appW / 2, centerScreenY, blastRadiusScreenPx);
+    this._bg.fill({ color: 0xff6600, alpha: 0.25 });
+
+    // Animated pulsing circle outline
     const sweep = Math.sin(this._animT * 5) * 0.5 + 0.5;
     this._edge.clear();
-    this._edge.rect(0, topScreenY, this._appW, 2);
-    this._edge.fill({ color: 0xffdd00, alpha: 0.55 + sweep * 0.35 });
-    this._edge.rect(0, botScreenY - 2, this._appW, 2);
-    this._edge.fill({ color: 0xffdd00, alpha: 0.55 + sweep * 0.35 });
+    this._edge.circle(this._appW / 2, centerScreenY, blastRadiusScreenPx);
+    this._edge.stroke({ color: 0xffdd00, width: 2.5, alpha: 0.55 + sweep * 0.35 });
 
     // Count cars in blast zone for label
     let carsInZone = 0;

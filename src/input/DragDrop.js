@@ -182,10 +182,9 @@ export class DragDrop {
 
   onPointerMove(x, y) {
     if (this._state !== 'dragging') return;
-    // Clamp ghost to canvas bounds so it's never hidden at screen edges.
+    // Allow ghost to reach full canvas width (0 to ROAD_BOTTOM_W = 390).
     // Hit-testing still uses raw pointer coords, so drop logic is unaffected.
-    const CLAMP = 50;
-    this._ghost.x = Math.max(CLAMP, Math.min(ROAD_BOTTOM_W - CLAMP, x + this._offsetX));
+    this._ghost.x = x + this._offsetX;
     this._ghost.y = y + this._offsetY;
     this._updateHighlights(x, y);
   }

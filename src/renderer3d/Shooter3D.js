@@ -1,35 +1,34 @@
-// Shooter3D — 3D turret columns positioned at the near road edge.
+// Shooter3D — 3D cannon turrets positioned at the near road edge.
 //
-// Renders one turret per column (the "top" shooter) as a 3D mesh.
+// Renders one cannon per column (the "top" shooter) as a 3D mesh.
 // The existing PixiJS ShooterRenderer keeps handling all 2D UI, drag-drop,
 // and stacked shooter display in the screen-bottom panel.  Shooter3D adds
-// visual 3D turrets that appear AT the breach line so shots visually
+// visual 3D cannons that appear AT the breach line so shots visually
 // originate from a physical object on the road.
 //
-// Each turret group:
-//   • Base disc  — flat CylinderGeometry, dark
-//   • Body       — BoxGeometry, shooter colour
-//   • Barrel     — CylinderGeometry, pointing toward road (+Z direction = away from camera)
-//   • Emissive ring — TorusGeometry around base, colour-matched glow
+// Each cannon group:
+//   • Track base — rounded cylinder, dark (sits on ground)
+//   • Barrel     — tapered cone, shooter colour (points upward)
+//   • Muzzle     — small dark sphere at barrel tip
+//   • Recoil     — barrel rotates back on fire, springs back
 //
 // Animations:
 //   • Idle bounce  — gentle Y oscillation (±0.06 units at 2.4 Hz)
 //   • Deploy punch — scale 1.30 → 1.0 over 0.15 s (triggered by GameApp)
-//   • Fire state   — barrel extends slightly forward; emissive ring brightens
+//   • Recoil       — barrel rotates back on fire, springs back
 
 import * as THREE from 'three';
 import { laneToX, ROAD_Z_NEAR } from './Scene3D.js';
 
-// ── Bomb dimensions ───────────────────────────────────────────────────────────
-const BASE_R     = 0.50;
-const BASE_H     = 0.06;
-const BOMB_R     = 0.38;   // sphere body radius
-const FUSE_R     = 0.05;   // fuse cylinder radius
-const FUSE_H     = 0.50;   // fuse length (points straight up)
-const TORUS_R    = 0.36;   // equatorial ring radius (slightly less than BOMB_R)
-const TORUS_TUBE = 0.045;
+// ── Cannon dimensions ─────────────────────────────────────────────────────────
+const TRACK_R    = 0.45;   // track base radius
+const TRACK_H    = 0.12;   // track height
+const BARREL_R_BASE = 0.12;  // barrel radius at base
+const BARREL_H   = 0.70;   // barrel length (points straight up)
+const MUZZLE_R   = 0.10;   // muzzle cap radius
+const MUZZLE_Y   = BARREL_H - 0.05;  // muzzle sits at barrel tip
 // Legacy aliases used by queue slot code
-const BODY_H     = BOMB_R * 2;   // for ring/base positioning
+const BODY_H     = BARREL_H;   // for positioning
 
 // Turret world position for the shooter viewport camera.
 // TOP-DOWN camera at (0, 4.5, 0) looking down, up=(0,0,-1), vFOV=70°.
@@ -39,7 +38,7 @@ const BODY_H     = BOMB_R * 2;   // for ring/base positioning
 //   Slot 1 (2nd)      : Z=1.8  → screen Y ≈ 661  (62% scale, 62% opacity)
 //   Slot 2 (3rd)      : Z=2.8  → screen Y ≈ 690  (40% scale, 40% opacity)
 
-const TURRET_Y    = BASE_H + BOMB_R;   // sphere bottom at road surface, centre at BOMB_R above
+const TURRET_Y    = TRACK_H / 2;   // track base sits on ground, centre at TRACK_H/2
 // Z positions — with top-down camera at Y=4.5, vFOV=70°:
 //   screen_Y = (1 - Z/3.15) / 2 * 180 + 520
 //   TURRET_Z=-1.5 → Y≈567  SLOT1_Z=-0.5 → Y≈596  SLOT2_Z=0.5 → Y≈624  SLOT3_Z=1.4 → Y≈650
@@ -48,10 +47,6 @@ const SLOT1_Z     = -0.5;  // slot1: screen Y ≈ 596
 const SLOT2_Z     =  0.5;  // slot2: screen Y ≈ 624
 const SLOT3_Z     =  1.4;  // slot3: screen Y ≈ 650
 const SLOT_SCALE  =  1.0;  // all queue slots same size as main
-
-// Fuse centre Y above bomb body (fuse points straight up = +Y).
-const FUSE_OFFSET_Y = BOMB_R + FUSE_H / 2;
-const FUSE_TIP_Y    = BOMB_R + FUSE_H;
 
 // Idle bounce
 const BOUNCE_AMP   = 0.06;
@@ -62,7 +57,7 @@ const PUNCH_DURATION = 0.15;
 const PUNCH_SCALE    = 1.30;
 
 // Barrel recoil
-const RECOIL_BACK    =  0.18;   // how far barrel kicks back (world units)
+const RECOIL_ANGLE   = 0.35;   // how far barrel rotates back (radians)
 const RECOIL_DURATION = 0.12;   // total recoil duration (s)
 
 // Barrel tip glow
@@ -84,21 +79,18 @@ const COLOR_HEX = {
 const LANE_COUNT = 4;
 
 // ── Shared geometry ───────────────────────────────────────────────────────────
-let _baseGeo   = null;
-let _bodyGeo   = null;
-let _barrelGeo = null;
-let _torusGeo  = null;
-let _tipGeo    = null;   // small sphere for barrel-tip glow
-let _baseMat   = null;
+let _trackGeo   = null;
+let _barrelGeo  = null;
+let _muzzleGeo  = null;
+let _trackMat   = null;
 
 function sharedGeo() {
-  if (!_baseGeo) {
-    _baseGeo   = new THREE.CylinderGeometry(BASE_R, BASE_R, BASE_H, 16);
-    _bodyGeo   = new THREE.SphereGeometry(BOMB_R, 20, 14);   // bomb sphere body
-    _barrelGeo = new THREE.CylinderGeometry(FUSE_R, FUSE_R * 0.7, FUSE_H, 8);  // fuse (Y-aligned)
-    _torusGeo  = new THREE.TorusGeometry(TORUS_R, TORUS_TUBE, 8, 24);
-    _tipGeo    = new THREE.SphereGeometry(TIP_GEO_R, 8, 6);   // fuse spark at tip
-    _baseMat   = new THREE.MeshStandardMaterial({ color: 0x1a1a2e, roughness: 0.8, metalness: 0.2 });
+  if (!_trackGeo) {
+    _trackGeo   = new THREE.CylinderGeometry(TRACK_R, TRACK_R, TRACK_H, 16);
+    // Tapered barrel: cone from base radius to tip
+    _barrelGeo  = new THREE.ConeGeometry(BARREL_R_BASE, BARREL_H, 12);
+    _muzzleGeo  = new THREE.SphereGeometry(MUZZLE_R, 10, 8);
+    _trackMat   = new THREE.MeshStandardMaterial({ color: 0x1a1a2e, roughness: 0.8, metalness: 0.2 });
   }
 }
 
@@ -109,7 +101,7 @@ export class Shooter3D {
 
     sharedGeo();
 
-    // Per-column state: { group, bodyMat, ringMat, punchState }
+    // Per-column state: { group, barrelGroup, barrelMat, muzzleMat, punchState }
     this._turrets = [];
 
     for (let i = 0; i < LANE_COUNT; i++) {
@@ -155,7 +147,7 @@ export class Shooter3D {
       }
 
       // Top slot: hidden — only the queue (slots 1-3) is shown in the column.
-      // The deployable bomb is invisible in the viewport; it only appears as
+      // The deployable cannon is invisible in the viewport; it only appears as
       // a drag ghost when the player picks it up.
       turret.group.visible              = false;
       turret.numSprite0.sprite.visible  = false;
@@ -164,12 +156,8 @@ export class Shooter3D {
       const hex = COLOR_HEX[top.color] ?? 0x888888;
       if (turret.lastColor !== hex) {
         turret.lastColor = hex;
-        turret.bodyMat.color.setHex(hex);
-        turret.ringMat.color.setHex(hex);
-        turret.ringMat.emissive.setHex(hex);
         turret.barrelMat.color.setHex(hex);
-        turret.tipGlowMat.color.setHex(hex);
-        turret.tipGlowMat.emissive.setHex(hex);
+        turret.muzzleMat.emissive.setHex(0x333333);
       }
       // Always refresh main number sprite (damage can change without color change).
       this._refreshNumberSprite(turret.numSprite0, top.damage ?? 1, hex);
@@ -187,9 +175,7 @@ export class Shooter3D {
       turret.slot3.group.visible = !!s3;
       if (s1 && turret.slot1.lastColor !== h1) {
         turret.slot1.lastColor = h1;
-        turret.slot1.bodyMat.color.setHex(h1);
-        turret.slot1.ringMat.color.setHex(h1);
-        turret.slot1.ringMat.emissive.setHex(h1);
+        turret.slot1.barrelMat.color.setHex(h1);
       }
       if (turret.slot1.group.visible)
         this._refreshNumberSprite(turret.slot1.numSprite, s1?.damage ?? 1, h1 ?? 0x888888);
@@ -197,9 +183,7 @@ export class Shooter3D {
 
       if (s2 && turret.slot2.lastColor !== h2) {
         turret.slot2.lastColor = h2;
-        turret.slot2.bodyMat.color.setHex(h2);
-        turret.slot2.ringMat.color.setHex(h2);
-        turret.slot2.ringMat.emissive.setHex(h2);
+        turret.slot2.barrelMat.color.setHex(h2);
       }
       if (turret.slot2.group.visible)
         this._refreshNumberSprite(turret.slot2.numSprite, s2?.damage ?? 1, h2 ?? 0x888888);
@@ -207,9 +191,7 @@ export class Shooter3D {
 
       if (s3 && turret.slot3.lastColor !== h3) {
         turret.slot3.lastColor = h3;
-        turret.slot3.bodyMat.color.setHex(h3);
-        turret.slot3.ringMat.color.setHex(h3);
-        turret.slot3.ringMat.emissive.setHex(h3);
+        turret.slot3.barrelMat.color.setHex(h3);
       }
       if (turret.slot3.group.visible)
         this._refreshNumberSprite(turret.slot3.numSprite, s3?.damage ?? 1, h3 ?? 0x888888);
@@ -225,15 +207,12 @@ export class Shooter3D {
         const s    = PUNCH_SCALE - (PUNCH_SCALE - 1) * easeOut(prog);
         turret.group.scale.set(s, s, s);
         turret.group.position.y = baseY;
-        turret.ringMat.emissiveIntensity = 1.8 * (1 - prog);
         if (turret.punchT >= PUNCH_DURATION) {
           turret.punchActive = false;
           turret.group.scale.set(1, 1, 1);
-          turret.ringMat.emissiveIntensity = 0.5;
         }
       } else {
         turret.group.position.y = baseY + bounce;
-        turret.ringMat.emissiveIntensity = 0.5;
       }
 
       // ── Barrel recoil ─────────────────────────────────────────────────────
@@ -242,20 +221,20 @@ export class Shooter3D {
         const prog = Math.min(1, turret.recoilT / RECOIL_DURATION);
         // First half: kick back; second half: spring return.
         const kick = prog < 0.5
-          ? prog * 2 * RECOIL_BACK
-          : (1 - (prog - 0.5) * 2) * RECOIL_BACK;
-        turret.barrel.position.y = FUSE_OFFSET_Y + kick;
+          ? prog * 2 * RECOIL_ANGLE
+          : (1 - (prog - 0.5) * 2) * RECOIL_ANGLE;
+        turret.barrelGroup.rotation.z = -kick;  // rotate barrel back (negative Z)
         if (turret.recoilT >= RECOIL_DURATION) {
           turret.recoilActive = false;
-          turret.barrel.position.y = FUSE_OFFSET_Y;
+          turret.barrelGroup.rotation.z = 0;
         }
       }
 
-      // ── Tip glow ─────────────────────────────────────────────────────────
+      // ── Tip glow ─────────────────────────────────────────────────────
       turret.tipGlowT = Math.min(turret.tipGlowT + dt, 0.30);
       const glowFrac  = Math.max(0, 1 - turret.tipGlowT / 0.22);
-      turret.tipGlowMat.emissiveIntensity = TIP_GLOW_PEAK * glowFrac;
-      turret.tipGlowMat.opacity           = 0.3 + 0.7 * glowFrac;
+      turret.muzzleMat.emissiveIntensity = TIP_GLOW_PEAK * glowFrac;
+      turret.muzzleMat.opacity           = 0.3 + 0.7 * glowFrac;
     }
   }
 
@@ -309,7 +288,6 @@ export class Shooter3D {
 
   dispose() {
     for (const t of this._turrets) {
-      // Remove queue slot meshes.
       // Clean up main number sprite.
       t.numSprite0?.mat?.map?.dispose();
       t.numSprite0?.mat?.dispose();
@@ -320,26 +298,25 @@ export class Shooter3D {
         slot.numSprite?.mat?.dispose();
         this._scene.remove(slot.numSprite?.sprite);
         slot.group.traverse(obj => {
-          if (obj.geometry && obj.geometry !== _baseGeo && obj.geometry !== _bodyGeo &&
-              obj.geometry !== _torusGeo) obj.geometry.dispose();
-          if (obj.material && obj.material !== _baseMat) obj.material.dispose();
+          if (obj.geometry && obj.geometry !== _trackGeo && obj.geometry !== _barrelGeo &&
+              obj.geometry !== _muzzleGeo) obj.geometry.dispose();
+          if (obj.material && obj.material !== _trackMat) obj.material.dispose();
         });
         this._scene.remove(slot.group);
       }
       t.group.traverse(obj => {
         // Skip module-level shared geometries and base material.
         const isSharedGeo = obj.geometry &&
-          (obj.geometry === _baseGeo || obj.geometry === _bodyGeo ||
-           obj.geometry === _barrelGeo || obj.geometry === _torusGeo ||
-           obj.geometry === _tipGeo);
+          (obj.geometry === _trackGeo || obj.geometry === _barrelGeo ||
+           obj.geometry === _muzzleGeo);
         if (!isSharedGeo && obj.geometry) obj.geometry.dispose();
 
-        if (obj.material && obj.material !== _baseMat) obj.material.dispose();
+        if (obj.material && obj.material !== _trackMat) obj.material.dispose();
       });
       this._scene.remove(t.group);
     }
     // Null out module-level cache so sharedGeo() recreates on next Shooter3D instance.
-    _baseGeo = _bodyGeo = _barrelGeo = _torusGeo = _tipGeo = _baseMat = null;
+    _trackGeo = _barrelGeo = _muzzleGeo = _trackMat = null;
   }
 
   // ── Private ──────────────────────────────────────────────────────────────────
@@ -348,55 +325,38 @@ export class Shooter3D {
     const group = new THREE.Group();
     group.position.set(laneToX(laneIdx), TURRET_Y, TURRET_Z);
 
-    // Base platform beneath the bomb.
-    const base = new THREE.Mesh(_baseGeo, _baseMat);
-    base.position.y = -BOMB_R;   // sits at bottom of sphere
-    group.add(base);
+    // Track base (dark cylinder).
+    const track = new THREE.Mesh(_trackGeo, _trackMat);
+    track.position.y = 0;
+    group.add(track);
 
-    // Body.
-    const bodyMat = new THREE.MeshStandardMaterial({
+    // Barrel group (for recoil rotation).
+    const barrelGroup = new THREE.Group();
+    barrelGroup.position.y = TRACK_H / 2;  // sits on top of track
+    group.add(barrelGroup);
+
+    // Barrel (tapered cone, colored).
+    const barrelMat = new THREE.MeshStandardMaterial({
       color:     0x888888,
       metalness: 0.5,
       roughness: 0.4,
     });
-    const body = new THREE.Mesh(_bodyGeo, bodyMat);
-    body.castShadow = true;
-    group.add(body);
-
-    // Fuse — thin cylinder pointing straight up from bomb top.
-    const barrelMat = new THREE.MeshStandardMaterial({
-      color:     0x222222,
-      metalness: 0.3,
-      roughness: 0.8,
-    });
     const barrel = new THREE.Mesh(_barrelGeo, barrelMat);
-    // No rotation — CylinderGeometry is Y-aligned by default → fuse points up.
-    barrel.position.set(0, FUSE_OFFSET_Y, 0);
     barrel.castShadow = true;
-    group.add(barrel);
+    barrel.position.y = BARREL_H / 2;  // cone centre at half height
+    barrelGroup.add(barrel);
 
-    // Fuse spark — emissive sphere at fuse tip, brightens when fired.
-    const tipGlowMat = new THREE.MeshStandardMaterial({
-      color:             0xff8800,
-      emissive:          0xff8800,
+    // Muzzle cap (dark sphere at barrel tip).
+    const muzzleMat = new THREE.MeshStandardMaterial({
+      color:             0x111111,
+      emissive:          0x333333,
       emissiveIntensity: 0,
       transparent:       true,
       opacity:           0.85,
     });
-    const tipGlow = new THREE.Mesh(_tipGeo, tipGlowMat);
-    tipGlow.position.set(0, FUSE_TIP_Y, 0);
-    group.add(tipGlow);
-
-    // Equatorial emissive ring — glows with bomb colour.
-    const ringMat = new THREE.MeshStandardMaterial({
-      color:             0x888888,
-      emissive:          0x888888,
-      emissiveIntensity: 0.5,
-      roughness:         0.4,
-    });
-    const ring = new THREE.Mesh(_torusGeo, ringMat);
-    ring.position.y = 0;   // equator of sphere
-    group.add(ring);
+    const muzzle = new THREE.Mesh(_muzzleGeo, muzzleMat);
+    muzzle.position.y = BARREL_H - MUZZLE_R;  // sits at barrel tip
+    barrelGroup.add(muzzle);
 
     this._scene.add(group);
 
@@ -417,7 +377,7 @@ export class Shooter3D {
     slot3.group.traverse(obj => obj.layers.set(1));
 
     return {
-      group, bodyMat, ringMat, barrelMat, barrel, tipGlowMat,
+      group, barrelGroup, barrelMat, muzzleMat,
       numSprite0, slot1, slot2, slot3,
       lastColor:   -1,
       punchActive: false,
@@ -428,31 +388,39 @@ export class Shooter3D {
     };
   }
 
-  // Create a simplified queue-slot turret (body + ring only, no barrel).
+  // Create a simplified queue-slot cannon (track + barrel only).
   _createQueueSlot(laneIdx, worldZ, scale) {
     const group = new THREE.Group();
     // Top-down view: queue stacks in Z (depth); Y same as main turret.
     group.position.set(laneToX(laneIdx), TURRET_Y, worldZ);
     group.scale.set(scale, scale, scale);
 
-    const bodyMat = new THREE.MeshStandardMaterial({
+    // Track base.
+    const track = new THREE.Mesh(_trackGeo, _trackMat);
+    track.position.y = 0;
+    group.add(track);
+
+    // Barrel (simplified, no recoil group needed for queue slots).
+    const barrelMat = new THREE.MeshStandardMaterial({
       color: 0x888888, metalness: 0.5, roughness: 0.4, transparent: true, opacity: scale,
     });
-    group.add(new THREE.Mesh(_bodyGeo, bodyMat));
+    const barrel = new THREE.Mesh(_barrelGeo, barrelMat);
+    barrel.position.y = TRACK_H / 2 + BARREL_H / 2;
+    group.add(barrel);
 
-    const ringMat = new THREE.MeshStandardMaterial({
-      color: 0x888888, emissive: 0x888888, emissiveIntensity: 0.3,
-      roughness: 0.5, transparent: true, opacity: scale,
+    // Muzzle.
+    const muzzleMat = new THREE.MeshStandardMaterial({
+      color: 0x111111, transparent: true, opacity: scale,
     });
-    const ring = new THREE.Mesh(_torusGeo, ringMat);
-    ring.position.y = 0;   // equator of bomb sphere
-    group.add(ring);
+    const muzzle = new THREE.Mesh(_muzzleGeo, muzzleMat);
+    muzzle.position.y = TRACK_H / 2 + BARREL_H - MUZZLE_R;
+    group.add(muzzle);
 
     this._scene.add(group);
     // Number sprite for this queue slot.
     const numSprite = this._makeNumberSprite(1, 0x888888, worldZ);
     numSprite.sprite.position.set(laneToX(laneIdx), TURRET_Y + 0.45, worldZ);
     this._scene.add(numSprite.sprite);
-    return { group, bodyMat, ringMat, lastColor: -1, numSprite };
+    return { group, barrelMat, lastColor: -1, numSprite };
   }
 }

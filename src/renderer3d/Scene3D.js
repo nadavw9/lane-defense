@@ -41,8 +41,7 @@ export class Scene3D {
     });
     this.renderer.setSize(width, height);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.shadowMap.enabled  = true;
-    this.renderer.shadowMap.type     = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.enabled  = false;   // disabled — too expensive on mobile
     this.renderer.toneMapping        = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.1;
     this.renderer.outputColorSpace   = THREE.SRGBColorSpace;
@@ -120,62 +119,6 @@ export class Scene3D {
       this.scene.add(div);
     }
 
-    // ── DEBUG MARKERS (temporary — shows lane boundaries and cannon positions) ────
-    const DEBUG = true;  // set to false to disable
-    if (DEBUG) {
-      // Lane boundaries: vertical lines at X = -6, -3, 0, 3, 6
-      const laneBoundaryMat = new THREE.LineBasicMaterial({ color: 0xff00ff, linewidth: 2 });
-      for (const x of [-6, -3, 0, 3, 6]) {
-        const geo = new THREE.BufferGeometry();
-        geo.setAttribute('position', new THREE.BufferAttribute(
-          new Float32Array([x, 0, -2, x, 0, 2]), 3
-        ));
-        const line = new THREE.Line(geo, laneBoundaryMat);
-        line.layers.set(1);
-        this.scene.add(line);
-      }
-
-      // Cannon positions: colored spheres at each lane
-      const cannonPositions = [
-        { x: -4.5, color: 0xff0000, label: 'L0' },  // Red
-        { x: -1.5, color: 0x00ff00, label: 'L1' },  // Green
-        { x:  1.5, color: 0x0000ff, label: 'L2' },  // Blue
-        { x:  4.5, color: 0xffff00, label: 'L3' },  // Yellow
-      ];
-      for (const { x, color } of cannonPositions) {
-        const sphereGeo = new THREE.SphereGeometry(0.3, 8, 8);
-        const sphereMat = new THREE.MeshBasicMaterial({ color });
-        const sphere = new THREE.Mesh(sphereGeo, sphereMat);
-        sphere.position.set(x, 0.1, -1.5);  // TURRET_Z = -1.5
-        sphere.layers.set(1);
-        this.scene.add(sphere);
-      }
-
-      // Road edges: lines at X = -6.5 and X = 6.5
-      const edgeMat = new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 3 });
-      for (const x of [-6.5, 6.5]) {
-        const geo = new THREE.BufferGeometry();
-        geo.setAttribute('position', new THREE.BufferAttribute(
-          new Float32Array([x, 0, -2, x, 0, 2]), 3
-        ));
-        const line = new THREE.Line(geo, edgeMat);
-        line.layers.set(1);
-        this.scene.add(line);
-      }
-
-      // Shooter viewport Z range: lines at Z = -1.5, -0.5, 0.5, 1.4
-      const zRangeMat = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2 });
-      for (const z of [-1.5, -0.5, 0.5, 1.4]) {
-        const geo = new THREE.BufferGeometry();
-        geo.setAttribute('position', new THREE.BufferAttribute(
-          new Float32Array([-6, 0, z, 6, 0, z]), 3
-        ));
-        const line = new THREE.Line(geo, zRangeMat);
-        line.layers.set(1);
-        this.scene.add(line);
-      }
-    }
-
     // ── Post-Processing ─────────────────────────────────────────────────────
     // Pass order: RenderPass → BloomPass → [ChromaPass → VignettePass] → OutputPass
     // The custom PostFX passes are inserted by PostFX3D after bloom.
@@ -184,9 +127,9 @@ export class Scene3D {
 
     this._bloomPass = new UnrealBloomPass(
       new THREE.Vector2(width, height),
-      /* strength  */ 0.35,   // reduced from 0.65 for better performance
-      /* radius    */ 0.35,   // reduced from 0.45
-      /* threshold */ 0.65,   // raised from 0.55 — only brightest emissives bloom
+      /* strength  */ 0.0,   // disabled — too expensive on mobile
+      /* radius    */ 0.35,
+      /* threshold */ 1.0,
     );
     this.composer.addPass(this._bloomPass);
     this.composer.addPass(new OutputPass());

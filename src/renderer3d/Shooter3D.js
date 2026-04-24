@@ -146,10 +146,8 @@ export class Shooter3D {
         continue;
       }
 
-      // Top slot: hidden — only the queue (slots 1-3) is shown in the column.
-      // The deployable cannon is invisible in the viewport; it only appears as
-      // a drag ghost when the player picks it up.
-      turret.group.visible              = false;
+      // Top slot: show the main cannon so the player can see what they'll drag.
+      turret.group.visible = true;
       turret.numSprite0.sprite.visible  = false;
 
       // Update colour when shooter changes.

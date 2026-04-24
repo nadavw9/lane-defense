@@ -241,87 +241,6 @@ async function main() {
   const laneRenderer = new LaneRenderer(layers, APP_W);
   const cityBg       = new CityBackground(layers, APP_W);
 
-  // ── DEBUG COORDINATE GRID (temporary — shows screen coordinates) ────
-  const DEBUG_GRID = true;  // set to false to disable
-  if (DEBUG_GRID) {
-    const debugLayer = new Container();
-    app.stage.addChild(debugLayer);
-
-    // Vertical grid lines every 50px with X labels
-    for (let x = 0; x <= APP_W; x += 50) {
-      const line = new Graphics();
-      line.moveTo(x, 0);
-      line.lineTo(x, APP_H);
-      line.stroke({ color: 0x444444, width: 1, alpha: 0.3 });
-      debugLayer.addChild(line);
-
-      // X label every 100px
-      if (x % 100 === 0) {
-        const label = new Text({
-          text: String(x),
-          style: { fontSize: 10, fill: 0x888888 },
-        });
-        label.x = x - 8;
-        label.y = 2;
-        debugLayer.addChild(label);
-      }
-    }
-
-    // Horizontal grid lines every 50px with Y labels
-    for (let y = 0; y <= APP_H; y += 50) {
-      const line = new Graphics();
-      line.moveTo(0, y);
-      line.lineTo(APP_W, y);
-      line.stroke({ color: 0x444444, width: 1, alpha: 0.3 });
-      debugLayer.addChild(line);
-
-      // Y label every 100px
-      if (y % 100 === 0) {
-        const label = new Text({
-          text: String(y),
-          style: { fontSize: 10, fill: 0x888888 },
-        });
-        label.x = 2;
-        label.y = y - 5;
-        debugLayer.addChild(label);
-      }
-    }
-
-    // Zone labels
-    const zones = [
-      { y: 22, label: 'HUD (0-44)', color: 0xffff00 },
-      { y: 277, label: 'ROAD (44-510)', color: 0x00ff00 },
-      { y: 610, label: 'SHOOTERS (520-700)', color: 0xff00ff },
-      { y: 772, label: 'BOOSTERS (700-844)', color: 0x00ffff },
-    ];
-    for (const { y, label, color } of zones) {
-      const text = new Text({
-        text: label,
-        style: { fontSize: 12, fill: color, fontWeight: 'bold' },
-      });
-      text.x = 5;
-      text.y = y;
-      debugLayer.addChild(text);
-    }
-
-    // Lane boundary labels (X positions)
-    const laneBoundaries = [
-      { x: 0, label: 'L0-L1' },
-      { x: 97.5, label: 'L1-L2' },
-      { x: 195, label: 'L2-L3' },
-      { x: 292.5, label: 'L3-R' },
-    ];
-    for (const { x, label } of laneBoundaries) {
-      const text = new Text({
-        text: label,
-        style: { fontSize: 10, fill: 0xff6600 },
-      });
-      text.x = x - 15;
-      text.y = 515;
-      debugLayer.addChild(text);
-    }
-  }
-
   // ── 3D Renderer — replaces LaneRenderer + CityBackground during gameplay ─
   // Wrapped in try/catch: if WebGL is unavailable (some mobile browsers, quota
   // limits, or low-end GPUs) the game falls back to 2D-only mode gracefully.
@@ -1359,6 +1278,67 @@ async function main() {
     gs.firingSlots,
   );
   new InputManager(app, dragDrop);
+
+  // ── DEBUG GRID — added LAST so it renders on top of every layer ──────────
+  // bright white grid + yellow labels — clearly visible against any background
+  {
+    const dbg = new Container();
+    dbg.eventMode = 'none';   // never blocks taps/drags
+    app.stage.addChild(dbg);  // last child = topmost in PixiJS
+
+    const G = new Graphics();
+
+    // Vertical lines every 50px
+    for (let x = 0; x <= APP_W; x += 50) {
+      G.moveTo(x, 0); G.lineTo(x, APP_H);
+    }
+    // Horizontal lines every 50px
+    for (let y = 0; y <= APP_H; y += 50) {
+      G.moveTo(0, y); G.lineTo(APP_W, y);
+    }
+    G.stroke({ color: 0xffffff, width: 1, alpha: 0.55 });
+
+    // Colored zone boundary lines
+    const zoneBounds = [
+      { y: 44,  color: 0x00ffff },   // road start
+      { y: 510, color: 0xff3333 },   // road end / breach
+      { y: 520, color: 0xff8800 },   // shooter viewport start
+      { y: 700, color: 0xff8800 },   // shooter viewport end
+      { y: 752, color: 0x00ffff },   // booster bar start
+    ];
+    for (const { y, color } of zoneBounds) {
+      G.moveTo(0, y); G.lineTo(APP_W, y);
+      G.stroke({ color, width: 2, alpha: 0.9 });
+    }
+    dbg.addChild(G);
+
+    // Y labels every 50px — bright yellow, left edge
+    for (let y = 0; y <= APP_H; y += 50) {
+      const t = new Text({ text: String(y), style: { fontSize: 14, fill: 0xffff00, fontWeight: 'bold', dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 1 } } });
+      t.x = 2; t.y = y - 8;
+      dbg.addChild(t);
+    }
+
+    // X labels every 50px — bright yellow, top edge
+    for (let x = 50; x <= APP_W; x += 50) {
+      const t = new Text({ text: String(x), style: { fontSize: 14, fill: 0xffff00, fontWeight: 'bold', dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 1 } } });
+      t.x = x - 14; t.y = 2;
+      dbg.addChild(t);
+    }
+
+    // Lane center vertical ticks at X = 48.75, 146.25, 243.75, 341.25
+    const laneLabels = ['L0', 'L1', 'L2', 'L3'];
+    for (let i = 0; i < 4; i++) {
+      const cx = (i + 0.5) * (APP_W / 4);
+      const tick = new Graphics();
+      tick.moveTo(cx, 520); tick.lineTo(cx, 700);
+      tick.stroke({ color: 0x00ff00, width: 2, alpha: 0.9 });
+      dbg.addChild(tick);
+      const t = new Text({ text: laneLabels[i], style: { fontSize: 14, fill: 0x00ff00, fontWeight: 'bold' } });
+      t.anchor.set(0.5, 0); t.x = cx; t.y = 522;
+      dbg.addChild(t);
+    }
+  }
 
   // Track raw pointer Y for bomb reticle targeting.
   let _lastPointerY = 300;

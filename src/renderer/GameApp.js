@@ -441,15 +441,15 @@ async function main() {
 
   // ── Level config helper ───────────────────────────────────────────────────
   function applyLevelConfig(cfg) {
-    gs.activeLaneCount    = cfg.laneCount;
-    gs.activeColCount     = cfg.colCount;
+    gs.activeLaneCount    = 4;  // always all 4 lanes active
+    gs.activeColCount     = 4;  // always all 4 columns active
     gs.colors             = cfg.colors;
     gs.world              = cfg.worldConfig;
     gs.phaseMan           = new IntensityPhase(cfg.duration);
     gameLoop.baseDuration = cfg.duration;
     // Turn-based target: use explicit targetKills or compute from duration.
     gs.targetKills = cfg.targetKills ?? Math.max(5, Math.round((cfg.duration ?? 60) * 0.12));
-    gs.gridRows    = cfg.gridRows ?? 6;
+    gs.gridRows    = 10;  // 10 discrete road slots
   }
 
   // ── Core level-start routine ──────────────────────────────────────────────
@@ -1240,7 +1240,6 @@ async function main() {
     layers, columns, gs.lanes, benchStorage, shooterRenderer, benchRenderer,
     {
       onDeploy: (colIdx, laneIdx) => {
-        if (colIdx >= gs.activeColCount || laneIdx >= gs.activeLaneCount) return;
         gameLoop.deploy(colIdx, laneIdx);
       },
       onBombPlaced: (x, y) => {
@@ -1251,7 +1250,6 @@ async function main() {
         gameLoop.placeBomb(bombPos);
       },
       onDeployFromBench: (shooter, laneIdx) => {
-        if (laneIdx >= gs.activeLaneCount) return;
         gameLoop.deployFromBench(shooter, laneIdx);
         // progress.incrementBenchUses() was called inside deployFromBench.
         const benchAch = achievementManager.check('bench_deploy');

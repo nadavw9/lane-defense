@@ -62,15 +62,15 @@ export class Scene3D {
     pmrem.dispose();
 
     // ── Road camera — perspective, angled view (player behind the breach line) ──
-    this.camera = new THREE.PerspectiveCamera(55, width / height, 0.1, 200);
-    this.camera.position.set(0, 9, 16);
-    this.camera.lookAt(0, 0, -8);
+    this.camera = new THREE.PerspectiveCamera(65, width / height, 0.1, 200);
+    this.camera.position.set(0, 7, 12);
+    this.camera.lookAt(0, 0, -10);
     this.camera.layers.set(0);
 
     // ── HP sprite camera — same position as road camera, sees only layer 2 ──
-    this.hpCamera = new THREE.PerspectiveCamera(55, width / height, 0.1, 200);
-    this.hpCamera.position.set(0, 9, 16);
-    this.hpCamera.lookAt(0, 0, -8);
+    this.hpCamera = new THREE.PerspectiveCamera(65, width / height, 0.1, 200);
+    this.hpCamera.position.set(0, 7, 12);
+    this.hpCamera.lookAt(0, 0, -10);
     this.hpCamera.layers.set(2);
 
     // ── Shooter viewport camera — top-down orthographic (separate viewport) ──

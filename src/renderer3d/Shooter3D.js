@@ -194,13 +194,13 @@ export class Shooter3D {
   // ── Number sprites ────────────────────────────────────────────────────────────
 
   _makeNumberSprite(damage, hexColor, z) {
-    const W = 128, H = 64;
+    const W = 80, H = 40;   // smaller canvas — number is a label, not the main visual
     const canvas = document.createElement('canvas');
     canvas.width = W; canvas.height = H;
     const ctx    = canvas.getContext('2d');
     const mat    = new THREE.SpriteMaterial({ map: null, depthTest: false, transparent: true });
     const sprite = new THREE.Sprite(mat);
-    sprite.scale.set(1.6, 0.8, 1);
+    sprite.scale.set(0.70, 0.35, 1);   // small label — bomb sphere (0.68 wide) must stay visible
     sprite.layers.set(1);
     const obj = { sprite, mat, canvas, ctx, lastDamage: -1, lastColor: -1 };
     this._refreshNumberSprite(obj, damage, hexColor);
@@ -309,7 +309,7 @@ export class Shooter3D {
 
     // Damage number sprite.
     const numSprite0 = this._makeNumberSprite(1, 0x888888, TURRET_Z);
-    numSprite0.sprite.position.set(laneToX(laneIdx), TURRET_Y + BODY_R + FUSE_H + 0.5, TURRET_Z);
+    numSprite0.sprite.position.set(laneToX(laneIdx), TURRET_Y, TURRET_Z + 0.55);
     this._scene.add(numSprite0.sprite);
 
     const slot1 = this._createQueueSlot(laneIdx, SLOT1_Z);
@@ -358,7 +358,7 @@ export class Shooter3D {
     this._scene.add(group);
 
     const numSprite = this._makeNumberSprite(1, 0x888888, worldZ);
-    numSprite.sprite.position.set(laneToX(laneIdx), TURRET_Y + BODY_R + FUSE_H + 0.5, worldZ);
+    numSprite.sprite.position.set(laneToX(laneIdx), TURRET_Y, worldZ + 0.55);
     this._scene.add(numSprite.sprite);
 
     return { group, bodyMat, ringMat, lastColor: -1, numSprite };

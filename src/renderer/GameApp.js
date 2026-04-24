@@ -241,6 +241,87 @@ async function main() {
   const laneRenderer = new LaneRenderer(layers, APP_W);
   const cityBg       = new CityBackground(layers, APP_W);
 
+  // ── DEBUG COORDINATE GRID (temporary — shows screen coordinates) ────
+  const DEBUG_GRID = true;  // set to false to disable
+  if (DEBUG_GRID) {
+    const debugLayer = new Container();
+    app.stage.addChild(debugLayer);
+
+    // Vertical grid lines every 50px with X labels
+    for (let x = 0; x <= APP_W; x += 50) {
+      const line = new Graphics();
+      line.moveTo(x, 0);
+      line.lineTo(x, APP_H);
+      line.stroke({ color: 0x444444, width: 1, alpha: 0.3 });
+      debugLayer.addChild(line);
+
+      // X label every 100px
+      if (x % 100 === 0) {
+        const label = new Text({
+          text: String(x),
+          style: { fontSize: 10, fill: 0x888888 },
+        });
+        label.x = x - 8;
+        label.y = 2;
+        debugLayer.addChild(label);
+      }
+    }
+
+    // Horizontal grid lines every 50px with Y labels
+    for (let y = 0; y <= APP_H; y += 50) {
+      const line = new Graphics();
+      line.moveTo(0, y);
+      line.lineTo(APP_W, y);
+      line.stroke({ color: 0x444444, width: 1, alpha: 0.3 });
+      debugLayer.addChild(line);
+
+      // Y label every 100px
+      if (y % 100 === 0) {
+        const label = new Text({
+          text: String(y),
+          style: { fontSize: 10, fill: 0x888888 },
+        });
+        label.x = 2;
+        label.y = y - 5;
+        debugLayer.addChild(label);
+      }
+    }
+
+    // Zone labels
+    const zones = [
+      { y: 22, label: 'HUD (0-44)', color: 0xffff00 },
+      { y: 277, label: 'ROAD (44-510)', color: 0x00ff00 },
+      { y: 610, label: 'SHOOTERS (520-700)', color: 0xff00ff },
+      { y: 772, label: 'BOOSTERS (700-844)', color: 0x00ffff },
+    ];
+    for (const { y, label, color } of zones) {
+      const text = new Text({
+        text: label,
+        style: { fontSize: 12, fill: color, fontWeight: 'bold' },
+      });
+      text.x = 5;
+      text.y = y;
+      debugLayer.addChild(text);
+    }
+
+    // Lane boundary labels (X positions)
+    const laneBoundaries = [
+      { x: 0, label: 'L0-L1' },
+      { x: 97.5, label: 'L1-L2' },
+      { x: 195, label: 'L2-L3' },
+      { x: 292.5, label: 'L3-R' },
+    ];
+    for (const { x, label } of laneBoundaries) {
+      const text = new Text({
+        text: label,
+        style: { fontSize: 10, fill: 0xff6600 },
+      });
+      text.x = x - 15;
+      text.y = 515;
+      debugLayer.addChild(text);
+    }
+  }
+
   // ── 3D Renderer — replaces LaneRenderer + CityBackground during gameplay ─
   // Wrapped in try/catch: if WebGL is unavailable (some mobile browsers, quota
   // limits, or low-end GPUs) the game falls back to 2D-only mode gracefully.

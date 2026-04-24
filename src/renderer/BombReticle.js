@@ -1,27 +1,11 @@
-// BombReticle — visual targeting overlay shown during bomb placement mode.
+// BombReticle — lane-targeting overlay shown during bomb placement mode.
 //
-// Renders a sweeping horizontal band across the road at the current pointer
-// Y position, showing the blast zone width.  Highlights cars within the zone.
-// Disappears when bomb mode is cancelled or a bomb is placed.
+// Highlights the full lane column the pointer is over (perspective trapezoid).
+// Shows the front car HP and label. Disappears when bomb is placed or cancelled.
 import { Graphics, Text, Container } from 'pixi.js';
 import {
-  ROAD_TOP_Y, ROAD_BOTTOM_Y,
-  posToScreenY,
+  ROAD_TOP_Y, ROAD_BOTTOM_Y, ROAD_TOP_X, ROAD_TOP_W, ROAD_BOTTOM_W, LANE_COUNT,
 } from './LaneRenderer.js';
-
-// How many road-position units the bomb blast reaches up and down.
-const BLAST_POS_RADIUS = 22;   // must match BOMB_POS_RADIUS in GameLoop.js
-
-// Width of the sweep band in screen pixels at a given Y
-function bandWidthAt(screenY) {
-  const t = (screenY - ROAD_TOP_Y) / (ROAD_BOTTOM_Y - ROAD_TOP_Y);
-  // Road narrows from 390 px at bottom to 160 px at top
-  return 160 + t * (390 - 160);
-}
-function bandXAt(screenY) {
-  const t = (screenY - ROAD_TOP_Y) / (ROAD_BOTTOM_Y - ROAD_TOP_Y);
-  return (1 - t) * 115;  // left edge of road (115 at top, 0 at bottom)
-}
 
 export class BombReticle {
   constructor(layerManager, appW) {
@@ -31,28 +15,18 @@ export class BombReticle {
     this._container.visible = false;
     this._layer.addChild(this._container);
 
-    this._bg    = new Graphics();          // band fill
-    this._edge  = new Graphics();          // animated sweep line edges
-    this._label = new Text({
-      text: 'TAP TO PLACE BOMB',
-      style: {
-        fontSize:   14,
-        fontWeight: 'bold',
-        fill:       0xffdd00,
-        dropShadow: { color: 0x000000, blur: 6, distance: 2, alpha: 0.9 },
-      },
-    });
+    this._bg     = new Graphics();
+    this._edge   = new Graphics();
+    this._label  = new Text({ text: '', style: {
+      fontSize: 14, fontWeight: 'bold', fill: 0xffdd00,
+      dropShadow: { color: 0x000000, blur: 6, distance: 2, alpha: 0.9 },
+    }});
     this._label.anchor.set(0.5, 0.5);
 
-    this._cancelBtn = new Text({
-      text: '✕ CANCEL',
-      style: {
-        fontSize:   15,
-        fontWeight: 'bold',
-        fill:       0xff6644,
-        dropShadow: { color: 0x000000, blur: 4, distance: 1, alpha: 0.8 },
-      },
-    });
+    this._cancelBtn = new Text({ text: '✕ CANCEL', style: {
+      fontSize: 15, fontWeight: 'bold', fill: 0xff6644,
+      dropShadow: { color: 0x000000, blur: 4, distance: 1, alpha: 0.8 },
+    }});
     this._cancelBtn.anchor.set(0.5, 0.5);
     this._cancelBtn.eventMode = 'static';
     this._cancelBtn.cursor    = 'pointer';
@@ -62,83 +36,58 @@ export class BombReticle {
     this._container.addChild(this._label);
     this._container.addChild(this._cancelBtn);
 
-    this._animT     = 0;
-    this._pointerY  = ROAD_BOTTOM_Y * 0.6;  // default center of road
+    this._animT    = 0;
+    this._pointerX = appW / 2;
+    this._pointerY = (ROAD_TOP_Y + ROAD_BOTTOM_Y) / 2;
   }
 
-  show() {
-    this._container.visible = true;
-  }
+  show() { this._container.visible = true; }
+  hide() { this._container.visible = false; }
 
-  hide() {
-    this._container.visible = false;
-  }
+  setPointerX(x) { this._pointerX = x; }
+  setPointerY(y) { this._pointerY = Math.max(ROAD_TOP_Y + 10, Math.min(ROAD_BOTTOM_Y - 10, y)); }
 
-  setPointerY(y) {
-    this._pointerY = Math.max(ROAD_TOP_Y + 10, Math.min(ROAD_BOTTOM_Y - 10, y));
-  }
-
-  onCancel(cb) {
-    this._cancelBtn.on('pointerdown', cb);
-  }
-
-  // Convert screen Y to road position (0-100).
-  screenYToPos(y) {
-    return Math.max(0, Math.min(100, (y - ROAD_TOP_Y) / (ROAD_BOTTOM_Y - ROAD_TOP_Y) * 100));
-  }
+  onCancel(cb) { this._cancelBtn.on('pointerdown', cb); }
 
   update(dt, lanes) {
     if (!this._container.visible) return;
     this._animT += dt;
 
-    const cy  = this._pointerY;
-    const pos = this.screenYToPos(cy);
+    // Which lane is the pointer over? Use bottom-of-road lane widths.
+    const laneW   = ROAD_BOTTOM_W / LANE_COUNT;
+    const laneIdx = Math.max(0, Math.min(LANE_COUNT - 1, Math.floor(this._pointerX / laneW)));
 
-    // Calculate top and bottom of blast zone in screen Y
-    const topPos    = Math.max(0, pos - BLAST_POS_RADIUS);
-    const botPos    = Math.min(100, pos + BLAST_POS_RADIUS);
-    const topScreenY = posToScreenY(topPos);
-    const botScreenY = posToScreenY(botPos);
-    const centerScreenY = cy;
+    // Lane trapezoid edges at top and bottom of road.
+    const topLaneW = ROAD_TOP_W / LANE_COUNT;
+    const topLx    = ROAD_TOP_X + laneIdx * topLaneW;
+    const topRx    = topLx + topLaneW;
+    const botLx    = laneIdx * laneW;
+    const botRx    = botLx + laneW;
 
-    // Circular blast zone — shows which lanes will be hit
-    // Road is a trapezoid, so we draw a circle and let it clip naturally
+    // Fill — amber trapezoid over the targeted lane.
     this._bg.clear();
+    this._bg.poly([topLx, ROAD_TOP_Y, topRx, ROAD_TOP_Y, botRx, ROAD_BOTTOM_Y, botLx, ROAD_BOTTOM_Y]);
+    this._bg.fill({ color: 0xff6600, alpha: 0.30 });
 
-    // Calculate blast radius in screen pixels (approximate, based on center)
-    const blastRadiusScreenPx = (botScreenY - topScreenY) / 2;
-
-    // Draw filled circle for blast zone
-    this._bg.circle(this._appW / 2, centerScreenY, blastRadiusScreenPx);
-    this._bg.fill({ color: 0xff6600, alpha: 0.25 });
-
-    // Animated pulsing circle outline
+    // Pulsing edge outline.
     const sweep = Math.sin(this._animT * 5) * 0.5 + 0.5;
     this._edge.clear();
-    this._edge.circle(this._appW / 2, centerScreenY, blastRadiusScreenPx);
+    this._edge.poly([topLx, ROAD_TOP_Y, topRx, ROAD_TOP_Y, botRx, ROAD_BOTTOM_Y, botLx, ROAD_BOTTOM_Y]);
     this._edge.stroke({ color: 0xffdd00, width: 2.5, alpha: 0.55 + sweep * 0.35 });
 
-    // Count cars in blast zone for label
-    let carsInZone = 0;
-    if (lanes) {
-      for (const lane of lanes) {
-        for (const car of lane.cars) {
-          if (Math.abs(car.position - pos) <= BLAST_POS_RADIUS) carsInZone++;
-        }
-      }
-    }
+    // Find front car in lane (highest row = closest to breach).
+    const lane = lanes?.[laneIdx];
+    const frontCar = lane?.cars?.reduce((best, c) => (!best || c.row > best.row) ? c : best, null);
 
-    this._label.text = carsInZone > 0
-      ? `BLAST ZONE  •  ${carsInZone} CAR${carsInZone !== 1 ? 'S' : ''}`
-      : 'BLAST ZONE  •  NO TARGETS';
-    this._label.x = this._appW / 2;
-    this._label.y = cy - 18;
+    this._label.text = frontCar ? `💣 LANE ${laneIdx + 1}  •  HP ${frontCar.hp}` : `💣 LANE ${laneIdx + 1}  •  EMPTY`;
+    this._label.x = (botLx + botRx) / 2;
+    this._label.y = ROAD_BOTTOM_Y - 20;
 
     this._cancelBtn.x = this._appW / 2;
     this._cancelBtn.y = ROAD_BOTTOM_Y + 24;
   }
 
-  destroy() {
-    this._container.destroy({ children: true });
-  }
+  destroy() { this._container.destroy({ children: true }); }
 }
+
+

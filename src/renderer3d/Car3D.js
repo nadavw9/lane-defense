@@ -48,12 +48,12 @@ const HEADLIGHT_XS = [-0.42, 0.42];
 // Car sits with its bottom at Y = 0 (road surface).
 const CAR_Y = BODY_H / 2 + WHEEL_R;
 
-// HP bar — canvas and world dimensions
+// HP number — canvas and world dimensions
 const HP_BAR_CANVAS_W = 40;
-const HP_BAR_CANVAS_H = 10;
-const HP_BAR_WIDTH    = BODY_W * 0.65;   // ~0.975 world units — short, unobtrusive
-const HP_BAR_HEIGHT   = 0.13;            // thin strip at car roof
-const HP_BAR_Y_OFFSET = 0.52;            // on car roof
+const HP_BAR_CANVAS_H = 26;
+const HP_BAR_WIDTH    = BODY_W * 0.80;  // slightly wider to fit text
+const HP_BAR_HEIGHT   = 0.28;           // taller for readable number
+const HP_BAR_Y_OFFSET = 0.60;           // above car roof
 
 // Death animation
 const DEATH_DURATION  = 0.30;
@@ -342,31 +342,34 @@ export class Car3D {
   }
 
   _drawHpBar(entry, car) {
-    const ratio  = car.maxHp > 0 ? car.hp / car.maxHp : 0;
     const W = HP_BAR_CANVAS_W, H = HP_BAR_CANVAS_H;
-    const pad = 2;                                           // border thickness
-    const fillW = Math.max(0, Math.round(ratio * (W - pad * 2)));
-    const { hpCtx, hpTex, hpSprite, group, hexColor } = entry;
+    const { hpCtx, hpTex, hexColor } = entry;
 
-    // Black outer frame.
+    // Dark pill background.
     hpCtx.clearRect(0, 0, W, H);
-    hpCtx.fillStyle = '#000000';
-    hpCtx.fillRect(0, 0, W, H);
+    hpCtx.fillStyle = 'rgba(0,0,0,0.80)';
+    if (hpCtx.roundRect) hpCtx.roundRect(1, 1, W - 2, H - 2, 5);
+    else                 hpCtx.rect(1, 1, W - 2, H - 2);
+    hpCtx.fill();
 
-    // Car-colour fill — always the car's body color, width proportional to remaining HP.
+    // Colored border (car color).
     const r = ((hexColor >> 16) & 0xff).toString(16).padStart(2, '0');
     const g = ((hexColor >>  8) & 0xff).toString(16).padStart(2, '0');
     const b = ( hexColor        & 0xff).toString(16).padStart(2, '0');
-    hpCtx.fillStyle = `#${r}${g}${b}`;
-    hpCtx.fillRect(pad, pad, fillW, H - pad * 2);
+    hpCtx.strokeStyle = `#${r}${g}${b}`;
+    hpCtx.lineWidth   = 2;
+    hpCtx.stroke();
+
+    // HP number centered.
+    hpCtx.font         = `bold ${H - 4}px Arial`;
+    hpCtx.fillStyle    = '#ffffff';
+    hpCtx.textAlign    = 'center';
+    hpCtx.textBaseline = 'middle';
+    hpCtx.shadowColor  = 'rgba(0,0,0,0.9)';
+    hpCtx.shadowBlur   = 3;
+    hpCtx.fillText(String(car.hp), W / 2, H / 2);
 
     hpTex.needsUpdate = true;
-
-    hpSprite.position.set(
-      group.position.x,
-      group.position.y + HP_BAR_Y_OFFSET,
-      group.position.z,
-    );
   }
 
   _disposeDying(d) {

@@ -134,6 +134,41 @@ export class GameLoop {
     this._onBombExplode?.(bombPos, killed.length);
   }
 
+  // Called by GameApp when the player places a bomb — targets the front car
+  // in the specified lane (the one closest to the breach line).
+  placeBombOnLane(laneIdx) {
+    const gs = this._gs;
+    const bs = this._boosterState;
+    if (!bs?.consumeBomb()) return;
+
+    const lane = gs.lanes[laneIdx];
+    if (!lane) return;
+
+    // Front car = highest row (closest to breach).
+    const frontCar = lane.cars.reduce((best, c) => (!best || c.row > best.row) ? c : best, null);
+    if (!frontCar) {
+      // No car in lane — refund the bomb so the player isn't penalized.
+      bs.bombs = Math.min(bs.bombsMax ?? 3, bs.bombs + 1);
+      return;
+    }
+
+    // Instantly kill the front car regardless of HP.
+    const idx = lane.cars.indexOf(frontCar);
+    if (idx >= 0) lane.cars.splice(idx, 1);
+    const combo = gs.recordKill(false);
+    this._onKill(combo);
+    if (bs && gs.killsTowardBomb % KILLS_PER_BOMB === 0 && bs.bombs < BOMB_MAX_CHARGES) {
+      bs.bombs++;
+      this._onBombEarned?.();
+    }
+
+    // Brief freeze on remaining cars in the lane.
+    gs.bombFreezeUntil = gs.elapsed + BOMB_FREEZE_DURATION;
+
+    // Explode at the front car's position for visuals.
+    this._onBombExplode?.(frontCar.position, 1);
+  }
+
   // Place shooter in the firing slot for one short travel window, trigger
   // audio/animation callbacks, and start time dilation.  Combat resolves once
   // the single projectile travel time elapses.

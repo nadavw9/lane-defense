@@ -1244,11 +1244,11 @@ async function main() {
         gameLoop.deploy(colIdx, laneIdx);
       },
       onBombPlaced: (x, y) => {
-        // DragDrop pre-filters to road Y range, but guard here too.
         if (y < ROAD_TOP_Y || y > ROAD_BOTTOM_Y) return;
-        const bombPos = (y - ROAD_TOP_Y) / (ROAD_BOTTOM_Y - ROAD_TOP_Y) * 100;
+        // Determine lane from X position (perspective: use bottom-of-road mapping).
+        const laneIdx = Math.max(0, Math.min(TOTAL_LANES - 1, Math.floor(x / (APP_W / TOTAL_LANES))));
         bombReticle.hide();
-        gameLoop.placeBomb(bombPos);
+        gameLoop.placeBombOnLane(laneIdx);
       },
       onDeployFromBench: (shooter, laneIdx) => {
         if (laneIdx >= gs.activeLaneCount) return;
@@ -1279,12 +1279,15 @@ async function main() {
   );
   new InputManager(app, dragDrop);
 
-  // Track raw pointer Y for bomb reticle targeting.
+  // Track raw pointer X/Y for bomb reticle targeting.
   let _lastPointerY = 300;
+  let _lastPointerX = APP_W / 2;
   app.canvas.addEventListener('pointermove', (e) => {
     const rect   = app.canvas.getBoundingClientRect();
     const scaleY = app.screen.height / rect.height;
-    _lastPointerY = (e.clientY - rect.top) * scaleY;
+    const scaleX = app.screen.width  / rect.width;
+    _lastPointerY = (e.clientY - rect.top)  * scaleY;
+    _lastPointerX = (e.clientX - rect.left) * scaleX;
   }, { passive: true });
 
   // ── Tab-visibility auto-pause ─────────────────────────────────────────────
@@ -1364,6 +1367,7 @@ async function main() {
     dragDrop.update(dt);
     // Bomb reticle: track pointer and update targeting overlay.
     if (boosterState.bombMode) {
+      bombReticle.setPointerX(_lastPointerX);
       bombReticle.setPointerY(_lastPointerY);
       bombReticle.update(dt, gs.activeLanes);
     }

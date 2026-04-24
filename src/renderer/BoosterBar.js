@@ -53,7 +53,7 @@ export class BoosterBar {
     this._peekBtn   = _makeBtn(this._layer, 'PEEK ×0',   BTN_X[1],  btnY, SMALL_W, BTN_H, 0x0d2040, 0xaaff66, onPeek);
     this._freezeBtn = _makeBtn(this._layer, 'FREEZE ×0', BTN_X[2],  btnY, SMALL_W, BTN_H, 0x0a1a2a, 0x44ccff, onFreeze);
     this._cycleBtn  = _makeBtn(this._layer, 'CYCLE ×3',  BTN_X[3],  btnY, SMALL_W, BTN_H, 0x1a1a0a, 0xffdd66, onCycle);
-    this._bombBtn   = _makeBtn(this._layer, 'BOMB ×0',   BOMB_X,    btnY, BOMB_W,  BTN_H, 0x1a0800, 0xffaa00, onBomb);
+    this._bombBtn   = _makeBombBtn(this._layer, BOMB_X, btnY, BOMB_W, BTN_H, onBomb);
 
     // Bomb button gets a prominent border glow (redrawn in update).
     this._bombGlow = new Graphics();
@@ -104,13 +104,17 @@ export class BoosterBar {
     const peekLabel   = `PEEK ×${s.peek}`;
     const freezeLabel = `FREEZE ×${s.freeze}`;
     const cycleLabel  = s.cycleMode ? 'TAP COL' : `CYCLE ×${s.cycle}`;
-    const bombLabel   = s.bombMode ? 'CANCEL' : `BOMB ×${s.bombs}`;
+    const bombLabel   = s.bombMode ? 'CANCEL' : `×${s.bombs}`;
 
     if (this._swapBtn.label.text   !== swapLabel)   this._swapBtn.label.text   = swapLabel;
     if (this._peekBtn.label.text   !== peekLabel)   this._peekBtn.label.text   = peekLabel;
     if (this._freezeBtn.label.text !== freezeLabel) this._freezeBtn.label.text = freezeLabel;
     if (this._cycleBtn.label.text  !== cycleLabel)  this._cycleBtn.label.text  = cycleLabel;
-    if (this._bombBtn.label.text   !== bombLabel)   this._bombBtn.label.text   = bombLabel;
+    if (this._bombBtn.label.text   !== bombLabel) {
+      this._bombBtn.label.text = bombLabel;
+      // Show the bomb icon only when not in cancel mode.
+      if (this._bombBtn.bombIcon) this._bombBtn.bombIcon.visible = !s.bombMode;
+    }
 
     this._swapBtn.alpha   = s.swap   <= 0 ? 0.28 : s.swapMode ? 0.55 : 1.0;
     this._peekBtn.alpha   = (s.peek  <= 0 || s.isPeeking(el)) ? 0.28 : 1.0;
@@ -211,6 +215,49 @@ function _makeBtn(layer, label, x, y, w, h, bgColor, fgColor, onClick) {
   btn.addChild(t);
 
   // Expose label Text so BoosterBar.update() can mutate it.
+  btn.label = t;
+
+  layer.addChild(btn);
+  return btn;
+}
+
+// Bomb button: draws a bomb icon (circle + fuse) left of the count.
+function _makeBombBtn(layer, x, y, w, h, onClick) {
+  const btn = new Graphics();
+  btn.roundRect(0, 0, w, h, 7);
+  btn.fill(0x1a0800);
+  btn.roundRect(0, 0, w, h, 7);
+  btn.stroke({ color: 0xffaa00, width: 1.2, alpha: 0.50 });
+  btn.x = x;
+  btn.y = y;
+  btn.eventMode = 'static';
+  btn.cursor    = 'pointer';
+  btn.on('pointerdown', onClick);
+
+  // Bomb icon: drawn at left side of button, vertically centred.
+  const bx = 12, by = h / 2;  // centre of bomb icon
+  const R  = 7;                 // bomb body radius
+  const icon = new Graphics();
+  // Body (dark sphere look)
+  icon.circle(bx, by, R);
+  icon.fill(0x222222);
+  icon.circle(bx, by, R);
+  icon.stroke({ color: 0xffaa00, width: 1.5, alpha: 0.9 });
+  // Fuse (small rounded line from top)
+  icon.roundRect(bx - 1.5, by - R - 6, 3, 7, 1.5);
+  icon.fill(0xffcc44);
+  // Spark at tip of fuse
+  icon.circle(bx, by - R - 6, 2.5);
+  icon.fill(0xffff88);
+  btn.addChild(icon);
+  btn.bombIcon = icon;
+
+  // Count label on right side
+  const t = new Text({ text: '×0', style: { fontSize: 13, fontWeight: 'bold', fill: 0xffaa00 } });
+  t.anchor.set(0.5, 0.5);
+  t.x = w * 0.65;
+  t.y = h / 2;
+  btn.addChild(t);
   btn.label = t;
 
   layer.addChild(btn);

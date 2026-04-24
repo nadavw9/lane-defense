@@ -55,12 +55,8 @@ const PUNCH_DURATION = 0.15;
 const PUNCH_SCALE    = 1.30;
 
 // Barrel recoil
-const RECOIL_ANGLE   = 0.35;   // how far barrel rotates back (radians)
-const RECOIL_DURATION = 0.12;   // total recoil duration (s)
-
-// Barrel tip glow
-const TIP_GLOW_PEAK = 3.0;      // emissiveIntensity peak on fire
-const TIP_GEO_R     = 0.09;     // sphere radius
+const RECOIL_ANGLE    =  0.35;
+const RECOIL_DURATION =  0.12;
 
 function easeOut(t) { return 1 - Math.pow(1 - Math.min(t, 1), 3); }
 
@@ -96,7 +92,7 @@ export class Shooter3D {
 
     sharedGeo();
 
-    // Per-column state: { group, barrelGroup, barrelMat, muzzleMat, punchState }
+    // Per-column state: { group, barrelGroup, barrelMat, punchState }
     this._turrets = [];
 
     for (let i = 0; i < LANE_COUNT; i++) {
@@ -116,7 +112,6 @@ export class Shooter3D {
     t.punchT       = 0;
     t.recoilActive = true;
     t.recoilT      = 0;
-    t.tipGlowT     = 0;      // resets glow countdown
   }
 
   update(dt, elapsed) {
@@ -150,7 +145,6 @@ export class Shooter3D {
       if (turret.lastColor !== hex) {
         turret.lastColor = hex;
         turret.barrelMat.color.setHex(hex);
-        turret.muzzleMat.emissive.setHex(0x333333);
       }
       // Always refresh main number sprite (damage can change without color change).
       this._refreshNumberSprite(turret.numSprite0, top.damage ?? 1, hex);
@@ -223,11 +217,7 @@ export class Shooter3D {
         }
       }
 
-      // ── Tip glow ─────────────────────────────────────────────────────
-      turret.tipGlowT = Math.min(turret.tipGlowT + dt, 0.30);
-      const glowFrac  = Math.max(0, 1 - turret.tipGlowT / 0.22);
-      turret.muzzleMat.emissiveIntensity = TIP_GLOW_PEAK * glowFrac;
-      turret.muzzleMat.opacity           = 0.3 + 0.7 * glowFrac;
+      // ── Tip glow removed (muzzle cap removed) ────────────────────────────
     }
   }
 
@@ -303,8 +293,7 @@ export class Shooter3D {
       t.group.traverse(obj => {
         // Skip module-level shared geometries and base material.
         const isSharedGeo = obj.geometry &&
-          (obj.geometry === _trackGeo || obj.geometry === _barrelGeo ||
-           obj.geometry === _muzzleGeo);
+          (obj.geometry === _trackGeo || obj.geometry === _barrelGeo);
         if (!isSharedGeo && obj.geometry) obj.geometry.dispose();
 
         if (obj.material && obj.material !== _trackMat) obj.material.dispose();
@@ -312,7 +301,7 @@ export class Shooter3D {
       this._scene.remove(t.group);
     }
     // Null out module-level cache so sharedGeo() recreates on next Shooter3D instance.
-    _trackGeo = _barrelGeo = _muzzleGeo = _trackMat = null;
+    _trackGeo = _barrelGeo = _trackMat = null;
   }
 
   // ── Private ──────────────────────────────────────────────────────────────────
@@ -364,14 +353,13 @@ export class Shooter3D {
     slot3.group.traverse(obj => obj.layers.set(1));
 
     return {
-      group, barrelGroup, barrelMat, muzzleMat,
+      group, barrelGroup, barrelMat,
       numSprite0, slot1, slot2, slot3,
       lastColor:   -1,
       punchActive: false,
       punchT:      0,
       recoilActive: false,
       recoilT:      0,
-      tipGlowT:     0.30,   // starts fully decayed (no glow at spawn)
     };
   }
 

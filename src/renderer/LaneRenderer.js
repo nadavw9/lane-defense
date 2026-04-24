@@ -69,6 +69,41 @@ export class LaneRenderer {
     this._inactiveOverlay = new Graphics();
     this._layer.addChild(this._inactiveOverlay);
     this.setActiveLaneCount(4);  // default: all lanes active
+
+    // ── DEBUG MARKERS (temporary — shows lane boundaries in 2D) ────
+    const DEBUG = true;  // set to false to disable
+    if (DEBUG) {
+      const debugLayer = layerManager.get('laneLayer');
+      // Lane boundaries: vertical lines at each lane edge
+      const laneBoundaryX = [
+        0,                                    // left edge
+        ROAD_BOTTOM_W / LANE_COUNT,           // lane 0-1 boundary
+        2 * ROAD_BOTTOM_W / LANE_COUNT,       // lane 1-2 boundary
+        3 * ROAD_BOTTOM_W / LANE_COUNT,       // lane 2-3 boundary
+        ROAD_BOTTOM_W,                        // right edge
+      ];
+      for (const x of laneBoundaryX) {
+        const g = new Graphics();
+        g.moveTo(x, ROAD_TOP_Y);
+        g.lineTo(x, ROAD_BOTTOM_Y);
+        g.stroke({ color: 0xff00ff, width: 2, alpha: 0.7 });
+        debugLayer.addChild(g);
+      }
+
+      // Lane centers: colored circles at each lane center
+      const laneCenters = [
+        { x: ROAD_BOTTOM_W / LANE_COUNT * 0.5, color: 0xff0000, label: 'L0' },
+        { x: ROAD_BOTTOM_W / LANE_COUNT * 1.5, color: 0x00ff00, label: 'L1' },
+        { x: ROAD_BOTTOM_W / LANE_COUNT * 2.5, color: 0x0000ff, label: 'L2' },
+        { x: ROAD_BOTTOM_W / LANE_COUNT * 3.5, color: 0xffff00, label: 'L3' },
+      ];
+      for (const { x, color } of laneCenters) {
+        const g = new Graphics();
+        g.circle(x, ROAD_BOTTOM_Y - 20, 8);
+        g.fill(color);
+        debugLayer.addChild(g);
+      }
+    }
   }
 
   // Call when the level starts to show only n lanes (1–4).

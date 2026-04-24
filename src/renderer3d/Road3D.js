@@ -40,16 +40,8 @@ export class Road3D {
     this._elapsed = 0;
   }
 
-  // Show only the first n lanes visually (hides excess lane dividers).
-  // No dark overlay — inactive area stays open so the road surface is always visible.
-  setActiveLaneCount(n) {
-    if (!this._dividers) return;
-    // Lane dividers: divider[0] = between lanes 0-1, [1] = 1-2, [2] = 2-3
-    for (let di = 0; di < this._dividers.length; di++) {
-      const show = (di < n - 1);
-      for (const m of this._dividers[di]) m.visible = show;
-    }
-  }
+  // No-op kept for call-site compatibility — lane hiding removed.
+  setActiveLaneCount(_n) {}
 
   // ── Road surface ─────────────────────────────────────────────────────────────
   _buildRoadSurface() {

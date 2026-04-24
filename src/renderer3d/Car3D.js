@@ -48,12 +48,13 @@ const HEADLIGHT_XS = [-0.42, 0.42];
 // Car sits with its bottom at Y = 0 (road surface).
 const CAR_Y = BODY_H / 2 + WHEEL_R;
 
-// HP number — canvas and world dimensions
-const HP_BAR_CANVAS_W = 40;
-const HP_BAR_CANVAS_H = 26;
-const HP_BAR_WIDTH    = BODY_W * 0.80;  // slightly wider to fit text
-const HP_BAR_HEIGHT   = 0.28;           // taller for readable number
-const HP_BAR_Y_OFFSET = 0.60;           // above car roof
+// HP number plane — sits on the FRONT face of the car as a child of the group.
+// PlaneGeometry faces +Z by default, which is toward the camera.
+const HP_CANVAS_W = 64;
+const HP_CANVAS_H = 28;
+const HP_PLANE_W  = BODY_W * 0.75;   // world units
+const HP_PLANE_H  = BODY_H * 0.60;   // world units
+const HP_PLANE_Z  = BODY_D / 2 + 0.01; // just in front of car front face
 
 // Death animation
 const DEATH_DURATION  = 0.30;
@@ -152,7 +153,7 @@ export class Car3D {
     // ── Retire cars that died this frame ────────────────────────────────────
     for (const [car, entry] of this._live) {
       if (!liveCars.has(car)) {
-        this._dying.push({ group: entry.group, bodyMat: entry.bodyMat, hpSprite: entry.hpSprite, bossRing: entry.bossRing, bossRingMat: entry.bossRingMat, t: 0 });
+        this._dying.push({ group: entry.group, bodyMat: entry.bodyMat, hpTex: entry.hpTex, bossRing: entry.bossRing, bossRingMat: entry.bossRingMat, t: 0 });
         this._live.delete(car);
       }
     }
@@ -168,16 +169,7 @@ export class Car3D {
         // Position on road.
         g.position.set(laneToX(laneIdx), CAR_Y, posToZ(car.position));
 
-        // HP sprite: float well above the car so THREE.Sprite billboards
-        // nearly upright from the angled perspective camera at (0,7,12).
-        // Low Y → sprite tilts almost flat (camera is far above it).
-        // Y=2.5 → camera angle is ~11° from horizontal → sprite ~79° upright ✓
-        entry.hpSprite.scale.set(HP_BAR_WIDTH, HP_BAR_HEIGHT, 1);
-        entry.hpSprite.position.set(
-          g.position.x,
-          2.5,               // float high above car so billboard faces camera well
-          g.position.z,
-        );
+        // HP plane is a child of the group — position sync is automatic.
 
         // ── Boss ring orbit ─────────────────────────────────────────────────
         if (entry.bossRing) {
@@ -237,7 +229,6 @@ export class Car3D {
       d.group.children.forEach(child => {
         if (child.material && child.material !== _wheelMat) child.material.opacity = 1 - prog;
       });
-      d.hpSprite.material.opacity = 1 - prog;
     }
   }
 
@@ -321,66 +312,59 @@ export class Car3D {
       this._scene.add(bossRing);
     }
 
-    // ── HP bar (canvas Sprite) ────────────────────────────────────────────────
+    // ── HP number plane — child of car group, on the front face ─────────────
+    // PlaneGeometry faces +Z toward the camera. Moves with the car automatically.
     const hpCanvas = document.createElement('canvas');
-    hpCanvas.width  = HP_BAR_CANVAS_W;
-    hpCanvas.height = HP_BAR_CANVAS_H;
+    hpCanvas.width  = HP_CANVAS_W;
+    hpCanvas.height = HP_CANVAS_H;
     const hpCtx = hpCanvas.getContext('2d');
     const hpTex = new THREE.CanvasTexture(hpCanvas);
-    const hpMat = new THREE.SpriteMaterial({ map: hpTex, transparent: true, opacity: 1, depthTest: false });
-    const hpSprite = new THREE.Sprite(hpMat);
-    hpSprite.scale.set(HP_BAR_WIDTH, HP_BAR_HEIGHT, 1);
-    hpSprite.position.set(0, CAR_Y + HP_BAR_Y_OFFSET, 0);
-    // Layer 2: rendered AFTER the bloom+PostFX composite in a dedicated pass,
-    // so the HP number is never washed out by UnrealBloomPass or VignettePass.
-    hpSprite.layers.set(2);
-    // Sprite is added to scene (not group) so it doesn't inherit group scale during death.
-    this._scene.add(hpSprite);
+    const hpMat = new THREE.MeshBasicMaterial({ map: hpTex, transparent: true, depthTest: false });
+    const hpMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(HP_PLANE_W, HP_PLANE_H),
+      hpMat,
+    );
+    hpMesh.position.set(0, 0, HP_PLANE_Z);  // front face, centred on car body
+    group.add(hpMesh);   // CHILD of car — no separate position sync needed
 
     group.position.set(laneToX(laneIdx), CAR_Y, posToZ(car.position));
     this._scene.add(group);
 
-    const entry = { group, bodyMat, hpCanvas, hpCtx, hpTex, hpSprite, headLights, lastHp: -1, laneIdx, bossRing, bossRingMat, bossAngle: 0, hexColor: hex };
+    const entry = { group, bodyMat, hpCanvas, hpCtx, hpTex, hpMesh, headLights, lastHp: -1, laneIdx, bossRing, bossRingMat, bossAngle: 0, hexColor: hex };
     this._drawHpBar(entry, car);
     return entry;
   }
 
   _drawHpBar(entry, car) {
-    const W = HP_BAR_CANVAS_W, H = HP_BAR_CANVAS_H;
+    const W = HP_CANVAS_W, H = HP_CANVAS_H;
     const { hpCtx, hpTex, hexColor } = entry;
 
-    // Dark pill background.
     hpCtx.clearRect(0, 0, W, H);
-    hpCtx.fillStyle = 'rgba(0,0,0,0.80)';
-    if (hpCtx.roundRect) hpCtx.roundRect(1, 1, W - 2, H - 2, 5);
+
+    // Semi-transparent dark background
+    hpCtx.fillStyle = 'rgba(0,0,0,0.70)';
+    if (hpCtx.roundRect) hpCtx.roundRect(1, 1, W - 2, H - 2, 4);
     else                 hpCtx.rect(1, 1, W - 2, H - 2);
     hpCtx.fill();
 
-    // Colored border (car color).
-    const r = ((hexColor >> 16) & 0xff).toString(16).padStart(2, '0');
-    const g = ((hexColor >>  8) & 0xff).toString(16).padStart(2, '0');
-    const b = ( hexColor        & 0xff).toString(16).padStart(2, '0');
-    hpCtx.strokeStyle = `#${r}${g}${b}`;
-    hpCtx.lineWidth   = 2;
-    hpCtx.stroke();
-
-    // HP number centered.
-    hpCtx.font         = `bold ${H - 4}px Arial`;
+    // Bold HP number in white, centered
+    hpCtx.font         = `bold ${Math.round(H * 0.72)}px Arial`;
     hpCtx.fillStyle    = '#ffffff';
     hpCtx.textAlign    = 'center';
     hpCtx.textBaseline = 'middle';
     hpCtx.shadowColor  = 'rgba(0,0,0,0.9)';
     hpCtx.shadowBlur   = 3;
     hpCtx.fillText(String(car.hp), W / 2, H / 2);
+    hpCtx.shadowBlur   = 0;
 
-    hpTex.needsUpdate = true;
+    hpTex.needsUpdate  = true;
   }
 
   _disposeDying(d) {
+    // hpMesh is a child of group — disposed by _disposeGroup.
+    // Just free the canvas texture GPU memory separately.
+    d.hpTex?.dispose();
     this._disposeGroup(d.group);
-    d.hpSprite.material.map?.dispose();
-    d.hpSprite.material.dispose();
-    this._scene.remove(d.hpSprite);
     if (d.bossRing) {
       d.bossRingMat?.dispose();
       this._scene.remove(d.bossRing);
@@ -388,11 +372,9 @@ export class Car3D {
   }
 
   _disposeEntry(entry) {
-    this._disposeGroup(entry.group);
+    // hpMesh is a child of group — disposed by _disposeGroup.
     entry.hpTex.dispose();
-    entry.hpSprite.material.map?.dispose();
-    entry.hpSprite.material.dispose();
-    this._scene.remove(entry.hpSprite);
+    this._disposeGroup(entry.group);
     if (entry.bossRing) {
       entry.bossRingMat?.dispose();
       this._scene.remove(entry.bossRing);

@@ -16,7 +16,7 @@
 //
 // Bench highlights during drag from column:
 //   • BLUE ring on the hovered empty bench slot
-import { Graphics, Container, Text } from 'pixi.js';
+import { Graphics, Container, Text, Sprite, Texture } from 'pixi.js';
 import {
   ROAD_TOP_Y, ROAD_BOTTOM_Y,
   ROAD_TOP_X, ROAD_TOP_W, ROAD_BOTTOM_W,
@@ -407,68 +407,85 @@ export class DragDrop {
   }
 
   _createGhost(shooter, x, y) {
-    const container = new Container();
-    const color     = COLOR_MAP[shooter.color] ?? 0x888888;
-    const R         = TOP_RADIUS + 6;   // bomb body radius
-    const g         = new Graphics();
+    const color  = COLOR_MAP[shooter.color] ?? 0x888888;
+    const damage = shooter.damage ?? 1;
 
-    // ── Outer colour glow ─────────────────────────────────────────────────────
-    g.circle(0, 0, R + 8);
-    g.fill({ color, alpha: 0.25 });
+    // One canvas → one Sprite. Everything drawn in a single pass.
+    const S  = 120;   // canvas size (square)
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = S;
+    const ctx = cv.getContext('2d');
 
-    // ── Fuse: thin line going up then curling right ───────────────────────────
-    const fuseLen = R + 14;
-    g.roundRect(-2.5, -R - fuseLen, 5, fuseLen, 2.5);
-    g.fill({ color: 0xaaaaaa, alpha: 0.95 });
-    g.roundRect(2, -R - fuseLen - 4, 8, 5, 2.5);
-    g.fill({ color: 0xaaaaaa, alpha: 0.85 });
+    const cx = S / 2, cy = S * 0.56;   // bomb centre (shifted down slightly for fuse room)
+    const R  = S * 0.30;                // bomb body radius
 
-    // ── Spark at fuse tip ──────────────────────────────────────────────────────
-    g.circle(10, -R - fuseLen - 2, 5);
-    g.fill({ color: 0xffee44, alpha: 1.0 });
-    g.circle(10, -R - fuseLen - 2, 3);
-    g.fill({ color: 0xffffff, alpha: 0.9 });
+    const r = ((color >> 16) & 0xff).toString(16).padStart(2,'0');
+    const g = ((color >>  8) & 0xff).toString(16).padStart(2,'0');
+    const b = ( color        & 0xff).toString(16).padStart(2,'0');
+    const css = `#${r}${g}${b}`;
 
-    // ── Bomb body — shooter's color so it's instantly recognisable ────────────
-    g.circle(0, 0, R);
-    g.fill(color);
+    // ── Fuse ─────────────────────────────────────────────────────────────────
+    ctx.strokeStyle = '#bbbbbb';
+    ctx.lineWidth   = S * 0.035;
+    ctx.lineCap     = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - R);
+    ctx.quadraticCurveTo(cx + S * 0.10, cy - R - S * 0.16, cx + S * 0.16, cy - R - S * 0.26);
+    ctx.stroke();
 
-    // ── Dark shading overlay (top half darker to look round/3D) ───────────────
-    g.arc(0, 0, R, Math.PI, 0);                 // bottom half: nothing extra
-    g.arc(0, 0, R, 0, Math.PI);                 // top half: darken
-    g.fill({ color: 0x000000, alpha: 0.28 });
+    // ── Spark ─────────────────────────────────────────────────────────────────
+    ctx.shadowColor = '#ff8800';
+    ctx.shadowBlur  = 8;
+    ctx.fillStyle   = '#ffee44';
+    ctx.beginPath();
+    ctx.arc(cx + S * 0.16, cy - R - S * 0.26, S * 0.06, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
 
-    // ── White border ───────────────────────────────────────────────────────────
-    g.circle(0, 0, R);
-    g.stroke({ color: 0xffffff, width: 2, alpha: 0.55 });
+    // ── Outer glow ────────────────────────────────────────────────────────────
+    ctx.shadowColor = css;
+    ctx.shadowBlur  = 14;
+    ctx.fillStyle   = css;
+    ctx.beginPath(); ctx.arc(cx, cy, R + 4, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur  = 0;
 
-    // ── Shine highlight on top-left of bomb ───────────────────────────────────
-    g.arc(-R * 0.3, -R * 0.3, R * 0.38, Math.PI * 1.1, Math.PI * 1.65);
-    g.stroke({ color: 0xffffff, width: 3, alpha: 0.50 });
+    // ── Bomb body ─────────────────────────────────────────────────────────────
+    ctx.fillStyle = css;
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
 
-    container.addChild(g);
+    // ── Dark top shading (spherical look) ──────────────────────────────────
+    ctx.fillStyle = 'rgba(0,0,0,0.30)';
+    ctx.beginPath(); ctx.arc(cx, cy, R, Math.PI, 0, false); ctx.closePath(); ctx.fill();
 
-    // ── Damage number centered on bomb body ───────────────────────────────────
-    const text = new Text({
-      text: String(shooter.damage),
-      style: {
-        fontSize:   18,
-        fontWeight: 'bold',
-        fill:       color,
-        dropShadow: { color: 0x000000, blur: 4, distance: 1, alpha: 0.9 },
-      },
-    });
-    text.anchor.set(0.5);
-    text.y = 2;
-    container.addChild(text);
+    // ── Shine highlight ────────────────────────────────────────────────────
+    ctx.fillStyle = 'rgba(255,255,255,0.30)';
+    ctx.beginPath(); ctx.arc(cx - R*0.28, cy - R*0.28, R*0.30, 0, Math.PI*2); ctx.fill();
 
-    container.x = x;
-    container.y = y;
-    container.alpha = 0.92;
-    container.scale.set(1.0);
+    // ── White border ───────────────────────────────────────────────────────
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.lineWidth   = 2;
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI*2); ctx.stroke();
 
-    this._dragLayer.addChild(container);
-    return container;
+    // ── Damage number centred on bomb ──────────────────────────────────────
+    ctx.font         = `bold ${Math.round(R * 1.0)}px Arial`;
+    ctx.fillStyle    = '#ffffff';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor  = 'rgba(0,0,0,0.9)';
+    ctx.shadowBlur   = 4;
+    ctx.fillText(String(damage), cx, cy + R * 0.06);
+    ctx.shadowBlur = 0;
+
+    // One Sprite from the canvas
+    const tex    = Texture.from(cv);
+    const sprite = new Sprite(tex);
+    sprite.anchor.set(0.5);
+    sprite.x     = x;
+    sprite.y     = y;
+    sprite.alpha = 0.92;
+
+    this._dragLayer.addChild(sprite);
+    return sprite;
   }
 
   _destroyGhost() {

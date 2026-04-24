@@ -194,34 +194,14 @@ export class Car3D {
           entry.bodyMat.emissiveIntensity = 0.3;
           for (const hl of entry.headLights) hl.intensity = 0.30;
         } else {
-          // Progressive damage: body darkens + emissive orange cracks appear.
-          const dmg = 1 - hpRatio;   // 0 = healthy, 1 = nearly dead
-          if (hpRatio > 0.60) {
-            entry.bodyMat.emissive.setHex(0x000000);
-            entry.bodyMat.emissiveIntensity = 0;
-            entry.bodyMat.roughness = 0.50;
-          } else if (hpRatio > 0.25) {
-            // Mid damage: slight dark smolder
-            entry.bodyMat.emissive.setHex(0x331100);
-            entry.bodyMat.emissiveIntensity = dmg * 0.25;
-            entry.bodyMat.roughness = 0.65;
-          } else {
-            // Critical: bright orange cracks
-            entry.bodyMat.emissive.setHex(0xff4400);
-            entry.bodyMat.emissiveIntensity = dmg * 0.55;
-            entry.bodyMat.roughness = 0.80;
-          }
+          // No damage visual effects — keep cars clean and readable
+          entry.bodyMat.emissive.setHex(0x000000);
+          entry.bodyMat.emissiveIntensity = 0;
+          entry.bodyMat.roughness = 0.50;
 
-          // Headlight flicker — steady when healthy, random when damaged.
+          // Headlight steady when healthy, dim when damaged.
           for (const hl of entry.headLights) {
-            if (hpRatio > 0.50) {
-              hl.intensity = 0.30;
-            } else {
-              // Flicker: random intensity scaled by damage level.
-              hl.intensity = Math.random() < dmg * 0.6
-                ? 0.05 + Math.random() * 0.10    // dimmed / off flicker
-                : 0.25 + Math.random() * 0.15;   // on flicker
-            }
+            hl.intensity = hpRatio > 0.50 ? 0.30 : 0.15;
           }
         }
 

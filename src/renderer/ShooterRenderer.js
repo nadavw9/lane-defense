@@ -22,10 +22,10 @@ export const SECOND_RADIUS = 24;
 const        THIRD_RADIUS  = 17;
 const        PIP_RADIUS    = 9;
 
-export const TOP_Y    = SHOOTER_AREA_Y + 47;    // 567 — main at TURRET_Z=-1.5
-export const SECOND_Y = SHOOTER_AREA_Y + 76;    // 596 — slot1 at Z=-0.5
-const        THIRD_Y  = SHOOTER_AREA_Y + 104;   // 624 — slot2 at Z=0.5
-const        SLOT3_Y  = SHOOTER_AREA_Y + 130;   // 650 — slot3 at Z=1.4
+export const TOP_Y    = SHOOTER_AREA_Y + 24;    // 544 — ortho: worldZ=-1.5 → screen Y 544
+export const SECOND_Y = SHOOTER_AREA_Y + 71;    // 591 — slot1 worldZ=-0.5
+const        THIRD_Y  = SHOOTER_AREA_Y + 118;   // 638 — slot2 worldZ=+0.5
+const        SLOT3_Y  = SHOOTER_AREA_Y + 161;   // 681 — slot3 worldZ=+1.4
 const        PIP_Y    = SHOOTER_AREA_Y + 174;   // 694 — peek pips row
 
 // Target rendered diameters (diameter, not radius) at 1× scale

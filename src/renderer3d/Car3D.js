@@ -171,10 +171,8 @@ export class Car3D {
         // Keep HP sprite (scene-level, not group-child) in sync every frame.
         // Scale it inversely to Z-distance so it stays the same apparent screen
         // size at all distances (camera is at Z=16 per Scene3D.js).
-        const camZ   = 16;
-        const zDist  = Math.max(1, camZ - g.position.z);   // Z depth 16..56
-        const factor = zDist / camZ;                        // 1.0 at close end, ~3.5 at far
-        entry.hpSprite.scale.set(HP_BAR_WIDTH * factor, HP_BAR_HEIGHT * factor, 1);
+        // Orthographic camera: all objects appear the same size regardless of Z.
+        entry.hpSprite.scale.set(HP_BAR_WIDTH, HP_BAR_HEIGHT, 1);
         entry.hpSprite.position.set(g.position.x, CAR_Y + HP_BAR_Y_OFFSET, g.position.z);
 
         // ── Boss ring orbit ─────────────────────────────────────────────────

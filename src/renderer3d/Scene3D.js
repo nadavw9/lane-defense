@@ -62,33 +62,43 @@ export class Scene3D {
     this.scene.environmentIntensity = 0.35;   // subtle — road stay dark
     pmrem.dispose();
 
-    // ── Camera ──────────────────────────────────────────────────────────────
-    this.camera = new THREE.PerspectiveCamera(55, width / height, 0.1, 200);
-    this.camera.position.set(0, 9, 16);
-    this.camera.lookAt(0, 0, -8);
-    // Road camera only sees layer 0 objects; shooter objects live on layer 1.
+    // ── Road camera — ORTHOGRAPHIC top-down ─────────────────────────────────
+    // Replaces the old perspective camera that caused angled lanes.
+    // left=-6 / right=+6 maps lane positions [-4.5,-1.5,+1.5,+4.5] to EXACTLY
+    // the same screen X as the PixiJS column centres (48.75 / 146.25 / 243.75 / 341.25):
+    //   screen_X = (laneX + 6) / 12 × 390  →  lane 0 = 48.75px ✓
+    // Camera sits above road centre (Y=20, Z=-20), looks straight down.
+    // up=(0,0,-1) so Z=-40 (far) appears at the top of the viewport.
+    //
+    // Frustum top/bottom calculated so:
+    //   world Z=-40 (road far)  → screen Y = 44   (ROAD_TOP_Y)
+    //   world Z= 0  (road near) → screen Y = 510  (ROAD_BOTTOM_Y)
+    //   (camera local_Y = -(worldZ + 20))  → top=23.77, bottom=-48.67
+    this.camera = new THREE.OrthographicCamera(-6, 6, 23.77, -48.67, -50, 200);
+    this.camera.position.set(0, 20, -20);
+    this.camera.up.set(0, 0, -1);
+    this.camera.lookAt(0, 0, -20);
     this.camera.layers.set(0);
 
-    // ── HP sprite camera ─────────────────────────────────────────────────────
-    // Same position/orientation as the road camera, but sees only layer 2.
-    // Rendered AFTER the bloom+PostFX composite so HP sprites are never washed
-    // out by the UnrealBloomPass or the VignettePass.
-    this.hpCamera = new THREE.PerspectiveCamera(55, width / height, 0.1, 200);
-    this.hpCamera.position.set(0, 9, 16);
-    this.hpCamera.lookAt(0, 0, -8);
-    this.hpCamera.layers.set(2);  // only sees layer 2 (HP sprites)
+    // ── HP sprite camera — orthographic, same frustum as road camera ─────────
+    this.hpCamera = new THREE.OrthographicCamera(-6, 6, 23.77, -48.67, -50, 200);
+    this.hpCamera.position.set(0, 20, -20);
+    this.hpCamera.up.set(0, 0, -1);
+    this.hpCamera.lookAt(0, 0, -20);
+    this.hpCamera.layers.set(2);
 
-    // ── Shooter viewport camera ──────────────────────────────────────────────
-    // TOP-DOWN view: camera directly above the turrets looking straight down.
-    // up=(0,0,-1) so barrel (-Z direction) points "up" in the viewport — gives
-    // the classic overhead tank/shooter look.
-    // vFOV=70°, camera Y=4.5 → X visible ≈ ±6.8 units (columns at ±4.5 have margin).
+    // ── Shooter viewport camera — orthographic, SAME X range as road ────────
+    // left=-6 / right=+6 guarantees lane X aligns perfectly with road lanes.
+    // top=2.0 / bottom=-1.8 covers shooter slots TURRET_Z=-1.5 to SLOT3_Z=1.4.
+    // Camera local_Y = -worldZ (camera at Z=0, looking down from Y=4.5).
+    //   worldZ=-1.5 → local_Y=1.5 → screen Y≈544 (TOP_Y in ShooterRenderer)
+    //   worldZ= 1.4 → local_Y=-1.4 → screen Y≈681
     const SHOOTER_H = 180;
-    this.shooterCamera = new THREE.PerspectiveCamera(70, width / SHOOTER_H, 0.1, 50);
+    this.shooterCamera = new THREE.OrthographicCamera(-6, 6, 2.0, -1.8, -50, 50);
     this.shooterCamera.position.set(0, 4.5, 0);
-    this.shooterCamera.up.set(0, 0, -1);   // barrel (-Z) faces up in viewport
+    this.shooterCamera.up.set(0, 0, -1);
     this.shooterCamera.lookAt(0, 0, 0);
-    this.shooterCamera.layers.set(1);  // only sees layer 1
+    this.shooterCamera.layers.set(1);
 
     // Flat dark-navy ground plane for the shooter viewport (layer 1).
     // PlaneGeometry lies in XY by default; rotate -π/2 around X to lie flat (XZ plane).
@@ -130,11 +140,8 @@ export class Scene3D {
     this.height = height;
     this.renderer.setSize(width, height);
     this.composer.setSize(width, height);
-    this.camera.aspect = width / height;
-    this.camera.updateProjectionMatrix();
-    this.hpCamera.aspect = width / height;
-    this.hpCamera.updateProjectionMatrix();
-    this.shooterCamera.aspect = width / 180;    this.shooterCamera.updateProjectionMatrix();
+    // OrthographicCamera: frustum bounds are in absolute world units — no aspect update.
+    // Bloom resolution must be refreshed.
     this._bloomPass.resolution.set(width, height);
   }
 

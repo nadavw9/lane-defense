@@ -154,7 +154,11 @@ export class Shooter3D {
         continue;
       }
 
-      turret.group.visible = true;
+      // Top slot: hidden — only the queue (slots 1-3) is shown in the column.
+      // The deployable bomb is invisible in the viewport; it only appears as
+      // a drag ghost when the player picks it up.
+      turret.group.visible              = false;
+      turret.numSprite0.sprite.visible  = false;
 
       // Update colour when shooter changes.
       const hex = COLOR_HEX[top.color] ?? 0x888888;

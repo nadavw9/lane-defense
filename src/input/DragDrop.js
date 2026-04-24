@@ -24,6 +24,7 @@ import {
 } from '../renderer/LaneRenderer.js';
 import {
   COL_W, COL_COUNT, TOP_RADIUS, TOP_Y,
+  SHOOTER_AREA_Y, SHOOTER_AREA_H,
 } from '../renderer/ShooterRenderer.js';
 import { BENCH_Y, BENCH_SLOT_H } from '../renderer/BenchRenderer.js';
 
@@ -152,10 +153,14 @@ export class DragDrop {
       return;
     }
 
-    // Cycle booster intercept: tap a column to rotate its queue (top → back).
-    if (col !== -1 && this._boosterState?.cycleMode) {
-      this._boosterState.tapCycleColumn(col, this._columns);
-      return;
+    // Cycle booster intercept: accept any tap anywhere in the shooter area
+    // (not just near TOP_Y) — determine column by X position alone.
+    if (this._boosterState?.cycleMode) {
+      if (y >= SHOOTER_AREA_Y && y <= SHOOTER_AREA_Y + SHOOTER_AREA_H) {
+        const cycleCol = Math.max(0, Math.min(COL_COUNT - 1, Math.floor(x / COL_W)));
+        this._boosterState.tapCycleColumn(cycleCol, this._columns);
+      }
+      return;   // consume tap regardless
     }
 
     // Try starting a drag from a column top.

@@ -34,15 +34,12 @@ const APP_W = 390;
 
 // ── Geometry helpers ──────────────────────────────────────────────────────────
 
-// Screen X for the visual centre of lane `laneIdx` at normalised position t [0-1].
-export function laneCenterX(laneIdx, t) {
-  const leftTop  = ROAD_TOP_X + laneIdx       * ROAD_TOP_W  / LANE_COUNT;
-  const leftBot  =              laneIdx       * ROAD_BOTTOM_W / LANE_COUNT;
-  const rightTop = ROAD_TOP_X + (laneIdx + 1) * ROAD_TOP_W  / LANE_COUNT;
-  const rightBot =              (laneIdx + 1) * ROAD_BOTTOM_W / LANE_COUNT;
-  const lx = leftTop  + (leftBot  - leftTop)  * t;
-  const rx = rightTop + (rightBot - rightTop) * t;
-  return (lx + rx) / 2;
+// Screen X for the visual centre of lane `laneIdx`.
+// With the orthographic top-down road camera (left=-6, right=+6 in world space),
+// all positions along a lane share the same screen X — no perspective convergence.
+// This matches the PixiJS column centres (48.75 / 146.25 / 243.75 / 341.25).
+export function laneCenterX(laneIdx, t) {  // eslint-disable-line no-unused-vars
+  return (laneIdx + 0.5) * (ROAD_BOTTOM_W / LANE_COUNT);   // = 48.75 * (laneIdx + 0.5) * 2
 }
 
 // Screen Y for game-unit position [0-100].

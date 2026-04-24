@@ -447,6 +447,9 @@ async function main() {
     gs.world              = cfg.worldConfig;
     gs.phaseMan           = new IntensityPhase(cfg.duration);
     gameLoop.baseDuration = cfg.duration;
+    // Turn-based target: use explicit targetKills or compute from duration.
+    gs.targetKills = cfg.targetKills ?? Math.max(5, Math.round((cfg.duration ?? 60) * 0.12));
+    gs.gridRows    = cfg.gridRows ?? 6;
   }
 
   // ── Core level-start routine ──────────────────────────────────────────────

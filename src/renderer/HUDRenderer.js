@@ -191,11 +191,15 @@ export class HUDRenderer {
   // ── Private ────────────────────────────────────────────────────────────────
 
   _drawBg() {
-    const gs    = this._gs;
-    const ratio = gs.timeRemaining / gs.duration;
-    const barW  = Math.max(0, Math.round(this._appW * ratio));
-    const color = timerColor(Math.max(0, ratio));
-    const R     = BAR_H / 2;   // corner radius = half bar height → pill ends
+    // Kill progress bar — fills left to right as the player scores kills.
+    const gs       = this._gs;
+    const kills    = gs.totalKills ?? 0;
+    const target   = gs.targetKills ?? 10;
+    const ratio    = Math.min(1, target > 0 ? kills / target : 0);
+    const barW     = Math.max(0, Math.round(this._appW * ratio));
+    // Colour: blue → yellow → green as kills approach target
+    const color    = ratio >= 1 ? 0x44ff88 : ratio >= 0.6 ? 0x88cc44 : ratio >= 0.3 ? 0xffcc00 : 0x4488ff;
+    const R        = BAR_H / 2;
 
     this._bg.clear();
 
@@ -203,13 +207,13 @@ export class HUDRenderer {
     this._bg.rect(0, 0, this._appW, HUD_H);
     this._bg.fill(HUD_BG);
 
-    // Timer bar track — dark outline, then dark fill, pill-shaped
+    // Kill progress bar track
     this._bg.roundRect(-1, BAR_Y - 1, this._appW + 2, BAR_H + 2, R + 1);
     this._bg.fill({ color: 0x000000, alpha: 0.70 });
     this._bg.roundRect(0, BAR_Y, this._appW, BAR_H, R);
     this._bg.fill(BAR_BG);
 
-    // Timer bar fill — shrinks from right to left, pill left-end only
+    // Kill progress bar fill — grows left to right
     if (barW >= BAR_H) {
       this._bg.roundRect(0, BAR_Y, barW, BAR_H, R);
       this._bg.fill(color);

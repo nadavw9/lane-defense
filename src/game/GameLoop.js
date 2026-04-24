@@ -80,6 +80,8 @@ export class GameLoop {
     const shooter = col.top();
     if (!shooter) return;
     // Slot occupancy is enforced by DragDrop; guard here defensively.
+    // Turn-based: block new deploy if any shot is still in flight.
+    if (Object.values(this._gs.firingSlots).some(s => s !== null)) return;
     if (this._gs.firingSlots[laneIdx]) return;
     col.consume();
     this._sDir.recordDeploy(this._gs.elapsed);
@@ -163,6 +165,8 @@ export class GameLoop {
 
     if (damageDealt === 0) {
       this._onMiss(laneIdx, carGameX);
+      // Turn-based: even a miss (wrong colour) advances the grid.
+      if (!gs.isOver) this._advanceGrid();
       return;
     }
 
@@ -183,6 +187,9 @@ export class GameLoop {
         this._onBombEarned?.();
       }
     }
+
+    // Turn-based: after every shot resolves, advance the entire grid one step.
+    if (!gs.isOver) this._advanceGrid();
   }
 
   // Full level restart — resets state and reprimes cars/columns.
@@ -219,55 +226,105 @@ export class GameLoop {
     }
   }
 
-  _step(dt) {
-    const gs = this._gs;
-    gs.elapsed += dt;
+  // ── Helper: map a car's row to position (0-100) for rendering ──────────────
+  _rowToPosition(row, gridRows) {
+    return gridRows <= 1 ? 100 : (row / (gridRows - 1)) * 100;
+  }
 
-    // Win: timer reached zero.
-    if (gs.elapsed >= gs.duration) {
+  // ── Turn-based grid advance ────────────────────────────────────────────────
+  // Called after every shot resolves.  Moves all cars one row toward the breach,
+  // checks for breach/win, then spawns new cars at row 0.
+  _advanceGrid() {
+    const gs       = this._gs;
+    const ROWS     = gs.gridRows ?? 6;
+    const MAX_ROW  = ROWS - 1;
+
+    // 1. Move all cars forward one row.
+    for (let li = 0; li < gs.activeLaneCount; li++) {
+      for (const car of gs.lanes[li].cars) {
+        car.row++;
+        car.position = this._rowToPosition(car.row, ROWS);
+        if (car.position > gs.maxCarPosition) gs.maxCarPosition = car.position;
+      }
+    }
+
+    // 2. Check breach — any car that moved past the last row is a loss.
+    for (let li = 0; li < gs.activeLaneCount; li++) {
+      const breached = gs.lanes[li].cars.filter(c => c.row > MAX_ROW);
+      if (breached.length > 0) {
+        // Remove breaching cars and end the game.
+        for (const car of breached) {
+          const idx = gs.lanes[li].cars.indexOf(car);
+          if (idx >= 0) gs.lanes[li].cars.splice(idx, 1);
+        }
+        gs.endGame(false);
+        this._onEnd(false, li);
+        return;
+      }
+    }
+
+    // 3. Win check — enough kills accumulated.
+    if (gs.totalKills >= gs.targetKills) {
       gs.endGame(true);
       this._onEnd(true);
       return;
     }
 
-    gs.phaseMan.update(gs.elapsed);
-    const phaseCfg    = PHASE_CONFIG[gs.phase];
-    const phaseParams = gs.phaseMan.getParams();
+    // 4. Generate new cars at row 0.
+    this._spawnNewRowCars();
+
+    // 5. Refill columns so the player always has something to deploy.
     const dirState    = gs.asDirectorState();
-    const isFrozen    = (this._boosterState?.isFrozen(gs.elapsed) ?? false) || gs.elapsed < gs.bombFreezeUntil;
+    const phaseParams = gs.phaseMan.getParams();
+    this._sDir.fillColumns(gs.activeCols, dirState, phaseParams);
 
-    if (!isFrozen) {
-      // 1. Advance cars — apply deploy time dilation if active.
-      for (const lane of gs.activeLanes) lane.advance(dt * gs.speedMultiplier);
+    // 6. Viability guard.
+    this._enforceViableMove(gs);
+  }
 
-      // 2. Track the highest car position reached (used for star rating on win).
-      for (const lane of gs.activeLanes) {
-        const front = lane.frontCar();
-        if (front && front.position > gs.maxCarPosition) {
-          gs.maxCarPosition = front.position;
-        }
-      }
+  // Spawn 1–2 new cars at row 0 (back of lane) for random active lanes.
+  _spawnNewRowCars() {
+    const gs   = this._gs;
+    const ROWS = gs.gridRows ?? 6;
 
-      // 3. Check for breach — any car reaching the endpoint is a loss.
-      for (let li = 0; li < gs.activeLaneCount; li++) {
-        if (gs.lanes[li].frontCar()?.position >= 100) {
-          gs.endGame(false);
-          this._onEnd(false, li);
-          return;
-        }
-      }
+    // How many new cars to add per advance (scales with active lanes).
+    const maxNew = gs.activeLaneCount <= 2 ? 1 : 2;
 
-      // 4. Spawn new cars.
-      this._carDir.updateSpawnTimers(gs.activeLanes, dt, phaseCfg);
-      for (const lane of gs.activeLanes) {
-        if (this._carDir.isReadyToSpawn(lane)) {
-          lane.addCar(this._carDir.generateCar(lane, gs.phase, gs.world, gs.colors));
-          this._carDir.resetSpawnTimer(lane, phaseCfg);
-        }
-      }
+    // Candidate lanes: active, and row 0 not already occupied.
+    const candidates = [];
+    for (let li = 0; li < gs.activeLaneCount; li++) {
+      if (!gs.lanes[li].cars.some(c => c.row === 0)) candidates.push(li);
     }
 
-    // 5. Refill active shooter columns.
+    // Shuffle deterministically using the internal RNG.
+    for (let i = candidates.length - 1; i > 0; i--) {
+      const j = Math.floor(this._rng.nextFloat(0, 1) * (i + 1));
+      [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+    }
+
+    const chosen = candidates.slice(0, maxNew);
+    for (const li of chosen) {
+      // Reuse carDir factory so HP/type/color distribution matches level config.
+      const newCar    = this._carDir.generateCar(gs.lanes[li], 'CALM', gs.world, gs.colors);
+      newCar.row       = 0;
+      newCar.position  = 0;
+      gs.lanes[li].addCar(newCar);
+    }
+  }
+
+  _step(dt) {
+    const gs = this._gs;
+    gs.elapsed += dt;
+
+    gs.phaseMan.update(gs.elapsed);
+    const phaseParams = gs.phaseMan.getParams();
+    const dirState    = gs.asDirectorState();
+
+    // Win condition is now kill-based; checked in _advanceGrid().
+    // Car movement is turn-based; cars only move when _advanceGrid() is called
+    // (after each shot resolves). No continuous movement here.
+
+    // Refill active shooter columns.
     this._sDir.fillColumns(gs.activeCols, dirState, phaseParams);
 
     // 6. Viability guard: ensure the player always has at least one valid move.
@@ -371,13 +428,29 @@ export class GameLoop {
   // Stagger initial cars so the level looks alive from frame 1.
   // Only primes active lanes so inactive lanes stay empty.
   _primeInitialCars() {
-    const gs      = this._gs;
-    const calmCfg = PHASE_CONFIG['CALM'];
-    for (const lane of gs.activeLanes) {
-      const car     = this._carDir.generateCar(lane, 'CALM', gs.world, gs.colors);
-      car.position  = this._rng.nextFloat(8, 50);
-      lane.addCar(car);
-      this._carDir.resetSpawnTimer(lane, calmCfg);
+    const gs   = this._gs;
+    const ROWS = gs.gridRows ?? 6;
+    // Populate the grid with cars at rows 0-2 (back rows) so the player
+    // starts with a partially filled grid to react to.
+    for (let row = 0; row <= 2; row++) {
+      for (let li = 0; li < gs.activeLaneCount; li++) {
+        // ~65% chance of a car at each starting cell.
+        if (this._rng.nextFloat(0, 1) >= 0.65) continue;
+        const car   = this._carDir.generateCar(gs.lanes[li], 'CALM', gs.world, gs.colors);
+        car.row      = row;
+        car.position = this._rowToPosition(row, ROWS);
+        gs.lanes[li].addCar(car);
+      }
     }
+    // Ensure each active lane starts with at least one car visible.
+    for (let li = 0; li < gs.activeLaneCount; li++) {
+      if (gs.lanes[li].cars.length === 0) {
+        const car   = this._carDir.generateCar(gs.lanes[li], 'CALM', gs.world, gs.colors);
+        car.row      = 1;
+        car.position = this._rowToPosition(1, ROWS);
+        gs.lanes[li].addCar(car);
+      }
+    }
+    this._enforceViableMove(gs);
   }
 }

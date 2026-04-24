@@ -129,10 +129,7 @@ export class GameRenderer3D {
       this._particles?.spawnExplosion(laneIdx, color);
       this._cameraFX?.shake(0.12, 0.25);
       this._postFX?.triggerChroma(0.022, 0.30);
-      const strength = Math.min(1.2, (this._scene3d?.getBloomStrength() ?? 0.65) + 0.05);
-      this._scene3d?.setBloomStrength(strength);
-      // Use cached car position — the car may already be removed from the lane
-      // when this callback fires (game state updated before events).
+      // No bloom spike on kill — headlights already bloom at base strength 0.65
       const cachedPos = this._laneCarPosCache[laneIdx] ?? 50;
       this._scorchMarks?.spawnScorch(laneIdx, cachedPos);
     } else {
@@ -165,8 +162,8 @@ export class GameRenderer3D {
     this._cameraFX?.setCombo(combo);
     this._postFX?.setCombo(combo);
     this._skybox?.setCombo(combo);   // drives aurora amplitude + colour shift
-    const strength = combo >= 12 ? 1.1 : combo >= 7 ? 0.90 : combo >= 3 ? 0.78 : 0.65;
-    this._scene3d?.setBloomStrength(strength);
+    // Keep bloom at resting level regardless of combo — headlights bloom yellow above 0.65+
+    this._scene3d?.setBloomStrength(0.65);
   }
 
   triggerDeployPunch(colIdx) {

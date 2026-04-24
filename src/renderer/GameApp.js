@@ -1320,7 +1320,10 @@ async function main() {
 
     // Juice updates
     laneFlash.update(dt);
-    comboGlow.update(dt, gameRenderer3D.isVisible() ? gs.combo : 0);
+    // ComboGlow disabled — was drawing 30px yellow/orange border on all 4 screen edges
+    // (PixiJS glowLayer), which the user experienced as "the yellow frame that turns bright
+    // when we shoot" across many sessions. Passing combo=0 permanently clears it.
+    comboGlow.update(dt, 0);
     boosterBar.update(dt);
     transition.update(dt);
 

@@ -305,7 +305,7 @@ export class Car3D {
     const headMat    = new THREE.MeshStandardMaterial({
       color:             0xffffcc,
       emissive:          0xffffcc,
-      emissiveIntensity: 1.2,
+      emissiveIntensity: 0.35,   // below bloom threshold (0.55) — lights visible but don't bloom yellow
       transparent: true,
       opacity: 1,
     });

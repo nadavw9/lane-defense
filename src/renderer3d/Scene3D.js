@@ -72,16 +72,16 @@ export class Scene3D {
     //
     // Frustum top/bottom calculated so:
     //   world Z=-40 (road far)  → screen Y = 44   (ROAD_TOP_Y)
-    //   world Z= 2  (road near) → screen Y = 510  (ROAD_BOTTOM_Y, extended to cover shooter gap)
-    //   (camera local_Y = -(worldZ + 20))  → top=23.77, bottom=-50.67
-    this.camera = new THREE.OrthographicCamera(-6, 6, 23.77, -50.67, -50, 200);
+    //   world Z= 0  (road near) → screen Y = 510  (ROAD_BOTTOM_Y)
+    //   (camera local_Y = -(worldZ + 20))  → top=23.77, bottom=-48.67
+    this.camera = new THREE.OrthographicCamera(-6, 6, 23.77, -48.67, -50, 200);
     this.camera.position.set(0, 20, -20);
     this.camera.up.set(0, 0, -1);
     this.camera.lookAt(0, 0, -20);
     this.camera.layers.set(0);
 
     // ── HP sprite camera — orthographic, same frustum as road camera ─────────
-    this.hpCamera = new THREE.OrthographicCamera(-6, 6, 23.77, -50.67, -50, 200);
+    this.hpCamera = new THREE.OrthographicCamera(-6, 6, 23.77, -48.67, -50, 200);
     this.hpCamera.position.set(0, 20, -20);
     this.hpCamera.up.set(0, 0, -1);
     this.hpCamera.lookAt(0, 0, -20);
@@ -102,11 +102,12 @@ export class Scene3D {
 
     // Flat dark-navy ground plane for the shooter viewport (layer 1).
     // PlaneGeometry lies in XY by default; rotate -π/2 around X to lie flat (XZ plane).
-    this._shooterBgGeo = new THREE.PlaneGeometry(16, 8);
+    // Extended to cover the gap between road (Z=0) and shooter slots (Z=-1.5 to 1.4).
+    this._shooterBgGeo = new THREE.PlaneGeometry(16, 10);   // increased from 8 to 10
     this._shooterBgMat = new THREE.MeshBasicMaterial({ color: 0x0d0f1e });
     this._shooterBg    = new THREE.Mesh(this._shooterBgGeo, this._shooterBgMat);
     this._shooterBg.rotation.x = -Math.PI / 2;
-    this._shooterBg.position.set(0, -0.2, 0.2);   // moved forward to avoid covering gap
+    this._shooterBg.position.set(0, -0.2, 0.7);   // moved back to cover gap
     this._shooterBg.layers.set(1);
     this.scene.add(this._shooterBg);
 

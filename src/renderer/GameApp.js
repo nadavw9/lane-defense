@@ -67,6 +67,7 @@ import { StatsScreen }            from '../screens/StatsScreen.js';
 import { SurvivalScreen }          from '../screens/SurvivalScreen.js';
 import { AudioManager }           from '../audio/AudioManager.js';
 import { BoosterBar }             from './BoosterBar.js';
+import { adManager }            from '../ads/AdManager.js';
 import { BombReticle }           from './BombReticle.js';
 import { Analytics }              from '../analytics/Analytics.js';
 import { AutoTuner }             from '../analytics/AutoTuner.js';
@@ -335,6 +336,15 @@ async function main() {
         boostersUsedThisLevel.push('bomb');
       }
     },
+    () => {
+      // CYCLE button — rotate selected column's queue (top → back).
+      if (boosterState.cycleMode) {
+        boosterState.cancelCycle();
+      } else {
+        boosterState.activateCycle();
+        boostersUsedThisLevel.push('cycle');
+      }
+    },
   );
 
   // ── Bomb placement reticle ─────────────────────────────────────────────────
@@ -481,7 +491,15 @@ async function main() {
     boosterState.peekUntil   = -Infinity;
     boosterState.freezeUntil = -Infinity;
     boosterState.cancelBomb();
+    boosterState.cancelCycle();
     bombReticle.hide();
+
+    // Apply any ad-earned boosters from the pre-level popup BEFORE starting.
+    // resetForLevel() is called AFTER applying so progress isn't cleared first.
+    if (adManager.isUnlocked('swap'))   boosterState.swap   = Math.min(5, boosterState.swap   + 1);
+    if (adManager.isUnlocked('freeze')) boosterState.freeze = Math.min(5, boosterState.freeze + 1);
+    if (adManager.isUnlocked('bomb'))   boosterState.bombs  = Math.min(boosterState.bombsMax, boosterState.bombs + 1);
+    adManager.resetForLevel();
 
     applyLevelConfig(cfg);
     // Use levelNumber for normal levels; 'D' label for daily challenge.

@@ -15,6 +15,10 @@ export class BoosterState {
     this.bombs    = 0;          // stored bomb charges
     this.bombsMax = 3;          // max storable bombs
     this.bombMode = false;      // true while waiting for player to tap placement
+
+    // ── Cycle (bring any queued shooter to front) ─────────────────────────────
+    this.cycle     = 3;         // remaining cycle charges
+    this.cycleMode = false;     // true while waiting for a column tap
   }
 
   // Enter swap mode if charges remain.  Returns true on success.
@@ -105,6 +109,33 @@ export class BoosterState {
     if (this.bombs <= 0) return false;
     this.bombs--;
     this.bombMode = false;
+    return true;
+  }
+
+  // ── Cycle booster ─────────────────────────────────────────────────────────
+
+  activateCycle() {
+    if (this.cycle <= 0) return false;
+    this.cycleMode = true;
+    return true;
+  }
+
+  cancelCycle() { this.cycleMode = false; }
+
+  // Called by DragDrop when the player taps a column in cycle mode.
+  // Rotates the column queue: top shooter → back, 2nd shooter becomes new top.
+  // Returns true if cycle was executed.
+  tapCycleColumn(colIdx, columns) {
+    if (!this.cycleMode) return false;
+    const col = columns[colIdx];
+    if (!col || col.shooters.length <= 1) {
+      this.cycleMode = false;   // nothing to cycle
+      return false;
+    }
+    const top = col.shooters.shift();   // remove from front
+    col.shooters.push(top);             // add to back → 2nd shooter is now top
+    this.cycle--;
+    this.cycleMode = false;
     return true;
   }
 }

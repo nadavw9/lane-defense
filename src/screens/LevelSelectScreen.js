@@ -263,8 +263,8 @@ export class LevelSelectScreen {
     startBg.eventMode = 'static'; startBg.cursor = 'pointer';
     startBg.on('pointerdown', () => {
       audio?.play('button_tap');
-      // Reset ad tracking for new level attempt.
-      adManager.resetForLevel();
+      // Ad progress is applied + reset by GameApp._startLevel — do NOT reset here.
+      clearInterval(rafId);
       popup.destroy({ children: true }); this._popup = null;
       onSelectLevel(levelId);
     });
@@ -285,6 +285,7 @@ export class LevelSelectScreen {
     backBtn.eventMode = 'static'; backBtn.cursor = 'pointer';
     backBtn.on('pointerdown', () => {
       audio?.play('button_tap');
+      clearInterval(rafId);
       popup.destroy({ children: true }); this._popup = null;
     });
     popup.addChild(backBtn);
@@ -297,25 +298,19 @@ export class LevelSelectScreen {
     });
     popup.addChild(lvlSel);
 
-    // Animate card entrance: slide up from below
+    // Animate card entrance: slide up from below.
+    // rafId is in outer scope so all close paths can clear it.
     popup.y = 80; popup.alpha = 0;
     let t = 0;
-    const tick = (ticker) => {
-      t += ticker.deltaMS / 1000;
-      const prog = Math.min(1, t / 0.22);
-      const ease = 1 - Math.pow(1 - prog, 3);
-      popup.y     = 80 * (1 - ease);
-      popup.alpha = ease;
-      if (prog >= 1) this._stage.app?.ticker?.remove(tick);
-    };
-    // Use a manual animation via requestAnimationFrame-style approach
-    const rafId = setInterval(() => {
+    let rafId = null;
+    rafId = setInterval(() => {
+      if (!popup.parent) { clearInterval(rafId); return; }  // popup already destroyed
       t += 1 / 60;
       const prog = Math.min(1, t / 0.22);
       const ease = 1 - Math.pow(1 - prog, 3);
       popup.y     = 80 * (1 - ease);
       popup.alpha = ease;
-      if (prog >= 1) clearInterval(rafId);
+      if (prog >= 1) { clearInterval(rafId); rafId = null; }
     }, 1000 / 60);
   }
 

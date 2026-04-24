@@ -298,8 +298,9 @@ export class Shooter3D {
     ctx.shadowBlur   = 4;
     ctx.fillText(String(damage), W / 2, H / 2);
     if (mat.map) mat.map.dispose();
-    mat.map          = new THREE.CanvasTexture(canvas);
-    mat.needsUpdate  = true;
+    mat.map = new THREE.CanvasTexture(canvas);
+    // Do NOT set mat.needsUpdate=true — causes a full shader recompile each time,
+    // which is the primary source of gameplay freeze on mobile.
   }
 
   dispose() {

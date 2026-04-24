@@ -14,27 +14,27 @@ const BTN_H   = 30;   // button height
 const BTN_Y   = BAR_Y + (BAR_H - BTN_H) / 2 - 8;  // vertically centre buttons in upper 50 px
 
 // Layout: 3 × 78 px small boosters | 8 px gap | 1 × 100 px bomb
-const SMALL_W  = 78;
-const BOMB_W   = 100;
-const GAP      = 7;
-const TOTAL_W  = 3 * SMALL_W + BOMB_W + 3 * GAP;  // 3*78+100+21 = 355
-const BAR_XOFF = Math.round((390 - TOTAL_W) / 2);  // ≈ 17 px left margin
+const SMALL_W  = 60;    // slightly smaller to fit 4 small + bomb
+const BOMB_W   = 84;
+const GAP      = 6;
+const TOTAL_W  = 4 * SMALL_W + BOMB_W + 4 * GAP;  // 4*60+84+24 = 348
+const BAR_XOFF = Math.round((390 - TOTAL_W) / 2);  // ≈ 21 px left margin
 
 const BTN_X = [
   BAR_XOFF,
   BAR_XOFF + SMALL_W + GAP,
   BAR_XOFF + 2 * (SMALL_W + GAP),
-  BAR_XOFF + 3 * SMALL_W + 2 * GAP + SMALL_W, // after last small + extra gap
+  BAR_XOFF + 3 * (SMALL_W + GAP),  // new CYCLE button
 ];
 // Recalc bomb X cleanly
-const BOMB_X  = BAR_XOFF + 3 * SMALL_W + 3 * GAP;
+const BOMB_X  = BAR_XOFF + 4 * SMALL_W + 4 * GAP;
 
 // Kill progress pips sit below the bomb button
 const PIP_Y   = BAR_Y + BAR_H - 16;  // bottom of bar minus 16 px
 const KILLS_PER_BOMB = 10;
 
 export class BoosterBar {
-  constructor(layerManager, boosterState, gameState, appW, onSwap, onPeek, onFreeze, onBomb) {
+  constructor(layerManager, boosterState, gameState, appW, onSwap, onPeek, onFreeze, onBomb, onCycle) {
     this._state = boosterState;
     this._gs    = gameState;
     this._layer = layerManager.get('hudLayer');
@@ -52,6 +52,7 @@ export class BoosterBar {
     this._swapBtn   = _makeBtn(this._layer, 'SWAP ×0',   BTN_X[0],  btnY, SMALL_W, BTN_H, 0x0d2040, 0x66aaff, onSwap);
     this._peekBtn   = _makeBtn(this._layer, 'PEEK ×0',   BTN_X[1],  btnY, SMALL_W, BTN_H, 0x0d2040, 0xaaff66, onPeek);
     this._freezeBtn = _makeBtn(this._layer, 'FREEZE ×0', BTN_X[2],  btnY, SMALL_W, BTN_H, 0x0a1a2a, 0x44ccff, onFreeze);
+    this._cycleBtn  = _makeBtn(this._layer, 'CYCLE ×3',  BTN_X[3],  btnY, SMALL_W, BTN_H, 0x1a1a0a, 0xffdd66, onCycle);
     this._bombBtn   = _makeBtn(this._layer, 'BOMB ×0',   BOMB_X,    btnY, BOMB_W,  BTN_H, 0x1a0800, 0xffaa00, onBomb);
 
     // Bomb button gets a prominent border glow (redrawn in update).
@@ -102,16 +103,19 @@ export class BoosterBar {
     const swapLabel   = `SWAP ×${s.swap}`;
     const peekLabel   = `PEEK ×${s.peek}`;
     const freezeLabel = `FREEZE ×${s.freeze}`;
+    const cycleLabel  = s.cycleMode ? 'TAP COL' : `CYCLE ×${s.cycle}`;
     const bombLabel   = s.bombMode ? 'CANCEL' : `BOMB ×${s.bombs}`;
 
     if (this._swapBtn.label.text   !== swapLabel)   this._swapBtn.label.text   = swapLabel;
     if (this._peekBtn.label.text   !== peekLabel)   this._peekBtn.label.text   = peekLabel;
     if (this._freezeBtn.label.text !== freezeLabel) this._freezeBtn.label.text = freezeLabel;
+    if (this._cycleBtn.label.text  !== cycleLabel)  this._cycleBtn.label.text  = cycleLabel;
     if (this._bombBtn.label.text   !== bombLabel)   this._bombBtn.label.text   = bombLabel;
 
     this._swapBtn.alpha   = s.swap   <= 0 ? 0.28 : s.swapMode ? 0.55 : 1.0;
     this._peekBtn.alpha   = (s.peek  <= 0 || s.isPeeking(el)) ? 0.28 : 1.0;
     this._freezeBtn.alpha = (s.freeze <= 0 || s.isFrozen(el))  ? 0.28 : 1.0;
+    this._cycleBtn.alpha  = s.cycle <= 0 ? 0.28 : s.cycleMode ? 0.55 : 1.0;
     this._bombBtn.alpha   = (s.bombs <= 0 && !s.bombMode) ? 0.30 : s.bombMode ? 0.70 : 1.0;
 
     // ── Bomb button glow / pulse ───────────────────────────────────────────

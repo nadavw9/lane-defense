@@ -152,6 +152,12 @@ export class DragDrop {
       return;
     }
 
+    // Cycle booster intercept: tap a column to rotate its queue (top → back).
+    if (col !== -1 && this._boosterState?.cycleMode) {
+      this._boosterState.tapCycleColumn(col, this._columns);
+      return;
+    }
+
     // Try starting a drag from a column top.
     if (col !== -1 && this._columns[col].top()) {
       const shooter = this._columns[col].top();
@@ -171,7 +177,10 @@ export class DragDrop {
 
   onPointerMove(x, y) {
     if (this._state !== 'dragging') return;
-    this._ghost.x = x + this._offsetX;
+    // Clamp ghost to canvas bounds so it's never hidden at screen edges.
+    // Hit-testing still uses raw pointer coords, so drop logic is unaffected.
+    const CLAMP = 50;
+    this._ghost.x = Math.max(CLAMP, Math.min(ROAD_BOTTOM_W - CLAMP, x + this._offsetX));
     this._ghost.y = y + this._offsetY;
     this._updateHighlights(x, y);
   }

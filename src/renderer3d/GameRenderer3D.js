@@ -223,8 +223,6 @@ export class GameRenderer3D {
       this._postFX.setBreach(0);
     }
 
-    if (this._cars) this._syncHpBarPositions();
-
     // Update front-car position cache (before cars may be removed by combat).
     if (this._lanes) {
       for (let i = 0; i < this._lanes.length; i++) {
@@ -314,15 +312,7 @@ export class GameRenderer3D {
     this._particles   = new Particles3D(scene, this._lighting, this._lanes);
   }
 
-  _syncHpBarPositions() {
-    if (!this._cars) return;
-    for (const [, entry] of this._cars._live) {
-      const g = entry.group;
-      // Scale the Y offset so the bar clears the visual top of scaled cars (boss = 1.35×).
-      const yOffset = 0.55 * (g.scale.y > 1 ? g.scale.y * 1.1 : 1);
-      entry.hpSprite.position.set(g.position.x, g.position.y + yOffset, g.position.z);
-    }
-  }
+  
 
   _syncCanvasSize() {
     if (!this._canvas) return;

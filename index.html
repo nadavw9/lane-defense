@@ -13,12 +13,35 @@
         align-items: center;
         height: 100vh;
         overflow: hidden;
-        touch-action: none;   /* prevent browser swipe gestures intercepting canvas drags */
+        touch-action: none;
       }
       canvas { display: block; touch-action: none; }
     </style>
   </head>
   <body>
+    <div id="err-overlay" style="position:fixed;top:0;left:0;right:0;max-height:60vh;overflow-y:auto;background:rgba(220,20,20,0.95);color:#fff;font:12px/1.4 monospace;padding:8px;z-index:99999;display:none;white-space:pre-wrap;word-break:break-word;"></div>
+    <script>
+      (function () {
+        var box = document.getElementById('err-overlay');
+        function log(label, msg) {
+          box.style.display = 'block';
+          box.textContent += '[' + label + '] ' + msg + '\n\n';
+        }
+        window.addEventListener('error', function (e) {
+          log('ERROR', (e.message||'') + '\n  at ' + (e.filename||'?') + ':' + (e.lineno||'?') + (e.error && e.error.stack ? '\n' + e.error.stack : ''));
+        });
+        window.addEventListener('unhandledrejection', function (e) {
+          var r = e.reason;
+          var msg = (r && (r.stack||r.message)) ? (r.stack||r.message) : String(r);
+          log('PROMISE', msg);
+        });
+        var origErr = console.error;
+        console.error = function () {
+          try { log('CONSOLE', Array.prototype.slice.call(arguments).map(String).join(' ')); } catch(_) {}
+          origErr.apply(console, arguments);
+        };
+      })();
+    </script>
     <script type="module" src="/src/renderer/GameApp.js"></script>
   </body>
 </html>

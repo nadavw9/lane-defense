@@ -16,6 +16,13 @@ export const CAM_POS    = new THREE.Vector3(0, 9, 16);
 export const CAM_TARGET = new THREE.Vector3(0, 0, -8);
 export const CAM_FOV    = 60;
 
+// Level intro sweep: start position + look target
+const INTRO_FROM_POS    = new THREE.Vector3(0, 12, 20);
+const INTRO_FROM_TARGET = new THREE.Vector3(0, 0,  8);   // steep-ish downward look
+const INTRO_DURATION    = 0.60;   // seconds
+
+function _easeOutCubic(t) { return 1 - Math.pow(1 - Math.min(t, 1), 3); }
+
 // Shake constants
 const SHAKE_DECAY = 0.35;   // seconds for shake to fully decay
 
@@ -49,8 +56,12 @@ export class CameraFX {
     this._breachDone     = false;
 
     // ── Combo pull-back ──────────────────────────────────────────────────────
-    this._targetPullbackZ = 0;
+    this._targetPullbackZ  = 0;
     this._currentPullbackZ = 0;
+
+    // ── Level intro sweep ────────────────────────────────────────────────────
+    this._introActive = false;
+    this._introT      = 0;
   }
 
   // ── Public ───────────────────────────────────────────────────────────────────
@@ -98,7 +109,6 @@ export class CameraFX {
     // ── Shake ────────────────────────────────────────────────────────────────
     if (this._shakeTime > 0) {
       this._shakeTime -= dt;
-      // Clamp t to [0,1] so magnitude never exceeds the requested value.
       const t = Math.max(0, Math.min(1, this._shakeTime / SHAKE_DECAY));
       const m = this._shakeMag * t;
       shakeX = (Math.random() - 0.5) * 2 * m;
@@ -110,19 +120,42 @@ export class CameraFX {
     // ── Combo pull-back (lerp toward target) ─────────────────────────────────
     this._currentPullbackZ += (this._targetPullbackZ - this._currentPullbackZ) * Math.min(1, dt * 3);
 
-    // ── Apply position offsets ────────────────────────────────────────────────
-    cam.position.set(
-      CAM_POS.x + shakeX,
-      CAM_POS.y + shakeY,
-      CAM_POS.z + this._currentPullbackZ,
-    );
-    cam.lookAt(CAM_TARGET);
+    // ── Level intro sweep (overrides normal position while active) ────────────
+    if (this._introActive) {
+      this._introT += dt;
+      const e = _easeOutCubic(this._introT / INTRO_DURATION);
+
+      // Lerp position from intro start → resting pose
+      const px = INTRO_FROM_POS.x + (CAM_POS.x - INTRO_FROM_POS.x) * e + shakeX;
+      const py = INTRO_FROM_POS.y + (CAM_POS.y - INTRO_FROM_POS.y) * e + shakeY;
+      const pz = INTRO_FROM_POS.z + (CAM_POS.z + this._currentPullbackZ - INTRO_FROM_POS.z) * e;
+      cam.position.set(px, py, pz);
+
+      // Lerp lookAt target from steep intro → gameplay target
+      const tx = INTRO_FROM_TARGET.x + (CAM_TARGET.x - INTRO_FROM_TARGET.x) * e;
+      const ty = INTRO_FROM_TARGET.y + (CAM_TARGET.y - INTRO_FROM_TARGET.y) * e;
+      const tz = INTRO_FROM_TARGET.z + (CAM_TARGET.z - INTRO_FROM_TARGET.z) * e;
+      cam.lookAt(tx, ty, tz);
+
+      if (this._introT >= INTRO_DURATION) {
+        this._introActive = false;
+        cam.position.set(CAM_POS.x + shakeX, CAM_POS.y + shakeY, CAM_POS.z + this._currentPullbackZ);
+        cam.lookAt(CAM_TARGET);
+      }
+    } else {
+      // ── Normal position ───────────────────────────────────────────────────
+      cam.position.set(
+        CAM_POS.x + shakeX,
+        CAM_POS.y + shakeY,
+        CAM_POS.z + this._currentPullbackZ,
+      );
+      cam.lookAt(CAM_TARGET);
+    }
 
     // ── Breach FoV zoom ───────────────────────────────────────────────────────
     if (this._breachT >= 0 && !this._breachDone) {
       this._breachT += dt;
       const prog = Math.min(1, this._breachT / this._breachDuration);
-      // Sine pulse: peaks at prog=0.5, returns to base at prog=1.
       const fovRange = CAM_FOV - ZOOM_FOV_MIN;
       cam.fov = CAM_FOV - fovRange * Math.sin(Math.PI * prog);
       cam.updateProjectionMatrix();
@@ -135,7 +168,20 @@ export class CameraFX {
       }
     }
 
-    return this._shakeTime > 0 || (this._breachT >= 0 && !this._breachDone);
+    return this._shakeTime > 0 || (this._breachT >= 0 && !this._breachDone) || this._introActive;
+  }
+
+  /**
+   * Sweep camera from a high steep angle to the gameplay resting pose over 0.6 s.
+   * Call once when a level begins.
+   */
+  startLevelIntro() {
+    this._introActive = true;
+    this._introT      = 0;
+    // Jump camera to intro start immediately so the sweep begins from there.
+    this._camera.position.copy(INTRO_FROM_POS);
+    this._camera.lookAt(INTRO_FROM_TARGET);
+    this._camera.updateProjectionMatrix();
   }
 
   /** Reset to resting pose (call when leaving gameplay). */

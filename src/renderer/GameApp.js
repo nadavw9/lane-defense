@@ -524,10 +524,12 @@ async function main() {
     carRenderer.clearAll();
     firingLineRenderer.reset();
     gameRenderer3D.resetLevel();
+    gameRenderer3D.startLevelIntro();
     gameRenderer3D.setCombo(0);
     // Lane count: no visual lane-covering — all lanes render identically.
     // gameRenderer3D.setActiveLaneCount and laneRenderer.setActiveLaneCount removed per UX.
     shooterRenderer.enable3DMode(true);
+    shooterRenderer.container.visible = false;
 
     // Start the game-loop ticker exactly once; restart() resets state each time.
     if (!gameLoopStarted) {
@@ -1271,6 +1273,12 @@ async function main() {
           APP_W / 2, 700,
           'BENCH FULL', 0xff6644,
         ));
+      },
+      onLaneHover: (laneIdx, colorHex) => {
+        gameRenderer3D.showLaneGlow(laneIdx, colorHex);
+      },
+      onLaneClear: () => {
+        gameRenderer3D.clearLaneGlow();
       },
     },
     boosterState,

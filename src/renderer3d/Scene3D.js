@@ -12,6 +12,20 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass }      from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
+// ── Tweakable design constants ─────────────────────────────────────────────────
+const FOG_COLOR = 0x1a3a6e;   // matches Skybox3D SKY_FAR
+const FOG_NEAR  = 15;
+const FOG_FAR   = 45;
+
+// Shooter background gradient (top = near road, bottom = deep navy)
+const SHOOTER_BG_TOP = 0x2a2a32;   // matches Road3D COL_ASPHALT
+const SHOOTER_BG_BOT = 0x0d0f1e;
+
+// Shooter viewport column divider style
+const DIV_COLOR      = 0xddddcc;   // yellow-white, matches Road3D COL_DIVIDER
+const DIV_OPACITY_HI = 0.75;       // opacity at top (near road boundary)
+const DIV_OPACITY_LO = 0.10;       // opacity at bottom
+
 // ── Layout constants ───────────────────────────────────────────────────────────
 export const ROAD_Z_FAR   = -40;
 export const ROAD_Z_NEAR  =   0;
@@ -39,76 +53,105 @@ export class Scene3D {
       antialias:       true,
       powerPreference: 'high-performance',
     });
-    this.renderer.setSize(width, height, false);  // false = don't override CSS (_syncCanvasSize owns that)
+    this.renderer.setSize(width, height, false);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.shadowMap.enabled  = false;   // disabled — too expensive on mobile
+    this.renderer.shadowMap.enabled  = false;
     this.renderer.toneMapping        = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.1;
     this.renderer.outputColorSpace   = THREE.SRGBColorSpace;
 
     // ── Scene ───────────────────────────────────────────────────────────────
     this.scene = new THREE.Scene();
-    this.scene.fog = new THREE.FogExp2(0x090e16, 0.022);
+    // Linear fog — distant cars emerge from atmospheric haze
+    this.scene.fog = new THREE.Fog(FOG_COLOR, FOG_NEAR, FOG_FAR);
 
-    // ── Environment map (drives PBR reflections on road + cars) ─────────────
-    // RoomEnvironment generates a simple PMREM env map from a virtual room of
-    // area lights — cheap to compute at startup, gives PBR materials realistic
-    // ambient reflections without a full cube render pass every frame.
+    // ── Environment map ──────────────────────────────────────────────────────
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     pmrem.compileEquirectangularShader();
     this._envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.scene.environment    = this._envMap;
-    this.scene.environmentIntensity = 0.35;   // subtle — road stay dark
+    this.scene.environment         = this._envMap;
+    this.scene.environmentIntensity = 0.35;
     pmrem.dispose();
 
-    // ── Road camera — perspective, angled view (player behind the breach line) ──
+    // ── Road camera ──────────────────────────────────────────────────────────
     this.camera = new THREE.PerspectiveCamera(65, width / height, 0.1, 200);
     this.camera.position.set(0, 7, 12);
     this.camera.lookAt(0, 0, -10);
     this.camera.layers.set(0);
 
-    // ── HP sprite camera — same position as road camera, sees only layer 2 ──
+    // ── HP sprite camera ─────────────────────────────────────────────────────
     this.hpCamera = new THREE.PerspectiveCamera(65, width / height, 0.1, 200);
     this.hpCamera.position.set(0, 7, 12);
     this.hpCamera.lookAt(0, 0, -10);
     this.hpCamera.layers.set(2);
 
-    // ── Shooter viewport camera — top-down orthographic (separate viewport) ──
+    // ── Shooter viewport camera — top-down orthographic ──────────────────────
     this.shooterCamera = new THREE.OrthographicCamera(-6, 6, 2.0, -1.8, -50, 50);
     this.shooterCamera.position.set(0, 4.5, 0);
     this.shooterCamera.up.set(0, 0, -1);
     this.shooterCamera.lookAt(0, 0, 0);
     this.shooterCamera.layers.set(1);
 
-    // Flat dark-navy ground plane for the shooter viewport (layer 1).
-    // PlaneGeometry lies in XY by default; rotate -π/2 around X to lie flat (XZ plane).
-    // Extended to cover the gap between road (Z=0) and shooter slots (Z=-1.5 to 1.4).
-    this._shooterBgGeo = new THREE.PlaneGeometry(16, 10);   // increased from 8 to 10
-    this._shooterBgMat = new THREE.MeshBasicMaterial({ color: 0x0d0f1e });
+    // ── Shooter background — vertical gradient (top → COL_ASPHALT, bottom → navy)
+    // PlaneGeometry in XY rotated -π/2 → lies flat in XZ.
+    // Local Y maps to world -Z: Y=+5 → world Z=-4.3 (top, near road),
+    //                           Y=-5 → world Z=+5.7 (bottom, below viewport).
+    this._shooterBgGeo = new THREE.PlaneGeometry(16, 10, 1, 3);
+    const bgPos    = this._shooterBgGeo.attributes.position;
+    const bgColors = [];
+    const topCol   = new THREE.Color(SHOOTER_BG_TOP);
+    const botCol   = new THREE.Color(SHOOTER_BG_BOT);
+    for (let i = 0; i < bgPos.count; i++) {
+      // t=1 at local Y=+5 (top, near road), t=0 at local Y=-5 (bottom)
+      const t = (bgPos.getY(i) + 5) / 10;
+      const c = new THREE.Color().lerpColors(botCol, topCol, t);
+      bgColors.push(c.r, c.g, c.b);
+    }
+    this._shooterBgGeo.setAttribute('color', new THREE.Float32BufferAttribute(bgColors, 3));
+    this._shooterBgMat = new THREE.MeshBasicMaterial({ vertexColors: true });
     this._shooterBg    = new THREE.Mesh(this._shooterBgGeo, this._shooterBgMat);
     this._shooterBg.rotation.x = -Math.PI / 2;
-    this._shooterBg.position.set(0, -0.2, 0.7);   // moved back to cover gap
+    this._shooterBg.position.set(0, -0.2, 0.7);
     this._shooterBg.layers.set(1);
     this.scene.add(this._shooterBg);
 
-    // Thin column dividers (layer 1) — faint lines at X=-3, 0, +3.
-    const divMat = new THREE.MeshBasicMaterial({ color: 0x1e2a48 });
-    for (const dx of [-3, 0, 3]) {
-      const div = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.01, 8), divMat);
-      div.position.set(dx, -0.19, 0.5);
-      div.layers.set(1);
-      this.scene.add(div);
+    // ── Dashed column dividers — yellow-white, fading from bright (near road)
+    // to faint (bottom). Aligns with Road3D lane divider markings at x=-3,0,+3.
+    const DIV_XS    = [-3, 0, 3];
+    const Z_TOP     = -1.5;  // near road boundary (top of shooter viewport)
+    const Z_BOT     =  1.4;  // bottom of shooter viewport
+    const DIV_RANGE = Z_BOT - Z_TOP;
+    const DASH_LEN  = 0.18;
+    const GAP_LEN   = 0.12;
+    const PERIOD    = DASH_LEN + GAP_LEN;
+    const DASH_CT   = Math.ceil(DIV_RANGE / PERIOD);
+
+    this._divMaterials = [];   // kept for dispose()
+    for (const dx of DIV_XS) {
+      for (let d = 0; d < DASH_CT; d++) {
+        const z = Z_TOP + d * PERIOD + DASH_LEN / 2;
+        if (z > Z_BOT) break;
+        const t       = (z - Z_TOP) / DIV_RANGE;   // 0 = top, 1 = bottom
+        const opacity = DIV_OPACITY_HI - t * (DIV_OPACITY_HI - DIV_OPACITY_LO);
+        const mat = new THREE.MeshBasicMaterial({
+          color: DIV_COLOR, transparent: true, opacity,
+        });
+        this._divMaterials.push(mat);
+        const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.05, DASH_LEN), mat);
+        dash.rotation.x = -Math.PI / 2;
+        dash.position.set(dx, -0.18, z);
+        dash.layers.set(1);
+        this.scene.add(dash);
+      }
     }
 
     // ── Post-Processing ─────────────────────────────────────────────────────
-    // Pass order: RenderPass → BloomPass → [ChromaPass → VignettePass] → OutputPass
-    // The custom PostFX passes are inserted by PostFX3D after bloom.
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
 
     this._bloomPass = new UnrealBloomPass(
       new THREE.Vector2(width, height),
-      /* strength  */ 0.0,   // disabled — too expensive on mobile
+      /* strength  */ 0.0,
       /* radius    */ 0.35,
       /* threshold */ 1.0,
     );
@@ -119,49 +162,40 @@ export class Scene3D {
   resize(width, height) {
     this.width  = width;
     this.height = height;
-    this.renderer.setSize(width, height, false);  // false = don't override CSS
+    this.renderer.setSize(width, height, false);
     this.composer.setSize(width, height);
     this._bloomPass.resolution.set(width, height);
-    // Update perspective camera aspect ratio.
     this.camera.aspect   = width / height;
     this.camera.updateProjectionMatrix();
     this.hpCamera.aspect = width / height;
     this.hpCamera.updateProjectionMatrix();
   }
 
-  // Standard single-pass render.
   render() { this.composer.render(); }
 
-  // Three-pass render:
-  //   Pass 1 — road scene via bloom+PostFX composer → full canvas (layer 0)
-  //   Pass 2 — HP sprites → full canvas (layer 2, after PostFX so never bloomed)
-  //   Pass 3 — shooter columns → bottom 180 px (layer 1, no bloom)
   renderDual() {
     const { renderer, composer } = this;
     const w = this.width;
     const h = this.height;
-    const SHOOTER_GL_Y = h - 700;   // 844 - 700 = 144 in WebGL coords
+    const SHOOTER_GL_Y = h - 700;
     const SHOOTER_GL_H = 180;
 
     renderer.autoClear = false;
 
-    // Pass 1: road + PostFX (full canvas, layer 0).
     renderer.setViewport(0, 0, w, h);
     renderer.clear(true, true, true);
     composer.render();
 
-    // Pass 2: HP sprites on top of PostFX output (full canvas, layer 2).
     renderer.clearDepth();
     renderer.render(this.scene, this.hpCamera);
 
-    // Pass 3: shooter columns (bottom viewport, layer 1, no bloom).
     renderer.clearDepth();
     renderer.setViewport(0, SHOOTER_GL_Y, w, SHOOTER_GL_H);
     renderer.setScissor(0, SHOOTER_GL_Y, w, SHOOTER_GL_H);
     renderer.setScissorTest(true);
     renderer.render(this.scene, this.shooterCamera);
     renderer.setScissorTest(false);
-    renderer.setViewport(0, 0, w, h);   // restore
+    renderer.setViewport(0, 0, w, h);
 
     renderer.autoClear = true;
   }
@@ -170,6 +204,7 @@ export class Scene3D {
     this._envMap?.dispose();
     this._shooterBgGeo?.dispose();
     this._shooterBgMat?.dispose();
+    for (const m of this._divMaterials) m.dispose();
     this.composer.dispose();
     this.renderer.dispose();
   }

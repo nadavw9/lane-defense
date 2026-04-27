@@ -179,25 +179,10 @@ export class FTUEOverlay {
 
   // ── Private ────────────────────────────────────────────────────────────────
 
-  _buildDimMask(w, cfg) {
-    const { laneCount, colCount } = cfg;
-    const g = new Graphics();
-
-    if (laneCount < TOTAL_LANES) {
-      const topLx = ROAD_TOP_X + laneCount * ROAD_TOP_W  / TOTAL_LANES;
-      const topRx = ROAD_TOP_X + ROAD_TOP_W;
-      const botLx =              laneCount * ROAD_BOTTOM_W / TOTAL_LANES;
-      const botRx =              ROAD_BOTTOM_W;
-      g.poly([topLx, ROAD_TOP_Y, topRx, ROAD_TOP_Y, botRx, ROAD_BOTTOM_Y, botLx, ROAD_BOTTOM_Y]);
-      g.fill({ color: 0x000000, alpha: 0.72 });
-    }
-
-    if (colCount < TOTAL_COLS) {
-      g.rect(colCount * COL_W, SHOOTER_AREA_Y, w - colCount * COL_W, SHOOTER_AREA_H);
-      g.fill({ color: 0x000000, alpha: 0.72 });
-    }
-
-    this._container.addChild(g);
+  _buildDimMask(_w, _cfg) {
+    // The 3D road renders only the active lanes — no inactive lane area to dim.
+    // Previously this drew a black trapezoid over inactive PixiJS lane columns,
+    // but that overlay covers the 3D scene now that lane count adapts in 3D.
   }
 
   _buildBanner(w, text) {

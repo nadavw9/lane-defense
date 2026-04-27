@@ -523,6 +523,7 @@ async function main() {
     firstKillDoneThisLevel      = false;
     carRenderer.clearAll();
     firingLineRenderer.reset();
+    firingLineRenderer.setActiveLaneCount(cfg.laneCount ?? 4);
     gameRenderer3D.resetLevel();
     gameRenderer3D.setActiveLaneCount(cfg.laneCount ?? 4);
     gameRenderer3D.startLevelIntro();

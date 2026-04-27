@@ -4,8 +4,8 @@
 import * as THREE from 'three';
 
 const SKY_NEAR    = 0x4a1a5c;   // deep purple (zenith)
-const SKY_FAR     = 0x1a3a6e;   // blue (mid-sky)
-const SKY_HORIZON = 0x2a8a9e;   // teal horizon band (lowest 15%)
+const SKY_FAR     = 0x1a3a6e;   // dark blue (mid-sky)
+const SKY_HORIZON = 0x0d1a2e;   // very dark navy at horizon — avoids blue-sky look
 const BUILD_FAR   = 0x0b1520;
 const BUILD_NEAR  = 0x0f1d2c;
 const BUILD_FAR2  = 0x070d18;   // second silhouette layer colour

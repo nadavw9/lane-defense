@@ -43,8 +43,9 @@ export class FiringLineRenderer {
     this._layer       = layerManager.get('activeShooterLayer');
     this._firingSlots = firingSlots;   // live ref to gs.firingSlots — never replaced
 
-    this._hoverIdx   = -1;
-    this._hoverMatch = true;
+    this._hoverIdx        = -1;
+    this._hoverMatch      = true;
+    this._activeLaneCount = LANE_COUNT;
 
     // Per-slot persistent display objects
     this._bgGraphics = [];
@@ -70,6 +71,10 @@ export class FiringLineRenderer {
     }
   }
 
+  setActiveLaneCount(n) {
+    this._activeLaneCount = n;
+  }
+
   // DragDrop calls this while a shooter is dragged over an empty slot.
   // isMatch — true if the shooter color matches the lane's front car.
   setHoverSlot(idx, isMatch) {
@@ -92,6 +97,15 @@ export class FiringLineRenderer {
   update(dt) {
     for (let i = 0; i < LANE_COUNT; i++) {
       const g    = this._bgGraphics[i];
+
+      // Inactive lanes: clear and hide — don't draw empty slot circles.
+      if (i >= this._activeLaneCount) {
+        g.clear();
+        this._sprites[i].visible = false;
+        this._slotWasActive[i]   = false;
+        continue;
+      }
+
       const slot = this._firingSlots[i];
       const cx   = (i + 0.5) * ROAD_BOTTOM_W / LANE_COUNT;
       const cy   = ROAD_BOTTOM_Y;

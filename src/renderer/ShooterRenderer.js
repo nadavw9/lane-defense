@@ -132,6 +132,11 @@ export class ShooterRenderer {
 
     this.draggingColumn = -1;
 
+    // Wrapper container for all 4 column UIs — hides them without touching BenchRenderer.
+    // Exposed as `container` so GameApp can call shooterRenderer.container.visible = false.
+    this._columnsGroup = new Container();
+    this._layer.addChild(this._columnsGroup);
+
     // Per-column objects
     this._bgGraphics    = [];   // panel bg + swap highlight
     this._topContainers = [];   // Container at (cx, topY) — scale-animated
@@ -151,7 +156,7 @@ export class ShooterRenderer {
 
     for (let i = 0; i < COL_COUNT; i++) {
       const colContainer = new Container();
-      this._layer.addChild(colContainer);
+      this._columnsGroup.addChild(colContainer);
 
       // ── Panel background ────────────────────────────────────────────────────
       const bgG = new Graphics();
@@ -244,6 +249,9 @@ export class ShooterRenderer {
   // Call with true during gameplay so Shooter3D handles the visuals.
   // Panels become transparent; 2D circles are hidden.
   enable3DMode(enabled) { this._mode3D = !!enabled; }
+
+  /** Hides/shows all 4 column UIs without touching BenchRenderer (same layer). */
+  get container() { return this._columnsGroup; }
 
   update(elapsed, dt = 0) {
     const bounce    = Math.sin(elapsed * BOUNCE_SPEED) * BOUNCE_AMP;

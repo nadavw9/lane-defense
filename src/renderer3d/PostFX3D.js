@@ -67,14 +67,15 @@ const ChromaShader = {
   `,
 };
 
-// ── Vignette + Breach Pulse Shader ────────────────────────────────────────────
+// ── Vignette + Breach Pulse + Flash Shader ────────────────────────────────────
 const VignetteShader = {
   name: 'VignetteShader',
   uniforms: {
-    tDiffuse:    { value: null },
-    vigStrength: { value: 0.55 },   // base dark edge strength
-    breachPulse: { value: 0.0 },    // 0..1 red breach overlay
-    comboTint:   { value: 0.0 },    // 0..1 warm orange combo tint
+    tDiffuse:      { value: null },
+    vigStrength:   { value: 0.55 },   // base dark edge strength
+    breachPulse:   { value: 0.0 },    // 0..1 red breach overlay
+    comboTint:     { value: 0.0 },    // 0..1 warm orange combo tint
+    flashIntensity: { value: 0.0 },   // 0..1 white screen flash (bomb detonation)
   },
   vertexShader: /* glsl */`
     varying vec2 vUv;
@@ -88,6 +89,7 @@ const VignetteShader = {
     uniform float vigStrength;
     uniform float breachPulse;
     uniform float comboTint;
+    uniform float flashIntensity;
     varying vec2 vUv;
     void main() {
       vec4 col = texture2D(tDiffuse, vUv);
@@ -100,6 +102,8 @@ const VignetteShader = {
       result = mix(result, vec3(0.75, 0.0, 0.0), mask * breachPulse);
       // High-combo: warm orange edge tint.
       result = mix(result, vec3(0.9, 0.45, 0.0), mask * comboTint * 0.35);
+      // Bomb flash: full-screen white overlay, slightly attenuated at edges.
+      result = mix(result, vec3(1.0), flashIntensity * (1.0 - mask * 0.4));
       gl_FragColor = vec4(result, 1.0);
     }
   `,
@@ -140,6 +144,10 @@ export class PostFX3D {
 
     // Lens distortion target — kept at 0; lens warp is disabled.
     this._lensTarget    = 0.0;
+
+    // Screen flash state (bomb detonation).
+    this._flashCurrent = 0;
+    this._flashDecay   = 0;
   }
 
   // ── Public API ───────────────────────────────────────────────────────────────
@@ -152,6 +160,15 @@ export class PostFX3D {
 
   setBreach(t) {
     this._breachTarget = Math.max(0, Math.min(1, t));
+  }
+
+  /**
+   * Instant white screen flash that decays over `duration` seconds.
+   * Max alpha 0.4. Used for bomb detonation impact.
+   */
+  setFlash(intensity = 0.4, duration = 0.05) {
+    this._flashCurrent = Math.min(0.4, intensity);
+    this._flashDecay   = this._flashCurrent / Math.max(0.001, duration);
   }
 
   setCombo(combo) {
@@ -175,6 +192,12 @@ export class PostFX3D {
     // Combo tint lerp.
     this._comboCurrent += (this._comboTarget - this._comboCurrent) * Math.min(1, dt * 4);
     this._vignettePass.uniforms.comboTint.value = this._comboCurrent;
+
+    // Flash decay (instant-on, rapid decay).
+    if (this._flashCurrent > 0) {
+      this._flashCurrent = Math.max(0, this._flashCurrent - this._flashDecay * dt);
+    }
+    this._vignettePass.uniforms.flashIntensity.value = this._flashCurrent;
   }
 
   dispose() {

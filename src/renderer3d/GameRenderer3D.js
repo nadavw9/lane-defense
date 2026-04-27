@@ -186,12 +186,28 @@ export class GameRenderer3D {
    */
   onBombExplode(bombPos, carsHit) {
     this._particles?.spawnBombExplosion(bombPos);
-    // Strong camera shake proportional to cars hit, minimum always felt
     const shakeMag = 0.30 + Math.min(carsHit, 6) * 0.04;
     this._cameraFX?.shake(shakeMag, 0.55);
-    // Bloom spike + post-FX chroma aberration
     this._scene3d?.setBloomStrength(1.5);
     this._postFX?.triggerChroma(0.05, 0.60);
+    // Expanding ring decal on road surface + white screen flash
+    this._road?.spawnBombRing(bombPos);
+    this._postFX?.setFlash(0.4, 0.05);
+  }
+
+  /** Show a colored glow plane on the road lane during drag-hover. */
+  showLaneGlow(laneIdx, colorHex) {
+    this._road?.showLaneGlow(laneIdx, colorHex);
+  }
+
+  /** Remove the lane glow plane when pointer leaves the lane. */
+  clearLaneGlow() {
+    this._road?.clearLaneGlow();
+  }
+
+  /** Sweep camera from high steep angle to gameplay position over 0.6 s. */
+  startLevelIntro() {
+    this._cameraFX?.startLevelIntro();
   }
 
   setActiveLaneCount(n) {

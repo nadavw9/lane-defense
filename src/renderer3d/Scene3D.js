@@ -1,9 +1,14 @@
 // Scene3D — Three.js scene, camera, renderer, and post-processing pipeline.
 //
 // Coordinate system:
-//   X: -6 (left) → +6 (right)   — 4 lanes centered, each ~3 units wide
+//   X: symmetric around 0, width scales with active lane count
 //   Y: 0 = road surface, positive = up
 //   Z: -40 (far/horizon) → +2 (near/bottom of screen)
+//
+// Lane layout adapts dynamically:
+//   n lanes → each lane is 3 world-units wide, symmetric around x=0
+//   laneToX(idx, n) computes the centre X of lane idx for n active lanes
+//   roadHalfW(n)    computes the half-width of the road for n active lanes
 
 import * as THREE from 'three';
 import { EffectComposer }  from 'three/addons/postprocessing/EffectComposer.js';
@@ -17,25 +22,51 @@ const FOG_COLOR = 0x1a3a6e;   // matches Skybox3D SKY_FAR
 const FOG_NEAR  = 15;
 const FOG_FAR   = 45;
 
-// Shooter background gradient (top = near road, bottom = deep navy)
-const SHOOTER_BG_TOP = 0x2a2a32;   // matches Road3D COL_ASPHALT
-const SHOOTER_BG_BOT = 0x0d0f1e;
-
 // Shooter viewport column divider style
 const DIV_COLOR      = 0xddddcc;   // yellow-white, matches Road3D COL_DIVIDER
 const DIV_OPACITY_HI = 0.75;       // opacity at top (near road boundary)
 const DIV_OPACITY_LO = 0.10;       // opacity at bottom
 
 // ── Layout constants ───────────────────────────────────────────────────────────
-export const ROAD_Z_FAR   = -40;
-export const ROAD_Z_NEAR  =   0;
-export const LANE_X       = [-4.5, -1.5, 1.5, 4.5];
-export const ROAD_HALF_W  = 6.5;
+export const ROAD_Z_FAR  = -40;
+export const ROAD_Z_NEAR =   0;
+
+// 4-lane backward-compat constants (static).
+export const ROAD_HALF_W = 6.5;
+export const LANE_X      = [-4.5, -1.5, 1.5, 4.5];
+
+// ── Module-level active lane count ─────────────────────────────────────────────
+// All renderers that import laneToX() use this as the default so they
+// automatically adapt when a new level starts — no call-site changes needed.
+let _activeLaneCount = 4;
+
+export function setActiveLaneCount(n) { _activeLaneCount = n; }
+
+/**
+ * Centre X of lane `laneIdx` for a road with `n` active lanes.
+ * Each lane is 3 world-units wide, symmetric around x=0.
+ *   n=1: lane 0 → 0
+ *   n=2: lanes → -1.5, +1.5
+ *   n=4: lanes → -4.5, -1.5, +1.5, +4.5
+ *
+ * Callers that omit `n` get the current active lane count automatically.
+ */
+export function laneToX(laneIdx, n = _activeLaneCount) {
+  const laneW = 3.0;
+  return -(n * laneW) / 2 + laneW / 2 + laneIdx * laneW;
+}
+
+/**
+ * Half-width of the road (centre → outer edge, excluding barrier) for n lanes.
+ *   n=1 → 2.0   n=2 → 3.5   n=3 → 5.0   n=4 → 6.5 (= legacy ROAD_HALF_W)
+ */
+export function roadHalfW(n = _activeLaneCount) {
+  return n * 1.5 + 0.5;
+}
 
 export function posToZ(position) {
   return ROAD_Z_FAR + (position / 100) * (ROAD_Z_NEAR - ROAD_Z_FAR);
 }
-export function laneToX(laneIdx) { return LANE_X[laneIdx]; }
 export function posToWorld(laneIdx, position) {
   return new THREE.Vector3(laneToX(laneIdx), 0, posToZ(position));
 }
@@ -55,21 +86,20 @@ export class Scene3D {
     });
     this.renderer.setSize(width, height, false);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.shadowMap.enabled  = false;
-    this.renderer.toneMapping        = THREE.ACESFilmicToneMapping;
+    this.renderer.shadowMap.enabled   = false;
+    this.renderer.toneMapping         = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.1;
-    this.renderer.outputColorSpace   = THREE.SRGBColorSpace;
+    this.renderer.outputColorSpace    = THREE.SRGBColorSpace;
 
     // ── Scene ───────────────────────────────────────────────────────────────
     this.scene = new THREE.Scene();
-    // Linear fog — distant cars emerge from atmospheric haze
     this.scene.fog = new THREE.Fog(FOG_COLOR, FOG_NEAR, FOG_FAR);
 
     // ── Environment map ──────────────────────────────────────────────────────
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     pmrem.compileEquirectangularShader();
     this._envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.scene.environment         = this._envMap;
+    this.scene.environment          = this._envMap;
     this.scene.environmentIntensity = 0.35;
     pmrem.dispose();
 
@@ -85,65 +115,18 @@ export class Scene3D {
     this.hpCamera.lookAt(0, 0, -10);
     this.hpCamera.layers.set(2);
 
-    // ── Shooter viewport camera — top-down orthographic ──────────────────────
-    this.shooterCamera = new THREE.OrthographicCamera(-6, 6, 2.0, -1.8, -50, 50);
+    // ── Shooter viewport — top-down orthographic, adapts to lane count ────────
+    const hw = roadHalfW(4);
+    this.shooterCamera = new THREE.OrthographicCamera(-hw, hw, 2.0, -1.8, -50, 50);
     this.shooterCamera.position.set(0, 4.5, 0);
     this.shooterCamera.up.set(0, 0, -1);
     this.shooterCamera.lookAt(0, 0, 0);
     this.shooterCamera.layers.set(1);
 
-    // ── Shooter background — vertical gradient (top → COL_ASPHALT, bottom → navy)
-    // PlaneGeometry in XY rotated -π/2 → lies flat in XZ.
-    // Local Y maps to world -Z: Y=+5 → world Z=-4.3 (top, near road),
-    //                           Y=-5 → world Z=+5.7 (bottom, below viewport).
-    this._shooterBgGeo = new THREE.PlaneGeometry(16, 10, 1, 3);
-    const bgPos    = this._shooterBgGeo.attributes.position;
-    const bgColors = [];
-    const topCol   = new THREE.Color(SHOOTER_BG_TOP);
-    const botCol   = new THREE.Color(SHOOTER_BG_BOT);
-    for (let i = 0; i < bgPos.count; i++) {
-      // t=1 at local Y=+5 (top, near road), t=0 at local Y=-5 (bottom)
-      const t = (bgPos.getY(i) + 5) / 10;
-      const c = new THREE.Color().lerpColors(botCol, topCol, t);
-      bgColors.push(c.r, c.g, c.b);
-    }
-    this._shooterBgGeo.setAttribute('color', new THREE.Float32BufferAttribute(bgColors, 3));
-    this._shooterBgMat = new THREE.MeshBasicMaterial({ vertexColors: true });
-    this._shooterBg    = new THREE.Mesh(this._shooterBgGeo, this._shooterBgMat);
-    this._shooterBg.rotation.x = -Math.PI / 2;
-    this._shooterBg.position.set(0, -0.2, 0.7);
-    this._shooterBg.layers.set(1);
-    this.scene.add(this._shooterBg);
-
-    // ── Dashed column dividers — yellow-white, fading from bright (near road)
-    // to faint (bottom). Aligns with Road3D lane divider markings at x=-3,0,+3.
-    const DIV_XS    = [-3, 0, 3];
-    const Z_TOP     = -1.5;  // near road boundary (top of shooter viewport)
-    const Z_BOT     =  1.4;  // bottom of shooter viewport
-    const DIV_RANGE = Z_BOT - Z_TOP;
-    const DASH_LEN  = 0.18;
-    const GAP_LEN   = 0.12;
-    const PERIOD    = DASH_LEN + GAP_LEN;
-    const DASH_CT   = Math.ceil(DIV_RANGE / PERIOD);
-
-    this._divMaterials = [];   // kept for dispose()
-    for (const dx of DIV_XS) {
-      for (let d = 0; d < DASH_CT; d++) {
-        const z = Z_TOP + d * PERIOD + DASH_LEN / 2;
-        if (z > Z_BOT) break;
-        const t       = (z - Z_TOP) / DIV_RANGE;   // 0 = top, 1 = bottom
-        const opacity = DIV_OPACITY_HI - t * (DIV_OPACITY_HI - DIV_OPACITY_LO);
-        const mat = new THREE.MeshBasicMaterial({
-          color: DIV_COLOR, transparent: true, opacity,
-        });
-        this._divMaterials.push(mat);
-        const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.05, DASH_LEN), mat);
-        dash.rotation.x = -Math.PI / 2;
-        dash.position.set(dx, -0.18, z);
-        dash.layers.set(1);
-        this.scene.add(dash);
-      }
-    }
+    // ── Dashed column dividers (layer 1 — shooter viewport only) ─────────────
+    this._divMeshes    = [];
+    this._divMaterials = [];
+    this._buildDividers(4);
 
     // ── Post-Processing ─────────────────────────────────────────────────────
     this.composer = new EffectComposer(this.renderer);
@@ -158,6 +141,35 @@ export class Scene3D {
     this.composer.addPass(this._bloomPass);
     this.composer.addPass(new OutputPass());
   }
+
+  // ── Lane-count adaptation ─────────────────────────────────────────────────
+
+  /**
+   * Rebuild shooter viewport dividers and resize the orthographic camera to
+   * match the active road width.  Call BEFORE Road3D.setLaneCount so that
+   * laneToX() already returns the correct values when Road3D rebuilds.
+   */
+  setLaneCount(n) {
+    setActiveLaneCount(n);
+
+    // Dispose and remove old divider meshes.
+    for (const m of this._divMeshes) {
+      this.scene.remove(m);
+      m.geometry.dispose();
+    }
+    for (const m of this._divMaterials) m.dispose();
+    this._divMeshes    = [];
+    this._divMaterials = [];
+    this._buildDividers(n);
+
+    // Fit orthographic shooter camera to new road width.
+    const hw = roadHalfW(n);
+    this.shooterCamera.left  = -hw;
+    this.shooterCamera.right =  hw;
+    this.shooterCamera.updateProjectionMatrix();
+  }
+
+  // ── Renderer wrappers ─────────────────────────────────────────────────────
 
   resize(width, height) {
     this.width  = width;
@@ -202,8 +214,7 @@ export class Scene3D {
 
   destroy() {
     this._envMap?.dispose();
-    this._shooterBgGeo?.dispose();
-    this._shooterBgMat?.dispose();
+    for (const m of this._divMeshes) { m.geometry.dispose(); }
     for (const m of this._divMaterials) m.dispose();
     this.composer.dispose();
     this.renderer.dispose();
@@ -212,4 +223,39 @@ export class Scene3D {
   add(obj) { this.scene.add(obj); return obj; }
   setBloomStrength(v) { this._bloomPass.strength = v; }
   getBloomStrength()  { return this._bloomPass.strength; }
+
+  // ── Private ───────────────────────────────────────────────────────────────
+
+  _buildDividers(n) {
+    // Dividers between consecutive lanes — n-1 dividers for n lanes.
+    const divXs = [];
+    for (let i = 0; i < n - 1; i++) {
+      divXs.push(laneToX(i, n) + 1.5);   // midpoint between lane i and i+1
+    }
+
+    const Z_TOP     = -1.5;
+    const Z_BOT     =  1.4;
+    const DIV_RANGE = Z_BOT - Z_TOP;
+    const DASH_LEN  = 0.18;
+    const GAP_LEN   = 0.12;
+    const PERIOD    = DASH_LEN + GAP_LEN;
+    const DASH_CT   = Math.ceil(DIV_RANGE / PERIOD);
+
+    for (const dx of divXs) {
+      for (let d = 0; d < DASH_CT; d++) {
+        const z = Z_TOP + d * PERIOD + DASH_LEN / 2;
+        if (z > Z_BOT) break;
+        const t       = (z - Z_TOP) / DIV_RANGE;
+        const opacity = DIV_OPACITY_HI - t * (DIV_OPACITY_HI - DIV_OPACITY_LO);
+        const mat  = new THREE.MeshBasicMaterial({ color: DIV_COLOR, transparent: true, opacity });
+        const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.05, DASH_LEN), mat);
+        dash.rotation.x = -Math.PI / 2;
+        dash.position.set(dx, -0.18, z);
+        dash.layers.set(1);
+        this.scene.add(dash);
+        this._divMeshes.push(dash);
+        this._divMaterials.push(mat);
+      }
+    }
+  }
 }

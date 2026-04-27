@@ -201,6 +201,17 @@ export class Shooter3D {
 
   // ── Public ───────────────────────────────────────────────────────────────────
 
+  setLaneCount(n) {
+    for (let li = 0; li < this._slots.length; li++) {
+      const x = laneToX(li, n);
+      for (const slot of this._slots[li]) {
+        slot.mesh.position.x = x;
+      }
+      const sb = this._sparkBeads[li];
+      if (sb) sb.bead.position.x = x + 0.14;
+    }
+  }
+
   triggerPunch(colIdx) {
     const slot = this._slots[colIdx]?.[0];
     if (!slot) return;

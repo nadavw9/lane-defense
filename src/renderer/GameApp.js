@@ -524,10 +524,9 @@ async function main() {
     carRenderer.clearAll();
     firingLineRenderer.reset();
     gameRenderer3D.resetLevel();
+    gameRenderer3D.setActiveLaneCount(cfg.laneCount ?? 4);
     gameRenderer3D.startLevelIntro();
     gameRenderer3D.setCombo(0);
-    // Lane count: no visual lane-covering — all lanes render identically.
-    // gameRenderer3D.setActiveLaneCount and laneRenderer.setActiveLaneCount removed per UX.
     shooterRenderer.enable3DMode(true);
     shooterRenderer.container.visible = false;
 

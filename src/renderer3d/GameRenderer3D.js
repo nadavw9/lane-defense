@@ -22,6 +22,7 @@ import { CameraFX }      from './CameraFX.js';
 import { LaneFlash3D }   from './LaneFlash3D.js';
 import { PostFX3D }      from './PostFX3D.js';
 import { ScorchMarks3D } from './ScorchMarks3D.js';
+import { Environment3D } from './Environment3D.js';
 
 export class GameRenderer3D {
   constructor(width, height) {
@@ -37,9 +38,10 @@ export class GameRenderer3D {
     this._projectiles = null;
     this._particles   = null;
     this._cameraFX    = null;
-    this._laneFlash   = null;
-    this._postFX      = null;
-    this._scorchMarks = null;
+    this._laneFlash    = null;
+    this._postFX       = null;
+    this._scorchMarks  = null;
+    this._environment  = null;
     this._mounted  = false;
 
     // Per-lane cache of the front car's game position, updated every frame.
@@ -83,10 +85,11 @@ export class GameRenderer3D {
     this._lighting = new Lighting3D(this._scene3d.scene);
     this._skybox   = new Skybox3D(this._scene3d.scene);
     this._road     = new Road3D(this._scene3d.scene);
-    this._cameraFX = new CameraFX(this._scene3d.camera);
-    this._laneFlash = new LaneFlash3D(this._scene3d.scene);
+    this._cameraFX    = new CameraFX(this._scene3d.camera);
+    this._laneFlash   = new LaneFlash3D(this._scene3d.scene);
     this._scorchMarks = new ScorchMarks3D(this._scene3d.scene);
-    this._postFX = new PostFX3D(this._scene3d.composer);
+    this._postFX      = new PostFX3D(this._scene3d.composer);
+    this._environment = new Environment3D(this._scene3d.scene);
 
     this._mounted = true;
   }
@@ -112,8 +115,6 @@ export class GameRenderer3D {
     this._postFX?.setBreach(0);
     this._postFX?.setCombo(0);
     this._skybox?.setCombo(0);
-    // Always show all 4 lane dividers — clear any previous setActiveLaneCount(n<4) state.
-    this._road?.setActiveLaneCount(4);
     if (this._mounted && this._lanes) {
       this._particles   = new Particles3D(this._scene3d.scene, this._lighting, this._lanes);
       this._laneFlash   = new LaneFlash3D(this._scene3d.scene);
@@ -211,7 +212,11 @@ export class GameRenderer3D {
   }
 
   setActiveLaneCount(n) {
-    this._road?.setActiveLaneCount(n);
+    this._scene3d?.setLaneCount(n);
+    this._road?.setLaneCount(n);
+    this._cameraFX?.setLaneCount(n);
+    this._shooters?.setLaneCount(n);
+    this._environment?.setLaneCount(n);
   }
 
   // ── Per-frame update ────────────────────────────────────────────────────────
@@ -225,6 +230,7 @@ export class GameRenderer3D {
     this._lighting.update(dt);
     this._skybox.update(dt);
     this._road.update(dt);
+    this._environment?.update(dt);
     this._cameraFX?.update(dt);
     this._laneFlash?.update(dt);
     this._scorchMarks?.update(dt);
@@ -273,6 +279,7 @@ export class GameRenderer3D {
     this._laneFlash?.dispose();
     this._scorchMarks?.dispose();
     this._postFX?.dispose();
+    this._environment?.dispose();
     this._road?.dispose();
     this._skybox?.dispose();
     this._lighting?.dispose();
@@ -297,10 +304,11 @@ export class GameRenderer3D {
     this._projectiles = null;
     this._particles   = null;
     this._cameraFX    = null;
-    this._laneFlash   = null;
-    this._postFX      = null;
-    this._scorchMarks = null;
-    this._mounted     = false;
+    this._laneFlash    = null;
+    this._postFX       = null;
+    this._scorchMarks  = null;
+    this._environment  = null;
+    this._mounted      = false;
   }
 
   // ── Resize ──────────────────────────────────────────────────────────────────

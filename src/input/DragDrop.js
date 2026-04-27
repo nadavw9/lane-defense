@@ -8,7 +8,6 @@
 //
 // Color-match enforcement:
 //   • Dropping a shooter on a lane with a mismatched front car is REJECTED
-//     (snap back + onColorMismatch callback). An empty lane is always allowed.
 //
 // Lane highlights during drag:
 //   • GREEN  — color matches the front car (or lane is empty)
@@ -38,16 +37,52 @@ const COLOR_MAP = {
   Orange: 0xD85A30,
 };
 
-const HIT_RADIUS      = TOP_RADIUS + 14;  // fat-finger tolerance
+const HIT_RADIUS      = TOP_RADIUS + 14;
 const HIGHLIGHT_GREEN = 0x44ff88;
 const HIGHLIGHT_RED   = 0xff4444;
 const HIGHLIGHT_ALPHA = 0.28;
 
-const FLY_DURATION  = 0.10;  // valid drop: ghost flies to target
-const SNAP_DURATION = 0.15;  // invalid: ghost snaps back
+const FLY_DURATION  = 0.10;
+const SNAP_DURATION = 0.15;
+
+// Ghost wobble: ±3° on a ~0.2 s period
+const WOBBLE_AMP   = Math.PI / 60;   // 3 degrees
+const WOBBLE_SPEED = 5.0;
+
+// Spark animation redraw interval (ms)
+const SPARK_INTERVAL_MS = 80;
 
 function easeOut(t) {
   return 1 - Math.pow(1 - Math.min(t, 1), 3);
+}
+
+// ── Canvas helpers ─────────────────────────────────────────────────────────────
+function _canvasRoundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y,     x + w, y + r,     r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x,     y + h, x, y + h - r,     r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y,         x + r, y,          r);
+  ctx.closePath();
+}
+
+// Draw 8-pointed rotating spark rays using PIXI Graphics.
+function _drawSpark(g, x, y, angle, size) {
+  g.clear();
+  for (let i = 0; i < 8; i++) {
+    const a   = angle + (i / 8) * Math.PI * 2;
+    const len = (i % 2 === 0) ? size : size * 0.55;
+    g.moveTo(x, y);
+    g.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len);
+  }
+  g.stroke({ color: 0xffee44, width: 2.5 });
+  g.circle(x, y, size * 0.35);
+  g.fill({ color: 0xff8800 });
 }
 
 export class DragDrop {
@@ -56,14 +91,16 @@ export class DragDrop {
   // benchStorage   — BenchStorage
   // shooterRenderer, benchRenderer — for visual coordination during drag
   // callbacks:
-  //   onDeploy(colIdx, laneIdx)       — column-to-lane deploy
-  //   onDeployFromBench(shooter, laneIdx) — bench-to-lane deploy
-  //   onBenchStore(colIdx)            — shooter stored to bench (column consumed)
-  //   onColorMismatch()               — rejected drop due to color mismatch
-  //   onBenchFull()                   — rejected bench store (all 4 slots full)
-  // boosterState       — optional; intercepts column taps when swap mode is active
-  // firingLineRenderer — optional FiringLineRenderer; receives hover notifications
-  // firingSlots        — optional live ref to gs.firingSlots; occupancy checks
+  //   onDeploy(colIdx, laneIdx)
+  //   onDeployFromBench(shooter, laneIdx)
+  //   onBenchStore(colIdx)
+  //   onColorMismatch()
+  //   onBenchFull()
+  //   onLaneHover(laneIdx, colorHex)  — 3D road lane glow
+  //   onLaneClear()                   — remove 3D road lane glow
+  // boosterState       — optional
+  // firingLineRenderer — optional
+  // firingSlots        — optional live ref to gs.firingSlots
   constructor(
     layerManager,
     columns,
@@ -71,7 +108,8 @@ export class DragDrop {
     benchStorage,
     shooterRenderer,
     benchRenderer,
-    { onDeploy, onDeployFromBench, onBenchStore, onColorMismatch, onBenchFull, onBombPlaced } = {},
+    { onDeploy, onDeployFromBench, onBenchStore, onColorMismatch, onBenchFull, onBombPlaced,
+      onLaneHover, onLaneClear } = {},
     boosterState = null,
     firingLineRenderer = null,
     firingSlots = null,
@@ -91,22 +129,22 @@ export class DragDrop {
     this._onColorMismatch   = onColorMismatch    ?? (() => {});
     this._onBenchFull       = onBenchFull        ?? (() => {});
     this._onBombPlaced      = onBombPlaced       ?? (() => {});
+    this._onLaneHover       = onLaneHover        ?? (() => {});
+    this._onLaneClear       = onLaneClear        ?? (() => {});
 
     this._firingLineRenderer = firingLineRenderer;
     this._firingSlots        = firingSlots;
 
     // ── State ──────────────────────────────────────────────────────────────
     this._state         = 'idle';
-    this._dragSource    = 'column';   // 'column' | 'bench'
-    this._dragSourceIdx = -1;         // column or bench slot index
+    this._dragSource    = 'column';
+    this._dragSourceIdx = -1;
     this._dragShooter   = null;
     this._ghost         = null;
 
-    // Pointer offset at grab time — keeps ghost anchored to finger contact point
     this._offsetX = 0;
     this._offsetY = 0;
 
-    // Animation state (FLYING or SNAPPING)
     this._animT        = 0;
     this._animDuration = 0;
     this._animFromX    = 0;
@@ -115,8 +153,12 @@ export class DragDrop {
     this._animToY      = 0;
     this._animOnDone   = null;
 
-    // Lane highlights — one Graphics per lane, redrawn dynamically with
-    // the correct color so a single object supports both GREEN and RED.
+    // Ghost wobble elapsed
+    this._ghostElapsed  = 0;
+    // Spark setInterval handle
+    this._sparkInterval = null;
+
+    // Lane highlights
     this._highlights = [];
     for (let i = 0; i < LANE_COUNT; i++) {
       const g = new Graphics();
@@ -125,8 +167,6 @@ export class DragDrop {
       this._highlights.push(g);
     }
 
-    // Set to true while any tutorial/combo/achievement overlay is visible.
-    // Suppresses lane hover highlights so they don't bleed through the UI.
     this.uiOverlayActive = false;
   }
 
@@ -135,43 +175,33 @@ export class DragDrop {
   onPointerDown(x, y) {
     if (this._state !== 'idle') return;
 
-    // Bomb placement intercept: only fire when the tap is actually on the road.
-    // Guard: the bomb button tap that activates bombMode also triggers this
-    // handler (PixiJS button event fires first, then the raw canvas event).
-    // Without the road-range check the bomb would be cancelled on the same tap.
     if (this._boosterState?.bombMode) {
       if (y >= ROAD_TOP_Y && y <= ROAD_BOTTOM_Y) {
         this._onBombPlaced(x, y);
       }
-      return;   // consume event regardless — no drag should start in bomb mode
+      return;
     }
 
-    // Swap booster intercept: column tap handled by booster, not drag.
     const col = this._hitTestColumn(x, y);
     if (col !== -1 && this._boosterState?.swapMode) {
       this._boosterState.tapSwapColumn(col, this._columns);
       return;
     }
 
-    // Cycle booster intercept: accept any tap anywhere in the shooter area
-    // (not just near TOP_Y) — determine column by X position alone.
     if (this._boosterState?.cycleMode) {
       if (y >= SHOOTER_AREA_Y && y <= SHOOTER_AREA_Y + SHOOTER_AREA_H) {
         const cycleCol = Math.max(0, Math.min(COL_COUNT - 1, Math.floor(x / COL_W)));
         this._boosterState.tapCycleColumn(cycleCol, this._columns);
       }
-      return;   // consume tap regardless
+      return;
     }
 
-    // Try starting a drag from a column top.
     if (col !== -1 && this._columns[col].top()) {
       const shooter = this._columns[col].top();
-      // Start ghost at finger position (not column centre) so it feels responsive.
       this._startDrag('column', col, shooter, x, y, x, y);
       return;
     }
 
-    // Try starting a drag from an occupied bench slot.
     const slot = this._benchRenderer?.hitTestSlot(x, y) ?? -1;
     if (slot !== -1 && this._benchStorage?.getSlot(slot)) {
       const shooter = this._benchStorage.getSlot(slot);
@@ -182,8 +212,6 @@ export class DragDrop {
 
   onPointerMove(x, y) {
     if (this._state !== 'dragging') return;
-    // Allow ghost to reach full canvas width (0 to ROAD_BOTTOM_W = 390).
-    // Hit-testing still uses raw pointer coords, so drop logic is unaffected.
     this._ghost.x = x + this._offsetX;
     this._ghost.y = y + this._offsetY;
     this._updateHighlights(x, y);
@@ -194,23 +222,19 @@ export class DragDrop {
     this._clearHighlights();
     this._benchRenderer?.setHighlight(-1);
 
-    // Column source: check for bench drop (dragging downward toward bench).
     if (this._dragSource === 'column' && this._hitTestBenchArea(x, y)) {
       this._handleBenchDrop();
       return;
     }
 
-    // Try lane drop (both sources).
     const laneIdx = this._hitTestLane(x, y);
     if (laneIdx !== -1) {
       if (!this._checkColorMatch(laneIdx)) {
-        // Color mismatch — reject.
         this._onColorMismatch();
         this._snapBack();
         return;
       }
       if (this._firingSlots?.[laneIdx]) {
-        // Firing slot already occupied — snap back silently.
         this._snapBack();
         return;
       }
@@ -220,8 +244,13 @@ export class DragDrop {
     }
   }
 
-  // Call from the main render ticker.
   update(dt) {
+    // Wobble ghost during active drag
+    if (this._ghost && this._state === 'dragging') {
+      this._ghostElapsed += dt;
+      this._ghost.rotation = Math.sin(this._ghostElapsed * WOBBLE_SPEED) * WOBBLE_AMP;
+    }
+
     if (this._state !== 'flying' && this._state !== 'snapping') return;
 
     this._animT += dt / this._animDuration;
@@ -247,6 +276,7 @@ export class DragDrop {
     this._offsetX       = cx - px;
     this._offsetY       = cy - py;
     this._state         = 'dragging';
+    this._ghostElapsed  = 0;
 
     if (source === 'column') {
       this._shooterRenderer.draggingColumn = sourceIdx;
@@ -262,12 +292,10 @@ export class DragDrop {
       this._onDeploy(this._dragSourceIdx, laneIdx);
       this._shooterRenderer.draggingColumn = -1;
     } else {
-      // Bench → lane: extract shooter from bench, then deploy.
       const shooter = this._benchStorage.take(this._dragSourceIdx);
       if (this._benchRenderer) this._benchRenderer.draggingSlot = -1;
       this._onDeployFromBench(shooter, laneIdx);
     }
-    // Fly ghost to the firing slot at the road/shooter boundary.
     const targetX = (laneIdx + 0.5) * ROAD_BOTTOM_W / LANE_COUNT;
     const targetY = ROAD_BOTTOM_Y;
     this._startAnim(
@@ -287,14 +315,12 @@ export class DragDrop {
       this._snapBack();
       return;
     }
-    // Consume shooter from column and store in bench.
     const col     = this._columns[this._dragSourceIdx];
     const shooter = col.top();
     col.consume();
     const slotIdx = this._benchStorage.store(shooter);
     this._shooterRenderer.draggingColumn = -1;
     this._onBenchStore(this._dragSourceIdx);
-    // Fly ghost to the slot it landed in.
     const { x: tx, y: ty } = this._benchRenderer.getSlotCenter(slotIdx);
     this._startAnim(
       this._ghost.x, this._ghost.y, tx, ty,
@@ -320,8 +346,6 @@ export class DragDrop {
   }
 
   _updateHighlights(x, y) {
-    // Suppress lane color hints while any UI overlay is visible — they would
-    // bleed through tutorial panels or combo/achievement popups.
     if (this.uiOverlayActive) {
       this._clearHighlights();
       this._benchRenderer?.setHighlight(-1);
@@ -331,21 +355,21 @@ export class DragDrop {
     this._clearHighlights();
     this._benchRenderer?.setHighlight(-1);
 
+    const colorHex = COLOR_MAP[this._dragShooter?.color] ?? 0x888888;
+
     if (this._dragSource === 'bench') {
-      // Bench-source drag: only lanes are valid drop targets.
       const laneIdx = this._hitTestLane(x, y);
       if (laneIdx !== -1) {
         const isOccupied = this._firingSlots?.[laneIdx] != null;
         const isMatch    = this._checkColorMatch(laneIdx);
         this._showLaneHighlight(laneIdx, (isMatch && !isOccupied) ? HIGHLIGHT_GREEN : HIGHLIGHT_RED);
         if (!isOccupied) this._firingLineRenderer?.setHoverSlot(laneIdx, isMatch);
+        this._onLaneHover(laneIdx, colorHex);
       }
       return;
     }
 
-    // Column-source drag: bench or lane.
     if (y > BENCH_Y - 50) {
-      // Approaching or in bench area — show blue highlight on hovered empty slot.
       const slot = this._benchRenderer?.hitTestSlot(x, y) ?? -1;
       if (slot !== -1 && !this._benchStorage?.getSlot(slot)) {
         this._benchRenderer?.setHighlight(slot);
@@ -353,18 +377,16 @@ export class DragDrop {
       return;
     }
 
-    // In lane area.
     const laneIdx = this._hitTestLane(x, y);
     if (laneIdx !== -1) {
       const isOccupied = this._firingSlots?.[laneIdx] != null;
       const isMatch    = this._checkColorMatch(laneIdx);
       this._showLaneHighlight(laneIdx, (isMatch && !isOccupied) ? HIGHLIGHT_GREEN : HIGHLIGHT_RED);
       if (!isOccupied) this._firingLineRenderer?.setHoverSlot(laneIdx, isMatch);
+      this._onLaneHover(laneIdx, colorHex);
     }
   }
 
-  // Redraw a lane highlight polygon with the given color.
-  // Called on every pointer-move so the color reflects the current front car.
   _showLaneHighlight(laneIdx, color) {
     const g     = this._highlights[laneIdx];
     const topLx = ROAD_TOP_X + laneIdx       * ROAD_TOP_W  / LANE_COUNT;
@@ -377,8 +399,6 @@ export class DragDrop {
     g.visible = true;
   }
 
-  // Returns true if the shooter's color matches the front car in this lane,
-  // or if the lane is empty (empty lanes are always valid drop targets).
   _checkColorMatch(laneIdx) {
     if (!this._lanes || !this._dragShooter) return true;
     const frontCar = this._lanes[laneIdx]?.frontCar?.();
@@ -401,103 +421,163 @@ export class DragDrop {
     return Math.max(0, Math.min(LANE_COUNT - 1, laneIdx));
   }
 
-  // True when the pointer is in the vertical zone that maps to the bench.
   _hitTestBenchArea(x, y) {
     return y >= BENCH_Y - 30 && y <= BENCH_Y + BENCH_SLOT_H + 10;
   }
 
+  // ── Ghost creation ─────────────────────────────────────────────────────────
+  // Returns a PIXI Container with a static bomb sprite + animated spark child.
   _createGhost(shooter, x, y) {
     const color  = COLOR_MAP[shooter.color] ?? 0x888888;
     const damage = shooter.damage ?? 1;
 
-    // One canvas → one Sprite. Everything drawn in a single pass.
-    const S  = 120;   // canvas size (square)
+    const S = 160;
     const cv = document.createElement('canvas');
     cv.width = cv.height = S;
     const ctx = cv.getContext('2d');
 
-    const cx = S / 2, cy = S * 0.56;   // bomb centre (shifted down slightly for fuse room)
-    const R  = S * 0.30;                // bomb body radius
+    // Bomb geometry
+    const cx = S / 2;
+    const cy = S * 0.57;   // shifted down for fuse room
+    const R  = S * 0.29;
 
-    const r = ((color >> 16) & 0xff).toString(16).padStart(2,'0');
-    const g = ((color >>  8) & 0xff).toString(16).padStart(2,'0');
-    const b = ( color        & 0xff).toString(16).padStart(2,'0');
-    const css = `#${r}${g}${b}`;
+    const r8 = ((color >> 16) & 0xff).toString(16).padStart(2,'0');
+    const g8 = ((color >>  8) & 0xff).toString(16).padStart(2,'0');
+    const b8 = ( color        & 0xff).toString(16).padStart(2,'0');
+    const css = `#${r8}${g8}${b8}`;
 
-    // ── Fuse ─────────────────────────────────────────────────────────────────
-    ctx.strokeStyle = '#bbbbbb';
-    ctx.lineWidth   = S * 0.035;
-    ctx.lineCap     = 'round';
+    // ── Drop shadow (radial gradient ellipse under bomb) ─────────────────────
+    const shadowGrad = ctx.createRadialGradient(cx, cy + R * 0.5, 0, cx, cy + R * 0.55, R * 1.25);
+    shadowGrad.addColorStop(0, 'rgba(0,0,0,0.30)');
+    shadowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = shadowGrad;
     ctx.beginPath();
-    ctx.moveTo(cx, cy - R);
-    ctx.quadraticCurveTo(cx + S * 0.10, cy - R - S * 0.16, cx + S * 0.16, cy - R - S * 0.26);
-    ctx.stroke();
-
-    // ── Spark ─────────────────────────────────────────────────────────────────
-    ctx.shadowColor = '#ff8800';
-    ctx.shadowBlur  = 8;
-    ctx.fillStyle   = '#ffee44';
-    ctx.beginPath();
-    ctx.arc(cx + S * 0.16, cy - R - S * 0.26, S * 0.06, 0, Math.PI * 2);
+    ctx.ellipse(cx, cy + R * 0.55, R * 1.30, R * 0.50, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.shadowBlur = 0;
 
     // ── Outer glow ────────────────────────────────────────────────────────────
     ctx.shadowColor = css;
-    ctx.shadowBlur  = 14;
+    ctx.shadowBlur  = 20;
     ctx.fillStyle   = css;
-    ctx.beginPath(); ctx.arc(cx, cy, R + 4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx, cy, R + 5, 0, Math.PI * 2); ctx.fill();
     ctx.shadowBlur  = 0;
 
     // ── Bomb body ─────────────────────────────────────────────────────────────
     ctx.fillStyle = css;
     ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
 
-    // ── Dark top shading (spherical look) ──────────────────────────────────
-    ctx.fillStyle = 'rgba(0,0,0,0.30)';
-    ctx.beginPath(); ctx.arc(cx, cy, R, Math.PI, 0, false); ctx.closePath(); ctx.fill();
+    // ── Rim highlight gradient ────────────────────────────────────────────────
+    const rimGrad = ctx.createLinearGradient(cx - R, cy - R, cx + R * 0.4, cy + R * 0.4);
+    rimGrad.addColorStop(0, 'rgba(255,255,255,0.22)');
+    rimGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = rimGrad;
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
 
-    // ── Shine highlight ────────────────────────────────────────────────────
-    ctx.fillStyle = 'rgba(255,255,255,0.30)';
-    ctx.beginPath(); ctx.arc(cx - R*0.28, cy - R*0.28, R*0.30, 0, Math.PI*2); ctx.fill();
+    // ── Dark bottom-half shading ──────────────────────────────────────────────
+    ctx.fillStyle = 'rgba(0,0,0,0.32)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, Math.PI * 0.05, Math.PI * 0.95, false);
+    ctx.closePath(); ctx.fill();
 
-    // ── White border ───────────────────────────────────────────────────────
-    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-    ctx.lineWidth   = 2;
-    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI*2); ctx.stroke();
+    // ── Specular hotspot upper-left ───────────────────────────────────────────
+    const specGrad = ctx.createRadialGradient(
+      cx - R * 0.30, cy - R * 0.30, 0,
+      cx - R * 0.30, cy - R * 0.30, R * 0.40,
+    );
+    specGrad.addColorStop(0, 'rgba(255,255,255,0.65)');
+    specGrad.addColorStop(0.5, 'rgba(255,255,255,0.20)');
+    specGrad.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = specGrad;
+    ctx.beginPath(); ctx.arc(cx - R * 0.30, cy - R * 0.30, R * 0.40, 0, Math.PI * 2); ctx.fill();
 
-    // ── Damage number centred on bomb ──────────────────────────────────────
-    ctx.font         = `bold ${Math.round(R * 1.0)}px Arial`;
+    // ── White border ──────────────────────────────────────────────────────────
+    ctx.strokeStyle = 'rgba(255,255,255,0.50)';
+    ctx.lineWidth   = 2.5;
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
+
+    // ── Fuse — thick curved line with gradient ────────────────────────────────
+    const fuseEndX = cx + S * 0.14;
+    const fuseEndY = cy - R - S * 0.22;
+    const fuseCPX  = cx + S * 0.08;
+    const fuseCPY  = cy - R - S * 0.10;
+    const fuseGrad = ctx.createLinearGradient(cx, cy - R, fuseEndX, fuseEndY);
+    fuseGrad.addColorStop(0, '#dddddd');
+    fuseGrad.addColorStop(1, '#888888');
+    ctx.strokeStyle = fuseGrad;
+    ctx.lineWidth   = Math.max(3, S * 0.030);
+    ctx.lineCap     = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - R);
+    ctx.quadraticCurveTo(fuseCPX, fuseCPY, fuseEndX, fuseEndY);
+    ctx.stroke();
+
+    // ── Damage badge plate ────────────────────────────────────────────────────
+    const badgeCX = cx;
+    const badgeCY = cy + R * 0.32;
+    const badgeW  = R * 1.15;
+    const badgeH  = R * 0.62;
+    _canvasRoundRect(ctx, badgeCX - badgeW / 2, badgeCY - badgeH / 2, badgeW, badgeH, 8);
+    ctx.fillStyle   = '#0a0a14';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.80)';
+    ctx.lineWidth   = 1.5;
+    ctx.stroke();
+
+    ctx.font         = `bold ${Math.round(R * 0.70)}px Arial`;
     ctx.fillStyle    = '#ffffff';
     ctx.textAlign    = 'center';
     ctx.textBaseline = 'middle';
     ctx.shadowColor  = 'rgba(0,0,0,0.9)';
-    ctx.shadowBlur   = 4;
-    ctx.fillText(String(damage), cx, cy + R * 0.06);
-    ctx.shadowBlur = 0;
+    ctx.shadowBlur   = 3;
+    ctx.fillText(String(damage), badgeCX, badgeCY);
+    ctx.shadowBlur   = 0;
 
-    // One Sprite from the canvas
+    // ── Build PIXI container ─────────────────────────────────────────────────
     const tex    = Texture.from(cv);
     const sprite = new Sprite(tex);
     sprite.anchor.set(0.5);
-    sprite.x     = x;
-    sprite.y     = y;
-    sprite.alpha = 0.92;
 
-    this._dragLayer.addChild(sprite);
-    return sprite;
+    // Spark PIXI Graphics child — anchored at fuse tip offset from sprite centre
+    const sparkOffX = fuseEndX - S / 2;
+    const sparkOffY = fuseEndY - S / 2;
+    const sparkG    = new Graphics();
+    _drawSpark(sparkG, sparkOffX, sparkOffY, 0, S * 0.065);
+
+    const container = new Container();
+    container.addChild(sprite);
+    container.addChild(sparkG);
+    container.x     = x;
+    container.y     = y;
+    container.alpha = 0.92;
+    this._dragLayer.addChild(container);
+
+    // Animate spark rays every 80 ms
+    let sparkAngle = 0;
+    this._sparkInterval = setInterval(() => {
+      if (sparkG.destroyed) return;
+      sparkAngle += 0.45;
+      _drawSpark(sparkG, sparkOffX, sparkOffY, sparkAngle, S * 0.065);
+    }, SPARK_INTERVAL_MS);
+
+    return container;
   }
 
   _destroyGhost() {
+    if (this._sparkInterval !== null) {
+      clearInterval(this._sparkInterval);
+      this._sparkInterval = null;
+    }
     if (this._ghost) {
       this._ghost.destroy({ children: true });
       this._ghost = null;
     }
+    this._ghostElapsed = 0;
   }
 
   _clearHighlights() {
     for (const h of this._highlights) h.visible = false;
     this._firingLineRenderer?.clearHover();
+    this._onLaneClear();
   }
 
   _startAnim(fromX, fromY, toX, toY, duration, onDone) {

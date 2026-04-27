@@ -19,7 +19,7 @@
 //   win_fanfare, lose_tone                                     (new)
 
 const MASTER_VOL = 0.45;
-const MUSIC_VOL  = 0.65;   // relative to master; music ≈ 0.29 of full scale
+const MUSIC_VOL  = 0.55;   // relative to master; warm island feel sits quieter
 
 export class AudioManager {
   constructor() {
@@ -193,54 +193,109 @@ export class AudioManager {
 
   // ── Music tracks ──────────────────────────────────────────────────────────
 
-  // Gentle Cmaj7 pad — C3 E3 G3 B3, 8-second loop.
+  // 16s Cmaj7→Am7→Fmaj7→G7 theme: warm pad + marimba arpeggio + shaker + whistle.
   _trackTitle(dst, t) {
-    const DUR   = 8.0;
-    const freqs = [130.8, 164.8, 196.0, 246.9];
-    for (const f of freqs) {
-      const osc = this._ctx.createOscillator();
-      const g   = this._ctx.createGain();
-      osc.type            = 'sine';
-      osc.frequency.value = f;
-      g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(0.16, t + 1.0);
-      g.gain.setValueAtTime(0.16, t + DUR - 1.0);
-      g.gain.linearRampToValueAtTime(0, t + DUR);
-      osc.connect(g); g.connect(dst);
-      osc.start(t); osc.stop(t + DUR + 0.1);
+    const DUR       = 16.0;
+    const CHORD_DUR = 4.0;
+
+    const chords = [
+      { pad: [130.8, 164.8, 196.0], arp: [261.6, 329.6, 392.0, 493.9] },  // Cmaj7
+      { pad: [110.0, 130.8, 164.8], arp: [220.0, 261.6, 329.6, 392.0] },  // Am7
+      { pad: [87.3,  110.0, 130.8], arp: [174.6, 220.0, 261.6, 329.6] },  // Fmaj7
+      { pad: [98.0,  123.5, 146.8], arp: [196.0, 246.9, 293.7, 349.2] },  // G7
+    ];
+
+    for (let ci = 0; ci < 4; ci++) {
+      const ct = t + ci * CHORD_DUR;
+      const ch = chords[ci];
+      for (const f of ch.pad) this._mWarmPad(dst, ct, f, CHORD_DUR, 0.09);
+      ch.arp.forEach((f, i) => this._mMarimba(dst, ct + i * 0.32, f, 0.17));
+      // Partial descending run fills the second half of each chord
+      ch.arp.slice(0, 2).reverse().forEach((f, i) =>
+        this._mMarimba(dst, ct + 4 * 0.32 + i * 0.32, f, 0.12));
     }
+
+    // Shaker — steady 8th notes (one every 0.5 s for 16 s)
+    for (let i = 0; i < 32; i++) {
+      this._mShaker(dst, t + i * 0.5, i % 2 === 0 ? 0.13 : 0.07);
+    }
+
+    // Whistle melody — two phrases per chord
+    const whistlePhrases = [
+      [392.0, 1.8, 329.6, 1.8],  // G4→E4 over Cmaj
+      [329.6, 1.8, 261.6, 1.8],  // E4→C4 over Am
+      [261.6, 1.8, 293.7, 1.8],  // C4→D4 over Fmaj
+      [349.2, 1.5, 392.0, 2.0],  // F4→G4 over G7 (resolution)
+    ];
+    for (let ci = 0; ci < 4; ci++) {
+      const ct = t + ci * CHORD_DUR;
+      const w  = whistlePhrases[ci];
+      this._mWhistle(dst, ct,              w[0], w[1], 0.15);
+      this._mWhistle(dst, ct + w[1] + 0.1, w[2], w[3], 0.12);
+    }
+
     return DUR;
   }
 
-  // Calm gameplay — 90 BPM, 4-beat loop (2.67 s).
+  // Calm gameplay — 100 BPM, ukulele strum + marimba pentatonic melody, 4-beat loop.
   _trackGameplayCalm(dst, t) {
-    const BEAT = 60 / 90;
+    const BEAT = 60 / 100;
     const DUR  = BEAT * 4;
-    this._mkick(dst, t,            0.40);
-    this._mkick(dst, t + BEAT * 2, 0.40);
-    this._mhihat(dst, t + BEAT,     0.16);
-    this._mhihat(dst, t + BEAT * 3, 0.16);
-    this._mbass(dst, t, 65.4, BEAT * 1.4, 0.22);
+
+    // Ukulele strum — open C chord (G4 C4 E4 A4)
+    const C_UK = [392.0, 261.6, 329.6, 440.0];
+    this._mUkulele(dst, t,              C_UK,                    0.13);
+    this._mUkulele(dst, t + BEAT * 0.5, C_UK.slice().reverse(), 0.07);  // upstroke
+    this._mUkulele(dst, t + BEAT * 2,   C_UK,                    0.13);
+    this._mUkulele(dst, t + BEAT * 2.5, C_UK.slice().reverse(), 0.07);
+
+    // Marimba melody — pentatonic C: C4 D4 E4 G4 A4
+    const penta = [261.6, 293.7, 329.6, 392.0, 440.0];
+    [2, 4, 3, 1, 2, 0].forEach((ni, i) =>
+      this._mMarimba(dst, t + i * BEAT * 0.5, penta[ni], 0.15));
+
+    // Gentle kick on 1 and 3
+    this._mkick(dst, t,            0.28);
+    this._mkick(dst, t + BEAT * 2, 0.28);
+
+    // Shaker on 8th notes
+    for (let i = 0; i < 8; i++) {
+      this._mShaker(dst, t + i * BEAT * 0.5, i % 2 === 0 ? 0.09 : 0.05);
+    }
+
     return DUR;
   }
 
-  // Pressure gameplay — 120 BPM, 4-beat loop (2.0 s). Double kick + snare.
+  // Pressure gameplay — 115 BPM, minor mode, tom offbeats, synth bell arpeggio.
   _trackGameplayPressure(dst, t) {
-    const BEAT = 60 / 120;
+    const BEAT = 60 / 115;
     const DUR  = BEAT * 4;
-    this._mkick(dst, t,                0.50);
-    this._mkick(dst, t + BEAT * 0.5,   0.28);
-    this._mkick(dst, t + BEAT * 2,     0.50);
-    this._mkick(dst, t + BEAT * 2.5,   0.28);
-    this._msnare(dst, t + BEAT,         0.28);
-    this._msnare(dst, t + BEAT * 3,     0.28);
-    for (let i = 0; i < 8; i++) this._mhihat(dst, t + i * BEAT * 0.5, 0.13);
-    this._mbass(dst, t,            65.4, BEAT * 0.85, 0.28);
-    this._mbass(dst, t + BEAT * 2, 73.4, BEAT * 0.85, 0.28);
+
+    // Kick + tom
+    this._mkick(dst, t,              0.44);
+    this._mkick(dst, t + BEAT * 2,   0.44);
+    this._mtom (dst, t + BEAT * 1.5, 0.28);
+    this._mtom (dst, t + BEAT * 3.5, 0.28);
+
+    // Snare on 2 and 4
+    this._msnare(dst, t + BEAT,     0.30);
+    this._msnare(dst, t + BEAT * 3, 0.30);
+
+    // Hi-hat 8ths
+    for (let i = 0; i < 8; i++) this._mhihat(dst, t + i * BEAT * 0.5, 0.11);
+
+    // Bass in A minor
+    this._mbass(dst, t,            55.0, BEAT * 0.75, 0.24);
+    this._mbass(dst, t + BEAT * 2, 65.4, BEAT * 0.75, 0.20);
+
+    // Synth bell arpeggio — A4 C5 E5 G5 (Am7)
+    [440.0, 523.3, 659.3, 784.0].forEach((f, i) =>
+      this._mSynthBell(dst, t + i * BEAT * 0.5, f, 0.13));
+
     return DUR;
   }
 
-  // Climax gameplay — 150 BPM, 4-beat loop (1.6 s). Full kit + busy bass.
+  // Climax gameplay — 150 BPM, full kit + major-key resolution burst at loop end.
   _trackGameplayClimax(dst, t) {
     const BEAT = 60 / 150;
     const DUR  = BEAT * 4;
@@ -254,7 +309,145 @@ export class AudioManager {
     this._mbass(dst, t + BEAT,     82.4, BEAT * 0.55, 0.24);
     this._mbass(dst, t + BEAT * 2, 65.4, BEAT * 0.75, 0.30);
     this._mbass(dst, t + BEAT * 3, 98.0, BEAT * 0.55, 0.24);
+    // Major-key resolution at beat 4 — C major landing
+    [261.6, 329.6, 392.0, 523.3].forEach(f =>
+      this._mMarimba(dst, t + BEAT * 3, f, 0.12));
     return DUR;
+  }
+
+  // ── Warm instrument helpers ───────────────────────────────────────────────
+
+  // Marimba: sine fundamental + brief inharmonic overtone → woody mallet decay.
+  _mMarimba(dst, t, freq, vol) {
+    const ctx  = this._ctx;
+    const osc  = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const g    = ctx.createGain();
+    const g2   = ctx.createGain();
+    osc.type  = 'sine'; osc.frequency.value  = freq;
+    osc2.type = 'sine'; osc2.frequency.value = freq * 2.756;
+    const decay = Math.max(0.22, 0.7 - freq / 2000);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.001, t + decay);
+    g2.gain.setValueAtTime(vol * 0.28, t);
+    g2.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
+    osc.connect(g);   g.connect(dst);
+    osc2.connect(g2); g2.connect(dst);
+    osc.start(t);  osc.stop(t + decay + 0.05);
+    osc2.start(t); osc2.stop(t + 0.05);
+  }
+
+  // Ukulele strum: triangle-wave pluck per string, strummed bottom-to-top.
+  _mUkulele(dst, t, freqs, vol) {
+    const ctx = this._ctx;
+    freqs.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const lpf = ctx.createBiquadFilter();
+      const g   = ctx.createGain();
+      const st  = t + i * 0.011;
+      osc.type = 'triangle'; osc.frequency.value = freq;
+      lpf.type = 'lowpass';  lpf.frequency.value = 2400;
+      g.gain.setValueAtTime(vol, st);
+      g.gain.exponentialRampToValueAtTime(0.001, st + 0.38);
+      osc.connect(lpf); lpf.connect(g); g.connect(dst);
+      osc.start(st); osc.stop(st + 0.40);
+    });
+  }
+
+  // Whistle/flute: pure sine with gentle LFO vibrato.
+  _mWhistle(dst, t, freq, dur, vol) {
+    const ctx   = this._ctx;
+    const osc   = ctx.createOscillator();
+    const lfo   = ctx.createOscillator();
+    const lfoGn = ctx.createGain();
+    const g     = ctx.createGain();
+    osc.type = 'sine'; osc.frequency.value = freq;
+    lfo.type = 'sine'; lfo.frequency.value = 5.5;
+    lfoGn.gain.value = freq * 0.007;
+    lfo.connect(lfoGn); lfoGn.connect(osc.frequency);
+    const atk = Math.min(0.08, dur * 0.18);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + atk);
+    g.gain.setValueAtTime(vol, t + dur - 0.07);
+    g.gain.linearRampToValueAtTime(0, t + dur);
+    osc.connect(g); g.connect(dst);
+    lfo.start(t); lfo.stop(t + dur + 0.05);
+    osc.start(t); osc.stop(t + dur + 0.05);
+  }
+
+  // Shaker: brief bandpass noise burst around 4.5 kHz.
+  _mShaker(dst, t, vol) {
+    const ctx = this._ctx;
+    const src = ctx.createBufferSource();
+    const bpf = ctx.createBiquadFilter();
+    const g   = ctx.createGain();
+    src.buffer          = this._noise;
+    bpf.type            = 'bandpass';
+    bpf.frequency.value = 4500; bpf.Q.value = 1.5;
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+    src.connect(bpf); bpf.connect(g); g.connect(dst);
+    src.start(t); src.stop(t + 0.06);
+  }
+
+  // Warm pad: detuned sine+triangle through lowpass, slow attack/release.
+  _mWarmPad(dst, t, freq, dur, vol) {
+    const ctx  = this._ctx;
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const lpf  = ctx.createBiquadFilter();
+    const g    = ctx.createGain();
+    const g2   = ctx.createGain();
+    osc1.type = 'sine';     osc1.frequency.value = freq;
+    osc2.type = 'triangle'; osc2.frequency.value = freq * 1.005;
+    lpf.type  = 'lowpass';  lpf.frequency.value  = 700;
+    g2.gain.value = 0.45;
+    const atk = Math.min(0.5, dur * 0.12);
+    const rel = Math.min(0.6, dur * 0.12);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + atk);
+    g.gain.setValueAtTime(vol, t + dur - rel);
+    g.gain.linearRampToValueAtTime(0, t + dur);
+    osc1.connect(lpf); osc2.connect(g2); g2.connect(lpf);
+    lpf.connect(g); g.connect(dst);
+    osc1.start(t); osc1.stop(t + dur + 0.05);
+    osc2.start(t); osc2.stop(t + dur + 0.05);
+  }
+
+  // Tom drum: pitched sine sweep, lower and longer than snare.
+  _mtom(dst, t, vol) {
+    const ctx = this._ctx;
+    const osc = ctx.createOscillator();
+    const g   = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(180, t);
+    osc.frequency.exponentialRampToValueAtTime(70, t + 0.18);
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.20);
+    osc.connect(g); g.connect(dst);
+    osc.start(t); osc.stop(t + 0.22);
+  }
+
+  // Synth bell: bright sine + octave partial, bell-like exponential decay.
+  _mSynthBell(dst, t, freq, vol) {
+    const ctx  = this._ctx;
+    const osc  = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const g    = ctx.createGain();
+    const g2   = ctx.createGain();
+    osc.type  = 'sine'; osc.frequency.value  = freq;
+    osc2.type = 'sine'; osc2.frequency.value = freq * 2.0;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.50);
+    g2.gain.setValueAtTime(0, t);
+    g2.gain.linearRampToValueAtTime(vol * 0.4, t + 0.005);
+    g2.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+    osc.connect(g);   g.connect(dst);
+    osc2.connect(g2); g2.connect(dst);
+    osc.start(t);  osc.stop(t + 0.55);
+    osc2.start(t); osc2.stop(t + 0.20);
   }
 
   // ── Music building blocks ─────────────────────────────────────────────────

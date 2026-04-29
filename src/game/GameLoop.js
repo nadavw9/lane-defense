@@ -460,16 +460,35 @@ export class GameLoop {
     }
   }
 
-  // Start each active lane with exactly one car at row 0 (the far end).
-  // The player must shoot it to advance and the game gradually fills up.
+  // Start each active lane with one car at row 0 (the far end), or place
+  // pre-defined cars if the level config supplies an initialCars array.
   _primeInitialCars() {
     const gs   = this._gs;
     const ROWS = gs.gridRows ?? 10;
-    for (let li = 0; li < gs.activeLaneCount; li++) {
-      const car    = this._carDir.generateCar(gs.lanes[li], 'CALM', gs.world, gs.colors);
-      car.row      = 0;
-      car.position = this._rowToPosition(0, ROWS);
-      gs.lanes[li].addCar(car);
+
+    if (gs.initialCars && gs.initialCars.length > 0 && gs.activeLaneCount > 0) {
+      // Place level-configured cars in lane 0.
+      for (const def of gs.initialCars) {
+        const car    = this._carDir.generateCar(gs.lanes[0], 'CALM', gs.world, gs.colors);
+        car.row      = def.row ?? 0;
+        car.type     = def.type ?? car.type;
+        car.position = this._rowToPosition(car.row, ROWS);
+        gs.lanes[0].addCar(car);
+      }
+      // Remaining active lanes get one default car each.
+      for (let li = 1; li < gs.activeLaneCount; li++) {
+        const car    = this._carDir.generateCar(gs.lanes[li], 'CALM', gs.world, gs.colors);
+        car.row      = 0;
+        car.position = this._rowToPosition(0, ROWS);
+        gs.lanes[li].addCar(car);
+      }
+    } else {
+      for (let li = 0; li < gs.activeLaneCount; li++) {
+        const car    = this._carDir.generateCar(gs.lanes[li], 'CALM', gs.world, gs.colors);
+        car.row      = 0;
+        car.position = this._rowToPosition(0, ROWS);
+        gs.lanes[li].addCar(car);
+      }
     }
     this._enforceViableMove(gs);
   }

@@ -30,6 +30,7 @@ export class GameState {
     // targetKills: kills needed to win this level.
     this.gridRows    = gridRows    ?? 6;
     this.targetKills = targetKills ?? 10;
+    this.initialCars = null;
 
     // ── Clock ─────────────────────────────────────────────────────────────
     this.elapsed = 0;

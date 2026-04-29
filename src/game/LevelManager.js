@@ -43,7 +43,7 @@ const RUSH = { hpMultiplier: 0.60, speed: { base: 5.0, variance: 0.5 } };
 
 const PROGRESSION = [
   // ── FTUE: near-impossible to lose — learn the controls ────────────────────
-  { id: 1,  laneCount: 1, colCount: 1, colors: ['Red'],           worldConfig: FTUE_WORLD_1, duration:  60, showArrow: true,  hintText: 'Drag the matching shooter to the lane' },
+  { id: 1,  laneCount: 1, colCount: 1, colors: ['Red'],           worldConfig: FTUE_WORLD_1, duration:  60, targetKills: 5, showArrow: true,  hintText: 'Drag the matching shooter to the lane', initialCars: [{ row: 4, type: 'small' }, { row: 2, type: 'small' }, { row: 0, type: 'small' }] },
   { id: 2,  laneCount: 2, colCount: 2, colors: ['Red', 'Blue'],   worldConfig: FTUE_WORLD_2, duration:  70, showArrow: false, hintText: 'Color must match! Wrong color = no damage' },
   { id: 3,  laneCount: 3, colCount: 3, colors: ['Red', 'Blue'],   worldConfig: EARLY_3,      duration:  90, showArrow: false, hintText: null, showAreaLabels: true },
   { id: 4,  laneCount: 4, colCount: 4, colors: ['Red', 'Blue'],   worldConfig: EARLY_4,      duration:  90, showArrow: false, hintText: null },

@@ -451,6 +451,7 @@ async function main() {
     // Turn-based target: use explicit targetKills or compute from duration.
     gs.targetKills = cfg.targetKills ?? Math.max(5, Math.round((cfg.duration ?? 60) * 0.12));
     gs.gridRows    = cfg.gridRows ?? 10;  // default 10 road slots
+    gs.initialCars = cfg.initialCars ?? null;
   }
 
   // ── Core level-start routine ──────────────────────────────────────────────

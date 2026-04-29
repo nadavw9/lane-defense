@@ -1,183 +1,64 @@
-// Shooter3D — each slot is ONE flat PlaneGeometry with ONE CanvasTexture.
-// The canvas draws the complete bomb visual: colored body + gradient fuse + spark + badge.
-// Viewed from the top-down orthographic shooter camera (layer 1).
+// Shooter3D — each slot is a THREE.Group with a SphereGeometry bomb body,
+// a TubeGeometry fuse, and a horizontal CanvasTexture badge for the damage
+// number.  Viewed from the top-down orthographic shooter camera (layer 1).
+//
+// Queue depth cue: slot index 0 = main/front, 1–3 = receding queue.
+// Achieved by scaling the group down and reducing sphere emissive intensity.
 
 import * as THREE from 'three';
 import { laneToX } from './Scene3D.js';
 
-// ── Tweakable design constants ─────────────────────────────────────────────────
-const SLOT_ALPHA  = [1.0, 0.70, 0.45, 0.28];   // main → queue opacity
-const SLOT_SCALE_Y = [1.0, 0.90, 0.80, 0.70];   // depth illusion — queue slots shrink
-const SLOT_DESAT   = [0.0, 0.15, 0.15, 0.15];   // saturation reduction for queue slots
+// ── Layout ────────────────────────────────────────────────────────────────────
+const SLOT_Z  = [-1.5, -0.5, 0.5, 1.4];   // world-Z per slot row
+const LANE_COUNT = 4;
 
-// Spark emissive bead (per lane, visible on main slot fuse tip)
+// ── Per-slot depth parameters ─────────────────────────────────────────────────
+const SLOT_SCALE     = [1.00, 0.92, 0.83, 0.74];   // group uniform scale
+const SLOT_ALPHA     = [1.00, 0.80, 0.60, 0.40];   // material opacity
+const SLOT_EMISSIVE  = [0.35, 0.22, 0.15, 0.08];   // sphere emissive intensity
+
+// ── Bomb geometry (group-local coords) ───────────────────────────────────────
+const BOMB_R  = 0.28;    // sphere radius
+const BOMB_CX = -0.25;   // sphere center X within group (left side)
+const BOMB_CY = BOMB_R;  // sphere center Y (sits on the floor plane)
+const BOMB_CZ = 0;       // sphere center Z
+
+// ── Spark emissive bead (per lane, at main-slot fuse tip) ─────────────────────
 const SPARK_BEAD_COLOR    = 0xff8800;
 const SPARK_BEAD_RADIUS   = 0.045;
 const SPARK_FLICKER_SPEED = 12;   // radians/sec
 
-// ── Layout ────────────────────────────────────────────────────────────────────
-const SLOT_Z  = [-1.5, -0.5, 0.5, 1.4];
-const SLOT_W  = 2.4;
-const SLOT_H  = 0.80;
-const CVS_W   = 192;
-const CVS_H   = 64;
+// ── Badge canvas ──────────────────────────────────────────────────────────────
+const BADGE_CVS_W = 80;
+const BADGE_CVS_H = 40;
+const BADGE_W     = 0.65;   // world-unit badge width
+const BADGE_H     = 0.32;   // world-unit badge height
 
-const LANE_COUNT = 4;
-
+// ── Color palette ─────────────────────────────────────────────────────────────
 const COLOR_HEX = {
   Red:    0xE24B4A, Blue:   0x378ADD, Green:  0x639922,
   Yellow: 0xEF9F27, Purple: 0x7F77DD, Orange: 0xD85A30,
 };
 
-// ── Canvas helpers ─────────────────────────────────────────────────────────────
-function hexToCss(hex) {
-  return `#${((hex >> 16) & 0xff).toString(16).padStart(2,'0')}` +
-         `${((hex >>  8) & 0xff).toString(16).padStart(2,'0')}` +
-         `${( hex        & 0xff).toString(16).padStart(2,'0')}`;
-}
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-// Blend hex color toward gray by `amount` (0=original, 1=full gray) → css string.
-function desaturateHex(hex, amount) {
-  const r = (hex >> 16) & 0xff;
-  const g = (hex >>  8) & 0xff;
-  const b =  hex        & 0xff;
-  const gray = (r + g + b) / 3;
-  const nr = Math.round(r + (gray - r) * amount);
-  const ng = Math.round(g + (gray - g) * amount);
-  const nb = Math.round(b + (gray - b) * amount);
-  return `#${nr.toString(16).padStart(2,'0')}${ng.toString(16).padStart(2,'0')}${nb.toString(16).padStart(2,'0')}`;
-}
-
-// Return a css string lightened by `frac` (0=original, 1=white).
-function brightenHex(hex, frac) {
-  const r = (hex >> 16) & 0xff;
-  const g = (hex >>  8) & 0xff;
-  const b =  hex        & 0xff;
-  const nr = Math.min(255, Math.round(r + (255 - r) * frac));
-  const ng = Math.min(255, Math.round(g + (255 - g) * frac));
-  const nb = Math.min(255, Math.round(b + (255 - b) * frac));
-  return `#${nr.toString(16).padStart(2,'0')}${ng.toString(16).padStart(2,'0')}${nb.toString(16).padStart(2,'0')}`;
-}
-
-function cssFromHex(hex, desatAmt) {
-  return desatAmt > 0 ? desaturateHex(hex, desatAmt) : hexToCss(hex);
-}
-
-// Draw rounded rectangle path on canvas 2d context.
-function canvasRoundRect(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.arcTo(x + w, y,     x + w, y + r,     r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
-  ctx.lineTo(x + r, y + h);
-  ctx.arcTo(x,     y + h, x, y + h - r,     r);
-  ctx.lineTo(x, y + r);
-  ctx.arcTo(x, y,         x + r, y,          r);
-  ctx.closePath();
-}
-
-// Draw complete bomb onto a canvas context.
-// slotIdx > 0 reduces saturation (queue depth cue).
-function drawBomb(ctx, W, H, hexColor, damage, slotIdx) {
+function drawDamageBadge(ctx, W, H, damage) {
   ctx.clearRect(0, 0, W, H);
-
-  const desat  = SLOT_DESAT[slotIdx] ?? 0;
-  const css    = cssFromHex(hexColor, desat);
-  const cssBrt = brightenHex(hexColor, desat > 0 ? 0 : 0.30);
-
-  // Bomb center: placed at W*0.30 so it sits in the left portion of the canvas
-  const bx = W * 0.30;
-  const by = H * 0.58;
-  const R  = H * 0.35;
-
-  // ── Outer glow (reduced blur for crisper look) ──────────────────────────────
-  ctx.shadowColor = css;
-  ctx.shadowBlur  = 6;
-  ctx.fillStyle   = css;
-  ctx.beginPath(); ctx.arc(bx, by, R + 3, 0, Math.PI * 2); ctx.fill();
-  ctx.shadowBlur  = 0;
-
-  // ── Bomb body — radial gradient for spherical shading ───────────────────────
-  const bodyGrad = ctx.createRadialGradient(
-    bx - R * 0.30, by - R * 0.30, 0,
-    bx, by, R,
-  );
-  bodyGrad.addColorStop(0,   cssBrt);
-  bodyGrad.addColorStop(0.6, css);
-  bodyGrad.addColorStop(1,   css);
-  ctx.fillStyle = bodyGrad;
-  ctx.beginPath(); ctx.arc(bx, by, R, 0, Math.PI * 2); ctx.fill();
-
-  // ── Dark bottom-half shading (spherical look) ────────────────────────────────
-  ctx.fillStyle = 'rgba(0,0,0,0.18)';
-  ctx.beginPath();
-  ctx.arc(bx, by, R, Math.PI * 0.05, Math.PI * 0.95, false);
-  ctx.closePath(); ctx.fill();
-
-  // ── Specular hotspot upper-left ───────────────────────────────────────────────
-  const specGrad = ctx.createRadialGradient(
-    bx - R * 0.30, by - R * 0.30, 0,
-    bx - R * 0.30, by - R * 0.30, R * 0.32,
-  );
-  specGrad.addColorStop(0, 'rgba(255,255,255,0.70)');
-  specGrad.addColorStop(0.5, 'rgba(255,255,255,0.22)');
-  specGrad.addColorStop(1, 'rgba(255,255,255,0)');
-  ctx.fillStyle = specGrad;
-  ctx.beginPath(); ctx.arc(bx - R * 0.30, by - R * 0.30, R * 0.32, 0, Math.PI * 2); ctx.fill();
-
-  // ── Dark cartoon outline ──────────────────────────────────────────────────────
-  ctx.strokeStyle = 'rgba(26,26,26,0.85)';
+  ctx.fillStyle = 'rgba(0,0,12,0.80)';
+  if (ctx.roundRect) ctx.roundRect(1, 1, W - 2, H - 2, 6);
+  else               ctx.rect(1, 1, W - 2, H - 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.72)';
   ctx.lineWidth   = 1.5;
-  ctx.beginPath(); ctx.arc(bx, by, R, 0, Math.PI * 2); ctx.stroke();
-
-  // ── Fuse — thicker curved line with gradient (light at base, dark at tip) ─────
-  const fuseEndX  = bx + H * 0.14;
-  const fuseEndY  = by - R - H * 0.18;
-  const fuseCPX   = bx + H * 0.08;
-  const fuseCPY   = by - R - H * 0.08;
-  const fuseGrad  = ctx.createLinearGradient(bx, by - R, fuseEndX, fuseEndY);
-  fuseGrad.addColorStop(0, '#cccccc');
-  fuseGrad.addColorStop(1, '#777777');
-  ctx.strokeStyle = fuseGrad;
-  ctx.lineWidth   = Math.max(2.5, H * 0.05);   // thicker than before
-  ctx.lineCap     = 'round';
-  ctx.beginPath();
-  ctx.moveTo(bx, by - R);
-  ctx.quadraticCurveTo(fuseCPX, fuseCPY, fuseEndX, fuseEndY);
   ctx.stroke();
-
-  // ── Spark dot at fuse tip ─────────────────────────────────────────────────────
-  ctx.fillStyle   = '#ffee44';
-  ctx.shadowColor = '#ff8800';
-  ctx.shadowBlur  = 6;
-  ctx.beginPath();
-  ctx.arc(fuseEndX, fuseEndY, H * 0.07, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.shadowBlur = 0;
-
-  // ── Damage badge plate (dark rounded rect on lower body) ──────────────────────
-  const numX = H + (W - H) / 2;   // right portion of canvas
-  const numY = by;
-  const badgeW = (W - H) * 0.72;
-  const badgeH = H * 0.48;
-  canvasRoundRect(ctx, numX - badgeW / 2, numY - badgeH / 2, badgeW, badgeH, 6);
-  ctx.fillStyle   = '#0a0a14';
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.70)';
-  ctx.lineWidth   = 1.2;
-  ctx.stroke();
-
-  // ── Damage number inside badge ────────────────────────────────────────────────
-  ctx.font         = `bold ${Math.round(H * 0.52)}px Arial`;
+  ctx.font         = `bold ${Math.round(H * 0.68)}px Arial`;
   ctx.fillStyle    = '#ffffff';
   ctx.textAlign    = 'center';
   ctx.textBaseline = 'middle';
   ctx.shadowColor  = 'rgba(0,0,0,0.9)';
   ctx.shadowBlur   = 3;
-  ctx.fillText(String(damage), numX, numY);
-  ctx.shadowBlur = 0;
+  ctx.fillText(String(damage), W / 2, H / 2);
+  ctx.shadowBlur   = 0;
 }
 
 export class Shooter3D {
@@ -186,7 +67,11 @@ export class Shooter3D {
     this._columns = columns;
     this._elapsed = 0;
 
-    // _slots[laneIdx][slotIdx] = { mesh, mat, tex, ctx, canvas, lastColor, lastDamage, _baseScaleY, ... }
+    // _slots[laneIdx][slotIdx] = {
+    //   group, sphereMesh, sphereMat, fuseMesh,
+    //   badgeCanvas, badgeCtx, badgeTex, badgeMesh,
+    //   lastColor, lastDamage, _punching, _punchT, _baseScale
+    // }
     this._slots = [];
     for (let li = 0; li < LANE_COUNT; li++) {
       this._slots.push(SLOT_Z.map((z, si) => this._createSlot(li, z, si)));
@@ -204,8 +89,7 @@ export class Shooter3D {
         roughness:         0.3,
       });
       const bead = new THREE.Mesh(new THREE.SphereGeometry(SPARK_BEAD_RADIUS, 6, 6), mat);
-      // Approximate fuse-tip world position above main slot
-      bead.position.set(laneToX(li) + 0.14, 0.22, SLOT_Z[0] - 0.22);
+      bead.position.set(laneToX(li) + BOMB_CX + 0.15, BOMB_CY + 0.38, SLOT_Z[0] - 0.30);
       bead.visible = false;
       bead.layers.set(1);
       this._scene.add(bead);
@@ -219,10 +103,10 @@ export class Shooter3D {
     for (let li = 0; li < this._slots.length; li++) {
       const x = laneToX(li, n);
       for (const slot of this._slots[li]) {
-        slot.mesh.position.x = x;
+        slot.group.position.x = x;
       }
       const sb = this._sparkBeads[li];
-      if (sb) sb.bead.position.x = x + 0.14;
+      if (sb) sb.bead.position.x = x + BOMB_CX + 0.15;
     }
   }
 
@@ -233,7 +117,7 @@ export class Shooter3D {
   triggerPunch(colIdx) {
     const slot = this._slots[colIdx]?.[0];
     if (!slot) return;
-    slot.mesh.scale.set(1.25, 1.25, 1.25);
+    slot.group.scale.setScalar(1.30);
     slot._punchT   = 0;
     slot._punching = true;
   }
@@ -245,9 +129,9 @@ export class Shooter3D {
       const col   = this._columns[li];
       const slots = this._slots[li];
 
-      // Inactive columns: hide all slot meshes and spark bead.
+      // Inactive columns: hide all slots and spark bead.
       if (li >= this._activeColCount) {
-        for (const slot of slots) slot.mesh.visible = false;
+        for (const slot of slots) slot.group.visible = false;
         this._sparkBeads[li].bead.visible = false;
         continue;
       }
@@ -257,11 +141,11 @@ export class Shooter3D {
         const shooter = col.shooters?.[si] ?? null;
 
         if (!shooter) {
-          slot.mesh.visible = false;
+          slot.group.visible = false;
           continue;
         }
 
-        slot.mesh.visible = true;
+        slot.group.visible = true;
 
         const hex    = COLOR_HEX[shooter.color] ?? 0x888888;
         const damage = shooter.damage ?? 1;
@@ -269,31 +153,34 @@ export class Shooter3D {
         if (slot.lastColor !== hex || slot.lastDamage !== damage) {
           slot.lastColor  = hex;
           slot.lastDamage = damage;
-          drawBomb(slot.ctx, CVS_W, CVS_H, hex, damage, si);
-          slot.tex.needsUpdate = true;
+          // Update sphere material color + emissive
+          slot.sphereMat.color.setHex(hex);
+          slot.sphereMat.emissive.setHex(hex);
+          // Redraw damage badge
+          drawDamageBadge(slot.badgeCtx, BADGE_CVS_W, BADGE_CVS_H, damage);
+          slot.badgeTex.needsUpdate = true;
         }
 
         // Punch animation on main slot
         if (si === 0 && slot._punching) {
           slot._punchT += dt;
           const prog = Math.min(1, slot._punchT / 0.15);
-          const s    = 1.25 - 0.25 * (1 - Math.pow(1 - prog, 3));
-          // Preserve Y base scale during punch
-          slot.mesh.scale.set(s, s * slot._baseScaleY, s);
+          const s    = (1.30 - 0.30 * (1 - Math.pow(1 - prog, 3))) * slot._baseScale;
+          slot.group.scale.setScalar(s);
           if (slot._punchT >= 0.15) {
             slot._punching = false;
-            slot.mesh.scale.set(1, slot._baseScaleY, 1);
+            slot.group.scale.setScalar(slot._baseScale);
           }
         }
 
         // Gentle Y-bob on main slot
         if (si === 0) {
-          slot.mesh.position.y = 0.01 + Math.sin(elapsed * 2.4) * 0.04;
+          slot.group.position.y = Math.sin(elapsed * 2.4) * 0.03;
         }
       }
 
       // Spark bead flicker for this lane's main slot
-      const mainVisible = this._slots[li][0].mesh.visible;
+      const mainVisible = this._slots[li][0].group.visible;
       const bead = this._sparkBeads[li];
       bead.bead.visible = mainVisible;
       if (mainVisible) {
@@ -306,10 +193,14 @@ export class Shooter3D {
   dispose() {
     for (const laneSlots of this._slots) {
       for (const slot of laneSlots) {
-        slot.tex.dispose();
-        slot.mat.dispose();
-        slot.mesh.geometry.dispose();
-        this._scene.remove(slot.mesh);
+        slot.badgeTex.dispose();
+        slot.sphereMesh.geometry.dispose();
+        slot.fuseMesh.geometry.dispose();
+        slot.badgeMesh.geometry.dispose();
+        slot.sphereMat.dispose();
+        slot.fuseMat.dispose();
+        slot.badgeMat.dispose();
+        this._scene.remove(slot.group);
       }
     }
     for (const { bead, mat } of this._sparkBeads) {
@@ -324,34 +215,77 @@ export class Shooter3D {
   // ── Private ──────────────────────────────────────────────────────────────────
 
   _createSlot(laneIdx, worldZ, slotIdx) {
-    const canvas = document.createElement('canvas');
-    canvas.width  = CVS_W;
-    canvas.height = CVS_H;
-    const ctx = canvas.getContext('2d');
+    const alpha    = SLOT_ALPHA[slotIdx];
+    const emissive = SLOT_EMISSIVE[slotIdx];
+    const scale    = SLOT_SCALE[slotIdx];
+    const group    = new THREE.Group();
 
-    const tex = new THREE.CanvasTexture(canvas);
-    const mat = new THREE.MeshBasicMaterial({
-      map: tex, transparent: true, opacity: SLOT_ALPHA[slotIdx],
-      depthTest: false, side: THREE.DoubleSide,
+    // ── Sphere body ───────────────────────────────────────────────────────────
+    const sphereMat = new THREE.MeshStandardMaterial({
+      color:             0x888888,
+      emissive:          new THREE.Color(0x888888),
+      emissiveIntensity: emissive,
+      metalness:         0.30,
+      roughness:         0.45,
+      transparent:       alpha < 1,
+      opacity:           alpha,
     });
+    const sphereMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(BOMB_R, 14, 10),
+      sphereMat,
+    );
+    sphereMesh.position.set(BOMB_CX, BOMB_CY, BOMB_CZ);
+    sphereMesh.castShadow = false;
+    group.add(sphereMesh);
 
-    const geo  = new THREE.PlaneGeometry(SLOT_W, SLOT_H);
-    const mesh = new THREE.Mesh(geo, mat);
+    // ── Fuse (TubeGeometry along a curved path) ───────────────────────────────
+    // Curve goes from sphere top toward the upper-right, visible from above.
+    const fuseStart = new THREE.Vector3(BOMB_CX,        BOMB_CY + BOMB_R,        BOMB_CZ);
+    const fuseMid   = new THREE.Vector3(BOMB_CX + 0.08, BOMB_CY + BOMB_R + 0.14, BOMB_CZ - 0.14);
+    const fuseEnd   = new THREE.Vector3(BOMB_CX + 0.16, BOMB_CY + BOMB_R + 0.25, BOMB_CZ - 0.26);
+    const fuseCurve = new THREE.CatmullRomCurve3([fuseStart, fuseMid, fuseEnd]);
+    const fuseGeo   = new THREE.TubeGeometry(fuseCurve, 8, 0.022, 5, false);
+    const fuseMat   = new THREE.MeshStandardMaterial({
+      color:       0xaaaaaa,
+      roughness:   0.8,
+      transparent: alpha < 1,
+      opacity:     alpha,
+    });
+    const fuseMesh = new THREE.Mesh(fuseGeo, fuseMat);
+    group.add(fuseMesh);
 
-    mesh.rotation.x = -Math.PI / 2;
-    mesh.position.set(laneToX(laneIdx), 0.01, worldZ);
-    // Queue slots get a smaller Y scale for a depth-receding look
-    const baseScaleY = SLOT_SCALE_Y[slotIdx];
-    mesh.scale.set(1, baseScaleY, 1);
-    mesh.visible = false;
-    mesh.layers.set(1);
-    this._scene.add(mesh);
+    // ── Damage badge (horizontal PlaneGeometry with canvas texture) ───────────
+    const badgeCanvas = document.createElement('canvas');
+    badgeCanvas.width  = BADGE_CVS_W;
+    badgeCanvas.height = BADGE_CVS_H;
+    const badgeCtx = badgeCanvas.getContext('2d');
+    const badgeTex = new THREE.CanvasTexture(badgeCanvas);
+    const badgeMat = new THREE.MeshBasicMaterial({
+      map: badgeTex, transparent: true, opacity: alpha, depthTest: false,
+    });
+    const badgeMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(BADGE_W, BADGE_H),
+      badgeMat,
+    );
+    // Lie flat so it's readable from the top-down shooter camera.
+    badgeMesh.rotation.x = -Math.PI / 2;
+    badgeMesh.position.set(0.42, 0.005, 0);
+    group.add(badgeMesh);
+
+    // All meshes in layer 1 (shooter camera only).
+    group.traverse(obj => { if (obj.isMesh) obj.layers.set(1); });
+
+    group.scale.setScalar(scale);
+    group.position.set(laneToX(laneIdx), 0, worldZ);
+    group.visible = false;
+    this._scene.add(group);
 
     return {
-      mesh, mat, tex, ctx, canvas,
+      group, sphereMesh, sphereMat, fuseMesh, fuseMat,
+      badgeCanvas, badgeCtx, badgeTex, badgeMesh, badgeMat,
       lastColor: -1, lastDamage: -1,
       _punching: false, _punchT: 0,
-      _baseScaleY: baseScaleY,
+      _baseScale: scale,
     };
   }
 }

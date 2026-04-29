@@ -20,14 +20,12 @@
 import { Container, Graphics, Text } from 'pixi.js';
 import {
   ROAD_TOP_Y, ROAD_BOTTOM_Y,
-  ROAD_TOP_X, ROAD_TOP_W, ROAD_BOTTOM_W,
-  LANE_COUNT as TOTAL_LANES,
 } from '../renderer/LaneRenderer.js';
 import {
-  SHOOTER_AREA_Y, SHOOTER_AREA_H,
-  COL_W, COL_COUNT as TOTAL_COLS,
-  TOP_Y, TOP_RADIUS,
+  SHOOTER_AREA_Y,
+  TOP_RADIUS,
 } from '../renderer/ShooterRenderer.js';
+import { getColumnScreenX, getColumnScreenY } from '../renderer/PositionRegistry.js';
 
 const HUD_H          = 44;
 const HINT_AUTO_HIDE = 8;  // seconds for banner auto-hide
@@ -112,7 +110,7 @@ export class FTUEOverlay {
         const scale = 1 + Math.sin(t) * 0.14;
         const alpha = 0.42 + Math.sin(t) * 0.38;
         this._ring.clear();
-        this._ring.circle(COL_W * 0.5, TOP_Y, TOP_RADIUS * 1.45 * scale);
+        this._ring.circle(getColumnScreenX(0), getColumnScreenY(), TOP_RADIUS * 1.45 * scale);
         this._ring.stroke({ color: 0xffee44, width: 3.5, alpha });
       }
     }
@@ -318,7 +316,7 @@ export class FTUEOverlay {
     this._container.addChild(grp);
     this._arrowGroup = grp;
 
-    grp.x = COL_W * 0.5;
+    grp.x = getColumnScreenX(0);
 
     const baseY = ROAD_BOTTOM_Y - 80;
     this._arrowBaseY = baseY;

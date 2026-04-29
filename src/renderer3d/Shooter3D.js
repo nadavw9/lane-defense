@@ -180,6 +180,8 @@ export class Shooter3D {
       this._slots.push(SLOT_Z.map((z, si) => this._createSlot(li, z, si)));
     }
 
+    this._activeColCount = LANE_COUNT;
+
     // Emissive spark beads — one per lane at approximate fuse tip position
     this._sparkBeads = [];
     for (let li = 0; li < LANE_COUNT; li++) {
@@ -212,6 +214,10 @@ export class Shooter3D {
     }
   }
 
+  setActiveColCount(n) {
+    this._activeColCount = n;
+  }
+
   triggerPunch(colIdx) {
     const slot = this._slots[colIdx]?.[0];
     if (!slot) return;
@@ -226,6 +232,13 @@ export class Shooter3D {
     for (let li = 0; li < LANE_COUNT; li++) {
       const col   = this._columns[li];
       const slots = this._slots[li];
+
+      // Inactive columns: hide all slot meshes and spark bead.
+      if (li >= this._activeColCount) {
+        for (const slot of slots) slot.mesh.visible = false;
+        this._sparkBeads[li].bead.visible = false;
+        continue;
+      }
 
       for (let si = 0; si < SLOT_Z.length; si++) {
         const slot    = slots[si];

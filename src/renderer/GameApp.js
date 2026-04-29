@@ -526,6 +526,7 @@ async function main() {
     firingLineRenderer.setActiveLaneCount(cfg.laneCount ?? 4);
     gameRenderer3D.resetLevel();
     gameRenderer3D.setActiveLaneCount(cfg.laneCount ?? 4);
+    gameRenderer3D.setActiveColCount(cfg.colCount ?? 4);
     gameRenderer3D.startLevelIntro();
     gameRenderer3D.setCombo(0);
     shooterRenderer.enable3DMode(true);

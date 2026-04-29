@@ -219,6 +219,10 @@ export class GameRenderer3D {
     this._environment?.setLaneCount(n);
   }
 
+  setActiveColCount(n) {
+    this._shooters?.setActiveColCount(n);
+  }
+
   // ── Per-frame update ────────────────────────────────────────────────────────
 
   update(gameState, dt, elapsed) {

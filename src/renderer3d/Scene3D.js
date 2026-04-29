@@ -18,9 +18,9 @@ import { OutputPass }      from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 // ── Tweakable design constants ─────────────────────────────────────────────────
-const FOG_COLOR = 0x1a3a6e;   // matches Skybox3D SKY_FAR
-const FOG_NEAR  = 15;
-const FOG_FAR   = 45;
+const FOG_COLOR = 0xc8e8ff;   // very light pale blue — daytime atmospheric haze
+const FOG_NEAR  = 25;         // cars at Z=-15 (pos~30) are fog-free
+const FOG_FAR   = 90;         // sky plane at Z=-48 (~58 dist) → barely tinted
 
 // Shooter viewport column divider style
 const DIV_COLOR      = 0xddddcc;   // yellow-white, matches Road3D COL_DIVIDER

@@ -1,9 +1,8 @@
 // Lighting3D — Static scene lights + dynamic explosion flash pool.
 //
 // Static lights:
-//   • AmbientLight       — low-level night fill
-//   • HemisphereLight    — sky/ground colour separation
-//   • DirectionalLight   — moonlight, casts shadows
+//   • HemisphereLight    — daytime sky/ground fill (bright daylight)
+//   • DirectionalLight   — sun at high angle, warm white
 //
 // Dynamic lights (pooled):
 //   • 8 PointLights reserved for muzzle flashes and explosion bursts.
@@ -19,36 +18,27 @@ export class Lighting3D {
     this._scene  = scene;
     this._flPool = [];    // { light, active, timer, duration }
 
-    // ── Ambient ─────────────────────────────────────────────────────────────
-    const ambient = new THREE.AmbientLight(0x334466, 0.5);
+    // ── Hemisphere — daytime sky/ground ────────────────────────────────────
+    const hemi = new THREE.HemisphereLight(0xc8e8ff, 0x7ac043, 1.4);
+    scene.add(hemi);
+
+    // ── Directional sun — warm white, high angle ────────────────────────────
+    const sun = new THREE.DirectionalLight(0xfff5e0, 1.6);
+    sun.position.set(8, 18, 5);
+    sun.castShadow = false;   // no shadow cost for now
+    scene.add(sun);
+    this._sun = sun;   // keep ref for dispose()
+
+    // ── Ambient fill — bright daylight base ─────────────────────────────────
+    const ambient = new THREE.AmbientLight(0xffffff, 0.6);
     scene.add(ambient);
     this._ambient     = ambient;
-    this._ambientBase = 0.5;   // resting intensity
+    this._ambientBase = 0.6;   // resting intensity
 
     // Ambient flash state (driven by ambientFlash()).
     this._ambientFlashTimer    = 0;
     this._ambientFlashDuration = 0.30;
     this._ambientPeak          = 0;
-
-    // ── Hemisphere (sky = deep blue, ground = near-black purple) ────────────
-    const hemi = new THREE.HemisphereLight(0x223366, 0x110822, 0.35);
-    scene.add(hemi);
-
-    // ── Directional / moonlight ─────────────────────────────────────────────
-    const moon = new THREE.DirectionalLight(0x8899cc, 0.9);
-    moon.position.set(-6, 18, 4);
-    moon.castShadow             = true;
-    moon.shadow.mapSize.width   = 2048;
-    moon.shadow.mapSize.height  = 2048;
-    moon.shadow.camera.near     = 0.5;
-    moon.shadow.camera.far      = 80;
-    moon.shadow.camera.left     = -14;
-    moon.shadow.camera.right    =  14;
-    moon.shadow.camera.top      =  14;
-    moon.shadow.camera.bottom   = -14;
-    moon.shadow.bias            = -0.001;
-    scene.add(moon);
-    this._moon = moon;   // keep ref for dispose()
 
     // ── Flash pool ───────────────────────────────────────────────────────────
     for (let i = 0; i < FLASH_POOL_SIZE; i++) {
@@ -126,7 +116,6 @@ export class Lighting3D {
     this._scene.children
       .filter(c => c.isLight)
       .forEach(c => this._scene.remove(c));
-    this._moon?.shadow?.map?.dispose();
     this._flPool.length = 0;
   }
 }

@@ -15,15 +15,15 @@ function makeLCG(seed) {
 }
 
 // ── Design constants ──────────────────────────────────────────────────────────
-const GRASS_COLOR   = 0x3a7d2a;
-const GRASS_DRY     = 0x5a7a20;   // slight variation strip
+const GRASS_COLOR   = 0x8fd96a;   // bright saturated green
+const GRASS_LIGHT   = 0xa8e878;   // lighter green variation strip
 
-const TREE_FOLIAGE  = [0x2d6e1a, 0x3a8222, 0x1f5512];
-const TREE_TRUNK    = 0x5c3a1e;
-const BUSH_COLOR    = [0x2a6618, 0x3d7a20, 0x4a8230];
-const ROCK_COLOR    = [0x6e6e72, 0x5a5a5e, 0x7e7e82];
-const MTN_COLOR     = 0x1a2a3e;
-const FLOWER_COLORS = [0xf5c842, 0xe84b9a, 0xffffff, 0xff7722];
+const TREE_FOLIAGE  = [0x4ab83a, 0x5ecf44, 0x3da030];   // brighter saturated greens
+const TREE_TRUNK    = 0x6e4a2c;   // warm brown
+const BUSH_COLOR    = [0x6cd24a, 0x7ade58, 0x58c438];    // bright greens
+const ROCK_COLOR    = [0xa0a0a8, 0x909098, 0xb4b4bc];    // lighter friendly grey
+const MTN_COLOR     = 0x7ac043;   // green hills matching Skybox3D
+const FLOWER_COLORS = [0xffea44, 0xff88aa, 0xfafafa, 0xff7722];   // yellow/pink/white/orange
 
 const Z_NEAR  = 2.5;    // closest Z (toward camera)
 const Z_FAR   = -38;    // farthest Z (horizon)
@@ -56,7 +56,7 @@ class EnvironmentChunk {
     for (let i = 0; i < posAttr.count; i++) {
       const z = posAttr.getZ(i);
       const t = (z - Z_FAR) / Z_RANGE;
-      const c = (t > 0.5) ? new THREE.Color(GRASS_DRY) : new THREE.Color(GRASS_COLOR);
+      const c = (t > 0.5) ? new THREE.Color(GRASS_LIGHT) : new THREE.Color(GRASS_COLOR);
       colors.push(c.r, c.g, c.b);
     }
     grassGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
@@ -169,8 +169,8 @@ class EnvironmentChunk {
     for (const im of rockIMs) im.instanceMatrix.needsUpdate = true;
 
     // ── Flowers (tiny flat discs scattered near road) ─────────────────────────
-    const FLOWER_COUNT = 35;
-    const flowerGeo    = new THREE.CircleGeometry(0.09, 5);
+    const FLOWER_COUNT = 60;
+    const flowerGeo    = new THREE.CircleGeometry(0.15, 5);   // larger patches
     for (const color of FLOWER_COLORS) {
       const mat = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide });
       const im  = new THREE.InstancedMesh(flowerGeo, mat, FLOWER_COUNT);

@@ -9,11 +9,11 @@ import * as THREE from 'three';
 import { ROAD_Z_FAR, ROAD_Z_NEAR, laneToX, roadHalfW, posToZ } from './Scene3D.js';
 
 // ── Tweakable design constants ─────────────────────────────────────────────────
-const COL_ASPHALT      = 0x2a2a32;
-const COL_ASPHALT_DARK = 0x222228;
-const COL_DIVIDER      = 0xddddcc;
-const COL_BARRIER      = 0x666672;
-const COL_BARRIER_TOP  = 0x888896;
+const COL_ASPHALT      = 0x4a4a52;   // medium grey, friendlier than near-black
+const COL_ASPHALT_DARK = 0x3c3c44;
+const COL_DIVIDER      = 0xfff5a0;   // bright sunny yellow lane dividers
+const COL_BARRIER      = 0xc8c8c8;   // light concrete white-grey
+const COL_BARRIER_TOP  = 0xe8e8e8;
 const COL_REFLECTOR    = 0xffdd00;
 const COL_BREACH_LINE  = 0xdd2222;
 
@@ -24,7 +24,7 @@ const BREACH_PULSE_PERIOD = 1.5;   // seconds
 const TRAFFIC_DOT_COUNT = 30;
 const TRAFFIC_DOT_SPEED = 4.0;    // world units / sec
 
-const REFL_AURORA_COLORS = [0x2a8a9e, 0x4a1a5c, 0xff44aa];
+const REFL_STRIP_COLORS  = [0xfff5a0, 0xc8e8ff, 0xd4f0a0];   // sunny yellow / sky blue / pale green
 
 const SPEED_LINE_COUNT      = 20;
 const SPEED_LINE_BASE_SPEED = 6.0;
@@ -142,7 +142,7 @@ export class Road3D {
     }
 
     // Reflection strips — cycle aurora colours
-    const auroraC = REFL_AURORA_COLORS.map(h => new THREE.Color(h));
+    const auroraC = REFL_STRIP_COLORS.map(h => new THREE.Color(h));
     const acLen   = auroraC.length;
     for (let i = 0; i < this._reflStrips.length; i++) {
       const cycle = ((t * 0.40 + i / acLen) % 1 + 1) % 1;
@@ -390,10 +390,10 @@ export class Road3D {
   _buildReflectionStrips() {
     const hw = roadHalfW(this._laneCount);
     this._reflStrips = [];
-    for (let i = 0; i < REFL_AURORA_COLORS.length; i++) {
+    for (let i = 0; i < REFL_STRIP_COLORS.length; i++) {
       const mat = new THREE.MeshStandardMaterial({
         color:             0x000000,
-        emissive:          new THREE.Color(REFL_AURORA_COLORS[i]),
+        emissive:          new THREE.Color(REFL_STRIP_COLORS[i]),
         emissiveIntensity: 0.30,
         transparent:       true,
         opacity:           0.55,

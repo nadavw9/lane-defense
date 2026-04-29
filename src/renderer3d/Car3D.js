@@ -62,6 +62,10 @@ const DEATH_DURATION  = 0.30;
 const DEATH_SCALE_MAX = 1.40;
 const DEATH_VY        = 2.5;             // world units/s upward pop
 
+// Render-side movement lerp (row jumps smooth over this duration)
+const LERP_DURATION = 0.45;   // seconds
+const MAX_TILT_X    = 0.20;   // radians forward lean at peak of lerp
+
 // ── Colour palette ─────────────────────────────────────────────────────────────
 const COLOR_HEX = {
   Red:    0xE24B4A,
@@ -169,8 +173,24 @@ export class Car3D {
         const entry = this._live.get(car);
         const g     = entry.group;
 
-        // Position on road.
-        g.position.set(laneToX(laneIdx), CAR_Y, posToZ(car.position));
+        // ── Render-side position lerp (row jump → smooth glide) ────────────
+        const newTargetZ = posToZ(car.position);
+        if (Math.abs(newTargetZ - entry.targetZ) > 0.001) {
+          entry.lerpStartZ = entry.renderZ;
+          entry.targetZ    = newTargetZ;
+          entry.lerpT      = 0;
+        }
+        if (entry.lerpT < 1) {
+          entry.lerpT   = Math.min(1, entry.lerpT + dt / LERP_DURATION);
+          const eased   = 1 - Math.pow(1 - entry.lerpT, 3); // easeOutCubic
+          entry.renderZ = entry.lerpStartZ + (entry.targetZ - entry.lerpStartZ) * eased;
+          // Forward tilt peaks at mid-lerp and returns to zero at landing.
+          g.rotation.x  = -MAX_TILT_X * Math.sin(Math.PI * entry.lerpT);
+        } else {
+          entry.renderZ = entry.targetZ;
+          g.rotation.x  = 0;
+        }
+        g.position.set(laneToX(laneIdx), CAR_Y, entry.renderZ);
 
         // HP plane is a child of the group — position sync is automatic.
 
@@ -400,10 +420,12 @@ export class Car3D {
     group.position.set(laneToX(laneIdx), CAR_Y, posToZ(car.position));
     this._scene.add(group);
 
+    const startZ = posToZ(car.position);
     const entry = {
       group, bodyMat, hpCanvas, hpCtx, hpTex, hpMesh, headLights,
       lastHp: -1, laneIdx, bossRing, bossRingMat, bossAngle: 0, hexColor: hex,
       smokeMesh, smokeTex, calloutMesh, calloutT,
+      renderZ: startZ, targetZ: startZ, lerpStartZ: startZ, lerpT: 1.0,
     };
     this._drawHpBar(entry, car);
     return entry;

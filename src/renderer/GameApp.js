@@ -41,6 +41,7 @@ import { LivesManager }    from '../game/LivesManager.js';
 import { HapticsManager }  from '../game/HapticsManager.js';
 import { setColorblindMode } from '../game/ColorblindMode.js';
 
+import { setActiveCounts } from './PositionRegistry.js';
 import { CarDirector }     from '../director/CarDirector.js';
 import { ShooterDirector } from '../director/ShooterDirector.js';
 import { FairnessArbiter } from '../director/FairnessArbiter.js';
@@ -521,6 +522,7 @@ async function main() {
     boostersUsedThisLevel       = [];
     firstDeployTooltipShown     = false;
     firstKillDoneThisLevel      = false;
+    setActiveCounts({ laneCount: cfg.laneCount ?? 4, colCount: cfg.colCount ?? 4 });
     carRenderer.clearAll();
     firingLineRenderer.reset();
     firingLineRenderer.setActiveLaneCount(cfg.laneCount ?? 4);

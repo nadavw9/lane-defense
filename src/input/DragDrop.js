@@ -25,6 +25,11 @@ import {
   COL_W, COL_COUNT, TOP_RADIUS, TOP_Y,
   SHOOTER_AREA_Y, SHOOTER_AREA_H,
 } from '../renderer/ShooterRenderer.js';
+import {
+  getLaneScreenX, getLaneScreenBounds, getTopLaneScreenBounds,
+  getColumnScreenX, getColumnScreenY, getColScreenW,
+  getActiveLaneCount, getActiveColCount,
+} from '../renderer/PositionRegistry.js';
 import { BENCH_Y, BENCH_SLOT_H } from '../renderer/BenchRenderer.js';
 
 // Re-export color map so we can use it without a circular dep on ShooterRenderer.
@@ -190,7 +195,7 @@ export class DragDrop {
 
     if (this._boosterState?.cycleMode) {
       if (y >= SHOOTER_AREA_Y && y <= SHOOTER_AREA_Y + SHOOTER_AREA_H) {
-        const cycleCol = Math.max(0, Math.min(COL_COUNT - 1, Math.floor(x / COL_W)));
+        const cycleCol = Math.max(0, Math.min(getActiveColCount() - 1, Math.floor(x / getColScreenW())));
         this._boosterState.tapCycleColumn(cycleCol, this._columns);
       }
       return;
@@ -296,7 +301,7 @@ export class DragDrop {
       if (this._benchRenderer) this._benchRenderer.draggingSlot = -1;
       this._onDeployFromBench(shooter, laneIdx);
     }
-    const targetX = (laneIdx + 0.5) * ROAD_BOTTOM_W / LANE_COUNT;
+    const targetX = getLaneScreenX(laneIdx);
     const targetY = ROAD_BOTTOM_Y;
     this._startAnim(
       this._ghost.x, this._ghost.y, targetX, targetY,
@@ -388,11 +393,13 @@ export class DragDrop {
   }
 
   _showLaneHighlight(laneIdx, color) {
-    const g     = this._highlights[laneIdx];
-    const topLx = ROAD_TOP_X + laneIdx       * ROAD_TOP_W  / LANE_COUNT;
-    const topRx = ROAD_TOP_X + (laneIdx + 1) * ROAD_TOP_W  / LANE_COUNT;
-    const botLx =              laneIdx       * ROAD_BOTTOM_W / LANE_COUNT;
-    const botRx =              (laneIdx + 1) * ROAD_BOTTOM_W / LANE_COUNT;
+    const g      = this._highlights[laneIdx];
+    const top    = getTopLaneScreenBounds(laneIdx);
+    const bot    = getLaneScreenBounds(laneIdx);
+    const topLx  = top.left;
+    const topRx  = top.right;
+    const botLx  = bot.left;
+    const botRx  = bot.right;
     g.clear();
     g.poly([topLx, ROAD_TOP_Y, topRx, ROAD_TOP_Y, botRx, ROAD_BOTTOM_Y, botLx, ROAD_BOTTOM_Y]);
     g.fill({ color, alpha: HIGHLIGHT_ALPHA });
@@ -407,7 +414,7 @@ export class DragDrop {
   }
 
   _hitTestColumn(x, y) {
-    for (let i = 0; i < COL_COUNT; i++) {
+    for (let i = 0; i < getActiveColCount(); i++) {
       const { x: cx, y: cy } = this._shooterRenderer.getTopShooterCenter(i);
       const dx = x - cx, dy = y - cy;
       if (dx * dx + dy * dy <= HIT_RADIUS * HIT_RADIUS) return i;
@@ -417,8 +424,9 @@ export class DragDrop {
 
   _hitTestLane(x, y) {
     if (y < ROAD_TOP_Y || y > ROAD_BOTTOM_Y) return -1;
-    const laneIdx = Math.floor(x / (ROAD_BOTTOM_W / LANE_COUNT));
-    return Math.max(0, Math.min(LANE_COUNT - 1, laneIdx));
+    const n       = getActiveLaneCount();
+    const laneIdx = Math.floor(x / (ROAD_BOTTOM_W / n));
+    return Math.max(0, Math.min(n - 1, laneIdx));
   }
 
   _hitTestBenchArea(x, y) {

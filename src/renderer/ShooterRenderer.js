@@ -10,6 +10,7 @@
 import { Sprite, Graphics, Container, Text, Assets } from 'pixi.js';
 import { spriteFlags } from './SpriteFlags.js';
 import { isColorblind, SHAPES } from '../game/ColorblindMode.js';
+import { getColumnScreenX, getColumnScreenY, getColScreenW } from './PositionRegistry.js';
 
 // ── Layout ────────────────────────────────────────────────────────────────────
 export const SHOOTER_AREA_Y  = 520;
@@ -243,7 +244,7 @@ export class ShooterRenderer {
   }
 
   getTopShooterCenter(colIdx) {
-    return { x: (colIdx + 0.5) * COL_W, y: TOP_Y };
+    return { x: getColumnScreenX(colIdx), y: getColumnScreenY() };
   }
 
   // Call with true during gameplay so Shooter3D handles the visuals.
@@ -259,9 +260,10 @@ export class ShooterRenderer {
     const bs        = this._boosterState;
 
     for (let i = 0; i < COL_COUNT; i++) {
-      const col = this._columns[i];
-      const g   = this._bgGraphics[i];
-      const cx  = (i + 0.5) * COL_W;
+      const col   = this._columns[i];
+      const g     = this._bgGraphics[i];
+      const cx    = getColumnScreenX(i);
+      const colW  = getColScreenW();
 
       g.clear();
 
@@ -269,8 +271,8 @@ export class ShooterRenderer {
       // Fully transparent — the 3D Shooter3D turrets rendered in the bottom
       // Three.js viewport show through. PixiJS draws only damage numbers,
       // drag hit areas, and the swap/peek highlights on top.
-      const panelX = i * COL_W + PANEL_PAD;
-      const panelW = COL_W - PANEL_PAD * 2;
+      const panelX = i * colW + PANEL_PAD;
+      const panelW = colW - PANEL_PAD * 2;
       g.roundRect(panelX, SHOOTER_AREA_Y + PANEL_PAD, panelW, SHOOTER_AREA_H - PANEL_PAD * 2, PANEL_RADIUS);
       g.fill({ color: PANEL_COLOR, alpha: this._mode3D ? 0.0 : 0.92 });
 
@@ -415,7 +417,7 @@ export class ShooterRenderer {
 
   // Draw cannon shapes for all visible shooters in column i.
   // Used when spriteFlags.loaded is false.
-  _drawFallback(i, col, g, cx, bounce) {
+  _drawFallback(i, col, g, cx, bounce) {  // cx already resolved to getColumnScreenX(i)
     // Hide all sprite objects for this column.
     this._secondSprites[i].visible = false;
     this._thirdSprites[i].visible  = false;

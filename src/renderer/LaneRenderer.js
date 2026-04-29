@@ -64,16 +64,18 @@ export class LaneRenderer {
     this._breachG = new Graphics();
     this._layer.addChild(this._breachG);
     this._drawBreach(1.0);
+
+    // Hidden by default — 3D renderer handles road visuals during gameplay.
+    // showTitle() re-enables it for the 2D title-screen backdrop.
+    this._layer.visible = false;
   }
 
-  // No-op kept for call-site compatibility — lane hiding removed.
+  // No-op kept for call-site compatibility.
   setActiveLaneCount(_n) {}
 
-  // Call every render frame with gs.elapsed for breach-line pulse.
-  update(elapsed) {
-    const alpha = 0.65 + 0.35 * Math.sin(elapsed * 5.5);
-    this._drawBreach(alpha);
-  }
+  // No-op — breach pulse handled by Road3D in 3D mode; showTitle restores
+  // laneLayer visibility when the 2D backdrop is needed.
+  update(_elapsed) {}
 
 
   _drawBreach(alpha) {

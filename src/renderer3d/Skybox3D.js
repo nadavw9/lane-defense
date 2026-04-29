@@ -3,9 +3,10 @@
 
 import * as THREE from 'three';
 
-const SKY_NEAR    = 0x4a1a5c;   // deep purple (zenith)
-const SKY_FAR     = 0x1a3a6e;   // dark blue (mid-sky)
-const SKY_HORIZON = 0x0d1a2e;   // very dark navy at horizon — avoids blue-sky look
+const SKY_ZENITH  = 0x2a0a3a;   // deep violet at top
+const SKY_MID     = 0x6a1a4a;   // purple-magenta upper-mid
+const SKY_HORIZON = 0x9a2a44;   // warm pink-red at horizon
+const SKY_GLOW    = 0xff6a44;   // orange ember — blended in only at lowest 5%
 const BUILD_FAR   = 0x0b1520;
 const BUILD_NEAR  = 0x0f1d2c;
 const BUILD_FAR2  = 0x070d18;   // second silhouette layer colour
@@ -63,20 +64,26 @@ export class Skybox3D {
 
   // ── Sky gradient ──────────────────────────────────────────────────────────────
   _buildSky() {
-    // 1×5 segments → 6 vertex rows, giving enough resolution for the 3-stop gradient.
-    const geo = new THREE.PlaneGeometry(80, 40, 1, 5);
+    // 1×8 segments → 9 vertex rows for smooth 4-stop gradient (no blue anywhere).
+    const geo = new THREE.PlaneGeometry(80, 40, 1, 8);
     const col = new THREE.Color();
     const pos = geo.attributes.position;
     const colours = [];
+    const cGlow    = new THREE.Color(SKY_GLOW);
     const cHorizon = new THREE.Color(SKY_HORIZON);
-    const cNear    = new THREE.Color(SKY_NEAR);
-    const cFar     = new THREE.Color(SKY_FAR);
+    const cMid     = new THREE.Color(SKY_MID);
+    const cZenith  = new THREE.Color(SKY_ZENITH);
     for (let i = 0; i < pos.count; i++) {
       const t = (pos.getY(i) + 20) / 40;   // 0 = bottom horizon, 1 = zenith
-      if (t < 0.15) {
-        col.lerpColors(cHorizon, cNear, t / 0.15);
+      if (t < 0.05) {
+        // Lowest 5%: orange glow ember at ground line
+        col.lerpColors(cGlow, cHorizon, t / 0.05);
+      } else if (t < 0.30) {
+        // 5%–30%: warm pink-red horizon blending into purple-magenta mid
+        col.lerpColors(cHorizon, cMid, (t - 0.05) / 0.25);
       } else {
-        col.lerpColors(cNear, cFar, (t - 0.15) / 0.85);
+        // 30%–100%: purple-magenta rising to deep violet zenith
+        col.lerpColors(cMid, cZenith, (t - 0.30) / 0.70);
       }
       colours.push(col.r, col.g, col.b);
     }

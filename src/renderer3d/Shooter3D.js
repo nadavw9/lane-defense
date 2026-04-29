@@ -48,6 +48,17 @@ function desaturateHex(hex, amount) {
   return `#${nr.toString(16).padStart(2,'0')}${ng.toString(16).padStart(2,'0')}${nb.toString(16).padStart(2,'0')}`;
 }
 
+// Return a css string lightened by `frac` (0=original, 1=white).
+function brightenHex(hex, frac) {
+  const r = (hex >> 16) & 0xff;
+  const g = (hex >>  8) & 0xff;
+  const b =  hex        & 0xff;
+  const nr = Math.min(255, Math.round(r + (255 - r) * frac));
+  const ng = Math.min(255, Math.round(g + (255 - g) * frac));
+  const nb = Math.min(255, Math.round(b + (255 - b) * frac));
+  return `#${nr.toString(16).padStart(2,'0')}${ng.toString(16).padStart(2,'0')}${nb.toString(16).padStart(2,'0')}`;
+}
+
 function cssFromHex(hex, desatAmt) {
   return desatAmt > 0 ? desaturateHex(hex, desatAmt) : hexToCss(hex);
 }
@@ -72,34 +83,35 @@ function canvasRoundRect(ctx, x, y, w, h, r) {
 function drawBomb(ctx, W, H, hexColor, damage, slotIdx) {
   ctx.clearRect(0, 0, W, H);
 
-  const desat = SLOT_DESAT[slotIdx] ?? 0;
-  const css   = cssFromHex(hexColor, desat);
+  const desat  = SLOT_DESAT[slotIdx] ?? 0;
+  const css    = cssFromHex(hexColor, desat);
+  const cssBrt = brightenHex(hexColor, desat > 0 ? 0 : 0.30);
 
-  // Bomb center: shifted down from top so fuse has room above
-  const bx = H * 0.50;
+  // Bomb center: placed at W*0.30 so it sits in the left portion of the canvas
+  const bx = W * 0.30;
   const by = H * 0.58;
   const R  = H * 0.35;
 
-  // ── Outer glow ──────────────────────────────────────────────────────────────
+  // ── Outer glow (reduced blur for crisper look) ──────────────────────────────
   ctx.shadowColor = css;
-  ctx.shadowBlur  = 12;
+  ctx.shadowBlur  = 6;
   ctx.fillStyle   = css;
   ctx.beginPath(); ctx.arc(bx, by, R + 3, 0, Math.PI * 2); ctx.fill();
   ctx.shadowBlur  = 0;
 
-  // ── Bomb body ────────────────────────────────────────────────────────────────
-  ctx.fillStyle = css;
+  // ── Bomb body — radial gradient for spherical shading ───────────────────────
+  const bodyGrad = ctx.createRadialGradient(
+    bx - R * 0.30, by - R * 0.30, 0,
+    bx, by, R,
+  );
+  bodyGrad.addColorStop(0,   cssBrt);
+  bodyGrad.addColorStop(0.6, css);
+  bodyGrad.addColorStop(1,   css);
+  ctx.fillStyle = bodyGrad;
   ctx.beginPath(); ctx.arc(bx, by, R, 0, Math.PI * 2); ctx.fill();
 
-  // ── Rim highlight gradient (upper-left edge) ─────────────────────────────────
-  const rimGrad = ctx.createLinearGradient(bx - R, by - R, bx + R * 0.4, by + R * 0.4);
-  rimGrad.addColorStop(0, 'rgba(255,255,255,0.20)');
-  rimGrad.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = rimGrad;
-  ctx.beginPath(); ctx.arc(bx, by, R, 0, Math.PI * 2); ctx.fill();
-
-  // ── Dark bottom-half shading (spherical look) ─────────────────────────────────
-  ctx.fillStyle = 'rgba(0,0,0,0.30)';
+  // ── Dark bottom-half shading (spherical look) ────────────────────────────────
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
   ctx.beginPath();
   ctx.arc(bx, by, R, Math.PI * 0.05, Math.PI * 0.95, false);
   ctx.closePath(); ctx.fill();
@@ -107,16 +119,16 @@ function drawBomb(ctx, W, H, hexColor, damage, slotIdx) {
   // ── Specular hotspot upper-left ───────────────────────────────────────────────
   const specGrad = ctx.createRadialGradient(
     bx - R * 0.30, by - R * 0.30, 0,
-    bx - R * 0.30, by - R * 0.30, R * 0.38,
+    bx - R * 0.30, by - R * 0.30, R * 0.32,
   );
   specGrad.addColorStop(0, 'rgba(255,255,255,0.70)');
   specGrad.addColorStop(0.5, 'rgba(255,255,255,0.22)');
   specGrad.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = specGrad;
-  ctx.beginPath(); ctx.arc(bx - R * 0.30, by - R * 0.30, R * 0.38, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(bx - R * 0.30, by - R * 0.30, R * 0.32, 0, Math.PI * 2); ctx.fill();
 
-  // ── White border ──────────────────────────────────────────────────────────────
-  ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+  // ── Dark cartoon outline ──────────────────────────────────────────────────────
+  ctx.strokeStyle = 'rgba(26,26,26,0.85)';
   ctx.lineWidth   = 1.5;
   ctx.beginPath(); ctx.arc(bx, by, R, 0, Math.PI * 2); ctx.stroke();
 

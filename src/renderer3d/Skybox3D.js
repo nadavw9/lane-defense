@@ -42,29 +42,40 @@ export class Skybox3D {
   // ── Set combo intensity (kept for API compatibility — unused in sunny mode) ──
   setCombo(combo) { this._combo = combo; }
 
+  // Apply a theme's sky colors to the gradient.
+  setTheme(theme) {
+    if (!this._skyGeo || !theme.sky) return;
+    this._writeSkyColors(
+      theme.sky.glow, theme.sky.horizon, theme.sky.mid, theme.sky.zenith,
+    );
+  }
+
+  _writeSkyColors(glow, horizon, mid, zenith) {
+    const geo = this._skyGeo;
+    const pos = geo.attributes.position;
+    const col     = new THREE.Color();
+    const cGlow   = new THREE.Color(glow);
+    const cHorizon = new THREE.Color(horizon);
+    const cMid    = new THREE.Color(mid);
+    const cZenith = new THREE.Color(zenith);
+    const colours = [];
+    for (let i = 0; i < pos.count; i++) {
+      const t = (pos.getY(i) + 20) / 40;
+      if (t < 0.05)       col.lerpColors(cGlow,    cHorizon, t / 0.05);
+      else if (t < 0.25)  col.lerpColors(cHorizon, cMid,     (t - 0.05) / 0.20);
+      else                col.lerpColors(cMid,     cZenith,  (t - 0.25) / 0.75);
+      colours.push(col.r, col.g, col.b);
+    }
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(colours, 3));
+    geo.attributes.color.needsUpdate = true;
+  }
+
   // ── Sky gradient ──────────────────────────────────────────────────────────────
   _buildSky() {
     // 1×8 segments → 9 vertex rows for smooth 4-stop gradient.
     const geo = new THREE.PlaneGeometry(80, 40, 1, 8);
-    const col = new THREE.Color();
-    const pos = geo.attributes.position;
-    const colours = [];
-    const cGlow    = new THREE.Color(SKY_GLOW);
-    const cHorizon = new THREE.Color(SKY_HORIZON);
-    const cMid     = new THREE.Color(SKY_MID);
-    const cZenith  = new THREE.Color(SKY_ZENITH);
-    for (let i = 0; i < pos.count; i++) {
-      const t = (pos.getY(i) + 20) / 40;   // 0 = bottom horizon, 1 = zenith
-      if (t < 0.05) {
-        col.lerpColors(cGlow, cHorizon, t / 0.05);
-      } else if (t < 0.25) {
-        col.lerpColors(cHorizon, cMid, (t - 0.05) / 0.20);
-      } else {
-        col.lerpColors(cMid, cZenith, (t - 0.25) / 0.75);
-      }
-      colours.push(col.r, col.g, col.b);
-    }
-    geo.setAttribute('color', new THREE.Float32BufferAttribute(colours, 3));
+    this._skyGeo = geo;
+    this._writeSkyColors(SKY_GLOW, SKY_HORIZON, SKY_MID, SKY_ZENITH);
     const mat  = new THREE.MeshBasicMaterial({ vertexColors: true });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(0, 10, -48);

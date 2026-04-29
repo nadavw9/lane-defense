@@ -528,6 +528,7 @@ async function main() {
     firingLineRenderer.reset();
     firingLineRenderer.setActiveLaneCount(cfg.laneCount ?? 4);
     gameRenderer3D.resetLevel();
+    gameRenderer3D.applyTheme(levelId);
     gameRenderer3D.setActiveLaneCount(cfg.laneCount ?? 4);
     gameRenderer3D.setActiveColCount(cfg.colCount ?? 4);
     gameRenderer3D.startLevelIntro();

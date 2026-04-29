@@ -12,6 +12,7 @@
 
 import { Scene3D, posToZ } from './Scene3D.js';
 import { Lighting3D }    from './Lighting3D.js';
+import { levelTheme }    from './ThemeRegistry.js';
 import { Road3D }        from './Road3D.js';
 import { Skybox3D }      from './Skybox3D.js';
 import { Car3D }         from './Car3D.js';
@@ -104,6 +105,20 @@ export class GameRenderer3D {
   show() { if (this._canvas) this._canvas.style.display = ''; }
   hide() { if (this._canvas) this._canvas.style.display = 'none'; }
   isVisible() { return !!this._canvas && this._canvas.style.display !== 'none'; }
+
+  // Apply per-level theme: sky gradient, lighting, and fog.
+  applyTheme(levelId) {
+    if (!this._scene3d) return;
+    const theme = levelTheme(typeof levelId === 'number' ? levelId : 5);
+    const fog   = this._scene3d.scene.fog;
+    if (fog) {
+      fog.color.setHex(theme.fog.color);
+      fog.near = theme.fog.near;
+      fog.far  = theme.fog.far;
+    }
+    this._lighting?.setTheme(theme);
+    this._skybox?.setTheme(theme);
+  }
 
   resetLevel() {
     this._cars?.clearAll();

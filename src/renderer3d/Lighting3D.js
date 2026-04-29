@@ -21,6 +21,7 @@ export class Lighting3D {
     // ── Hemisphere — daytime sky/ground ────────────────────────────────────
     const hemi = new THREE.HemisphereLight(0xc8e8ff, 0x7ac043, 1.4);
     scene.add(hemi);
+    this._hemi = hemi;
 
     // ── Directional sun — warm white, high angle ────────────────────────────
     const sun = new THREE.DirectionalLight(0xfff5e0, 1.6);
@@ -51,6 +52,24 @@ export class Lighting3D {
 
   // Acquire a flash light at world position (x, y, z).
   // color    — 0xRRGGBB hex
+  // Apply a theme's lighting colors and intensities.
+  setTheme(theme) {
+    if (theme.hemi) {
+      this._hemi.color.setHex(theme.hemi.sky);
+      this._hemi.groundColor.setHex(theme.hemi.ground);
+      this._hemi.intensity = theme.hemi.intensity;
+    }
+    if (theme.sun) {
+      this._sun.color.setHex(theme.sun.color);
+      this._sun.intensity = theme.sun.intensity;
+    }
+    if (theme.ambient) {
+      this._ambient.color.setHex(theme.ambient.color ?? 0xffffff);
+      this._ambientBase   = theme.ambient.intensity ?? 0.6;
+      this._ambient.intensity = this._ambientBase;
+    }
+  }
+
   // intensity — peak intensity (default 3.0)
   // duration  — fade duration in seconds (default 0.35)
   acquireFlash(color, x, y, z, intensity = 3.0, duration = 0.35) {

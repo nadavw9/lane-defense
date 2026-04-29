@@ -16,6 +16,7 @@
 
 import * as THREE from 'three';
 import { posToZ, laneToX } from './Scene3D.js';
+import { CAR_TYPES } from '../director/CarTypes.js';
 
 // ── Car geometry dimensions (world units) ─────────────────────────────────────
 const BODY_W = 1.50;
@@ -121,12 +122,13 @@ export class Car3D {
     this._lanes   = lanes;
 
     // Map<Car object, CarEntry>
-    // CarEntry = { group, bodyMat, hpCanvas, hpCtx, hpTex, hpSprite,
-    //              headLights[], lastHp, laneIdx }
     this._live  = new Map();
 
-    // Dying entries: { group, bodyMat, hpSprite, t, vy }
+    // Dying entries: { group, bodyMat, hpTex, bossRing, bossRingMat, t }
     this._dying = [];
+
+    // First-encounter callout: types seen this level session.
+    this._seenTypes = new Set();
 
     sharedGeo();
   }
@@ -138,6 +140,7 @@ export class Car3D {
     this._live.clear();
     for (const d of this._dying) this._disposeDying(d);
     this._dying.length = 0;
+    this._seenTypes.clear();
   }
 
   /**
@@ -153,7 +156,7 @@ export class Car3D {
     // ── Retire cars that died this frame ────────────────────────────────────
     for (const [car, entry] of this._live) {
       if (!liveCars.has(car)) {
-        this._dying.push({ group: entry.group, bodyMat: entry.bodyMat, hpTex: entry.hpTex, bossRing: entry.bossRing, bossRingMat: entry.bossRingMat, t: 0 });
+        this._dying.push({ group: entry.group, bodyMat: entry.bodyMat, hpTex: entry.hpTex, smokeTex: entry.smokeTex, calloutMesh: entry.calloutMesh, bossRing: entry.bossRing, bossRingMat: entry.bossRingMat, t: 0 });
         this._live.delete(car);
       }
     }
@@ -188,16 +191,39 @@ export class Car3D {
         if (isFrozen) {
           entry.bodyMat.emissive.setHex(0x1133aa);
           entry.bodyMat.emissiveIntensity = 0.3;
+          g.rotation.z = 0;
           for (const hl of entry.headLights) hl.intensity = 0.30;
+          if (entry.smokeMesh) entry.smokeMesh.visible = false;
+        } else if (hpRatio < 0.35) {
+          // Heavy damage: red-orange tint + tilt
+          entry.bodyMat.emissive.setHex(0xff3300);
+          entry.bodyMat.emissiveIntensity = 0.25;
+          g.rotation.z = -0.10 * (1 - hpRatio);
+          for (const hl of entry.headLights) hl.intensity = 0.10;
+          if (entry.smokeMesh) entry.smokeMesh.visible = true;
+        } else if (hpRatio < 0.65) {
+          // Mid damage: orange tint + slight tilt
+          entry.bodyMat.emissive.setHex(0xff7700);
+          entry.bodyMat.emissiveIntensity = 0.15;
+          g.rotation.z = -0.04 * (1 - hpRatio);
+          for (const hl of entry.headLights) hl.intensity = 0.15;
+          if (entry.smokeMesh) entry.smokeMesh.visible = true;
         } else {
-          // No damage visual effects — keep cars clean and readable
           entry.bodyMat.emissive.setHex(0x000000);
           entry.bodyMat.emissiveIntensity = 0;
           entry.bodyMat.roughness = 0.50;
+          g.rotation.z = 0;
+          for (const hl of entry.headLights) hl.intensity = 0.30;
+          if (entry.smokeMesh) entry.smokeMesh.visible = false;
+        }
 
-          // Headlight steady when healthy, dim when damaged.
-          for (const hl of entry.headLights) {
-            hl.intensity = hpRatio > 0.50 ? 0.30 : 0.15;
+        // ── Callout fade ───────────────────────────────────────────────────
+        if (entry.calloutMesh && entry.calloutT > 0) {
+          entry.calloutT -= dt;
+          const alpha = Math.max(0, Math.min(1, entry.calloutT));
+          entry.calloutMesh.material.opacity = alpha;
+          if (entry.calloutT <= 0) {
+            entry.calloutMesh.visible = false;
           }
         }
 
@@ -293,14 +319,11 @@ export class Car3D {
       headLights.push(ptLight);
     }
 
-    // ── Boss-car special treatment ────────────────────────────────────────────
+    // ── Type-based geometry scale ─────────────────────────────────────────────
     let bossRing = null;
     let bossRingMat = null;
     if (car.type === 'boss') {
-      // Scale up the car body.
       group.scale.set(1.35, 1.35, 1.35);
-
-      // Orbiting energy ring (added to scene, not group, so orbit is world-space).
       bossRingMat = new THREE.MeshStandardMaterial({
         color:             hex,
         emissive:          hex,
@@ -310,10 +333,12 @@ export class Car3D {
       });
       bossRing = new THREE.Mesh(_bossTorusGeo, bossRingMat);
       this._scene.add(bossRing);
+    } else {
+      const td = CAR_TYPES[car.type];
+      if (td) group.scale.set(td.scaleX, td.scaleY, td.scaleZ);
     }
 
     // ── HP number plane — child of car group, on the front face ─────────────
-    // PlaneGeometry faces +Z toward the camera. Moves with the car automatically.
     const hpCanvas = document.createElement('canvas');
     hpCanvas.width  = HP_CANVAS_W;
     hpCanvas.height = HP_CANVAS_H;
@@ -324,13 +349,62 @@ export class Car3D {
       new THREE.PlaneGeometry(HP_PLANE_W, HP_PLANE_H),
       hpMat,
     );
-    hpMesh.position.set(0, 0, HP_PLANE_Z);  // front face, centred on car body
-    group.add(hpMesh);   // CHILD of car — no separate position sync needed
+    hpMesh.position.set(0, 0, HP_PLANE_Z);
+    group.add(hpMesh);
+
+    // ── Smoke sprite (visible when HP < 50%) ──────────────────────────────────
+    const smokeCanvas = document.createElement('canvas');
+    smokeCanvas.width = smokeCanvas.height = 32;
+    const sCtx = smokeCanvas.getContext('2d');
+    const sGrad = sCtx.createRadialGradient(16, 16, 2, 16, 16, 14);
+    sGrad.addColorStop(0,   'rgba(160,160,160,0.55)');
+    sGrad.addColorStop(0.6, 'rgba(120,120,120,0.30)');
+    sGrad.addColorStop(1,   'rgba(80,80,80,0)');
+    sCtx.fillStyle = sGrad;
+    sCtx.beginPath(); sCtx.arc(16, 16, 14, 0, Math.PI * 2); sCtx.fill();
+    const smokeTex  = new THREE.CanvasTexture(smokeCanvas);
+    const smokeMat  = new THREE.MeshBasicMaterial({ map: smokeTex, transparent: true, depthTest: false });
+    const smokeMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 1.0), smokeMat);
+    smokeMesh.rotation.x = -Math.PI / 2;   // lies flat on road plane — visible from above
+    smokeMesh.position.set(0, BODY_H + 0.08, 0);
+    smokeMesh.visible = false;
+    group.add(smokeMesh);
+
+    // ── First-encounter callout ────────────────────────────────────────────────
+    let calloutMesh = null;
+    let calloutT    = 0;
+    const typeDef = CAR_TYPES[car.type];
+    if (typeDef && !this._seenTypes.has(car.type)) {
+      this._seenTypes.add(car.type);
+      const cvs = document.createElement('canvas');
+      cvs.width = 160; cvs.height = 48;
+      const cCtx = cvs.getContext('2d');
+      cCtx.fillStyle = 'rgba(0,0,0,0.70)';
+      if (cCtx.roundRect) cCtx.roundRect(2, 2, 156, 44, 8);
+      else                cCtx.rect(2, 2, 156, 44);
+      cCtx.fill();
+      cCtx.font = 'bold 15px Arial';
+      cCtx.fillStyle = '#ffffff';
+      cCtx.textAlign = 'center';
+      cCtx.textBaseline = 'middle';
+      cCtx.fillText(`${typeDef.label}  HP ${typeDef.hp}`, 80, 24);
+      const cTex = new THREE.CanvasTexture(cvs);
+      const cMat = new THREE.MeshBasicMaterial({ map: cTex, transparent: true, depthTest: false });
+      calloutMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.48), cMat);
+      calloutMesh.rotation.x = -Math.PI / 2;
+      calloutMesh.position.set(0, BODY_H + 0.5, 0);
+      calloutT = 3.0;
+      group.add(calloutMesh);
+    }
 
     group.position.set(laneToX(laneIdx), CAR_Y, posToZ(car.position));
     this._scene.add(group);
 
-    const entry = { group, bodyMat, hpCanvas, hpCtx, hpTex, hpMesh, headLights, lastHp: -1, laneIdx, bossRing, bossRingMat, bossAngle: 0, hexColor: hex };
+    const entry = {
+      group, bodyMat, hpCanvas, hpCtx, hpTex, hpMesh, headLights,
+      lastHp: -1, laneIdx, bossRing, bossRingMat, bossAngle: 0, hexColor: hex,
+      smokeMesh, smokeTex, calloutMesh, calloutT,
+    };
     this._drawHpBar(entry, car);
     return entry;
   }
@@ -361,9 +435,9 @@ export class Car3D {
   }
 
   _disposeDying(d) {
-    // hpMesh is a child of group — disposed by _disposeGroup.
-    // Just free the canvas texture GPU memory separately.
     d.hpTex?.dispose();
+    d.smokeTex?.dispose();
+    d.calloutMesh?.material?.map?.dispose();
     this._disposeGroup(d.group);
     if (d.bossRing) {
       d.bossRingMat?.dispose();
@@ -372,8 +446,9 @@ export class Car3D {
   }
 
   _disposeEntry(entry) {
-    // hpMesh is a child of group — disposed by _disposeGroup.
     entry.hpTex.dispose();
+    entry.smokeTex?.dispose();
+    entry.calloutMesh?.material?.map?.dispose();
     this._disposeGroup(entry.group);
     if (entry.bossRing) {
       entry.bossRingMat?.dispose();

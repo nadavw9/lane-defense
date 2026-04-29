@@ -67,31 +67,29 @@ describe('generateCar — HP formula', () => {
     expect(avgHp('CLIMAX')).toBeGreaterThan(avgHp('CALM'))
   })
 
-  it('W5 produces higher average HP than W1 for the same phase', () => {
-    const SAMPLES = 400
-    const avgHp = (world) => {
+  it('W5 cars are faster than W1 cars (world config affects speed, not HP)', () => {
+    // HP is now type-based, not formula-based. World config still controls speed.
+    const SAMPLES = 200
+    const avgSpeed = (world) => {
       const d = makeDirector(55)
       let sum = 0
       for (let i = 0; i < SAMPLES; i++) {
-        sum += d.generateCar(makeLane(), 'PRESSURE', WORLD_CONFIG[world], PALETTE).hp
+        sum += d.generateCar(makeLane(), 'PRESSURE', WORLD_CONFIG[world], PALETTE).speed
       }
       return sum / SAMPLES
     }
-    expect(avgHp(5)).toBeGreaterThan(avgHp(1))
+    expect(avgSpeed(5)).toBeGreaterThan(avgSpeed(1))
   })
 
-  it('formula: average HP is close to BASE_HP × worldMult × phaseMult over many samples', () => {
-    // E[variance] = 1.0, so E[HP] ≈ BASE_HP × 1.0 × 1.0 ≈ 11.5 for W1+PRESSURE.
-    // Carry-over pair cars (HP 1–2) are mixed in and will pull the sample average
-    // slightly below 11.5, so we allow a wider range.
-    const SAMPLES = 2000
+  it('PRESSURE phase HP falls within typed car range (2–20)', () => {
+    // HP is now type-based; PRESSURE phase spawns jeep/truck/tank (HP 5–20).
+    const SAMPLES = 500
     const d = makeDirector(123)
-    let sum = 0
-    for (let i = 0; i < SAMPLES; i++) sum += d.generateCar(makeLane(), 'PRESSURE', W1, PALETTE).hp
-    const avg = sum / SAMPLES
-    // Expected ~9–12 accounting for carry-over pair cars dragging average down.
-    expect(avg).toBeGreaterThan(7.0)
-    expect(avg).toBeLessThan(13.0)
+    for (let i = 0; i < SAMPLES; i++) {
+      const car = d.generateCar(makeLane(), 'PRESSURE', W1, PALETTE)
+      expect(car.hp).toBeGreaterThanOrEqual(1)  // carry-over pair HP can be 1–2
+      expect(car.hp).toBeLessThanOrEqual(20)
+    }
   })
 
   it('speed is within worldConfig.speed.base ± variance', () => {
@@ -106,35 +104,30 @@ describe('generateCar — HP formula', () => {
 
 // ─── HP clamping ──────────────────────────────────────────────────────────────
 
-describe('HP clamping', () => {
-  it('clamps to HP_MINIMUM (4) when formula would produce less — normal cars only', () => {
-    // worldConfig.hpMultiplier = 0.05 forces rawHp ≈ 7.2 × 0.05 × 0.7 ≈ 0.25 → clamped.
-    // Carry-over pair cars (HP 2–3) bypass the formula intentionally, so we verify
-    // that ALL cars are > 0 and that at least some non-pair cars hit exactly HP_MINIMUM.
-    const tinyWorld = { hpMultiplier: 0.05, speed: { base: 5, variance: 0.5 } }
-    const d = makeDirector(1)
+describe('HP range', () => {
+  it('CALM phase produces light cars: HP at HP_MINIMUM (2) for small/big type mix', () => {
+    // Typed cars: CALM spawns small (HP=2) + big (HP=4) + jeep (HP=5).
+    // At least some cars should have HP=HP_MINIMUM=2 (small type).
+    const d    = makeDirector(1)
     const cars = []
     for (let i = 0; i < 100; i++) {
-      const car = d.generateCar(makeLane(), 'CALM', tinyWorld, PALETTE)
+      const car = d.generateCar(makeLane(), 'CALM', W1, PALETTE)
       cars.push(car)
-      expect(car.hp).toBeGreaterThanOrEqual(1) // carry-over cars can be HP 1–2
+      expect(car.hp).toBeGreaterThanOrEqual(1)  // carry-over pair cars can be HP 1
     }
-    // Normal (formula) cars should be exactly HP_MINIMUM; carry-over cars are HP 2–3.
     expect(cars.some(c => c.hp === HP_MINIMUM)).toBe(true)
   })
 
-  it('clamps to HP_BASE.max (20) when formula would exceed it', () => {
-    // hpMultiplier = 10 forces rawHp ≈ 7.2 × 10 × 1.2 ≈ 86 → clamped to HP_BASE.max.
-    // Carry-over pair cars bypass the formula and have low HP, but no car exceeds max.
-    const hugeWorld = { hpMultiplier: 10, speed: { base: 5, variance: 0.5 } }
-    const d = makeDirector(1)
+  it('no car ever exceeds HP_BASE.max (20)', () => {
+    // CLIMAX spawns tanks (HP=20=max); no car should exceed the cap.
+    const d    = makeDirector(1)
     const cars = []
     for (let i = 0; i < 100; i++) {
-      const car = d.generateCar(makeLane(), 'CLIMAX', hugeWorld, PALETTE)
+      const car = d.generateCar(makeLane(), 'CLIMAX', W1, PALETTE)
       cars.push(car)
       expect(car.hp).toBeLessThanOrEqual(HP_BASE.max)
     }
-    // At least the non-carry-over-pair cars should be exactly HP_BASE.max.
+    // At least some CLIMAX cars should be tanks (HP=20=HP_BASE.max).
     expect(cars.some(c => c.hp === HP_BASE.max)).toBe(true)
   })
 

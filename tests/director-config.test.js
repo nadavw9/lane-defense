@@ -298,9 +298,9 @@ describe('World config', () => {
 // ─── HP Generation ────────────────────────────────────────────────────────────
 
 describe('HP generation constants', () => {
-  it('minimum HP is 4', () => {
-    expect(HP_MINIMUM).toBe(4)
-    expect(HP_BASE.min).toBe(4)
+  it('minimum HP is 2 (typed small cars have HP=2)', () => {
+    expect(HP_MINIMUM).toBe(2)
+    expect(HP_BASE.min).toBe(2)
   })
 
   it('maximum HP is 20', () => {

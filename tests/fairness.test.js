@@ -159,12 +159,12 @@ describe('FR-4 — no car HP exceeds 2.5× max shooter damage', () => {
     expect(arbiter.checkCar(car, state).fixed).toBe(false)
   })
 
-  it('capped HP never goes below HP_MINIMUM (4)', () => {
+  it('capped HP never goes below HP_MINIMUM (2)', () => {
     // damage=2, cap=floor(2.5×2)=5; HP=5 is above min so just caps to 5
     const state = makeState({ topDamages: [2, 2, 2, 2] })
     const car   = makeCar({ hp: 20 })
     arbiter.checkCar(car, state)
-    expect(car.hp).toBeGreaterThanOrEqual(4)
+    expect(car.hp).toBeGreaterThanOrEqual(2)
   })
 
   it('also updates maxHp to match the fixed hp', () => {

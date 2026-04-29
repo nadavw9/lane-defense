@@ -121,9 +121,9 @@ export const WORLD_CONFIG = {
 // ─── Car HP Generation ────────────────────────────────────────────────────────
 
 // HP = base × world_multiplier × phase_multiplier × variance
-export const HP_BASE = { min: 4, max: 20 }; // absolute clamp range
+export const HP_BASE = { min: 2, max: 20 }; // absolute clamp range
 export const HP_VARIANCE = { min: 0.85, max: 1.15 };
-export const HP_MINIMUM = 4; // never below this regardless of multipliers
+export const HP_MINIMUM = 2; // never below this; typed small cars have HP=2
 
 // ─── Lane Config ─────────────────────────────────────────────────────────────
 

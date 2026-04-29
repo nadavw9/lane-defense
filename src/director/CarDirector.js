@@ -1,14 +1,9 @@
 // CarDirector — decides which cars to spawn: their HP, speed, color, and timing.
 // Constructor takes the full DirectorConfig and a SeededRandom instance so all
 // randomness is deterministic and testable.
-import { PHASE_CONFIG, HP_MINIMUM, HP_VARIANCE, HP_BASE } from './DirectorConfig.js';
+import { PHASE_CONFIG, HP_MINIMUM } from './DirectorConfig.js';
 import { Car } from '../models/Car.js';
-
-// Base HP before world/phase multipliers are applied.
-// 11.5 chosen so W1+CALM produces HP ~8, W1+CLIMAX ~14, W5+CLIMAX clamps to 20.
-// This keeps the average-play AI win rate in the 75–80% target range when
-// carry-over pairs (HP 1–2) are injected every 3–7 normal cars.
-const BASE_HP = 11.5;
+import { CAR_TYPES, pickCarType } from './CarTypes.js';
 
 export class CarDirector {
   constructor(config, rng) {
@@ -139,15 +134,13 @@ export class CarDirector {
   // ─── Private helpers ──────────────────────────────────────────────────────
 
   _buildCar(color, phase, worldConfig) {
-    const phaseConfig = PHASE_CONFIG[phase];
-    const variance = this._rng.nextFloat(HP_VARIANCE.min, HP_VARIANCE.max);
-    const rawHp    = BASE_HP * worldConfig.hpMultiplier * phaseConfig.hpMultiplier * variance;
-    const hp       = Math.max(HP_MINIMUM, Math.min(HP_BASE.max, Math.round(rawHp)));
+    const type = pickCarType(this._rng, phase);
+    const hp   = Math.max(HP_MINIMUM, CAR_TYPES[type].hp);
 
     const speed = worldConfig.speed.base +
       this._rng.nextFloat(-worldConfig.speed.variance, worldConfig.speed.variance);
 
-    return new Car({ color, hp, speed });
+    return new Car({ color, hp, speed, type });
   }
 
   _randomCooldown(phaseParams) {

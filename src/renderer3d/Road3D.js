@@ -9,11 +9,11 @@ import * as THREE from 'three';
 import { ROAD_Z_FAR, ROAD_Z_NEAR, laneToX, roadHalfW, posToZ } from './Scene3D.js';
 
 // ── Tweakable design constants ─────────────────────────────────────────────────
-const COL_ASPHALT      = 0x4a4a52;   // medium grey, friendlier than near-black
+const COL_ASPHALT      = 0x4a4a52;   // medium grey
 const COL_ASPHALT_DARK = 0x3c3c44;
 const COL_DIVIDER      = 0xfff5a0;   // bright sunny yellow lane dividers
-const COL_BARRIER      = 0xc8c8c8;   // light concrete white-grey
-const COL_BARRIER_TOP  = 0xe8e8e8;
+const COL_BARRIER      = 0x9a9a9a;   // medium concrete — not glowing white
+const COL_BARRIER_TOP  = 0xb0b0b0;   // slightly lighter cap, no glow
 const COL_REFLECTOR    = 0xffdd00;
 const COL_BREACH_LINE  = 0xdd2222;
 
@@ -336,18 +336,11 @@ export class Road3D {
       const bx = side * (hw + 0.55);
 
       const body = new THREE.Mesh(
-        new THREE.BoxGeometry(0.7, 0.9, ROAD_LENGTH),
+        new THREE.BoxGeometry(0.7, 0.45, ROAD_LENGTH),
         new THREE.MeshStandardMaterial({ color: COL_BARRIER, roughness: 0.85, metalness: 0.05 }),
       );
-      body.position.set(bx, 0.44, ROAD_CENTER_Z);
+      body.position.set(bx, 0.22, ROAD_CENTER_Z);
       this._group.add(body);
-
-      const top = new THREE.Mesh(
-        new THREE.BoxGeometry(0.75, 0.12, ROAD_LENGTH),
-        new THREE.MeshStandardMaterial({ color: COL_BARRIER_TOP, roughness: 0.8 }),
-      );
-      top.position.set(bx, 0.94, ROAD_CENTER_Z);
-      this._group.add(top);
 
       const reflMat = new THREE.MeshBasicMaterial({ color: COL_REFLECTOR });
       const reflGeo = new THREE.CircleGeometry(0.06, 8);
@@ -355,7 +348,7 @@ export class Road3D {
       for (let i = 0; i < 10; i++) {
         const z    = ROAD_Z_FAR + (i + 0.5) * (ROAD_LENGTH / 10);
         const refl = new THREE.Mesh(reflGeo, reflMat);
-        refl.position.set(innerX, 0.5, z);
+        refl.position.set(innerX, 0.28, z);
         refl.rotation.y = side * Math.PI / 2;
         this._group.add(refl);
       }
@@ -418,7 +411,7 @@ export class Road3D {
       const colors    = new Float32Array(N * 3);
       for (let i = 0; i < N; i++) {
         positions[i * 3]     = bx;
-        positions[i * 3 + 1] = 0.97;
+        positions[i * 3 + 1] = 0.42;
         positions[i * 3 + 2] = ROAD_Z_FAR + (i / N) * ROAD_LENGTH;
         if (i % 2 === 0) { colors[i*3] = 1.0; colors[i*3+1] = 0.87; colors[i*3+2] = 0.0; }
         else              { colors[i*3] = 1.0; colors[i*3+1] = 0.20; colors[i*3+2] = 0.0; }

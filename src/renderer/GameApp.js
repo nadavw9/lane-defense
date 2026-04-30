@@ -70,6 +70,7 @@ import { AudioManager }           from '../audio/AudioManager.js';
 import { BoosterBar }             from './BoosterBar.js';
 import { adManager }            from '../ads/AdManager.js';
 import { BombReticle }           from './BombReticle.js';
+import { PopupQueue, PRIORITY }  from './PopupQueue.js';
 import { Analytics }              from '../analytics/Analytics.js';
 import { AutoTuner }             from '../analytics/AutoTuner.js';
 import { AchievementManager }     from '../game/AchievementManager.js';
@@ -362,9 +363,8 @@ async function main() {
   let firstDeployTooltipShown = false;
   let firstKillDoneThisLevel  = false;
 
-  // ── Combo popup ────────────────────────────────────────────────────────────
-  let comboPopup      = null;
-  let comboPopupTimer = 0;
+  // ── Popup queue — single source of truth for all banner popups ────────────
+  const popupQueue = new PopupQueue(layers.get('hudLayer'), APP_W);
 
   // ── FTUE overlay ──────────────────────────────────────────────────────────
   let ftueOverlay = null;  // created in _startLevel
@@ -390,9 +390,6 @@ async function main() {
   const achievementManager    = new AchievementManager(progress);
   const dailyChallengeManager = new DailyChallengeManager();
   const weeklyPlaylist        = dailyChallengeManager.getWeeklyPlaylist();
-  const achievementQueue      = [];    // pending popup notifications
-  let   activeAchievementPopup  = null;
-  let   activeAchievementTimer  = 0;
 
   // ── Per-level daily/no-rescue flags ───────────────────────────────────────
   let currentLevelIsDaily  = false;
@@ -524,6 +521,7 @@ async function main() {
     boostersUsedThisLevel       = [];
     firstDeployTooltipShown     = false;
     firstKillDoneThisLevel      = false;
+    popupQueue.clear();
     setActiveCounts({ laneCount: cfg.laneCount ?? 4, colCount: cfg.colCount ?? 4 });
     carRenderer.clearAll();
     firingLineRenderer.reset();
@@ -692,7 +690,7 @@ async function main() {
         dailyRewardScreen = null;
         // Check if the daily_claim achievement was just earned.
         const newAch = achievementManager.check('daily_claim');
-        newAch.forEach(a => achievementQueue.push(a));
+        newAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
         if (titleScreen) {
           titleScreen.destroy();
           titleScreen = null;
@@ -831,7 +829,7 @@ async function main() {
       },
       onPurchase: () => {
         const newAch = achievementManager.check('shop_purchase');
-        newAch.forEach(a => achievementQueue.push(a));
+        newAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
       },
       audio,
     });
@@ -932,7 +930,7 @@ async function main() {
     const coinsEarned = Math.max(0, gs.coins - coinsAtLevelStart);
     if (coinsEarned > 0) progress.addEarnedCoins(coinsEarned);
     const coinAch = achievementManager.check('coins_earned');
-    coinAch.forEach(a => achievementQueue.push(a));
+    coinAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
 
     // Level-end achievements.
     const endAch = achievementManager.check('level_end', {
@@ -943,7 +941,7 @@ async function main() {
       rescueUsed:   gs.rescueUsed,
       boostersUsed: boostersUsedThisLevel.length > 0,
     });
-    endAch.forEach(a => achievementQueue.push(a));
+    endAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
 
     let onNext;
     let improved   = [];
@@ -951,7 +949,7 @@ async function main() {
     if (currentLevelIsDaily) {
       progress.completeDailyChallenge(dailyDateKey);
       const dcAch = achievementManager.check('daily_challenge');
-      dcAch.forEach(a => achievementQueue.push(a));
+      dcAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
       onNext = null;
     } else {
       const levelId = levelManager.levelNumber;
@@ -969,7 +967,7 @@ async function main() {
         ));
         // weekly_hero achievement
         const weeklyAch = achievementManager.check('weekly_win');
-        weeklyAch.forEach(a => achievementQueue.push(a));
+        weeklyAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
       }
       // Update personal best and detect new records.
       improved   = progress.updateBestStats(levelId, { combo: gs.maxCombo, time: gs.elapsed, stars });
@@ -1101,21 +1099,21 @@ async function main() {
       }
 
       // One-time combo explanation popup the first time combo reaches 3.
-      if (combo >= 3 && !comboPopup && !progress.seenComboTip) {
-        comboPopup      = _buildComboPopup(layers.get('hudLayer'), APP_W);
-        comboPopupTimer = 3;
+      if (combo >= 3 && !progress.seenComboTip) {
+        progress.markSeenComboTip();
+        popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildComboPopup(w), 3.0);
       }
 
       // Achievement checks for kill events.
       const killAch = achievementManager.check('kill', { combo });
-      killAch.forEach(a => achievementQueue.push(a));
+      killAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
     },
 
     onChainHit: (laneIdx) => {
       floatingTexts.push(spawnChainHit(layers.get('particleLayer'), laneIdx));
       // chain_reaction achievement: 2+ kills from one shot.
       const chainAch = achievementManager.check('chain_kill');
-      chainAch.forEach(a => achievementQueue.push(a));
+      chainAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
     },
 
     onShoot: (damage, laneIdx, colIdx) => {
@@ -1179,7 +1177,7 @@ async function main() {
           survivalWave++;
           progress.recordSurvivalRun(survivalWave - 1, gs.totalKills);
           const survivalAch = achievementManager.check('survival', { wave: survivalWave - 1 });
-          survivalAch.forEach(a => achievementQueue.push(a));
+          survivalAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
           const nextWaveCfg = { ...LevelManager.getSurvivalConfig(survivalWave), isSurvival: true };
           transition.fadeOut(0.20, () => {
             _startLevel(nextWaveCfg);
@@ -1214,7 +1212,7 @@ async function main() {
       ));
       progress.incrementCrisisAssists();
       const crisisAch = achievementManager.check('crisis_assist');
-      crisisAch.forEach(a => achievementQueue.push(a));
+      crisisAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
     },
   });
 
@@ -1263,7 +1261,7 @@ async function main() {
         gameLoop.deployFromBench(shooter, laneIdx);
         // progress.incrementBenchUses() was called inside deployFromBench.
         const benchAch = achievementManager.check('bench_deploy');
-        benchAch.forEach(a => achievementQueue.push(a));
+        benchAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
       },
       onBenchStore: (_colIdx) => {
         // Column refills automatically via ShooterDirector next tick.
@@ -1376,7 +1374,7 @@ async function main() {
 
     // Disable lane hover tints while any tutorial / combo / achievement overlay
     // is on screen so the colored lane flash doesn't bleed through the UI.
-    dragDrop.uiOverlayActive = !!(ftueOverlay || comboPopup || activeAchievementPopup);
+    dragDrop.uiOverlayActive = !!(ftueOverlay || popupQueue.hasActive());
 
     dragDrop.update(dt);
     // Bomb reticle: track pointer and update targeting overlay.
@@ -1387,6 +1385,10 @@ async function main() {
     }
 
     tickFloatingTexts(floatingTexts, dt);
+
+    // ── Popup queue ────────────────────────────────────────────────────────
+    popupQueue.setTutorialActive(!!ftueOverlay);
+    popupQueue.update(dt);
 
     // ── Breach camera ──────────────────────────────────────────────────────
     if (breachCam && !breachCam.done) {
@@ -1429,31 +1431,7 @@ async function main() {
     if (titleScreen)      titleScreen.update?.(dt);
     if (winScreen)        winScreen.update?.(dt);
 
-    // Combo explanation popup — auto-dismiss after 3 s.
-    if (comboPopup) {
-      comboPopupTimer -= dt;
-      if (comboPopupTimer < 1) comboPopup.alpha = Math.max(0, comboPopupTimer);
-      if (comboPopupTimer <= 0) {
-        comboPopup.destroy({ children: true });
-        comboPopup = null;
-        progress.markSeenComboTip();
-      }
-    }
     if (levelSelectScreen) levelSelectScreen.update(dt);
-
-    // ── Achievement popup queue ────────────────────────────────────────────
-    if (activeAchievementPopup) {
-      activeAchievementTimer -= dt;
-      if (activeAchievementTimer < 1) activeAchievementPopup.alpha = Math.max(0, activeAchievementTimer);
-      if (activeAchievementTimer <= 0) {
-        activeAchievementPopup.destroy({ children: true });
-        activeAchievementPopup = null;
-      }
-    } else if (achievementQueue.length > 0) {
-      const ach = achievementQueue.shift();
-      activeAchievementPopup = _buildAchievementPopup(layers.get('hudLayer'), APP_W, ach);
-      activeAchievementTimer = 3.0;
-    }
 
     // Phase-based music transitions during active gameplay only.
     if (gameLoopStarted && !gameLoop.paused && !gs.isOver) {
@@ -1469,7 +1447,7 @@ async function main() {
   // Streak master achievement — needs achievementManager which is declared later.
   {
     const sAch = achievementManager.check('login_streak', { streak: loginStreak });
-    sAch.forEach(a => achievementQueue.push(a));
+    sAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
   }
 
   // Offline coin reward popup.
@@ -1488,7 +1466,7 @@ function _makeFTUEOverlay(stage, w, h, cfg) {
   return new FTUEOverlay(stage, w, h, cfg);
 }
 
-function _buildComboPopup(layer, w) {
+function _buildComboPopup(w) {
   const grp = new Container();
 
   const bg = new Graphics();
@@ -1519,13 +1497,10 @@ function _buildComboPopup(layer, w) {
   body.y = 32;
   grp.addChild(body);
 
-  // Centre vertically between HUD and road
-  grp.y = 44 + 12;
-  layer.addChild(grp);
   return grp;
 }
 
-function _buildAchievementPopup(layer, w, achievement) {
+function _buildAchievementPopup(w, achievement) {
   const grp = new Container();
 
   const bg = new Graphics();
@@ -1563,8 +1538,6 @@ function _buildAchievementPopup(layer, w, achievement) {
   desc.y = 48;
   grp.addChild(desc);
 
-  grp.y = 44 + 8;
-  layer.addChild(grp);
   return grp;
 }
 

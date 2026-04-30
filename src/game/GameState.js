@@ -28,7 +28,7 @@ export class GameState {
     // ── Turn-based grid ────────────────────────────────────────────────────
     // gridRows: number of discrete row positions per lane (row 0 = back, gridRows-1 = front).
     // targetKills: kills needed to win this level.
-    this.gridRows    = gridRows    ?? 6;
+    this.gridRows    = gridRows    ?? 10;
     this.targetKills = targetKills ?? 10;
     this.initialCars = null;
 

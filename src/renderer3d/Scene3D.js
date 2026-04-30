@@ -3,7 +3,7 @@
 // Coordinate system:
 //   X: symmetric around 0, width scales with active lane count
 //   Y: 0 = road surface, positive = up
-//   Z: -40 (far/horizon) → +2 (near/bottom of screen)
+//   Z: -22 (far/horizon) → +2 (near/bottom of screen)
 //
 // Lane layout adapts dynamically:
 //   n lanes → each lane is 3 world-units wide, symmetric around x=0
@@ -18,9 +18,9 @@ import { OutputPass }      from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 // ── Tweakable design constants ─────────────────────────────────────────────────
-const FOG_COLOR = 0xc8e8ff;   // very light pale blue — daytime atmospheric haze
-const FOG_NEAR  = 25;         // cars at Z=-15 (pos~30) are fog-free
-const FOG_FAR   = 90;         // sky plane at Z=-48 (~58 dist) → barely tinted
+const FOG_COLOR = 0xffd0a8;   // morning default — themes override on level start
+const FOG_NEAR  = 35;
+const FOG_FAR   = 110;
 
 // Shooter viewport column divider style
 const DIV_COLOR      = 0xddddcc;   // yellow-white, matches Road3D COL_DIVIDER
@@ -28,7 +28,7 @@ const DIV_OPACITY_HI = 0.75;       // opacity at top (near road boundary)
 const DIV_OPACITY_LO = 0.10;       // opacity at bottom
 
 // ── Layout constants ───────────────────────────────────────────────────────────
-export const ROAD_Z_FAR  = -40;
+export const ROAD_Z_FAR  = -22;
 export const ROAD_Z_NEAR =   0;
 
 // 4-lane backward-compat constants (static).
@@ -105,14 +105,14 @@ export class Scene3D {
 
     // ── Road camera ──────────────────────────────────────────────────────────
     this.camera = new THREE.PerspectiveCamera(65, width / height, 0.1, 200);
-    this.camera.position.set(0, 7, 12);
-    this.camera.lookAt(0, 0, -10);
+    this.camera.position.set(0, 5.5, 12);
+    this.camera.lookAt(0, 0, -6);
     this.camera.layers.set(0);
 
     // ── HP sprite camera ─────────────────────────────────────────────────────
     this.hpCamera = new THREE.PerspectiveCamera(65, width / height, 0.1, 200);
-    this.hpCamera.position.set(0, 7, 12);
-    this.hpCamera.lookAt(0, 0, -10);
+    this.hpCamera.position.set(0, 5.5, 12);
+    this.hpCamera.lookAt(0, 0, -6);
     this.hpCamera.layers.set(2);
 
     // ── Shooter viewport — top-down orthographic, adapts to lane count ────────

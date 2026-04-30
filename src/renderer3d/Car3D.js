@@ -49,13 +49,12 @@ const HEADLIGHT_XS = [-0.42, 0.42];
 // Car sits with its bottom at Y = 0 (road surface).
 const CAR_Y = BODY_H / 2 + WHEEL_R;
 
-// HP number plane — sits on the FRONT face of the car as a child of the group.
-// PlaneGeometry faces +Z by default, which is toward the camera.
+// HP sprite — scene-space Sprite above car, only shown when HP < maxHp.
 const HP_CANVAS_W = 64;
 const HP_CANVAS_H = 28;
-const HP_PLANE_W  = BODY_W * 0.75;   // world units
-const HP_PLANE_H  = BODY_H * 0.60;   // world units
-const HP_PLANE_Z  = BODY_D / 2 + 0.01; // just in front of car front face
+const HP_SPRITE_W = 0.55;   // world-unit sprite width
+const HP_SPRITE_H = 0.24;   // world-unit sprite height
+const HP_SPRITE_Y = CAR_Y + BODY_H + 0.7;  // world Y above car
 
 // Death animation
 const DEATH_DURATION  = 0.30;
@@ -168,13 +167,18 @@ export class Car3D {
     // ── Retire cars that died this frame ────────────────────────────────────
     for (const [car, entry] of this._live) {
       if (!liveCars.has(car)) {
-        // Callout sprite lives in scene space — remove immediately on death.
+        // Scene-space sprites (HP, callout) — remove immediately on death.
+        if (entry.hpMesh) {
+          entry.hpMesh.material.map?.dispose();
+          entry.hpMesh.material.dispose();
+          this._scene.remove(entry.hpMesh);
+        }
         if (entry.calloutMesh) {
           entry.calloutMesh.material.map?.dispose();
           entry.calloutMesh.material.dispose();
           this._scene.remove(entry.calloutMesh);
         }
-        this._dying.push({ group: entry.group, bodyMat: entry.bodyMat, hpTex: entry.hpTex, smokeTex: entry.smokeTex, bossRing: entry.bossRing, bossRingMat: entry.bossRingMat, t: 0 });
+        this._dying.push({ group: entry.group, bodyMat: entry.bodyMat, hpTex: entry.hpTex, smokeTex: entry.smokeTex, crackTex: entry.crackTex, bossRing: entry.bossRing, bossRingMat: entry.bossRingMat, t: 0 });
         this._live.delete(car);
       }
     }
@@ -229,19 +233,23 @@ export class Car3D {
           for (const hl of entry.headLights) hl.intensity = 0.30;
           if (entry.smokeMesh) entry.smokeMesh.visible = false;
         } else if (hpRatio < 0.35) {
-          // Heavy damage: red-orange tint + tilt
           entry.bodyMat.emissive.setHex(0xff3300);
           entry.bodyMat.emissiveIntensity = 0.25;
           g.rotation.z = -0.10 * (1 - hpRatio);
           for (const hl of entry.headLights) hl.intensity = 0.10;
-          if (entry.smokeMesh) entry.smokeMesh.visible = true;
+          if (entry.smokeMesh) {
+            entry.smokeMesh.visible = true;
+            entry.smokeMesh.material.opacity = 0.3 + 0.35 * (1 - hpRatio / 0.35);
+          }
         } else if (hpRatio < 0.65) {
-          // Mid damage: orange tint + slight tilt
           entry.bodyMat.emissive.setHex(0xff7700);
           entry.bodyMat.emissiveIntensity = 0.15;
           g.rotation.z = -0.04 * (1 - hpRatio);
           for (const hl of entry.headLights) hl.intensity = 0.15;
-          if (entry.smokeMesh) entry.smokeMesh.visible = true;
+          if (entry.smokeMesh) {
+            entry.smokeMesh.visible = true;
+            entry.smokeMesh.material.opacity = 0.08 + 0.22 * (0.65 - hpRatio) / 0.30;
+          }
         } else {
           entry.bodyMat.emissive.setHex(0x000000);
           entry.bodyMat.emissiveIntensity = 0;
@@ -249,6 +257,41 @@ export class Car3D {
           g.rotation.z = 0;
           for (const hl of entry.headLights) hl.intensity = 0.30;
           if (entry.smokeMesh) entry.smokeMesh.visible = false;
+        }
+
+        // HP sprite — update position each frame; show only when damaged.
+        if (entry.hpMesh) {
+          if (entry.hpMesh.visible) {
+            entry.hpMesh.position.set(g.position.x, HP_SPRITE_Y, entry.renderZ);
+          }
+        }
+
+        // HP-change: body darkening + HP sprite visibility + crack stage.
+        if (car.hp !== entry.lastHp) {
+          entry.lastHp = car.hp;
+          const mult   = 0.55 + 0.45 * hpRatio;
+          const origHex = entry.hexColor;
+          entry.bodyMat.color.setRGB(
+            Math.round(((origHex >> 16) & 0xff) * mult) / 255,
+            Math.round(((origHex >>  8) & 0xff) * mult) / 255,
+            Math.round(( origHex        & 0xff) * mult) / 255,
+          );
+          this._drawHpBar(entry, car);
+          if (entry.hpMesh) {
+            entry.hpMesh.visible = car.hp < (car.maxHp ?? 0);
+            if (entry.hpMesh.visible) {
+              entry.hpMesh.position.set(g.position.x, HP_SPRITE_Y, entry.renderZ);
+            }
+          }
+          if (entry.crackMesh) {
+            const stage = hpRatio > 0.75 ? 0 : hpRatio > 0.50 ? 1 : hpRatio > 0.25 ? 2 : 3;
+            if (stage !== entry.lastCrackStage) {
+              entry.lastCrackStage = stage;
+              this._drawCracks(entry.crackCtx, stage);
+              entry.crackTex.needsUpdate = true;
+              entry.crackMesh.visible    = stage > 0;
+            }
+          }
         }
 
         // ── Callout sprite (scene-level, tracks car world position) ──────────
@@ -279,11 +322,6 @@ export class Car3D {
           }
         }
 
-        // HP bar — only redraw when HP changed.
-        if (car.hp !== entry.lastHp) {
-          entry.lastHp = car.hp;
-          this._drawHpBar(entry, car);
-        }
       }
     }
 
@@ -390,19 +428,17 @@ export class Car3D {
       if (td) group.scale.set(td.scaleX, td.scaleY, td.scaleZ);
     }
 
-    // ── HP number plane — child of car group, on the front face ─────────────
+    // ── HP sprite — scene-space, visible only when damaged ────────────────────
     const hpCanvas = document.createElement('canvas');
     hpCanvas.width  = HP_CANVAS_W;
     hpCanvas.height = HP_CANVAS_H;
     const hpCtx = hpCanvas.getContext('2d');
     const hpTex = new THREE.CanvasTexture(hpCanvas);
-    const hpMat = new THREE.MeshBasicMaterial({ map: hpTex, transparent: true, depthTest: false });
-    const hpMesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(HP_PLANE_W, HP_PLANE_H),
-      hpMat,
-    );
-    hpMesh.position.set(0, 0, HP_PLANE_Z);
-    group.add(hpMesh);
+    const hpMat = new THREE.SpriteMaterial({ map: hpTex, transparent: true, depthTest: false });
+    const hpMesh = new THREE.Sprite(hpMat);
+    hpMesh.scale.set(HP_SPRITE_W, HP_SPRITE_H, 1);
+    hpMesh.visible = false;   // shown only when hp < maxHp
+    this._scene.add(hpMesh);
 
     // ── Smoke sprite (visible when HP < 50%) ──────────────────────────────────
     const smokeCanvas = document.createElement('canvas');
@@ -438,14 +474,32 @@ export class Car3D {
       calloutT = 0;
     }
 
+    // ── Tank crack overlay (4 damage stages on car roof) ─────────────────────
+    let crackCanvas = null, crackCtx = null, crackTex = null, crackMesh = null;
+    if (car.type === 'tank') {
+      crackCanvas        = document.createElement('canvas');
+      crackCanvas.width  = 64;
+      crackCanvas.height = 64;
+      crackCtx   = crackCanvas.getContext('2d');
+      crackTex   = new THREE.CanvasTexture(crackCanvas);
+      const crackMat = new THREE.MeshBasicMaterial({ map: crackTex, transparent: true, depthTest: false });
+      crackMesh  = new THREE.Mesh(new THREE.PlaneGeometry(BODY_W * 0.88, BODY_D * 0.88), crackMat);
+      crackMesh.rotation.x = -Math.PI / 2;
+      crackMesh.position.set(0, BODY_H / 2 + 0.01, 0);
+      crackMesh.visible = false;
+      group.add(crackMesh);
+    }
+
     group.position.set(laneToX(laneIdx), CAR_Y, posToZ(car.position));
     this._scene.add(group);
 
     const startZ = posToZ(car.position);
     const entry = {
       group, bodyMat, hpCanvas, hpCtx, hpTex, hpMesh, headLights,
-      lastHp: -1, laneIdx, bossRing, bossRingMat, bossAngle: 0, hexColor: hex,
-      smokeMesh, smokeTex, calloutMesh, calloutT,
+      lastHp: -1, lastCrackStage: -1,
+      laneIdx, bossRing, bossRingMat, bossAngle: 0, hexColor: hex,
+      smokeMesh, smokeTex, crackCanvas, crackCtx, crackTex, crackMesh,
+      calloutMesh, calloutT,
       renderZ: startZ, targetZ: startZ, lerpStartZ: startZ, lerpT: 1.0,
     };
     this._drawHpBar(entry, car);
@@ -480,6 +534,7 @@ export class Car3D {
   _disposeDying(d) {
     d.hpTex?.dispose();
     d.smokeTex?.dispose();
+    d.crackTex?.dispose();
     this._disposeGroup(d.group);
     if (d.bossRing) {
       d.bossRingMat?.dispose();
@@ -488,8 +543,15 @@ export class Car3D {
   }
 
   _disposeEntry(entry) {
-    entry.hpTex.dispose();
+    if (entry.hpMesh) {
+      entry.hpTex.dispose();
+      entry.hpMesh.material.dispose();
+      this._scene.remove(entry.hpMesh);
+    } else {
+      entry.hpTex?.dispose();
+    }
     entry.smokeTex?.dispose();
+    entry.crackTex?.dispose();
     if (entry.calloutMesh) {
       entry.calloutMesh.material.map?.dispose();
       entry.calloutMesh.material.dispose();
@@ -499,6 +561,28 @@ export class Car3D {
     if (entry.bossRing) {
       entry.bossRingMat?.dispose();
       this._scene.remove(entry.bossRing);
+    }
+  }
+
+  _drawCracks(ctx, stage) {
+    ctx.clearRect(0, 0, 64, 64);
+    if (stage === 0) return;
+    ctx.strokeStyle = 'rgba(0,0,0,0.65)';
+    ctx.lineWidth   = stage >= 3 ? 2.5 : 1.8;
+    // Four radial crack lines emanating from center; add more per stage.
+    const lines = [
+      [[32,32],[14,12],[6,22]],
+      [[32,32],[52,14],[60,26]],
+      [[32,32],[20,54],[12,58]],
+      [[32,32],[50,52],[56,46]],
+    ];
+    const count = stage;
+    for (let i = 0; i < count; i++) {
+      const pts = lines[i];
+      ctx.beginPath();
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      for (let j = 1; j < pts.length; j++) ctx.lineTo(pts[j][0], pts[j][1]);
+      ctx.stroke();
     }
   }
 

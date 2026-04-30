@@ -66,6 +66,14 @@ const DEATH_VY        = 2.5;             // world units/s upward pop
 const LERP_DURATION = 0.45;   // seconds
 const MAX_TILT_X    = 0.20;   // radians forward lean at peak of lerp
 
+// First-encounter callout sprite animation phases (seconds)
+const CALLOUT_IN    = 0.25;
+const CALLOUT_HOLD  = 2.50;
+const CALLOUT_OUT   = 0.40;
+const CALLOUT_TOTAL = CALLOUT_IN + CALLOUT_HOLD + CALLOUT_OUT;
+const CALLOUT_SPRITE_W = 2.4;   // world-unit sprite width
+const CALLOUT_SPRITE_H = 0.9;   // world-unit sprite height
+
 // ── Colour palette ─────────────────────────────────────────────────────────────
 const COLOR_HEX = {
   Red:    0xE24B4A,
@@ -160,7 +168,13 @@ export class Car3D {
     // ── Retire cars that died this frame ────────────────────────────────────
     for (const [car, entry] of this._live) {
       if (!liveCars.has(car)) {
-        this._dying.push({ group: entry.group, bodyMat: entry.bodyMat, hpTex: entry.hpTex, smokeTex: entry.smokeTex, calloutMesh: entry.calloutMesh, bossRing: entry.bossRing, bossRingMat: entry.bossRingMat, t: 0 });
+        // Callout sprite lives in scene space — remove immediately on death.
+        if (entry.calloutMesh) {
+          entry.calloutMesh.material.map?.dispose();
+          entry.calloutMesh.material.dispose();
+          this._scene.remove(entry.calloutMesh);
+        }
+        this._dying.push({ group: entry.group, bodyMat: entry.bodyMat, hpTex: entry.hpTex, smokeTex: entry.smokeTex, bossRing: entry.bossRing, bossRingMat: entry.bossRingMat, t: 0 });
         this._live.delete(car);
       }
     }
@@ -237,12 +251,30 @@ export class Car3D {
           if (entry.smokeMesh) entry.smokeMesh.visible = false;
         }
 
-        // ── Callout fade ───────────────────────────────────────────────────
-        if (entry.calloutMesh && entry.calloutT > 0) {
-          entry.calloutT -= dt;
-          const alpha = Math.max(0, Math.min(1, entry.calloutT));
-          entry.calloutMesh.material.opacity = alpha;
-          if (entry.calloutT <= 0) {
+        // ── Callout sprite (scene-level, tracks car world position) ──────────
+        if (entry.calloutMesh && entry.calloutT >= 0 && entry.calloutT < CALLOUT_TOTAL) {
+          entry.calloutT += dt;
+          const t       = Math.min(CALLOUT_TOTAL, entry.calloutT);
+          const worldX  = g.position.x;
+          const worldZ  = entry.renderZ;
+
+          if (t < CALLOUT_IN) {
+            const prog = t / CALLOUT_IN;
+            const sc   = 0.5 + 0.5 * prog;
+            entry.calloutMesh.material.opacity = prog;
+            entry.calloutMesh.scale.set(CALLOUT_SPRITE_W * sc, CALLOUT_SPRITE_H * sc, 1);
+            entry.calloutMesh.position.set(worldX, CAR_Y + BODY_H + 1.6, worldZ);
+          } else if (t < CALLOUT_IN + CALLOUT_HOLD) {
+            entry.calloutMesh.material.opacity = 1;
+            entry.calloutMesh.scale.set(CALLOUT_SPRITE_W, CALLOUT_SPRITE_H, 1);
+            entry.calloutMesh.position.set(worldX, CAR_Y + BODY_H + 1.6, worldZ);
+          } else {
+            const prog = (t - CALLOUT_IN - CALLOUT_HOLD) / CALLOUT_OUT;
+            entry.calloutMesh.material.opacity = 1 - prog;
+            entry.calloutMesh.position.set(worldX, CAR_Y + BODY_H + 1.6 + prog * 0.5, worldZ);
+          }
+
+          if (entry.calloutT >= CALLOUT_TOTAL) {
             entry.calloutMesh.visible = false;
           }
         }
@@ -390,31 +422,20 @@ export class Car3D {
     smokeMesh.visible = false;
     group.add(smokeMesh);
 
-    // ── First-encounter callout ────────────────────────────────────────────────
-    let calloutMesh = null;
-    let calloutT    = 0;
+    // ── First-encounter callout — Sprite always faces camera ─────────────────
+    let calloutMesh = null;   // THREE.Sprite (naming kept for disposal compat)
+    let calloutT    = -1;     // -1 = no callout, 0..CALLOUT_TOTAL = animating
     const typeDef = CAR_TYPES[car.type];
     if (typeDef && !this._seenTypes.has(car.type)) {
       this._seenTypes.add(car.type);
-      const cvs = document.createElement('canvas');
-      cvs.width = 160; cvs.height = 48;
-      const cCtx = cvs.getContext('2d');
-      cCtx.fillStyle = 'rgba(0,0,0,0.70)';
-      if (cCtx.roundRect) cCtx.roundRect(2, 2, 156, 44, 8);
-      else                cCtx.rect(2, 2, 156, 44);
-      cCtx.fill();
-      cCtx.font = 'bold 15px Arial';
-      cCtx.fillStyle = '#ffffff';
-      cCtx.textAlign = 'center';
-      cCtx.textBaseline = 'middle';
-      cCtx.fillText(`${typeDef.label}  HP ${typeDef.hp}`, 80, 24);
-      const cTex = new THREE.CanvasTexture(cvs);
-      const cMat = new THREE.MeshBasicMaterial({ map: cTex, transparent: true, depthTest: false });
-      calloutMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.48), cMat);
-      calloutMesh.rotation.x = -Math.PI / 2;
-      calloutMesh.position.set(0, BODY_H + 0.5, 0);
-      calloutT = 3.0;
-      group.add(calloutMesh);
+      calloutMesh = this._createCalloutSprite(typeDef, hex);
+      // Added to scene directly (not group) so group.scale doesn't distort it.
+      const startPos = group.position;
+      calloutMesh.position.set(startPos.x, CAR_Y + BODY_H + 1.6, startPos.z);
+      calloutMesh.material.opacity = 0;
+      calloutMesh.scale.set(CALLOUT_SPRITE_W * 0.5, CALLOUT_SPRITE_H * 0.5, 1);
+      this._scene.add(calloutMesh);
+      calloutT = 0;
     }
 
     group.position.set(laneToX(laneIdx), CAR_Y, posToZ(car.position));
@@ -459,7 +480,6 @@ export class Car3D {
   _disposeDying(d) {
     d.hpTex?.dispose();
     d.smokeTex?.dispose();
-    d.calloutMesh?.material?.map?.dispose();
     this._disposeGroup(d.group);
     if (d.bossRing) {
       d.bossRingMat?.dispose();
@@ -470,12 +490,55 @@ export class Car3D {
   _disposeEntry(entry) {
     entry.hpTex.dispose();
     entry.smokeTex?.dispose();
-    entry.calloutMesh?.material?.map?.dispose();
+    if (entry.calloutMesh) {
+      entry.calloutMesh.material.map?.dispose();
+      entry.calloutMesh.material.dispose();
+      this._scene.remove(entry.calloutMesh);
+    }
     this._disposeGroup(entry.group);
     if (entry.bossRing) {
       entry.bossRingMat?.dispose();
       this._scene.remove(entry.bossRing);
     }
+  }
+
+  _createCalloutSprite(typeDef, colorHex) {
+    const W = 256, H = 96;
+    const cvs = document.createElement('canvas');
+    cvs.width = W; cvs.height = H;
+    const ctx = cvs.getContext('2d');
+
+    // White pill background
+    ctx.fillStyle = '#ffffff';
+    if (ctx.roundRect) ctx.roundRect(3, 3, W - 6, H - 6, 22);
+    else               ctx.rect(3, 3, W - 6, H - 6);
+    ctx.fill();
+
+    // Colored border (matches car color)
+    const r = (colorHex >> 16) & 0xff;
+    const g = (colorHex >>  8) & 0xff;
+    const b =  colorHex        & 0xff;
+    ctx.strokeStyle = `rgb(${r},${g},${b})`;
+    ctx.lineWidth   = 5;
+    if (ctx.roundRect) ctx.roundRect(3, 3, W - 6, H - 6, 22);
+    else               ctx.rect(3, 3, W - 6, H - 6);
+    ctx.stroke();
+
+    // Type label
+    ctx.font         = 'bold 30px Arial';
+    ctx.fillStyle    = '#111111';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(typeDef.label, W / 2, H * 0.35);
+
+    // HP info
+    ctx.font      = 'bold 22px Arial';
+    ctx.fillStyle = '#444444';
+    ctx.fillText(`❤ ${typeDef.hp} HP`, W / 2, H * 0.72);
+
+    const tex = new THREE.CanvasTexture(cvs);
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+    return new THREE.Sprite(mat);
   }
 
   _disposeGroup(group) {

@@ -280,3 +280,63 @@ describe('GameLoop CRISIS injection via _step()', () => {
     expect(onCrisis).not.toHaveBeenCalled();
   });
 });
+
+// ── damage-only shots still advance the grid ──────────────────────────────────
+
+describe('GameLoop._resolveShot() — grid advance on every hit', () => {
+  it('damage-only hit (no kill) advances cars one row', () => {
+    const { gs } = makeState({ laneCount: 1, colCount: 1 });
+    const { loop } = makeLoop(gs);
+    gs.gridRows = 10;
+
+    const car = new Car({ color: 'Red', hp: 10, speed: 5 });
+    car.row      = 2;
+    car.position = loop._rowToPosition(2, 10);
+    gs.lanes[0].addCar(car);
+
+    const shooter = new Shooter({ color: 'Red', damage: 3, column: 0 });
+    loop._resolveShot(shooter, 0);
+
+    expect(car.row).toBe(3);
+    expect(car.hp).toBe(7);
+  });
+
+  it('damage-only hit does not record a kill', () => {
+    const { gs } = makeState({ laneCount: 1, colCount: 1 });
+    const onKill = vi.fn();
+    const { loop } = makeLoop(gs, { onKill });
+    gs.gridRows = 10;
+
+    const car = new Car({ color: 'Red', hp: 10, speed: 5 });
+    car.row      = 2;
+    car.position = loop._rowToPosition(2, 10);
+    gs.lanes[0].addCar(car);
+
+    const shooter = new Shooter({ color: 'Red', damage: 3, column: 0 });
+    loop._resolveShot(shooter, 0);
+
+    expect(onKill).not.toHaveBeenCalled();
+    expect(gs.totalKills).toBe(0);
+  });
+
+  it('killing hit also advances remaining cars one row', () => {
+    const { gs } = makeState({ laneCount: 1, colCount: 1 });
+    const { loop } = makeLoop(gs);
+    gs.gridRows = 10;
+
+    const car1 = new Car({ color: 'Red', hp: 3, speed: 5 });
+    car1.row      = 2;
+    car1.position = loop._rowToPosition(2, 10);
+    const car2 = new Car({ color: 'Blue', hp: 10, speed: 5 });
+    car2.row      = 0;
+    car2.position = loop._rowToPosition(0, 10);
+    gs.lanes[0].addCar(car1);
+    gs.lanes[0].addCar(car2);
+
+    const shooter = new Shooter({ color: 'Red', damage: 5, column: 0 });
+    loop._resolveShot(shooter, 0);
+
+    expect(gs.totalKills).toBe(1);
+    expect(car2.row).toBe(1);
+  });
+});

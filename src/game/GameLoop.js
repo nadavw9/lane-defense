@@ -207,23 +207,23 @@ export class GameLoop {
 
     this._onHit(laneIdx, carGameX, shooter.color, damageDealt, kills > 0);
 
-    if (kills === 0) return;
+    if (kills > 0) {
+      if (carryOverKills > 0) this._onChain(laneIdx);
 
-    if (carryOverKills > 0) this._onChain(laneIdx);
-
-    for (let i = 0; i < kills; i++) {
-      const isCarryOver = i > 0;
-      const combo = gs.recordKill(isCarryOver);
-      this._onKill(combo);
-      // Award bomb charge every KILLS_PER_BOMB kills.
-      const bs = this._boosterState;
-      if (bs && gs.killsTowardBomb % KILLS_PER_BOMB === 0 && bs.bombs < BOMB_MAX_CHARGES) {
-        bs.bombs++;
-        this._onBombEarned?.();
+      for (let i = 0; i < kills; i++) {
+        const isCarryOver = i > 0;
+        const combo = gs.recordKill(isCarryOver);
+        this._onKill(combo);
+        // Award bomb charge every KILLS_PER_BOMB kills.
+        const bs = this._boosterState;
+        if (bs && gs.killsTowardBomb % KILLS_PER_BOMB === 0 && bs.bombs < BOMB_MAX_CHARGES) {
+          bs.bombs++;
+          this._onBombEarned?.();
+        }
       }
     }
 
-    // Turn-based: after every shot resolves, advance the entire grid one step.
+    // Turn-based: advance the grid after every hit — damage-only AND kill shots.
     if (!gs.isOver) this._advanceGrid();
   }
 

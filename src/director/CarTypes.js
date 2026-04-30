@@ -10,18 +10,55 @@ export const CAR_TYPES = {
   tank:  { hp: 20, scaleX: 1.40, scaleY: 1.20, scaleZ: 1.50, label: 'Tank'    },
 };
 
-// Phase-weighted type distribution.
-// CALM/RELIEF: lightweight vehicles.  PRESSURE/CLIMAX: heavy vehicles.
-// Level-based refinement (e.g., gating tanks to high levels) is added in Issue G.
-const PHASE_WEIGHTS = {
-  CALM:     [{ value: 'small', weight: 50 }, { value: 'big', weight: 40 }, { value: 'jeep', weight: 10 }],
-  BUILD:    [{ value: 'small', weight: 25 }, { value: 'big', weight: 40 }, { value: 'jeep', weight: 25 }, { value: 'truck', weight: 10 }],
-  PRESSURE: [{ value: 'big',  weight: 20 }, { value: 'jeep', weight: 35 }, { value: 'truck', weight: 35 }, { value: 'tank', weight: 10 }],
-  CLIMAX:   [{ value: 'jeep', weight: 15 }, { value: 'truck', weight: 35 }, { value: 'tank',  weight: 50 }],
-  RELIEF:   [{ value: 'small', weight: 40 }, { value: 'big', weight: 45 }, { value: 'jeep', weight: 15 }],
+// ── Level-band weight tables ───────────────────────────────────────────────────
+// Each band unlocks additional types.  Phase still skews the distribution
+// within the allowed set so early phases stay light regardless of level.
+
+// L1–4: FTUE — small + big only.  Keeps HP predictable while teaching controls.
+const WEIGHTS_FTUE = {
+  CALM:     [{ value: 'small', weight: 60 }, { value: 'big', weight: 40 }],
+  BUILD:    [{ value: 'small', weight: 40 }, { value: 'big', weight: 60 }],
+  PRESSURE: [{ value: 'small', weight: 25 }, { value: 'big', weight: 75 }],
+  CLIMAX:   [{ value: 'small', weight: 15 }, { value: 'big', weight: 85 }],
+  RELIEF:   [{ value: 'small', weight: 55 }, { value: 'big', weight: 45 }],
 };
 
-export function pickCarType(rng, phase) {
-  const weights = PHASE_WEIGHTS[phase] ?? PHASE_WEIGHTS.BUILD;
+// L5–8: jeep unlocked.  Players now have a full color palette starting in L8.
+const WEIGHTS_MID = {
+  CALM:     [{ value: 'small', weight: 45 }, { value: 'big', weight: 40 }, { value: 'jeep', weight: 15 }],
+  BUILD:    [{ value: 'small', weight: 25 }, { value: 'big', weight: 45 }, { value: 'jeep', weight: 30 }],
+  PRESSURE: [{ value: 'big',  weight: 30 }, { value: 'jeep', weight: 55 }, { value: 'small', weight: 15 }],
+  CLIMAX:   [{ value: 'big',  weight: 20 }, { value: 'jeep', weight: 80 }],
+  RELIEF:   [{ value: 'small', weight: 45 }, { value: 'big', weight: 40 }, { value: 'jeep', weight: 15 }],
+};
+
+// L9–12: truck unlocked.  Challenging phase approaching W1 standard.
+const WEIGHTS_HARD = {
+  CALM:     [{ value: 'small', weight: 30 }, { value: 'big', weight: 40 }, { value: 'jeep', weight: 25 }, { value: 'truck', weight: 5  }],
+  BUILD:    [{ value: 'small', weight: 15 }, { value: 'big', weight: 35 }, { value: 'jeep', weight: 35 }, { value: 'truck', weight: 15 }],
+  PRESSURE: [{ value: 'big',  weight: 15 }, { value: 'jeep', weight: 40 }, { value: 'truck', weight: 45 }],
+  CLIMAX:   [{ value: 'jeep', weight: 25 }, { value: 'truck', weight: 75 }],
+  RELIEF:   [{ value: 'small', weight: 35 }, { value: 'big', weight: 40 }, { value: 'jeep', weight: 20 }, { value: 'truck', weight: 5  }],
+};
+
+// L13+: all types including tank.  FR-4 still caps tank HP if max damage < 8.
+const WEIGHTS_FULL = {
+  CALM:     [{ value: 'small', weight: 25 }, { value: 'big', weight: 35 }, { value: 'jeep', weight: 25 }, { value: 'truck', weight: 15 }],
+  BUILD:    [{ value: 'small', weight: 10 }, { value: 'big', weight: 25 }, { value: 'jeep', weight: 35 }, { value: 'truck', weight: 25 }, { value: 'tank', weight: 5  }],
+  PRESSURE: [{ value: 'big',  weight: 10 }, { value: 'jeep', weight: 30 }, { value: 'truck', weight: 40 }, { value: 'tank', weight: 20 }],
+  CLIMAX:   [{ value: 'jeep', weight: 10 }, { value: 'truck', weight: 35 }, { value: 'tank', weight: 55 }],
+  RELIEF:   [{ value: 'small', weight: 30 }, { value: 'big', weight: 40 }, { value: 'jeep', weight: 20 }, { value: 'truck', weight: 10 }],
+};
+
+function bandWeights(level) {
+  if (level <= 4)  return WEIGHTS_FTUE;
+  if (level <= 8)  return WEIGHTS_MID;
+  if (level <= 12) return WEIGHTS_HARD;
+  return WEIGHTS_FULL;
+}
+
+export function pickCarType(rng, level, phase) {
+  const band    = bandWeights(level ?? 1);
+  const weights = band[phase] ?? band.BUILD;
   return rng.weightedPick(weights);
 }

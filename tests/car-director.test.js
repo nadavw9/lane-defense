@@ -119,15 +119,16 @@ describe('HP range', () => {
   })
 
   it('no car ever exceeds HP_BASE.max (20)', () => {
-    // CLIMAX spawns tanks (HP=20=max); no car should exceed the cap.
-    const d    = makeDirector(1)
+    // Level 13+ CLIMAX spawns tanks (HP=20=max); no car should exceed the cap.
+    const d = makeDirector(1)
+    d.setLevel(13)   // unlock full type band including tanks
     const cars = []
     for (let i = 0; i < 100; i++) {
       const car = d.generateCar(makeLane(), 'CLIMAX', W1, PALETTE)
       cars.push(car)
       expect(car.hp).toBeLessThanOrEqual(HP_BASE.max)
     }
-    // At least some CLIMAX cars should be tanks (HP=20=HP_BASE.max).
+    // At least some L13 CLIMAX cars should be tanks (HP=20=HP_BASE.max).
     expect(cars.some(c => c.hp === HP_BASE.max)).toBe(true)
   })
 

@@ -9,6 +9,7 @@ export class CarDirector {
   constructor(config, rng) {
     this._config = config;
     this._rng    = rng;
+    this._level  = 1;   // set via setLevel() at each level start
     // { laneId → remainingCooldownSeconds }
     this._spawnTimers = {};
 
@@ -23,6 +24,9 @@ export class CarDirector {
     this._carryOverThresholds = {}; // { laneId → next trigger count }
     this._pendingPairColors   = {}; // { laneId → bait color } when reward car is due
   }
+
+  // Update the current level so pickCarType uses the right type distribution.
+  setLevel(levelId) { this._level = levelId ?? 1; }
 
   // Generate a single car for the given lane, phase, and world settings.
   // HP formula: BASE_HP × worldHpMultiplier × phaseHpMultiplier × variance(0.85–1.15)
@@ -134,7 +138,7 @@ export class CarDirector {
   // ─── Private helpers ──────────────────────────────────────────────────────
 
   _buildCar(color, phase, worldConfig) {
-    const type = pickCarType(this._rng, phase);
+    const type = pickCarType(this._rng, this._level, phase);
     const hp   = Math.max(HP_MINIMUM, CAR_TYPES[type].hp);
 
     const speed = worldConfig.speed.base +

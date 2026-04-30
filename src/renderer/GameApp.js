@@ -452,6 +452,7 @@ async function main() {
     gs.targetKills = cfg.targetKills ?? Math.max(5, Math.round((cfg.duration ?? 60) * 0.12));
     gs.gridRows    = cfg.gridRows ?? 10;  // default 10 road slots
     gs.initialCars = cfg.initialCars ?? null;
+    carDir.setLevel(typeof cfg.id === 'number' ? cfg.id : 1);
   }
 
   // ── Core level-start routine ──────────────────────────────────────────────

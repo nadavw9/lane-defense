@@ -6,7 +6,7 @@
 // Call setLaneCount(n) to rebuild geometry for 1–4 active lanes.
 
 import * as THREE from 'three';
-import { ROAD_Z_FAR, ROAD_Z_NEAR, laneToX, roadHalfW, posToZ } from './Scene3D.js';
+import { ROAD_Z_FAR, ROAD_Z_NEAR, ROAD_Z_VANISHING, laneToX, roadHalfW, posToZ } from './Scene3D.js';
 
 // ── Tweakable design constants ─────────────────────────────────────────────────
 const COL_ASPHALT      = 0x4a4a52;   // medium grey
@@ -35,6 +35,11 @@ const LANE_GLOW_WIDTH   = 2.8;
 const ROAD_LENGTH   = ROAD_Z_NEAR - ROAD_Z_FAR;
 const ROAD_CENTER_Z = (ROAD_Z_FAR + ROAD_Z_NEAR) / 2;
 
+// Start gate at the spawn line (Z = ROAD_Z_FAR = -22)
+const GATE_POST_H   = 3.5;
+const GATE_BAR_Y    = 2.0;
+const GATE_OPEN_DUR = 1.2;   // seconds for doors to slide open
+
 export class Road3D {
   constructor(scene) {
     this._scene      = scene;
@@ -54,6 +59,7 @@ export class Road3D {
     this._activeLaneGlow = null;
     this._bombRings      = [];
     this._dividers       = [];
+    this._gate           = null;
 
     this._build();
   }
@@ -101,6 +107,26 @@ export class Road3D {
     this._activeLaneGlow.mesh.geometry.dispose();
     this._activeLaneGlow.mat.dispose();
     this._activeLaneGlow = null;
+  }
+
+  /** Animate the start gate open (called on level intro). */
+  openGate() {
+    if (!this._gate) return;
+    this._gate.opening = true;
+    this._gate.t       = 0;
+    this._gate.done    = false;
+  }
+
+  /** Reset gate to closed position (called on level reset). */
+  resetGate() {
+    if (!this._gate) return;
+    const { barL, barR, matL, matR, hw } = this._gate;
+    barL.position.x = -hw / 2; barL.position.y = GATE_BAR_Y;
+    barR.position.x =  hw / 2; barR.position.y = GATE_BAR_Y;
+    matL.opacity = 1; matR.opacity = 1;
+    this._gate.opening = false;
+    this._gate.done    = false;
+    this._gate.t       = 0;
   }
 
   // ── Bomb ring ────────────────────────────────────────────────────────────────
@@ -174,6 +200,21 @@ export class Road3D {
       pos.needsUpdate = true;
     }
 
+    // Gate open animation — doors slide outward and fade
+    if (this._gate?.opening && !this._gate.done) {
+      this._gate.t = Math.min(GATE_OPEN_DUR, this._gate.t + dt);
+      const prog  = this._gate.t / GATE_OPEN_DUR;
+      const eased = 1 - Math.pow(1 - prog, 2.5);
+      const { barL, barR, matL, matR, hw } = this._gate;
+      barL.position.x = -hw / 2 - eased * hw;
+      barL.position.y =  GATE_BAR_Y + eased * 1.2;
+      barR.position.x =  hw / 2 + eased * hw;
+      barR.position.y =  GATE_BAR_Y + eased * 1.2;
+      matL.opacity    = 1 - eased;
+      matR.opacity    = 1 - eased;
+      if (prog >= 1) this._gate.done = true;
+    }
+
     // Bomb rings — expand + fade
     for (let i = this._bombRings.length - 1; i >= 0; i--) {
       const ring = this._bombRings[i];
@@ -214,6 +255,7 @@ export class Road3D {
     this._buildReflectionStrips();
     this._buildTrafficTrails();
     this._buildSpeedLines();
+    this._buildStartGate();
   }
 
   _clearGeometry() {
@@ -243,6 +285,7 @@ export class Road3D {
     this._breachMat     = null;
     this._breachGlowMat = null;
     this._breachGlow    = null;
+    this._gate          = null;
   }
 
   _buildRoadSurface() {
@@ -299,6 +342,53 @@ export class Road3D {
       joint.position.set(0, 0.001, z);
       this._group.add(joint);
     }
+
+    // ── Visual background extension: road continues to vanishing point ─────
+    const VANISH_LEN    = ROAD_Z_FAR - ROAD_Z_VANISHING;  // 43 units
+    const vanishCenterZ = ROAD_Z_VANISHING + VANISH_LEN / 2;
+
+    const vanishGeo = new THREE.PlaneGeometry(W, VANISH_LEN, 1, 6);
+    const vanishMat = new THREE.MeshStandardMaterial({
+      color: COL_ASPHALT, roughness: 0.65, metalness: 0.12, envMapIntensity: 0.25,
+    });
+    const vanishMesh = new THREE.Mesh(vanishGeo, vanishMat);
+    vanishMesh.rotation.x = -Math.PI / 2;
+    vanishMesh.position.set(0, -0.01, vanishCenterZ);
+    this._group.add(vanishMesh);
+
+    // Per-lane alternating strips in the extension
+    for (let i = 0; i < n; i++) {
+      const x     = laneToX(i, n);
+      const color = i % 2 === 0 ? COL_ASPHALT : COL_ASPHALT_DARK;
+      const strip = new THREE.Mesh(
+        new THREE.PlaneGeometry(2.8, VANISH_LEN),
+        new THREE.MeshStandardMaterial({
+          color, roughness: i % 2 === 0 ? 0.52 : 0.62, metalness: 0.12, envMapIntensity: 0.25,
+        }),
+      );
+      strip.rotation.x = -Math.PI / 2;
+      strip.position.set(x, 0, vanishCenterZ);
+      this._group.add(strip);
+    }
+
+    // Lane dividers in the extension (dimmer opacity — fade into distance)
+    const extDashMat = new THREE.MeshBasicMaterial({
+      color: COL_DIVIDER, transparent: true, opacity: 0.35,
+    });
+    const extPeriod  = 1.4 + 1.0;
+    const extDashLen = 1.4;
+    const extDashCt  = Math.ceil(VANISH_LEN / extPeriod);
+    for (let di = 0; di < n - 1; di++) {
+      const x = laneToX(di, n) + 1.5;
+      for (let d = 0; d < extDashCt; d++) {
+        const z = ROAD_Z_VANISHING + d * extPeriod + extDashLen / 2;
+        if (z >= ROAD_Z_FAR) break;
+        const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.08, extDashLen), extDashMat);
+        dash.rotation.x = -Math.PI / 2;
+        dash.position.set(x, 0.002, z);
+        this._group.add(dash);
+      }
+    }
   }
 
   _buildLaneDividers() {
@@ -327,6 +417,50 @@ export class Road3D {
       }
       this._dividers.push(meshes);
     }
+  }
+
+  _buildStartGate() {
+    const n  = this._laneCount;
+    const hw = roadHalfW(n);
+    const gz = ROAD_Z_FAR;   // spawn line = -22
+
+    // Vertical side posts
+    const postMat = new THREE.MeshStandardMaterial({
+      color: 0x2d3a4a, roughness: 0.55, metalness: 0.55,
+    });
+    for (const sx of [-1, 1]) {
+      const post = new THREE.Mesh(
+        new THREE.BoxGeometry(0.32, GATE_POST_H, 0.32),
+        postMat,
+      );
+      post.position.set(sx * (hw + 0.18), GATE_POST_H / 2, gz);
+      this._group.add(post);
+    }
+
+    // Thin top rail connecting the two posts
+    const rail = new THREE.Mesh(
+      new THREE.BoxGeometry(hw * 2 + 0.36 + 0.32, 0.14, 0.24),
+      postMat,
+    );
+    rail.position.set(0, GATE_POST_H, gz);
+    this._group.add(rail);
+
+    // Two door panels (each covers half the road width; animated on openGate())
+    const matL = new THREE.MeshStandardMaterial({
+      color: 0xee2200, emissive: new THREE.Color(0xcc1100), emissiveIntensity: 0.45,
+      roughness: 0.35, metalness: 0.35, transparent: true, opacity: 1.0,
+    });
+    const matR = matL.clone();
+
+    const barL = new THREE.Mesh(new THREE.BoxGeometry(hw, 0.28, 0.28), matL);
+    barL.position.set(-hw / 2, GATE_BAR_Y, gz);
+    this._group.add(barL);
+
+    const barR = new THREE.Mesh(new THREE.BoxGeometry(hw, 0.28, 0.28), matR);
+    barR.position.set(hw / 2, GATE_BAR_Y, gz);
+    this._group.add(barR);
+
+    this._gate = { barL, barR, matL, matR, hw, opening: false, t: 0, done: false };
   }
 
   _buildBarriers() {

@@ -28,8 +28,10 @@ const DIV_OPACITY_HI = 0.75;       // opacity at top (near road boundary)
 const DIV_OPACITY_LO = 0.10;       // opacity at bottom
 
 // ── Layout constants ───────────────────────────────────────────────────────────
-export const ROAD_Z_FAR  = -22;
-export const ROAD_Z_NEAR =   0;
+export const ROAD_Z_FAR       = -22;   // gameplay zone far edge (cars spawn here)
+export const ROAD_Z_NEAR      =   0;   // gameplay zone near edge (breach line)
+export const ROAD_Z_SPAWN     = -22;   // semantic alias: where cars enter the road
+export const ROAD_Z_VANISHING = -65;   // road surface extends here visually (no gameplay)
 
 // 4-lane backward-compat constants (static).
 export const ROAD_HALF_W = 6.5;

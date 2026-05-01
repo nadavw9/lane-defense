@@ -208,7 +208,7 @@ export class GameLoop {
     this._onHit(laneIdx, carGameX, shooter.color, damageDealt, kills > 0);
 
     if (kills > 0) {
-      if (carryOverKills > 0) this._onChain(laneIdx);
+      if (carryOverKills > 0) this._onChain(laneIdx, carGameX);
 
       for (let i = 0; i < kills; i++) {
         const isCarryOver = i > 0;

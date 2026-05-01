@@ -96,10 +96,10 @@ const CHAIN_HIT_STYLE = {
   dropShadow: { color: 0x000000, blur: 6, distance: 2, alpha: 0.9 },
 };
 
-function spawnChainHit(parent, laneIdx) {
-  // Spawn near the front of the lane (near the breach line at position ~85)
-  const x = laneCenterX(laneIdx, 0.85) + (Math.random() - 0.5) * 40;
-  const y = posToScreenY(85);
+function spawnChainHit(parent, laneIdx, position = 85) {
+  const t01 = position / 100;
+  const x = laneCenterX(laneIdx, t01) + (Math.random() - 0.5) * 40;
+  const y = posToScreenY(position);
   const t = new Text({ text: 'CHAIN HIT!', style: CHAIN_HIT_STYLE });
   t.anchor.set(0.5);
   t.x     = x;
@@ -1109,8 +1109,8 @@ async function main() {
       killAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
     },
 
-    onChainHit: (laneIdx) => {
-      floatingTexts.push(spawnChainHit(layers.get('particleLayer'), laneIdx));
+    onChainHit: (laneIdx, position) => {
+      floatingTexts.push(spawnChainHit(layers.get('particleLayer'), laneIdx, position));
       // chain_reaction achievement: 2+ kills from one shot.
       const chainAch = achievementManager.check('chain_kill');
       chainAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));

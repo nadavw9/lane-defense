@@ -266,16 +266,18 @@ export class Car3D {
           }
         }
 
-        // HP-change: body darkening + HP sprite visibility + crack stage.
+        // HP-change: body+roof darkening + HP sprite visibility + crack stage.
         if (car.hp !== entry.lastHp) {
           entry.lastHp = car.hp;
           const mult   = 0.55 + 0.45 * hpRatio;
-          const origHex = entry.hexColor;
-          entry.bodyMat.color.setRGB(
-            Math.round(((origHex >> 16) & 0xff) * mult) / 255,
-            Math.round(((origHex >>  8) & 0xff) * mult) / 255,
-            Math.round(( origHex        & 0xff) * mult) / 255,
-          );
+          for (let mi = 0; mi < entry.colorMats.length; mi++) {
+            const base = entry.colorBaseHexes[mi];
+            entry.colorMats[mi].color.setRGB(
+              Math.round(((base >> 16) & 0xff) * mult) / 255,
+              Math.round(((base >>  8) & 0xff) * mult) / 255,
+              Math.round(( base        & 0xff) * mult) / 255,
+            );
+          }
           this._drawHpBar(entry, car);
           if (entry.hpMesh) {
             entry.hpMesh.visible = car.hp < (car.maxHp ?? 0);
@@ -354,6 +356,10 @@ export class Car3D {
     const hex     = carHex(car);
     const group   = new THREE.Group();
 
+    // Track all color-coordinated materials so HP-darkening stays 2-tone consistent.
+    const colorMats      = [];
+    const colorBaseHexes = [];
+
     // ── Body ─────────────────────────────────────────────────────────────────
     const bodyMat = new THREE.MeshStandardMaterial({
       color:       hex,
@@ -366,10 +372,13 @@ export class Car3D {
     body.castShadow    = true;
     body.receiveShadow = true;
     group.add(body);
+    colorMats.push(bodyMat);
+    colorBaseHexes.push(hex);
 
     // ── Roof ─────────────────────────────────────────────────────────────────
+    const roofHex = darken(hex);
     const roofMat = new THREE.MeshStandardMaterial({
-      color:       darken(hex),
+      color:       roofHex,
       metalness:   0.35,
       roughness:   0.55,
       transparent: true,
@@ -379,6 +388,8 @@ export class Car3D {
     roof.position.set(0, ROOF_Y, ROOF_Z);
     roof.castShadow = true;
     group.add(roof);
+    colorMats.push(roofMat);
+    colorBaseHexes.push(roofHex);
 
     // ── Wheels ───────────────────────────────────────────────────────────────
     for (const [wx, wy, wz] of WHEEL_OFFSETS) {
@@ -495,7 +506,8 @@ export class Car3D {
 
     const startZ = posToZ(car.position);
     const entry = {
-      group, bodyMat, hpCanvas, hpCtx, hpTex, hpMesh, headLights,
+      group, bodyMat, colorMats, colorBaseHexes,
+      hpCanvas, hpCtx, hpTex, hpMesh, headLights,
       lastHp: -1, lastCrackStage: -1,
       laneIdx, bossRing, bossRingMat, bossAngle: 0, hexColor: hex,
       smokeMesh, smokeTex, crackCanvas, crackCtx, crackTex, crackMesh,

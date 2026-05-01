@@ -340,3 +340,47 @@ describe('GameLoop._resolveShot() — grid advance on every hit', () => {
     expect(car2.row).toBe(1);
   });
 });
+
+// ── GameState.rescue() keeps car.row consistent with car.position ─────────────
+
+describe('GameState.rescue() — row/position consistency', () => {
+  it('rescue sets car.row back 40% and derives matching position', () => {
+    const { gs } = makeState();    // gridRows defaults to 10
+    const ROWS = gs.gridRows;      // 10
+
+    const car = new Car({ color: 'Red', hp: 10, speed: 5 });
+    car.row      = ROWS - 1;        // breach row (9)
+    car.position = 100;
+    gs.lanes[0].addCar(car);
+
+    gs.rescue(10);
+
+    const ROWS_BACK = Math.floor(ROWS * 0.4);        // 4
+    const expectedRow = (ROWS - 1) - ROWS_BACK;      // 5
+    const expectedPos = (expectedRow / (ROWS - 1)) * 100; // ≈55.56
+
+    expect(car.row).toBe(expectedRow);
+    expect(car.position).toBeCloseTo(expectedPos, 2);
+  });
+
+  it('rescue position is consistent with the formula used by _advanceGrid', () => {
+    const { gs } = makeState();
+    const ROWS = gs.gridRows;
+
+    const car = new Car({ color: 'Red', hp: 10, speed: 5 });
+    car.row      = ROWS - 1;
+    car.position = 100;
+    gs.lanes[0].addCar(car);
+
+    gs.rescue(10);
+
+    // After one grid advance, row should be ROWS_BACK-3 (not ROWS-1+1 = breach)
+    const rowAfterRescue = car.row;
+    const { loop } = makeLoop(gs);
+    loop._resolveShot(new Shooter({ color: 'Red', damage: 0, column: 0 }), 0); // miss → advance
+
+    // Car should NOT have breached — row must still be inside the grid.
+    expect(car.row).toBe(rowAfterRescue + 1);
+    expect(car.row).toBeLessThan(ROWS);
+  });
+});

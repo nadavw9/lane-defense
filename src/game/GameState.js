@@ -142,17 +142,21 @@ export class GameState {
     this.won    = won;
   }
 
-  // Accept a rescue: add extra seconds, push ALL cars back 40 units, and
-  // apply a 5-second 30% speed reduction so the player can recover.
+  // Accept a rescue: add extra seconds, push ALL cars back 40% of the grid,
+  // and apply a 5-second 30% speed reduction so the player can recover.
   rescue(extraSeconds) {
     this.isOver        = false;
     this.won           = false;
     this.rescueUsed    = true;
     this.duration     += extraSeconds;
     this.recoveryUntil = this.elapsed + 5;
+
+    const ROWS = this.gridRows ?? 10;
+    const ROWS_BACK = Math.floor(ROWS * 0.4);
     for (const lane of this.lanes) {
       for (const car of lane.cars) {
-        car.position = Math.max(0, car.position - 40);
+        car.row      = Math.max(0, car.row - ROWS_BACK);
+        car.position = ROWS <= 1 ? 0 : (car.row / (ROWS - 1)) * 100;
       }
     }
   }

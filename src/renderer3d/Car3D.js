@@ -62,12 +62,15 @@ const LERP_DURATION = 0.45;
 const MAX_TILT_X    = 0.20;
 
 // First-encounter callout sprite
-const CALLOUT_IN    = 0.25;
-const CALLOUT_HOLD  = 2.50;
-const CALLOUT_OUT   = 0.40;
-const CALLOUT_TOTAL = CALLOUT_IN + CALLOUT_HOLD + CALLOUT_OUT;
-const CALLOUT_SPRITE_W = 2.4;
-const CALLOUT_SPRITE_H = 0.9;
+const CALLOUT_IN       = 0.25;
+const CALLOUT_HOLD     = 3.50;
+const CALLOUT_OUT      = 0.40;
+const CALLOUT_TOTAL    = CALLOUT_IN + CALLOUT_HOLD + CALLOUT_OUT;
+const CALLOUT_SPRITE_W = 3.6;
+const CALLOUT_SPRITE_H = 1.4;
+const CALLOUT_Y_OFFSET = 2.2;   // Y above car group origin
+const CONNECTOR_W      = 0.10;  // world-unit width of the line sprite
+const CONNECTOR_H      = 1.15;  // world-unit height of the line sprite
 
 // Wheel spin rate (radians per world unit of travel)
 const WHEEL_SPIN_RATE = 1 / WHEEL_R;
@@ -224,6 +227,11 @@ export class Car3D {
           entry.calloutMesh.material.dispose();
           this._scene.remove(entry.calloutMesh);
         }
+        if (entry.connectorMesh) {
+          entry.connectorMesh.material.map?.dispose();
+          entry.connectorMesh.material.dispose();
+          this._scene.remove(entry.connectorMesh);
+        }
         this._dying.push({
           group: entry.group,
           bodyMat: entry.bodyMat,
@@ -250,8 +258,13 @@ export class Car3D {
           entry.targetZ    = newTargetZ;
           entry.lerpT      = 0;
         }
+        // During callout hold, car moves at 30% speed so the player can read it.
+        const _inCalloutHold = entry.calloutMesh
+          && entry.calloutT > CALLOUT_IN
+          && entry.calloutT < CALLOUT_IN + CALLOUT_HOLD;
+        const _lerpDt = _inCalloutHold ? dt * 0.30 : dt;
         if (entry.lerpT < 1) {
-          entry.lerpT   = Math.min(1, entry.lerpT + dt / LERP_DURATION);
+          entry.lerpT   = Math.min(1, entry.lerpT + _lerpDt / LERP_DURATION);
           const eased   = 1 - Math.pow(1 - entry.lerpT, 3);
           entry.renderZ = entry.lerpStartZ + (entry.targetZ - entry.lerpStartZ) * eased;
           g.rotation.x  = -MAX_TILT_X * Math.sin(Math.PI * entry.lerpT);
@@ -355,29 +368,41 @@ export class Car3D {
           }
         }
 
-        // ── Callout sprite ─────────────────────────────────────────────────
+        // ── Callout sprite + connector line ───────────────────────────────
         if (entry.calloutMesh && entry.calloutT >= 0 && entry.calloutT < CALLOUT_TOTAL) {
           entry.calloutT += dt;
           const t      = Math.min(CALLOUT_TOTAL, entry.calloutT);
           const worldX = g.position.x;
           const worldZ = entry.renderZ;
+          const callY  = CAR_Y + BODY_H + CALLOUT_Y_OFFSET;
+          const connY  = callY - CALLOUT_SPRITE_H / 2 - CONNECTOR_H / 2;
 
+          let opacity = 1;
           if (t < CALLOUT_IN) {
             const prog = t / CALLOUT_IN;
-            entry.calloutMesh.material.opacity = prog;
+            opacity = prog;
             entry.calloutMesh.scale.set(CALLOUT_SPRITE_W * (0.5 + 0.5 * prog), CALLOUT_SPRITE_H * (0.5 + 0.5 * prog), 1);
-            entry.calloutMesh.position.set(worldX, CAR_Y + BODY_H + 1.6, worldZ);
+            entry.calloutMesh.position.set(worldX, callY, worldZ);
           } else if (t < CALLOUT_IN + CALLOUT_HOLD) {
-            entry.calloutMesh.material.opacity = 1;
             entry.calloutMesh.scale.set(CALLOUT_SPRITE_W, CALLOUT_SPRITE_H, 1);
-            entry.calloutMesh.position.set(worldX, CAR_Y + BODY_H + 1.6, worldZ);
+            entry.calloutMesh.position.set(worldX, callY, worldZ);
           } else {
             const prog = (t - CALLOUT_IN - CALLOUT_HOLD) / CALLOUT_OUT;
-            entry.calloutMesh.material.opacity = 1 - prog;
-            entry.calloutMesh.position.set(worldX, CAR_Y + BODY_H + 1.6 + prog * 0.5, worldZ);
+            opacity = 1 - prog;
+            entry.calloutMesh.position.set(worldX, callY + prog * 0.5, worldZ);
+          }
+          entry.calloutMesh.material.opacity = opacity;
+
+          if (entry.connectorMesh) {
+            entry.connectorMesh.material.opacity = opacity;
+            entry.connectorMesh.position.set(worldX, connY, worldZ);
+            entry.connectorMesh.visible = entry.calloutT < CALLOUT_TOTAL;
           }
 
-          if (entry.calloutT >= CALLOUT_TOTAL) entry.calloutMesh.visible = false;
+          if (entry.calloutT >= CALLOUT_TOTAL) {
+            entry.calloutMesh.visible = false;
+            if (entry.connectorMesh) entry.connectorMesh.visible = false;
+          }
         }
       }
     }
@@ -504,16 +529,22 @@ export class Car3D {
     group.add(smokeMesh);
 
     // ── First-encounter callout ─────────────────────────────────────────────
-    let calloutMesh = null, calloutT = -1;
+    let calloutMesh = null, calloutT = -1, connectorMesh = null;
     const typeDef = CAR_TYPES[car.type];
     if (typeDef && !this._seenTypes.has(car.type)) {
       this._seenTypes.add(car.type);
       calloutMesh = this._createCalloutSprite(typeDef, hex);
-      const startPos = group.position;
-      calloutMesh.position.set(startPos.x, CAR_Y + BODY_H + 1.6, startPos.z);
+      calloutMesh.position.set(0, CAR_Y + BODY_H + CALLOUT_Y_OFFSET, 0);
       calloutMesh.material.opacity = 0;
       calloutMesh.scale.set(CALLOUT_SPRITE_W * 0.5, CALLOUT_SPRITE_H * 0.5, 1);
       this._scene.add(calloutMesh);
+
+      connectorMesh = this._createConnectorSprite(hex);
+      connectorMesh.position.set(0, CAR_Y + BODY_H + CALLOUT_Y_OFFSET - CALLOUT_SPRITE_H / 2 - CONNECTOR_H / 2, 0);
+      connectorMesh.scale.set(CONNECTOR_W, CONNECTOR_H, 1);
+      connectorMesh.material.opacity = 0;
+      this._scene.add(connectorMesh);
+
       calloutT = 0;
     }
 
@@ -544,7 +575,7 @@ export class Car3D {
       lastHp: -1, lastCrackStage: -1,
       laneIdx, bossRing, bossRingMat, bossAngle: 0, hexColor: hex,
       smokeMesh, smokeTex, crackCanvas, crackCtx, crackTex, crackMesh,
-      calloutMesh, calloutT,
+      calloutMesh, calloutT, connectorMesh,
       renderZ: startZ, targetZ: startZ, lerpStartZ: startZ, lerpT: 1.0,
     };
     this._drawHpBar(entry, car);
@@ -862,32 +893,60 @@ export class Car3D {
   // ── First-encounter callout Sprite ────────────────────────────────────────────
 
   _createCalloutSprite(typeDef, colorHex) {
-    const W = 256, H = 96;
+    const W = 384, H = 144;
     const cvs = document.createElement('canvas');
     cvs.width = W; cvs.height = H;
     const ctx = cvs.getContext('2d');
 
     ctx.fillStyle = '#ffffff';
-    if (ctx.roundRect) ctx.roundRect(3, 3, W - 6, H - 6, 22);
+    if (ctx.roundRect) ctx.roundRect(3, 3, W - 6, H - 6, 28);
     else               ctx.rect(3, 3, W - 6, H - 6);
     ctx.fill();
 
     const r = (colorHex >> 16) & 0xff, g = (colorHex >> 8) & 0xff, b = colorHex & 0xff;
     ctx.strokeStyle = `rgb(${r},${g},${b})`;
-    ctx.lineWidth   = 5;
-    if (ctx.roundRect) ctx.roundRect(3, 3, W - 6, H - 6, 22);
+    ctx.lineWidth   = 6;
+    if (ctx.roundRect) ctx.roundRect(3, 3, W - 6, H - 6, 28);
     else               ctx.rect(3, 3, W - 6, H - 6);
     ctx.stroke();
 
-    ctx.font = 'bold 30px Arial';
+    ctx.font = 'bold 32px Arial';
     ctx.fillStyle = '#111111';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(typeDef.label, W / 2, H * 0.35);
 
-    ctx.font = 'bold 22px Arial';
+    ctx.font = 'bold 24px Arial';
     ctx.fillStyle = '#444444';
     ctx.fillText(`❤ ${typeDef.hp} HP`, W / 2, H * 0.72);
+
+    const tex = new THREE.CanvasTexture(cvs);
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+    return new THREE.Sprite(mat);
+  }
+
+  _createConnectorSprite(colorHex) {
+    const W = 16, H = 128;
+    const cvs = document.createElement('canvas');
+    cvs.width = W; cvs.height = H;
+    const ctx = cvs.getContext('2d');
+
+    // Gold line from top to 82% of height
+    ctx.strokeStyle = '#f5c518';
+    ctx.lineWidth   = 3;
+    ctx.beginPath();
+    ctx.moveTo(W / 2, 0);
+    ctx.lineTo(W / 2, H * 0.82);
+    ctx.stroke();
+
+    // Downward-pointing triangle at the base
+    ctx.fillStyle = '#f5c518';
+    ctx.beginPath();
+    ctx.moveTo(W / 2 - 5, H * 0.78);
+    ctx.lineTo(W / 2 + 5, H * 0.78);
+    ctx.lineTo(W / 2, H);
+    ctx.closePath();
+    ctx.fill();
 
     const tex = new THREE.CanvasTexture(cvs);
     const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
@@ -921,6 +980,11 @@ export class Car3D {
       entry.calloutMesh.material.map?.dispose();
       entry.calloutMesh.material.dispose();
       this._scene.remove(entry.calloutMesh);
+    }
+    if (entry.connectorMesh) {
+      entry.connectorMesh.material.map?.dispose();
+      entry.connectorMesh.material.dispose();
+      this._scene.remove(entry.connectorMesh);
     }
     this._disposeGroup(entry.group);
     if (entry.bossRing) {

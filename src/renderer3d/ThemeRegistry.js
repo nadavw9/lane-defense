@@ -1,42 +1,50 @@
 // ThemeRegistry — per-level sub-variants of the "woods" theme.
-// Each theme adjusts sky gradient colors, lighting, and fog to create a
-// distinct time-of-day feel without changing the core road/environment assets.
+//
+// Design principle: ONE dominant background tone per theme. The game's
+// saturated bomb/car colors pop against a muted, harmonized backdrop.
+// All sky, ground, and environment elements shift toward the dominant
+// tone at reduced saturation so hero elements always win visual hierarchy.
 
 export const THEMES = {
+  // Morning: warm cream-gold dominates. Soft sage greenery, hazy horizon.
   morning: {
-    sky:    { zenith: 0x6ba8d8, mid: 0xaad4f5, horizon: 0xffd8b0, glow: 0xffbb88 },
-    hemi:   { sky: 0xb8d4f0, ground: 0x5a8030, intensity: 1.3 },
-    sun:    { color: 0xfff0d0, intensity: 1.4 },
-    ambient:{ color: 0xfff8f0, intensity: 0.55 },
-    fog:    { color: 0xffd0a8, near: 35, far: 110 },
+    sky:    { zenith: 0xfff4d6, mid: 0xf5e8c0, horizon: 0xffd089, glow: 0xffbe50 },
+    hemi:   { sky: 0xf5e8c0, ground: 0x8a9d6c, intensity: 1.10 },
+    sun:    { color: 0xfff8e0, intensity: 1.45 },
+    ambient:{ color: 0xfff8f0, intensity: 0.48 },
+    fog:    { color: 0xf0d8a8, near: 30, far: 92 },
   },
+  // Afternoon: clear cornflower blue dominates. Vivid greens, crisp light.
   afternoon: {
-    sky:    { zenith: 0x3da0e8, mid: 0x72c8ff, horizon: 0xfff8e8, glow: 0xffe8a8 },
-    hemi:   { sky: 0xc8e8ff, ground: 0x7ac043, intensity: 1.4 },
-    sun:    { color: 0xfff5e0, intensity: 1.6 },
-    ambient:{ color: 0xffffff, intensity: 0.6 },
-    fog:    { color: 0xc8e8ff, near: 38, far: 120 },
+    sky:    { zenith: 0x5ccaf0, mid: 0x8ad8ff, horizon: 0xfff8e8, glow: 0xfff0c0 },
+    hemi:   { sky: 0xc0e0ff, ground: 0x78b040, intensity: 1.38 },
+    sun:    { color: 0xfffce8, intensity: 1.65 },
+    ambient:{ color: 0xffffff, intensity: 0.62 },
+    fog:    { color: 0xd0eeff, near: 38, far: 128 },
   },
+  // Sunset: deep indigo-purple dominates. Warm orange rim, dramatic shadows.
   sunset: {
-    sky:    { zenith: 0x2a4a88, mid: 0x884499, horizon: 0xff7722, glow: 0xff4400 },
-    hemi:   { sky: 0x8855aa, ground: 0x883322, intensity: 1.1 },
-    sun:    { color: 0xff9944, intensity: 1.2 },
-    ambient:{ color: 0xffcc88, intensity: 0.45 },
-    fog:    { color: 0xff8833, near: 28, far: 90 },
+    sky:    { zenith: 0x1a3a80, mid: 0x703090, horizon: 0xff8820, glow: 0xff5500 },
+    hemi:   { sky: 0x773399, ground: 0x7a3320, intensity: 1.00 },
+    sun:    { color: 0xff8840, intensity: 1.25 },
+    ambient:{ color: 0xff9960, intensity: 0.38 },
+    fog:    { color: 0xff7722, near: 24, far: 78 },
   },
+  // Misty: cool blue-grey dominates. Soft, low-contrast, fog-heavy.
   misty: {
-    sky:    { zenith: 0x8899aa, mid: 0xaabbcc, horizon: 0xdddddd, glow: 0xccccdd },
-    hemi:   { sky: 0x99aacc, ground: 0x667788, intensity: 0.9 },
-    sun:    { color: 0xeeeeff, intensity: 0.75 },
-    ambient:{ color: 0xddeeff, intensity: 0.65 },
-    fog:    { color: 0xaabbcc, near: 18, far: 65 },
+    sky:    { zenith: 0x7a8c99, mid: 0xa0b0bb, horizon: 0xd8dede, glow: 0xc8cdd8 },
+    hemi:   { sky: 0x8899aa, ground: 0x55687a, intensity: 0.82 },
+    sun:    { color: 0xdde8ee, intensity: 0.62 },
+    ambient:{ color: 0xd0dde8, intensity: 0.58 },
+    fog:    { color: 0x99aabb, near: 14, far: 52 },
   },
+  // Autumn: golden-amber dominates. Rich earth tones, warm sun.
   autumn: {
-    sky:    { zenith: 0x4488cc, mid: 0xdd8833, horizon: 0xffcc66, glow: 0xffaa44 },
-    hemi:   { sky: 0xddaa44, ground: 0x886622, intensity: 1.2 },
-    sun:    { color: 0xffdd88, intensity: 1.5 },
-    ambient:{ color: 0xffeecc, intensity: 0.55 },
-    fog:    { color: 0xffcc88, near: 32, far: 100 },
+    sky:    { zenith: 0x3377bb, mid: 0xcc8833, horizon: 0xffcc55, glow: 0xffaa33 },
+    hemi:   { sky: 0xddaa44, ground: 0x7a5522, intensity: 1.15 },
+    sun:    { color: 0xffeea0, intensity: 1.55 },
+    ambient:{ color: 0xffeecc, intensity: 0.48 },
+    fog:    { color: 0xffbb77, near: 28, far: 92 },
   },
 };
 

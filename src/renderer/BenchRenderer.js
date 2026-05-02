@@ -116,19 +116,24 @@ export class BenchRenderer {
 
       g.clear();
 
+      // Empty slots show at 15% opacity to reduce visual clutter (Q7)
+      const isEmpty    = !shooter;
+      const bgAlpha    = isEmpty ? 0.14 : 0.90;
+      const borderAlph = isEmpty ? 0.12 : 0.55;
+
       // Slot background
       g.roundRect(sx, BENCH_Y, sw, BENCH_SLOT_H, 7);
-      g.fill({ color: SLOT_BG, alpha: 0.90 });
+      g.fill({ color: SLOT_BG, alpha: bgAlpha });
 
       // Border: blue highlight when this is the drop target, grey otherwise
-      if (this._highlight === i && !shooter) {
+      if (this._highlight === i && isEmpty) {
         g.roundRect(sx, BENCH_Y, sw, BENCH_SLOT_H, 7);
         g.fill({ color: HI_COLOR, alpha: 0.12 });
         g.roundRect(sx, BENCH_Y, sw, BENCH_SLOT_H, 7);
         g.stroke({ color: HI_COLOR, width: 2, alpha: HI_ALPHA });
       } else {
         g.roundRect(sx, BENCH_Y, sw, BENCH_SLOT_H, 7);
-        g.stroke({ color: SLOT_EDGE, width: 1, alpha: 0.55 });
+        g.stroke({ color: SLOT_EDGE, width: 1, alpha: borderAlph });
       }
 
       if (shooter) {

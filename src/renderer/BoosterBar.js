@@ -55,6 +55,11 @@ export class BoosterBar {
     this._cycleBtn  = _makeBtn(this._layer, 'CYCLE ×3',  BTN_X[3],  btnY, SMALL_W, BTN_H, 0x1a1a0a, 0xffdd66, onCycle);
     this._bombBtn   = _makeBombBtn(this._layer, BOMB_X, btnY, BOMB_W, BTN_H, onBomb);
 
+    // Q12: track unlock state per button (starts locked for early levels)
+    this._swapBtn._unlocked   = false;
+    this._peekBtn._unlocked   = false;
+    this._freezeBtn._unlocked = false;
+
     // Bomb button gets a prominent border glow (redrawn in update).
     this._bombGlow = new Graphics();
     this._layer.addChild(this._bombGlow);
@@ -84,13 +89,11 @@ export class BoosterBar {
     this._bombFlashT   = 0;  // countdown for earn flash
   }
 
-  // Show or hide individual buttons (feature gating).
+  // Q12: buttons always visible; dim when feature not yet unlocked for this level.
   setButtonVisibility(swap, peek, freeze) {
-    this._swapBtn.visible   = swap;
-    this._peekBtn.visible   = peek;
-    this._freezeBtn.visible = freeze;
-    // Bomb button is always visible (unlocks from level 1 — earns through kills).
-    this._bombBtn.visible   = true;
+    this._swapBtn._unlocked   = swap;
+    this._peekBtn._unlocked   = peek;
+    this._freezeBtn._unlocked = freeze;
   }
 
   // Call once per render frame to keep labels, opacity, and animations current.
@@ -116,9 +119,9 @@ export class BoosterBar {
       if (this._bombBtn.bombIcon) this._bombBtn.bombIcon.visible = !s.bombMode;
     }
 
-    this._swapBtn.alpha   = s.swap   <= 0 ? 0.28 : s.swapMode ? 0.55 : 1.0;
-    this._peekBtn.alpha   = (s.peek  <= 0 || s.isPeeking(el)) ? 0.28 : 1.0;
-    this._freezeBtn.alpha = (s.freeze <= 0 || s.isFrozen(el))  ? 0.28 : 1.0;
+    this._swapBtn.alpha   = !this._swapBtn._unlocked   ? 0.18 : s.swap   <= 0 ? 0.28 : s.swapMode ? 0.55 : 1.0;
+    this._peekBtn.alpha   = !this._peekBtn._unlocked   ? 0.18 : (s.peek  <= 0 || s.isPeeking(el)) ? 0.28 : 1.0;
+    this._freezeBtn.alpha = !this._freezeBtn._unlocked ? 0.18 : (s.freeze <= 0 || s.isFrozen(el))  ? 0.28 : 1.0;
     this._cycleBtn.alpha  = s.cycle <= 0 ? 0.28 : s.cycleMode ? 0.55 : 1.0;
     this._bombBtn.alpha   = (s.bombs <= 0 && !s.bombMode) ? 0.30 : s.bombMode ? 0.70 : 1.0;
 

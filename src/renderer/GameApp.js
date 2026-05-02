@@ -510,6 +510,7 @@ async function main() {
     applyLevelConfig(cfg);
     // Use levelNumber for normal levels; 'D' label for daily challenge.
     hudRenderer.setLevel(currentLevelIsDaily ? 'D' : levelManager.levelNumber);
+    hudRenderer.showObjective(`Defeat ${gs.targetKills} cars`);
     ftueOverlay = _makeFTUEOverlay(app.stage, APP_W, APP_H, cfg);
 
     // Feature gating: daily challenge unlocks everything; normal levels gate by id.

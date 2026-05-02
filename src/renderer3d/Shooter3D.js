@@ -42,21 +42,32 @@ const COLOR_HEX = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function drawDamageBadge(ctx, W, H, damage) {
+function drawDamageBadge(ctx, W, H, damage, colorHex = 0x378ADD) {
+  const cr = (colorHex >> 16) & 0xff;
+  const cg = (colorHex >> 8)  & 0xff;
+  const cb =  colorHex        & 0xff;
+
   ctx.clearRect(0, 0, W, H);
-  ctx.fillStyle = 'rgba(0,0,12,0.80)';
-  if (ctx.roundRect) ctx.roundRect(1, 1, W - 2, H - 2, 6);
+
+  // White pill background
+  ctx.fillStyle = 'rgba(255,255,255,0.94)';
+  if (ctx.roundRect) ctx.roundRect(1, 1, W - 2, H - 2, 7);
   else               ctx.rect(1, 1, W - 2, H - 2);
   ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.72)';
-  ctx.lineWidth   = 1.5;
+
+  // Colored border
+  ctx.strokeStyle = `rgb(${cr},${cg},${cb})`;
+  ctx.lineWidth   = 2.5;
+  if (ctx.roundRect) ctx.roundRect(1.5, 1.5, W - 3, H - 3, 6);
+  else               ctx.rect(1.5, 1.5, W - 3, H - 3);
   ctx.stroke();
+
   ctx.font         = `bold ${Math.round(H * 0.68)}px Arial`;
-  ctx.fillStyle    = '#ffffff';
+  ctx.fillStyle    = '#111111';
   ctx.textAlign    = 'center';
   ctx.textBaseline = 'middle';
-  ctx.shadowColor  = 'rgba(0,0,0,0.9)';
-  ctx.shadowBlur   = 3;
+  ctx.shadowColor  = `rgba(${cr},${cg},${cb},0.40)`;
+  ctx.shadowBlur   = 2;
   ctx.fillText(String(damage), W / 2, H / 2);
   ctx.shadowBlur   = 0;
 }
@@ -95,6 +106,22 @@ export class Shooter3D {
       this._scene.add(bead);
       this._sparkBeads.push({ bead, mat });
     }
+
+    // Front-slot glow rings — flat ring on ground plane, pulsing to signal "drag me"
+    this._glowRings = [];
+    const ringGeo   = new THREE.RingGeometry(BOMB_R * 1.25, BOMB_R * 1.70, 26);
+    for (let li = 0; li < LANE_COUNT; li++) {
+      const mat  = new THREE.MeshBasicMaterial({
+        color: 0xffcc44, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false,
+      });
+      const mesh = new THREE.Mesh(ringGeo, mat);
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.set(laneToX(li) + BOMB_CX, 0.02, SLOT_Z[0]);
+      mesh.visible = false;
+      mesh.layers.set(1);
+      this._scene.add(mesh);
+      this._glowRings.push({ mesh, mat });
+    }
   }
 
   // ── Public ───────────────────────────────────────────────────────────────────
@@ -107,6 +134,8 @@ export class Shooter3D {
       }
       const sb = this._sparkBeads[li];
       if (sb) sb.bead.position.x = x + BOMB_CX + 0.15;
+      const gr = this._glowRings[li];
+      if (gr) gr.mesh.position.x = x + BOMB_CX;
     }
   }
 
@@ -156,8 +185,8 @@ export class Shooter3D {
           // Update sphere material color + emissive
           slot.sphereMat.color.setHex(hex);
           slot.sphereMat.emissive.setHex(hex);
-          // Redraw damage badge
-          drawDamageBadge(slot.badgeCtx, BADGE_CVS_W, BADGE_CVS_H, damage);
+          // Redraw damage badge (white pill + colored border)
+          drawDamageBadge(slot.badgeCtx, BADGE_CVS_W, BADGE_CVS_H, damage, hex);
           slot.badgeTex.needsUpdate = true;
         }
 
@@ -187,6 +216,19 @@ export class Shooter3D {
         bead.mat.emissiveIntensity =
           0.35 + 0.65 * (0.5 + 0.5 * Math.sin(elapsed * SPARK_FLICKER_SPEED + li * 1.3));
       }
+
+      // Front-slot glow ring — pulsing gold halo around the draggable bomb
+      const gr = this._glowRings[li];
+      gr.mesh.visible = mainVisible;
+      if (mainVisible) {
+        const pulse     = 0.5 + 0.5 * Math.sin(elapsed * 3.0 + li * 0.8);
+        gr.mat.opacity  = 0.25 + 0.45 * pulse;
+        const s         = 1.0 + 0.08 * pulse;
+        gr.mesh.scale.set(s, s, 1);
+        // Tint ring to front bomb's color
+        const frontHex = this._slots[li][0].lastColor;
+        if (frontHex > 0) gr.mat.color.setHex(frontHex);
+      }
     }
   }
 
@@ -208,8 +250,14 @@ export class Shooter3D {
       mat.dispose();
       this._scene.remove(bead);
     }
-    this._slots = [];
+    for (const { mesh, mat } of this._glowRings) {
+      // ringGeo is shared — don't dispose it here
+      mat.dispose();
+      this._scene.remove(mesh);
+    }
+    this._slots      = [];
     this._sparkBeads = [];
+    this._glowRings  = [];
   }
 
   // ── Private ──────────────────────────────────────────────────────────────────

@@ -13,9 +13,10 @@ const SLOT_Z  = [-1.5, -0.5, 0.5, 1.4];   // world-Z per slot row
 const LANE_COUNT = 4;
 
 // ── Per-slot depth parameters ─────────────────────────────────────────────────
-const SLOT_SCALE     = [1.00, 0.92, 0.83, 0.74];   // group uniform scale
+const SLOT_SCALE     = [1.15, 0.70, 0.55, 0.40];   // group uniform scale
 const SLOT_ALPHA     = [1.00, 0.80, 0.60, 0.40];   // material opacity
-const SLOT_EMISSIVE  = [0.35, 0.22, 0.15, 0.08];   // sphere emissive intensity
+const SLOT_EMISSIVE  = [0.35, 0.22, 0.15, 0.08];   // sphere body emissive
+const BAND_EMISSIVE  = [0.95, 0.68, 0.48, 0.30];   // colored equator band emissive
 
 // ── Bomb geometry (group-local coords) ───────────────────────────────────────
 const BOMB_R  = 0.36;    // sphere radius
@@ -29,10 +30,10 @@ const SPARK_BEAD_RADIUS   = 0.045;
 const SPARK_FLICKER_SPEED = 12;   // radians/sec
 
 // ── Badge canvas ──────────────────────────────────────────────────────────────
-const BADGE_CVS_W = 80;
-const BADGE_CVS_H = 40;
-const BADGE_W     = 0.80;   // world-unit badge width
-const BADGE_H     = 0.40;   // world-unit badge height
+const BADGE_CVS_W = 64;
+const BADGE_CVS_H = 64;
+const BADGE_W     = 0.58;   // world-unit badge (square hex)
+const BADGE_H     = 0.58;
 
 // ── Color palette ─────────────────────────────────────────────────────────────
 const COLOR_HEX = {
@@ -46,29 +47,38 @@ function drawDamageBadge(ctx, W, H, damage, colorHex = 0x378ADD) {
   const cr = (colorHex >> 16) & 0xff;
   const cg = (colorHex >> 8)  & 0xff;
   const cb =  colorHex        & 0xff;
+  const cx = W / 2, cy = H / 2;
+  const r  = Math.min(W, H) / 2 - 2;
 
   ctx.clearRect(0, 0, W, H);
 
-  // White pill background
-  ctx.fillStyle = 'rgba(255,255,255,0.94)';
-  if (ctx.roundRect) ctx.roundRect(1, 1, W - 2, H - 2, 7);
-  else               ctx.rect(1, 1, W - 2, H - 2);
+  // Hexagonal shape (point-up)
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a  = (i / 6) * Math.PI * 2 - Math.PI / 2;
+    const px = cx + r * Math.cos(a);
+    const py = cy + r * Math.sin(a);
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+
+  // Dark fill
+  ctx.fillStyle = 'rgba(14,12,24,0.92)';
   ctx.fill();
 
   // Colored border
   ctx.strokeStyle = `rgb(${cr},${cg},${cb})`;
   ctx.lineWidth   = 2.5;
-  if (ctx.roundRect) ctx.roundRect(1.5, 1.5, W - 3, H - 3, 6);
-  else               ctx.rect(1.5, 1.5, W - 3, H - 3);
   ctx.stroke();
 
-  ctx.font         = `bold ${Math.round(H * 0.68)}px Arial`;
-  ctx.fillStyle    = '#111111';
+  // White damage number with colored glow
+  ctx.font         = `bold ${Math.round(H * 0.50)}px Arial`;
+  ctx.fillStyle    = '#ffffff';
   ctx.textAlign    = 'center';
   ctx.textBaseline = 'middle';
-  ctx.shadowColor  = `rgba(${cr},${cg},${cb},0.40)`;
-  ctx.shadowBlur   = 2;
-  ctx.fillText(String(damage), W / 2, H / 2);
+  ctx.shadowColor  = `rgba(${cr},${cg},${cb},0.75)`;
+  ctx.shadowBlur   = 5;
+  ctx.fillText(String(damage), cx, cy);
   ctx.shadowBlur   = 0;
 }
 
@@ -182,10 +192,12 @@ export class Shooter3D {
         if (slot.lastColor !== hex || slot.lastDamage !== damage) {
           slot.lastColor  = hex;
           slot.lastDamage = damage;
-          // Update sphere material color + emissive
-          slot.sphereMat.color.setHex(hex);
+          // Dark sphere keeps body color; only inner emissive tints to lane color
           slot.sphereMat.emissive.setHex(hex);
-          // Redraw damage badge (white pill + colored border)
+          // Colored equator band is the primary color signal
+          slot.bandMat.color.setHex(hex);
+          slot.bandMat.emissive.setHex(hex);
+          // Redraw hexagonal damage badge
           drawDamageBadge(slot.badgeCtx, BADGE_CVS_W, BADGE_CVS_H, damage, hex);
           slot.badgeTex.needsUpdate = true;
         }
@@ -237,9 +249,11 @@ export class Shooter3D {
       for (const slot of laneSlots) {
         slot.badgeTex.dispose();
         slot.sphereMesh.geometry.dispose();
+        slot.bandMesh.geometry.dispose();
         slot.fuseMesh.geometry.dispose();
         slot.badgeMesh.geometry.dispose();
         slot.sphereMat.dispose();
+        slot.bandMat.dispose();
         slot.fuseMat.dispose();
         slot.badgeMat.dispose();
         this._scene.remove(slot.group);
@@ -268,34 +282,51 @@ export class Shooter3D {
     const scale    = SLOT_SCALE[slotIdx];
     const group    = new THREE.Group();
 
-    // ── Sphere body ───────────────────────────────────────────────────────────
+    // ── Sphere body — dark with faint inner color glow ────────────────────────
     const sphereMat = new THREE.MeshStandardMaterial({
-      color:             0x888888,
-      emissive:          new THREE.Color(0x888888),
-      emissiveIntensity: emissive,
-      metalness:         0.30,
-      roughness:         0.45,
+      color:             0x1a1a22,
+      emissive:          new THREE.Color(0x1a1a22),
+      emissiveIntensity: emissive * 0.8,
+      metalness:         0.60,
+      roughness:         0.30,
       transparent:       alpha < 1,
       opacity:           alpha,
     });
     const sphereMesh = new THREE.Mesh(
-      new THREE.SphereGeometry(BOMB_R, 14, 10),
+      new THREE.SphereGeometry(BOMB_R, 16, 12),
       sphereMat,
     );
     sphereMesh.position.set(BOMB_CX, BOMB_CY, BOMB_CZ);
-    sphereMesh.castShadow = false;
     group.add(sphereMesh);
 
-    // ── Fuse (TubeGeometry along a curved path) ───────────────────────────────
-    // Curve goes from sphere top toward the upper-right, visible from above.
+    // ── Colored equator band (torus lying flat, visible from top-down cam) ────
+    const bandMat = new THREE.MeshStandardMaterial({
+      color:             0x888888,
+      emissive:          new THREE.Color(0x888888),
+      emissiveIntensity: BAND_EMISSIVE[slotIdx],
+      metalness:         0.15,
+      roughness:         0.25,
+      transparent:       alpha < 1,
+      opacity:           alpha,
+    });
+    const bandMesh = new THREE.Mesh(
+      new THREE.TorusGeometry(BOMB_R * 0.90, 0.042, 8, 22),
+      bandMat,
+    );
+    bandMesh.rotation.x = Math.PI / 2;   // lie flat for top-down readability
+    bandMesh.position.set(BOMB_CX, BOMB_CY, BOMB_CZ);
+    group.add(bandMesh);
+
+    // ── Rope fuse (TubeGeometry, brown twine) ─────────────────────────────────
     const fuseStart = new THREE.Vector3(BOMB_CX,        BOMB_CY + BOMB_R,        BOMB_CZ);
     const fuseMid   = new THREE.Vector3(BOMB_CX + 0.08, BOMB_CY + BOMB_R + 0.14, BOMB_CZ - 0.14);
     const fuseEnd   = new THREE.Vector3(BOMB_CX + 0.16, BOMB_CY + BOMB_R + 0.25, BOMB_CZ - 0.26);
     const fuseCurve = new THREE.CatmullRomCurve3([fuseStart, fuseMid, fuseEnd]);
     const fuseGeo   = new THREE.TubeGeometry(fuseCurve, 8, 0.022, 5, false);
     const fuseMat   = new THREE.MeshStandardMaterial({
-      color:       0xaaaaaa,
-      roughness:   0.8,
+      color:       0x8b6040,   // rope brown
+      roughness:   0.90,
+      metalness:   0.0,
       transparent: alpha < 1,
       opacity:     alpha,
     });
@@ -315,9 +346,8 @@ export class Shooter3D {
       new THREE.PlaneGeometry(BADGE_W, BADGE_H),
       badgeMat,
     );
-    // Lie flat so it's readable from the top-down shooter camera.
     badgeMesh.rotation.x = -Math.PI / 2;
-    badgeMesh.position.set(0.42, 0.005, 0);
+    badgeMesh.position.set(0.46, 0.005, 0);
     group.add(badgeMesh);
 
     // All meshes in layer 1 (shooter camera only).
@@ -329,7 +359,8 @@ export class Shooter3D {
     this._scene.add(group);
 
     return {
-      group, sphereMesh, sphereMat, fuseMesh, fuseMat,
+      group, sphereMesh, sphereMat, bandMesh, bandMat,
+      fuseMesh, fuseMat,
       badgeCanvas, badgeCtx, badgeTex, badgeMesh, badgeMat,
       lastColor: -1, lastDamage: -1,
       _punching: false, _punchT: 0,

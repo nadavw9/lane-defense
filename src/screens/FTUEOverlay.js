@@ -25,10 +25,19 @@ import {
   SHOOTER_AREA_Y,
   TOP_RADIUS,
 } from '../renderer/ShooterRenderer.js';
-import { getColumnScreenX, getColumnScreenY } from '../renderer/PositionRegistry.js';
+import { getColumnScreenX, getColumnScreenY, getLaneScreenX } from '../renderer/PositionRegistry.js';
 
 const HUD_H          = 44;
 const HINT_AUTO_HIDE = 8;  // seconds for banner auto-hide
+
+// Hand-demo animation phases (L1 drag tutorial)
+const HAND_APPEAR = 0.25;
+const HAND_DRAG   = 0.80;
+const HAND_HOLD   = 0.35;
+const HAND_FADE   = 0.25;
+const HAND_PAUSE  = 0.15;
+const HAND_CYCLE  = HAND_APPEAR + HAND_DRAG + HAND_HOLD + HAND_FADE + HAND_PAUSE;
+const HAND_LOOPS  = 3;
 
 export class FTUEOverlay {
   constructor(stage, appW, appH, levelConfig) {
@@ -51,11 +60,17 @@ export class FTUEOverlay {
     this._damageTipT   = 0;
     this._comboHintT   = 0;
     this._comboHintOn  = false;
+    this._handDemo     = null;
 
     this._buildDimMask(appW, levelConfig);
 
     if (levelConfig.showArrow && levelConfig.hintText) {
-      this._buildArrowHint(appW, levelConfig.hintText);
+      if (levelConfig.id === 1) {
+        // Replace static arrow with animated hand drag tutorial
+        this._buildHandDemo(appW, appH);
+      } else {
+        this._buildArrowHint(appW, levelConfig.hintText);
+      }
       this._buildHUDHints(appW);   // L1: timer + coins labels
     } else if (levelConfig.hintText) {
       this._buildBanner(appW, levelConfig.hintText);
@@ -79,6 +94,8 @@ export class FTUEOverlay {
       if (this._arrowGroup) this._arrowGroup.visible = false;
       if (this._ring)       this._ring.visible       = false;
     }
+    // Stop hand demo on deploy (player got it).
+    this._stopHandDemo();
 
     // Show damage tooltip for first deploy (levels 1-5 only).
     if (damage != null && this._damageTip === null) {
@@ -159,6 +176,52 @@ export class FTUEOverlay {
       if (this._damageTipT <= 0) {
         this._damageTip.destroy({ children: true });
         this._damageTip = null;
+      }
+    }
+
+    // ── Hand demo animation (L1) ─────────────────────────────────────────
+    if (this._handDemo && !this._handDemo.done) {
+      this._handDemo.t += dt;
+      const { emoji, trailG, startX, startY, endX, endY } = this._handDemo;
+      const cycleT = this._handDemo.t % HAND_CYCLE;
+
+      if (Math.floor(this._handDemo.t / HAND_CYCLE) >= HAND_LOOPS) {
+        this._stopHandDemo();
+      } else {
+        trailG.clear();
+
+        if (cycleT < HAND_APPEAR) {
+          const p = cycleT / HAND_APPEAR;
+          emoji.x     = startX;
+          emoji.y     = startY;
+          emoji.alpha = p;
+          emoji.scale.set(1);
+        } else if (cycleT < HAND_APPEAR + HAND_DRAG) {
+          const p     = (cycleT - HAND_APPEAR) / HAND_DRAG;
+          const eased = 1 - Math.pow(1 - p, 2);
+          emoji.x     = startX + (endX - startX) * eased;
+          emoji.y     = startY + (endY - startY) * eased;
+          emoji.alpha = 1;
+          emoji.scale.set(1);
+          trailG.moveTo(startX, startY);
+          trailG.lineTo(emoji.x, emoji.y);
+          trailG.stroke({ color: 0xffee44, width: 2.5, alpha: 0.40 });
+        } else if (cycleT < HAND_APPEAR + HAND_DRAG + HAND_HOLD) {
+          const p = (cycleT - HAND_APPEAR - HAND_DRAG) / HAND_HOLD;
+          emoji.x = endX;
+          emoji.y = endY;
+          emoji.alpha = 1;
+          emoji.scale.set(1 + Math.sin(p * Math.PI) * 0.12);
+        } else if (cycleT < HAND_APPEAR + HAND_DRAG + HAND_HOLD + HAND_FADE) {
+          const p = (cycleT - HAND_APPEAR - HAND_DRAG - HAND_HOLD) / HAND_FADE;
+          emoji.x     = endX;
+          emoji.y     = endY;
+          emoji.alpha = 1 - p;
+          emoji.scale.set(1);
+        } else {
+          emoji.alpha = 0;
+          emoji.scale.set(1);
+        }
       }
     }
 
@@ -305,6 +368,70 @@ export class FTUEOverlay {
     // Position just above the HUD bar (centred vertically between HUD and road top)
     grp.y = HUD_H + 4;
     return grp;
+  }
+
+  _buildHandDemo(appW, _appH) {
+    // Banner
+    const grp = new Container();
+    this._container.addChild(grp);
+
+    const bg = new Graphics();
+    bg.roundRect(20, 0, appW - 40, 44, 10);
+    bg.fill({ color: 0x110800, alpha: 0.80 });
+    bg.roundRect(20, 0, appW - 40, 44, 10);
+    bg.stroke({ color: 0xffee44, width: 1.5, alpha: 0.70 });
+    grp.addChild(bg);
+
+    const txt = new Text({
+      text: 'Drag bombs to matching cars!',
+      style: {
+        fontSize: 16, fontWeight: 'bold', fill: 0xffee88, align: 'center',
+        dropShadow: { color: 0x000000, blur: 4, distance: 2, alpha: 0.9 },
+      },
+    });
+    txt.anchor.set(0.5, 0.5);
+    txt.x = appW / 2;
+    txt.y = 22;
+    grp.addChild(txt);
+    grp.y = SHOOTER_AREA_Y - 54;
+
+    // Transparent full-screen hitbox — any touch aborts the demo
+    const hitbox = new Graphics();
+    hitbox.rect(0, 0, appW, 900);
+    hitbox.fill({ color: 0, alpha: 0 });
+    hitbox.interactive = true;
+    this._container.addChild(hitbox);
+    hitbox.on('pointerdown', () => this._stopHandDemo());
+
+    // Drag trail (drawn at absolute screen coords each frame)
+    const trailG = new Graphics();
+    this._container.addChild(trailG);
+
+    // Hand emoji
+    const emoji = new Text({ text: '👆', style: { fontSize: 48 } });
+    emoji.anchor.set(0.5, 1.0);
+    emoji.alpha = 0;
+    this._container.addChild(emoji);
+
+    const startX = getColumnScreenX(0);
+    const startY = getColumnScreenY() - TOP_RADIUS * 0.5;
+    const endX   = getLaneScreenX(0);
+    const endY   = ROAD_BOTTOM_Y - 35;
+
+    emoji.x = startX;
+    emoji.y = startY;
+
+    this._handDemo = { grp, emoji, trailG, hitbox, startX, startY, endX, endY, t: 0, done: false };
+  }
+
+  _stopHandDemo() {
+    if (!this._handDemo || this._handDemo.done) return;
+    this._handDemo.done = true;
+    this._handDemo.grp.destroy({ children: true });
+    this._handDemo.emoji.destroy();
+    this._handDemo.trailG.destroy();
+    this._handDemo.hitbox.destroy();
+    this._handDemo = null;
   }
 
   _buildArrowHint(w, text) {

@@ -155,6 +155,17 @@ export class ShooterRenderer {
     this._pipLeft       = [];   // peek pip left  (4th shooter)
     this._pipRight      = [];   // peek pip right (5th shooter)
 
+    // Queue depth badge: shows "+N" in 3D mode below front slot
+    this._queueBadges = [];
+    for (let i = 0; i < COL_COUNT; i++) {
+      const bg = new Graphics(); this._columnsGroup.addChild(bg);
+      const tx = new Text({ text: '', style: { fontSize: 12, fontWeight: 'bold', fill: 0xffffff,
+        dropShadow: { color: 0x000000, blur: 2, distance: 0, alpha: 0.8 } } });
+      tx.anchor.set(0.5, 0.5);
+      this._columnsGroup.addChild(tx);
+      this._queueBadges.push({ bg, tx });
+    }
+
     for (let i = 0; i < COL_COUNT; i++) {
       const colContainer = new Container();
       this._columnsGroup.addChild(colContainer);
@@ -303,8 +314,37 @@ export class ShooterRenderer {
         this._secondTexts[i].visible = false;
         this._thirdTexts[i].visible  = false;
         this._topContainers[i].alpha = 0;
+
+        // Queue depth badge — "+N" pill showing how many bombs are queued.
+        const qb         = this._queueBadges[i];
+        const queueDepth = (col.shooters?.length ?? 0) - 1;
+        if (queueDepth > 0) {
+          const badgeX = cx;
+          const badgeY = TOP_Y + TOP_RADIUS + 18;
+          qb.tx.text    = `+${queueDepth}`;
+          qb.tx.x       = badgeX;
+          qb.tx.y       = badgeY;
+          qb.tx.visible = true;
+          const tw = Math.max(28, (qb.tx.width || 0) + 10);
+          const th = 18;
+          qb.bg.clear();
+          qb.bg.roundRect(badgeX - tw / 2, badgeY - th / 2, tw, th, 9);
+          qb.bg.fill({ color: 0x1a1a2e, alpha: 0.85 });
+          qb.bg.roundRect(badgeX - tw / 2, badgeY - th / 2, tw, th, 9);
+          qb.bg.stroke({ color: 0x6666aa, width: 1, alpha: 0.7 });
+          qb.bg.visible = true;
+        } else {
+          qb.bg.clear();
+          qb.tx.visible = false;
+          qb.bg.visible = false;
+        }
+
         continue;
       }
+
+      // Hide queue badges in 2D mode.
+      this._queueBadges[i].tx.visible = false;
+      this._queueBadges[i].bg.visible = false;
 
       // ── Programmatic fallback (no sprites) ──────────────────────────────────
       if (!spriteFlags.loaded) {

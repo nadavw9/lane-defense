@@ -1,37 +1,25 @@
-// BoosterBar — four booster buttons + bomb kill-progress pips.
-//   • SWAP   — tap two columns to exchange their top shooters
-//   • PEEK   — reveals 4th+5th shooter pips per column for 4 seconds
-//   • FREEZE — freezes all cars for 10 seconds
-//   • BOMB   — AOE blast + concussion freeze at a road position
-//
-// Bomb earning: every 10 kills earns one bomb charge (max 3).
-// Progress is shown as 10 small pips below the BOMB button.
+// BoosterBar — five 52×52 icon-card booster buttons + bomb kill-progress pips.
+//   SWAP • PEEK • FREEZE • CYCLE • BOMB
 import { Graphics, Text } from 'pixi.js';
 
-const BAR_Y   = 752;  // top of booster bar
-const BAR_H   = 68;   // taller than before to fit pips row
-const BTN_H   = 30;   // button height
-const BTN_Y   = BAR_Y + (BAR_H - BTN_H) / 2 - 8;  // vertically centre buttons in upper 50 px
+const BAR_Y   = 752;
+const BAR_H   = 68;
 
-// Layout: 3 × 78 px small boosters | 8 px gap | 1 × 100 px bomb
-const SMALL_W  = 60;    // slightly smaller to fit 4 small + bomb
-const BOMB_W   = 84;
-const GAP      = 6;
-const TOTAL_W  = 4 * SMALL_W + BOMB_W + 4 * GAP;  // 4*60+84+24 = 348
-const BAR_XOFF = Math.round((390 - TOTAL_W) / 2);  // ≈ 21 px left margin
+// ── Icon card layout ──────────────────────────────────────────────────────────
+const CARD_W    = 52;
+const CARD_H    = 52;
+const CARD_GAP  = 8;
+const CARD_R    = 10;
+const NUM_CARDS = 5;
+const TOTAL_W   = NUM_CARDS * CARD_W + (NUM_CARDS - 1) * CARD_GAP;
+const BAR_XOFF  = Math.round((390 - TOTAL_W) / 2);
+const CARD_Y    = BAR_Y + Math.round((BAR_H - CARD_H) / 2);
 
-const BTN_X = [
-  BAR_XOFF,
-  BAR_XOFF + SMALL_W + GAP,
-  BAR_XOFF + 2 * (SMALL_W + GAP),
-  BAR_XOFF + 3 * (SMALL_W + GAP),  // new CYCLE button
-];
-// Recalc bomb X cleanly
-const BOMB_X  = BAR_XOFF + 4 * SMALL_W + 4 * GAP;
+const CARD_X = Array.from({ length: NUM_CARDS }, (_, i) => BAR_XOFF + i * (CARD_W + CARD_GAP));
+// Indices: 0=SWAP, 1=PEEK, 2=FREEZE, 3=CYCLE, 4=BOMB
 
-// Kill progress pips sit below the bomb button
-const PIP_Y   = BAR_Y + BAR_H - 16;  // bottom of bar minus 16 px
 const KILLS_PER_BOMB = 10;
+const PIP_Y          = BAR_Y + BAR_H - 9;
 
 export class BoosterBar {
   constructor(layerManager, boosterState, gameState, appW, onSwap, onPeek, onFreeze, onBomb, onCycle) {
@@ -47,29 +35,25 @@ export class BoosterBar {
     bg.fill(0x1a1a3a);
     this._layer.addChild(bg);
 
-    const btnY = BTN_Y;
+    this._swapBtn   = _makeCard(this._layer, CARD_X[0], 0x66aaff, _iconSwap,   'SWAP',   onSwap);
+    this._peekBtn   = _makeCard(this._layer, CARD_X[1], 0xaaff66, _iconPeek,   'PEEK',   onPeek);
+    this._freezeBtn = _makeCard(this._layer, CARD_X[2], 0x44ccff, _iconFreeze, 'FREEZE', onFreeze);
+    this._cycleBtn  = _makeCard(this._layer, CARD_X[3], 0xffdd66, _iconCycle,  'CYCLE',  onCycle);
+    this._bombBtn   = _makeBombCard(this._layer, CARD_X[4], onBomb);
 
-    this._swapBtn   = _makeBtn(this._layer, 'SWAP ×0',   BTN_X[0],  btnY, SMALL_W, BTN_H, 0x0d2040, 0x66aaff, onSwap);
-    this._peekBtn   = _makeBtn(this._layer, 'PEEK ×0',   BTN_X[1],  btnY, SMALL_W, BTN_H, 0x0d2040, 0xaaff66, onPeek);
-    this._freezeBtn = _makeBtn(this._layer, 'FREEZE ×0', BTN_X[2],  btnY, SMALL_W, BTN_H, 0x0a1a2a, 0x44ccff, onFreeze);
-    this._cycleBtn  = _makeBtn(this._layer, 'CYCLE ×3',  BTN_X[3],  btnY, SMALL_W, BTN_H, 0x1a1a0a, 0xffdd66, onCycle);
-    this._bombBtn   = _makeBombBtn(this._layer, BOMB_X, btnY, BOMB_W, BTN_H, onBomb);
-
-    // Q12: track unlock state per button (starts locked for early levels)
     this._swapBtn._unlocked   = false;
     this._peekBtn._unlocked   = false;
     this._freezeBtn._unlocked = false;
 
-    // Bomb button gets a prominent border glow (redrawn in update).
     this._bombGlow = new Graphics();
     this._layer.addChild(this._bombGlow);
 
-    // Kill-progress pips (10 small circles centred under the bomb button).
+    // Kill-progress pips centred under the bomb card.
     this._pips = [];
-    const pipR     = 3.5;
-    const pipGap   = 5;
-    const pipsW    = KILLS_PER_BOMB * (pipR * 2) + (KILLS_PER_BOMB - 1) * pipGap;
-    const pipX0    = BOMB_X + (BOMB_W - pipsW) / 2 + pipR;
+    const pipR   = 3.5;
+    const pipGap = 5;
+    const pipsW  = KILLS_PER_BOMB * (pipR * 2) + (KILLS_PER_BOMB - 1) * pipGap;
+    const pipX0  = CARD_X[4] + (CARD_W - pipsW) / 2 + pipR;
     for (let i = 0; i < KILLS_PER_BOMB; i++) {
       const pip = new Graphics();
       pip.circle(0, 0, pipR);
@@ -80,34 +64,30 @@ export class BoosterBar {
       this._pips.push(pip);
     }
 
-    // Floating "BOMB READY!" text (shown briefly when bomb earned).
-    this._readyText = null;
+    this._readyText  = null;
     this._readyTextT = 0;
-
-    this._prevBombs    = 0;
-    this._bombPulse    = 0;  // 0..2π for idle pulse animation
-    this._bombFlashT   = 0;  // countdown for earn flash
+    this._prevBombs  = 0;
+    this._bombPulse  = 0;
+    this._bombFlashT = 0;
   }
 
-  // Q12: buttons always visible; dim when feature not yet unlocked for this level.
   setButtonVisibility(swap, peek, freeze) {
     this._swapBtn._unlocked   = swap;
     this._peekBtn._unlocked   = peek;
     this._freezeBtn._unlocked = freeze;
   }
 
-  // Call once per render frame to keep labels, opacity, and animations current.
   update(dt = 0) {
     const s  = this._state;
     const gs = this._gs;
     const el = gs.elapsed;
 
-    // ── Standard booster labels / dimming ─────────────────────────────────
-    const swapLabel   = `SWAP ×${s.swap}`;
-    const peekLabel   = `PEEK ×${s.peek}`;
-    const freezeLabel = `FREEZE ×${s.freeze}`;
-    const cycleLabel  = s.cycleMode ? 'TAP COL' : `CYCLE ×${s.cycle}`;
-    const bombLabel   = s.bombMode ? 'CANCEL' : `×${s.bombs}`;
+    // ── Count badge labels (short form — icon identifies the button) ──────────
+    const swapLabel   = `×${s.swap}`;
+    const peekLabel   = `×${s.peek}`;
+    const freezeLabel = `×${s.freeze}`;
+    const cycleLabel  = s.cycleMode ? 'TAP' : `×${s.cycle}`;
+    const bombLabel   = s.bombMode  ? 'CANCEL' : `×${s.bombs}`;
 
     if (this._swapBtn.label.text   !== swapLabel)   this._swapBtn.label.text   = swapLabel;
     if (this._peekBtn.label.text   !== peekLabel)   this._peekBtn.label.text   = peekLabel;
@@ -115,7 +95,6 @@ export class BoosterBar {
     if (this._cycleBtn.label.text  !== cycleLabel)  this._cycleBtn.label.text  = cycleLabel;
     if (this._bombBtn.label.text   !== bombLabel) {
       this._bombBtn.label.text = bombLabel;
-      // Show the bomb icon only when not in cancel mode.
       if (this._bombBtn.bombIcon) this._bombBtn.bombIcon.visible = !s.bombMode;
     }
 
@@ -125,49 +104,42 @@ export class BoosterBar {
     this._cycleBtn.alpha  = s.cycle <= 0 ? 0.28 : s.cycleMode ? 0.55 : 1.0;
     this._bombBtn.alpha   = (s.bombs <= 0 && !s.bombMode) ? 0.30 : s.bombMode ? 0.70 : 1.0;
 
-    // ── Bomb button glow / pulse ───────────────────────────────────────────
+    // ── Bomb card glow / pulse ────────────────────────────────────────────────
     this._bombPulse += dt * 3.5;
-    const pulseAlpha  = s.bombs > 0 ? (0.30 + 0.20 * Math.sin(this._bombPulse)) : 0.10;
-    const glowColor   = s.bombMode ? 0xff3300 : 0xffaa00;
+    const pulseAlpha = s.bombs > 0 ? (0.30 + 0.20 * Math.sin(this._bombPulse)) : 0.10;
+    const glowColor  = s.bombMode ? 0xff3300 : 0xffaa00;
 
     this._bombGlow.clear();
-    this._bombGlow.roundRect(BOMB_X - 2, BTN_Y - 2, BOMB_W + 4, BTN_H + 4, 9);
+    this._bombGlow.roundRect(CARD_X[4] - 2, CARD_Y - 2, CARD_W + 4, CARD_H + 4, CARD_R + 2);
     this._bombGlow.stroke({ color: glowColor, width: 2, alpha: pulseAlpha * (s.bombs > 0 ? 1.8 : 1) });
 
-    // Flash on newly earned bomb.
     if (this._bombFlashT > 0) {
       this._bombFlashT = Math.max(0, this._bombFlashT - dt);
       const fl = this._bombFlashT / 0.5;
-      this._bombGlow.roundRect(BOMB_X - 4, BTN_Y - 4, BOMB_W + 8, BTN_H + 8, 11);
+      this._bombGlow.roundRect(CARD_X[4] - 4, CARD_Y - 4, CARD_W + 8, CARD_H + 8, CARD_R + 4);
       this._bombGlow.stroke({ color: 0xffdd00, width: 4, alpha: fl });
     }
 
-    // Detect newly earned bomb (state change).
     if (s.bombs > this._prevBombs) {
       this._bombFlashT = 0.5;
       this._spawnReadyText();
     }
     this._prevBombs = s.bombs;
 
-    // ── Kill-progress pips ────────────────────────────────────────────────
+    // ── Kill-progress pips ────────────────────────────────────────────────────
     const filled = gs.killsTowardBomb % KILLS_PER_BOMB;
     for (let i = 0; i < KILLS_PER_BOMB; i++) {
       const pip = this._pips[i];
       pip.clear();
-      if (i < filled) {
-        pip.circle(0, 0, 3.5);
-        pip.fill(0xffaa00);  // gold filled pip
-      } else {
-        pip.circle(0, 0, 3.5);
-        pip.fill(0x333355);  // dark empty pip
-      }
+      pip.circle(0, 0, 3.5);
+      pip.fill(i < filled ? 0xffaa00 : 0x333355);
     }
 
-    // ── "BOMB READY!" floating text ───────────────────────────────────────
+    // ── "BOMB READY!" floating text ───────────────────────────────────────────
     if (this._readyText) {
-      this._readyTextT -= dt;
-      this._readyText.y  -= dt * 28;
-      this._readyText.alpha = Math.max(0, this._readyTextT / 1.4);
+      this._readyTextT       -= dt;
+      this._readyText.y      -= dt * 28;
+      this._readyText.alpha   = Math.max(0, this._readyTextT / 1.4);
       if (this._readyTextT <= 0) {
         this._readyText.destroy();
         this._readyText = null;
@@ -175,7 +147,7 @@ export class BoosterBar {
     }
   }
 
-  // ── Private ────────────────────────────────────────────────────────────────
+  // ── Private ──────────────────────────────────────────────────────────────────
 
   _spawnReadyText() {
     if (this._readyText) { this._readyText.destroy(); this._readyText = null; }
@@ -189,7 +161,7 @@ export class BoosterBar {
       },
     });
     t.anchor.set(0.5, 1);
-    t.x = BOMB_X + BOMB_W / 2;
+    t.x = CARD_X[4] + CARD_W / 2;
     t.y = BAR_Y - 4;
     this._readyTextT = 1.4;
     this._layer.addChild(t);
@@ -197,72 +169,160 @@ export class BoosterBar {
   }
 }
 
-// ── Module-private helpers ─────────────────────────────────────────────────────
+// ── Card helpers ──────────────────────────────────────────────────────────────
 
-function _makeBtn(layer, label, x, y, w, h, bgColor, fgColor, onClick) {
-  const btn = new Graphics();
-  btn.roundRect(0, 0, w, h, 7);
-  btn.fill(bgColor);
-  btn.roundRect(0, 0, w, h, 7);
-  btn.stroke({ color: fgColor, width: 1.2, alpha: 0.50 });
-  btn.x = x;
-  btn.y = y;
-  btn.eventMode = 'static';
-  btn.cursor    = 'pointer';
-  btn.on('pointerdown', onClick);
+function _cardBase(layer, x, accentColor) {
+  const card = new Graphics();
 
-  const t = new Text({ text: label, style: { fontSize: 12, fontWeight: 'bold', fill: fgColor } });
-  t.anchor.set(0.5, 0.5);
-  t.x = w / 2;
-  t.y = h / 2;
-  btn.addChild(t);
+  // Dark base
+  card.roundRect(0, 0, CARD_W, CARD_H, CARD_R);
+  card.fill({ color: 0x0b0b18 });
 
-  // Expose label Text so BoosterBar.update() can mutate it.
-  btn.label = t;
+  // Lighter top gradient strip (≈45% of height)
+  card.roundRect(0, 0, CARD_W, Math.round(CARD_H * 0.45), CARD_R);
+  card.fill({ color: 0x181830, alpha: 0.9 });
 
-  layer.addChild(btn);
-  return btn;
+  // Thin colored accent line at top
+  card.rect(CARD_R, 0, CARD_W - CARD_R * 2, 2);
+  card.fill({ color: accentColor, alpha: 0.90 });
+
+  // Border
+  card.roundRect(0.5, 0.5, CARD_W - 1, CARD_H - 1, CARD_R);
+  card.stroke({ color: accentColor, width: 1, alpha: 0.38 });
+
+  card.x = x;
+  card.y = CARD_Y;
+  layer.addChild(card);
+  return card;
 }
 
-// Bomb button: draws a bomb icon (circle + fuse) left of the count.
-function _makeBombBtn(layer, x, y, w, h, onClick) {
-  const btn = new Graphics();
-  btn.roundRect(0, 0, w, h, 7);
-  btn.fill(0x1a0800);
-  btn.roundRect(0, 0, w, h, 7);
-  btn.stroke({ color: 0xffaa00, width: 1.2, alpha: 0.50 });
-  btn.x = x;
-  btn.y = y;
-  btn.eventMode = 'static';
-  btn.cursor    = 'pointer';
-  btn.on('pointerdown', onClick);
+function _addCountLabel(card, accentColor) {
+  const badge = new Graphics();
+  badge.roundRect(-13, -9, 26, 18, 9);
+  badge.fill({ color: 0x050510, alpha: 0.88 });
+  badge.roundRect(-13, -9, 26, 18, 9);
+  badge.stroke({ color: accentColor, width: 1, alpha: 0.55 });
+  badge.x = CARD_W - 14;
+  badge.y = 13;
+  card.addChild(badge);
 
-  // Bomb icon: drawn at left side of button, vertically centred.
-  const bx = 12, by = h / 2;  // centre of bomb icon
-  const R  = 7;                 // bomb body radius
+  const tx = new Text({
+    text: '×0',
+    style: { fontSize: 10, fontWeight: 'bold', fill: 0xffffff,
+      dropShadow: { color: 0x000000, blur: 2, distance: 0, alpha: 0.8 } },
+  });
+  tx.anchor.set(0.5, 0.5);
+  tx.x = CARD_W - 14;
+  tx.y = 13;
+  card.addChild(tx);
+  return tx;
+}
+
+function _addNameLabel(card, name, accentColor) {
+  const tx = new Text({
+    text: name,
+    style: { fontSize: 8, fontWeight: 'bold', fill: accentColor, alpha: 0.7 },
+  });
+  tx.anchor.set(0.5, 1);
+  tx.x = CARD_W / 2;
+  tx.y = CARD_H - 3;
+  card.addChild(tx);
+}
+
+function _makeCard(layer, x, accentColor, iconFn, name, onClick) {
+  const card = _cardBase(layer, x, accentColor);
+
+  iconFn(card, CARD_W / 2, CARD_H / 2 - 5, accentColor);
+  _addNameLabel(card, name, accentColor);
+
+  const countTx = _addCountLabel(card, accentColor);
+  card.label = countTx;
+
+  card.eventMode = 'static';
+  card.cursor    = 'pointer';
+  card.on('pointerdown', onClick);
+  return card;
+}
+
+function _makeBombCard(layer, x, onClick) {
+  const c    = 0xffaa00;
+  const card = _cardBase(layer, x, c);
+
+  // Bomb icon (separate Graphics so it can be hidden in bomb-mode)
   const icon = new Graphics();
-  // Body (dark sphere look)
-  icon.circle(bx, by, R);
-  icon.fill(0x222222);
-  icon.circle(bx, by, R);
-  icon.stroke({ color: 0xffaa00, width: 1.5, alpha: 0.9 });
-  // Fuse (small rounded line from top)
-  icon.roundRect(bx - 1.5, by - R - 6, 3, 7, 1.5);
-  icon.fill(0xffcc44);
-  // Spark at tip of fuse
-  icon.circle(bx, by - R - 6, 2.5);
-  icon.fill(0xffff88);
-  btn.addChild(icon);
-  btn.bombIcon = icon;
+  const bx = CARD_W / 2, by = CARD_H / 2 - 5;
+  const R  = 9;
+  icon.circle(bx, by + 2, R); icon.fill({ color: 0x1a1006 });
+  icon.circle(bx, by + 2, R); icon.stroke({ color: c, width: 1.5, alpha: 0.9 });
+  icon.roundRect(bx - 1.5, by + 2 - R - 7, 3, 8, 1.5); icon.fill({ color: 0xffcc44 });
+  icon.circle(bx + 3, by + 2 - R - 6, 2.5); icon.fill({ color: 0xffff88 });
+  card.addChild(icon);
+  card.bombIcon = icon;
 
-  // Count label on right side
-  const t = new Text({ text: '×0', style: { fontSize: 13, fontWeight: 'bold', fill: 0xffaa00 } });
-  t.anchor.set(0.5, 0.5);
-  t.x = w * 0.65;
-  t.y = h / 2;
-  btn.addChild(t);
-  btn.label = t;
+  _addNameLabel(card, 'BOMB', c);
 
-  layer.addChild(btn);
-  return btn;
+  const countTx = _addCountLabel(card, c);
+  card.label = countTx;
+
+  card.eventMode = 'static';
+  card.cursor    = 'pointer';
+  card.on('pointerdown', onClick);
+  return card;
+}
+
+// ── Icon drawing functions ────────────────────────────────────────────────────
+
+function _iconSwap(g, cx, cy, c) {
+  // Two column bars with exchange arrows
+  g.rect(cx - 14, cy - 8, 5, 16); g.fill({ color: c, alpha: 0.70 });
+  g.rect(cx + 9,  cy - 8, 5, 16); g.fill({ color: c, alpha: 0.70 });
+  // Right-pointing arrow (top)
+  g.moveTo(cx - 6, cy - 4); g.lineTo(cx + 6, cy - 4); g.lineTo(cx + 3, cy - 8); g.closePath();
+  g.fill({ color: 0xffffff, alpha: 0.88 });
+  // Left-pointing arrow (bottom)
+  g.moveTo(cx + 6, cy + 4); g.lineTo(cx - 6, cy + 4); g.lineTo(cx - 3, cy + 8); g.closePath();
+  g.fill({ color: 0xffffff, alpha: 0.88 });
+}
+
+function _iconPeek(g, cx, cy, c) {
+  // Eye shape
+  g.ellipse(cx, cy, 13, 7); g.fill({ color: c, alpha: 0.18 });
+  g.ellipse(cx, cy, 13, 7); g.stroke({ color: c, width: 1.5, alpha: 0.85 });
+  // Iris
+  g.circle(cx, cy, 4.5); g.fill({ color: c, alpha: 0.85 });
+  // Pupil
+  g.circle(cx, cy, 2.2); g.fill({ color: 0x000000, alpha: 0.9 });
+  // Shine
+  g.circle(cx + 1.5, cy - 1.5, 1.2); g.fill({ color: 0xffffff, alpha: 0.95 });
+}
+
+function _iconFreeze(g, cx, cy, c) {
+  // 4-arm cross (main axes)
+  g.rect(cx - 1.5, cy - 10, 3, 20); g.fill({ color: c, alpha: 0.85 });
+  g.rect(cx - 10,  cy - 1.5, 20, 3); g.fill({ color: c, alpha: 0.85 });
+  // Diagonal arms
+  const arm = 7;
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+    g.moveTo(cx, cy);
+    g.lineTo(cx + Math.cos(a) * arm, cy + Math.sin(a) * arm);
+    g.stroke({ color: c, width: 1.8, alpha: 0.65 });
+  }
+  // Center dot
+  g.circle(cx, cy, 2.8); g.fill({ color: 0xffffff, alpha: 0.9 });
+}
+
+function _iconCycle(g, cx, cy, c) {
+  // Partial arc (≈300°)
+  g.arc(cx, cy, 9, -Math.PI * 0.80, Math.PI * 0.80);
+  g.stroke({ color: c, width: 2.5, alpha: 0.85 });
+  // Arrowhead at arc end
+  const a  = Math.PI * 0.80;
+  const ax = cx + Math.cos(a) * 9;
+  const ay = cy + Math.sin(a) * 9;
+  g.moveTo(ax - 4, ay - 1);
+  g.lineTo(ax + 4, ay + 2);
+  g.lineTo(ax - 1, ay + 6);
+  g.closePath();
+  g.fill({ color: c, alpha: 0.9 });
 }

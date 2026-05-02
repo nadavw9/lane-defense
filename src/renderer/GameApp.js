@@ -56,6 +56,7 @@ import { LoseScreen }                  from '../screens/LoseScreen.js';
 import { RescueOverlay }              from '../screens/RescueOverlay.js';
 import { BoosterUnlockScreen }        from '../screens/BoosterUnlockScreen.js';
 import { FTUEOverlay }            from '../screens/FTUEOverlay.js';
+import { BoosterSpotlight }      from '../screens/BoosterSpotlight.js';
 import { TransitionOverlay }      from '../screens/TransitionOverlay.js';
 import { TitleScreen }            from '../screens/TitleScreen.js';
 import { LevelSelectScreen }      from '../screens/LevelSelectScreen.js';
@@ -370,9 +371,10 @@ async function main() {
   let ftueOverlay = null;  // created in _startLevel
 
   // ── End-of-game screens ───────────────────────────────────────────────────
-  let winScreen      = null;
-  let rescueOverlay  = null;
-  let unlockScreen   = null;
+  let winScreen        = null;
+  let rescueOverlay    = null;
+  let unlockScreen     = null;
+  let boosterSpotlight = null;
 
   // ── Meta screens ─────────────────────────────────────────────────────────
   let titleScreen        = null;
@@ -457,10 +459,11 @@ async function main() {
   // (levelIdOrConfig: full config object with isDaily:true).
   function _startLevel(levelIdOrConfig) {
     // Tear down any lingering overlay screens.
-    winScreen?.destroy();      winScreen      = null;
-    rescueOverlay?.destroy();  rescueOverlay  = null;
-    ftueOverlay?.destroy();    ftueOverlay    = null;
-    unlockScreen?.destroy();   unlockScreen   = null;
+    winScreen?.destroy();           winScreen        = null;
+    rescueOverlay?.destroy();       rescueOverlay    = null;
+    ftueOverlay?.destroy();         ftueOverlay      = null;
+    unlockScreen?.destroy();        unlockScreen     = null;
+    boosterSpotlight?.destroy();    boosterSpotlight = null;
 
     // Resolve config from either a number or a pre-built config object.
     let cfg;
@@ -547,6 +550,8 @@ async function main() {
 
     // ── Booster unlock popup (once per feature, normal levels only) ───────────
     const UNLOCK_LEVELS = [6, 8, 12, 14];
+    // Maps level ID → booster bar key for the spotlight (level 6 = bench, no spotlight)
+    const SPOTLIGHT_BOOSTER = { 8: 'swap', 12: 'peek', 14: 'freeze' };
     if (!currentLevelIsDaily && UNLOCK_LEVELS.includes(levelId) && !progress.hasSeenUnlock(levelId)) {
       gameLoop.pause();
       unlockScreen = new BoosterUnlockScreen(app.stage, APP_W, APP_H, levelId, {
@@ -554,7 +559,15 @@ async function main() {
           progress.markSeenUnlock(levelId);
           unlockScreen?.destroy();
           unlockScreen = null;
-          gameLoop.resume();
+          const spotBooster = SPOTLIGHT_BOOSTER[levelId];
+          if (spotBooster) {
+            boosterSpotlight = new BoosterSpotlight(app.stage, APP_W, APP_H, spotBooster, () => {
+              boosterSpotlight = null;
+              gameLoop.resume();
+            });
+          } else {
+            gameLoop.resume();
+          }
         },
       });
     }
@@ -1353,6 +1366,7 @@ async function main() {
     cityBg.update(gs.elapsed);
     laneRenderer.update(gs.elapsed);
     unlockScreen?.update(dt);
+    boosterSpotlight?.update(dt);
 
     // Juice updates
     laneFlash.update(dt);

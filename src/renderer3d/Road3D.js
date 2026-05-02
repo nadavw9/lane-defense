@@ -9,8 +9,8 @@ import * as THREE from 'three';
 import { ROAD_Z_FAR, ROAD_Z_NEAR, ROAD_Z_VANISHING, laneToX, roadHalfW, posToZ } from './Scene3D.js';
 
 // ── Tweakable design constants ─────────────────────────────────────────────────
-const COL_ASPHALT      = 0x4a4a52;   // medium grey
-const COL_ASPHALT_DARK = 0x3c3c44;
+const COL_ASPHALT      = 0x3a3835;   // warm dark asphalt
+const COL_ASPHALT_DARK = 0x2e2c2a;
 const COL_DIVIDER      = 0xfff5a0;   // bright sunny yellow lane dividers
 const COL_BARRIER      = 0x9a9a9a;   // medium concrete — not glowing white
 const COL_BARRIER_TOP  = 0xb0b0b0;   // slightly lighter cap, no glow
@@ -60,6 +60,7 @@ export class Road3D {
     this._bombRings      = [];
     this._dividers       = [];
     this._gate           = null;
+    this._noiseTex       = null;
 
     this._build();
   }
@@ -242,6 +243,8 @@ export class Road3D {
         else obj.material.dispose();
       }
     });
+    this._noiseTex?.dispose();
+    this._noiseTex = null;
     this._scene.remove(this._group);
   }
 
@@ -249,6 +252,7 @@ export class Road3D {
 
   _build() {
     this._buildRoadSurface();
+    this._buildNoiseOverlay();
     this._buildLaneDividers();
     this._buildBarriers();
     this._buildBreachLine();
@@ -296,7 +300,7 @@ export class Road3D {
     // Main asphalt plane
     const geo = new THREE.PlaneGeometry(W, ROAD_LENGTH, 1, 16);
     const mat = new THREE.MeshStandardMaterial({
-      color: COL_ASPHALT, roughness: 0.55, metalness: 0.20, envMapIntensity: 0.5,
+      color: COL_ASPHALT, roughness: 0.72, metalness: 0.06, envMapIntensity: 0.3,
     });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.rotation.x = -Math.PI / 2;
@@ -310,8 +314,8 @@ export class Road3D {
       const strip = new THREE.Mesh(
         new THREE.PlaneGeometry(3.85, ROAD_LENGTH),
         new THREE.MeshStandardMaterial({
-          color, roughness: i % 2 === 0 ? 0.50 : 0.60,
-          metalness: 0.18, envMapIntensity: 0.4,
+          color, roughness: i % 2 === 0 ? 0.70 : 0.78,
+          metalness: 0.05, envMapIntensity: 0.25,
         }),
       );
       strip.rotation.x = -Math.PI / 2;
@@ -584,5 +588,42 @@ export class Road3D {
       this._group.add(new THREE.Points(geo, mat));
       this._speedLines.push({ geo, mat });
     }
+  }
+
+  _buildNoiseOverlay() {
+    if (!this._noiseTex) this._noiseTex = this._makeNoiseTexture();
+
+    const n       = this._laneCount;
+    const hw      = roadHalfW(n);
+    const W       = hw * 2;
+    const fullLen = ROAD_Z_NEAR - ROAD_Z_VANISHING;
+    const ctrZ    = ROAD_Z_VANISHING + fullLen / 2;
+
+    this._noiseTex.repeat.set(W * 0.55, fullLen * 0.38);
+    this._noiseTex.needsUpdate = true;
+
+    const mat  = new THREE.MeshBasicMaterial({
+      map: this._noiseTex, transparent: true, opacity: 0.11, depthWrite: false,
+    });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(W, fullLen), mat);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(0, 0.001, ctrZ);
+    this._group.add(mesh);
+  }
+
+  _makeNoiseTexture() {
+    const size = 256;
+    const cv   = document.createElement('canvas');
+    cv.width = cv.height = size;
+    const img = cv.getContext('2d').createImageData(size, size);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const v = Math.floor(Math.random() * 256);
+      img.data[i] = img.data[i+1] = img.data[i+2] = v;
+      img.data[i+3] = 255;
+    }
+    cv.getContext('2d').putImageData(img, 0, 0);
+    const tex = new THREE.CanvasTexture(cv);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    return tex;
   }
 }

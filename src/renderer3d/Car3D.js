@@ -96,6 +96,7 @@ const _sharedGeos = new Set();
 let _wheelGeo     = null;
 let _headGeo      = null;
 let _bossTorusGeo = null;
+let _shadowGeo    = null;
 let _wheelMat     = null;
 
 // Per-type shared geometry pools (keyed by part name)
@@ -114,6 +115,7 @@ function sharedGeo() {
   _wheelGeo     = _addShared(new THREE.CylinderGeometry(WHEEL_R, WHEEL_R, WHEEL_L, 10));
   _headGeo      = _addShared(new THREE.BoxGeometry(HEADLIGHT_W, HEADLIGHT_H, HEADLIGHT_D));
   _bossTorusGeo = _addShared(new THREE.TorusGeometry(1.4, 0.06, 8, 28));
+  _shadowGeo    = _addShared(new THREE.CircleGeometry(1.0, 14));
   _wheelMat     = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9, metalness: 0.1, transparent: true, opacity: 1 });
 
   // Generic (used by small, jeep, boss)
@@ -214,6 +216,7 @@ export class Car3D {
           bodyMat: entry.bodyMat,
           hpTex: entry.hpTex, smokeTex: entry.smokeTex, crackTex: entry.crackTex,
           bossRing: entry.bossRing, bossRingMat: entry.bossRingMat,
+          shadowMesh: entry.shadowMesh, shadowMat: entry.shadowMat,
           t: 0,
         });
         this._live.delete(car);
@@ -245,6 +248,9 @@ export class Car3D {
           g.rotation.x  = 0;
         }
         g.position.set(laneToX(laneIdx), CAR_Y, entry.renderZ);
+        if (entry.shadowMesh) {
+          entry.shadowMesh.position.set(laneToX(laneIdx), 0.005, entry.renderZ);
+        }
 
         // ── Wheel spin based on position delta ─────────────────────────────
         if (entry.wheels.length > 0) {
@@ -359,6 +365,7 @@ export class Car3D {
       d.group.children.forEach(child => {
         if (child.material && child.material !== _wheelMat) child.material.opacity = 1 - prog;
       });
+      if (d.shadowMat) d.shadowMat.opacity = 0.28 * (1 - prog);
     }
   }
 
@@ -480,6 +487,16 @@ export class Car3D {
       group.add(crackMesh);
     }
 
+    // Elliptical contact shadow flat on the road surface
+    const shadowMat  = new THREE.MeshBasicMaterial({
+      color: 0x000000, transparent: true, opacity: 0.28, depthWrite: false,
+    });
+    const shadowMesh = new THREE.Mesh(_shadowGeo, shadowMat);
+    shadowMesh.rotation.x = -Math.PI / 2;
+    shadowMesh.scale.set(1.05, 1, 1.20);
+    shadowMesh.position.set(laneToX(laneIdx), 0.005, posToZ(car.position));
+    this._scene.add(shadowMesh);
+
     group.position.set(laneToX(laneIdx), CAR_Y, posToZ(car.position));
     this._scene.add(group);
 
@@ -491,6 +508,7 @@ export class Car3D {
       lastHp: -1, lastCrackStage: -1,
       laneIdx, bossRing, bossRingMat, bossAngle: 0, hexColor: hex,
       smokeMesh, smokeTex, crackCanvas, crackCtx, crackTex, crackMesh,
+      shadowMesh, shadowMat,
       renderZ: startZ, targetZ: startZ, lerpStartZ: startZ, lerpT: 1.0,
     };
     this._drawHpBar(entry, car);
@@ -816,6 +834,10 @@ export class Car3D {
       d.bossRingMat?.dispose();
       this._scene.remove(d.bossRing);
     }
+    if (d.shadowMesh) {
+      d.shadowMat?.dispose();
+      this._scene.remove(d.shadowMesh);
+    }
   }
 
   _disposeEntry(entry) {
@@ -832,6 +854,10 @@ export class Car3D {
     if (entry.bossRing) {
       entry.bossRingMat?.dispose();
       this._scene.remove(entry.bossRing);
+    }
+    if (entry.shadowMesh) {
+      entry.shadowMat?.dispose();
+      this._scene.remove(entry.shadowMesh);
     }
   }
 

@@ -97,6 +97,8 @@ let _wheelGeo     = null;
 let _headGeo      = null;
 let _bossTorusGeo = null;
 let _shadowGeo    = null;
+let _hlConeGeo    = null;   // headlight cone beam
+let _hlStripeGeo  = null;   // roof highlight stripe
 let _wheelMat     = null;
 
 // Per-type shared geometry pools (keyed by part name)
@@ -116,6 +118,10 @@ function sharedGeo() {
   _headGeo      = _addShared(new THREE.BoxGeometry(HEADLIGHT_W, HEADLIGHT_H, HEADLIGHT_D));
   _bossTorusGeo = _addShared(new THREE.TorusGeometry(1.4, 0.06, 8, 28));
   _shadowGeo    = _addShared(new THREE.CircleGeometry(1.0, 14));
+  // Open cone pointing +Z (headlight beam), 6-sided for low poly
+  _hlConeGeo    = _addShared(new THREE.ConeGeometry(0.09, 0.45, 6, 1, true));
+  // Thin flat plane for roof highlight stripe
+  _hlStripeGeo  = _addShared(new THREE.BoxGeometry(BODY_W * 0.80, 0.025, BODY_D * 0.80));
   _wheelMat     = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9, metalness: 0.1, transparent: true, opacity: 1 });
 
   // Generic (used by small, jeep, boss)
@@ -169,10 +175,16 @@ function sharedGeo() {
 // ── Material helpers ───────────────────────────────────────────────────────────
 
 function _paintMat(hex) {
-  return new THREE.MeshStandardMaterial({ color: hex, metalness: 0.40, roughness: 0.50, transparent: true, opacity: 1 });
+  return new THREE.MeshStandardMaterial({
+    color: hex, metalness: 0.42, roughness: 0.48, transparent: true, opacity: 1,
+    emissive: new THREE.Color(0x181818), emissiveIntensity: 0.12,
+  });
 }
 function _roofMat(hex) {
-  return new THREE.MeshStandardMaterial({ color: hex, metalness: 0.35, roughness: 0.55, transparent: true, opacity: 1 });
+  // Higher metalness + lower roughness → glass/lacquer sheen on roof sections
+  return new THREE.MeshStandardMaterial({
+    color: hex, metalness: 0.68, roughness: 0.14, transparent: true, opacity: 1,
+  });
 }
 function _darkMat(hex = 0x1a1a1a) {
   return new THREE.MeshStandardMaterial({ color: hex, metalness: 0.20, roughness: 0.80, transparent: true, opacity: 1 });
@@ -410,21 +422,41 @@ export class Car3D {
         break;
     }
 
-    // ── Headlights ──────────────────────────────────────────────────────────
+    // ── Headlights + cone beams ─────────────────────────────────────────────
     const headLights = [];
     const headMat    = new THREE.MeshStandardMaterial({
-      color: 0xffffcc, emissive: 0xffffcc, emissiveIntensity: 0.35,
+      color: 0xffffcc, emissive: 0xffffcc, emissiveIntensity: 0.75,
       transparent: true, opacity: 1,
+    });
+    const coneMat = new THREE.MeshBasicMaterial({
+      color: 0xffffee, transparent: true, opacity: 0.07,
+      side: THREE.BackSide, depthWrite: false,
     });
     for (const hx of HEADLIGHT_XS) {
       const hl = new THREE.Mesh(_headGeo, headMat);
       hl.position.set(hx, HEADLIGHT_Y, HEADLIGHT_Z);
       group.add(hl);
+
+      // Cone pointing forward (+Z); rotation.x = -PI/2 tilts tip to +Z
+      const cone = new THREE.Mesh(_hlConeGeo, coneMat);
+      cone.rotation.x = -Math.PI / 2;
+      cone.position.set(hx, HEADLIGHT_Y, HEADLIGHT_Z + 0.25);
+      group.add(cone);
+
       const ptLight = new THREE.PointLight(0xffffaa, car.type === 'boss' ? 0.80 : 0.30, car.type === 'boss' ? 6 : 4);
       ptLight.position.set(hx, HEADLIGHT_Y, HEADLIGHT_Z + 0.2);
       group.add(ptLight);
       headLights.push(ptLight);
     }
+
+    // ── Roof highlight stripe — emissive white sheen on body top ────────────
+    const stripeMat  = new THREE.MeshBasicMaterial({
+      color: 0xffffff, transparent: true, opacity: 0.10, depthWrite: false,
+    });
+    const stripeY    = BODY_H / 2 + 0.013;
+    const stripeMesh = new THREE.Mesh(_hlStripeGeo, stripeMat);
+    stripeMesh.position.set(0, stripeY, 0);
+    group.add(stripeMesh);
 
     // ── Type-based group scale & boss ring ──────────────────────────────────
     let bossRing = null, bossRingMat = null;

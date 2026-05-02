@@ -18,7 +18,7 @@ const SLOT_ALPHA     = [1.00, 0.80, 0.60, 0.40];   // material opacity
 const SLOT_EMISSIVE  = [0.35, 0.22, 0.15, 0.08];   // sphere emissive intensity
 
 // ── Bomb geometry (group-local coords) ───────────────────────────────────────
-const BOMB_R  = 0.28;    // sphere radius
+const BOMB_R  = 0.36;    // sphere radius
 const BOMB_CX = -0.25;   // sphere center X within group (left side)
 const BOMB_CY = BOMB_R;  // sphere center Y (sits on the floor plane)
 const BOMB_CZ = 0;       // sphere center Z
@@ -31,8 +31,8 @@ const SPARK_FLICKER_SPEED = 12;   // radians/sec
 // ── Badge canvas ──────────────────────────────────────────────────────────────
 const BADGE_CVS_W = 80;
 const BADGE_CVS_H = 40;
-const BADGE_W     = 0.65;   // world-unit badge width
-const BADGE_H     = 0.32;   // world-unit badge height
+const BADGE_W     = 0.80;   // world-unit badge width
+const BADGE_H     = 0.40;   // world-unit badge height
 
 // ── Color palette ─────────────────────────────────────────────────────────────
 const COLOR_HEX = {

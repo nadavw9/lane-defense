@@ -30,7 +30,7 @@ const SPEED_LINE_COUNT      = 20;
 const SPEED_LINE_BASE_SPEED = 6.0;
 
 const LANE_GLOW_OPACITY = 0.18;
-const LANE_GLOW_WIDTH   = 2.8;
+const LANE_GLOW_WIDTH   = 3.75;
 
 const ROAD_LENGTH   = ROAD_Z_NEAR - ROAD_Z_FAR;
 const ROAD_CENTER_Z = (ROAD_Z_FAR + ROAD_Z_NEAR) / 2;
@@ -308,7 +308,7 @@ export class Road3D {
       const x     = laneToX(i, n);
       const color = i % 2 === 0 ? COL_ASPHALT : COL_ASPHALT_DARK;
       const strip = new THREE.Mesh(
-        new THREE.PlaneGeometry(2.8, ROAD_LENGTH),
+        new THREE.PlaneGeometry(3.85, ROAD_LENGTH),
         new THREE.MeshStandardMaterial({
           color, roughness: i % 2 === 0 ? 0.50 : 0.60,
           metalness: 0.18, envMapIntensity: 0.4,
@@ -361,7 +361,7 @@ export class Road3D {
       const x     = laneToX(i, n);
       const color = i % 2 === 0 ? COL_ASPHALT : COL_ASPHALT_DARK;
       const strip = new THREE.Mesh(
-        new THREE.PlaneGeometry(2.8, VANISH_LEN),
+        new THREE.PlaneGeometry(3.85, VANISH_LEN),
         new THREE.MeshStandardMaterial({
           color, roughness: i % 2 === 0 ? 0.52 : 0.62, metalness: 0.12, envMapIntensity: 0.25,
         }),
@@ -379,7 +379,7 @@ export class Road3D {
     const extDashLen = 1.4;
     const extDashCt  = Math.ceil(VANISH_LEN / extPeriod);
     for (let di = 0; di < n - 1; di++) {
-      const x = laneToX(di, n) + 1.5;
+      const x = laneToX(di, n) + 2.0;
       for (let d = 0; d < extDashCt; d++) {
         const z = ROAD_Z_VANISHING + d * extPeriod + extDashLen / 2;
         if (z >= ROAD_Z_FAR) break;
@@ -401,10 +401,10 @@ export class Road3D {
       color: COL_DIVIDER, transparent: true, opacity: 0.75,
     });
 
-    // Divider between lane i and i+1: x = laneToX(i, n) + 1.5
+    // Divider between lane i and i+1: x = laneToX(i, n) + 2.0
     this._dividers = [];
     for (let di = 0; di < n - 1; di++) {
-      const x      = laneToX(di, n) + 1.5;
+      const x      = laneToX(di, n) + 2.0;
       const meshes = [];
       for (let d = 0; d < dashCount; d++) {
         const z = ROAD_Z_FAR + d * period + dashLen / 2;

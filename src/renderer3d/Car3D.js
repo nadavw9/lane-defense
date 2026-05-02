@@ -16,9 +16,9 @@ import { posToZ, laneToX } from './Scene3D.js';
 import { CAR_TYPES } from '../director/CarTypes.js';
 
 // ── Base geometry dimensions ───────────────────────────────────────────────────
-const BODY_W = 1.50;
+const BODY_W = 2.00;
 const BODY_H = 0.42;
-const BODY_D = 2.10;
+const BODY_D = 2.40;
 
 const ROOF_W = 0.95;
 const ROOF_H = 0.30;
@@ -41,7 +41,7 @@ const HEADLIGHT_H = 0.10;
 const HEADLIGHT_D = 0.08;
 const HEADLIGHT_Z = BODY_D / 2 + HEADLIGHT_D / 2;
 const HEADLIGHT_Y = BODY_H * 0.05;
-const HEADLIGHT_XS = [-0.42, 0.42];
+const HEADLIGHT_XS = [-0.56, 0.56];
 
 const CAR_Y = BODY_H / 2 + WHEEL_R;   // group Y: body bottom at road surface
 

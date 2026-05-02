@@ -34,8 +34,8 @@ export const ROAD_Z_SPAWN     = -22;   // semantic alias: where cars enter the r
 export const ROAD_Z_VANISHING = -65;   // road surface extends here visually (no gameplay)
 
 // 4-lane backward-compat constants (static).
-export const ROAD_HALF_W = 6.5;
-export const LANE_X      = [-4.5, -1.5, 1.5, 4.5];
+export const ROAD_HALF_W = 8.4;
+export const LANE_X      = [-6, -2, 2, 6];
 
 // ── Module-level active lane count ─────────────────────────────────────────────
 // All renderers that import laneToX() use this as the default so they
@@ -54,7 +54,7 @@ export function setActiveLaneCount(n) { _activeLaneCount = n; }
  * Callers that omit `n` get the current active lane count automatically.
  */
 export function laneToX(laneIdx, n = _activeLaneCount) {
-  const laneW = 3.0;
+  const laneW = 4.0;
   return -(n * laneW) / 2 + laneW / 2 + laneIdx * laneW;
 }
 
@@ -63,7 +63,7 @@ export function laneToX(laneIdx, n = _activeLaneCount) {
  *   n=1 → 2.0   n=2 → 3.5   n=3 → 5.0   n=4 → 6.5 (= legacy ROAD_HALF_W)
  */
 export function roadHalfW(n = _activeLaneCount) {
-  return n * 1.5 + 0.5;
+  return n * 2.0 + 0.4;
 }
 
 export function posToZ(position) {
@@ -232,7 +232,7 @@ export class Scene3D {
     // Dividers between consecutive lanes — n-1 dividers for n lanes.
     const divXs = [];
     for (let i = 0; i < n - 1; i++) {
-      divXs.push(laneToX(i, n) + 1.5);   // midpoint between lane i and i+1
+      divXs.push(laneToX(i, n) + 2.0);   // midpoint between lane i and i+1
     }
 
     const Z_TOP     = -1.5;

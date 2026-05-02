@@ -24,6 +24,7 @@ import { LaneFlash3D }   from './LaneFlash3D.js';
 import { PostFX3D }      from './PostFX3D.js';
 import { ScorchMarks3D } from './ScorchMarks3D.js';
 import { Environment3D } from './Environment3D.js';
+import { Ambient3D }     from './Ambient3D.js';
 
 export class GameRenderer3D {
   constructor(width, height) {
@@ -43,6 +44,7 @@ export class GameRenderer3D {
     this._postFX       = null;
     this._scorchMarks  = null;
     this._environment  = null;
+    this._ambient      = null;
     this._mounted  = false;
 
     // Per-lane cache of the front car's game position, updated every frame.
@@ -91,6 +93,7 @@ export class GameRenderer3D {
     this._scorchMarks = new ScorchMarks3D(this._scene3d.scene);
     this._postFX      = new PostFX3D(this._scene3d.composer);
     this._environment = new Environment3D(this._scene3d.scene);
+    this._ambient     = new Ambient3D(this._scene3d.scene);
 
     this._mounted = true;
   }
@@ -252,6 +255,7 @@ export class GameRenderer3D {
     this._skybox.update(dt);
     this._road.update(dt);
     this._environment?.update(dt);
+    this._ambient?.update(dt);
     this._cameraFX?.update(dt);
     this._laneFlash?.update(dt);
     this._scorchMarks?.update(dt);
@@ -301,6 +305,7 @@ export class GameRenderer3D {
     this._scorchMarks?.dispose();
     this._postFX?.dispose();
     this._environment?.dispose();
+    this._ambient?.dispose();
     this._road?.dispose();
     this._skybox?.dispose();
     this._lighting?.dispose();
@@ -329,6 +334,7 @@ export class GameRenderer3D {
     this._postFX       = null;
     this._scorchMarks  = null;
     this._environment  = null;
+    this._ambient      = null;
     this._mounted      = false;
   }
 

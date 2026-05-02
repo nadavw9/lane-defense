@@ -1,32 +1,27 @@
-// HUDRenderer — renders the 52px HUD bar at the top of the screen.
+// HUDRenderer — 70px HUD bar at the top of the screen.
 //
-// Contents:
-//   • Kill progress bar — top strip, grows left-to-right, shows "kills/target"
-//   • Combo text       — centred; hidden when combo < 2. Spring-bounce on bump.
-//   • Combo gauge      — right-edge vertical fill bar; color-coded at 3/5/7
-//   • Multiplier badge — "×1.2" etc, left of coins, shown when combo >= 3
-//   • Coins text       — top-right; updates whenever coins change.
-//   • Mute btn         — top-left speaker icon; toggles AudioManager on click.
-//   • Level text       — left of mute area; shows current level number.
-//   • Hearts           — right of level text; 5 filled/empty symbols.
-//   • Lane color dots  — row just above shooter area; shows front car color
-//   • Objective banner — "Defeat X cars" shown for 3s at level start (Q2)
-//   • Gold flash       — HUD flashes gold when kills reach target (Q10)
+//   • Pill progress bar with green gradient fill + animated sheen + "kills/target"
+//   • Purple gradient level badge (L7 pill)
+//   • Heart icons × 5
+//   • Combo text (spring bounce) + right-edge vertical gauge
+//   • Multiplier badge  ×1.2 / ×1.5 / ×2 / ×3
+//   • 3D gold coin disc + coins counter
+//   • Lane color dots just above shooter area
+//   • Objective banner (3 s auto-fade)
+//   • Milestone confetti burst at 25 / 50 / 75 / 100 % completion
+//   • Gold flash when kill target is reached
+
 import { Graphics, Text } from 'pixi.js';
 
-const HUD_H      = 52;
-const BAR_H      = 10;         // height of the kill-progress bar at top
-const BAR_Y      = 0;
-const HUD_BG     = 0x0d0d1a;
-const BAR_BG     = 0x1a1a2e;
-const TEXT_MID   = BAR_H + (HUD_H - BAR_H) / 2;   // ≈ 31
+const HUD_H    = 70;
+const BAR_H    = 14;
+const BAR_Y    = 3;
+const BAR_X    = 8;
+// Vertical centre of the row below the progress bar
+const TEXT_MID = Math.round(BAR_Y + BAR_H + (HUD_H - BAR_Y - BAR_H) / 2);  // 44
 
-// Timer bar colour breakpoints (kept for API compat, unused now)
-const COLOR_GREEN  = 0x44cc44;
-const COLOR_YELLOW = 0xeecc22;
-const COLOR_RED    = 0xee3333;
+const HUD_BG = 0x08081a;
 
-// Combo text colour tiers
 const COMBO_TIERS = [
   { min: 2,  color: 0xffffff, size: 22 },
   { min: 4,  color: 0xffee44, size: 25 },
@@ -34,7 +29,6 @@ const COMBO_TIERS = [
   { min: 11, color: 0xff3333, size: 31 },
 ];
 
-// Q4: multiplier badge text per combo threshold
 const MULT_TIERS = [
   { min: 11, label: '×3' },
   { min: 7,  label: '×2' },
@@ -42,42 +36,48 @@ const MULT_TIERS = [
   { min: 3,  label: '×1.2' },
 ];
 
-// Q6: shooter color → hex for lane indicator dots
 const CAR_COLOR_MAP = {
   Red:    0xE24B4A, Blue:   0x378ADD, Green:  0x639922,
   Yellow: 0xEF9F27, Purple: 0x7F77DD, Orange: 0xD85A30,
 };
 
-// Q6: Y position for lane color dots (just above SHOOTER_AREA_Y=520)
-const LANE_DOT_Y = 513;
+const LANE_DOT_Y     = 513;
+const SPRING_K       = 380;
+const SPRING_D       = 18;
+const SHEEN_CYCLE    = 2.8;   // seconds per sweep
+const SHEEN_W_FRAC   = 0.28;  // sheen strip width as fraction of bar
 
-// Spring constants for the combo bounce animation
-const SPRING_K = 380;
-const SPRING_D = 18;
+const CONFETTI_COLS = [0xff4466, 0x44aaff, 0xffcc22, 0x44ee88, 0xcc88ff, 0xff8844];
+const MILESTONES    = [0.25, 0.50, 0.75, 1.00];
 
-function lerpColor(a, b, t) {
-  const r = (((a >> 16) & 0xff) + t * (((b >> 16) & 0xff) - ((a >> 16) & 0xff))) | 0;
-  const g = (((a >>  8) & 0xff) + t * (((b >>  8) & 0xff) - ((a >>  8) & 0xff))) | 0;
-  const bl = ((a       & 0xff) + t * ((b        & 0xff) - (a        & 0xff))) | 0;
-  return (r << 16) | (g << 8) | bl;
-}
+// Badge geometry (reused in _drawBg and setLevel)
+const BADGE_X = 34, BADGE_W = 40, BADGE_H = 24, BADGE_R = 8;
 
 export class HUDRenderer {
-  // audioManager is optional — mute button is hidden when not provided.
   constructor(layerManager, gameState, appWidth, audioManager = null) {
-    this._gs     = gameState;
-    this._appW   = appWidth;
-    this._layer  = layerManager.get('hudLayer');
-    this._audio  = audioManager;
+    this._gs    = gameState;
+    this._appW  = appWidth;
+    this._layer = layerManager.get('hudLayer');
+    this._audio = audioManager;
 
-    // Accumulated time for gauge pulse animation.
-    this._elapsed = 0;
+    this._elapsed      = 0;
+    this._lastCoins    = -1;
+    this._lastCombo    = 0;
+    this._lastHearts   = -1;
+    this._lastRatio    = 0;
+    this._bounceScale  = 1;
+    this._bounceVel    = 0;
+    this._flashGold    = 0;
+    this._prevAtTarget = false;
+    this._objTimer     = 0;
+    this._objText      = null;
+    this._confetti     = [];
 
-    // ── Background + progress bar (redrawn each frame) ───────────────────
+    // ── Background + progress bar (redrawn every frame) ─────────────────
     this._bg = new Graphics();
     this._layer.addChild(this._bg);
 
-    // ── Kill progress fraction text ("3/7") — overlaid on the bar ────────
+    // Progress fraction text ("3/10") centred over bar
     this._progressText = new Text({
       text: '',
       style: {
@@ -92,7 +92,55 @@ export class HUDRenderer {
     this._progressText.y = BAR_Y + BAR_H / 2;
     this._layer.addChild(this._progressText);
 
-    // ── Combo text — dark stroke outline for legibility ───────────────────
+    // ── Mute button ──────────────────────────────────────────────────────
+    this._muteBtn = new Graphics();
+    this._muteBtn.x = 8;
+    this._muteBtn.y = TEXT_MID - 10;
+    if (audioManager) {
+      this._muteBtn.hitArea = {
+        contains: (x, y) => x >= -6 && x <= 30 && y >= -6 && y <= 26,
+      };
+      this._muteBtn.eventMode = 'static';
+      this._muteBtn.cursor    = 'pointer';
+      this._muteBtn.on('pointerdown', () => {
+        const muted = audioManager.toggleMute();
+        this._drawSpeaker(muted);
+      });
+    }
+    this._layer.addChild(this._muteBtn);
+    this._drawSpeaker(false);
+
+    // Level text sits on top of the badge drawn in _bg each frame
+    this._levelText = new Text({
+      text: 'L1',
+      style: {
+        fontSize:   13,
+        fontWeight: 'bold',
+        fill:       0xffffff,
+        dropShadow: { color: 0x220055, blur: 3, distance: 1, alpha: 0.9 },
+      },
+    });
+    this._levelText.anchor.set(0.5, 0.5);
+    this._levelText.x = BADGE_X + BADGE_W / 2;
+    this._levelText.y = TEXT_MID;
+    this._layer.addChild(this._levelText);
+
+    // ── Heart icons ──────────────────────────────────────────────────────
+    this._heartTexts = [];
+    for (let i = 0; i < 5; i++) {
+      const ht = new Text({ text: '♥', style: {
+        fontSize: 15,
+        fill:     0xff3355,
+        dropShadow: { color: 0x880022, blur: 3, distance: 1, alpha: 0.7 },
+      }});
+      ht.anchor.set(0.5, 0.5);
+      ht.x = 84 + i * 16;
+      ht.y = TEXT_MID;
+      this._layer.addChild(ht);
+      this._heartTexts.push(ht);
+    }
+
+    // ── Combo text ───────────────────────────────────────────────────────
     this._comboText = new Text({
       text: '',
       style: {
@@ -108,11 +156,11 @@ export class HUDRenderer {
     this._comboText.y = TEXT_MID;
     this._layer.addChild(this._comboText);
 
-    // ── Q3: Vertical combo gauge on right edge ────────────────────────────
+    // ── Combo gauge ──────────────────────────────────────────────────────
     this._comboGauge = new Graphics();
     this._layer.addChild(this._comboGauge);
 
-    // ── Q4: Multiplier badge ("×1.5") left of coins ───────────────────────
+    // ── Multiplier badge ─────────────────────────────────────────────────
     this._multiBadge = new Text({
       text: '',
       style: {
@@ -123,28 +171,20 @@ export class HUDRenderer {
       },
     });
     this._multiBadge.anchor.set(1, 0.5);
-    this._multiBadge.x = appWidth - 100;
+    this._multiBadge.x = appWidth - 106;
     this._multiBadge.y = TEXT_MID;
     this._layer.addChild(this._multiBadge);
 
-    // ── Coin icon — yellow circle drawn once to the left of coins text ───
-    this._coinIcon = new Graphics();
-    this._coinIcon.circle(0, 0, 8);
-    this._coinIcon.fill(0xf5c842);
-    this._coinIcon.circle(0, 0, 8);
-    this._coinIcon.stroke({ color: 0xcc9900, width: 1.5 });
-    // Inner shine
-    this._coinIcon.circle(-2, -2, 3);
-    this._coinIcon.fill({ color: 0xffffff, alpha: 0.30 });
-    this._coinIcon.x = appWidth - 86;
-    this._coinIcon.y = TEXT_MID;
-    this._layer.addChild(this._coinIcon);
+    // ── 3D coin disc (drawn once, static) ────────────────────────────────
+    this._coinDisc = new Graphics();
+    this._layer.addChild(this._coinDisc);
+    this._drawCoinDisc(appWidth - 84, TEXT_MID);
 
-    // ── Coins text ────────────────────────────────────────────────────────
+    // ── Coins text ───────────────────────────────────────────────────────
     this._coinsText = new Text({
       text: '0',
       style: {
-        fontSize:   17,
+        fontSize:   18,
         fontWeight: 'bold',
         fill:       0xf5c842,
         dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 0.7 },
@@ -155,52 +195,7 @@ export class HUDRenderer {
     this._coinsText.y = TEXT_MID;
     this._layer.addChild(this._coinsText);
 
-    // ── Mute button (top-left speaker icon) ──────────────────────────────
-    this._muteBtn = new Graphics();
-    this._muteBtn.x = 10;
-    this._muteBtn.y = Math.round(TEXT_MID) - 10;
-    if (audioManager) {
-      this._muteBtn.hitArea = {
-        contains: (x, y) => x >= -6 && x <= 34 && y >= -6 && y <= 28,
-      };
-      this._muteBtn.eventMode = 'static';
-      this._muteBtn.cursor    = 'pointer';
-      this._muteBtn.on('pointerdown', () => {
-        const muted = audioManager.toggleMute();
-        this._drawSpeaker(muted);
-      });
-    }
-    this._layer.addChild(this._muteBtn);
-    this._drawSpeaker(false);
-
-    // ── Level number label (top-left, right of mute btn) ─────────────────
-    this._levelText = new Text({
-      text: 'L1',
-      style: {
-        fontSize:   15,
-        fontWeight: 'bold',
-        fill:       0xaaaaaa,
-        dropShadow: { color: 0x000000, blur: 2, distance: 1, alpha: 0.6 },
-      },
-    });
-    this._levelText.anchor.set(0, 0.5);
-    this._levelText.x = 42;
-    this._levelText.y = TEXT_MID;
-    this._layer.addChild(this._levelText);
-
-    // ── Hearts display ─────────────────────────────────────────────────────
-    this._heartTexts = [];
-    for (let i = 0; i < 5; i++) {
-      const ht = new Text({ text: '♥', style: { fontSize: 11, fill: 0xff4466 } });
-      ht.anchor.set(0, 0.5);
-      ht.x = 70 + i * 13;
-      ht.y = TEXT_MID;
-      this._layer.addChild(ht);
-      this._heartTexts.push(ht);
-    }
-    this._lastHearts = -1;
-
-    // ── Q6: Lane color indicator dots (above shooter area) ───────────────
+    // ── Lane color dots ──────────────────────────────────────────────────
     this._laneDots = [];
     for (let i = 0; i < 4; i++) {
       const dot = new Graphics();
@@ -208,38 +203,33 @@ export class HUDRenderer {
       this._laneDots.push(dot);
     }
 
-    // ── Q2: Objective banner state ────────────────────────────────────────
-    this._objText  = null;
-    this._objTimer = 0;
-
-    // ── Q10: Gold flash state ─────────────────────────────────────────────
-    this._flashGold     = 0;
-    this._prevAtTarget  = false;
-
-    // ── Spring bounce state ───────────────────────────────────────────────
-    this._bounceScale  = 1;
-    this._bounceVel    = 0;
-    this._lastCoins    = -1;
-    this._lastCombo    = 0;
+    // ── Confetti (always on top) ─────────────────────────────────────────
+    this._confettiGfx = new Graphics();
+    this._layer.addChild(this._confettiGfx);
   }
 
-  // Call whenever the level changes so the label stays in sync.
+  // ── Public API ──────────────────────────────────────────────────────────────
+
   setLevel(n) {
     this._levelText.text = `L${n}`;
   }
 
-  /** Update the hearts row display. n = current hearts (0-5). */
   setHearts(n) {
     if (n === this._lastHearts) return;
     this._lastHearts = n;
     for (let i = 0; i < 5; i++) {
       const ht = this._heartTexts[i];
-      ht.text  = i < n ? '♥' : '♡';
-      ht.style = { fontSize: 11, fill: i < n ? 0xff4466 : 0x444455 };
+      if (i < n) {
+        ht.text  = '♥';
+        ht.style = { fontSize: 15, fill: 0xff3355,
+          dropShadow: { color: 0x880022, blur: 3, distance: 1, alpha: 0.7 } };
+      } else {
+        ht.text  = '♡';
+        ht.style = { fontSize: 15, fill: 0x445566 };
+      }
     }
   }
 
-  // Q2: Display an objective banner for 3 seconds then fade it out.
   showObjective(text) {
     if (this._objText) { this._objText.destroy(); this._objText = null; }
     const t = new Text({
@@ -260,34 +250,43 @@ export class HUDRenderer {
     this._objTimer = 3.0;
   }
 
-  // Call when the combo increments so the text pops with a spring bounce.
   bumpCombo(combo) {
     this._bounceScale = 1.5;
     this._bounceVel   = 0;
     this._updateComboStyle(combo);
   }
 
-  // Call once per render frame.
   update(dt) {
     this._elapsed += dt;
 
-    // Q10: detect when kills reach target → trigger gold flash
     const kills  = this._gs.totalKills  ?? 0;
     const target = this._gs.targetKills ?? 10;
+    const ratio  = target > 0 ? kills / target : 0;
+
+    // Gold flash when target reached
     const atTarget = target > 0 && kills >= target;
     if (atTarget && !this._prevAtTarget) this._flashGold = 0.4;
     this._prevAtTarget = atTarget;
     if (this._flashGold > 0) this._flashGold = Math.max(0, this._flashGold - dt);
 
-    this._drawBg();
+    // Confetti at milestones
+    for (const m of MILESTONES) {
+      if (this._lastRatio < m && ratio >= m) {
+        const barFW = this._appW - BAR_X * 2;
+        this._spawnConfetti(BAR_X + barFW * m, BAR_Y + BAR_H / 2);
+      }
+    }
+    this._lastRatio = ratio;
+
+    this._drawBg(kills, target, ratio);
     this._stepSpring(dt);
     this._refreshComboText();
     this._refreshCoinsText();
     this._refreshComboGauge();
     this._refreshMultiBadge();
     this._refreshLaneDots();
+    this._updateConfetti(dt);
 
-    // Q2: tick objective banner
     if (this._objText) {
       this._objTimer -= dt;
       this._objText.alpha = this._objTimer > 0.5 ? 1 : Math.max(0, this._objTimer / 0.5);
@@ -295,49 +294,146 @@ export class HUDRenderer {
     }
   }
 
-  // ── Private ────────────────────────────────────────────────────────────────
+  // ── Private ─────────────────────────────────────────────────────────────────
 
-  _drawBg() {
-    const gs     = this._gs;
-    const kills  = gs.totalKills  ?? 0;
-    const target = gs.targetKills ?? 10;
-    const ratio  = Math.min(1, target > 0 ? kills / target : 0);
-    const barW   = Math.max(0, Math.round(this._appW * ratio));
-    const color  = ratio >= 1 ? 0x44ff88 : ratio >= 0.6 ? 0x88cc44 : ratio >= 0.3 ? 0xffcc00 : 0x4488ff;
-    const R      = BAR_H / 2;
+  _drawBg(kills, target, ratio) {
+    const g     = this._bg;
+    const appW  = this._appW;
+    const barFW = appW - BAR_X * 2;
+    const fillW = Math.max(0, Math.round(barFW * Math.min(1, ratio)));
+    const barR  = BAR_H / 2;
+    const col   = ratio >= 1 ? 0x22dd66
+                : ratio >= 0.6 ? 0x33cc55
+                : ratio >= 0.3 ? 0x44bb44
+                :                0x2299ee;
 
-    this._bg.clear();
+    g.clear();
 
     // HUD background
-    this._bg.rect(0, 0, this._appW, HUD_H);
-    this._bg.fill(HUD_BG);
+    g.rect(0, 0, appW, HUD_H);
+    g.fill(HUD_BG);
 
-    // Kill progress bar track
-    this._bg.roundRect(-1, BAR_Y - 1, this._appW + 2, BAR_H + 2, R + 1);
-    this._bg.fill({ color: 0x000000, alpha: 0.70 });
-    this._bg.roundRect(0, BAR_Y, this._appW, BAR_H, R);
-    this._bg.fill(BAR_BG);
+    // Bottom separator
+    g.rect(0, HUD_H - 1, appW, 1);
+    g.fill({ color: 0xffffff, alpha: 0.06 });
 
-    // Kill progress bar fill — grows left to right
-    if (barW >= BAR_H) {
-      this._bg.roundRect(0, BAR_Y, barW, BAR_H, R);
-      this._bg.fill(color);
-    } else if (barW > 0) {
-      this._bg.rect(0, BAR_Y, barW, BAR_H);
-      this._bg.fill(color);
+    // Bar track (pill)
+    g.roundRect(BAR_X, BAR_Y, barFW, BAR_H, barR);
+    g.fill({ color: 0x000000, alpha: 0.50 });
+    g.roundRect(BAR_X, BAR_Y, barFW, BAR_H, barR);
+    g.fill({ color: 0x1a2040, alpha: 0.85 });
+
+    // Progress fill
+    if (fillW >= BAR_H) {
+      g.roundRect(BAR_X, BAR_Y, fillW, BAR_H, barR);
+      g.fill(col);
+      // Lighter top strip — simulates gradient
+      if (fillW > barR * 2) {
+        g.rect(BAR_X + barR * 0.6, BAR_Y + 1, fillW - barR * 1.2, BAR_H * 0.45);
+        g.fill({ color: 0xffffff, alpha: 0.18 });
+      }
+    } else if (fillW > 0) {
+      g.rect(BAR_X, BAR_Y, fillW, BAR_H);
+      g.fill(col);
     }
 
-    // Q10: gold flash overlay
+    // Animated sheen sweep
+    if (fillW > BAR_H) {
+      const t      = (this._elapsed % SHEEN_CYCLE) / SHEEN_CYCLE;
+      const sheenW = barFW * SHEEN_W_FRAC;
+      const sheenX = BAR_X - sheenW + (fillW + sheenW) * t;
+      const cx0    = Math.max(sheenX, BAR_X);
+      const cx1    = Math.min(sheenX + sheenW, BAR_X + fillW);
+      if (cx1 > cx0) {
+        g.rect(cx0, BAR_Y + 2, cx1 - cx0, BAR_H - 4);
+        g.fill({ color: 0xffffff, alpha: 0.22 });
+      }
+    }
+
+    // Bar border
+    g.roundRect(BAR_X, BAR_Y, barFW, BAR_H, barR);
+    g.stroke({ color: 0xffffff, width: 0.8, alpha: 0.12 });
+
+    // Gold flash overlay
     if (this._flashGold > 0) {
-      const flashAlpha = (this._flashGold / 0.4) * 0.40;
-      this._bg.rect(0, 0, this._appW, HUD_H);
-      this._bg.fill({ color: 0xffcc00, alpha: flashAlpha });
+      g.rect(0, 0, appW, HUD_H);
+      g.fill({ color: 0xffcc00, alpha: (this._flashGold / 0.4) * 0.40 });
     }
 
-    // Q1: progress fraction text — keep in sync with bar data
-    const fracStr = `${kills}/${target}`;
-    if (this._progressText.text !== fracStr) this._progressText.text = fracStr;
-    this._progressText.alpha = barW > 24 ? 1.0 : barW > 0 ? barW / 24 : 0;
+    // Progress fraction text
+    const frac = `${kills}/${target}`;
+    if (this._progressText.text !== frac) this._progressText.text = frac;
+    this._progressText.alpha = fillW > 24 ? 1 : fillW > 0 ? fillW / 24 : 0;
+
+    // Level badge (purple gradient pill)
+    const by = TEXT_MID - BADGE_H / 2;
+    // Drop shadow
+    g.roundRect(BADGE_X + 1, by + 2, BADGE_W, BADGE_H, BADGE_R);
+    g.fill({ color: 0x000000, alpha: 0.38 });
+    // Dark purple base
+    g.roundRect(BADGE_X, by, BADGE_W, BADGE_H, BADGE_R);
+    g.fill(0x4a1088);
+    // Top highlight (gradient sim)
+    g.rect(BADGE_X + BADGE_R * 0.6, by + 1, BADGE_W - BADGE_R * 1.2, BADGE_H * 0.46);
+    g.fill({ color: 0xaa55ff, alpha: 0.50 });
+    // Gold border
+    g.roundRect(BADGE_X, by, BADGE_W, BADGE_H, BADGE_R);
+    g.stroke({ color: 0xddaa22, width: 1.2, alpha: 0.70 });
+  }
+
+  _drawCoinDisc(cx, cy) {
+    const g = this._coinDisc;
+    const r = 11;
+    g.clear();
+    // Shadow
+    g.circle(cx + 1, cy + 2, r);
+    g.fill({ color: 0x000000, alpha: 0.30 });
+    // Gold outer ring
+    g.circle(cx, cy, r);
+    g.fill(0xc08010);
+    // Inner face
+    g.circle(cx, cy, r * 0.80);
+    g.fill(0xf0c030);
+    // Bright center
+    g.circle(cx, cy, r * 0.52);
+    g.fill({ color: 0xfff080, alpha: 0.60 });
+    // Shine spot
+    g.circle(cx - r * 0.30, cy - r * 0.30, r * 0.22);
+    g.fill({ color: 0xffffff, alpha: 0.65 });
+    // Rim
+    g.circle(cx, cy, r);
+    g.stroke({ color: 0xb87800, width: 1.2 });
+  }
+
+  _spawnConfetti(x, y) {
+    for (let i = 0; i < 14; i++) {
+      const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.9;
+      const speed = 80 + Math.random() * 100;
+      const life  = 0.7 + Math.random() * 0.5;
+      this._confetti.push({
+        x, y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        r:  2 + Math.random() * 2,
+        color: CONFETTI_COLS[i % CONFETTI_COLS.length],
+        life, maxLife: life,
+      });
+    }
+  }
+
+  _updateConfetti(dt) {
+    const g = this._confettiGfx;
+    g.clear();
+    for (let i = this._confetti.length - 1; i >= 0; i--) {
+      const p = this._confetti[i];
+      p.life -= dt;
+      if (p.life <= 0) { this._confetti.splice(i, 1); continue; }
+      p.x  += p.vx * dt;
+      p.y  += p.vy * dt;
+      p.vy += 220 * dt;
+      g.circle(p.x, p.y, p.r);
+      g.fill({ color: p.color, alpha: p.life / p.maxLife });
+    }
   }
 
   _stepSpring(dt) {
@@ -346,7 +442,7 @@ export class HUDRenderer {
       this._comboText.scale.set(1);
       return;
     }
-    this._bounceVel  += (-SPRING_K * (this._bounceScale - 1) - SPRING_D * this._bounceVel) * dt;
+    this._bounceVel   += (-SPRING_K * (this._bounceScale - 1) - SPRING_D * this._bounceVel) * dt;
     this._bounceScale += this._bounceVel * dt;
     this._comboText.scale.set(this._bounceScale);
   }
@@ -375,7 +471,6 @@ export class HUDRenderer {
     }
   }
 
-  // Q3: vertical combo fill gauge on the right edge of the screen.
   _refreshComboGauge() {
     const g      = this._comboGauge;
     const combo  = this._gs.combo;
@@ -385,8 +480,6 @@ export class HUDRenderer {
     const gaugeY = HUD_H + 8;
 
     g.clear();
-
-    // Track
     g.roundRect(gaugeX, gaugeY, gaugeW, gaugeH, 2.5);
     g.fill({ color: 0x223344, alpha: 0.55 });
 
@@ -399,12 +492,10 @@ export class HUDRenderer {
     g.roundRect(gaugeX, gaugeY + gaugeH - fill, gaugeW, fill, 2.5);
     g.fill({ color: col, alpha: 0.40 + 0.55 * pulse });
 
-    // Glow ring at top of fill
     g.circle(gaugeX + gaugeW / 2, gaugeY + gaugeH - fill, 4);
     g.fill({ color: col, alpha: 0.60 * pulse });
   }
 
-  // Q4: score multiplier badge next to coins when combo >= 3.
   _refreshMultiBadge() {
     const combo = this._gs.combo;
     let label = '';
@@ -415,7 +506,6 @@ export class HUDRenderer {
     this._multiBadge.alpha = label ? 1 : 0;
   }
 
-  // Q6: small colored dot above each active lane showing front car color.
   _refreshLaneDots() {
     const activeLanes = this._gs.activeLaneCount ?? 4;
     const colW        = this._appW / 4;
@@ -449,7 +539,6 @@ export class HUDRenderer {
     this._comboText.style.fontSize = tier.size;
   }
 
-  // Draw a minimal speaker icon at origin (0,0).
   _drawSpeaker(muted) {
     const g   = this._muteBtn;
     const col = muted ? 0x444444 : 0xcccccc;

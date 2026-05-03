@@ -4,6 +4,7 @@
 
 import * as THREE from 'three';
 import { roadHalfW } from './Scene3D.js';
+import { assetLoader } from './AssetLoader.js';
 
 // ── Seeded LCG RNG ────────────────────────────────────────────────────────────
 function makeLCG(seed) {
@@ -18,10 +19,6 @@ function makeLCG(seed) {
 const GRASS_COLOR   = 0x8fd96a;   // bright saturated green
 const GRASS_LIGHT   = 0xa8e878;   // lighter green variation strip
 
-const TREE_FOLIAGE  = [0x4ab83a, 0x5ecf44, 0x3da030];   // brighter saturated greens
-const TREE_TRUNK    = 0x6e4a2c;   // warm brown
-const BUSH_COLOR    = [0x6cd24a, 0x7ade58, 0x58c438];    // bright greens
-const ROCK_COLOR    = [0xa0a0a8, 0x909098, 0xb4b4bc];    // lighter friendly grey
 const MTN_COLOR     = 0x7ac043;   // green hills matching Skybox3D
 const FLOWER_COLORS = [0xffea44, 0xff88aa, 0xfafafa, 0xff7722];   // yellow/pink/white/orange
 
@@ -66,107 +63,48 @@ class EnvironmentChunk {
     grass.position.set(xBase + this._sign * grassW / 2, -0.01, (Z_NEAR + Z_FAR) / 2);
     this._add(grass);
 
-    // ── Trees (cone foliage + cylinder trunk, InstancedMesh) ─────────────────
-    const TREE_COUNT = 18;
-    const foliageGeo = new THREE.ConeGeometry(0.7, 2.2, 7);
-    const trunkGeo   = new THREE.CylinderGeometry(0.12, 0.16, 0.9, 6);
-
-    for (const color of TREE_FOLIAGE) {
-      const foliageMat = new THREE.MeshLambertMaterial({ color });
-      const trunkMat   = new THREE.MeshLambertMaterial({ color: TREE_TRUNK });
-      const foliageIM  = new THREE.InstancedMesh(foliageGeo, foliageMat, TREE_COUNT);
-      const trunkIM    = new THREE.InstancedMesh(trunkGeo,   trunkMat,   TREE_COUNT);
-      foliageIM.count = 0;
-      trunkIM.count   = 0;
-      this._add(foliageIM);
-      this._add(trunkIM);
-    }
-    const foliageIMs = this._meshes.slice(-TREE_FOLIAGE.length * 2, -0).filter((_, i) => i % 2 === 0);
-    // Rebuild with actual indices
-    const foliageIM0 = this._meshes[this._meshes.length - TREE_FOLIAGE.length * 2];
-    const trunkIM0   = this._meshes[this._meshes.length - TREE_FOLIAGE.length * 2 + 1];
-    const foliageIM1 = this._meshes[this._meshes.length - TREE_FOLIAGE.length * 2 + 2];
-    const trunkIM1   = this._meshes[this._meshes.length - TREE_FOLIAGE.length * 2 + 3];
-    const foliageIM2 = this._meshes[this._meshes.length - TREE_FOLIAGE.length * 2 + 4];
-    const trunkIM2   = this._meshes[this._meshes.length - TREE_FOLIAGE.length * 2 + 5];
-    const treeIMs    = [
-      [foliageIM0, trunkIM0],
-      [foliageIM1, trunkIM1],
-      [foliageIM2, trunkIM2],
-    ];
-
-    const dummy = new THREE.Object3D();
+    // ── Trees — Kenney GLB models (tree-pine / tree-oak alternated) ──────────────
+    const TREE_MODELS = ['tree-pine', 'tree-oak'];
+    const TREE_COUNT  = 18;
     for (let i = 0; i < TREE_COUNT; i++) {
-      const x = xBase + this._sign * (rng() * (SIDE_DEPTH - 0.5) + 0.5);
-      const z = Z_FAR  + rng() * Z_RANGE;
-      const s = 0.7 + rng() * 0.6;
-      const ti = Math.floor(rng() * TREE_FOLIAGE.length);
-      const [fIM, tIM] = treeIMs[ti];
-
-      // Trunk
-      dummy.position.set(x, 0.45 * s, z);
-      dummy.scale.set(s, s, s);
-      dummy.rotation.set(0, 0, 0);
-      dummy.updateMatrix();
-      tIM.setMatrixAt(tIM.count++, dummy.matrix);
-
-      // Foliage (cone, sitting on top of trunk)
-      dummy.position.set(x, (0.9 + 1.1) * s, z);
-      dummy.updateMatrix();
-      fIM.setMatrixAt(fIM.count++, dummy.matrix);
-    }
-    for (const [fIM, tIM] of treeIMs) {
-      fIM.instanceMatrix.needsUpdate = true;
-      tIM.instanceMatrix.needsUpdate = true;
+      const x    = xBase + this._sign * (rng() * (SIDE_DEPTH - 0.5) + 0.5);
+      const z    = Z_FAR + rng() * Z_RANGE;
+      const s    = 0.7 + rng() * 0.6;
+      const name = TREE_MODELS[i % TREE_MODELS.length];
+      const g    = assetLoader.getModel(name);
+      g.scale.setScalar(s);
+      g.position.set(x, 0, z);
+      g.rotation.y = rng() * Math.PI * 2;
+      this._add(g);
     }
 
-    // ── Bushes (spheres, InstancedMesh) ───────────────────────────────────────
+    // ── Bushes — Kenney GLB model (plant_bushLarge) ────────────────────────────
     const BUSH_COUNT = 28;
-    const bushGeo    = new THREE.SphereGeometry(0.35, 6, 5);
-    for (const color of BUSH_COLOR) {
-      const mat = new THREE.MeshLambertMaterial({ color });
-      const im  = new THREE.InstancedMesh(bushGeo, mat, BUSH_COUNT);
-      im.count  = 0;
-      this._add(im);
-    }
-    const bushIMs = this._meshes.slice(-BUSH_COLOR.length);
     for (let i = 0; i < BUSH_COUNT; i++) {
-      const x  = xBase + this._sign * (rng() * (SIDE_DEPTH - 0.3) + 0.2);
-      const z  = Z_FAR + rng() * Z_RANGE;
-      const s  = 0.5 + rng() * 0.8;
-      const bi = Math.floor(rng() * BUSH_COLOR.length);
-      const im = bushIMs[bi];
-      dummy.position.set(x, 0.35 * s, z);
-      dummy.scale.set(s, s * 0.75, s);
-      dummy.rotation.set(0, rng() * Math.PI * 2, 0);
-      dummy.updateMatrix();
-      im.setMatrixAt(im.count++, dummy.matrix);
+      const x = xBase + this._sign * (rng() * (SIDE_DEPTH - 0.3) + 0.2);
+      const z = Z_FAR + rng() * Z_RANGE;
+      const s = 0.5 + rng() * 0.8;
+      const g = assetLoader.getModel('bush');
+      g.scale.set(s, s * 0.75, s);
+      g.position.set(x, 0, z);
+      g.rotation.y = rng() * Math.PI * 2;
+      this._add(g);
     }
-    for (const im of bushIMs) im.instanceMatrix.needsUpdate = true;
 
-    // ── Rocks (boxes, InstancedMesh) ──────────────────────────────────────────
-    const ROCK_COUNT = 22;
-    const rockGeo    = new THREE.BoxGeometry(0.5, 0.32, 0.42);
-    for (const color of ROCK_COLOR) {
-      const mat = new THREE.MeshLambertMaterial({ color });
-      const im  = new THREE.InstancedMesh(rockGeo, mat, ROCK_COUNT);
-      im.count  = 0;
-      this._add(im);
-    }
-    const rockIMs = this._meshes.slice(-ROCK_COLOR.length);
+    // ── Rocks — Kenney GLB models (rock-large / rock-small) ───────────────────
+    const ROCK_MODELS = ['rock-large', 'rock-small'];
+    const ROCK_COUNT  = 22;
     for (let i = 0; i < ROCK_COUNT; i++) {
-      const x  = xBase + this._sign * (rng() * (SIDE_DEPTH - 0.2) + 0.1);
-      const z  = Z_FAR + rng() * Z_RANGE;
-      const s  = 0.5 + rng() * 1.2;
-      const ri = Math.floor(rng() * ROCK_COLOR.length);
-      const im = rockIMs[ri];
-      dummy.position.set(x, 0.16 * s, z);
-      dummy.scale.set(s, s * (0.6 + rng() * 0.5), s * (0.8 + rng() * 0.4));
-      dummy.rotation.set(0, rng() * Math.PI * 2, rng() * 0.3);
-      dummy.updateMatrix();
-      im.setMatrixAt(im.count++, dummy.matrix);
+      const x    = xBase + this._sign * (rng() * (SIDE_DEPTH - 0.2) + 0.1);
+      const z    = Z_FAR + rng() * Z_RANGE;
+      const s    = 0.5 + rng() * 1.2;
+      const name = ROCK_MODELS[i % ROCK_MODELS.length];
+      const g    = assetLoader.getModel(name);
+      g.scale.set(s, s * (0.6 + rng() * 0.5), s * (0.8 + rng() * 0.4));
+      g.position.set(x, 0, z);
+      g.rotation.y = rng() * Math.PI * 2;
+      this._add(g);
     }
-    for (const im of rockIMs) im.instanceMatrix.needsUpdate = true;
 
     // ── Flowers (tiny flat discs scattered near road) ─────────────────────────
     const FLOWER_COUNT = 60;
@@ -200,9 +138,18 @@ class EnvironmentChunk {
   dispose() {
     for (const m of this._meshes) {
       this._scene.remove(m);
-      m.geometry?.dispose();
-      if (Array.isArray(m.material)) m.material.forEach(mat => mat.dispose());
-      else m.material?.dispose();
+      if (m.isGroup) {
+        // GLB clone — dispose per-instance materials only; geometries are shared across clones.
+        m.traverse(node => {
+          if (!node.isMesh) return;
+          const mats = Array.isArray(node.material) ? node.material : [node.material];
+          for (const mat of mats) mat.dispose();
+        });
+      } else {
+        m.geometry?.dispose();
+        if (Array.isArray(m.material)) m.material.forEach(mat => mat.dispose());
+        else m.material?.dispose();
+      }
     }
     this._meshes = [];
   }

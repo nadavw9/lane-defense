@@ -1,14 +1,17 @@
-// CarTypes — fixed HP values and 3D geometry scale factors for each car type.
+// CarTypes — HP values for each car type.
 // CarDirector uses pickCarType() to assign a type to each normal car spawn.
-// Car3D reads car.type to apply the matching geometry scale and visual variant.
+// Car3D uses TYPE_SCALES (in Car3D.js) for visual sizing; the GLB asset for
+// each type is mapped in AssetLoader.CAR_ASSET_MAP:
+//   small → bike.glb, big → sedan.glb, jeep → van.glb,
+//   truck → truck.glb, bigrig → bigrig.glb, tank → tank.glb (fallback box)
 
 export const CAR_TYPES = {
-  small:  { hp:  2, scaleX: 1.00, scaleY: 1.00, scaleZ: 1.00, label: 'Motorbike' },
-  big:    { hp:  4, scaleX: 1.00, scaleY: 1.00, scaleZ: 1.00, label: 'Sedan'     },
-  jeep:   { hp:  5, scaleX: 1.00, scaleY: 1.00, scaleZ: 1.00, label: 'Van'       },
-  truck:  { hp:  6, scaleX: 1.00, scaleY: 1.00, scaleZ: 1.00, label: 'Truck'     },
-  bigrig: { hp: 10, scaleX: 0.90, scaleY: 0.75, scaleZ: 0.65, label: 'Big Rig'  },
-  tank:   { hp: 20, scaleX: 1.10, scaleY: 1.10, scaleZ: 0.90, label: 'Tank'     },
+  small:  { hp:  2, label: 'Motorbike' },
+  big:    { hp:  4, label: 'Sedan'     },
+  jeep:   { hp:  5, label: 'Van'       },
+  truck:  { hp:  6, label: 'Truck'     },
+  bigrig: { hp: 10, label: 'Big Rig'   },
+  tank:   { hp: 20, label: 'Tank'      },
 };
 
 // ── Level-band weight tables ───────────────────────────────────────────────────

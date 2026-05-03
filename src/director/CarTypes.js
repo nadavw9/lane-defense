@@ -3,11 +3,12 @@
 // Car3D reads car.type to apply the matching geometry scale and visual variant.
 
 export const CAR_TYPES = {
-  small: { hp:  2, scaleX: 0.80, scaleY: 0.80, scaleZ: 0.85, label: 'Compact' },
-  big:   { hp:  4, scaleX: 1.00, scaleY: 1.00, scaleZ: 1.00, label: 'Sedan'   },
-  jeep:  { hp:  5, scaleX: 1.05, scaleY: 1.10, scaleZ: 1.10, label: 'Jeep'    },
-  truck: { hp:  6, scaleX: 1.20, scaleY: 1.10, scaleZ: 1.20, label: 'Truck'   },
-  tank:  { hp: 20, scaleX: 1.40, scaleY: 1.20, scaleZ: 1.50, label: 'Tank'    },
+  small:  { hp:  2, scaleX: 1.00, scaleY: 1.00, scaleZ: 1.00, label: 'Motorbike' },
+  big:    { hp:  4, scaleX: 1.00, scaleY: 1.00, scaleZ: 1.00, label: 'Sedan'     },
+  jeep:   { hp:  5, scaleX: 1.00, scaleY: 1.00, scaleZ: 1.00, label: 'Van'       },
+  truck:  { hp:  6, scaleX: 1.00, scaleY: 1.00, scaleZ: 1.00, label: 'Truck'     },
+  bigrig: { hp: 10, scaleX: 0.90, scaleY: 0.75, scaleZ: 0.65, label: 'Big Rig'  },
+  tank:   { hp: 20, scaleX: 1.10, scaleY: 1.10, scaleZ: 0.90, label: 'Tank'     },
 };
 
 // ── Level-band weight tables ───────────────────────────────────────────────────
@@ -32,21 +33,21 @@ const WEIGHTS_MID = {
   RELIEF:   [{ value: 'small', weight: 45 }, { value: 'big', weight: 40 }, { value: 'jeep', weight: 15 }],
 };
 
-// L9–12: truck unlocked.  Challenging phase approaching W1 standard.
+// L9–12: truck unlocked.  Bigrig appears at low weight in climax/pressure.
 const WEIGHTS_HARD = {
   CALM:     [{ value: 'small', weight: 30 }, { value: 'big', weight: 40 }, { value: 'jeep', weight: 25 }, { value: 'truck', weight: 5  }],
   BUILD:    [{ value: 'small', weight: 15 }, { value: 'big', weight: 35 }, { value: 'jeep', weight: 35 }, { value: 'truck', weight: 15 }],
-  PRESSURE: [{ value: 'big',  weight: 15 }, { value: 'jeep', weight: 40 }, { value: 'truck', weight: 45 }],
-  CLIMAX:   [{ value: 'jeep', weight: 25 }, { value: 'truck', weight: 75 }],
+  PRESSURE: [{ value: 'big',  weight: 10 }, { value: 'jeep', weight: 35 }, { value: 'truck', weight: 40 }, { value: 'bigrig', weight: 15 }],
+  CLIMAX:   [{ value: 'jeep', weight: 20 }, { value: 'truck', weight: 55 }, { value: 'bigrig', weight: 25 }],
   RELIEF:   [{ value: 'small', weight: 35 }, { value: 'big', weight: 40 }, { value: 'jeep', weight: 20 }, { value: 'truck', weight: 5  }],
 };
 
-// L13+: all types including tank.  FR-4 still caps tank HP if max damage < 8.
+// L13+: all types including bigrig + tank.  FR-4 still caps tank HP if max damage < 8.
 const WEIGHTS_FULL = {
   CALM:     [{ value: 'small', weight: 25 }, { value: 'big', weight: 35 }, { value: 'jeep', weight: 25 }, { value: 'truck', weight: 15 }],
-  BUILD:    [{ value: 'small', weight: 10 }, { value: 'big', weight: 25 }, { value: 'jeep', weight: 35 }, { value: 'truck', weight: 25 }, { value: 'tank', weight: 5  }],
-  PRESSURE: [{ value: 'big',  weight: 10 }, { value: 'jeep', weight: 30 }, { value: 'truck', weight: 40 }, { value: 'tank', weight: 20 }],
-  CLIMAX:   [{ value: 'jeep', weight: 10 }, { value: 'truck', weight: 35 }, { value: 'tank', weight: 55 }],
+  BUILD:    [{ value: 'small', weight: 10 }, { value: 'big', weight: 20 }, { value: 'jeep', weight: 30 }, { value: 'truck', weight: 25 }, { value: 'bigrig', weight: 10 }, { value: 'tank', weight: 5  }],
+  PRESSURE: [{ value: 'big',  weight: 5  }, { value: 'jeep', weight: 25 }, { value: 'truck', weight: 35 }, { value: 'bigrig', weight: 20 }, { value: 'tank', weight: 15 }],
+  CLIMAX:   [{ value: 'jeep', weight: 5  }, { value: 'truck', weight: 25 }, { value: 'bigrig', weight: 30 }, { value: 'tank', weight: 40 }],
   RELIEF:   [{ value: 'small', weight: 30 }, { value: 'big', weight: 40 }, { value: 'jeep', weight: 20 }, { value: 'truck', weight: 10 }],
 };
 

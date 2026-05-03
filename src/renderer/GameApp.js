@@ -14,6 +14,7 @@
 import { Application, Assets, Container, Graphics, Text } from 'pixi.js';
 
 import { GameRenderer3D }  from '../renderer3d/GameRenderer3D.js';
+import { assetLoader }     from '../renderer3d/AssetLoader.js';
 import { LayerManager }    from './LayerManager.js';
 import { LaneRenderer, laneCenterX, posToScreenY, ROAD_TOP_Y, ROAD_BOTTOM_Y } from './LaneRenderer.js';
 import { spriteFlags }     from './SpriteFlags.js';
@@ -210,6 +211,12 @@ async function main() {
     spriteFlags.loaded = true;
   } catch (e) {
     console.warn('[GameApp] Sprite loading failed — using programmatic graphics fallback.', e);
+  }
+
+  try {
+    await assetLoader.loadAll();
+  } catch (e) {
+    console.warn('[GameApp] GLB loading failed — 3D models will use box fallback.', e);
   }
 
   loadBg.destroy();

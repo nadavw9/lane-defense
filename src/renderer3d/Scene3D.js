@@ -106,15 +106,15 @@ export class Scene3D {
     pmrem.dispose();
 
     // ── Road camera ──────────────────────────────────────────────────────────
-    this.camera = new THREE.PerspectiveCamera(65, width / height, 0.1, 200);
-    this.camera.position.set(0, 5.5, 12);
-    this.camera.lookAt(0, 0, -6);
+    this.camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 200);
+    this.camera.position.set(0, 4.0, 7.5);
+    this.camera.lookAt(0, 0.6, -3);
     this.camera.layers.set(0);
 
     // ── HP sprite camera ─────────────────────────────────────────────────────
-    this.hpCamera = new THREE.PerspectiveCamera(65, width / height, 0.1, 200);
-    this.hpCamera.position.set(0, 5.5, 12);
-    this.hpCamera.lookAt(0, 0, -6);
+    this.hpCamera = new THREE.PerspectiveCamera(45, width / height, 0.1, 200);
+    this.hpCamera.position.set(0, 4.0, 7.5);
+    this.hpCamera.lookAt(0, 0.6, -3);
     this.hpCamera.layers.set(2);
 
     // ── Shooter viewport — top-down orthographic, adapts to lane count ────────

@@ -1,5 +1,6 @@
 // Car3D — manages all live car meshes in the 3D road scene.
-// Vehicle geometry comes from AssetLoader GLB models (Kenney Car Kit, CC0).
+// small/big/jeep/truck/bigrig → Kenney Car Kit GLB models (CC0).
+// tank → procedural geometry (no Kenney 3D tank exists; the kit is 2D sprites only).
 // HP sprite, damage darkening, smoke trail, death animation all preserved.
 
 import * as THREE from 'three';
@@ -13,12 +14,16 @@ const TYPE_SCALES = {
   jeep:   1.00,
   truck:  1.10,
   bigrig: 1.25,
-  tank:   1.15,
   boss:   1.35,
 };
 
-const CAR_Y           = 0;      // GLB wheel bottoms sit at y = 0
-const HL_Y            = 0.5;    // approximate headlight height
+const CAR_Y       = 0;     // GLB wheel bottoms sit at y = 0
+const CAR_Y_TANK  = 0.43;  // procedural tank group Y so tracks touch road
+const HL_Y        = 0.5;   // approximate headlight height for GLB cars
+
+// Coordinate constants for the procedural tank builder (ported from brand-cars.html)
+const SX = 1.74;           // X scale: design space → game width
+const OY = -CAR_Y_TANK;   // Y offset aligns tank geometry to road surface
 const HP_SPRITE_Y     = 2.2;    // world-Y for HP number sprite
 const HP_CANVAS_W     = 64;
 const HP_CANVAS_H     = 28;
@@ -55,7 +60,21 @@ function _isBodyMaterial(mat) {
   return hsl.s > 0.25 && hsl.l > 0.15 && hsl.l < 0.75;
 }
 
-// Shared geos that are never disposed
+// ── Material helpers for procedural tank ──────────────────────────────────────
+
+function _paintMat(hex) {
+  return new THREE.MeshStandardMaterial({
+    color: hex, metalness: 0.42, roughness: 0.48, transparent: true, opacity: 1,
+    emissive: new THREE.Color(0x181818), emissiveIntensity: 0.12,
+  });
+}
+function _darkMat(hex = 0x1a1a1a) {
+  return new THREE.MeshStandardMaterial({ color: hex, metalness: 0.20, roughness: 0.80, transparent: true, opacity: 1 });
+}
+function _tireMat() { return _darkMat(0x111114); }
+
+// ── Shared geos that are never disposed ────────────────────────────────────────
+
 let _shadowGeo    = null;
 let _bossTorusGeo = null;
 function _ensureSharedGeos() {
@@ -126,7 +145,7 @@ export class Car3D {
           entry.renderZ = entry.targetZ;
           g.rotation.x  = 0;
         }
-        g.position.set(laneToX(laneIdx), CAR_Y, entry.renderZ);
+        g.position.set(laneToX(laneIdx), entry.groupY, entry.renderZ);
         if (entry.shadowMesh) entry.shadowMesh.position.set(laneToX(laneIdx), 0.005, entry.renderZ);
 
         // Wheel spin
@@ -238,53 +257,59 @@ export class Car3D {
     const colorMats  = [];
     const colorBaseHexes = [];
 
-    const group = assetLoader.getModel(car.type);
-    group.scale.setScalar(TYPE_SCALES[car.type] ?? 1.0);
+    let group, bodyMat, turretGroup = null, wheels = [], headLights = [];
 
-    // Ensure all materials support transparency (needed for death fade + damage)
-    group.traverse(node => {
-      if (!node.isMesh) return;
-      const mats = Array.isArray(node.material) ? node.material : [node.material];
-      for (const m of mats) { m.transparent = true; m.opacity = 1; }
-    });
+    if (car.type === 'tank') {
+      // ── Tank: procedural builder (Kenney has no 3D tank GLB) ─────────────────
+      group = new THREE.Group();
+      const result = this._buildTank(group, hex, colorMats, colorBaseHexes);
+      bodyMat      = result.bodyMat;
+      turretGroup  = result.turretGroup;
+      if (group.userData.tankPtLight) headLights.push(group.userData.tankPtLight);
 
-    // Tint body materials to this car's lane color
-    let bodyMat = null;
-    group.traverse(node => {
-      if (!node.isMesh) return;
-      const mats = Array.isArray(node.material) ? node.material : [node.material];
-      for (const mat of mats) {
-        if (!_isBodyMaterial(mat)) continue;
-        mat.color.setHex(hex);
-        if (!bodyMat) bodyMat = mat;
-        colorMats.push(mat);
+    } else {
+      // ── All other types: Kenney Car Kit GLB ───────────────────────────────────
+      group = assetLoader.getModel(car.type);
+      group.scale.setScalar(TYPE_SCALES[car.type] ?? 1.0);
+
+      // Ensure all materials support transparency (needed for death fade + damage)
+      group.traverse(node => {
+        if (!node.isMesh) return;
+        const mats = Array.isArray(node.material) ? node.material : [node.material];
+        for (const m of mats) { m.transparent = true; m.opacity = 1; }
+      });
+
+      // Tint body materials to this car's lane color
+      group.traverse(node => {
+        if (!node.isMesh) return;
+        const mats = Array.isArray(node.material) ? node.material : [node.material];
+        for (const mat of mats) {
+          if (!_isBodyMaterial(mat)) continue;
+          mat.color.setHex(hex);
+          if (!bodyMat) bodyMat = mat;
+          colorMats.push(mat);
+          colorBaseHexes.push(hex);
+        }
+      });
+
+      // Fallback: if no body material detected, create one manually
+      if (!bodyMat) {
+        bodyMat = new THREE.MeshStandardMaterial({ color: hex, transparent: true, opacity: 1 });
+        colorMats.push(bodyMat);
         colorBaseHexes.push(hex);
       }
-    });
 
-    // Fallback: if no body material detected, create one manually
-    if (!bodyMat) {
-      bodyMat = new THREE.MeshStandardMaterial({ color: hex, transparent: true, opacity: 1 });
-      colorMats.push(bodyMat);
-      colorBaseHexes.push(hex);
+      // Find wheels by mesh name for spin animation
+      group.traverse(node => {
+        if (node.isMesh && /wheel|tire|tyre/i.test(node.name)) wheels.push(node);
+      });
+
+      // Headlight point light at front of car
+      const ptLight = new THREE.PointLight(0xffffaa, car.type === 'boss' ? 0.80 : 0.30, 4);
+      ptLight.position.set(0, HL_Y, 1.2);
+      group.add(ptLight);
+      headLights.push(ptLight);
     }
-
-    // Find wheels by mesh name for spin animation
-    const wheels = [];
-    group.traverse(node => {
-      if (node.isMesh && /wheel|tire|tyre/i.test(node.name)) wheels.push(node);
-    });
-
-    // Find turret (tank models may have a node named "turret")
-    let turretGroup = null;
-    group.traverse(node => { if (/turret/i.test(node.name)) turretGroup = node; });
-
-    // Headlight point light at front of car
-    const headLights = [];
-    const ptLight = new THREE.PointLight(0xffffaa, car.type === 'boss' ? 0.80 : 0.30, 4);
-    ptLight.position.set(0, HL_Y, 1.2);
-    group.add(ptLight);
-    headLights.push(ptLight);
 
     // Boss ring
     let bossRing = null, bossRingMat = null;
@@ -353,7 +378,8 @@ export class Car3D {
     shadowMesh.position.set(laneToX(laneIdx), 0.005, posToZ(car.position));
     this._scene.add(shadowMesh);
 
-    group.position.set(laneToX(laneIdx), CAR_Y, posToZ(car.position));
+    const groupY = car.type === 'tank' ? CAR_Y_TANK : CAR_Y;
+    group.position.set(laneToX(laneIdx), groupY, posToZ(car.position));
     this._scene.add(group);
 
     const startZ = posToZ(car.position);
@@ -364,13 +390,92 @@ export class Car3D {
       lastHp: -1, lastCrackStage: -1,
       laneIdx, bossRing, bossRingMat, bossAngle: 0,
       smokeMesh, smokeTex: null, crackCanvas, crackCtx, crackTex, crackMesh,
-      shadowMesh, shadowMat,
+      shadowMesh, shadowMat, groupY,
       renderZ: startZ, targetZ: startZ, lerpStartZ: startZ, lerpT: 1.0,
     };
     // Intentionally unused smokeTex ref (smoke canvas is owned by smokeMesh.material.map)
     entry.smokeTex = smokeTex;
     this._drawHpBar(entry, car);
     return entry;
+  }
+
+  // ── Procedural tank builder ────────────────────────────────────────────────────
+  // Used because Kenney's "Tanks" pack is 2D-sprite-only (no GLB available).
+  // Hull sits at y = CAR_Y_TANK so the group is positioned the same way as legacy cars.
+
+  _buildTank(group, hex, colorMats, colorBaseHexes) {
+    const w = 1.55 * SX, l = 2.8;
+    const bm = _paintMat(hex);
+    const dm = _darkMat(0x3a3a3a);
+    const tm = _tireMat();
+    const camoMat = new THREE.MeshStandardMaterial({ color: 0x6a7a3a, roughness: 0.85, transparent: true, opacity: 1 });
+    colorMats.push(bm); colorBaseHexes.push(hex);
+
+    const hull = new THREE.Mesh(new THREE.BoxGeometry(w, 0.5, l - 0.4), bm);
+    hull.position.set(0, 0.55 + OY, 0); hull.castShadow = hull.receiveShadow = true; group.add(hull);
+
+    const front = new THREE.Mesh(new THREE.BoxGeometry(w, 0.30, 0.5), dm);
+    front.position.set(0, 0.48 + OY, l / 2 - 0.25); front.rotation.x = -0.25; group.add(front);
+
+    for (const [x, y, z, h, xs, zs] of [
+      [ 0.4 * SX, 0.85 + OY,  0.3, 0.08, 0.5 * SX, 0.4],
+      [-0.5 * SX, 0.85 + OY, -0.4, 0.10, 0.4 * SX, 0.5],
+      [ 0.0,      0.85 + OY, -0.9, 0.06, 0.6 * SX, 0.3],
+    ]) {
+      const patch = new THREE.Mesh(new THREE.BoxGeometry(xs, h, zs), camoMat);
+      patch.position.set(x, y, z); group.add(patch);
+    }
+
+    for (const s of [-1, 1]) {
+      const trackBase = new THREE.Mesh(new THREE.BoxGeometry(0.28 * SX, 0.36, l), dm);
+      trackBase.position.set(s * (w / 2 + 0.04 * SX), 0.22 + OY, 0); group.add(trackBase);
+      for (let i = 0; i < 9; i++) {
+        const tread = new THREE.Mesh(new THREE.BoxGeometry(0.32 * SX, 0.06, 0.12), tm);
+        tread.position.set(s * (w / 2 + 0.04 * SX), 0.42 + OY, -l / 2 + 0.2 + i * (l - 0.4) / 8);
+        group.add(tread);
+      }
+      for (let i = 0; i < 5; i++) {
+        const rw = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.10, 12), tm);
+        rw.rotation.z = Math.PI / 2;
+        rw.position.set(s * (w / 2 + 0.04 * SX), 0.18 + OY, -l / 2 + 0.32 + i * (l - 0.6) / 4);
+        group.add(rw);
+      }
+    }
+
+    const turretGroup = new THREE.Group();
+    const turretBody  = new THREE.Mesh(new THREE.CylinderGeometry(0.55 * SX, 0.65 * SX, 0.42, 12), bm);
+    turretBody.position.y = 0.21; turretGroup.add(turretBody);
+    const hatch = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.10, 12), dm);
+    hatch.position.y = 0.47; turretGroup.add(hatch);
+    const breech = new THREE.Mesh(new THREE.BoxGeometry(0.22 * SX, 0.22, 0.4), dm);
+    breech.position.set(0, 0.21, 0.45); turretGroup.add(breech);
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.10, 1.4, 12), dm);
+    barrel.rotation.x = Math.PI / 2; barrel.position.set(0, 0.21, 1.25); turretGroup.add(barrel);
+    const muzzle = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.10, 0.18, 12), dm);
+    muzzle.rotation.x = Math.PI / 2; muzzle.position.set(0, 0.21, 1.95); turretGroup.add(muzzle);
+    turretGroup.position.set(0, 0.85 + OY, -0.1);
+    group.add(turretGroup);
+
+    const R = 0.18 * SX, r = 0.075 * SX;
+    const starShape = new THREE.Shape();
+    for (let i = 0; i < 10; i++) {
+      const rad = i % 2 === 0 ? R : r;
+      const a   = -Math.PI / 2 + (i / 10) * Math.PI * 2;
+      if (i === 0) starShape.moveTo(Math.cos(a) * rad, Math.sin(a) * rad);
+      else         starShape.lineTo(Math.cos(a) * rad, Math.sin(a) * rad);
+    }
+    starShape.closePath();
+    const star = new THREE.Mesh(new THREE.ShapeGeometry(starShape),
+      new THREE.MeshStandardMaterial({ color: 0xf0f0e0, transparent: true, opacity: 1 }));
+    star.rotation.x = -Math.PI / 2;
+    star.position.set(0, 1.31 + OY, -0.2);
+    group.add(star);
+
+    const ptLight = new THREE.PointLight(0xffffaa, 0.30, 4);
+    ptLight.position.set(0, 0.60 + OY, l / 2 + 0.2); group.add(ptLight);
+    group.userData.tankPtLight = ptLight;
+
+    return { bodyMat: bm, turretGroup };
   }
 
   // ── HP bar canvas ──────────────────────────────────────────────────────────────
@@ -443,9 +548,11 @@ export class Car3D {
   }
 
   _disposeGroup(group) {
+    const isTankGroup = !!group.userData.tankPtLight;
     group.traverse(obj => {
       // GLB geometries are shared across clones — do not dispose them.
-      // Materials are per-instance clones (AssetLoader.getModel clones them) — safe to dispose.
+      // Procedural tank geometries are unique per instance — safe to dispose.
+      if (isTankGroup && obj.geometry) obj.geometry.dispose();
       if (obj.material) {
         const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
         for (const m of mats) m.dispose();

@@ -65,6 +65,7 @@ import { ShopScreen }             from '../screens/ShopScreen.js';
 import { DailyRewardScreen }      from '../screens/DailyRewardScreen.js';
 import { SettingsScreen }         from '../screens/SettingsScreen.js';
 import { PauseScreen }            from '../screens/PauseScreen.js';
+import { TutorialOrchestrator }   from '../screens/TutorialOrchestrator.js';
 import { AchievementsScreen }     from '../screens/AchievementsScreen.js';
 import { StatsScreen }            from '../screens/StatsScreen.js';
 import { SurvivalScreen }          from '../screens/SurvivalScreen.js';
@@ -331,9 +332,9 @@ async function main() {
   const comboGlow     = new ComboGlow(layers, APP_W, APP_H);
   const boosterBar    = new BoosterBar(
     layers, boosterState, gs, APP_W,
-    () => { audio.play('booster_activate'); boosterState.activateSwap(); boostersUsedThisLevel.push('swap'); },
-    () => { audio.play('booster_activate'); boosterState.activatePeek(gs.elapsed); boostersUsedThisLevel.push('peek'); },
-    () => { audio.play('booster_activate'); boosterState.activateFreeze(gs.elapsed); boostersUsedThisLevel.push('freeze'); },
+    () => { audio.play('booster_activate'); boosterState.activateSwap(); boostersUsedThisLevel.push('swap'); tutOrch?.completeIfActive('swap'); },
+    () => { audio.play('booster_activate'); boosterState.activatePeek(gs.elapsed); boostersUsedThisLevel.push('peek'); tutOrch?.completeIfActive('peek'); },
+    () => { audio.play('booster_activate'); boosterState.activateFreeze(gs.elapsed); boostersUsedThisLevel.push('freeze'); tutOrch?.completeIfActive('freeze'); },
     () => {
       // BOMB button — toggle placement mode on/off.
       if (boosterState.bombMode) {
@@ -343,6 +344,7 @@ async function main() {
         audio.play('booster_activate');
         bombReticle.show();
         boostersUsedThisLevel.push('bomb');
+        tutOrch?.completeIfActive('bomb');
       }
     },
     () => {
@@ -378,6 +380,7 @@ async function main() {
 
   // ── FTUE overlay ──────────────────────────────────────────────────────────
   let ftueOverlay = null;  // created in _startLevel
+  let tutOrch     = null;  // assigned after gameLoop is constructed
 
   // ── End-of-game screens ───────────────────────────────────────────────────
   let winScreen        = null;
@@ -473,6 +476,7 @@ async function main() {
     ftueOverlay?.destroy();         ftueOverlay      = null;
     unlockScreen?.destroy();        unlockScreen     = null;
     boosterSpotlight?.destroy();    boosterSpotlight = null;
+    tutOrch?.dismiss();
 
     // Resolve config from either a number or a pre-built config object.
     let cfg;
@@ -566,6 +570,13 @@ async function main() {
     const UNLOCK_LEVELS = [6, 8, 12, 14];
     // Maps level ID → booster bar key for the spotlight (level 6 = bench, no spotlight)
     const SPOTLIGHT_BOOSTER = { 8: 'swap', 12: 'peek', 14: 'freeze' };
+    // Spotlight-to-tutorial configs for each booster (bounds match BoosterBar layout)
+    const TUTOR_BOOSTER = {
+      swap:   { id: 'swap',   text: 'SWAP — tap to swap two shooters instantly!',        bounds: { x: 49,  y: 760, w: 52, h: 52 }, handStart: { x: 75,  y: 728 }, handEnd: { x: 75,  y: 786 } },
+      peek:   { id: 'peek',   text: 'PEEK — tap to preview the next incoming cars!',     bounds: { x: 109, y: 760, w: 52, h: 52 }, handStart: { x: 135, y: 728 }, handEnd: { x: 135, y: 786 } },
+      freeze: { id: 'freeze', text: 'FREEZE — tap to stop all cars for a few seconds!', bounds: { x: 169, y: 760, w: 52, h: 52 }, handStart: { x: 195, y: 728 }, handEnd: { x: 195, y: 786 } },
+    };
+
     if (!currentLevelIsDaily && UNLOCK_LEVELS.includes(levelId) && !progress.hasSeenUnlock(levelId)) {
       gameLoop.pause();
       unlockScreen = new BoosterUnlockScreen(app.stage, APP_W, APP_H, levelId, {
@@ -578,9 +589,20 @@ async function main() {
             boosterSpotlight = new BoosterSpotlight(app.stage, APP_W, APP_H, spotBooster, () => {
               boosterSpotlight = null;
               gameLoop.resume();
+              const tc = TUTOR_BOOSTER[spotBooster];
+              if (tc) tutOrch?.start({ ...tc, pauseGame: true });
             });
           } else {
             gameLoop.resume();
+            // L6 bench tutorial
+            tutOrch?.start({
+              id:        'bench',
+              text:      'New BENCH — drag a shooter here to store it for later!',
+              bounds:    { x: 0, y: 703, w: 390, h: 50 },
+              handStart: { x: 195, y: 672 },
+              handEnd:   { x: 195, y: 728 },
+              pauseGame: true,
+            });
           }
         },
       });
@@ -598,6 +620,21 @@ async function main() {
     // ── Level intro splash ("LEVEL X" bounce-in) ──────────────────────────
     if (typeof levelIdOrConfig === 'number') {
       _showLevelIntroSplash(levelManager.levelNumber);
+    }
+
+    // L1 first-car tutorial: show when cars first appear (pauseGame: false so
+    // cars move slowly past and the player can see what to do)
+    if (levelId === 1) {
+      app.ticker.addOnce(() => {
+        tutOrch?.start({
+          id:        'first_car',
+          text:      'Cars incoming! Drag a shooter onto a lane — colors must match.',
+          bounds:    null,
+          handStart: null,
+          handEnd:   null,
+          pauseGame: false,
+        });
+      });
     }
 
     // ── Switch to 3D renderer for gameplay ────────────────────────────────
@@ -1147,6 +1184,7 @@ async function main() {
     },
 
     onShoot: (damage, laneIdx, colIdx) => {
+      tutOrch?.completeIfActive('first_car');
       audio.play('shoot', { damage });
       featureBanners.fire('first_shot', 'Direct hit! Color-matched shots deal damage to cars.');
 
@@ -1257,6 +1295,14 @@ async function main() {
       layers.get('particleLayer'), APP_W * 0.88, 748,
       '💣 +1 BOMB', 0xffaa00,
     ));
+    tutOrch?.start({
+      id:        'bomb',
+      text:      '💣 BOMB earned — tap it, then tap a lane to blast every car on it!',
+      bounds:    { x: 289, y: 760, w: 52, h: 52 },
+      handStart: { x: 315, y: 728 },
+      handEnd:   { x: 315, y: 786 },
+      pauseGame: true,
+    });
   };
   gameLoop._onBombExplode = (bombPos, carsHit) => {
     gameRenderer3D.onBombExplode(bombPos, carsHit);
@@ -1272,6 +1318,9 @@ async function main() {
       ));
     }
   };
+
+  // ── Tutorial orchestrator (needs gameLoop ref, created here) ─────────────
+  tutOrch = new TutorialOrchestrator(app.stage, gameLoop);
 
   // ── Input ────────────────────────────────────────────────────────────────
   const dragDrop = new DragDrop(
@@ -1296,8 +1345,8 @@ async function main() {
         benchAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
       },
       onBenchStore: (_colIdx) => {
+        tutOrch?.completeIfActive('bench');
         // Column refills automatically via ShooterDirector next tick.
-        // No audio currently — bench storage is a silent action.
       },
       onColorMismatch: () => {
         audio.play('hit_miss');
@@ -1386,6 +1435,7 @@ async function main() {
     laneRenderer.update(gs.elapsed);
     unlockScreen?.update(dt);
     boosterSpotlight?.update(dt);
+    tutOrch?.update(dt);
 
     // Juice updates
     laneFlash.update(dt);
@@ -1420,7 +1470,7 @@ async function main() {
     tickFloatingTexts(floatingTexts, dt);
 
     // ── Popup queue ────────────────────────────────────────────────────────
-    popupQueue.setTutorialActive(!!ftueOverlay);
+    popupQueue.setTutorialActive(!!(ftueOverlay || tutOrch?.isAnyActive()));
     popupQueue.update(dt);
 
     // First-car FTUE banner: fires once the first enemy becomes visible.

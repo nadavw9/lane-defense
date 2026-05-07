@@ -27,8 +27,8 @@ const OY = -CAR_Y_TANK;   // Y offset aligns tank geometry to road surface
 const HP_SPRITE_Y     = 2.6;    // high enough to clear bigrig/tank rooflines
 const HP_CANVAS_W     = 96;     // wider for HP ratio + type badge
 const HP_CANVAS_H     = 52;     // HP pill (34px) + type badge row (16px)
-const HP_SPRITE_W     = 0.85;
-const HP_SPRITE_H     = 0.46;
+const HP_SPRITE_W     = 0.079; // ~80px: pixel_size = scale × 1019 (fov45, 390×844)
+const HP_SPRITE_H     = 0.041; // ~42px
 const DEATH_DURATION  = 0.30;
 const DEATH_SCALE_MAX = 1.40;
 const DEATH_VY        = 2.5;
@@ -352,7 +352,7 @@ export class Car3D {
     hpCanvas.height = HP_CANVAS_H;
     const hpCtx  = hpCanvas.getContext('2d');
     const hpTex  = new THREE.CanvasTexture(hpCanvas);
-    const hpMesh = new THREE.Sprite(new THREE.SpriteMaterial({ map: hpTex, transparent: true, depthTest: false }));
+    const hpMesh = new THREE.Sprite(new THREE.SpriteMaterial({ map: hpTex, transparent: true, depthTest: false, sizeAttenuation: false }));
     hpMesh.scale.set(HP_SPRITE_W, HP_SPRITE_H, 1);
     hpMesh.visible = true;
     this._scene.add(hpMesh);

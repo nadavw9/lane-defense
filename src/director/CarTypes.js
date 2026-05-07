@@ -3,7 +3,7 @@
 // Car3D uses TYPE_SCALES (in Car3D.js) for visual sizing; the GLB asset for
 // each type is mapped in AssetLoader.CAR_ASSET_MAP:
 //   small → bike.glb, big → sedan.glb, jeep → van.glb,
-//   truck → truck.glb, bigrig → bigrig.glb, tank → tank.glb (fallback box)
+//   truck → truck.glb, bigrig → bigrig.glb, tank → procedural (no GLB)
 
 export const CAR_TYPES = {
   small:  { hp:  2, label: 'Motorbike' },

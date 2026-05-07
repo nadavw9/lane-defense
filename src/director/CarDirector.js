@@ -161,7 +161,7 @@ export class CarDirector {
     const hp    = this._rng.nextInt(1, 2);
     const speed = worldConfig.speed.base +
       this._rng.nextFloat(-worldConfig.speed.variance, worldConfig.speed.variance);
-    return new Car({ color, hp, speed });
+    return new Car({ color, hp, speed, type: 'small' });
   }
 
   // Returns a random interval (3–7) before the next carry-over pair is injected.

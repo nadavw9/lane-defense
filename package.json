@@ -14,16 +14,17 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "howler": "^2.2.4",
     "pixi.js": "^8.17.1",
     "vite": "^8.0.3",
     "vitest": "^4.1.2"
   },
   "dependencies": {
-    "three": "^0.167.0",
     "@capacitor/android": "^8.3.0",
     "@capacitor/cli": "^8.3.0",
     "@capacitor/core": "^8.3.0",
-    "@capacitor/haptics": "^8.0.2"
+    "@capacitor/haptics": "^8.0.2",
+    "three": "^0.167.0"
   }
 }

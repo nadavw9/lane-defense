@@ -306,45 +306,43 @@ export class ShooterRenderer {
         }
       }
 
+      // ── Queue depth badge — "+N" pill, shown in both 2D and 3D modes ──────────
+      const qb         = this._queueBadges[i];
+      const queueDepth = (col.shooters?.length ?? 0) - 1;
+      if (queueDepth > 0) {
+        const badgeX = cx;
+        const badgeY = TOP_Y + TOP_RADIUS + 18;
+        qb.tx.text    = `+${queueDepth}`;
+        qb.tx.x       = badgeX;
+        qb.tx.y       = badgeY;
+        qb.tx.visible = true;
+        const tw = Math.max(28, (qb.tx.width || 0) + 10);
+        const th = 18;
+        qb.bg.clear();
+        qb.bg.roundRect(badgeX - tw / 2, badgeY - th / 2, tw, th, 9);
+        qb.bg.fill({ color: 0x1a1a2e, alpha: 0.85 });
+        qb.bg.roundRect(badgeX - tw / 2, badgeY - th / 2, tw, th, 9);
+        qb.bg.stroke({ color: 0x6666aa, width: 1, alpha: 0.7 });
+        qb.bg.visible = true;
+      } else {
+        qb.bg.clear();
+        qb.tx.visible = false;
+        qb.bg.visible = false;
+      }
+
       // In 3D mode: panels transparent, Shooter3D renders ALL visuals including
       // damage numbers as canvas sprites attached to each turret mesh.
       if (this._mode3D) {
         // Hide all PixiJS text overlays — 3D sprites handle damage display.
-        this._topTexts[i].visible    = false;
-        this._secondTexts[i].visible = false;
-        this._thirdTexts[i].visible  = false;
-        this._topContainers[i].alpha = 0;
-
-        // Queue depth badge — "+N" pill showing how many bombs are queued.
-        const qb         = this._queueBadges[i];
-        const queueDepth = (col.shooters?.length ?? 0) - 1;
-        if (queueDepth > 0) {
-          const badgeX = cx;
-          const badgeY = TOP_Y + TOP_RADIUS + 18;
-          qb.tx.text    = `+${queueDepth}`;
-          qb.tx.x       = badgeX;
-          qb.tx.y       = badgeY;
-          qb.tx.visible = true;
-          const tw = Math.max(28, (qb.tx.width || 0) + 10);
-          const th = 18;
-          qb.bg.clear();
-          qb.bg.roundRect(badgeX - tw / 2, badgeY - th / 2, tw, th, 9);
-          qb.bg.fill({ color: 0x1a1a2e, alpha: 0.85 });
-          qb.bg.roundRect(badgeX - tw / 2, badgeY - th / 2, tw, th, 9);
-          qb.bg.stroke({ color: 0x6666aa, width: 1, alpha: 0.7 });
-          qb.bg.visible = true;
-        } else {
-          qb.bg.clear();
-          qb.tx.visible = false;
-          qb.bg.visible = false;
-        }
+        this._topTexts[i].visible      = false;
+        this._secondTexts[i].visible   = false;
+        this._thirdTexts[i].visible    = false;
+        this._secondSprites[i].visible = false;
+        this._thirdSprites[i].visible  = false;
+        this._topContainers[i].alpha   = 0;
 
         continue;
       }
-
-      // Hide queue badges in 2D mode.
-      this._queueBadges[i].tx.visible = false;
-      this._queueBadges[i].bg.visible = false;
 
       // ── Programmatic fallback (no sprites) ──────────────────────────────────
       if (!spriteFlags.loaded) {
@@ -360,47 +358,11 @@ export class ShooterRenderer {
         continue;
       }
 
-      // ── Second shooter ──────────────────────────────────────────────────────
-      const second = col.shooters[1] ?? null;
-      const sp2    = this._secondSprites[i];
-      if (second) {
-        const tex = Assets.get(idleUrl(second.color));
-        if (tex && sp2.texture !== tex) { sp2.texture = tex; fitSprite(sp2, SECOND_DIAM); }
-        sp2.x = cx; sp2.y = SECOND_Y;
-        sp2.alpha   = 0.65;
-        sp2.visible = true;
-        this._secondTexts[i].text    = isColorblind()
-          ? `${SHAPES[second.color] ?? ''}${second.damage}`
-          : String(second.damage);
-        this._secondTexts[i].x       = cx;
-        this._secondTexts[i].y       = SECOND_Y;
-        this._secondTexts[i].alpha   = 0.65;
-        this._secondTexts[i].visible = true;
-      } else {
-        sp2.visible = false;
-        this._secondTexts[i].visible = false;
-      }
-
-      // ── Third shooter ───────────────────────────────────────────────────────
-      const third = col.shooters[2] ?? null;
-      const sp3   = this._thirdSprites[i];
-      if (third) {
-        const tex = Assets.get(idleUrl(third.color));
-        if (tex && sp3.texture !== tex) { sp3.texture = tex; fitSprite(sp3, THIRD_DIAM); }
-        sp3.x = cx; sp3.y = THIRD_Y;
-        sp3.alpha   = 0.40;
-        sp3.visible = true;
-        this._thirdTexts[i].text    = isColorblind()
-          ? `${SHAPES[third.color] ?? ''}${third.damage}`
-          : String(third.damage);
-        this._thirdTexts[i].x       = cx;
-        this._thirdTexts[i].y       = THIRD_Y;
-        this._thirdTexts[i].alpha   = 0.40;
-        this._thirdTexts[i].visible = true;
-      } else {
-        sp3.visible = false;
-        this._thirdTexts[i].visible = false;
-      }
+      // ── Second / third shooter — hidden; queue depth badge shows "+N" ────────
+      this._secondSprites[i].visible = false;
+      this._secondTexts[i].visible   = false;
+      this._thirdSprites[i].visible  = false;
+      this._thirdTexts[i].visible    = false;
 
       // ── Peek pips ───────────────────────────────────────────────────────────
       if (isPeeking) {

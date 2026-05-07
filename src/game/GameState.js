@@ -9,7 +9,8 @@ export class GameState {
   // laneCount / colCount — how many of the 4 lanes/columns are active.
   // The renderers always see all 4; inactive ones just have no cars/shooters.
   constructor({ lanes, columns, colors, world, duration, phaseMan,
-                laneCount, colCount, targetKills, gridRows }) {
+                laneCount, colCount, targetKills, gridRows,
+                spawnBudget, laneTargetCarCount }) {
     // ── Core collections ───────────────────────────────────────────────────
     this.lanes   = lanes;
     this.columns = columns;
@@ -27,10 +28,15 @@ export class GameState {
 
     // ── Turn-based grid ────────────────────────────────────────────────────
     // gridRows: number of discrete row positions per lane (row 0 = back, gridRows-1 = front).
-    // targetKills: kills needed to win this level.
-    this.gridRows    = gridRows    ?? 10;
-    this.targetKills = targetKills ?? 10;
-    this.initialCars = null;
+    // targetKills: kills needed to win (legacy; used when spawnBudget is null).
+    // spawnBudget: total cars this level spawns; null = unlimited / legacy mode.
+    // laneTargetCarCount: lanes refill up to this many cars at row 0.
+    this.gridRows           = gridRows           ?? 10;
+    this.targetKills        = targetKills        ?? 10;
+    this.spawnBudget        = spawnBudget        ?? null;
+    this._initialSpawnBudget = spawnBudget       ?? null;
+    this.laneTargetCarCount = laneTargetCarCount ?? 2;
+    this.initialCars        = null;
 
     // ── Clock ─────────────────────────────────────────────────────────────
     this.elapsed = 0;
@@ -178,6 +184,7 @@ export class GameState {
     this.maxCarPosition = 0;
     this.killsTowardBomb  = 0;
     this.bombFreezeUntil  = -Infinity;
+    this.spawnBudget      = this._initialSpawnBudget;
     this.rescueUsed    = false;
     this.isOver        = false;
     this.won           = false;

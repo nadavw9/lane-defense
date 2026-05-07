@@ -260,7 +260,9 @@ export class HUDRenderer {
     this._elapsed += dt;
 
     const kills  = this._gs.totalKills  ?? 0;
-    const target = this._gs.targetKills ?? 10;
+    const target = this._gs.spawnBudget !== null
+      ? this._gs._initialSpawnBudget ?? this._gs.targetKills ?? 10
+      : (this._gs.targetKills ?? 10);
     const ratio  = target > 0 ? kills / target : 0;
 
     // Gold flash when target reached

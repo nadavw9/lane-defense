@@ -274,6 +274,17 @@ export class GameLoop {
     const ROWS     = gs.gridRows ?? 6;
     const MAX_ROW  = ROWS - 1;
 
+    // FREEZE booster: skip grid advance for next 3 shots, then expire.
+    if (this._boosterState?.isFrozen()) {
+      this._boosterState.consumeFreezeShot();
+      // Still refill columns and run viability guard, but cars don't move.
+      const dirState = gs.asDirectorState();
+      const phaseParams = gs.phaseMan.getParams();
+      this._sDir.fillColumns(gs.activeCols, dirState, phaseParams);
+      this._enforceViableMove(gs);
+      return;
+    }
+
     // 1. Move all cars forward one row.
     for (let li = 0; li < gs.activeLaneCount; li++) {
       for (const car of gs.lanes[li].cars) {
@@ -298,15 +309,23 @@ export class GameLoop {
       }
     }
 
-    // 3. Win check — enough kills accumulated.
-    if (gs.totalKills >= gs.targetKills) {
+    // 3. Win check.
+    // Budget-based (preferred): all budget spent AND all lanes empty.
+    // Legacy kill-based: totalKills reaches targetKills (tests / levels without budget).
+    if (gs.spawnBudget !== null) {
+      if (gs.spawnBudget <= 0 && gs.activeLanes.every(l => l.cars.length === 0)) {
+        gs.endGame(true);
+        this._onEnd(true);
+        return;
+      }
+    } else if (gs.totalKills >= gs.targetKills) {
       gs.endGame(true);
       this._onEnd(true);
       return;
     }
 
-    // 4. Generate new cars at row 0.
-    this._spawnNewRowCars();
+    // 4. Refill lanes: each active lane tries to maintain laneTargetCarCount cars.
+    this._refillLanes();
 
     // 5. Refill columns so the player always has something to deploy.
     const dirState    = gs.asDirectorState();
@@ -317,33 +336,40 @@ export class GameLoop {
     this._enforceViableMove(gs);
   }
 
-  // Spawn 1–2 new cars at row 0 (back of lane) for random active lanes.
-  _spawnNewRowCars() {
-    const gs   = this._gs;
-    const ROWS = gs.gridRows ?? 6;
+  // Refill each active lane up to laneTargetCarCount, consuming spawnBudget.
+  // In legacy mode (spawnBudget === null), falls back to spawning 1-2 per advance.
+  _refillLanes() {
+    const gs     = this._gs;
+    const target = gs.laneTargetCarCount ?? 2;
 
-    // How many new cars to add per advance (scales with active lanes).
-    const maxNew = gs.activeLaneCount <= 2 ? 1 : 2;
-
-    // Candidate lanes: active, and row 0 not already occupied.
-    const candidates = [];
-    for (let li = 0; li < gs.activeLaneCount; li++) {
-      if (!gs.lanes[li].cars.some(c => c.row === 0)) candidates.push(li);
-    }
-
-    // Shuffle deterministically using the internal RNG.
-    for (let i = candidates.length - 1; i > 0; i--) {
-      const j = Math.floor(this._rng.nextFloat(0, 1) * (i + 1));
-      [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
-    }
-
-    const chosen = candidates.slice(0, maxNew);
-    for (const li of chosen) {
-      // Reuse carDir factory so HP/type/color distribution matches level config.
-      const newCar    = this._carDir.generateCar(gs.lanes[li], 'CALM', gs.world, gs.colors);
-      newCar.row       = 0;
-      newCar.position  = 0;
-      gs.lanes[li].addCar(newCar);
+    if (gs.spawnBudget !== null) {
+      // Budget mode: refill every under-stocked lane as long as budget remains.
+      for (let li = 0; li < gs.activeLaneCount; li++) {
+        if (gs.spawnBudget <= 0) break;
+        const lane = gs.lanes[li];
+        if (lane.cars.length < target && !lane.cars.some(c => c.row === 0)) {
+          const car = this._carDir.generateCar(lane, 'CALM', gs.world, gs.colors);
+          car.row = 0; car.position = 0;
+          lane.addCar(car);
+          gs.spawnBudget--;
+        }
+      }
+    } else {
+      // Legacy mode: pick at most 1-2 random candidate lanes.
+      const maxNew     = gs.activeLaneCount <= 2 ? 1 : 2;
+      const candidates = [];
+      for (let li = 0; li < gs.activeLaneCount; li++) {
+        if (!gs.lanes[li].cars.some(c => c.row === 0)) candidates.push(li);
+      }
+      for (let i = candidates.length - 1; i > 0; i--) {
+        const j = Math.floor(this._rng.nextFloat(0, 1) * (i + 1));
+        [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+      }
+      for (const li of candidates.slice(0, maxNew)) {
+        const car = this._carDir.generateCar(gs.lanes[li], 'CALM', gs.world, gs.colors);
+        car.row = 0; car.position = 0;
+        gs.lanes[li].addCar(car);
+      }
     }
   }
 
@@ -462,25 +488,30 @@ export class GameLoop {
 
   // Start each active lane with one car at row 0 (the far end), or place
   // pre-defined cars if the level config supplies an initialCars array.
+  // Each placed car is charged against spawnBudget (if set).
   _primeInitialCars() {
     const gs   = this._gs;
     const ROWS = gs.gridRows ?? 10;
 
+    const spendBudget = () => {
+      if (gs.spawnBudget !== null && gs.spawnBudget > 0) gs.spawnBudget--;
+    };
+
     if (gs.initialCars && gs.initialCars.length > 0 && gs.activeLaneCount > 0) {
-      // Place level-configured cars in lane 0.
       for (const def of gs.initialCars) {
         const car    = this._carDir.generateCar(gs.lanes[0], 'CALM', gs.world, gs.colors);
         car.row      = def.row ?? 0;
         car.type     = def.type ?? car.type;
         car.position = this._rowToPosition(car.row, ROWS);
         gs.lanes[0].addCar(car);
+        spendBudget();
       }
-      // Remaining active lanes get one default car each.
       for (let li = 1; li < gs.activeLaneCount; li++) {
         const car    = this._carDir.generateCar(gs.lanes[li], 'CALM', gs.world, gs.colors);
         car.row      = 0;
         car.position = this._rowToPosition(0, ROWS);
         gs.lanes[li].addCar(car);
+        spendBudget();
       }
     } else {
       for (let li = 0; li < gs.activeLaneCount; li++) {
@@ -488,6 +519,7 @@ export class GameLoop {
         car.row      = 0;
         car.position = this._rowToPosition(0, ROWS);
         gs.lanes[li].addCar(car);
+        spendBudget();
       }
     }
     this._enforceViableMove(gs);

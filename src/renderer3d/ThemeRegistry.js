@@ -28,7 +28,7 @@ export const THEMES = {
     hemi:   { sky: 0x773399, ground: 0x7a3320, intensity: 1.00 },
     sun:    { color: 0xff8840, intensity: 1.25 },
     ambient:{ color: 0xff9960, intensity: 0.38 },
-    fog:    { color: 0xff7722, near: 24, far: 78 },
+    fog:    { color: 0xff7722, near: 24, far: 90 },
   },
   // Misty: cool blue-grey dominates. Soft, low-contrast, fog-heavy.
   misty: {
@@ -36,7 +36,7 @@ export const THEMES = {
     hemi:   { sky: 0x8899aa, ground: 0x55687a, intensity: 0.82 },
     sun:    { color: 0xdde8ee, intensity: 0.62 },
     ambient:{ color: 0xd0dde8, intensity: 0.58 },
-    fog:    { color: 0x99aabb, near: 14, far: 52 },
+    fog:    { color: 0xc2cfd8, near: 30, far: 95 },
   },
   // Autumn: golden-amber dominates. Rich earth tones, warm sun.
   autumn: {

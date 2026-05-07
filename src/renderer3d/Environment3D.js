@@ -42,6 +42,7 @@ class EnvironmentChunk {
 
   _build(rng, hw) {
     const xBase = this._xBase(hw);
+    const dummy = new THREE.Object3D();
 
     // ── Grass plane ───────────────────────────────────────────────────────────
     const grassW = SIDE_DEPTH;

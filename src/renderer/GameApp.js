@@ -164,8 +164,7 @@ async function main() {
   await app.init({
     width:           APP_W,
     height:          APP_H,
-    background:      'transparent',   // Three.js canvas provides the game background
-    backgroundAlpha: 0,
+    backgroundAlpha: 0,               // transparent so Three.js canvas shows through
     antialias:       true,
     resolution:      window.devicePixelRatio || 1,
     autoDensity:     true,

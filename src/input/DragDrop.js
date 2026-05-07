@@ -367,7 +367,7 @@ export class DragDrop {
       if (laneIdx !== -1) {
         const isOccupied = this._firingSlots?.[laneIdx] != null;
         const isMatch    = this._checkColorMatch(laneIdx);
-        this._showLaneHighlight(laneIdx, (isMatch && !isOccupied) ? HIGHLIGHT_GREEN : HIGHLIGHT_RED);
+        this._showLaneHighlight(laneIdx, (isMatch && !isOccupied) ? colorHex : HIGHLIGHT_RED);
         if (!isOccupied) this._firingLineRenderer?.setHoverSlot(laneIdx, isMatch);
         this._onLaneHover(laneIdx, colorHex);
       }
@@ -386,7 +386,7 @@ export class DragDrop {
     if (laneIdx !== -1) {
       const isOccupied = this._firingSlots?.[laneIdx] != null;
       const isMatch    = this._checkColorMatch(laneIdx);
-      this._showLaneHighlight(laneIdx, (isMatch && !isOccupied) ? HIGHLIGHT_GREEN : HIGHLIGHT_RED);
+      this._showLaneHighlight(laneIdx, (isMatch && !isOccupied) ? colorHex : HIGHLIGHT_RED);
       if (!isOccupied) this._firingLineRenderer?.setHoverSlot(laneIdx, isMatch);
       this._onLaneHover(laneIdx, colorHex);
     }

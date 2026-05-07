@@ -43,6 +43,7 @@ class AssetLoader {
     }
 
     await Promise.allSettled(jobs);
+    console.log('[AssetLoader] loaded models:', Object.keys(this._models));
     this._ready = true;
   }
 

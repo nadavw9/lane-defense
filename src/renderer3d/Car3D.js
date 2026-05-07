@@ -51,13 +51,21 @@ function carHex(car) {
   return COLOR_HEX[car.color] ?? (car.type === 'boss' ? COLOR_HEX.Boss : 0x888888);
 }
 
+// Tracks which types have had material names logged (first spawn only, debug).
+const _loggedTypes = new Set();
+
 // Returns true if a material looks like painted body surface (for color tinting).
+// Explicit exclusions first so wheels/glass/chrome/trim are never tinted.
 function _isBodyMaterial(mat) {
   if (!mat?.isMaterial) return false;
-  if (/body|paint|color|main/i.test(mat.name)) return true;
-  const hsl = {};
-  new THREE.Color(mat.color).getHSL(hsl);
-  return hsl.s > 0.25 && hsl.l > 0.15 && hsl.l < 0.75;
+  if (/wheel|tire|tyre|glass|window|windshield|chrome|rim|metal|black|grey|gray|light/i.test(mat.name)) return false;
+  if (/body|paint|color|main|^_default/i.test(mat.name)) return true;
+  if (!mat.name) {
+    const hsl = {};
+    try { new THREE.Color(mat.color).getHSL(hsl); } catch { return false; }
+    return hsl.s > 0.40 && hsl.l > 0.25 && hsl.l < 0.65;
+  }
+  return false;
 }
 
 // ── Material helpers for procedural tank ──────────────────────────────────────
@@ -291,6 +299,18 @@ export class Car3D {
           colorBaseHexes.push(hex);
         }
       });
+
+      // First-spawn material debug log for each car type
+      if (!_loggedTypes.has(car.type)) {
+        _loggedTypes.add(car.type);
+        const names = [];
+        group.traverse(n => {
+          if (!n.isMesh) return;
+          const mats = Array.isArray(n.material) ? n.material : [n.material];
+          for (const m of mats) names.push(m.name || '(unnamed)');
+        });
+        console.log(`[Car3D] first "${car.type}" mat names:`, names);
+      }
 
       // Fallback: if no body material detected, create one manually
       if (!bodyMat) {

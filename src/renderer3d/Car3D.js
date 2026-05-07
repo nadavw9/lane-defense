@@ -24,11 +24,11 @@ const HL_Y        = 0.5;   // approximate headlight height for GLB cars
 // Coordinate constants for the procedural tank builder (ported from brand-cars.html)
 const SX = 1.74;           // X scale: design space → game width
 const OY = -CAR_Y_TANK;   // Y offset aligns tank geometry to road surface
-const HP_SPRITE_Y     = 2.2;    // world-Y for HP number sprite
-const HP_CANVAS_W     = 64;
-const HP_CANVAS_H     = 28;
-const HP_SPRITE_W     = 0.55;
-const HP_SPRITE_H     = 0.24;
+const HP_SPRITE_Y     = 2.6;    // high enough to clear bigrig/tank rooflines
+const HP_CANVAS_W     = 96;     // wider for HP ratio + type badge
+const HP_CANVAS_H     = 52;     // HP pill (34px) + type badge row (16px)
+const HP_SPRITE_W     = 0.85;
+const HP_SPRITE_H     = 0.46;
 const DEATH_DURATION  = 0.30;
 const DEATH_SCALE_MAX = 1.40;
 const DEATH_VY        = 2.5;
@@ -51,21 +51,22 @@ function carHex(car) {
   return COLOR_HEX[car.color] ?? (car.type === 'boss' ? COLOR_HEX.Boss : 0x888888);
 }
 
-// Tracks which types have had material names logged (first spawn only, debug).
-const _loggedTypes = new Set();
+// Returns true if a material should be EXCLUDED from color tinting.
+// Wheels/tires, glass, headlights/taillights, chrome/trim, tank tracks/hatch keep their own colors.
+function _isExcludedMaterial(mat) {
+  if (!mat?.isMaterial) return true;
+  return /wheel|tire|tyre|glass|window|windshield|chrome|rim|track|tread|hatch|light|lamp|lens/i.test(mat.name);
+}
 
-// Returns true if a material looks like painted body surface (for color tinting).
-// Explicit exclusions first so wheels/glass/chrome/trim are never tinted.
-function _isBodyMaterial(mat) {
-  if (!mat?.isMaterial) return false;
-  if (/wheel|tire|tyre|glass|window|windshield|chrome|rim|metal|black|grey|gray|light/i.test(mat.name)) return false;
-  if (/body|paint|color|main|^_default/i.test(mat.name)) return true;
-  if (!mat.name) {
-    const hsl = {};
-    try { new THREE.Color(mat.color).getHSL(hsl); } catch { return false; }
-    return hsl.s > 0.40 && hsl.l > 0.25 && hsl.l < 0.65;
-  }
-  return false;
+// Convert a hex color to a vibrant jewel tone: S→1.0, L clamped to 0.45–0.55.
+function _boostColor(hex) {
+  const c = new THREE.Color(hex);
+  const hsl = {};
+  c.getHSL(hsl);
+  hsl.s = 1.0;
+  hsl.l = Math.max(0.45, Math.min(0.55, hsl.l));
+  c.setHSL(hsl.h, hsl.s, hsl.l);
+  return (Math.round(c.r * 255) << 16) | (Math.round(c.g * 255) << 8) | Math.round(c.b * 255);
 }
 
 // ── Material helpers for procedural tank ──────────────────────────────────────
@@ -204,15 +205,15 @@ export class Car3D {
             entry.smokeMesh.material.opacity = 0.08 + 0.22 * (0.65 - hpRatio) / 0.30;
           }
         } else {
-          entry.bodyMat.emissive.setHex(0x000000);
-          entry.bodyMat.emissiveIntensity = 0;
+          entry.bodyMat.emissive.setHex(entry.colorBaseHexes[0] ?? 0x000000);
+          entry.bodyMat.emissiveIntensity = 0.15;
           g.rotation.z = 0;
           for (const hl of entry.headLights) hl.intensity = 0.30;
           if (entry.smokeMesh) entry.smokeMesh.visible = false;
         }
 
         // HP sprite
-        if (entry.hpMesh?.visible) entry.hpMesh.position.set(g.position.x, HP_SPRITE_Y, entry.renderZ);
+        if (entry.hpMesh) entry.hpMesh.position.set(g.position.x, HP_SPRITE_Y, entry.renderZ);
 
         // HP changed: darken body colors + redraw sprite + crack stage
         if (car.hp !== entry.lastHp) {
@@ -228,8 +229,8 @@ export class Car3D {
           }
           this._drawHpBar(entry, car);
           if (entry.hpMesh) {
-            entry.hpMesh.visible = car.hp < (car.maxHp ?? 0);
-            if (entry.hpMesh.visible) entry.hpMesh.position.set(g.position.x, HP_SPRITE_Y, entry.renderZ);
+            entry.hpMesh.visible = true;
+            entry.hpMesh.position.set(g.position.x, HP_SPRITE_Y, entry.renderZ);
           }
           if (entry.crackMesh) {
             const stage = hpRatio > 0.75 ? 0 : hpRatio > 0.50 ? 1 : hpRatio > 0.25 ? 2 : 3;
@@ -269,9 +270,12 @@ export class Car3D {
 
     if (car.type === 'tank') {
       // ── Tank: procedural builder (Kenney has no 3D tank GLB) ─────────────────
+      const boostedHex = _boostColor(hex);
       group = new THREE.Group();
-      const result = this._buildTank(group, hex, colorMats, colorBaseHexes);
+      const result = this._buildTank(group, boostedHex, colorMats, colorBaseHexes);
       bodyMat      = result.bodyMat;
+      bodyMat.emissive.setHex(boostedHex);
+      bodyMat.emissiveIntensity = 0.15;
       turretGroup  = result.turretGroup;
       if (group.userData.tankPtLight) headLights.push(group.userData.tankPtLight);
 
@@ -287,36 +291,29 @@ export class Car3D {
         for (const m of mats) { m.transparent = true; m.opacity = 1; }
       });
 
-      // Tint body materials to this car's lane color
+      // Tint ALL non-excluded materials aggressively to the lane's boosted color
+      const boostedHex = _boostColor(hex);
       group.traverse(node => {
         if (!node.isMesh) return;
         const mats = Array.isArray(node.material) ? node.material : [node.material];
         for (const mat of mats) {
-          if (!_isBodyMaterial(mat)) continue;
-          mat.color.setHex(hex);
+          if (_isExcludedMaterial(mat)) continue;
+          mat.color.setHex(boostedHex);
+          mat.emissive.setHex(boostedHex);
+          mat.emissiveIntensity = 0.15;
           if (!bodyMat) bodyMat = mat;
           colorMats.push(mat);
-          colorBaseHexes.push(hex);
+          colorBaseHexes.push(boostedHex);
         }
       });
 
-      // First-spawn material debug log for each car type
-      if (!_loggedTypes.has(car.type)) {
-        _loggedTypes.add(car.type);
-        const names = [];
-        group.traverse(n => {
-          if (!n.isMesh) return;
-          const mats = Array.isArray(n.material) ? n.material : [n.material];
-          for (const m of mats) names.push(m.name || '(unnamed)');
-        });
-        console.log(`[Car3D] first "${car.type}" mat names:`, names);
-      }
-
       // Fallback: if no body material detected, create one manually
       if (!bodyMat) {
-        bodyMat = new THREE.MeshStandardMaterial({ color: hex, transparent: true, opacity: 1 });
+        bodyMat = new THREE.MeshStandardMaterial({ color: boostedHex, transparent: true, opacity: 1 });
+        bodyMat.emissive.setHex(boostedHex);
+        bodyMat.emissiveIntensity = 0.15;
         colorMats.push(bodyMat);
-        colorBaseHexes.push(hex);
+        colorBaseHexes.push(boostedHex);
       }
 
       // Find wheels by mesh name for spin animation
@@ -329,6 +326,13 @@ export class Car3D {
       ptLight.position.set(0, HL_Y, 1.2);
       group.add(ptLight);
       headLights.push(ptLight);
+    }
+
+    // Armor metalness tier based on maxHp — heavier vehicles look more armored
+    const maxHp     = car.maxHp ?? car.hp;
+    const metalness = maxHp >= 20 ? 0.70 : maxHp >= 6 ? 0.55 : maxHp >= 3 ? 0.45 : 0.25;
+    for (const mat of colorMats) {
+      if (mat.metalness !== undefined) mat.metalness = metalness;
     }
 
     // Boss ring
@@ -350,7 +354,7 @@ export class Car3D {
     const hpTex  = new THREE.CanvasTexture(hpCanvas);
     const hpMesh = new THREE.Sprite(new THREE.SpriteMaterial({ map: hpTex, transparent: true, depthTest: false }));
     hpMesh.scale.set(HP_SPRITE_W, HP_SPRITE_H, 1);
-    hpMesh.visible = false;
+    hpMesh.visible = true;
     this._scene.add(hpMesh);
 
     // Smoke sprite
@@ -504,19 +508,40 @@ export class Car3D {
     const W = HP_CANVAS_W, H = HP_CANVAS_H;
     const { hpCtx, hpTex } = entry;
     hpCtx.clearRect(0, 0, W, H);
-    hpCtx.fillStyle = 'rgba(0,0,0,0.70)';
-    if (hpCtx.roundRect) hpCtx.roundRect(1, 1, W - 2, H - 2, 4);
-    else                 hpCtx.rect(1, 1, W - 2, H - 2);
+
+    // HP pill (top 34px)
+    const PH      = 34;
+    const hpRatio = car.maxHp > 0 ? car.hp / car.maxHp : 0;
+
+    hpCtx.fillStyle = 'rgba(0,0,0,0.72)';
+    if (hpCtx.roundRect) hpCtx.roundRect(2, 2, W - 4, PH - 4, 5);
+    else                 hpCtx.rect(2, 2, W - 4, PH - 4);
     hpCtx.fill();
-    hpCtx.font         = `bold ${Math.round(H * 0.72)}px Arial`;
+
+    const fillColor = hpRatio > 0.60 ? '#44dd44' : hpRatio > 0.30 ? '#ffcc00' : '#ff3322';
+    hpCtx.fillStyle = fillColor;
+    const fillW = Math.max(0, Math.round((W - 8) * hpRatio));
+    if (hpCtx.roundRect) hpCtx.roundRect(4, 4, fillW, PH - 8, 3);
+    else                 hpCtx.rect(4, 4, fillW, PH - 8);
+    hpCtx.fill();
+
+    hpCtx.font         = 'bold 13px Arial';
     hpCtx.fillStyle    = '#ffffff';
     hpCtx.textAlign    = 'center';
     hpCtx.textBaseline = 'middle';
     hpCtx.shadowColor  = 'rgba(0,0,0,0.9)';
     hpCtx.shadowBlur   = 3;
-    hpCtx.fillText(String(car.hp), W / 2, H / 2);
+    hpCtx.fillText(`${car.hp}/${car.maxHp ?? car.hp}`, W / 2, PH / 2);
     hpCtx.shadowBlur   = 0;
-    hpTex.needsUpdate  = true;
+
+    // Type badge (bottom 16px)
+    const BADGE_MAP = { small: '🏍', big: '🚗', jeep: '🚙', truck: '🚚', bigrig: '🚛', tank: '🛡', boss: '👑' };
+    hpCtx.font         = '13px Arial';
+    hpCtx.textAlign    = 'center';
+    hpCtx.textBaseline = 'middle';
+    hpCtx.fillText(BADGE_MAP[car.type] ?? '🚗', W / 2, PH + (H - PH) / 2);
+
+    hpTex.needsUpdate = true;
   }
 
   // ── Tank crack overlay ─────────────────────────────────────────────────────────

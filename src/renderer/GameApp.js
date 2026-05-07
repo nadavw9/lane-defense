@@ -334,7 +334,7 @@ async function main() {
     layers, boosterState, gs, APP_W,
     () => { audio.play('booster_activate'); boosterState.activateSwap(); boostersUsedThisLevel.push('swap'); tutOrch?.completeIfActive('swap'); },
     () => { audio.play('booster_activate'); boosterState.activatePeek(gs.elapsed); boostersUsedThisLevel.push('peek'); tutOrch?.completeIfActive('peek'); },
-    () => { audio.play('booster_activate'); boosterState.activateFreeze(gs.elapsed); boostersUsedThisLevel.push('freeze'); tutOrch?.completeIfActive('freeze'); },
+    () => { audio.play('booster_activate'); boosterState.activateFreeze(); boostersUsedThisLevel.push('freeze'); tutOrch?.completeIfActive('freeze'); },
     () => {
       // BOMB button — toggle placement mode on/off.
       if (boosterState.bombMode) {
@@ -463,6 +463,10 @@ async function main() {
     gs.targetKills = cfg.targetKills ?? Math.max(5, Math.round((cfg.duration ?? 60) * 0.12));
     gs.gridRows    = cfg.gridRows ?? 10;  // default 10 road slots
     gs.initialCars = cfg.initialCars ?? null;
+    // Spawn budget & lane fill target (budget-based win replaces kill-count win).
+    gs.spawnBudget         = cfg.spawnBudget        ?? null;
+    gs._initialSpawnBudget = cfg.spawnBudget        ?? null;
+    gs.laneTargetCarCount  = cfg.laneTargetCarCount ?? 2;
     carDir.setLevel(typeof cfg.id === 'number' ? cfg.id : 1);
   }
 
@@ -508,7 +512,7 @@ async function main() {
     boosterState.swapMode    = false;
     boosterState.swapFirst   = -1;
     boosterState.peekUntil   = -Infinity;
-    boosterState.freezeUntil = -Infinity;
+    boosterState.freezeShots = 0;
     boosterState.cancelBomb();
     boosterState.cancelCycle();
     bombReticle.hide();
@@ -523,7 +527,8 @@ async function main() {
     applyLevelConfig(cfg);
     // Use levelNumber for normal levels; 'D' label for daily challenge.
     hudRenderer.setLevel(currentLevelIsDaily ? 'D' : levelManager.levelNumber);
-    hudRenderer.showObjective(`Defeat ${gs.targetKills} cars`);
+    const objTotal = gs.spawnBudget !== null ? gs.spawnBudget : gs.targetKills;
+    hudRenderer.showObjective(`Defeat ${objTotal} cars`);
     ftueOverlay = _makeFTUEOverlay(app.stage, APP_W, APP_H, cfg);
 
     // Feature gating: daily challenge unlocks everything; normal levels gate by id.
@@ -1450,7 +1455,7 @@ async function main() {
     hudRenderer.update(dt);
     hudRenderer.setHearts(livesManager.hearts);
     particles.update(dt);
-    carRenderer.update(dt, boosterState.isFrozen(gs.elapsed));
+    carRenderer.update(dt, boosterState.isFrozen());
     shooterRenderer.update(gs.elapsed, dt);
     benchRenderer.update();
     firingLineRenderer.update(dt);

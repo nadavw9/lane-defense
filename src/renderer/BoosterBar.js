@@ -100,7 +100,7 @@ export class BoosterBar {
 
     this._swapBtn.alpha   = !this._swapBtn._unlocked   ? 0.18 : s.swap   <= 0 ? 0.28 : s.swapMode ? 0.55 : 1.0;
     this._peekBtn.alpha   = !this._peekBtn._unlocked   ? 0.18 : (s.peek  <= 0 || s.isPeeking(el)) ? 0.28 : 1.0;
-    this._freezeBtn.alpha = !this._freezeBtn._unlocked ? 0.18 : (s.freeze <= 0 || s.isFrozen(el))  ? 0.28 : 1.0;
+    this._freezeBtn.alpha = !this._freezeBtn._unlocked ? 0.18 : (s.freeze <= 0 || s.isFrozen())  ? 0.28 : 1.0;
     this._cycleBtn.alpha  = s.cycle <= 0 ? 0.28 : s.cycleMode ? 0.55 : 1.0;
     this._bombBtn.alpha   = (s.bombs <= 0 && !s.bombMode) ? 0.30 : s.bombMode ? 0.70 : 1.0;
 

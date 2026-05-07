@@ -8,8 +8,8 @@ export class BoosterState {
     this.freeze = 0;           // remaining freeze charges
     this.swapMode    = false;          // true while waiting for two column taps
     this.swapFirst   = -1;             // first column selected in swap mode (-1 = none yet)
-    this.peekUntil   = -Infinity;      // game elapsed time when peek expires
-    this.freezeUntil = -Infinity;      // game elapsed time when freeze expires
+    this.peekUntil    = -Infinity;      // game elapsed time when peek expires
+    this.freezeShots  = 0;             // remaining shots that won't advance the grid
 
     // ── Bomb ─────────────────────────────────────────────────────────────────
     this.bombs    = 0;          // stored bomb charges
@@ -80,16 +80,24 @@ export class BoosterState {
     return elapsed < this.peekUntil;
   }
 
-  // Freeze all cars for 10 seconds.  Returns true on success.
-  activateFreeze(elapsed) {
+  // Freeze the grid for the next 3 shots.  Returns true on success.
+  activateFreeze() {
     if (this.freeze <= 0) return false;
     this.freeze--;
-    this.freezeUntil = elapsed + 10;
+    this.freezeShots = 3;
     return true;
   }
 
-  isFrozen(elapsed) {
-    return elapsed < this.freezeUntil;
+  // True while freeze shots remain (checked by GameLoop before advancing grid).
+  isFrozen() {
+    return this.freezeShots > 0;
+  }
+
+  // Consume one freeze shot.  Returns true when freeze expires.
+  consumeFreezeShot() {
+    if (this.freezeShots <= 0) return true;
+    this.freezeShots--;
+    return this.freezeShots === 0;
   }
 
   // Enter bomb placement mode if charges remain.  Returns true on success.

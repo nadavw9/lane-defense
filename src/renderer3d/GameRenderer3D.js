@@ -249,7 +249,7 @@ export class GameRenderer3D {
     if (!this._mounted) return;
     if (this._canvas?.style.display === 'none') return;
 
-    const isFrozen = (gameState?.boosterState?.isFrozen?.(elapsed) ?? false) || (gameState?.lanes && elapsed < (gameState.bombFreezeUntil ?? -Infinity));
+    const isFrozen = (gameState?.boosterState?.isFrozen?.() ?? false) || (gameState?.lanes && elapsed < (gameState.bombFreezeUntil ?? -Infinity));
 
     this._lighting.update(dt);
     this._skybox.update(dt);

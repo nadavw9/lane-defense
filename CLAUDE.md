@@ -192,6 +192,21 @@ Before pushing ANY commit that touches visual/gameplay code:
    - Do the booster buttons (bench/swap/peek/freeze/bomb) animate and respond correctly?
 4. Fix any issues found, then push.
 
+## Visual Audit Required
+
+Every task that changes the 3D scene, HUD, screens, or any visual surface MUST end
+with the `lane-defense-audit` skill loop. Do not push without passing it.
+
+The skill automates:
+- Spinning up the dev server
+- Using Playwright MCP to screenshot L1, L4, L8, L13
+- Evaluating each frame against Royal Match / Color Block Jam production standards
+- Looping on fixes until all checks pass
+
+Invoke it with `/lane-defense-audit` or ask Claude to run the visual audit.
+If Playwright MCP is not available, fall back to manual screenshot review per the
+"Self-Audit Before Every Commit" checklist above.
+
 ## Token Rules (Claude Code)
 - Use `/clear` between unrelated tasks
 - Use `/compact` when context gets long

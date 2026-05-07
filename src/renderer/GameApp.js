@@ -56,7 +56,7 @@ import { WinScreen, calcStars }       from '../screens/WinScreen.js';
 import { LoseScreen }                  from '../screens/LoseScreen.js';
 import { RescueOverlay }              from '../screens/RescueOverlay.js';
 import { BoosterUnlockScreen }        from '../screens/BoosterUnlockScreen.js';
-import { FTUEOverlay }            from '../screens/FTUEOverlay.js';
+import { FTUEOverlay, FeatureBanners } from '../screens/FTUEOverlay.js';
 import { BoosterSpotlight }      from '../screens/BoosterSpotlight.js';
 import { TransitionOverlay }      from '../screens/TransitionOverlay.js';
 import { TitleScreen }            from '../screens/TitleScreen.js';
@@ -373,6 +373,9 @@ async function main() {
   // ── Popup queue — single source of truth for all banner popups ────────────
   const popupQueue = new PopupQueue(layers.get('hudLayer'), APP_W);
 
+  // ── FTUE per-feature banners (once-per-lifetime, persisted to localStorage) ─
+  const featureBanners = new FeatureBanners(popupQueue, APP_W);
+
   // ── FTUE overlay ──────────────────────────────────────────────────────────
   let ftueOverlay = null;  // created in _startLevel
 
@@ -532,6 +535,10 @@ async function main() {
     firstDeployTooltipShown     = false;
     firstKillDoneThisLevel      = false;
     popupQueue.clear();
+
+    // FTUE feature banners fired at level start when a feature first appears.
+    if ((cfg.laneCount ?? 4) >= 3) featureBanners.fire('multi_lane', 'New lane open! Each lane needs a matching-color shooter.');
+    if (benchUnlocked && levelId === 6) featureBanners.fire('bench_appear', 'Bench unlocked — store a shooter here for later!');
     setActiveCounts({ laneCount: cfg.laneCount ?? 4, colCount: cfg.colCount ?? 4 });
     carRenderer.clearAll();
     firingLineRenderer.reset();
@@ -1112,6 +1119,9 @@ async function main() {
         haptics.comboMilestone();
       }
 
+      featureBanners.fire('first_kill', 'First kill! Chain kills quickly for combos and bonus coins.');
+      if (combo >= 3) featureBanners.fire('first_combo', 'COMBO! Rapid kills earn bonus coins and speed boosts.');
+
       // L2: notify FTUE overlay on first kill so it can show the combo hint.
       if (!firstKillDoneThisLevel) {
         firstKillDoneThisLevel = true;
@@ -1138,6 +1148,7 @@ async function main() {
 
     onShoot: (damage, laneIdx, colIdx) => {
       audio.play('shoot', { damage });
+      featureBanners.fire('first_shot', 'Direct hit! Color-matched shots deal damage to cars.');
 
       // On very first deploy: dismiss arrow hint and (for L1-L5) show damage tooltip.
       const tipDamage = (!firstDeployTooltipShown && levelManager.levelNumber <= 5)
@@ -1170,6 +1181,7 @@ async function main() {
       particles.spawnMiss(laneIdx, gameX);
       gameRenderer3D.onMiss(laneIdx);
       audio.play('hit_miss');
+      featureBanners.fire('first_miss', 'No damage! Shooter color must match the car color.');
     },
 
     onEnd: (won, laneIdx) => {
@@ -1410,6 +1422,11 @@ async function main() {
     // ── Popup queue ────────────────────────────────────────────────────────
     popupQueue.setTutorialActive(!!ftueOverlay);
     popupQueue.update(dt);
+
+    // First-car FTUE banner: fires once the first enemy becomes visible.
+    if (gameLoopStarted && !gs.isOver && gs.lanes.some(l => l.cars.length > 0)) {
+      featureBanners.fire('first_car', 'Cars incoming! Drag a shooter to the lane with a matching color.');
+    }
 
     // ── Breach camera ──────────────────────────────────────────────────────
     if (breachCam && !breachCam.done) {

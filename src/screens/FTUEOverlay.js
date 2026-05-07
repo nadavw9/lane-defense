@@ -18,6 +18,7 @@
 //
 // update(dt) must be called from the render ticker while the overlay is live.
 import { Container, Graphics, Text } from 'pixi.js';
+import { PRIORITY } from '../renderer/PopupQueue.js';
 import {
   ROAD_TOP_Y, ROAD_BOTTOM_Y,
 } from '../renderer/LaneRenderer.js';
@@ -468,5 +469,64 @@ export class FTUEOverlay {
     txt.x = w / 2 - grp.x;
     txt.y = 14;
     grp.addChild(txt);
+  }
+}
+
+// ── FeatureBanners — per-feature first-encounter tutorial pills ───────────────
+// Shows a compact white pill banner via PopupQueue (TUTORIAL priority) the first
+// time each named feature is encountered in a session.  Keys are persisted to
+// localStorage so each banner appears at most once across sessions.
+//
+// Usage:
+//   const fb = new FeatureBanners(popupQueue, appW);
+//   fb.fire('first_shot', 'Good shot! Color must match the car.');
+export class FeatureBanners {
+  constructor(popupQueue, appW) {
+    this._pq   = popupQueue;
+    this._appW = appW;
+    try {
+      this._seen = new Set(JSON.parse(localStorage.getItem('ftue_banners') ?? '[]'));
+    } catch {
+      this._seen = new Set();
+    }
+  }
+
+  // Show the pill once for key; no-op if already seen.
+  fire(key, text) {
+    if (this._seen.has(key)) return;
+    this._seen.add(key);
+    this._persist();
+    const appW = this._appW;
+    this._pq.enqueue(PRIORITY.TUTORIAL, (w) => FeatureBanners._buildPill(w ?? appW, text), 4.0);
+  }
+
+  _persist() {
+    try { localStorage.setItem('ftue_banners', JSON.stringify([...this._seen])); } catch {}
+  }
+
+  static _buildPill(w, text) {
+    const grp = new Container();
+    const PW = w - 60, PH = 42, PX = 30;
+
+    const bg = new Graphics();
+    bg.roundRect(PX, 0, PW, PH, 21);
+    bg.fill({ color: 0xffffff, alpha: 0.96 });
+    bg.roundRect(PX, 0, PW, PH, 21);
+    bg.stroke({ color: 0x44aaff, width: 2, alpha: 0.80 });
+    grp.addChild(bg);
+
+    const txt = new Text({
+      text,
+      style: {
+        fontSize: 14, fontWeight: 'bold', fill: 0x0a1a33, align: 'center',
+        wordWrap: true, wordWrapWidth: PW - 24,
+        dropShadow: { color: 0x000000, blur: 3, distance: 0, alpha: 0.25 },
+      },
+    });
+    txt.anchor.set(0.5, 0.5);
+    txt.x = w / 2;
+    txt.y = PH / 2;
+    grp.addChild(txt);
+    return grp;
   }
 }

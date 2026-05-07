@@ -122,6 +122,7 @@ export class Road3D {
   resetGate() {
     if (!this._gate) return;
     const { barL, barR, matL, matR, hw } = this._gate;
+    barL.visible    = true;   barR.visible    = true;
     barL.position.x = -hw / 2; barL.position.y = GATE_BAR_Y;
     barR.position.x =  hw / 2; barR.position.y = GATE_BAR_Y;
     matL.opacity = 1; matR.opacity = 1;
@@ -201,7 +202,7 @@ export class Road3D {
       pos.needsUpdate = true;
     }
 
-    // Gate open animation — doors slide outward and fade
+    // Gate open animation — doors slide outward, fade, then hide entirely
     if (this._gate?.opening && !this._gate.done) {
       this._gate.t = Math.min(GATE_OPEN_DUR, this._gate.t + dt);
       const prog  = this._gate.t / GATE_OPEN_DUR;
@@ -213,7 +214,11 @@ export class Road3D {
       barR.position.y =  GATE_BAR_Y + eased * 1.2;
       matL.opacity    = 1 - eased;
       matR.opacity    = 1 - eased;
-      if (prog >= 1) this._gate.done = true;
+      if (prog >= 1) {
+        this._gate.done  = true;
+        barL.visible     = false;
+        barR.visible     = false;
+      }
     }
 
     // Bomb rings — expand + fade

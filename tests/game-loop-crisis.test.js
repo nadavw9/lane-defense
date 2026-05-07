@@ -2,6 +2,7 @@
 //   - recordDeploy called on every deploy/deployFromBench
 //   - onCrisis callback fires when triggerCrisis returns a result
 //   - CRISIS shooter injected at correct column with capacity guard
+//   - Tank (HP=20) advances exactly one row per shot and loses HP correctly (BUG4)
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GameLoop }        from '../src/game/GameLoop.js';
@@ -382,5 +383,52 @@ describe('GameState.rescue() — row/position consistency', () => {
     // Car should NOT have breached — row must still be inside the grid.
     expect(car.row).toBe(rowAfterRescue + 1);
     expect(car.row).toBeLessThan(ROWS);
+  });
+});
+
+// ── BUG4: every shot advances ALL cars one row, tank HP decreases correctly ──
+
+describe('BUG4 — tank advances one row per shot, HP decreases by shot damage', () => {
+  it('5 shots of damage=2 on a tank: row +5, hp decreases by 2 each shot', () => {
+    const { gs } = makeState({ laneCount: 1, colCount: 1 });
+    const { loop } = makeLoop(gs);
+    gs.gridRows = 10;
+
+    // Tank starts at row 2 with HP=20
+    const tank = new Car({ color: 'Red', hp: 20, speed: 5 });
+    tank.row      = 2;
+    tank.position = loop._rowToPosition(2, 10);
+    gs.lanes[0].addCar(tank);
+
+    for (let shot = 1; shot <= 5; shot++) {
+      const prevHp  = tank.hp;
+      const prevRow = tank.row;
+      loop._resolveShot(new Shooter({ color: 'Red', damage: 2, column: 0 }), 0);
+      expect(tank.hp).toBe(prevHp - 2);
+      expect(tank.row).toBe(prevRow + 1);
+    }
+    expect(tank.hp).toBe(10);
+    expect(tank.row).toBe(7);
+  });
+
+  it('a second car in a different lane also advances one row per shot', () => {
+    const { gs } = makeState({ laneCount: 2, colCount: 2 });
+    const { loop } = makeLoop(gs);
+    gs.gridRows = 10;
+
+    const car0 = new Car({ color: 'Red',  hp: 20, speed: 5 });
+    car0.row = 0; car0.position = 0;
+    gs.lanes[0].addCar(car0);
+
+    const car1 = new Car({ color: 'Blue', hp: 20, speed: 5 });
+    car1.row = 0; car1.position = 0;
+    gs.lanes[1].addCar(car1);
+
+    // Fire into lane 0
+    loop._resolveShot(new Shooter({ color: 'Red', damage: 2, column: 0 }), 0);
+
+    // Both cars must have advanced
+    expect(car0.row).toBe(1);
+    expect(car1.row).toBe(1);
   });
 });

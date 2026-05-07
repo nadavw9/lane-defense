@@ -180,6 +180,18 @@ The user has expressed strong feedback that **the visual quality is not yet at t
 - If a spec seems wrong, say so and propose a fix.
 - After completing a batch, post (a) every file touched grouped by issue, (b) judgment calls, (c) any test changes.
 
+### MANDATORY: Self-Audit Before Every Commit
+
+Before pushing ANY commit that touches visual/gameplay code:
+1. Run `npm run dev` and open the game in a browser.
+2. Navigate to L1, L4, L8, and L13 and observe each visually.
+3. Answer these four questions — fix any "no" before pushing:
+   - Are car colors vivid and clearly distinct by lane? (not washed-out grey)
+   - Are HP indicators legible and visible on every car from the moment it spawns?
+   - Do tutorials (FTUE overlays, spotlights) trigger and clear correctly at their intended levels?
+   - Do the booster buttons (bench/swap/peek/freeze/bomb) animate and respond correctly?
+4. Fix any issues found, then push.
+
 ## Token Rules (Claude Code)
 - Use `/clear` between unrelated tasks
 - Use `/compact` when context gets long

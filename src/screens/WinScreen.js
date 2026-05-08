@@ -4,8 +4,10 @@
 //   • Confetti rain system (30-50 colorful pieces fall from top)
 //   • Screen flash on 3-star win
 //   • Bigger star animations with 300ms stagger
-//   • Stat rows: coins, combo, perfect bonus
+//   • Stat rows: coins (count-up), combo, perfect bonus
 //   • "PERFECT DEFENSE!" header on 3-star clean win
+//   • 1.5s button lock prevents accidental dismissal during outro animations
+//   • NEXT LEVEL button gently pulses once active to invite the tap
 import { Container, Graphics, Text } from 'pixi.js';
 
 const STAR_COLOR_FULL  = 0xffcc00;
@@ -13,18 +15,19 @@ const STAR_COLOR_EMPTY = 0x3a3a3a;
 
 const CONFETTI_COLORS = [0xff4466, 0x44ff88, 0xffcc00, 0x44aaff, 0xff88ff, 0xff8844, 0x88ffff];
 
+const BUTTON_ENABLE_DELAY = 1.5;  // seconds before buttons become tappable
+
 // ── Web Share helper ──────────────────────────────────────────────────────────
 async function _shareWin(levelId, stars, combo) {
   const starStr = '★'.repeat(stars) + '☆'.repeat(3 - stars);
   const text = levelId
     ? `${starStr} Just cleared Level ${levelId} with a ×${combo} combo in Lane Defense! Can you beat it?`
-    : `${starStr} Lane Defense — ×${combo} combo! 🎮`;
+    : `${starStr} Lane Defense — ×${combo} combo!`;
   try {
     if (navigator.share) {
       await navigator.share({ title: 'Lane Defense', text });
     } else if (navigator.clipboard) {
       await navigator.clipboard.writeText(text);
-      // Briefly flash the share button text (handled externally; just copy for now).
     }
   } catch { /* share cancelled — ignore */ }
 }
@@ -111,6 +114,18 @@ export class WinScreen {
     this._flashAlpha = 0;
     this._flashG     = null;
 
+    // Button interactivity lock (prevents accidental tap during outro anims)
+    this._buttonsEnabled    = false;
+    this._buttonEnableTimer = 0;
+    this._pendingButtons    = [];  // { btn, onClick } — enabled after delay
+    this._nextBtn           = null;
+    this._pulseT            = 0;
+
+    // Coin count-up
+    this._coinCountTarget  = 0;
+    this._coinCountCurrent = 0;
+    this._coinValText      = null;
+
     this._build(appW, appH, gs, onNext, onMenu, audio, improved, levelId);
   }
 
@@ -154,15 +169,59 @@ export class WinScreen {
       s.y    = s._sp.sy + s._sp.vy * prog + 60 * prog * prog;
       s.alpha = 1 - prog;
     }
+
+    // Button enable timer — ramps button alpha and then unlocks interaction
+    if (!this._buttonsEnabled) {
+      this._buttonEnableTimer += dt;
+      const progress = Math.min(1, this._buttonEnableTimer / BUTTON_ENABLE_DELAY);
+      const alpha    = 0.35 + 0.55 * progress;
+      for (const { btn } of this._pendingButtons) {
+        if (!this._buttonsEnabled) btn.alpha = alpha;
+      }
+      if (this._buttonEnableTimer >= BUTTON_ENABLE_DELAY) {
+        this._buttonsEnabled = true;
+        this._enableButtons();
+      }
+    }
+
+    // NEXT LEVEL gentle pulse to invite the tap
+    if (this._buttonsEnabled && this._nextBtn) {
+      this._pulseT += dt;
+      const pulse = 0.88 + 0.12 * Math.sin(this._pulseT * 4.0);
+      this._nextBtn.alpha = pulse;
+    }
+
+    // Coin count-up animation (completes over 1.2s)
+    if (this._coinCountCurrent < this._coinCountTarget) {
+      const rate = Math.max(1, this._coinCountTarget / 1.2);
+      this._coinCountCurrent = Math.min(
+        this._coinCountTarget,
+        this._coinCountCurrent + rate * dt,
+      );
+      if (this._coinValText) {
+        this._coinValText.text = `+${Math.floor(this._coinCountCurrent)}`;
+      }
+    }
   }
 
   // ── Private ───────────────────────────────────────────────────────────────
+
+  _enableButtons() {
+    for (const { btn, onClick } of this._pendingButtons) {
+      btn.eventMode = 'static';
+      btn.cursor    = 'pointer';
+      btn.alpha     = 1;
+      btn.on('pointerdown', onClick);
+      btn.on('pointerover',  () => { if (this._buttonsEnabled) btn.alpha = 0.75; });
+      btn.on('pointerout',   () => { if (this._buttonsEnabled && btn !== this._nextBtn) btn.alpha = 1; });
+    }
+  }
 
   _build(w, h, gs, onNext, onMenu, audio, improved = [], levelId = null) {
     const stars    = calcStars(gs);
     const is3Star  = stars === 3;
 
-    // Backdrop
+    // Backdrop — catches all touches so gameplay beneath isn't accessible
     const backdrop = new Graphics();
     backdrop.rect(0, 0, w, h);
     backdrop.fill({ color: 0x000011, alpha: is3Star ? 0.72 : 0.82 });
@@ -186,9 +245,10 @@ export class WinScreen {
       this._container.addChild(this._flashG);
     }
 
-    // Panel
+    // Panel — sized so NEXT LEVEL button always lands at y < 502,
+    // keeping it safely above the shooter-drag start at y≈530.
     const panelW = 320;
-    const panelH = onNext ? (is3Star ? 450 : 410) : (is3Star ? 400 : 360);
+    const panelH = onNext ? (is3Star ? 420 : 390) : (is3Star ? 380 : 350);
     const px = (w - panelW) / 2;
     const py = (h - panelH) / 2 - 20;
     const cx = w / 2;
@@ -200,7 +260,7 @@ export class WinScreen {
     panel.stroke({ color: is3Star ? 0xffcc00 : 0x44aaff, width: 2, alpha: is3Star ? 0.80 : 0.45 });
     this._container.addChild(panel);
 
-    let y = py + 42;
+    let y = py + 34;
 
     // Title
     const title      = is3Star ? 'PERFECT DEFENSE!' : 'LEVEL COMPLETE';
@@ -208,34 +268,38 @@ export class WinScreen {
     const titleSize  = is3Star ? 26 : 28;
     this._text(title, cx, y, { fontSize: titleSize, fill: titleColor,
       dropShadow: is3Star ? { color: 0xff8800, blur: 18, distance: 0, alpha: 0.8 } : undefined });
-    y += 54;
+    y += 48;
 
     // Stars
     this._buildStars(cx, y, stars, audio);
-    y += 80;
+    y += 72;
 
-    // Stat rows
-    const ROW_H = 42, ROW_GAP = 8;
-    this._statRow(px + 14, y, panelW - 28, ROW_H, '◆  COINS EARNED',   `+${gs.coins}`,    0xf5c842);
+    // Stat rows — smaller to stay within tighter panel
+    const ROW_H = 38, ROW_GAP = 6;
+    this._coinCountTarget  = gs.coins;
+    this._coinCountCurrent = 0;
+    this._coinValText      = this._statRow(px + 14, y, panelW - 28, ROW_H, '◆  COINS EARNED', '+0', 0xf5c842);
     y += ROW_H + ROW_GAP;
-    this._statRow(px + 14, y, panelW - 28, ROW_H, '⚡  BEST COMBO',    `×${gs.maxCombo}`, 0xff8844);
+    this._statRow(px + 14, y, panelW - 28, ROW_H, '⚡  BEST COMBO', `×${gs.maxCombo}`, 0xff8844);
     if (is3Star) {
       y += ROW_H + ROW_GAP;
-      this._statRow(px + 14, y, panelW - 28, ROW_H, '★  PERFECT CLEAR', 'Flawless!',       0xffcc00);
+      this._statRow(px + 14, y, panelW - 28, ROW_H, '★  PERFECT CLEAR', 'Flawless!', 0xffcc00);
     }
-    y += ROW_H + 16;
+    y += ROW_H + 8;
 
-    // Personal best badge removed — shown implicitly via star count.
-
-    // Buttons
+    // Buttons — registered as pending, enabled after BUTTON_ENABLE_DELAY.
+    // Normal levels: only NEXT LEVEL (no LEVEL SELECT on win — matches Royal Match pattern).
+    // Daily challenge (onNext=null): LEVEL SELECT is the only exit.
     if (onNext) {
-      this._button('NEXT LEVEL ▶', cx, y, 0x1a6a3a, 0x55ff99, () => { audio?.play('button_tap'); onNext(); });
-      y += 64;
+      this._button('NEXT LEVEL ▶', cx, y, 0x1a6a3a, 0x55ff99,
+        () => { audio?.play('button_tap'); onNext(); }, true);
+    } else {
+      this._button('LEVEL SELECT', cx, y, 0x1a2a3a, 0x88bbdd,
+        () => { audio?.play('button_tap'); onMenu(); }, false);
     }
-    this._button('LEVEL SELECT', cx, y, 0x1a2a3a, 0x88bbdd, () => { audio?.play('button_tap'); onMenu(); });
     y += 64;
 
-    // ── Share button (Web Share API) ──────────────────────────────────────
+    // Share button (always visible, non-critical)
     const shareBtn = new Text({ text: '📤 SHARE', style: { fontSize: 14, fontWeight: 'bold', fill: 0x66aaff } });
     shareBtn.anchor.set(0.5, 0.5); shareBtn.x = cx; shareBtn.y = y;
     shareBtn.eventMode = 'static'; shareBtn.cursor = 'pointer';
@@ -296,6 +360,8 @@ export class WinScreen {
     val.anchor.set(1, 0.5);
     val.x = x + w - 12; val.y = y + h / 2;
     this._container.addChild(val);
+
+    return val;
   }
 
   _text(str, x, y, style) {
@@ -318,20 +384,22 @@ export class WinScreen {
     g.fill(color);
   }
 
-  _button(label, cx, y, bgColor, labelColor, onClick) {
+  _button(label, cx, y, bgColor, labelColor, onClick, isNext = false) {
     const btnW = 220, btnH = 54;
     const btn  = new Graphics();
     btn.roundRect(-btnW / 2, -btnH / 2, btnW, btnH, 14);
     btn.fill(bgColor);
-    btn.x = cx; btn.y = y;
-    btn.eventMode = 'static';
-    btn.cursor    = 'pointer';
-    btn.on('pointerdown', onClick);
-    btn.on('pointerover',  () => { btn.alpha = 0.80; });
-    btn.on('pointerout',   () => { btn.alpha = 1.00; });
+    btn.x         = cx;
+    btn.y         = y;
+    btn.alpha     = 0.35;   // starts dimmed until BUTTON_ENABLE_DELAY
+    btn.eventMode = 'none'; // non-interactive until enabled
+
     const t = new Text({ text: label, style: { fontSize: 22, fontWeight: 'bold', fill: labelColor } });
     t.anchor.set(0.5, 0.5);
     btn.addChild(t);
     this._container.addChild(btn);
+
+    this._pendingButtons.push({ btn, onClick });
+    if (isNext) this._nextBtn = btn;
   }
 }

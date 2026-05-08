@@ -30,13 +30,13 @@ export const THEMES = {
     ambient:{ color: 0xff9960, intensity: 0.38 },
     fog:    { color: 0xff7722, near: 24, far: 90 },
   },
-  // Misty: cool blue-grey dominates. Soft, low-contrast, fog-heavy.
+  // Misty: cool blue-grey dominates. Dense near-ground fog, cars emerge from haze.
   misty: {
     sky:    { zenith: 0x7a8c99, mid: 0xa0b0bb, horizon: 0xd8dede, glow: 0xc8cdd8 },
     hemi:   { sky: 0x8899aa, ground: 0x55687a, intensity: 0.82 },
     sun:    { color: 0xdde8ee, intensity: 0.62 },
     ambient:{ color: 0xd0dde8, intensity: 0.58 },
-    fog:    { color: 0xc2cfd8, near: 30, far: 95 },
+    fog:    { color: 0xc8d0d8, near: 8, far: 48 },
   },
   // Autumn: deep blue sky, rich amber/orange foliage, warm earth ground.
   autumn: {

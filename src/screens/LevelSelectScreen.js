@@ -138,7 +138,7 @@ export class LevelSelectScreen {
     popup.addChild(dim);
 
     // Card
-    const CW = 310, CH = 370, CX = (w - CW) / 2, CY = (h - CH) / 2 - 30;
+    const CW = 310, CH = 340, CX = (w - CW) / 2, CY = (h - CH) / 2 - 30;
     const color = levelColor(levelId);
 
     const card = new Graphics();
@@ -180,11 +180,42 @@ export class LevelSelectScreen {
       popup.addChild(sc);
     }
 
-    // Booster section header
-    const bh = new Text({ text: 'WATCH AN AD FOR A BOOSTER', style: {
-      fontSize: 11, fill: 0x88aacc, fontWeight: 'bold',
+    // START button (primary CTA — appears right after stars)
+    const sx = CX + 20, sy = CY + 110;
+    const startBg = new Graphics();
+    startBg.roundRect(sx, sy, CW - 40, 56, 14);
+    startBg.fill(color);
+    startBg.roundRect(sx + 2, sy + 2, CW - 44, 26, 12);
+    startBg.fill({ color: 0xffffff, alpha: 0.18 });
+    popup.addChild(startBg);
+
+    const startTxt = new Text({ text: '▶  START LEVEL', style: {
+      fontSize: 20, fontWeight: 'bold', fill: 0xffffff,
+      dropShadow: { color: 0x000000, blur: 4, distance: 2, alpha: 0.6 },
     }});
-    bh.anchor.set(0.5, 0.5); bh.x = w / 2; bh.y = CY + 126;
+    startTxt.anchor.set(0.5, 0.5); startTxt.x = w / 2; startTxt.y = sy + 28;
+    startBg.eventMode = 'static'; startBg.cursor = 'pointer';
+    startBg.on('pointerdown', () => {
+      audio?.play('button_tap');
+      clearInterval(rafId);
+      popup.destroy({ children: true }); this._popup = null;
+      onSelectLevel(levelId);
+    });
+    startBg.on('pointerover',  () => { startBg.alpha = 0.85; });
+    startBg.on('pointerout',   () => { startBg.alpha = 1.00; });
+    popup.addChild(startTxt);
+
+    // Divider between START and optional ad section
+    const div = new Graphics();
+    div.moveTo(CX + 20, CY + 178); div.lineTo(CX + CW - 20, CY + 178);
+    div.stroke({ color: 0x223355, width: 1, alpha: 0.50 });
+    popup.addChild(div);
+
+    // Muted ad boosters label
+    const bh = new Text({ text: 'OPTIONAL AD BOOSTERS', style: {
+      fontSize: 9, fill: 0x446677, fontWeight: 'bold',
+    }});
+    bh.anchor.set(0.5, 0.5); bh.x = w / 2; bh.y = CY + 192;
     popup.addChild(bh);
 
     // Ad booster buttons — driven by AdManager
@@ -194,7 +225,7 @@ export class LevelSelectScreen {
       { key: 'bomb',   label: '💣 BOMB',  color: 0x3a1a00, glow: 0xffaa00 },
     ];
     boosterDefs.forEach((b, idx) => {
-      const bx = CX + 16 + idx * 92, by = CY + 142;
+      const bx = CX + 16 + idx * 92, by = CY + 204;
       const unlocked = adManager.isUnlocked(b.key);
       const prog     = adManager.progressLabel(b.key);
       const cost     = adManager.getCost(b.key);
@@ -246,42 +277,10 @@ export class LevelSelectScreen {
       }
     });
 
-    // START button
-    const sx = CX + 20, sy = CY + 202;
-    const startBg = new Graphics();
-    startBg.roundRect(sx, sy, CW - 40, 56, 14);
-    startBg.fill(color);
-    startBg.roundRect(sx + 2, sy + 2, CW - 44, 26, 12);
-    startBg.fill({ color: 0xffffff, alpha: 0.18 });   // sheen
-    popup.addChild(startBg);
-
-    const startTxt = new Text({ text: '▶  START LEVEL', style: {
-      fontSize: 20, fontWeight: 'bold', fill: 0xffffff,
-      dropShadow: { color: 0x000000, blur: 4, distance: 2, alpha: 0.6 },
-    }});
-    startTxt.anchor.set(0.5, 0.5); startTxt.x = w / 2; startTxt.y = sy + 28;
-    startBg.eventMode = 'static'; startBg.cursor = 'pointer';
-    startBg.on('pointerdown', () => {
-      audio?.play('button_tap');
-      // Ad progress is applied + reset by GameApp._startLevel — do NOT reset here.
-      clearInterval(rafId);
-      popup.destroy({ children: true }); this._popup = null;
-      onSelectLevel(levelId);
-    });
-    startBg.on('pointerover',  () => { startBg.alpha = 0.85; });
-    startBg.on('pointerout',   () => { startBg.alpha = 1.00; });
-    popup.addChild(startTxt);
-
-    // Divider
-    const div = new Graphics();
-    div.moveTo(CX + 20, CY + 274); div.lineTo(CX + CW - 20, CY + 274);
-    div.stroke({ color: 0x223355, width: 1, alpha: 0.60 });
-    popup.addChild(div);
-
     // Secondary buttons row
     const btnStyle = { fontSize: 13, fontWeight: 'bold', fill: 0x88aacc };
     const backBtn = new Text({ text: '← BACK', style: btnStyle });
-    backBtn.anchor.set(0, 0.5); backBtn.x = CX + 20; backBtn.y = CY + 298;
+    backBtn.anchor.set(0.5, 0.5); backBtn.x = w / 2; backBtn.y = CY + 306;
     backBtn.eventMode = 'static'; backBtn.cursor = 'pointer';
     backBtn.on('pointerdown', () => {
       audio?.play('button_tap');
@@ -289,14 +288,6 @@ export class LevelSelectScreen {
       popup.destroy({ children: true }); this._popup = null;
     });
     popup.addChild(backBtn);
-
-    const lvlSel = new Text({ text: 'LEVEL SELECT ▶', style: btnStyle });
-    lvlSel.anchor.set(1, 0.5); lvlSel.x = CX + CW - 20; lvlSel.y = CY + 298;
-    lvlSel.eventMode = 'static'; lvlSel.cursor = 'pointer';
-    lvlSel.on('pointerdown', () => {
-      popup.destroy({ children: true }); this._popup = null;
-    });
-    popup.addChild(lvlSel);
 
     // Animate card entrance: slide up from below.
     // rafId is in outer scope so all close paths can clear it.

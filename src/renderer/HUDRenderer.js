@@ -213,6 +213,23 @@ export class HUDRenderer {
     // ── Confetti (always on top) ─────────────────────────────────────────
     this._confettiGfx = new Graphics();
     this._layer.addChild(this._confettiGfx);
+
+    // ── Frozen badge (overlaid on progress bar when freeze active) ────────
+    this._frozenBadgeGfx = new Graphics();
+    this._layer.addChild(this._frozenBadgeGfx);
+    this._frozenBadgeText = new Text({
+      text: '',
+      style: {
+        fontSize:   11,
+        fontWeight: 'bold',
+        fill:       0x44ccff,
+        dropShadow: { color: 0x000000, blur: 3, distance: 0, alpha: 0.85 },
+      },
+    });
+    this._frozenBadgeText.anchor.set(0.5, 0.5);
+    this._frozenBadgeText.x = appWidth / 2;
+    this._frozenBadgeText.y = BAR_Y + BAR_H / 2;
+    this._layer.addChild(this._frozenBadgeText);
   }
 
   // ── Public API ──────────────────────────────────────────────────────────────
@@ -292,6 +309,7 @@ export class HUDRenderer {
     this._stepSpring(dt);
     this._refreshComboGlow();
     this._refreshComboText();
+    this._refreshFrozenBadge();
     this._refreshCoinsText();
     this._refreshComboGauge();
     this._refreshMultiBadge();
@@ -575,6 +593,28 @@ export class HUDRenderer {
     this._curTierColor             = tier.color;
     this._comboText.style.fill     = tier.color;
     this._comboText.style.fontSize = tier.size;
+  }
+
+  _refreshFrozenBadge() {
+    const boosterState = this._gs?.boosterState;
+    const frozen = boosterState?.isFrozen?.() ?? false;
+    const shots  = frozen ? (boosterState.freezeShots ?? 0) : 0;
+
+    const g = this._frozenBadgeGfx;
+    g.clear();
+    this._frozenBadgeText.text = '';
+
+    if (!frozen) return;
+
+    // Pulsing ice-blue overlay on the kill-progress bar
+    const pulse  = 0.20 + 0.12 * Math.sin(this._elapsed * 6);
+    const barFW  = this._appW - BAR_X * 2;
+    g.roundRect(BAR_X, BAR_Y, barFW, BAR_H, BAR_H / 2);
+    g.fill({ color: 0x44aaff, alpha: pulse });
+
+    // "❄ FROZEN  2 shots" text centered on bar
+    this._frozenBadgeText.text = `❄ FROZEN  ${shots} shot${shots !== 1 ? 's' : ''}`;
+    this._progressText.alpha   = 0;   // hide kill fraction while frozen
   }
 
   _drawSpeaker(muted) {

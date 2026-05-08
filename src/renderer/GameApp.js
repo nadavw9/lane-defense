@@ -324,6 +324,7 @@ async function main() {
   const benchRenderer = new BenchRenderer(layers, benchStorage, APP_W);
 
   // ── HUD + Particles + juice effects ───────────────────────────────────────
+  gs.boosterState = boosterState;   // expose to HUDRenderer for frozen badge
   const hudRenderer   = new HUDRenderer(layers, gs, APP_W, audio);
   hudRenderer.setLevel(levelManager.levelNumber);
   const particles     = new ParticleSystem(layers);

@@ -260,6 +260,52 @@ export class Particles3D {
   }
 
   /**
+   * Spawn ice burst + shockwave ring when freeze booster activates in laneIdx.
+   * @param {number} laneIdx
+   */
+  spawnFreezeActivation(laneIdx) {
+    const x   = laneToX(laneIdx);
+    const car = this._lanes[laneIdx]?.cars[0];
+    const z   = car ? posToZ(car.position) : 0;
+
+    const count = 10;
+    for (let i = 0; i < count; i++) {
+      const angle = (i / count) * Math.PI * 2;
+      const speed = 2.5 + Math.random() * 2.5;
+      const hex   = i % 2 === 0 ? 0xAADDFF : 0xffffff;
+      const mat   = new THREE.MeshStandardMaterial({
+        color: hex, emissive: hex, emissiveIntensity: 1.4,
+        transparent: true, opacity: 1,
+      });
+      const geo  = explGeoForSize(0.07 + Math.random() * 0.07);
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(
+        x + Math.cos(angle) * 0.4 + (Math.random() - 0.5) * 0.2,
+        PARTICLE_Y + 0.15 + Math.random() * 0.4,
+        z + Math.sin(angle) * 0.4,
+      );
+      this._scene.add(mesh);
+      this._sparks.push({
+        mesh, mat,
+        vx: Math.cos(angle) * speed * 0.7,
+        vy: 1.2 + Math.random() * 2.0,
+        vz: Math.sin(angle) * speed * 0.5,
+        life: 0.55, maxLife: 0.55,
+      });
+    }
+
+    // Icy shockwave ring
+    const iceMat = new THREE.MeshBasicMaterial({
+      color: 0x88CCFF, transparent: true, opacity: 0.55, side: THREE.DoubleSide,
+    });
+    const ring = new THREE.Mesh(_ringGeo, iceMat);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(x, 0.02, z);
+    this._scene.add(ring);
+    this._shockwaves.push({ mesh: ring, mat: iceMat, life: 0.45, maxLife: 0.45, scaleRate: 8 });
+  }
+
+  /**
    * Spawn a large bomb explosion at road position bombPos (0-100).
    * Covers all 4 lanes with a wide shockwave + concussion freeze ring.
    * @param {number} bombPos  road-position 0-100

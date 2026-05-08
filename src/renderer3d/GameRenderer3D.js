@@ -55,6 +55,7 @@ export class GameRenderer3D {
     this._lanes       = null;
     this._columns     = null;
     this._firingSlots = null;
+    this._prevFrozen  = false;
   }
 
   // ── Lifecycle ───────────────────────────────────────────────────────────────
@@ -250,6 +251,14 @@ export class GameRenderer3D {
     if (this._canvas?.style.display === 'none') return;
 
     const isFrozen = (gameState?.boosterState?.isFrozen?.() ?? false) || (gameState?.lanes && elapsed < (gameState.bombFreezeUntil ?? -Infinity));
+
+    // Detect freeze onset — spawn ice burst on each lane that has a car
+    if (isFrozen && !this._prevFrozen && this._particles && this._lanes) {
+      for (let i = 0; i < this._lanes.length; i++) {
+        if (this._lanes[i]?.cars.length > 0) this._particles.spawnFreezeActivation(i);
+      }
+    }
+    this._prevFrozen = isFrozen;
 
     this._lighting.update(dt);
     this._skybox.update(dt);

@@ -181,35 +181,60 @@ export class Car3D {
 
         // Damage visual state
         if (isFrozen) {
-          entry.bodyMat.emissive.setHex(0x1133aa);
-          entry.bodyMat.emissiveIntensity = 0.3;
+          if (!entry._prevFrozen) {
+            // First freeze frame: tint all body materials 40% toward ice blue
+            const ICE_R = 0xAA / 255, ICE_G = 0xDD / 255, ICE_B = 0xFF / 255;
+            const mult  = 0.55 + 0.45 * hpRatio;
+            for (let mi = 0; mi < entry.colorMats.length; mi++) {
+              const base = entry.colorBaseHexes[mi];
+              const br = Math.round(((base >> 16) & 0xff) * mult) / 255;
+              const bg = Math.round(((base >>  8) & 0xff) * mult) / 255;
+              const bb = Math.round(( base        & 0xff) * mult) / 255;
+              entry.colorMats[mi].color.setRGB(
+                br * 0.6 + ICE_R * 0.4,
+                bg * 0.6 + ICE_G * 0.4,
+                bb * 0.6 + ICE_B * 0.4,
+              );
+            }
+            entry._prevFrozen = true;
+          }
+          entry.bodyMat.emissive.setHex(0xAADDFF);
+          entry.bodyMat.emissiveIntensity = 0.35;
           g.rotation.z = 0;
           for (const hl of entry.headLights) hl.intensity = 0.30;
           if (entry.smokeMesh) entry.smokeMesh.visible = false;
-        } else if (hpRatio < 0.35) {
-          entry.bodyMat.emissive.setHex(0xff3300);
-          entry.bodyMat.emissiveIntensity = 0.25;
-          g.rotation.z = -0.10 * (1 - hpRatio);
-          for (const hl of entry.headLights) hl.intensity = 0.10;
-          if (entry.smokeMesh) {
-            entry.smokeMesh.visible = true;
-            entry.smokeMesh.material.opacity = 0.3 + 0.35 * (1 - hpRatio / 0.35);
-          }
-        } else if (hpRatio < 0.65) {
-          entry.bodyMat.emissive.setHex(0xff7700);
-          entry.bodyMat.emissiveIntensity = 0.15;
-          g.rotation.z = -0.04 * (1 - hpRatio);
-          for (const hl of entry.headLights) hl.intensity = 0.15;
-          if (entry.smokeMesh) {
-            entry.smokeMesh.visible = true;
-            entry.smokeMesh.material.opacity = 0.08 + 0.22 * (0.65 - hpRatio) / 0.30;
-          }
         } else {
-          entry.bodyMat.emissive.setHex(entry.colorBaseHexes[0] ?? 0x000000);
-          entry.bodyMat.emissiveIntensity = 0.28;
-          g.rotation.z = 0;
-          for (const hl of entry.headLights) hl.intensity = 0.30;
-          if (entry.smokeMesh) entry.smokeMesh.visible = false;
+          if (entry._prevFrozen) {
+            entry.lastHp = -1;  // force color restore from HP-based mult on next iteration
+            entry._prevFrozen = false;
+          }
+        }
+        if (!isFrozen) {
+          if (hpRatio < 0.35) {
+            entry.bodyMat.emissive.setHex(0xff3300);
+            entry.bodyMat.emissiveIntensity = 0.25;
+            g.rotation.z = -0.10 * (1 - hpRatio);
+            for (const hl of entry.headLights) hl.intensity = 0.10;
+            if (entry.smokeMesh) {
+              entry.smokeMesh.visible = true;
+              entry.smokeMesh.material.opacity = 0.3 + 0.35 * (1 - hpRatio / 0.35);
+            }
+          } else if (hpRatio < 0.65) {
+            entry.bodyMat.emissive.setHex(0xff7700);
+            entry.bodyMat.emissiveIntensity = 0.15;
+            g.rotation.z = -0.04 * (1 - hpRatio);
+            for (const hl of entry.headLights) hl.intensity = 0.15;
+            if (entry.smokeMesh) {
+              entry.smokeMesh.visible = true;
+              entry.smokeMesh.material.opacity = 0.08 + 0.22 * (0.65 - hpRatio) / 0.30;
+            }
+          } else {
+            entry.bodyMat.emissive.setHex(entry.colorBaseHexes[0] ?? 0x000000);
+            entry.bodyMat.emissiveIntensity = 0.28;
+            g.rotation.z = 0;
+            for (const hl of entry.headLights) hl.intensity = 0.30;
+            if (entry.smokeMesh) entry.smokeMesh.visible = false;
+          }
         }
 
         // HP sprite
@@ -413,7 +438,7 @@ export class Car3D {
       group, bodyMat, colorMats, colorBaseHexes,
       hpCanvas, hpCtx, hpTex, hpMesh, headLights,
       wheels, turretGroup, lastRenderZ: startZ,
-      lastHp: -1, lastCrackStage: -1,
+      lastHp: -1, lastCrackStage: -1, _prevFrozen: false,
       laneIdx, bossRing, bossRingMat, bossAngle: 0,
       smokeMesh, smokeTex: null, crackCanvas, crackCtx, crackTex, crackMesh,
       shadowMesh, shadowMat, groupY,
@@ -511,28 +536,39 @@ export class Car3D {
     const { hpCtx, hpTex } = entry;
     hpCtx.clearRect(0, 0, W, H);
 
-    // HP pill (top 34px)
+    // HP pill (top 34px) — white background for visibility across all themes
     const PH      = 34;
     const hpRatio = car.maxHp > 0 ? car.hp / car.maxHp : 0;
 
-    hpCtx.fillStyle = 'rgba(0,0,0,0.72)';
-    if (hpCtx.roundRect) hpCtx.roundRect(2, 2, W - 4, PH - 4, 5);
+    // Drop shadow behind pill
+    hpCtx.shadowColor   = 'rgba(0,0,0,0.60)';
+    hpCtx.shadowBlur    = 5;
+    hpCtx.shadowOffsetX = 1;
+    hpCtx.shadowOffsetY = 2;
+
+    // White pill background
+    hpCtx.fillStyle = 'rgba(255,255,255,0.92)';
+    if (hpCtx.roundRect) hpCtx.roundRect(2, 2, W - 4, PH - 4, 6);
     else                 hpCtx.rect(2, 2, W - 4, PH - 4);
     hpCtx.fill();
 
-    const fillColor = hpRatio > 0.60 ? '#44dd44' : hpRatio > 0.30 ? '#ffcc00' : '#ff3322';
+    // Reset shadow for bar fill
+    hpCtx.shadowBlur = 0; hpCtx.shadowOffsetX = 0; hpCtx.shadowOffsetY = 0;
+
+    // Colored fill bar
+    const fillColor = hpRatio > 0.60 ? '#22bb44' : hpRatio > 0.30 ? '#f0aa00' : '#ee2222';
     hpCtx.fillStyle = fillColor;
     const fillW = Math.max(0, Math.round((W - 8) * hpRatio));
-    if (hpCtx.roundRect) hpCtx.roundRect(4, 4, fillW, PH - 8, 3);
+    if (hpCtx.roundRect) hpCtx.roundRect(4, 4, fillW, PH - 8, 4);
     else                 hpCtx.rect(4, 4, fillW, PH - 8);
     hpCtx.fill();
 
-    hpCtx.font         = 'bold 13px Arial';
-    hpCtx.fillStyle    = '#ffffff';
+    hpCtx.font         = 'bold 12px Arial';
+    hpCtx.fillStyle    = '#111111';
     hpCtx.textAlign    = 'center';
     hpCtx.textBaseline = 'middle';
-    hpCtx.shadowColor  = 'rgba(0,0,0,0.9)';
-    hpCtx.shadowBlur   = 3;
+    hpCtx.shadowColor  = 'rgba(255,255,255,0.5)';
+    hpCtx.shadowBlur   = 2;
     hpCtx.fillText(`${car.hp}/${car.maxHp ?? car.hp}`, W / 2, PH / 2);
     hpCtx.shadowBlur   = 0;
 

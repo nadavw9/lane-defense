@@ -14,13 +14,13 @@ export const THEMES = {
     ambient:{ color: 0xfff8f0, intensity: 0.48 },
     fog:    { color: 0xf0d8a8, near: 30, far: 92 },
   },
-  // Afternoon: clear cornflower blue dominates. Vivid greens, crisp light.
+  // Afternoon: deep sky blue dominates. Golden warm horizon, vivid greens.
   afternoon: {
-    sky:    { zenith: 0x5ccaf0, mid: 0x8ad8ff, horizon: 0xfff8e8, glow: 0xfff0c0 },
-    hemi:   { sky: 0xc0e0ff, ground: 0x78b040, intensity: 1.38 },
+    sky:    { zenith: 0x1a88dd, mid: 0x55b8f0, horizon: 0xffd060, glow: 0xffbe40 },
+    hemi:   { sky: 0xc8e8ff, ground: 0x90a830, intensity: 1.50 },
     sun:    { color: 0xfffce8, intensity: 1.65 },
     ambient:{ color: 0xffffff, intensity: 0.62 },
-    fog:    { color: 0xd0eeff, near: 38, far: 128 },
+    fog:    { color: 0xaad4f8, near: 38, far: 128 },
   },
   // Sunset: deep indigo-purple dominates. Warm orange rim, dramatic shadows.
   sunset: {
@@ -38,13 +38,13 @@ export const THEMES = {
     ambient:{ color: 0xd0dde8, intensity: 0.58 },
     fog:    { color: 0xc2cfd8, near: 30, far: 95 },
   },
-  // Autumn: golden-amber dominates. Rich earth tones, warm sun.
+  // Autumn: deep blue sky, rich amber/orange foliage, warm earth ground.
   autumn: {
-    sky:    { zenith: 0x3377bb, mid: 0xcc8833, horizon: 0xffcc55, glow: 0xffaa33 },
-    hemi:   { sky: 0xddaa44, ground: 0x7a5522, intensity: 1.15 },
+    sky:    { zenith: 0x1848aa, mid: 0xbb6622, horizon: 0xffaa22, glow: 0xff7711 },
+    hemi:   { sky: 0xdda030, ground: 0x8b4513, intensity: 1.20 },
     sun:    { color: 0xffeea0, intensity: 1.55 },
     ambient:{ color: 0xffeecc, intensity: 0.48 },
-    fog:    { color: 0xffbb77, near: 28, far: 92 },
+    fog:    { color: 0xffaa44, near: 20, far: 75 },
   },
 };
 

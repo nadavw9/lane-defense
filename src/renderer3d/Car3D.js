@@ -73,8 +73,8 @@ function _boostColor(hex) {
 
 function _paintMat(hex) {
   return new THREE.MeshStandardMaterial({
-    color: hex, metalness: 0.42, roughness: 0.48, transparent: true, opacity: 1,
-    emissive: new THREE.Color(0x181818), emissiveIntensity: 0.12,
+    color: hex, metalness: 0.08, roughness: 0.30, transparent: true, opacity: 1,
+    emissive: new THREE.Color(hex), emissiveIntensity: 0.28,
   });
 }
 function _darkMat(hex = 0x1a1a1a) {
@@ -206,7 +206,7 @@ export class Car3D {
           }
         } else {
           entry.bodyMat.emissive.setHex(entry.colorBaseHexes[0] ?? 0x000000);
-          entry.bodyMat.emissiveIntensity = 0.15;
+          entry.bodyMat.emissiveIntensity = 0.28;
           g.rotation.z = 0;
           for (const hl of entry.headLights) hl.intensity = 0.30;
           if (entry.smokeMesh) entry.smokeMesh.visible = false;
@@ -275,7 +275,7 @@ export class Car3D {
       const result = this._buildTank(group, boostedHex, colorMats, colorBaseHexes);
       bodyMat      = result.bodyMat;
       bodyMat.emissive.setHex(boostedHex);
-      bodyMat.emissiveIntensity = 0.15;
+      bodyMat.emissiveIntensity = 0.28;
       turretGroup  = result.turretGroup;
       if (group.userData.tankPtLight) headLights.push(group.userData.tankPtLight);
 
@@ -300,7 +300,9 @@ export class Car3D {
           if (_isExcludedMaterial(mat)) continue;
           mat.color.setHex(boostedHex);
           mat.emissive.setHex(boostedHex);
-          mat.emissiveIntensity = 0.15;
+          mat.emissiveIntensity = 0.28;
+          mat.roughness = 0.30;
+          mat.metalness = 0.08;
           if (!bodyMat) bodyMat = mat;
           colorMats.push(mat);
           colorBaseHexes.push(boostedHex);
@@ -309,9 +311,9 @@ export class Car3D {
 
       // Fallback: if no body material detected, create one manually
       if (!bodyMat) {
-        bodyMat = new THREE.MeshStandardMaterial({ color: boostedHex, transparent: true, opacity: 1 });
+        bodyMat = new THREE.MeshStandardMaterial({ color: boostedHex, transparent: true, opacity: 1, roughness: 0.30, metalness: 0.08 });
         bodyMat.emissive.setHex(boostedHex);
-        bodyMat.emissiveIntensity = 0.15;
+        bodyMat.emissiveIntensity = 0.28;
         colorMats.push(bodyMat);
         colorBaseHexes.push(boostedHex);
       }
@@ -330,7 +332,7 @@ export class Car3D {
 
     // Armor metalness tier based on maxHp — heavier vehicles look more armored
     const maxHp     = car.maxHp ?? car.hp;
-    const metalness = maxHp >= 20 ? 0.70 : maxHp >= 6 ? 0.55 : maxHp >= 3 ? 0.45 : 0.25;
+    const metalness = 0.08;
     for (const mat of colorMats) {
       if (mat.metalness !== undefined) mat.metalness = metalness;
     }

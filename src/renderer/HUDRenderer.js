@@ -23,10 +23,10 @@ const TEXT_MID = Math.round(BAR_Y + BAR_H + (HUD_H - BAR_Y - BAR_H) / 2);  // 44
 const HUD_BG = 0x08081a;
 
 const COMBO_TIERS = [
-  { min: 2,  color: 0xffffff, size: 22 },
-  { min: 4,  color: 0xffee44, size: 25 },
-  { min: 7,  color: 0xff9922, size: 28 },
-  { min: 11, color: 0xff3333, size: 31 },
+  { min: 2,  color: 0xffee44, size: 24 },
+  { min: 4,  color: 0xffee44, size: 28 },
+  { min: 7,  color: 0xff9922, size: 33 },
+  { min: 11, color: 0xff3333, size: 38 },
 ];
 
 const MULT_TIERS = [
@@ -72,6 +72,9 @@ export class HUDRenderer {
     this._objTimer     = 0;
     this._objText      = null;
     this._confetti     = [];
+    this._prevComboTier = -1;
+    this._tierFlashT    = 0;
+    this._curTierColor  = 0xffee44;
 
     // ── Background + progress bar (redrawn every frame) ─────────────────
     this._bg = new Graphics();
@@ -140,6 +143,10 @@ export class HUDRenderer {
       this._heartTexts.push(ht);
     }
 
+    // ── Combo glow background (drawn behind combo text) ──────────────────
+    this._comboGlowBg = new Graphics();
+    this._layer.addChild(this._comboGlowBg);
+
     // ── Combo text ───────────────────────────────────────────────────────
     this._comboText = new Text({
       text: '',
@@ -164,7 +171,7 @@ export class HUDRenderer {
     this._multiBadge = new Text({
       text: '',
       style: {
-        fontSize:   12,
+        fontSize:   18,
         fontWeight: 'bold',
         fill:       0xffcc00,
         dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 0.8 },
@@ -251,7 +258,7 @@ export class HUDRenderer {
   }
 
   bumpCombo(combo) {
-    this._bounceScale = 1.5;
+    this._bounceScale = 1.4;
     this._bounceVel   = 0;
     this._updateComboStyle(combo);
   }
@@ -280,8 +287,10 @@ export class HUDRenderer {
     }
     this._lastRatio = ratio;
 
+    if (this._tierFlashT > 0) this._tierFlashT = Math.max(0, this._tierFlashT - dt);
     this._drawBg(kills, target, ratio);
     this._stepSpring(dt);
+    this._refreshComboGlow();
     this._refreshComboText();
     this._refreshCoinsText();
     this._refreshComboGauge();
@@ -532,11 +541,38 @@ export class HUDRenderer {
     }
   }
 
-  _updateComboStyle(combo) {
-    let tier = COMBO_TIERS[0];
-    for (const t of COMBO_TIERS) {
-      if (combo >= t.min) tier = t;
+  _refreshComboGlow() {
+    const g     = this._comboGlowBg;
+    const combo = this._gs.combo;
+    g.clear();
+    if (combo < 2) return;
+
+    const glowW = 150 + combo * 4;
+    const glowH = 34;
+    const cx    = this._appW / 2;
+    const cy    = TEXT_MID;
+
+    g.roundRect(cx - glowW / 2, cy - glowH / 2, glowW, glowH, 10);
+    g.fill({ color: this._curTierColor, alpha: 0.18 });
+
+    if (this._tierFlashT > 0) {
+      const flashA = (this._tierFlashT / 0.12) * 0.55;
+      g.roundRect(cx - glowW / 2, cy - glowH / 2, glowW, glowH, 10);
+      g.fill({ color: 0xffffff, alpha: flashA });
     }
+  }
+
+  _updateComboStyle(combo) {
+    let tierIdx = 0;
+    let tier    = COMBO_TIERS[0];
+    for (let i = 0; i < COMBO_TIERS.length; i++) {
+      if (combo >= COMBO_TIERS[i].min) { tier = COMBO_TIERS[i]; tierIdx = i; }
+    }
+    if (tierIdx !== this._prevComboTier) {
+      this._prevComboTier = tierIdx;
+      this._tierFlashT    = 0.12;
+    }
+    this._curTierColor             = tier.color;
     this._comboText.style.fill     = tier.color;
     this._comboText.style.fontSize = tier.size;
   }

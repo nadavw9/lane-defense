@@ -11,7 +11,7 @@
 // Data flow:
 //   InputManager → DragDrop → GameLoop.deploy() → GameState mutation
 //   GameState → CarRenderer / ShooterRenderer / HUDRenderer / ParticleSystem
-import { Application, Assets, Container, Graphics, Text } from 'pixi.js';
+import { Application, Assets, Container, Graphics, Text, Ticker } from 'pixi.js';
 
 import { GameRenderer3D }  from '../renderer3d/GameRenderer3D.js';
 import { assetLoader }     from '../renderer3d/AssetLoader.js';
@@ -1594,44 +1594,62 @@ function _buildComboPopup(w) {
 }
 
 function _buildAchievementPopup(w, achievement) {
+  // Compact top-right toast: 274×62px, 8px from right edge
+  const TW = 274, TH = 62, TX = w - TW - 8;
+
+  const outer = new Container();
   const grp = new Container();
+  grp.x = w;  // start off-screen right for slide-in
+  outer.addChild(grp);
 
   const bg = new Graphics();
-  bg.roundRect(18, 0, w - 36, 72, 14);
-  bg.fill({ color: 0x120a00, alpha: 0.94 });
-  bg.roundRect(18, 0, w - 36, 72, 14);
-  bg.stroke({ color: 0xf5c842, width: 2, alpha: 0.90 });
+  bg.roundRect(TX, 0, TW, TH, 14);
+  bg.fill({ color: 0x0a0a1a, alpha: 0.88 });
+  bg.roundRect(TX, 0, TW, TH, 14);
+  bg.stroke({ color: 0xf5c842, width: 1.5, alpha: 0.85 });
   grp.addChild(bg);
+
+  const icon = new Text({ text: '🏆', style: { fontSize: 26 } });
+  icon.x = TX + 10;
+  icon.y = (TH - 32) / 2;
+  grp.addChild(icon);
+
+  const textX = TX + 46;
 
   const label = new Text({
     text: 'ACHIEVEMENT UNLOCKED',
-    style: { fontSize: 11, fontWeight: 'bold', fill: 0xf5c842, letterSpacing: 1.5 },
+    style: { fontSize: 9, fontWeight: 'bold', fill: 0xf5c842, letterSpacing: 1.0 },
   });
-  label.anchor.set(0.5, 0);
-  label.x = w / 2;
-  label.y = 8;
+  label.x = textX;
+  label.y = 7;
   grp.addChild(label);
 
-  const name = new Text({
+  const nameText = new Text({
     text: achievement.name,
-    style: { fontSize: 18, fontWeight: 'bold', fill: 0xffeebb,
-      dropShadow: { color: 0x000000, blur: 4, distance: 2, alpha: 0.8 } },
+    style: { fontSize: 14, fontWeight: 'bold', fill: 0xffeebb,
+      dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 0.9 } },
   });
-  name.anchor.set(0.5, 0);
-  name.x = w / 2;
-  name.y = 24;
-  grp.addChild(name);
+  nameText.x = textX;
+  nameText.y = 22;
+  grp.addChild(nameText);
 
-  const desc = new Text({
+  const descText = new Text({
     text: achievement.desc,
-    style: { fontSize: 12, fill: 0xaa9966, fontWeight: 'normal' },
+    style: { fontSize: 10, fill: 0xaa9966, fontWeight: 'normal', wordWrap: true, wordWrapWidth: TW - 56 },
   });
-  desc.anchor.set(0.5, 0);
-  desc.x = w / 2;
-  desc.y = 48;
-  grp.addChild(desc);
+  descText.x = textX;
+  descText.y = 42;
+  grp.addChild(descText);
 
-  return grp;
+  // Slide in from right
+  const slideListener = (ticker) => {
+    if (outer.destroyed) { Ticker.shared.remove(slideListener); return; }
+    grp.x = Math.max(0, grp.x - w * 8 * (ticker.deltaTime / 60));
+    if (grp.x <= 0) { grp.x = 0; Ticker.shared.remove(slideListener); }
+  };
+  Ticker.shared.add(slideListener);
+
+  return outer;
 }
 
 main().catch(err => {

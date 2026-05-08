@@ -188,22 +188,6 @@ export class Shooter3D {
       this._sparkBeads.push({ bead, mat });
     }
 
-    // ── Front-slot glow rings — colored, pulsing ──────────────────────────────
-    this._glowRings = [];
-    const ringGeo   = new THREE.RingGeometry(BOMB_R * 1.30, BOMB_R * 1.78, 32);
-    for (let li = 0; li < LANE_COUNT; li++) {
-      const mat  = new THREE.MeshBasicMaterial({
-        color: 0xffcc44, transparent: true, opacity: 0,
-        side: THREE.DoubleSide, depthWrite: false,
-      });
-      const mesh = new THREE.Mesh(ringGeo, mat);
-      mesh.rotation.x = -Math.PI / 2;
-      mesh.position.set(laneToX(li) + BOMB_CX, 0.01, SLOT_Z[0]);
-      mesh.visible = false;
-      mesh.layers.set(1);
-      this._scene.add(mesh);
-      this._glowRings.push({ mesh, mat });
-    }
   }
 
   // ── Public API ────────────────────────────────────────────────────────────────
@@ -214,8 +198,6 @@ export class Shooter3D {
       for (const slot of this._slots[li]) slot.group.position.x = x;
       const sb = this._sparkBeads[li];
       if (sb) sb.bead.position.x = x + BOMB_CX + 0.15;
-      const gr = this._glowRings[li];
-      if (gr) gr.mesh.position.x = x + BOMB_CX;
     }
   }
 
@@ -315,17 +297,6 @@ export class Shooter3D {
         bead.mat.emissive.copy(bead.mat.color);
       }
 
-      // Glow ring — colored, pulsing amplitude
-      const gr = this._glowRings[li];
-      gr.mesh.visible = mainVisible;
-      if (mainVisible) {
-        const pulse    = 0.5 + 0.5 * Math.sin(elapsed * 3.0 + li * 0.8);
-        gr.mat.opacity = 0.32 + 0.52 * pulse;
-        const s        = 1.0 + 0.12 * pulse;
-        gr.mesh.scale.set(s, s, 1);
-        const frontHex = slots[0].lastColor;
-        if (frontHex > 0) gr.mat.color.setHex(frontHex);
-      }
     }
   }
 
@@ -351,10 +322,7 @@ export class Shooter3D {
     for (const { bead, mat } of this._sparkBeads) {
       bead.geometry.dispose(); mat.dispose(); this._scene.remove(bead);
     }
-    for (const { mesh, mat } of this._glowRings) {
-      mat.dispose(); this._scene.remove(mesh);
-    }
-    this._slots = []; this._sparkBeads = []; this._glowRings = [];
+    this._slots = []; this._sparkBeads = [];
   }
 
   // ── Private ───────────────────────────────────────────────────────────────────

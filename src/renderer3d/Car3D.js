@@ -24,11 +24,6 @@ const HL_Y        = 0.5;   // approximate headlight height for GLB cars
 // Coordinate constants for the procedural tank builder (ported from brand-cars.html)
 const SX = 1.74;           // X scale: design space → game width
 const OY = -CAR_Y_TANK;   // Y offset aligns tank geometry to road surface
-const HP_SPRITE_Y     = 2.6;    // high enough to clear bigrig/tank rooflines
-const HP_CANVAS_W     = 96;     // wider for HP ratio + type badge
-const HP_CANVAS_H     = 52;     // HP pill (34px) + type badge row (16px)
-const HP_SPRITE_W     = 0.079; // ~80px: pixel_size = scale × 1019 (fov45, 390×844)
-const HP_SPRITE_H     = 0.041; // ~42px
 const DEATH_DURATION  = 0.30;
 const DEATH_SCALE_MAX = 1.40;
 const DEATH_VY        = 2.5;
@@ -116,13 +111,8 @@ export class Car3D {
 
     for (const [car, entry] of this._live) {
       if (!liveCars.has(car)) {
-        if (entry.hpMesh) {
-          entry.hpMesh.material.map?.dispose();
-          entry.hpMesh.material.dispose();
-          this._scene.remove(entry.hpMesh);
-        }
         this._dying.push({
-          group: entry.group, hpTex: entry.hpTex,
+          group: entry.group,
           smokeTex: entry.smokeTex, crackTex: entry.crackTex,
           bossRing: entry.bossRing, bossRingMat: entry.bossRingMat,
           shadowMesh: entry.shadowMesh, shadowMat: entry.shadowMat, t: 0,
@@ -237,10 +227,7 @@ export class Car3D {
           }
         }
 
-        // HP sprite
-        if (entry.hpMesh) entry.hpMesh.position.set(g.position.x, HP_SPRITE_Y, entry.renderZ);
-
-        // HP changed: darken body colors + redraw sprite + crack stage
+        // HP changed: darken body colors + crack stage
         if (car.hp !== entry.lastHp) {
           entry.lastHp = car.hp;
           const mult = 0.55 + 0.45 * hpRatio;
@@ -251,11 +238,6 @@ export class Car3D {
               Math.round(((base >>  8) & 0xff) * mult) / 255,
               Math.round(( base        & 0xff) * mult) / 255,
             );
-          }
-          this._drawHpBar(entry, car);
-          if (entry.hpMesh) {
-            entry.hpMesh.visible = true;
-            entry.hpMesh.position.set(g.position.x, HP_SPRITE_Y, entry.renderZ);
           }
           if (entry.crackMesh) {
             const stage = hpRatio > 0.75 ? 0 : hpRatio > 0.50 ? 1 : hpRatio > 0.25 ? 2 : 3;
@@ -373,17 +355,6 @@ export class Car3D {
       this._scene.add(bossRing);
     }
 
-    // HP sprite
-    const hpCanvas = document.createElement('canvas');
-    hpCanvas.width  = HP_CANVAS_W;
-    hpCanvas.height = HP_CANVAS_H;
-    const hpCtx  = hpCanvas.getContext('2d');
-    const hpTex  = new THREE.CanvasTexture(hpCanvas);
-    const hpMesh = new THREE.Sprite(new THREE.SpriteMaterial({ map: hpTex, transparent: true, depthTest: false, sizeAttenuation: false }));
-    hpMesh.scale.set(HP_SPRITE_W, HP_SPRITE_H, 1);
-    hpMesh.visible = true;
-    this._scene.add(hpMesh);
-
     // Smoke sprite
     const smokeCanvas = document.createElement('canvas');
     smokeCanvas.width = smokeCanvas.height = 32;
@@ -436,7 +407,7 @@ export class Car3D {
     const startZ = posToZ(car.position);
     const entry = {
       group, bodyMat, colorMats, colorBaseHexes,
-      hpCanvas, hpCtx, hpTex, hpMesh, headLights,
+      headLights,
       wheels, turretGroup, lastRenderZ: startZ,
       lastHp: -1, lastCrackStage: -1, _prevFrozen: false,
       laneIdx, bossRing, bossRingMat, bossAngle: 0,
@@ -446,7 +417,6 @@ export class Car3D {
     };
     // Intentionally unused smokeTex ref (smoke canvas is owned by smokeMesh.material.map)
     entry.smokeTex = smokeTex;
-    this._drawHpBar(entry, car);
     return entry;
   }
 
@@ -529,59 +499,6 @@ export class Car3D {
     return { bodyMat: bm, turretGroup };
   }
 
-  // ── HP bar canvas ──────────────────────────────────────────────────────────────
-
-  _drawHpBar(entry, car) {
-    const W = HP_CANVAS_W, H = HP_CANVAS_H;
-    const { hpCtx, hpTex } = entry;
-    hpCtx.clearRect(0, 0, W, H);
-
-    // HP pill (top 34px) — white background for visibility across all themes
-    const PH      = 34;
-    const hpRatio = car.maxHp > 0 ? car.hp / car.maxHp : 0;
-
-    // Drop shadow behind pill
-    hpCtx.shadowColor   = 'rgba(0,0,0,0.60)';
-    hpCtx.shadowBlur    = 5;
-    hpCtx.shadowOffsetX = 1;
-    hpCtx.shadowOffsetY = 2;
-
-    // White pill background
-    hpCtx.fillStyle = 'rgba(255,255,255,0.92)';
-    if (hpCtx.roundRect) hpCtx.roundRect(2, 2, W - 4, PH - 4, 6);
-    else                 hpCtx.rect(2, 2, W - 4, PH - 4);
-    hpCtx.fill();
-
-    // Reset shadow for bar fill
-    hpCtx.shadowBlur = 0; hpCtx.shadowOffsetX = 0; hpCtx.shadowOffsetY = 0;
-
-    // Colored fill bar
-    const fillColor = hpRatio > 0.60 ? '#22bb44' : hpRatio > 0.30 ? '#f0aa00' : '#ee2222';
-    hpCtx.fillStyle = fillColor;
-    const fillW = Math.max(0, Math.round((W - 8) * hpRatio));
-    if (hpCtx.roundRect) hpCtx.roundRect(4, 4, fillW, PH - 8, 4);
-    else                 hpCtx.rect(4, 4, fillW, PH - 8);
-    hpCtx.fill();
-
-    hpCtx.font         = 'bold 12px Arial';
-    hpCtx.fillStyle    = '#111111';
-    hpCtx.textAlign    = 'center';
-    hpCtx.textBaseline = 'middle';
-    hpCtx.shadowColor  = 'rgba(255,255,255,0.5)';
-    hpCtx.shadowBlur   = 2;
-    hpCtx.fillText(`${car.hp}/${car.maxHp ?? car.hp}`, W / 2, PH / 2);
-    hpCtx.shadowBlur   = 0;
-
-    // Type badge (bottom 16px)
-    const BADGE_MAP = { small: '🏍', big: '🚗', jeep: '🚙', truck: '🚚', bigrig: '🚛', tank: '🛡', boss: '👑' };
-    hpCtx.font         = '13px Arial';
-    hpCtx.textAlign    = 'center';
-    hpCtx.textBaseline = 'middle';
-    hpCtx.fillText(BADGE_MAP[car.type] ?? '🚗', W / 2, PH + (H - PH) / 2);
-
-    hpTex.needsUpdate = true;
-  }
-
   // ── Tank crack overlay ─────────────────────────────────────────────────────────
 
   _drawCracks(ctx, stage) {
@@ -607,7 +524,6 @@ export class Car3D {
   // ── Disposal ───────────────────────────────────────────────────────────────────
 
   _disposeDying(d) {
-    d.hpTex?.dispose();
     d.smokeTex?.dispose();
     d.crackTex?.dispose();
     this._disposeGroup(d.group);
@@ -616,13 +532,6 @@ export class Car3D {
   }
 
   _disposeEntry(entry) {
-    if (entry.hpMesh) {
-      entry.hpTex.dispose();
-      entry.hpMesh.material.dispose();
-      this._scene.remove(entry.hpMesh);
-    } else {
-      entry.hpTex?.dispose();
-    }
     entry.smokeTex?.dispose();
     entry.crackTex?.dispose();
     this._disposeGroup(entry.group);

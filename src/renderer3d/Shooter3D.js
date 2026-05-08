@@ -1,10 +1,12 @@
-// Shooter3D — candy-colored bomb visuals for the top-down orthographic shooter camera (layer 1).
+// Shooter3D — Royal Match / Color Block Jam candy-bomb visuals.
+// Top-down orthographic camera (layer 1): bombs appear as circles from above.
+// Design: color-dominant sphere + billiard-ball shading + colored ground halo.
 //
-// Camera setup: position=(0,4.5,0), up=(0,0,-1), lookAt origin → looking straight DOWN.
+// Camera: position=(0,4.5,0), up=(0,0,-1), lookAt origin → looking straight DOWN.
 //   X = left/right  |  Z = top/bottom (more negative Z = higher on screen)  |  Y = depth
 //
-// Each column has up to 4 visible slots stacked along the Z axis:
-//   SLOT_Z = [-1.5, -0.5, 0.5, 1.4] — slot 0 (front) at top, slot 3 at bottom.
+// Slot layout along Z: SLOT_Z = [-1.5, -0.5, 0.5, 1.4]
+//   slot 0 (front/active) at top, slot 3 (deep queue) at bottom.
 
 import * as THREE from 'three';
 import { laneToX } from './Scene3D.js';
@@ -14,50 +16,93 @@ const SLOT_Z     = [-1.5, -0.5, 0.5, 1.4];
 const LANE_COUNT = 4;
 
 // ── Per-slot depth parameters ──────────────────────────────────────────────────
-const SLOT_SCALE    = [1.15, 0.72, 0.58, 0.44];
-const SLOT_ALPHA    = [1.00, 0.80, 0.65, 0.55];   // min raised to 0.55 for readability
-const SLOT_EMISSIVE = [0.20, 0.14, 0.10, 0.06];   // gentle inner glow (sphere IS the color)
+// emissive is high so candy colors read vividly regardless of scene lighting.
+const SLOT_SCALE    = [1.18, 0.78, 0.62, 0.48];
+const SLOT_ALPHA    = [1.00, 0.82, 0.68, 0.55];
+const SLOT_EMISSIVE = [0.50, 0.30, 0.18, 0.10];
 
 // ── Bomb geometry (group-local coords) ────────────────────────────────────────
 const BOMB_R  = 0.36;
-const BOMB_CX = -0.25;
-const BOMB_CY = BOMB_R;
+const BOMB_CX = -0.25;   // slight X offset for asymmetry/artistry
+const BOMB_CY = BOMB_R;  // sphere sits with bottom at y=0
 const BOMB_CZ = 0;
 
 // ── Spark bead ─────────────────────────────────────────────────────────────────
-const SPARK_BEAD_RADIUS   = 0.060;   // larger than before (was 0.045)
+const SPARK_BEAD_RADIUS   = 0.062;
 const SPARK_FLICKER_SPEED = 12;
 
 // ── Badge canvas ───────────────────────────────────────────────────────────────
-const BADGE_CVS_W = 80;
-const BADGE_CVS_H = 52;
-const BADGE_W     = 0.72;   // wider pill (was 0.58)
-const BADGE_H     = 0.44;
+const BADGE_CVS_W = 96;
+const BADGE_CVS_H = 56;
+const BADGE_W     = 0.82;   // world-space width
+const BADGE_H     = 0.46;
 
-// ── Shared highlight texture (created once, reused per slot) ──────────────────
-let _hlTex = null;
+// ── Shared textures (created once, reused across all slots) ───────────────────
+let _hlTex   = null;
+let _vignTex = null;
+
+/** Specular crescent: bright center fading to transparent, offset top-left. */
 function _getHighlightTex() {
   if (_hlTex) return _hlTex;
   const cv  = document.createElement('canvas');
-  cv.width  = cv.height = 32;
+  cv.width  = cv.height = 48;
   const ctx = cv.getContext('2d');
-  const g   = ctx.createRadialGradient(11, 9, 0, 14, 12, 14);
-  g.addColorStop(0,   'rgba(255,255,255,0.90)');
-  g.addColorStop(0.45,'rgba(255,255,255,0.45)');
-  g.addColorStop(1,   'rgba(255,255,255,0)');
+  const g   = ctx.createRadialGradient(14, 12, 0, 16, 14, 20);
+  g.addColorStop(0,    'rgba(255,255,255,0.95)');
+  g.addColorStop(0.38, 'rgba(255,255,255,0.60)');
+  g.addColorStop(0.70, 'rgba(255,255,255,0.18)');
+  g.addColorStop(1,    'rgba(255,255,255,0)');
   ctx.fillStyle = g;
-  ctx.beginPath(); ctx.arc(16, 16, 14, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(22, 20, 20, 0, Math.PI * 2); ctx.fill();
   _hlTex = new THREE.CanvasTexture(cv);
   return _hlTex;
 }
 
+/** Vignette: transparent center → dark edge. Creates billiard-ball rim shading. */
+function _getVignetteTex() {
+  if (_vignTex) return _vignTex;
+  const cv  = document.createElement('canvas');
+  cv.width  = cv.height = 64;
+  const ctx = cv.getContext('2d');
+  const g   = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0,    'rgba(0,0,0,0)');
+  g.addColorStop(0.52, 'rgba(0,0,0,0)');
+  g.addColorStop(0.80, 'rgba(0,0,0,0.32)');
+  g.addColorStop(1,    'rgba(0,0,0,0.72)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(32, 32, 32, 0, Math.PI * 2); ctx.fill();
+  _vignTex = new THREE.CanvasTexture(cv);
+  return _vignTex;
+}
+
 // ── Color palette ──────────────────────────────────────────────────────────────
 const COLOR_HEX = {
-  Red:    0xE24B4A, Blue:   0x378ADD, Green:  0x639922,
-  Yellow: 0xEF9F27, Purple: 0x7F77DD, Orange: 0xD85A30,
+  Red:    0xE24B4A,
+  Blue:   0x378ADD,
+  Green:  0x639922,
+  Yellow: 0xEF9F27,
+  Purple: 0x7F77DD,
+  Orange: 0xD85A30,
 };
 
-// ── Badge drawing — white pill with bold colored number ────────────────────────
+// ── Cross-browser rounded rect path helper ────────────────────────────────────
+function _roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(x, y, w, h, r);
+  } else {
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y,     x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x,     y + h, r);
+    ctx.arcTo(x,     y + h, x,     y,     r);
+    ctx.arcTo(x,     y,     x + w, y,     r);
+    ctx.closePath();
+  }
+}
+
+// ── Badge drawing — Color Block Jam style ─────────────────────────────────────
+// Colored pill background (the lane color) + bold white number.
+// The pill color reinforces the bomb color identity below the sphere.
 function drawDamageBadge(ctx, W, H, damage, colorHex) {
   const cr = (colorHex >> 16) & 0xff;
   const cg = (colorHex >>  8) & 0xff;
@@ -65,40 +110,46 @@ function drawDamageBadge(ctx, W, H, damage, colorHex) {
 
   ctx.clearRect(0, 0, W, H);
 
-  // Pill shape: rounded rect wider than tall
-  const pw = W * 0.88, ph = H * 0.60;
+  const pw = W * 0.88, ph = H * 0.70;
   const px = (W - pw) / 2, py = (H - ph) / 2;
   const r  = ph / 2;
 
-  // White pill background
-  ctx.beginPath();
-  if (ctx.roundRect) ctx.roundRect(px, py, pw, ph, r);
-  else {
-    ctx.moveTo(px + r, py);
-    ctx.arcTo(px + pw, py, px + pw, py + ph, r);
-    ctx.arcTo(px + pw, py + ph, px, py + ph, r);
-    ctx.arcTo(px, py + ph, px, py, r);
-    ctx.arcTo(px, py, px + pw, py, r);
-    ctx.closePath();
-  }
-  ctx.fillStyle = 'rgba(255,255,255,0.88)';
+  // Drop shadow behind the pill
+  ctx.shadowColor   = 'rgba(0,0,0,0.65)';
+  ctx.shadowBlur    = 5;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 3;
+
+  // Colored pill background
+  _roundRect(ctx, px, py, pw, ph, r);
+  ctx.fillStyle = `rgb(${cr},${cg},${cb})`;
   ctx.fill();
 
-  // Thin colored border for contrast
-  ctx.strokeStyle = `rgba(${cr},${cg},${cb},0.70)`;
-  ctx.lineWidth   = 1.5;
+  ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+
+  // Top-gloss strip: 30% white overlay on upper 38% of pill
+  _roundRect(ctx, px + 2, py + 2, pw - 4, ph * 0.38, r);
+  ctx.fillStyle = 'rgba(255,255,255,0.30)';
+  ctx.fill();
+
+  // Thin white rim border for crisp edge separation
+  _roundRect(ctx, px, py, pw, ph, r);
+  ctx.strokeStyle = 'rgba(255,255,255,0.40)';
+  ctx.lineWidth   = 1.2;
   ctx.stroke();
 
-  // Damage number: dark stroke + colored fill for max contrast on white pill
-  const fontSize = Math.round(ph * 0.82);
-  ctx.font         = `bold ${fontSize}px Arial`;
+  // Number: weight-900 bold, white fill + dark stroke for max legibility
+  const fontSize = Math.round(ph * 0.88);
+  ctx.font         = `900 ${fontSize}px Arial`;
   ctx.textAlign    = 'center';
   ctx.textBaseline = 'middle';
-  ctx.lineWidth    = 3.5;
-  ctx.strokeStyle  = 'rgba(20,10,10,0.70)';
-  ctx.strokeText(String(damage), W / 2, H / 2);
-  ctx.fillStyle = `rgb(${cr},${cg},${cb})`;
-  ctx.fillText(String(damage), W / 2, H / 2);
+
+  ctx.lineWidth   = 4.0;
+  ctx.strokeStyle = 'rgba(0,0,0,0.82)';
+  ctx.strokeText(String(damage), W / 2, H / 2 + 1);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(String(damage), W / 2, H / 2 + 1);
 }
 
 // ── Punch ease-out ─────────────────────────────────────────────────────────────
@@ -117,7 +168,7 @@ export class Shooter3D {
 
     this._activeColCount = LANE_COUNT;
 
-    // Spark beads — one per lane at fuse tip
+    // ── Spark beads — one per lane, flicker orange/yellow at fuse tip ─────────
     this._sparkBeads = [];
     for (let li = 0; li < LANE_COUNT; li++) {
       const mat = new THREE.MeshStandardMaterial({
@@ -125,6 +176,7 @@ export class Shooter3D {
         emissive:          new THREE.Color(0xff8800),
         emissiveIntensity: 0,
         roughness:         0.2,
+        metalness:         0,
       });
       const bead = new THREE.Mesh(
         new THREE.SphereGeometry(SPARK_BEAD_RADIUS, 8, 8), mat,
@@ -136,9 +188,9 @@ export class Shooter3D {
       this._sparkBeads.push({ bead, mat });
     }
 
-    // Front-slot glow rings
+    // ── Front-slot glow rings — colored, pulsing ──────────────────────────────
     this._glowRings = [];
-    const ringGeo   = new THREE.RingGeometry(BOMB_R * 1.30, BOMB_R * 1.78, 28);
+    const ringGeo   = new THREE.RingGeometry(BOMB_R * 1.30, BOMB_R * 1.78, 32);
     for (let li = 0; li < LANE_COUNT; li++) {
       const mat  = new THREE.MeshBasicMaterial({
         color: 0xffcc44, transparent: true, opacity: 0,
@@ -172,11 +224,11 @@ export class Shooter3D {
   triggerPunch(colIdx) {
     const slot = this._slots[colIdx]?.[0];
     if (!slot) return;
-    slot.group.scale.setScalar(1.40 * slot._baseScale);  // juicier overshoot
-    slot._punchT    = 0;
-    slot._punching  = true;
-    slot._flashT    = 0;
-    slot._flashing  = true;
+    slot.group.scale.setScalar(1.40 * slot._baseScale);
+    slot._punchT   = 0;
+    slot._punching = true;
+    slot._flashT   = 0;
+    slot._flashing = true;
     // Immediate white emissive flash
     slot.sphereMat.emissive.setHex(0xffffff);
     slot.sphereMat.emissiveIntensity = 1.0;
@@ -205,17 +257,18 @@ export class Shooter3D {
         const hex    = COLOR_HEX[shooter.color] ?? 0x888888;
         const damage = shooter.damage ?? 1;
 
-        // Sync sphere color to lane color on change
+        // Sync colors on change
         if (slot.lastColor !== hex || slot.lastDamage !== damage) {
           slot.lastColor  = hex;
           slot.lastDamage = damage;
           slot.sphereMat.color.setHex(hex);
           slot.sphereMat.emissive.setHex(hex);
+          slot.haloMat.color.setHex(hex);   // colored ground shadow matches bomb
           drawDamageBadge(slot.badgeCtx, BADGE_CVS_W, BADGE_CVS_H, damage, hex);
           slot.badgeTex.needsUpdate = true;
         }
 
-        // White flash decay (punch effect)
+        // White flash decay after punch
         if (si === 0 && slot._flashing) {
           slot._flashT += dt;
           const FLASH_DUR = 0.08;
@@ -226,14 +279,13 @@ export class Shooter3D {
           } else {
             const prog = slot._flashT / FLASH_DUR;
             slot.sphereMat.emissiveIntensity = 1.0 - (1.0 - SLOT_EMISSIVE[0]) * easeOut3(prog);
-            // Keep emissive white during flash, fade back to lane color
-            const t = easeOut3(prog);
+            const t  = easeOut3(prog);
             const fc = new THREE.Color(0xffffff).lerp(new THREE.Color(slot.lastColor), t);
             slot.sphereMat.emissive.copy(fc);
           }
         }
 
-        // Punch scale animation
+        // Punch scale spring
         if (si === 0 && slot._punching) {
           slot._punchT += dt;
           const PUNCH_DUR = 0.15;
@@ -246,7 +298,7 @@ export class Shooter3D {
           }
         }
 
-        // Gentle Y-bob on front slot
+        // Gentle Y-bob on front slot only
         if (si === 0) {
           slot.group.position.y = Math.sin(elapsed * 2.4) * 0.03;
         }
@@ -257,20 +309,19 @@ export class Shooter3D {
       const bead = this._sparkBeads[li];
       bead.bead.visible = mainVisible;
       if (mainVisible) {
-        // Flicker between orange (0xff8800) and bright yellow (0xffee22)
         const t = 0.5 + 0.5 * Math.sin(elapsed * SPARK_FLICKER_SPEED + li * 1.3);
         bead.mat.emissiveIntensity = 0.50 + 0.70 * t;
         bead.mat.color.setRGB(1.0, 0.53 + 0.40 * t, 0.0 + 0.13 * t);
         bead.mat.emissive.copy(bead.mat.color);
       }
 
-      // Glow ring — colored, higher opacity, more pronounced pulse
+      // Glow ring — colored, pulsing amplitude
       const gr = this._glowRings[li];
       gr.mesh.visible = mainVisible;
       if (mainVisible) {
         const pulse    = 0.5 + 0.5 * Math.sin(elapsed * 3.0 + li * 0.8);
-        gr.mat.opacity = 0.35 + 0.55 * pulse;   // base 0.35, amplitude 0.55 (was 0.25+0.45)
-        const s        = 1.0 + 0.10 * pulse;
+        gr.mat.opacity = 0.32 + 0.52 * pulse;
+        const s        = 1.0 + 0.12 * pulse;
         gr.mesh.scale.set(s, s, 1);
         const frontHex = slots[0].lastColor;
         if (frontHex > 0) gr.mat.color.setHex(frontHex);
@@ -283,13 +334,17 @@ export class Shooter3D {
       for (const slot of laneSlots) {
         slot.badgeTex.dispose();
         slot.sphereMesh.geometry.dispose();
+        slot.vignMesh.geometry.dispose();
+        slot.hlMesh.geometry.dispose();
+        slot.haloMesh.geometry.dispose();
         slot.fuseMesh.geometry.dispose();
         slot.badgeMesh.geometry.dispose();
-        slot.hlMesh.geometry.dispose();
         slot.sphereMat.dispose();
+        slot.vignMat.dispose();
+        slot.hlMat.dispose();
+        slot.haloMat.dispose();
         slot.fuseMat.dispose();
         slot.badgeMat.dispose();
-        slot.hlMat.dispose();
         this._scene.remove(slot.group);
       }
     }
@@ -310,65 +365,110 @@ export class Shooter3D {
     const scale    = SLOT_SCALE[slotIdx];
     const group    = new THREE.Group();
 
-    // ── Candy-colored sphere body ─────────────────────────────────────────────
-    // Color IS the lane color — the sphere body carries the color identity.
+    // ── Colored ground halo — Royal Match style cast shadow ───────────────────
+    // Flat disc at road surface level in the lane color. Reads like a colored
+    // "cast shadow" that immediately communicates color identity before the
+    // player even looks at the sphere. Most visible at queue depth 2–3.
+    const haloMat = new THREE.MeshBasicMaterial({
+      color:      new THREE.Color(0x888888),   // synced to lane color each frame
+      transparent: true,
+      opacity:    0.38 * alpha,
+      depthWrite: false,
+    });
+    const haloMesh = new THREE.Mesh(
+      new THREE.CircleGeometry(BOMB_R * 1.55, 32),
+      haloMat,
+    );
+    haloMesh.rotation.x = -Math.PI / 2;
+    haloMesh.position.set(BOMB_CX, 0.003, BOMB_CZ);
+    group.add(haloMesh);
+
+    // ── Candy sphere — color-dominant body ───────────────────────────────────
+    // High emissiveIntensity ensures the lane color saturates regardless of
+    // the scene's theme lighting (morning 1.4 sun vs misty 0.6 sun).
+    // metalness 0.08 + roughness 0.30 → glossy candy plastic, not chrome.
     const sphereMat = new THREE.MeshStandardMaterial({
-      color:             new THREE.Color(0x888888),  // updated dynamically in update()
+      color:             new THREE.Color(0x888888),
       emissive:          new THREE.Color(0x888888),
       emissiveIntensity: emissive,
-      metalness:         0.10,   // candy/glossy, not metallic
-      roughness:         0.35,
+      metalness:         0.08,
+      roughness:         0.30,
       transparent:       alpha < 1,
       opacity:           alpha,
     });
     const sphereMesh = new THREE.Mesh(
-      new THREE.SphereGeometry(BOMB_R, 20, 14),
+      new THREE.SphereGeometry(BOMB_R, 26, 18),
       sphereMat,
     );
     sphereMesh.position.set(BOMB_CX, BOMB_CY, BOMB_CZ);
     group.add(sphereMesh);
 
-    // ── Specular highlight disc (top-left crescent) ───────────────────────────
-    // Viewed from above, this is a soft white glow inside the sphere circle.
-    // Offset toward top-left (camera up=-Z → more negative Z = higher on screen).
-    const hlTex = _getHighlightTex();
+    // ── Vignette disc — billiard-ball rim darkening ───────────────────────────
+    // Dark-edge radial gradient laid flat on the sphere's top pole.
+    // From the top-down camera this creates the illusion of a sphere curving
+    // away at the edges (lighter center → darker equatorial rim). Radius
+    // slightly exceeds BOMB_R so it covers the full sphere silhouette.
+    const vignMat = new THREE.MeshBasicMaterial({
+      map:        _getVignetteTex(),
+      transparent: true,
+      opacity:    0.52 * alpha,
+      depthTest:  false,
+    });
+    const vignMesh = new THREE.Mesh(
+      new THREE.CircleGeometry(BOMB_R + 0.010, 32),
+      vignMat,
+    );
+    vignMesh.rotation.x = -Math.PI / 2;
+    // Place flush with sphere top (y = BOMB_CY + BOMB_R), epsilon above sphere surface
+    // so the top-down camera sees it above the sphere.
+    vignMesh.position.set(BOMB_CX, BOMB_CY + BOMB_R + 0.001, BOMB_CZ);
+    group.add(vignMesh);
+
+    // ── Specular highlight — top-left white crescent ──────────────────────────
+    // Off-center bright spot simulating a light source from top-left.
+    // Larger and more opaque than a single point glint to read clearly
+    // at small display sizes.
     const hlMat = new THREE.MeshBasicMaterial({
-      map: hlTex, transparent: true,
-      opacity: alpha * 0.72,
-      depthTest: false,
+      map:        _getHighlightTex(),
+      transparent: true,
+      opacity:    alpha * 0.90,
+      depthTest:  false,
     });
     const hlMesh = new THREE.Mesh(
-      new THREE.CircleGeometry(BOMB_R * 0.64, 14),
+      new THREE.CircleGeometry(BOMB_R * 0.66, 18),
       hlMat,
     );
-    hlMesh.rotation.x = -Math.PI / 2;   // lie flat, face the top-down camera
-    // Offset toward top-left in screen space: -X (left), -Z (up/toward horizon)
+    hlMesh.rotation.x = -Math.PI / 2;
     hlMesh.position.set(
       BOMB_CX - BOMB_R * 0.22,
-      BOMB_CY + BOMB_R + 0.002,   // just above sphere top pole
-      BOMB_CZ - BOMB_R * 0.22,
+      BOMB_CY + BOMB_R + 0.003,   // above vignette disc
+      BOMB_CZ - BOMB_R * 0.22,    // offset toward top of screen (negative Z = up)
     );
     group.add(hlMesh);
 
-    // ── Fuse — slightly thicker, warm brown with orange-emissive tip ──────────
+    // ── Fuse — warm brown cord with orange-emissive tip ───────────────────────
     const fuseStart = new THREE.Vector3(BOMB_CX,        BOMB_CY + BOMB_R,        BOMB_CZ);
     const fuseMid   = new THREE.Vector3(BOMB_CX + 0.09, BOMB_CY + BOMB_R + 0.14, BOMB_CZ - 0.14);
     const fuseEnd   = new THREE.Vector3(BOMB_CX + 0.18, BOMB_CY + BOMB_R + 0.26, BOMB_CZ - 0.27);
     const fuseCurve = new THREE.CatmullRomCurve3([fuseStart, fuseMid, fuseEnd]);
-    const fuseGeo   = new THREE.TubeGeometry(fuseCurve, 8, 0.035, 6, false);  // thicker (was 0.022)
     const fuseMat   = new THREE.MeshStandardMaterial({
-      color:             0x6b4423,   // dark brown
+      color:             0x6b4423,
       emissive:          new THREE.Color(0xb84800),
-      emissiveIntensity: 0.18,
+      emissiveIntensity: 0.20,
       roughness:         0.85,
       metalness:         0.0,
       transparent:       alpha < 1,
       opacity:           alpha,
     });
-    const fuseMesh = new THREE.Mesh(fuseGeo, fuseMat);
+    const fuseMesh = new THREE.Mesh(
+      new THREE.TubeGeometry(fuseCurve, 8, 0.036, 6, false),
+      fuseMat,
+    );
     group.add(fuseMesh);
 
-    // ── Damage badge — white pill, below the bomb sphere ─────────────────────
+    // ── Damage badge — colored pill, bold white number ────────────────────────
+    // Positioned below the sphere in screen space (+Z = lower on screen).
+    // depthTest:false ensures it always renders even though it sits near y=0.
     const badgeCanvas = document.createElement('canvas');
     badgeCanvas.width  = BADGE_CVS_W;
     badgeCanvas.height = BADGE_CVS_H;
@@ -382,12 +482,10 @@ export class Shooter3D {
       badgeMat,
     );
     badgeMesh.rotation.x = -Math.PI / 2;
-    // Position: below the bomb in screen space (+Z in local = lower on screen)
-    // and centered with the bomb in X.
     badgeMesh.position.set(BOMB_CX, 0.005, BOMB_R + BADGE_H * 0.65);
     group.add(badgeMesh);
 
-    // Layer 1 = shooter camera only
+    // All meshes render only on the shooter camera (layer 1)
     group.traverse(obj => { if (obj.isMesh) obj.layers.set(1); });
 
     group.scale.setScalar(scale);
@@ -396,10 +494,15 @@ export class Shooter3D {
     this._scene.add(group);
 
     return {
-      group, sphereMesh, sphereMat, hlMesh, hlMat,
-      fuseMesh, fuseMat,
+      group,
+      sphereMesh, sphereMat,
+      vignMesh,   vignMat,
+      hlMesh,     hlMat,
+      haloMesh,   haloMat,
+      fuseMesh,   fuseMat,
       badgeCanvas, badgeCtx, badgeTex, badgeMesh, badgeMat,
-      lastColor: -1, lastDamage: -1,
+      lastColor:  -1,
+      lastDamage: -1,
       _punching: false, _punchT: 0,
       _flashing: false, _flashT: 0,
       _baseScale: scale,

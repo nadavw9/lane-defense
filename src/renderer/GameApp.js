@@ -233,6 +233,7 @@ async function main() {
   // ── Lives + Haptics + Colorblind ─────────────────────────────────────────
   const livesManager = new LivesManager(progress);
   livesManager.tick();   // credit any regenerated hearts immediately
+  await adManager.init();
 
   const haptics = new HapticsManager();
   haptics.enabled = progress.hapticsEnabled;
@@ -1149,13 +1150,17 @@ async function main() {
           loseScreen = null;
           rescueOverlay = null;
           const cfg = currentLevelIsDaily ? dailyChallengeManager.getChallenge() : levelManager.levelNumber;
-          transition.fadeOut(0.20, () => { _startLevel(cfg); transition.fadeIn(0.20, null); });
+          adManager.showInterstitial().then(() => {
+            transition.fadeOut(0.20, () => { _startLevel(cfg); transition.fadeIn(0.20, null); });
+          });
         },
         onMenu: () => {
           loseScreen?.destroy();
           loseScreen = null;
           rescueOverlay = null;
-          transition.fadeOut(0.20, () => { showLevelSelect(); transition.fadeIn(0.20, null); });
+          adManager.showInterstitial().then(() => {
+            transition.fadeOut(0.20, () => { showLevelSelect(); transition.fadeIn(0.20, null); });
+          });
         },
         audio,
       },
@@ -1176,13 +1181,18 @@ async function main() {
     audio.play('rescue_offer');
     rescueOverlay = new RescueOverlay(app.stage, APP_W, APP_H, gs, {
       onRescueAd: () => {
-        gs.rescue(10);
-        gameLoop.shuffleForRescue();
-        rescueOverlay.destroy();
-        rescueOverlay = null;
-        audio.resetMusicPhase();
-        audio.playMusic('gameplay_calm');
-        pauseBtn.visible = true;
+        adManager.showRewarded(
+          () => {
+            gs.rescue(10);
+            gameLoop.shuffleForRescue();
+            rescueOverlay.destroy();
+            rescueOverlay = null;
+            audio.resetMusicPhase();
+            audio.playMusic('gameplay_calm');
+            pauseBtn.visible = true;
+          },
+          null,   // dismissed without reward — leave rescue overlay on screen
+        );
       },
       onRescueCoins: () => {
         gs.coins -= 50;

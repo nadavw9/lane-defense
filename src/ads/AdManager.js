@@ -1,16 +1,17 @@
-// AdManager — rewarded video ad abstraction layer.
+// AdManager — rewarded video and interstitial ad abstraction layer.
 //
-// Current state: MOCK implementation (timed overlay simulating an ad).
-// To integrate a real ad SDK, replace the body of _showPlatformAd() only.
-// Everything else (tracking, progress, callbacks) stays the same.
+// On native (Android/iOS via Capacitor): uses @capacitor-community/admob with
+// Google test ad unit IDs. Replace IDs with production IDs before release.
 //
-// ── Supported ad SDKs (plug into _showPlatformAd) ──────────────────────────
-//   Google AdMob (Capacitor):  import { AdMob } from '@capacitor-community/admob';
-//   IronSource:                IronSource.showRewardedVideo();
-//   Unity Ads:                 UnityAds.show('Rewarded_Android', listener);
-//   AppLovin MAX:              MaxSdk.showRewardedAd(adUnitId, listener);
-//   Facebook Audience Network: RewardedVideoAd.create(...).then(ad => ad.show());
+// On web: falls back to a timed mock overlay so the game is playable without
+// a native wrapper.
 //
+import { Capacitor } from '@capacitor/core';
+import { AdMob, RewardAdPluginEvents, InterstitialAdPluginEvents } from '@capacitor-community/admob';
+
+const REWARDED_AD_ID     = 'ca-app-pub-3940256099942544/5224354917';
+const INTERSTITIAL_AD_ID = 'ca-app-pub-3940256099942544/1033173712';
+const INTERSTITIAL_MIN_MS = 30_000;   // minimum gap between interstitials
 // ── Booster costs (ads required to unlock) ─────────────────────────────────
 export const AD_COSTS = {
   swap:   1,   // 1 ad → Swap booster for this level
@@ -27,7 +28,9 @@ export class AdManager {
     // Singleton — only one AdManager should exist.
     if (AdManager._instance) return AdManager._instance;
     AdManager._instance = this;
-    this._overlay = null;
+    this._overlay          = null;
+    this._native           = false;
+    this._lastInterstitial = 0;
   }
 
   static getInstance() {
@@ -60,6 +63,81 @@ export class AdManager {
     for (const type of Object.keys(AD_COSTS)) {
       localStorage.removeItem(KEY(type));
     }
+  }
+
+  // Register AdMob on native. No-op on web. Call once at app startup.
+  async init() {
+    if (!Capacitor.isNativePlatform()) return;
+    try {
+      await AdMob.initialize({ testingDevices: [], initializeForTesting: true });
+      this._native = true;
+    } catch (e) {
+      console.warn('[AdManager] AdMob init failed:', e);
+    }
+  }
+
+  // Show a rewarded video ad (rescue flow).
+  // onComplete() — called when the player earns the reward.
+  // onDismissed() — called if dismissed/failed before reward (optional).
+  showRewarded(onComplete, onDismissed) {
+    if (!this._native) {
+      this._showPlatformAd(onComplete, onDismissed);
+      return;
+    }
+    let rewarded = false;
+    const listeners = [];
+    const cleanup = () => { listeners.forEach(l => l.remove()); listeners.length = 0; };
+
+    listeners.push(AdMob.addListener(RewardAdPluginEvents.Rewarded, () => {
+      rewarded = true;
+      cleanup();
+      onComplete?.();
+    }));
+    listeners.push(AdMob.addListener(RewardAdPluginEvents.Dismissed, () => {
+      cleanup();
+      if (!rewarded) onDismissed?.();
+    }));
+    listeners.push(AdMob.addListener(RewardAdPluginEvents.FailedToLoad, () => {
+      cleanup();
+      onDismissed?.();
+    }));
+    listeners.push(AdMob.addListener(RewardAdPluginEvents.FailedToShow, () => {
+      cleanup();
+      onDismissed?.();
+    }));
+
+    AdMob.prepareRewardVideoAd({ adId: REWARDED_AD_ID })
+      .then(() => AdMob.showRewardVideoAd())
+      .catch(() => { cleanup(); onDismissed?.(); });
+  }
+
+  // Show an interstitial ad (lose screen). Returns a Promise that resolves
+  // once the ad is dismissed. Throttled to avoid showing more than once per
+  // INTERSTITIAL_MIN_MS. Resolves immediately on web or when throttled.
+  showInterstitial() {
+    if (!this._native) return Promise.resolve();
+    const now = Date.now();
+    if (now - this._lastInterstitial < INTERSTITIAL_MIN_MS) return Promise.resolve();
+    this._lastInterstitial = now;
+
+    return new Promise((resolve) => {
+      const listeners = [];
+      const done = () => { listeners.forEach(l => l.remove()); listeners.length = 0; resolve(); };
+
+      listeners.push(AdMob.addListener(InterstitialAdPluginEvents.Dismissed, done));
+      listeners.push(AdMob.addListener(InterstitialAdPluginEvents.FailedToLoad, () => {
+        console.warn('[AdManager] Interstitial failed to load');
+        done();
+      }));
+      listeners.push(AdMob.addListener(InterstitialAdPluginEvents.FailedToShow, () => {
+        console.warn('[AdManager] Interstitial failed to show');
+        done();
+      }));
+
+      AdMob.prepareInterstitial({ adId: INTERSTITIAL_AD_ID })
+        .then(() => AdMob.showInterstitial())
+        .catch((e) => { console.warn('[AdManager] Interstitial error:', e); done(); });
+    });
   }
 
   // Show a rewarded ad for the given booster type.

@@ -36,16 +36,25 @@ const WEIGHTS_MID = {
   RELIEF:   [{ value: 'small', weight: 45 }, { value: 'big', weight: 40 }, { value: 'jeep', weight: 15 }],
 };
 
-// L9–12: truck unlocked.  Bigrig appears at low weight in climax/pressure.
+// L9–12: truck unlocked.  No bigrig yet — clean truck introduction.
 const WEIGHTS_HARD = {
   CALM:     [{ value: 'small', weight: 30 }, { value: 'big', weight: 40 }, { value: 'jeep', weight: 25 }, { value: 'truck', weight: 5  }],
   BUILD:    [{ value: 'small', weight: 15 }, { value: 'big', weight: 35 }, { value: 'jeep', weight: 35 }, { value: 'truck', weight: 15 }],
-  PRESSURE: [{ value: 'big',  weight: 10 }, { value: 'jeep', weight: 35 }, { value: 'truck', weight: 40 }, { value: 'bigrig', weight: 15 }],
-  CLIMAX:   [{ value: 'jeep', weight: 20 }, { value: 'truck', weight: 55 }, { value: 'bigrig', weight: 25 }],
+  PRESSURE: [{ value: 'big',  weight: 10 }, { value: 'jeep', weight: 35 }, { value: 'truck', weight: 55 }],
+  CLIMAX:   [{ value: 'jeep', weight: 20 }, { value: 'truck', weight: 80 }],
   RELIEF:   [{ value: 'small', weight: 35 }, { value: 'big', weight: 40 }, { value: 'jeep', weight: 20 }, { value: 'truck', weight: 5  }],
 };
 
-// L13+: all types including bigrig + tank.  FR-4 still caps tank HP if max damage < 8.
+// L13–14: bigrig unlocked.  No tank yet.
+const WEIGHTS_HARD_PLUS = {
+  CALM:     [{ value: 'small', weight: 25 }, { value: 'big', weight: 35 }, { value: 'jeep', weight: 25 }, { value: 'truck', weight: 15 }],
+  BUILD:    [{ value: 'small', weight: 10 }, { value: 'big', weight: 25 }, { value: 'jeep', weight: 30 }, { value: 'truck', weight: 25 }, { value: 'bigrig', weight: 10 }],
+  PRESSURE: [{ value: 'big',  weight: 10 }, { value: 'jeep', weight: 25 }, { value: 'truck', weight: 40 }, { value: 'bigrig', weight: 25 }],
+  CLIMAX:   [{ value: 'jeep', weight: 10 }, { value: 'truck', weight: 40 }, { value: 'bigrig', weight: 50 }],
+  RELIEF:   [{ value: 'small', weight: 30 }, { value: 'big', weight: 40 }, { value: 'jeep', weight: 20 }, { value: 'truck', weight: 10 }],
+};
+
+// L15+: all types including tank.  FR-4 still caps tank HP if max damage < 8.
 const WEIGHTS_FULL = {
   CALM:     [{ value: 'small', weight: 25 }, { value: 'big', weight: 35 }, { value: 'jeep', weight: 25 }, { value: 'truck', weight: 15 }],
   BUILD:    [{ value: 'small', weight: 10 }, { value: 'big', weight: 20 }, { value: 'jeep', weight: 30 }, { value: 'truck', weight: 25 }, { value: 'bigrig', weight: 10 }, { value: 'tank', weight: 5  }],
@@ -58,6 +67,7 @@ function bandWeights(level) {
   if (level <= 4)  return WEIGHTS_FTUE;
   if (level <= 8)  return WEIGHTS_MID;
   if (level <= 12) return WEIGHTS_HARD;
+  if (level <= 14) return WEIGHTS_HARD_PLUS;
   return WEIGHTS_FULL;
 }
 

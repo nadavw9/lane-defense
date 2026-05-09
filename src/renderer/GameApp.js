@@ -78,6 +78,7 @@ import { Analytics }              from '../analytics/Analytics.js';
 import { AutoTuner }             from '../analytics/AutoTuner.js';
 import { AchievementManager }     from '../game/AchievementManager.js';
 import { DailyChallengeManager }  from '../game/DailyChallengeManager.js';
+import { CarTypeIntroCard, shouldShowIntro, markCarTypeSeen } from '../screens/CarTypeIntroCard.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const APP_W       = 390;
@@ -383,6 +384,14 @@ async function main() {
   let ftueOverlay = null;  // created in _startLevel
   let tutOrch     = null;  // assigned after gameLoop is constructed
 
+  // ── Car type intro card ───────────────────────────────────────────────────
+  let carTypeIntroCard    = null;  // active intro card (only one at a time)
+  let carTypeIntroPending = null;  // type key queued while another card is active
+  let carTypeIntroTimer   = null;  // setTimeout handle for level-start intro delay
+
+  // First level that introduces each car type — intro fires here if type is unseen.
+  const LEVEL_INTRO_TYPE = { 5: 'jeep', 9: 'truck', 13: 'bigrig', 15: 'tank' };
+
   // ── End-of-game screens ───────────────────────────────────────────────────
   let winScreen        = null;
   let rescueOverlay    = null;
@@ -482,6 +491,9 @@ async function main() {
     unlockScreen?.destroy();        unlockScreen     = null;
     boosterSpotlight?.destroy();    boosterSpotlight = null;
     tutOrch?.dismiss();
+    clearTimeout(carTypeIntroTimer); carTypeIntroTimer   = null;
+    carTypeIntroCard?._destroy();   carTypeIntroCard    = null;
+    carTypeIntroPending = null;
 
     // Resolve config from either a number or a pre-built config object.
     let cfg;
@@ -568,7 +580,30 @@ async function main() {
       gameLoop.start();
     }
     gameLoop.resume();   // un-pause if coming from a Quit
+    // Mid-game backup: trigger intro when a new type is first spawned via shot-refill.
+    gameLoop.onNewCarType = (typeKey) => {
+      if (shouldShowIntro(typeKey)) {
+        markCarTypeSeen(typeKey);
+        _triggerCarTypeIntro(typeKey);
+      }
+    };
     gameLoop.restart();
+
+    // Level-start intro: fires after the level-splash clears (~1.5 s).
+    // Covers the intro-level for each type (L5→Van, L9→Truck, L13→Big Rig, L15→Tank).
+    // The mid-game callback above handles subsequent levels if the type was skipped.
+    if (typeof levelId === 'number') {
+      const introType = LEVEL_INTRO_TYPE[levelId];
+      if (introType && shouldShowIntro(introType)) {
+        carTypeIntroTimer = setTimeout(() => {
+          carTypeIntroTimer = null;
+          if (!gs.isOver && shouldShowIntro(introType)) {
+            markCarTypeSeen(introType);
+            _triggerCarTypeIntro(introType);
+          }
+        }, 1500);
+      }
+    }
 
     pauseBtn.visible = true;
 
@@ -697,6 +732,23 @@ async function main() {
         c.destroy({ children: true });
       }
     });
+  }
+
+  // ── Car type intro (Royal Match "Meet the new blocker!" moment) ──────────
+  function _triggerCarTypeIntro(typeKey) {
+    if (carTypeIntroCard) {
+      // Already showing one — queue this type, it will show after current finishes
+      if (!carTypeIntroPending) carTypeIntroPending = typeKey;
+      return;
+    }
+    gameLoop.pause();
+    carTypeIntroCard = new CarTypeIntroCard(
+      app.stage, APP_W, APP_H, typeKey,
+      () => {
+        carTypeIntroCard = null;
+        if (gameLoopStarted && !gs.isOver) gameLoop.resume();
+      },
+    );
   }
 
   // ── Screen: Title ─────────────────────────────────────────────────────────
@@ -1442,6 +1494,18 @@ async function main() {
     unlockScreen?.update(dt);
     boosterSpotlight?.update(dt);
     tutOrch?.update(dt);
+
+    // ── Car type intro card ────────────────────────────────────────────────
+    if (carTypeIntroCard) {
+      if (!carTypeIntroCard.update(dt)) {
+        carTypeIntroCard = null;
+        if (carTypeIntroPending) {
+          const nextType = carTypeIntroPending;
+          carTypeIntroPending = null;
+          _triggerCarTypeIntro(nextType);
+        }
+      }
+    }
 
     // Juice updates
     laneFlash.update(dt);

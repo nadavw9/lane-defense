@@ -55,6 +55,7 @@ export class GameLoop {
     this._onCrisis      = onCrisis      ?? (() => {});
     this._onBombEarned  = null;  // set by GameApp after construction
     this._onBombExplode = null;  // set by GameApp after construction
+    this.onNewCarType   = null;  // set by GameApp; fires with typeKey when a car is added to a lane
 
     // Base level duration — used to reset gs.duration on restart.
     this._baseDuration = gameState.duration;
@@ -351,6 +352,7 @@ export class GameLoop {
           const car = this._carDir.generateCar(lane, 'CALM', gs.world, gs.colors);
           car.row = 0; car.position = 0;
           lane.addCar(car);
+          this.onNewCarType?.(car.type);
           gs.spawnBudget--;
         }
       }
@@ -369,6 +371,7 @@ export class GameLoop {
         const car = this._carDir.generateCar(gs.lanes[li], 'CALM', gs.world, gs.colors);
         car.row = 0; car.position = 0;
         gs.lanes[li].addCar(car);
+        this.onNewCarType?.(car.type);
       }
     }
   }

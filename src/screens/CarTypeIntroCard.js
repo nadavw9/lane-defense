@@ -1,0 +1,255 @@
+// CarTypeIntroCard — Royal Match "Meet the new blocker!" style intro overlay.
+// Shows once per car type (tracked in localStorage). Gameplay is paused
+// while the card is on screen. Auto-dismisses after DISPLAY_MS.
+//
+// Usage:
+//   const card = new CarTypeIntroCard(stage, APP_W, APP_H, typeKey, onDismiss);
+//   app.ticker.add(ticker => { if (!card.update(ticker.deltaMS / 1000)) { app.ticker.remove(...); } });
+
+import { Container, Graphics, Text } from 'pixi.js';
+
+// ── Per-type display data ─────────────────────────────────────────────────────
+const TYPE_INFO = {
+  jeep: {
+    label: 'Van',
+    hp:    5,
+    desc:  'Armored cargo van — needs multiple direct hits',
+    color: 0x378ADD,
+  },
+  truck: {
+    label: 'Truck',
+    hp:    6,
+    desc:  'Heavy-duty hauler — tough body, slow moving',
+    color: 0x639922,
+  },
+  bigrig: {
+    label: 'Big Rig',
+    hp:    10,
+    desc:  'Industrial freight hauler — reinforced cab',
+    color: 0xD85A30,
+  },
+  tank: {
+    label: 'Tank',
+    hp:    20,
+    desc:  'Military-grade armor — unleash everything',
+    color: 0x7F77DD,
+  },
+};
+
+const DISPLAY_MS    = 2500;   // ms the card stays on screen
+const ANIM_IN_MS    = 220;    // card bounce-in duration
+const ANIM_OUT_MS   = 180;    // card fade-out duration
+const LS_KEY        = 'lane_defense_seen_car_types';
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+export function getSeenCarTypes() {
+  try { return new Set(JSON.parse(localStorage.getItem(LS_KEY) ?? '[]')); }
+  catch { return new Set(); }
+}
+
+export function markCarTypeSeen(typeKey) {
+  const seen = getSeenCarTypes();
+  seen.add(typeKey);
+  localStorage.setItem(LS_KEY, JSON.stringify([...seen]));
+}
+
+export function shouldShowIntro(typeKey) {
+  return typeKey in TYPE_INFO && !getSeenCarTypes().has(typeKey);
+}
+
+// ── Card class ────────────────────────────────────────────────────────────────
+
+export class CarTypeIntroCard {
+  constructor(stage, appW, appH, typeKey, onDismiss) {
+    const info = TYPE_INFO[typeKey];
+    if (!info) { onDismiss?.(); return; }
+
+    this._onDismiss = onDismiss;
+    this._elapsed   = 0;
+    this._dismissed = false;
+
+    const W = appW, H = appH;
+    const CW = 300, CH = 290;
+    const CX = (W - CW) / 2, CY = (H - CH) / 2 - 30;
+
+    const c = new Container();
+    c.eventMode = 'static';
+    c.on('pointerdown', () => this._dismiss());
+    stage.addChild(c);
+    this._container = c;
+
+    // ── Full-screen dim backdrop ─────────────────────────────────────────────
+    const bg = new Graphics();
+    bg.rect(0, 0, W, H);
+    bg.fill({ color: 0x000000, alpha: 0.72 });
+    c.addChild(bg);
+
+    // ── Card background (dark purple → dark blue gradient via two rects) ─────
+    const card = new Graphics();
+    // Outer glow (border) — the type's accent color
+    card.roundRect(CX - 2, CY - 2, CW + 4, CH + 4, 16);
+    card.fill({ color: info.color, alpha: 0.55 });
+    // Inner dark panel
+    card.roundRect(CX, CY, CW, CH, 14);
+    card.fill({ color: 0x0e0b1c, alpha: 1.0 });
+    // Subtle top-gradient overlay: lighter purple at top
+    card.roundRect(CX, CY, CW, CH * 0.45, 14);
+    card.fill({ color: 0x1c1038, alpha: 1.0 });
+    c.addChild(card);
+    this._card = card;
+
+    // ── "MEET THE" header ─────────────────────────────────────────────────────
+    const meetTxt = new Text({
+      text: 'MEET THE',
+      style: {
+        fontSize:   11,
+        fontWeight: 'bold',
+        fill:       0x8899bb,
+        letterSpacing: 3,
+      },
+    });
+    meetTxt.anchor.set(0.5, 0);
+    meetTxt.x = W / 2;
+    meetTxt.y = CY + 22;
+    c.addChild(meetTxt);
+
+    // ── Type name (dominant) ─────────────────────────────────────────────────
+    const nameTxt = new Text({
+      text: info.label.toUpperCase(),
+      style: {
+        fontSize:   54,
+        fontWeight: '900',
+        fill:       0xffffff,
+        dropShadow: { color: info.color, blur: 22, distance: 0, alpha: 0.70 },
+      },
+    });
+    nameTxt.anchor.set(0.5, 0);
+    nameTxt.x = W / 2;
+    nameTxt.y = CY + 42;
+    c.addChild(nameTxt);
+
+    // ── HP badge ─────────────────────────────────────────────────────────────
+    const hpBadge = new Graphics();
+    const bw = 120, bh = 36, bx = W / 2 - bw / 2, by = CY + 42 + 62 + 10;
+    // Pill background in type color
+    hpBadge.roundRect(bx, by, bw, bh, bh / 2);
+    hpBadge.fill({ color: info.color, alpha: 0.90 });
+    // Top gloss
+    hpBadge.roundRect(bx + 2, by + 2, bw - 4, bh * 0.42, bh / 2);
+    hpBadge.fill({ color: 0xffffff, alpha: 0.22 });
+    c.addChild(hpBadge);
+
+    const hpTxt = new Text({
+      text: `❤  ${info.hp} HP`,
+      style: {
+        fontSize:   17,
+        fontWeight: 'bold',
+        fill:       0xffffff,
+        dropShadow: { color: 0x000000, blur: 4, distance: 0, alpha: 0.60 },
+      },
+    });
+    hpTxt.anchor.set(0.5, 0.5);
+    hpTxt.x = W / 2;
+    hpTxt.y = by + bh / 2;
+    c.addChild(hpTxt);
+
+    // ── Description ──────────────────────────────────────────────────────────
+    const descTxt = new Text({
+      text: info.desc,
+      style: {
+        fontSize:   13,
+        fill:       0xaabbcc,
+        align:      'center',
+        wordWrap:   true,
+        wordWrapWidth: CW - 40,
+      },
+    });
+    descTxt.anchor.set(0.5, 0);
+    descTxt.x = W / 2;
+    descTxt.y = by + bh + 14;
+    c.addChild(descTxt);
+
+    // ── Timer bar ────────────────────────────────────────────────────────────
+    const barY  = CY + CH - 26;
+    const barBg = new Graphics();
+    barBg.roundRect(CX + 20, barY, CW - 40, 6, 3);
+    barBg.fill({ color: 0x223344, alpha: 0.80 });
+    c.addChild(barBg);
+
+    const barFill = new Graphics();
+    c.addChild(barFill);
+    this._barFill  = barFill;
+    this._barX     = CX + 20;
+    this._barY     = barY;
+    this._barMaxW  = CW - 40;
+    this._barColor = info.color;
+
+    // ── Initial animation state ───────────────────────────────────────────────
+    c.alpha = 0;
+    card.scale.set(0.70);
+    card.pivot.set(CX + CW / 2, CY + CH / 2);
+    card.position.set(CX + CW / 2, CY + CH / 2);
+    this._animIn  = true;
+    this._animOut = false;
+  }
+
+  // Returns false when the card has finished and been destroyed.
+  update(dt) {
+    if (this._dismissed || !this._container) return false;
+    this._elapsed += dt * 1000;
+
+    const total = ANIM_IN_MS + DISPLAY_MS + ANIM_OUT_MS;
+
+    // Animate in
+    if (this._animIn) {
+      const prog = Math.min(1, this._elapsed / ANIM_IN_MS);
+      const e    = 1 - Math.pow(1 - prog, 3);
+      this._container.alpha = e;
+      const s = 0.70 + 0.30 * e + (prog < 0.6 ? (0.6 - prog) * 0.12 : 0);  // slight overshoot
+      if (this._card) this._card.scale.set(s);
+      if (prog >= 1) this._animIn = false;
+    }
+
+    // Timer bar drains over the display window
+    const displayElapsed = Math.max(0, this._elapsed - ANIM_IN_MS);
+    const fillFrac = Math.max(0, 1 - displayElapsed / DISPLAY_MS);
+    if (this._barFill) {
+      this._barFill.clear();
+      const fw = this._barMaxW * fillFrac;
+      if (fw > 2) {
+        this._barFill.roundRect(this._barX, this._barY, fw, 6, 3);
+        this._barFill.fill({ color: this._barColor, alpha: 0.90 });
+      }
+    }
+
+    // Animate out
+    if (!this._animOut && this._elapsed >= ANIM_IN_MS + DISPLAY_MS) {
+      this._animOut = true;
+    }
+    if (this._animOut) {
+      const outProg = Math.min(1, (this._elapsed - ANIM_IN_MS - DISPLAY_MS) / ANIM_OUT_MS);
+      this._container.alpha = 1 - outProg;
+      if (outProg >= 1) {
+        this._destroy();
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  _dismiss() {
+    if (this._dismissed) return;
+    this._dismissed = true;
+    this._destroy();
+  }
+
+  _destroy() {
+    this._dismissed = true;
+    this._container?.destroy({ children: true });
+    this._container = null;
+    this._onDismiss?.();
+    this._onDismiss = null;
+  }
+}

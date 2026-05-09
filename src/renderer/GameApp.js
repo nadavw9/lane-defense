@@ -390,7 +390,16 @@ async function main() {
   let carTypeIntroTimer   = null;  // setTimeout handle for level-start intro delay
 
   // First level that introduces each car type — intro fires here if type is unseen.
-  const LEVEL_INTRO_TYPE = { 5: 'jeep', 9: 'truck', 13: 'bigrig', 15: 'tank' };
+  // delay: ms after level start before card shows. L1 uses 4500 to fire after
+  // the FTUE drag-arrow clears (~1.35 s splash + 3 s FTUE window).
+  const LEVEL_INTRO_TYPE = {
+    1:  { type: 'small',  delay: 4500 },
+    2:  { type: 'big',    delay: 1500 },
+    5:  { type: 'jeep',   delay: 1500 },
+    9:  { type: 'truck',  delay: 1500 },
+    13: { type: 'bigrig', delay: 1500 },
+    15: { type: 'tank',   delay: 1500 },
+  };
 
   // ── End-of-game screens ───────────────────────────────────────────────────
   let winScreen        = null;
@@ -589,19 +598,19 @@ async function main() {
     };
     gameLoop.restart();
 
-    // Level-start intro: fires after the level-splash clears (~1.5 s).
-    // Covers the intro-level for each type (L5→Van, L9→Truck, L13→Big Rig, L15→Tank).
-    // The mid-game callback above handles subsequent levels if the type was skipped.
+    // Level-start intro: fires after splash clears (standard 1.5 s) or after the
+    // FTUE drag-arrow window (L1: 4.5 s — splash 1.35 s + 3 s FTUE buffer).
     if (typeof levelId === 'number') {
-      const introType = LEVEL_INTRO_TYPE[levelId];
-      if (introType && shouldShowIntro(introType)) {
+      const entry = LEVEL_INTRO_TYPE[levelId];
+      if (entry && shouldShowIntro(entry.type)) {
+        const { type: introType, delay } = entry;
         carTypeIntroTimer = setTimeout(() => {
           carTypeIntroTimer = null;
           if (!gs.isOver && shouldShowIntro(introType)) {
             markCarTypeSeen(introType);
             _triggerCarTypeIntro(introType);
           }
-        }, 1500);
+        }, delay);
       }
     }
 

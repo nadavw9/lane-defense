@@ -9,7 +9,21 @@
 import { Container, Graphics, Text } from 'pixi.js';
 
 // ── Per-type display data ─────────────────────────────────────────────────────
+// headerLabel: replaces "MEET THE" — used for tutorial-tone cards (e.g. L1 TIP)
 const TYPE_INFO = {
+  small: {
+    label:       'Motorbike',
+    hp:          2,
+    desc:        'Fast scout — destroyed in one direct hit',
+    color:       0x44BB99,
+    headerLabel: 'TIP',
+  },
+  big: {
+    label: 'Sedan',
+    hp:    4,
+    desc:  'Standard vehicle — takes two hits to stop',
+    color: 0xDD8833,
+  },
   jeep: {
     label: 'Van',
     hp:    5,
@@ -99,9 +113,9 @@ export class CarTypeIntroCard {
     c.addChild(card);
     this._card = card;
 
-    // ── "MEET THE" header ─────────────────────────────────────────────────────
+    // ── Header label ("MEET THE" or type-specific override like "TIP") ──────────
     const meetTxt = new Text({
-      text: 'MEET THE',
+      text: info.headerLabel ?? 'MEET THE',
       style: {
         fontSize:   11,
         fontWeight: 'bold',
@@ -114,7 +128,7 @@ export class CarTypeIntroCard {
     meetTxt.y = CY + 22;
     c.addChild(meetTxt);
 
-    // ── Type name (dominant) ─────────────────────────────────────────────────
+    // ── Type name (dominant) — scale-to-fit if wider than card ──────────────
     const nameTxt = new Text({
       text: info.label.toUpperCase(),
       style: {
@@ -127,6 +141,9 @@ export class CarTypeIntroCard {
     nameTxt.anchor.set(0.5, 0);
     nameTxt.x = W / 2;
     nameTxt.y = CY + 42;
+    // After Pixi renders the text we know the real pixel width; clamp to card.
+    const maxNameW = CW - 20;
+    if (nameTxt.width > maxNameW) nameTxt.scale.set(maxNameW / nameTxt.width);
     c.addChild(nameTxt);
 
     // ── HP badge ─────────────────────────────────────────────────────────────

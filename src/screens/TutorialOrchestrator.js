@@ -82,7 +82,6 @@ export class TutorialOrchestrator {
     this._flashT = -1;
   }
 
-  isDone(id)    { return this._done.has(id); }
   isAnyActive() { return this._active !== null; }
 
   // Call every frame with dt in seconds.
@@ -114,11 +113,6 @@ export class TutorialOrchestrator {
       this._handObj.x = hs.x + (he.x - hs.x) * ease;
       this._handObj.y = hs.y + (he.y - hs.y) * ease;
     }
-  }
-
-  destroy() {
-    this.dismiss();
-    this._container.destroy({ children: true });
   }
 
   // ── Private ───────────────────────────────────────────────────────────────────

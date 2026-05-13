@@ -2,5 +2,18 @@
   "env": {
     "MAX_THINKING_TOKENS": "10000",
     "CLAUDE_CODE_SUBAGENT_MODEL": "haiku"
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/context-handoff.js"
+          }
+        ]
+      }
+    ]
   }
 }

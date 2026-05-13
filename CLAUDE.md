@@ -229,5 +229,8 @@ If Playwright MCP is not available, fall back to manual screenshot review per th
 - Band-aid patches when structural fix is right
 - Preserving "for compatibility" code that no longer serves a purpose
 
+## Session Management
+Reset context hook between sessions: `rm -f /tmp/lane-defense-handoff-fired.flag`
+
 ---
 *Last updated: May 2026 — after callout removal. Update when major architectural changes land.*

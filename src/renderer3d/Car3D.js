@@ -1,7 +1,7 @@
 // Car3D — manages all live car meshes in the 3D road scene.
 // small/big/jeep/truck/bigrig → Kenney Car Kit GLB models (CC0).
 // tank → procedural geometry (no Kenney 3D tank exists; the kit is 2D sprites only).
-// HP sprite, damage darkening, smoke trail, death animation all preserved.
+// HP darkening, damage state, death animation all preserved.
 
 import * as THREE from 'three';
 import { posToZ, laneToX } from './Scene3D.js';
@@ -79,13 +79,7 @@ function _tireMat() { return _darkMat(0x111114); }
 
 // ── Shared geos that are never disposed ────────────────────────────────────────
 
-let _shadowGeo    = null;
 let _bossTorusGeo = null;
-function _ensureSharedGeos() {
-  if (_shadowGeo) return;
-  _shadowGeo    = new THREE.CircleGeometry(1.0, 14);
-  _bossTorusGeo = new THREE.TorusGeometry(1.4, 0.06, 8, 28);
-}
 
 // ── Car3D class ────────────────────────────────────────────────────────────────
 
@@ -95,7 +89,7 @@ export class Car3D {
     this._lanes = lanes;
     this._live  = new Map();
     this._dying = [];
-    _ensureSharedGeos();
+    if (!_bossTorusGeo) _bossTorusGeo = new THREE.TorusGeometry(1.4, 0.06, 8, 28);
   }
 
   clearAll() {
@@ -113,9 +107,8 @@ export class Car3D {
       if (!liveCars.has(car)) {
         this._dying.push({
           group: entry.group,
-          smokeTex: entry.smokeTex, crackTex: entry.crackTex,
           bossRing: entry.bossRing, bossRingMat: entry.bossRingMat,
-          shadowMesh: entry.shadowMesh, shadowMat: entry.shadowMat, t: 0,
+          t: 0,
         });
         this._live.delete(car);
       }
@@ -145,7 +138,6 @@ export class Car3D {
           g.rotation.x  = 0;
         }
         g.position.set(laneToX(laneIdx), entry.groupY, entry.renderZ);
-        if (entry.shadowMesh) entry.shadowMesh.position.set(laneToX(laneIdx), 0.005, entry.renderZ);
 
         // Wheel spin
         const dZ = entry.renderZ - entry.lastRenderZ;
@@ -192,7 +184,6 @@ export class Car3D {
           entry.bodyMat.emissiveIntensity = 0.35;
           g.rotation.z = 0;
           for (const hl of entry.headLights) hl.intensity = 0.30;
-          if (entry.smokeMesh) entry.smokeMesh.visible = false;
         } else {
           if (entry._prevFrozen) {
             entry.lastHp = -1;  // force color restore from HP-based mult on next iteration
@@ -205,29 +196,20 @@ export class Car3D {
             entry.bodyMat.emissiveIntensity = 0.25;
             g.rotation.z = -0.10 * (1 - hpRatio);
             for (const hl of entry.headLights) hl.intensity = 0.10;
-            if (entry.smokeMesh) {
-              entry.smokeMesh.visible = true;
-              entry.smokeMesh.material.opacity = 0.3 + 0.35 * (1 - hpRatio / 0.35);
-            }
           } else if (hpRatio < 0.65) {
             entry.bodyMat.emissive.setHex(0xff7700);
             entry.bodyMat.emissiveIntensity = 0.15;
             g.rotation.z = -0.04 * (1 - hpRatio);
             for (const hl of entry.headLights) hl.intensity = 0.15;
-            if (entry.smokeMesh) {
-              entry.smokeMesh.visible = true;
-              entry.smokeMesh.material.opacity = 0.08 + 0.22 * (0.65 - hpRatio) / 0.30;
-            }
           } else {
             entry.bodyMat.emissive.setHex(entry.colorBaseHexes[0] ?? 0x000000);
             entry.bodyMat.emissiveIntensity = 0.28;
             g.rotation.z = 0;
             for (const hl of entry.headLights) hl.intensity = 0.30;
-            if (entry.smokeMesh) entry.smokeMesh.visible = false;
           }
         }
 
-        // HP changed: darken body colors + crack stage
+        // HP changed: darken body colors
         if (car.hp !== entry.lastHp) {
           entry.lastHp = car.hp;
           const mult = 0.55 + 0.45 * hpRatio;
@@ -238,15 +220,6 @@ export class Car3D {
               Math.round(((base >>  8) & 0xff) * mult) / 255,
               Math.round(( base        & 0xff) * mult) / 255,
             );
-          }
-          if (entry.crackMesh) {
-            const stage = hpRatio > 0.75 ? 0 : hpRatio > 0.50 ? 1 : hpRatio > 0.25 ? 2 : 3;
-            if (stage !== entry.lastCrackStage) {
-              entry.lastCrackStage = stage;
-              this._drawCracks(entry.crackCtx, stage);
-              entry.crackTex.needsUpdate = true;
-              entry.crackMesh.visible    = stage > 0;
-            }
           }
         }
       }
@@ -262,7 +235,6 @@ export class Car3D {
       d.group.scale.set(scale, scale, scale);
       d.group.position.y += DEATH_VY * dt;
       d.group.traverse(child => { if (child.material) child.material.opacity = 1 - prog; });
-      if (d.shadowMat) d.shadowMat.opacity = 0.28 * (1 - prog);
     }
   }
 
@@ -337,8 +309,6 @@ export class Car3D {
       headLights.push(ptLight);
     }
 
-    // Armor metalness tier based on maxHp — heavier vehicles look more armored
-    const maxHp     = car.maxHp ?? car.hp;
     const metalness = 0.08;
     for (const mat of colorMats) {
       if (mat.metalness !== undefined) mat.metalness = metalness;
@@ -355,51 +325,6 @@ export class Car3D {
       this._scene.add(bossRing);
     }
 
-    // Smoke sprite
-    const smokeCanvas = document.createElement('canvas');
-    smokeCanvas.width = smokeCanvas.height = 32;
-    const sCtx  = smokeCanvas.getContext('2d');
-    const sGrad = sCtx.createRadialGradient(16, 16, 2, 16, 16, 14);
-    sGrad.addColorStop(0,   'rgba(160,160,160,0.55)');
-    sGrad.addColorStop(0.6, 'rgba(120,120,120,0.30)');
-    sGrad.addColorStop(1,   'rgba(80,80,80,0)');
-    sCtx.fillStyle = sGrad;
-    sCtx.beginPath(); sCtx.arc(16, 16, 14, 0, Math.PI * 2); sCtx.fill();
-    const smokeTex  = new THREE.CanvasTexture(smokeCanvas);
-    const smokeMesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.0, 1.0),
-      new THREE.MeshBasicMaterial({ map: smokeTex, transparent: true, depthTest: false }),
-    );
-    smokeMesh.rotation.x = -Math.PI / 2;
-    smokeMesh.position.set(0, 1.2, 0);
-    smokeMesh.visible = false;
-    group.add(smokeMesh);
-
-    // Tank crack overlay
-    let crackCanvas = null, crackCtx = null, crackTex = null, crackMesh = null;
-    if (car.type === 'tank') {
-      crackCanvas = document.createElement('canvas');
-      crackCanvas.width = crackCanvas.height = 64;
-      crackCtx  = crackCanvas.getContext('2d');
-      crackTex  = new THREE.CanvasTexture(crackCanvas);
-      crackMesh = new THREE.Mesh(
-        new THREE.PlaneGeometry(1.6, 2.4),
-        new THREE.MeshBasicMaterial({ map: crackTex, transparent: true, depthTest: false }),
-      );
-      crackMesh.rotation.x = -Math.PI / 2;
-      crackMesh.position.set(0, 0.55, 0);
-      crackMesh.visible = false;
-      group.add(crackMesh);
-    }
-
-    // Contact shadow
-    const shadowMat  = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.28, depthWrite: false });
-    const shadowMesh = new THREE.Mesh(_shadowGeo, shadowMat);
-    shadowMesh.rotation.x = -Math.PI / 2;
-    shadowMesh.scale.set(1.05, 1, 1.20);
-    shadowMesh.position.set(laneToX(laneIdx), 0.005, posToZ(car.position));
-    this._scene.add(shadowMesh);
-
     const groupY = car.type === 'tank' ? CAR_Y_TANK : CAR_Y;
     group.position.set(laneToX(laneIdx), groupY, posToZ(car.position));
     this._scene.add(group);
@@ -409,14 +334,11 @@ export class Car3D {
       group, bodyMat, colorMats, colorBaseHexes,
       headLights,
       wheels, turretGroup, lastRenderZ: startZ,
-      lastHp: -1, lastCrackStage: -1, _prevFrozen: false,
+      lastHp: -1, _prevFrozen: false,
       laneIdx, bossRing, bossRingMat, bossAngle: 0,
-      smokeMesh, smokeTex: null, crackCanvas, crackCtx, crackTex, crackMesh,
-      shadowMesh, shadowMat, groupY,
+      groupY,
       renderZ: startZ, targetZ: startZ, lerpStartZ: startZ, lerpT: 1.0,
     };
-    // Intentionally unused smokeTex ref (smoke canvas is owned by smokeMesh.material.map)
-    entry.smokeTex = smokeTex;
     return entry;
   }
 
@@ -499,44 +421,16 @@ export class Car3D {
     return { bodyMat: bm, turretGroup };
   }
 
-  // ── Tank crack overlay ─────────────────────────────────────────────────────────
-
-  _drawCracks(ctx, stage) {
-    ctx.clearRect(0, 0, 64, 64);
-    if (stage === 0) return;
-    ctx.strokeStyle = 'rgba(0,0,0,0.65)';
-    ctx.lineWidth   = stage >= 3 ? 2.5 : 1.8;
-    const lines = [
-      [[32,32],[14,12],[6,22]],
-      [[32,32],[52,14],[60,26]],
-      [[32,32],[20,54],[12,58]],
-      [[32,32],[50,52],[56,46]],
-    ];
-    for (let i = 0; i < stage; i++) {
-      const pts = lines[i];
-      ctx.beginPath();
-      ctx.moveTo(pts[0][0], pts[0][1]);
-      for (let j = 1; j < pts.length; j++) ctx.lineTo(pts[j][0], pts[j][1]);
-      ctx.stroke();
-    }
-  }
-
   // ── Disposal ───────────────────────────────────────────────────────────────────
 
   _disposeDying(d) {
-    d.smokeTex?.dispose();
-    d.crackTex?.dispose();
     this._disposeGroup(d.group);
     if (d.bossRing) { d.bossRingMat?.dispose(); this._scene.remove(d.bossRing); }
-    if (d.shadowMesh) { d.shadowMat?.dispose(); this._scene.remove(d.shadowMesh); }
   }
 
   _disposeEntry(entry) {
-    entry.smokeTex?.dispose();
-    entry.crackTex?.dispose();
     this._disposeGroup(entry.group);
     if (entry.bossRing) { entry.bossRingMat?.dispose(); this._scene.remove(entry.bossRing); }
-    if (entry.shadowMesh) { entry.shadowMat?.dispose(); this._scene.remove(entry.shadowMesh); }
   }
 
   _disposeGroup(group) {

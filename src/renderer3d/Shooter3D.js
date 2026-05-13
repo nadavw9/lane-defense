@@ -1,6 +1,6 @@
 // Shooter3D — Royal Match / Color Block Jam candy-bomb visuals.
 // Top-down orthographic camera (layer 1): bombs appear as circles from above.
-// Design: color-dominant sphere + billiard-ball shading + colored ground halo.
+// Design: color-dominant sphere + billiard-ball shading.
 //
 // Camera: position=(0,4.5,0), up=(0,0,-1), lookAt origin → looking straight DOWN.
 //   X = left/right  |  Z = top/bottom (more negative Z = higher on screen)  |  Y = depth
@@ -36,44 +36,6 @@ const BADGE_CVS_W = 96;
 const BADGE_CVS_H = 56;
 const BADGE_W     = 0.82;   // world-space width
 const BADGE_H     = 0.46;
-
-// ── Shared textures (created once, reused across all slots) ───────────────────
-let _hlTex   = null;
-let _vignTex = null;
-
-/** Specular crescent: bright center fading to transparent, offset top-left. */
-function _getHighlightTex() {
-  if (_hlTex) return _hlTex;
-  const cv  = document.createElement('canvas');
-  cv.width  = cv.height = 48;
-  const ctx = cv.getContext('2d');
-  const g   = ctx.createRadialGradient(14, 12, 0, 16, 14, 20);
-  g.addColorStop(0,    'rgba(255,255,255,0.95)');
-  g.addColorStop(0.38, 'rgba(255,255,255,0.60)');
-  g.addColorStop(0.70, 'rgba(255,255,255,0.18)');
-  g.addColorStop(1,    'rgba(255,255,255,0)');
-  ctx.fillStyle = g;
-  ctx.beginPath(); ctx.arc(22, 20, 20, 0, Math.PI * 2); ctx.fill();
-  _hlTex = new THREE.CanvasTexture(cv);
-  return _hlTex;
-}
-
-/** Vignette: transparent center → dark edge. Creates billiard-ball rim shading. */
-function _getVignetteTex() {
-  if (_vignTex) return _vignTex;
-  const cv  = document.createElement('canvas');
-  cv.width  = cv.height = 64;
-  const ctx = cv.getContext('2d');
-  const g   = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-  g.addColorStop(0,    'rgba(0,0,0,0)');
-  g.addColorStop(0.52, 'rgba(0,0,0,0)');
-  g.addColorStop(0.80, 'rgba(0,0,0,0.32)');
-  g.addColorStop(1,    'rgba(0,0,0,0.72)');
-  ctx.fillStyle = g;
-  ctx.beginPath(); ctx.arc(32, 32, 32, 0, Math.PI * 2); ctx.fill();
-  _vignTex = new THREE.CanvasTexture(cv);
-  return _vignTex;
-}
 
 // ── Color palette ──────────────────────────────────────────────────────────────
 const COLOR_HEX = {
@@ -245,7 +207,6 @@ export class Shooter3D {
           slot.lastDamage = damage;
           slot.sphereMat.color.setHex(hex);
           slot.sphereMat.emissive.setHex(hex);
-          slot.haloMat.color.setHex(hex);   // colored ground shadow matches bomb
           drawDamageBadge(slot.badgeCtx, BADGE_CVS_W, BADGE_CVS_H, damage, hex);
           slot.badgeTex.needsUpdate = true;
         }
@@ -305,15 +266,9 @@ export class Shooter3D {
       for (const slot of laneSlots) {
         slot.badgeTex.dispose();
         slot.sphereMesh.geometry.dispose();
-        slot.vignMesh.geometry.dispose();
-        slot.hlMesh.geometry.dispose();
-        slot.haloMesh.geometry.dispose();
         slot.fuseMesh.geometry.dispose();
         slot.badgeMesh.geometry.dispose();
         slot.sphereMat.dispose();
-        slot.vignMat.dispose();
-        slot.hlMat.dispose();
-        slot.haloMat.dispose();
         slot.fuseMat.dispose();
         slot.badgeMat.dispose();
         this._scene.remove(slot.group);
@@ -332,24 +287,6 @@ export class Shooter3D {
     const emissive = SLOT_EMISSIVE[slotIdx];
     const scale    = SLOT_SCALE[slotIdx];
     const group    = new THREE.Group();
-
-    // ── Colored ground halo — Royal Match style cast shadow ───────────────────
-    // Flat disc at road surface level in the lane color. Reads like a colored
-    // "cast shadow" that immediately communicates color identity before the
-    // player even looks at the sphere. Most visible at queue depth 2–3.
-    const haloMat = new THREE.MeshBasicMaterial({
-      color:      new THREE.Color(0x888888),   // synced to lane color each frame
-      transparent: true,
-      opacity:    0.38 * alpha,
-      depthWrite: false,
-    });
-    const haloMesh = new THREE.Mesh(
-      new THREE.CircleGeometry(BOMB_R * 1.55, 32),
-      haloMat,
-    );
-    haloMesh.rotation.x = -Math.PI / 2;
-    haloMesh.position.set(BOMB_CX, 0.003, BOMB_CZ);
-    group.add(haloMesh);
 
     // ── Candy sphere — color-dominant body ───────────────────────────────────
     // High emissiveIntensity ensures the lane color saturates regardless of
@@ -370,49 +307,6 @@ export class Shooter3D {
     );
     sphereMesh.position.set(BOMB_CX, BOMB_CY, BOMB_CZ);
     group.add(sphereMesh);
-
-    // ── Vignette disc — billiard-ball rim darkening ───────────────────────────
-    // Dark-edge radial gradient laid flat on the sphere's top pole.
-    // From the top-down camera this creates the illusion of a sphere curving
-    // away at the edges (lighter center → darker equatorial rim). Radius
-    // slightly exceeds BOMB_R so it covers the full sphere silhouette.
-    const vignMat = new THREE.MeshBasicMaterial({
-      map:        _getVignetteTex(),
-      transparent: true,
-      opacity:    0.52 * alpha,
-      depthTest:  false,
-    });
-    const vignMesh = new THREE.Mesh(
-      new THREE.CircleGeometry(BOMB_R + 0.010, 32),
-      vignMat,
-    );
-    vignMesh.rotation.x = -Math.PI / 2;
-    // Place flush with sphere top (y = BOMB_CY + BOMB_R), epsilon above sphere surface
-    // so the top-down camera sees it above the sphere.
-    vignMesh.position.set(BOMB_CX, BOMB_CY + BOMB_R + 0.001, BOMB_CZ);
-    group.add(vignMesh);
-
-    // ── Specular highlight — top-left white crescent ──────────────────────────
-    // Off-center bright spot simulating a light source from top-left.
-    // Larger and more opaque than a single point glint to read clearly
-    // at small display sizes.
-    const hlMat = new THREE.MeshBasicMaterial({
-      map:        _getHighlightTex(),
-      transparent: true,
-      opacity:    alpha * 0.90,
-      depthTest:  false,
-    });
-    const hlMesh = new THREE.Mesh(
-      new THREE.CircleGeometry(BOMB_R * 0.66, 18),
-      hlMat,
-    );
-    hlMesh.rotation.x = -Math.PI / 2;
-    hlMesh.position.set(
-      BOMB_CX - BOMB_R * 0.22,
-      BOMB_CY + BOMB_R + 0.003,   // above vignette disc
-      BOMB_CZ - BOMB_R * 0.22,    // offset toward top of screen (negative Z = up)
-    );
-    group.add(hlMesh);
 
     // ── Fuse — warm brown cord with orange-emissive tip ───────────────────────
     const fuseStart = new THREE.Vector3(BOMB_CX,        BOMB_CY + BOMB_R,        BOMB_CZ);
@@ -464,9 +358,6 @@ export class Shooter3D {
     return {
       group,
       sphereMesh, sphereMat,
-      vignMesh,   vignMat,
-      hlMesh,     hlMat,
-      haloMesh,   haloMat,
       fuseMesh,   fuseMat,
       badgeCanvas, badgeCtx, badgeTex, badgeMesh, badgeMat,
       lastColor:  -1,

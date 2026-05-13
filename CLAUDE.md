@@ -230,7 +230,9 @@ If Playwright MCP is not available, fall back to manual screenshot review per th
 - Preserving "for compatibility" code that no longer serves a purpose
 
 ## Session Management
-Reset context hook between sessions: `rm -f /tmp/lane-defense-handoff-fired.flag`
+Reset context hook between sessions (flag lives in OS temp dir):
+- Unix/Mac: `rm -f /tmp/lane-defense-handoff-fired.flag`
+- Windows:  `del "%TEMP%\lane-defense-handoff-fired.flag"`
 
 ---
 *Last updated: May 2026 — after callout removal. Update when major architectural changes land.*

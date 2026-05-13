@@ -1,15 +1,26 @@
 #!/usr/bin/env node
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { execSync } from 'child_process';
+import { tmpdir } from 'os';
+import { join } from 'path';
 const THRESHOLD = 0.40;
-const FLAG_FILE = '/tmp/lane-defense-handoff-fired.flag';
+const FLAG_FILE = join(tmpdir(), 'lane-defense-handoff-fired.flag');
 const HANDOFF_PATH = 'SESSION_HANDOFF.md';
+async function readStdin() {
+  return new Promise((resolve) => {
+    let data = '';
+    process.stdin.setEncoding('utf8');
+    process.stdin.on('data', chunk => data += chunk);
+    process.stdin.on('end', () => resolve(data));
+    process.stdin.on('error', () => resolve(''));
+    setTimeout(() => resolve(data), 3000);
+  });
+}
 async function main() {
 let payload;
-try {
-const raw = readFileSync('/dev/stdin', 'utf8');
-payload = JSON.parse(raw);
-} catch { process.exit(0); }
+const raw = await readStdin();
+if (!raw) process.exit(0);
+try { payload = JSON.parse(raw); } catch { process.exit(0); }
 const cw = payload?.context_window;
 if (!cw) process.exit(0);
 const usage = cw.current_tokens / cw.max_tokens;

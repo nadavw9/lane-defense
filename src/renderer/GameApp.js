@@ -50,7 +50,6 @@ import { IntensityPhase }  from '../director/IntensityPhase.js';
 import { SeededRandom }    from '../utils/SeededRandom.js';
 import { Lane }            from '../models/Lane.js';
 import { Column }          from '../models/Column.js';
-import { PHASE_CONFIG }    from '../director/DirectorConfig.js';
 
 import { WinScreen, calcStars }       from '../screens/WinScreen.js';
 import { LoseScreen }                  from '../screens/LoseScreen.js';

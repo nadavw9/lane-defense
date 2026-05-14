@@ -166,12 +166,11 @@ export class Car3D {
           if (!entry._prevFrozen) {
             // First freeze frame: tint all body materials 40% toward ice blue
             const ICE_R = 0xAA / 255, ICE_G = 0xDD / 255, ICE_B = 0xFF / 255;
-            const mult  = 0.55 + 0.45 * hpRatio;
             for (let mi = 0; mi < entry.colorMats.length; mi++) {
               const base = entry.colorBaseHexes[mi];
-              const br = Math.round(((base >> 16) & 0xff) * mult) / 255;
-              const bg = Math.round(((base >>  8) & 0xff) * mult) / 255;
-              const bb = Math.round(( base        & 0xff) * mult) / 255;
+              const br = ((base >> 16) & 0xff) / 255;
+              const bg = ((base >>  8) & 0xff) / 255;
+              const bb = ( base        & 0xff) / 255;
               entry.colorMats[mi].color.setRGB(
                 br * 0.6 + ICE_R * 0.4,
                 bg * 0.6 + ICE_G * 0.4,
@@ -186,7 +185,10 @@ export class Car3D {
           for (const hl of entry.headLights) hl.intensity = 0.30;
         } else {
           if (entry._prevFrozen) {
-            entry.lastHp = -1;  // force color restore from HP-based mult on next iteration
+            // Unfreeze: restore original vivid colors
+            for (let mi = 0; mi < entry.colorMats.length; mi++) {
+              entry.colorMats[mi].color.setHex(entry.colorBaseHexes[mi]);
+            }
             entry._prevFrozen = false;
           }
         }
@@ -209,18 +211,9 @@ export class Car3D {
           }
         }
 
-        // HP changed: darken body colors
+        // HP tracking (no darkening — cars keep vivid color at all damage levels)
         if (car.hp !== entry.lastHp) {
           entry.lastHp = car.hp;
-          const mult = 0.55 + 0.45 * hpRatio;
-          for (let mi = 0; mi < entry.colorMats.length; mi++) {
-            const base = entry.colorBaseHexes[mi];
-            entry.colorMats[mi].color.setRGB(
-              Math.round(((base >> 16) & 0xff) * mult) / 255,
-              Math.round(((base >>  8) & 0xff) * mult) / 255,
-              Math.round(( base        & 0xff) * mult) / 255,
-            );
-          }
         }
       }
     }

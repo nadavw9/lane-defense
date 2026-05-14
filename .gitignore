@@ -9,6 +9,8 @@ android/local.properties
 *.apk
 *.aab
 *.keystore
+*.jks
+keystore.properties
 
 # Playwright audit screenshots and scripts (generated, not source)
 audit-*.png

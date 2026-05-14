@@ -134,7 +134,6 @@ export class GameRenderer3D {
     this._postFX?.setBreach(0);
     this._postFX?.setCombo(0);
     this._skybox?.setCombo(0);
-    this._road?.resetGate();
     if (this._mounted && this._lanes) {
       this._particles   = new Particles3D(this._scene3d.scene, this._lighting, this._lanes);
       this._laneFlash   = new LaneFlash3D(this._scene3d.scene);
@@ -229,7 +228,6 @@ export class GameRenderer3D {
   /** Sweep camera from high steep angle to gameplay position over 0.6 s. */
   startLevelIntro() {
     this._cameraFX?.startLevelIntro();
-    this._road?.openGate();
   }
 
   setActiveLaneCount(n) {

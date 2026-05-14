@@ -35,10 +35,6 @@ const LANE_GLOW_WIDTH   = 3.75;
 const ROAD_LENGTH   = ROAD_Z_NEAR - ROAD_Z_FAR;
 const ROAD_CENTER_Z = (ROAD_Z_FAR + ROAD_Z_NEAR) / 2;
 
-// Start gate at the spawn line (Z = ROAD_Z_FAR = -22)
-const GATE_POST_H   = 3.5;
-const GATE_BAR_Y    = 2.0;
-const GATE_OPEN_DUR = 1.2;   // seconds for doors to slide open
 
 export class Road3D {
   constructor(scene) {
@@ -59,7 +55,6 @@ export class Road3D {
     this._activeLaneGlow = null;
     this._bombRings      = [];
     this._dividers       = [];
-    this._gate           = null;
     this._noiseTex       = null;
 
     this._build();
@@ -110,26 +105,6 @@ export class Road3D {
     this._activeLaneGlow = null;
   }
 
-  /** Animate the start gate open (called on level intro). */
-  openGate() {
-    if (!this._gate) return;
-    this._gate.opening = true;
-    this._gate.t       = 0;
-    this._gate.done    = false;
-  }
-
-  /** Reset gate to closed position (called on level reset). */
-  resetGate() {
-    if (!this._gate) return;
-    const { barL, barR, matL, matR, hw } = this._gate;
-    barL.visible    = true;   barR.visible    = true;
-    barL.position.x = -hw / 2; barL.position.y = GATE_BAR_Y;
-    barR.position.x =  hw / 2; barR.position.y = GATE_BAR_Y;
-    matL.opacity = 1; matR.opacity = 1;
-    this._gate.opening = false;
-    this._gate.done    = false;
-    this._gate.t       = 0;
-  }
 
   // ── Bomb ring ────────────────────────────────────────────────────────────────
   spawnBombRing(bombPos, colorHex = 0xff8800) {
@@ -202,24 +177,6 @@ export class Road3D {
       pos.needsUpdate = true;
     }
 
-    // Gate open animation — doors slide outward, fade, then hide entirely
-    if (this._gate?.opening && !this._gate.done) {
-      this._gate.t = Math.min(GATE_OPEN_DUR, this._gate.t + dt);
-      const prog  = this._gate.t / GATE_OPEN_DUR;
-      const eased = 1 - Math.pow(1 - prog, 2.5);
-      const { barL, barR, matL, matR, hw } = this._gate;
-      barL.position.x = -hw / 2 - eased * hw;
-      barL.position.y =  GATE_BAR_Y + eased * 1.2;
-      barR.position.x =  hw / 2 + eased * hw;
-      barR.position.y =  GATE_BAR_Y + eased * 1.2;
-      matL.opacity    = 1 - eased;
-      matR.opacity    = 1 - eased;
-      if (prog >= 1) {
-        this._gate.done  = true;
-        barL.visible     = false;
-        barR.visible     = false;
-      }
-    }
 
     // Bomb rings — expand + fade
     for (let i = this._bombRings.length - 1; i >= 0; i--) {
@@ -264,7 +221,6 @@ export class Road3D {
     this._buildReflectionStrips();
     this._buildTrafficTrails();
     this._buildSpeedLines();
-    this._buildStartGate();
   }
 
   _clearGeometry() {
@@ -428,49 +384,6 @@ export class Road3D {
     }
   }
 
-  _buildStartGate() {
-    const n  = this._laneCount;
-    const hw = roadHalfW(n);
-    const gz = ROAD_Z_FAR;   // spawn line = -22
-
-    // Vertical side posts
-    const postMat = new THREE.MeshStandardMaterial({
-      color: 0x2d3a4a, roughness: 0.55, metalness: 0.55,
-    });
-    for (const sx of [-1, 1]) {
-      const post = new THREE.Mesh(
-        new THREE.BoxGeometry(0.32, GATE_POST_H, 0.32),
-        postMat,
-      );
-      post.position.set(sx * (hw + 0.18), GATE_POST_H / 2, gz);
-      this._group.add(post);
-    }
-
-    // Thin top rail connecting the two posts
-    const rail = new THREE.Mesh(
-      new THREE.BoxGeometry(hw * 2 + 0.36 + 0.32, 0.14, 0.24),
-      postMat,
-    );
-    rail.position.set(0, GATE_POST_H, gz);
-    this._group.add(rail);
-
-    // Two door panels (each covers half the road width; animated on openGate())
-    const matL = new THREE.MeshStandardMaterial({
-      color: 0xee2200, emissive: new THREE.Color(0xcc1100), emissiveIntensity: 0.45,
-      roughness: 0.35, metalness: 0.35, transparent: true, opacity: 1.0,
-    });
-    const matR = matL.clone();
-
-    const barL = new THREE.Mesh(new THREE.BoxGeometry(hw, 0.28, 0.28), matL);
-    barL.position.set(-hw / 2, GATE_BAR_Y, gz);
-    this._group.add(barL);
-
-    const barR = new THREE.Mesh(new THREE.BoxGeometry(hw, 0.28, 0.28), matR);
-    barR.position.set(hw / 2, GATE_BAR_Y, gz);
-    this._group.add(barR);
-
-    this._gate = { barL, barR, matL, matR, hw, opening: false, t: 0, done: false };
-  }
 
   _buildBarriers() {
     const n = this._laneCount;

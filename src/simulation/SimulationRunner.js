@@ -46,12 +46,14 @@ class CountingArbiter {
 }
 
 export class SimulationRunner {
-  // levelConfig: { duration (s), colors (array), world (1–5), difficulty (unused, reserved) }
+  // levelConfig: { duration (s), colors (array), world (1–5), worldConfig (optional direct override) }
+  // worldConfig takes precedence over world when provided.
   constructor(levelConfig = {}) {
     this._cfg = {
-      duration: levelConfig.duration ?? 90,
-      colors:   levelConfig.colors   ?? ['Red', 'Blue'],
-      world:    levelConfig.world    ?? 1,
+      duration:    levelConfig.duration    ?? 90,
+      colors:      levelConfig.colors      ?? ['Red', 'Blue'],
+      world:       levelConfig.world       ?? 1,
+      worldConfig: levelConfig.worldConfig ?? null,
     };
   }
 
@@ -68,7 +70,7 @@ export class SimulationRunner {
   //   rescueWouldSave    — true if a 10 s rescue would have covered the remaining time
   runLevel(seed) {
     const { duration, colors, world } = this._cfg;
-    const worldConfig = WORLD_CONFIG[world];
+    const worldConfig = this._cfg.worldConfig ?? WORLD_CONFIG[world];
 
     // ── Instantiate subsystems ─────────────────────────────────────────────
     const rng        = new SeededRandom(seed);

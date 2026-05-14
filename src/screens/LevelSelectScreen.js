@@ -58,8 +58,11 @@ export class LevelSelectScreen {
   update(dt) {
     if (this._glowNode) {
       this._glowTime += dt;
-      const t = (this._glowTime % 1.4) / 1.4;
-      this._glowNode.alpha = 0.30 + 0.55 * Math.abs(Math.sin(t * Math.PI));
+      const t = (this._glowTime % 1.2) / 1.2;
+      const pulse = Math.abs(Math.sin(t * Math.PI));
+      this._glowNode.alpha = 0.45 + 0.55 * pulse;
+      const sc = 1 + 0.18 * pulse;
+      this._glowNode.scale.set(sc);
     }
     for (let i = this._revealAnims.length - 1; i >= 0; i--) {
       const a  = this._revealAnims[i];
@@ -213,7 +216,7 @@ export class LevelSelectScreen {
 
     // Muted ad boosters label
     const bh = new Text({ text: 'OPTIONAL AD BOOSTERS', style: {
-      fontSize: 9, fill: 0x446677, fontWeight: 'bold',
+      fontSize: 14, fill: 0x5588aa, fontWeight: 'bold',
     }});
     bh.anchor.set(0.5, 0.5); bh.x = w / 2; bh.y = CY + 192;
     popup.addChild(bh);
@@ -277,17 +280,26 @@ export class LevelSelectScreen {
       }
     });
 
-    // Secondary buttons row
-    const btnStyle = { fontSize: 13, fontWeight: 'bold', fill: 0x88aacc };
-    const backBtn = new Text({ text: '← BACK', style: btnStyle });
-    backBtn.anchor.set(0.5, 0.5); backBtn.x = w / 2; backBtn.y = CY + 306;
-    backBtn.eventMode = 'static'; backBtn.cursor = 'pointer';
-    backBtn.on('pointerdown', () => {
+    // ← BACK button with pill chrome (F-10)
+    const backBg = new Graphics();
+    const bBtnW = 140, bBtnH = 38;
+    backBg.roundRect(w / 2 - bBtnW / 2, CY + 288, bBtnW, bBtnH, 19);
+    backBg.fill({ color: 0x1a2a44, alpha: 0.95 });
+    backBg.roundRect(w / 2 - bBtnW / 2, CY + 288, bBtnW, bBtnH, 19);
+    backBg.stroke({ color: 0x44aaff, width: 1.5, alpha: 0.5 });
+    backBg.eventMode = 'static'; backBg.cursor = 'pointer';
+    backBg.on('pointerdown', () => {
       audio?.play('button_tap');
       clearInterval(rafId);
       popup.destroy({ children: true }); this._popup = null;
     });
-    popup.addChild(backBtn);
+    backBg.on('pointerover', () => { backBg.alpha = 0.8; });
+    backBg.on('pointerout',  () => { backBg.alpha = 1.0; });
+    popup.addChild(backBg);
+
+    const backTxt = new Text({ text: '← BACK', style: { fontSize: 15, fontWeight: 'bold', fill: 0x88ccff } });
+    backTxt.anchor.set(0.5, 0.5); backTxt.x = w / 2; backTxt.y = CY + 288 + bBtnH / 2;
+    popup.addChild(backTxt);
 
     // Animate card entrance: slide up from below.
     // rafId is in outer scope so all close paths can clear it.
@@ -564,7 +576,7 @@ export class LevelSelectScreen {
     this._container.addChild(hg);
 
     const mkBtn = (txt, x, anchorX, y, color, cb) => {
-      const t = new Text({ text: txt, style: { fontSize: 14, fontWeight: 'bold', fill: color } });
+      const t = new Text({ text: txt, style: { fontSize: 18, fontWeight: 'bold', fill: color } });
       t.anchor.set(anchorX, 0.5); t.x = x; t.y = y;
       t.eventMode = 'static'; t.cursor = 'pointer';
       t.on('pointerdown', () => { audio?.play('button_tap'); cb(); });

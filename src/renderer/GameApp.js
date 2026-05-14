@@ -862,6 +862,9 @@ async function main() {
   function showLevelSelect() {
     pauseBtn.visible = false;
     audio.playMusic('title');
+    layers.get('backgroundLayer').visible = false;  // hide CityBackground behind LevelSelect (F-07)
+    layers.get('laneLayer').visible       = false;
+    layers.get('carLayer').visible        = false;
     livesManager.tick();   // credit any regenerated hearts before showing
     levelSelectScreen = new LevelSelectScreen(app.stage, APP_W, APP_H, progress, {
       onSelectLevel: (levelId) => {        // ── Hearts gate ────────────────────────────────────────────────────

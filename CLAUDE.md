@@ -276,6 +276,17 @@ Workflow: https://github.com/nadavw9/lane-defense/actions
 
 ---
 
+## KEYSTORE — NEVER DELETE
+
+`android/lane-defense-release.keystore` is NOT in git (gitignored).  
+It lives at: `C:\Users\dalit\lane-defense\android\lane-defense-release.keystore`
+
+**LOSING THIS FILE = LOSING THE ABILITY TO UPDATE THE APP ON PLAY STORE FOREVER.**  
+Back it up to a USB drive or cloud storage immediately.  
+Password: `lanedefense2024` (store this somewhere safe too).
+
+---
+
 ## What NOT to Touch
 
 - `src/director/` — 455 tests cover it; changes need matching test updates

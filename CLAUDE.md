@@ -13,6 +13,22 @@ Hybrid-casual mobile puzzle-defense game. Cars in colored lanes advance toward t
 
 ---
 
+## MANDATORY: Read Before Any Design Work
+
+Before touching `LevelManager.js`, `GameLoop.js`, `ThemeRegistry.js`,
+`LevelSelectScreen.js`, or `CarTypes.js`:
+
+1. Read `docs/VISION.md` in full
+2. Read `docs/GAME_DESIGN.md` in full
+3. Ask: does my planned change serve the vision?
+4. If not — redesign the approach, not the vision
+
+The vision in `docs/VISION.md` is a locked contract.
+It cannot be quietly adjusted to fit existing code.
+Existing code must be adjusted to fit the vision.
+
+---
+
 ## Tech Stack
 
 | Layer | Library | Version |
@@ -233,7 +249,7 @@ Viability guard also checks **bench slots** (L6+): if a bench shooter matches a 
 
 ## Test Suite
 
-- **455 tests passing**, 5 todo, 2 skipped — 16 test files
+- **460 tests passing**, 5 todo, 2 skipped — 17 test files
 - Run: `npm test`
 - All tests are headless (Director / GameLoop / GameState). No render tests.
 - CI runs on every push via `.github/workflows/deploy.yml`. Failed tests block deploy.

@@ -354,6 +354,21 @@ export class Road3D {
         this._group.add(dash);
       }
     }
+
+    // Near-ground extension — covers the frustum area in front of the breach
+    // line (Z=0 to Z≈22) that the perspective camera sees below the road.
+    // Without this, Three.js clears to black there, creating a black void.
+    const NEAR_EXT_LEN = 24;
+    const nearExtMat = new THREE.MeshStandardMaterial({
+      color: COL_ASPHALT_DARK, roughness: 0.88, metalness: 0.02, envMapIntensity: 0.1,
+    });
+    const nearExtMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(W + 12, NEAR_EXT_LEN),
+      nearExtMat,
+    );
+    nearExtMesh.rotation.x = -Math.PI / 2;
+    nearExtMesh.position.set(0, -0.02, ROAD_Z_NEAR + NEAR_EXT_LEN / 2);
+    this._group.add(nearExtMesh);
   }
 
   _buildLaneDividers() {

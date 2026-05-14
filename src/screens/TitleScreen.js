@@ -26,6 +26,7 @@ export class TitleScreen {
     this._appH      = appH;
     this._cars      = [];
     this._clouds    = [];
+    this._toasts    = [];
     this._elapsed   = 0;
 
     stage.addChild(this._container);
@@ -39,6 +40,7 @@ export class TitleScreen {
     this._elapsed += dt;
     this._tickCars(dt);
     this._tickClouds(dt);
+    this._tickToasts(dt);
   }
 
   // ── Private ────────────────────────────────────────────────────────────────
@@ -164,6 +166,7 @@ export class TitleScreen {
     // ── Secondary row ──────────────────────────────────────────────────────
     let rowY = h * 0.545 + 84;
     const CX = w / 2;
+    const BTN_W2 = 150, GAP = 10;
 
     if (onDaily) {
       this._addPillBtn(CX, rowY, hasDailyReward ? '⭐ DAILY REWARD!' : '📅 Daily Reward',
@@ -177,22 +180,26 @@ export class TitleScreen {
     }
 
     rowY += 54;
-    const BTN_W2 = 150, GAP = 10;
 
+    // 2×2 grid — Row 1: CHALLENGE | TROPHIES
     if (onDailyChallenge) {
       this._addPillBtn(CX - BTN_W2 / 2 - GAP / 2, rowY, '⚡ CHALLENGE',
         0x1565C0, 0xE3F2FD, () => { audio?.play('button_tap'); onDailyChallenge(); }, BTN_W2);
     }
-
-    rowY += 54;
     if (onAchievements) {
-      this._addPillBtn(CX - BTN_W2 / 2 - GAP / 2, rowY, '★ TROPHIES',
+      this._addPillBtn(CX + BTN_W2 / 2 + GAP / 2, rowY, '★ TROPHIES',
         0xF57F17, 0xFFF8E1, () => { audio?.play('button_tap'); onAchievements(); }, BTN_W2);
     }
+
+    rowY += 54;
+
+    // 2×2 grid — Row 2: STATS | ACHIEVEMENTS (no screen yet — Coming Soon toast)
     if (onStats) {
-      this._addPillBtn(CX + BTN_W2 / 2 + GAP / 2, rowY, '📊 STATS',
+      this._addPillBtn(CX - BTN_W2 / 2 - GAP / 2, rowY, '📊 STATS',
         0x4527A0, 0xEDE7F6, () => { audio?.play('button_tap'); onStats(); }, BTN_W2);
     }
+    this._addPillBtn(CX + BTN_W2 / 2 + GAP / 2, rowY, '🏆 ACHIEVEMENTS',
+      0x2E7D32, 0xE8F5E9, () => { audio?.play('button_tap'); this._showComingSoon(); }, BTN_W2);
 
     // ── Settings gear (top-right) ──────────────────────────────────────────
     if (onSettings) {
@@ -294,6 +301,36 @@ export class TitleScreen {
     g.x = -30; g.y = roadY;
     this._carRoadLayer?.addChild(g);
     this._cars.push({ g, speed, maxX: w + 50 });
+  }
+
+  _showComingSoon() {
+    const toast = new Text({
+      text: '🚧  Coming Soon!',
+      style: {
+        fontSize:   20,
+        fontWeight: 'bold',
+        fill:       0xFFFFFF,
+        dropShadow: { color: 0x000000, blur: 6, distance: 0, alpha: 0.9 },
+      },
+    });
+    toast.anchor.set(0.5, 0.5);
+    toast.x = this._appW / 2;
+    toast.y = this._appH * 0.82;
+    this._container.addChild(toast);
+    this._toasts.push({ g: toast, life: 1.8 });
+  }
+
+  _tickToasts(dt) {
+    for (let i = this._toasts.length - 1; i >= 0; i--) {
+      const t = this._toasts[i];
+      t.life -= dt;
+      t.g.alpha = Math.max(0, t.life / 0.6);
+      if (t.life <= 0) {
+        this._container.removeChild(t.g);
+        t.g.destroy();
+        this._toasts.splice(i, 1);
+      }
+    }
   }
 
   _tickCars(dt) {

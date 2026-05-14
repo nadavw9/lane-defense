@@ -1,9 +1,17 @@
-// ThemeRegistry — per-level sub-variants of the "woods" theme.
+// ThemeRegistry — per-level visual themes.
 //
 // Design principle: ONE dominant background tone per theme. The game's
 // saturated bomb/car colors pop against a muted, harmonized backdrop.
 // All sky, ground, and environment elements shift toward the dominant
 // tone at reduced saturation so hero elements always win visual hierarchy.
+//
+// Theme mapping:
+//   L1-4:   morning    — warm cream-gold, suburban, Tutorial City
+//   L5-8:   afternoon  — deep sky blue, vivid, Tutorial City
+//   L9-12:  sunset     — indigo-orange, dramatic, Tutorial City
+//   L13-15: misty      — cool grey overcast, Tutorial City climax
+//   L16-30: industrial — steel grey + orange hazard, World 2 Industrial Zone
+//   L31+:   nightHighway — near-black sky, headlight fog, World 3 Night Highway
 
 export const THEMES = {
   // Morning: warm cream-gold dominates. Soft sage greenery, hazy horizon.
@@ -31,6 +39,7 @@ export const THEMES = {
     fog:    { color: 0xff7722, near: 24, far: 90 },
   },
   // Misty: cool blue-grey dominates. Light ground haze; cars visible throughout road.
+  // near=20 minimum so cars remain visible — do not lower.
   misty: {
     sky:    { zenith: 0x7a8c99, mid: 0xa0b0bb, horizon: 0xd8dede, glow: 0xc8cdd8 },
     hemi:   { sky: 0x8899aa, ground: 0x55687a, intensity: 0.82 },
@@ -38,22 +47,34 @@ export const THEMES = {
     ambient:{ color: 0xd0dde8, intensity: 0.58 },
     fog:    { color: 0xc8d0d8, near: 20, far: 70 },
   },
-  // Autumn: deep blue sky, rich amber/orange foliage, warm earth ground.
-  autumn: {
-    sky:    { zenith: 0x1848aa, mid: 0xbb6622, horizon: 0xffaa22, glow: 0xff7711 },
-    hemi:   { sky: 0xdda030, ground: 0x8b4513, intensity: 1.20 },
-    sun:    { color: 0xffeea0, intensity: 1.55 },
-    ambient:{ color: 0xffeecc, intensity: 0.48 },
-    fog:    { color: 0xffaa44, near: 20, far: 75 },
+  // Industrial Zone (World 2, L16-30): steel-grey overcast sky, vivid orange hazard
+  // horizon glow from factory flares. Warm smoky fog. Gritty, high-stakes feel.
+  industrial: {
+    sky:    { zenith: 0x3a3f4a, mid: 0x52596a, horizon: 0xff6a1a, glow: 0xff4400 },
+    hemi:   { sky: 0x506070, ground: 0x202820, intensity: 0.75 },
+    sun:    { color: 0xffa040, intensity: 0.85 },
+    ambient:{ color: 0x8a9aaa, intensity: 0.35 },
+    fog:    { color: 0x8a7a6a, near: 18, far: 55 },
+  },
+  // Night Highway (World 3, L31+): near-black sky, deep navy horizon, white-blue
+  // headlight scatter fog. Low ambient — car emissives must carry the scene.
+  // emissiveBoost is read by Car3D to increase car glow in dark conditions.
+  nightHighway: {
+    sky:    { zenith: 0x050a18, mid: 0x0a1530, horizon: 0x0a1a3a, glow: 0x1a2a5a },
+    hemi:   { sky: 0x0a1a3a, ground: 0x050f1a, intensity: 0.40 },
+    sun:    { color: 0x8090d0, intensity: 0.30 },
+    ambient:{ color: 0xd0e8ff, intensity: 0.60 },
+    fog:    { color: 0xd0e0ff, near: 10, far: 35 },
+    emissiveBoost: 0.4,
   },
 };
 
-// Map level id to a theme.  L1-4: morning, L5-8: afternoon, L9-12: sunset,
-// L13-16: misty, L17+: autumn.
+// Map level id to a theme.
 export function levelTheme(levelId) {
   if (levelId <= 4)  return THEMES.morning;
   if (levelId <= 8)  return THEMES.afternoon;
   if (levelId <= 12) return THEMES.sunset;
-  if (levelId <= 16) return THEMES.misty;
-  return THEMES.autumn;
+  if (levelId <= 15) return THEMES.misty;
+  if (levelId <= 30) return THEMES.industrial;
+  return THEMES.nightHighway;
 }

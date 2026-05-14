@@ -85,11 +85,16 @@ let _bossTorusGeo = null;
 
 export class Car3D {
   constructor(scene, lanes) {
-    this._scene = scene;
-    this._lanes = lanes;
-    this._live  = new Map();
-    this._dying = [];
+    this._scene         = scene;
+    this._lanes         = lanes;
+    this._live          = new Map();
+    this._dying         = [];
+    this._emissiveBoost = 0;
     if (!_bossTorusGeo) _bossTorusGeo = new THREE.TorusGeometry(1.4, 0.06, 8, 28);
+  }
+
+  setTheme(theme) {
+    this._emissiveBoost = theme?.emissiveBoost ?? 0;
   }
 
   clearAll() {
@@ -193,21 +198,22 @@ export class Car3D {
           }
         }
         if (!isFrozen) {
+          const eb = this._emissiveBoost;
           if (hpRatio < 0.35) {
             entry.bodyMat.emissive.setHex(0xff3300);
-            entry.bodyMat.emissiveIntensity = 0.25;
+            entry.bodyMat.emissiveIntensity = 0.25 + eb;
             g.rotation.z = -0.10 * (1 - hpRatio);
-            for (const hl of entry.headLights) hl.intensity = 0.10;
+            for (const hl of entry.headLights) hl.intensity = 0.10 + eb * 0.5;
           } else if (hpRatio < 0.65) {
             entry.bodyMat.emissive.setHex(0xff7700);
-            entry.bodyMat.emissiveIntensity = 0.15;
+            entry.bodyMat.emissiveIntensity = 0.15 + eb;
             g.rotation.z = -0.04 * (1 - hpRatio);
-            for (const hl of entry.headLights) hl.intensity = 0.15;
+            for (const hl of entry.headLights) hl.intensity = 0.15 + eb * 0.5;
           } else {
             entry.bodyMat.emissive.setHex(entry.colorBaseHexes[0] ?? 0x000000);
-            entry.bodyMat.emissiveIntensity = 0.28;
+            entry.bodyMat.emissiveIntensity = 0.28 + eb;
             g.rotation.z = 0;
-            for (const hl of entry.headLights) hl.intensity = 0.30;
+            for (const hl of entry.headLights) hl.intensity = 0.30 + eb * 0.5;
           }
         }
 

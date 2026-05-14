@@ -122,6 +122,7 @@ export class GameRenderer3D {
     }
     this._lighting?.setTheme(theme);
     this._skybox?.setTheme(theme);
+    this._cars?.setTheme(theme);
   }
 
   resetLevel() {

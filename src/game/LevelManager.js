@@ -1,114 +1,332 @@
-// LevelManager — FTUE level progression and per-level config.
+// LevelManager — 40-level progression aligned with VISION.md.
 //
-// Progression:
-//   L1  → 1 lane, 1 col, Red only              — "learn to shoot"
-//   L2  → 2 lanes, 2 cols, Red+Blue            — "learn color matching"
-//   L3  → 3 lanes, 3 cols, Red+Blue            — "third lane, same colors"
-//   L4  → 4 lanes, 4 cols, Red+Blue            — full board, still very easy
-//   L5  → full board, slightly harder           — combo introduced
-//   L6–L7  → gradual ramp; BENCH unlocks at L6
-//   L8  → Green unlocked; SWAP booster unlocks
-//   L9–L10 → approaching W1 standard
-//   L11 → full W1; PEEK booster unlocks at L12
-//   L13 → hard level
-//   L14 → FREEZE booster unlocks (2 free charges granted)
-//   L16 → rush-hour special (fast spawn, low HP)
-//   L18 → hard level
-//   L20 → 3-lane special, Yellow unlocked
+// Difficulty wave per 8-level block (N = block start):
+//   N+0  Easy       relief / onboarding
+//   N+1  Medium
+//   N+2  Medium
+//   N+3  Hard
+//   N+4  Easy       relief (sometimes new mechanic unlock)
+//   N+5  Medium
+//   N+6  Hard
+//   N+7  Boss-Hard  rescue-ad moment
 //
-// Feature unlock thresholds (based on level being played):
-//   bench  visible from L6+
-//   swap   visible from L8+
-//   peek   visible from L12+
-//   freeze visible from L14+
+// Boss levels (designed challenges, not just hp bumps): L10, L15, L20, L25, L30, L35, L40
+//
+// Color introduction schedule:
+//   L1        Red only
+//   L2-L9     Red + Blue
+//   L7-L9     Red + Blue + Green  (Green at L7 per block-1 medium-hard slot)
+//   L10       Red + Blue (bench-test puzzle — intentionally stripped)
+//   L11-L20   Red + Blue + Green
+//   L21-L24   Red + Blue + Green + Yellow  (Yellow intro at L21 relief)
+//   L25-L30   + Purple (Color Overload boss at L25)
+//   L31-L40   + Orange (all 6 colors; World 3 opens at L31)
+//
+// Feature unlock thresholds (GameApp reads these from progress):
+//   bench   L6+
+//   swap    L9+
+//   peek    L12+
+//   freeze  L14+
+
 import { WORLD_CONFIG } from '../director/DirectorConfig.js';
 
-// ── Per-level world configs (HP multiplier + car speed) ───────────────────────
-const FTUE_WORLD_1 = { hpMultiplier: 0.50, speed: { base: 3.0, variance: 0.0 } };
-const FTUE_WORLD_2 = { hpMultiplier: 0.55, speed: { base: 3.5, variance: 0.2 } };
+// ── Shared difficulty presets ─────────────────────────────────────────────────
 
-const EARLY_3  = { hpMultiplier: 0.50, speed: { base: 3.0, variance: 0.2 } };
-const EARLY_4  = { hpMultiplier: 0.60, speed: { base: 3.5, variance: 0.3 } };
-const EARLY_5  = { hpMultiplier: 0.65, speed: { base: 3.5, variance: 0.3 } };
-const EARLY_6  = { hpMultiplier: 0.70, speed: { base: 3.8, variance: 0.4 } };
-const EARLY_7  = { hpMultiplier: 0.80, speed: { base: 4.2, variance: 0.4 } };
-const EARLY_8  = { hpMultiplier: 0.85, speed: { base: 4.5, variance: 0.4 } };
-const EARLY_9  = { hpMultiplier: 0.90, speed: { base: 4.8, variance: 0.5 } };
-const EARLY_10 = { hpMultiplier: 0.95, speed: { base: 5.0, variance: 0.5 } };
+// Block 1: Tutorial City — morning theme (L1–8)
+const B1_FTUE = { hpMultiplier: 0.50, speed: { base: 3.0, variance: 0.0 } };
+const B1_MED  = { hpMultiplier: 0.55, speed: { base: 3.5, variance: 0.2 } };
+const B1_HARD = { hpMultiplier: 0.75, speed: { base: 4.2, variance: 0.3 } };
+const B1_REL  = { hpMultiplier: 0.55, speed: { base: 3.5, variance: 0.2 } };
+const B1_MED2 = { hpMultiplier: 0.68, speed: { base: 4.0, variance: 0.3 } };
+const B1_HARD2= { hpMultiplier: 0.82, speed: { base: 4.5, variance: 0.4 } };
+const B1_BH   = { hpMultiplier: 0.92, speed: { base: 4.8, variance: 0.4 } };
 
-const HARD = { hpMultiplier: 1.10, speed: { base: 5.2, variance: 0.5 } };
-const RUSH = { hpMultiplier: 0.60, speed: { base: 5.0, variance: 0.5 } };
+// Block 2: Tutorial City — afternoon/sunset themes (L9–16)
+const B2_EASY = { hpMultiplier: 0.75, speed: { base: 4.0, variance: 0.4 } };
+const B2_MED  = { hpMultiplier: 0.88, speed: { base: 4.6, variance: 0.5 } };
+const B2_HARD = { hpMultiplier: 1.05, speed: { base: 5.0, variance: 0.5 } };
+const B2_REL  = { hpMultiplier: 0.72, speed: { base: 4.2, variance: 0.4 } };
+const B2_MED2 = { hpMultiplier: 0.95, speed: { base: 5.0, variance: 0.5 } };
+const B2_BH   = { hpMultiplier: 1.15, speed: { base: 5.5, variance: 0.5 } };
 
-// ── Level progression ─────────────────────────────────────────────────────────
+// Block 3: Misty → Industrial transition (L17–24)
+const B3_EASY = { hpMultiplier: 0.80, speed: { base: 4.5, variance: 0.4 } };
+const B3_MED  = { hpMultiplier: 1.00, speed: { base: 5.0, variance: 0.5 } };
+const B3_MED2 = { hpMultiplier: 1.05, speed: { base: 5.2, variance: 0.5 } };
+const B3_REL  = { hpMultiplier: 0.78, speed: { base: 4.5, variance: 0.4 } };
+const B3_MED3 = { hpMultiplier: 1.02, speed: { base: 5.2, variance: 0.5 } };
+const B3_HARD = { hpMultiplier: 1.18, speed: { base: 5.6, variance: 0.5 } };
+const B3_BH   = { hpMultiplier: 1.28, speed: { base: 5.8, variance: 0.6 } };
+
+// Block 4: Industrial Zone (L25–32)
+const B4_MED  = { hpMultiplier: 1.12, speed: { base: 5.4, variance: 0.5 } };
+const B4_MED2 = { hpMultiplier: 1.18, speed: { base: 5.6, variance: 0.5 } };
+const B4_HARD = { hpMultiplier: 1.28, speed: { base: 6.0, variance: 0.6 } };
+const B4_REL  = { hpMultiplier: 0.88, speed: { base: 5.2, variance: 0.5 } };
+const B4_HARD2= { hpMultiplier: 1.38, speed: { base: 6.2, variance: 0.6 } };
+const B4_BH   = { hpMultiplier: 1.42, speed: { base: 6.5, variance: 0.7 } };
+
+// Block 5: Night Highway (L33–40)
+const B5_EASY = { hpMultiplier: 0.90, speed: { base: 5.8, variance: 0.5 } };
+const B5_MED  = { hpMultiplier: 1.22, speed: { base: 6.2, variance: 0.6 } };
+const B5_HARD = { hpMultiplier: 1.42, speed: { base: 6.8, variance: 0.7 } };
+const B5_REL  = { hpMultiplier: 0.95, speed: { base: 6.2, variance: 0.6 } };
+const B5_MED2 = { hpMultiplier: 1.35, speed: { base: 6.8, variance: 0.7 } };
+const B5_HARD2= { hpMultiplier: 1.45, speed: { base: 7.2, variance: 0.7 } };
+
+// ── Level progression (all 40) ────────────────────────────────────────────────
 
 const PROGRESSION = [
-  // ── FTUE: near-impossible to lose — learn the controls ────────────────────
-  { id: 1,  laneCount: 1, colCount: 1, colors: ['Red'],           worldConfig: FTUE_WORLD_1, duration:  60, targetKills: 5, spawnBudget:  5, laneTargetCarCount: 2, showArrow: true,  hintText: 'Drag the matching shooter to the lane', initialCars: [{ row: 4, type: 'small' }, { row: 2, type: 'small' }, { row: 0, type: 'small' }] },
-  { id: 2,  laneCount: 2, colCount: 2, colors: ['Red', 'Blue'],   worldConfig: FTUE_WORLD_2, duration:  70, spawnBudget: 10, laneTargetCarCount: 2, showArrow: false, hintText: 'Color must match! Wrong color = no damage' },
-  { id: 3,  laneCount: 3, colCount: 3, colors: ['Red', 'Blue'],   worldConfig: EARLY_3,      duration:  90, spawnBudget: 12, laneTargetCarCount: 2, showArrow: false, hintText: null, showAreaLabels: true },
-  { id: 4,  laneCount: 4, colCount: 4, colors: ['Red', 'Blue'],   worldConfig: EARLY_4,      duration:  90, spawnBudget: 12, laneTargetCarCount: 2, showArrow: false, hintText: null },
-
-  // ── Early full board: forgiving, still learning ────────────────────────────
-  { id: 5,  laneCount: 4, colCount: 4, colors: ['Red', 'Blue'],                worldConfig: EARLY_5,         duration: 100, spawnBudget: 12, laneTargetCarCount: 2, showArrow: false, hintText: null },
-
-  // ── L6: bench unlocks ─────────────────────────────────────────────────────
-  { id: 6,  laneCount: 4, colCount: 4, colors: ['Red', 'Blue'],                worldConfig: EARLY_6,         duration: 100, spawnBudget: 14, laneTargetCarCount: 2, showArrow: false, hintText: 'NEW! Bench — store unwanted shooters for later' },
-  { id: 7,  laneCount: 4, colCount: 4, colors: ['Red', 'Blue'],                worldConfig: EARLY_7,         duration: 100, spawnBudget: 14, laneTargetCarCount: 2, showArrow: false, hintText: null },
-
-  // ── L8: Green unlocked; SWAP booster unlocks ──────────────────────────────
-  { id: 8,  laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],       worldConfig: EARLY_8,         duration: 100, spawnBudget: 16, laneTargetCarCount: 3, showArrow: false, hintText: 'NEW! Green shooters + SWAP booster to exchange column colors' },
-  { id: 9,  laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],       worldConfig: EARLY_9,         duration: 100, spawnBudget: 16, laneTargetCarCount: 3, showArrow: false, hintText: null },
-  { id: 10, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],       worldConfig: EARLY_10,        duration: 100, spawnBudget: 18, laneTargetCarCount: 3, showArrow: false, hintText: null },
-
-  // ── W1 standard ───────────────────────────────────────────────────────────
-  { id: 11, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],       worldConfig: WORLD_CONFIG[1], duration: 100, spawnBudget: 18, laneTargetCarCount: 3, showArrow: false, hintText: null },
-
-  // ── L12: PEEK booster unlocks ─────────────────────────────────────────────
-  { id: 12, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],       worldConfig: WORLD_CONFIG[1], duration: 100, spawnBudget: 18, laneTargetCarCount: 3, showArrow: false, hintText: 'NEW! PEEK booster — reveal upcoming shooter colors' },
-  { id: 13, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],       worldConfig: HARD,            duration:  90, spawnBudget: 20, laneTargetCarCount: 3, showArrow: false, hintText: null }, // hard level
-
-  // ── L14: FREEZE booster unlocks (2 free charges granted) ─────────────────
-  { id: 14, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],       worldConfig: WORLD_CONFIG[1], duration: 100, spawnBudget: 20, laneTargetCarCount: 3, showArrow: false, hintText: 'NEW! FREEZE booster — your next 3 shots won\'t advance the cars! (2 free)' },
-  { id: 15, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],       worldConfig: WORLD_CONFIG[1], duration: 100, spawnBudget: 20, laneTargetCarCount: 3, showArrow: false, hintText: null },
-  { id: 16, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],       worldConfig: RUSH,            duration:  90, spawnBudget: 22, laneTargetCarCount: 3, showArrow: false, hintText: null }, // rush hour
-  { id: 17, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],       worldConfig: WORLD_CONFIG[1], duration: 100, spawnBudget: 22, laneTargetCarCount: 3, showArrow: false, hintText: null },
-  { id: 18, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],       worldConfig: HARD,            duration:  90, spawnBudget: 24, laneTargetCarCount: 3, showArrow: false, hintText: null }, // hard level
-  { id: 19, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],       worldConfig: WORLD_CONFIG[1], duration: 100, spawnBudget: 24, laneTargetCarCount: 3, showArrow: false, hintText: null },
-
-  // ── L20: 3-lane special, Yellow unlocked ──────────────────────────────────
-  { id: 20, laneCount: 3, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow'], worldConfig: WORLD_CONFIG[1], duration: 100, spawnBudget: 24, laneTargetCarCount: 3, showArrow: false, hintText: 'NEW! Yellow shooters unlocked!' },
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // WORLD 2 — Full palette unlocked, escalating difficulty
+  // BLOCK 1 — L1-L8 | Tutorial City | Morning theme
+  // Pattern: Easy / Medium / Medium / Hard / Relief / Medium / Hard / Boss-Hard
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // ── W2 intro: reintroduce with Yellow, slightly harder ─────────────────────
-  { id: 21, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow'], worldConfig: { hpMultiplier: 1.0,  speed: { base: 5.0, variance: 0.5 } }, duration: 100, hintText: 'Welcome to World 2!' },
-  { id: 22, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow'], worldConfig: { hpMultiplier: 1.05, speed: { base: 5.2, variance: 0.5 } }, duration: 100, hintText: null },
-  { id: 23, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow'], worldConfig: { hpMultiplier: 1.1,  speed: { base: 5.4, variance: 0.5 } }, duration:  95, hintText: null },
+  // L1 Easy — "Learn to shoot": 1 lane, 1 col, Red only. Near-impossible to lose.
+  { id: 1, laneCount: 1, colCount: 1, colors: ['Red'],
+    worldConfig: B1_FTUE, duration: 60, targetKills: 5, spawnBudget: 5,
+    laneTargetCarCount: 2, showArrow: true,
+    hintText: 'Drag the matching shooter to the lane',
+    initialCars: [{ row: 4, type: 'small' }, { row: 2, type: 'small' }, { row: 0, type: 'small' }] },
 
-  // ── L24: Purple unlocked ──────────────────────────────────────────────────
-  { id: 24, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple'], worldConfig: { hpMultiplier: 1.0,  speed: { base: 5.2, variance: 0.5 } }, duration: 100, hintText: 'NEW! Purple shooters!' },
-  { id: 25, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple'], worldConfig: { hpMultiplier: 1.1,  speed: { base: 5.4, variance: 0.5 } }, duration:  95, hintText: null },
-  { id: 26, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple'], worldConfig: { hpMultiplier: 1.15, speed: { base: 5.5, variance: 0.6 } }, duration:  90, hintText: null }, // hard
-  { id: 27, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple'], worldConfig: { hpMultiplier: 0.70, speed: { base: 5.5, variance: 0.6 } }, duration:  90, hintText: null }, // rush
-  { id: 28, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple'], worldConfig: { hpMultiplier: 1.2,  speed: { base: 5.6, variance: 0.6 } }, duration:  90, hintText: null },
-  { id: 29, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple'], worldConfig: { hpMultiplier: 1.2,  speed: { base: 5.8, variance: 0.6 } }, duration:  90, hintText: null },
+  // L2 Medium — "Color matching": 2 lanes, Red+Blue. Learn color mismatch cost.
+  { id: 2, laneCount: 2, colCount: 2, colors: ['Red', 'Blue'],
+    worldConfig: B1_MED, duration: 70, spawnBudget: 10, laneTargetCarCount: 2,
+    showArrow: false, hintText: 'Color must match! Wrong color = no damage' },
 
-  // ── L30: Orange unlocked — full 6-color palette ────────────────────────────
-  { id: 30, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'], worldConfig: { hpMultiplier: 1.1,  speed: { base: 5.5, variance: 0.6 } }, duration: 100, hintText: 'NEW! Orange unlocked — all 6 colors!' },
-  { id: 31, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'], worldConfig: { hpMultiplier: 1.15, speed: { base: 5.6, variance: 0.6 } }, duration:  95, hintText: null },
-  { id: 32, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'], worldConfig: { hpMultiplier: 1.2,  speed: { base: 5.8, variance: 0.7 } }, duration:  90, hintText: null },
-  { id: 33, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'], worldConfig: { hpMultiplier: 0.70, speed: { base: 6.0, variance: 0.7 } }, duration:  85, hintText: null }, // rush
-  { id: 34, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'], worldConfig: { hpMultiplier: 1.25, speed: { base: 6.0, variance: 0.7 } }, duration:  90, hintText: null }, // hard
-  { id: 35, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'], worldConfig: { hpMultiplier: 1.25, speed: { base: 6.2, variance: 0.7 } }, duration:  90, hintText: null },
-  { id: 36, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'], worldConfig: { hpMultiplier: 1.3,  speed: { base: 6.2, variance: 0.8 } }, duration:  85, hintText: null },
-  { id: 37, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'], worldConfig: { hpMultiplier: 0.75, speed: { base: 6.5, variance: 0.8 } }, duration:  80, hintText: null }, // sprint rush
-  { id: 38, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'], worldConfig: { hpMultiplier: 1.35, speed: { base: 6.5, variance: 0.8 } }, duration:  85, hintText: null }, // hard
-  { id: 39, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'], worldConfig: { hpMultiplier: 1.35, speed: { base: 6.8, variance: 0.8 } }, duration:  85, hintText: null },
+  // L3 Medium — "Third lane": 3 lanes, same 2 colors. Multi-lane management.
+  { id: 3, laneCount: 3, colCount: 3, colors: ['Red', 'Blue'],
+    worldConfig: B1_MED, duration: 90, spawnBudget: 12, laneTargetCarCount: 2,
+    showArrow: false, hintText: null, showAreaLabels: true },
 
-  // ── L40: 3-lane grandmaster finale ────────────────────────────────────────
-  { id: 40, laneCount: 3, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'], worldConfig: { hpMultiplier: 1.5, speed: { base: 7.0, variance: 0.8 } }, duration: 120, hintText: 'GRANDMASTER FINALE — good luck!' },
+  // L4 Hard — "Full board": 4 lanes, Red+Blue. First real pressure.
+  { id: 4, laneCount: 4, colCount: 4, colors: ['Red', 'Blue'],
+    worldConfig: B1_HARD, duration: 90, spawnBudget: 14, laneTargetCarCount: 2,
+    showArrow: false, hintText: null },
+
+  // L5 Easy (Relief) — "Breathe": 4 lanes, R+B, lower pressure. Sets up bench need.
+  { id: 5, laneCount: 4, colCount: 4, colors: ['Red', 'Blue'],
+    worldConfig: B1_REL, duration: 100, spawnBudget: 12, laneTargetCarCount: 2,
+    showArrow: false, hintText: null },
+
+  // L6 Medium — "Bench unlocks": first time bench is available. R+B still.
+  { id: 6, laneCount: 4, colCount: 4, colors: ['Red', 'Blue'],
+    worldConfig: B1_MED2, duration: 100, spawnBudget: 14, laneTargetCarCount: 2,
+    showArrow: false, hintText: 'NEW! Bench — store a shooter to use later' },
+
+  // L7 Hard — "Green arrives": 3 colors for the first time. Pattern reset.
+  { id: 7, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
+    worldConfig: B1_HARD2, duration: 100, spawnBudget: 14, laneTargetCarCount: 2,
+    showArrow: false, hintText: 'NEW! Green shooters — 3 colors to manage now' },
+
+  // L8 Boss-Hard — "Green boss": all 4 lanes, 3 colors, full density. Rescue moment.
+  { id: 8, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
+    worldConfig: B1_BH, duration: 90, spawnBudget: 16, laneTargetCarCount: 3,
+    showArrow: false, hintText: null },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // BLOCK 2 — L9-L16 | Tutorial City | Afternoon / Sunset themes
+  // Pattern: Easy / Medium(Boss) / Medium / Hard / Relief / Medium / Hard(Boss) / Boss-Hard
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // L9 Easy (Relief) — "Recovery": R+B+G, gentle re-entry. SWAP booster unlocks.
+  { id: 9, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
+    worldConfig: B2_EASY, duration: 100, spawnBudget: 14, laneTargetCarCount: 2,
+    showArrow: false, hintText: 'NEW! SWAP booster — exchange two column colors' },
+
+  // L10 Medium — BOSS "The Bench Test": R+B only (puzzle). Dense 3 cars/lane.
+  // Design: column queue drifts heavily toward one color. Bench is the only escape.
+  // High HP multiplier makes shooting through mismatches impossible.
+  { id: 10, laneCount: 4, colCount: 4, colors: ['Red', 'Blue'],
+    worldConfig: { hpMultiplier: 1.10, speed: { base: 4.8, variance: 0.4 } },
+    duration: 100, spawnBudget: 18, laneTargetCarCount: 3,
+    showArrow: false, hintText: null },
+
+  // L11 Medium — "Back to three": R+B+G returns. BigRig introduced.
+  { id: 11, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
+    worldConfig: B2_MED, duration: 100, spawnBudget: 16, laneTargetCarCount: 3,
+    showArrow: false, hintText: null },
+
+  // L12 Hard — "BigRig pressure": heavy cars, tight timing. PEEK booster unlocks.
+  { id: 12, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
+    worldConfig: B2_HARD, duration: 95, spawnBudget: 18, laneTargetCarCount: 3,
+    showArrow: false, hintText: 'NEW! PEEK booster — reveal upcoming shooter colors' },
+
+  // L13 Easy (Relief) — "Breather": R+B+G, light pressure after L12 spike.
+  { id: 13, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
+    worldConfig: B2_REL, duration: 100, spawnBudget: 14, laneTargetCarCount: 2,
+    showArrow: false, hintText: null },
+
+  // L14 Medium — "FREEZE intro": FREEZE booster unlocks. Level designed around it.
+  { id: 14, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
+    worldConfig: B2_MED2, duration: 100, spawnBudget: 18, laneTargetCarCount: 3,
+    showArrow: false, hintText: 'NEW! FREEZE booster — next 3 shots don\'t advance cars! (2 free)' },
+
+  // L15 Hard — BOSS "Meet the Tank": first tank spawn. hp is softer to let player
+  // experience the tank without insta-losing. Speed slow = time to plan shots.
+  { id: 15, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
+    worldConfig: { hpMultiplier: 1.00, speed: { base: 4.5, variance: 0.4 } },
+    duration: 100, spawnBudget: 18, laneTargetCarCount: 3,
+    showArrow: false, hintText: null },
+
+  // L16 Boss-Hard — "Intensity spike": full R+B+G, fast, dense. World 1 climax.
+  { id: 16, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
+    worldConfig: B2_BH, duration: 90, spawnBudget: 20, laneTargetCarCount: 3,
+    showArrow: false, hintText: null },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // BLOCK 3 — L17-L24 | Misty → Industrial themes
+  // Pattern: Easy / Medium / Medium / Hard(Boss) / Relief / Medium / Hard / Boss-Hard
+  // Streak Shot discovered naturally at L17 (level designed to reward it).
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // L17 Easy (Relief) — "Streak discovery": R+B+G, low pressure. Streak Shot can
+  // be discovered naturally — firing 3 correct in a row rewards double damage.
+  { id: 17, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
+    worldConfig: B3_EASY, duration: 100, spawnBudget: 16, laneTargetCarCount: 2,
+    showArrow: false, hintText: null },
+
+  // L18 Medium — "Streak mastery": R+B+G, moderate. Designed for combo building.
+  { id: 18, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
+    worldConfig: B3_MED, duration: 100, spawnBudget: 18, laneTargetCarCount: 3,
+    showArrow: false, hintText: null },
+
+  // L19 Medium — "Pre-surge": R+B+G, budget tightens. Freeze becomes essential.
+  { id: 19, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
+    worldConfig: B3_MED2, duration: 100, spawnBudget: 20, laneTargetCarCount: 3,
+    showArrow: false, hintText: null },
+
+  // L20 Hard — BOSS "The Surge": R+B+G, massive spawn budget, max lane density.
+  // Design: wave after wave — player must survive constant pressure without pause.
+  // Freeze booster is the key tool.
+  { id: 20, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
+    worldConfig: { hpMultiplier: 1.10, speed: { base: 5.0, variance: 0.5 } },
+    duration: 100, spawnBudget: 28, laneTargetCarCount: 4,
+    showArrow: false, hintText: null },
+
+  // L21 Easy (Relief) — "Yellow arrives": 4 colors. Light pressure after L20.
+  { id: 21, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow'],
+    worldConfig: B3_REL, duration: 100, spawnBudget: 16, laneTargetCarCount: 2,
+    showArrow: false, hintText: 'NEW! Yellow shooters — 4 colors now' },
+
+  // L22 Medium — "Four-color flow": Yellow integrated, building confidence.
+  { id: 22, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow'],
+    worldConfig: B3_MED3, duration: 100, spawnBudget: 18, laneTargetCarCount: 3,
+    showArrow: false, hintText: null },
+
+  // L23 Hard — "Four-color pressure": tight budget, tank appearances.
+  { id: 23, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow'],
+    worldConfig: B3_HARD, duration: 95, spawnBudget: 20, laneTargetCarCount: 3,
+    showArrow: false, hintText: null },
+
+  // L24 Boss-Hard — "Industrial gate": R+B+G+Y at full intensity. Industrial theme unlocks.
+  { id: 24, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow'],
+    worldConfig: B3_BH, duration: 90, spawnBudget: 22, laneTargetCarCount: 3,
+    showArrow: false, hintText: null },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // BLOCK 4 — L25-L32 | Industrial Zone (steel grey, orange hazard lights)
+  // Pattern: Easy(Boss) / Medium / Medium / Hard / Relief / Medium(Boss) / Hard / Boss-Hard
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // L25 Easy — BOSS "Color Overload": 5 colors on 4 columns. Purple arrives.
+  // Design: player always has ≥1 unmatched column. SWAP and bench become vital.
+  // hp is soft (1.0) but the 5th color creates constant mismatch pressure.
+  { id: 25, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple'],
+    worldConfig: { hpMultiplier: 1.00, speed: { base: 5.0, variance: 0.5 } },
+    duration: 100, spawnBudget: 22, laneTargetCarCount: 3,
+    showArrow: false, hintText: 'NEW! Purple — 5 colors, 4 columns. Master SWAP.' },
+
+  // L26 Medium — "Purple integrated": 5 colors, building muscle memory.
+  { id: 26, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple'],
+    worldConfig: B4_MED, duration: 100, spawnBudget: 22, laneTargetCarCount: 3,
+    showArrow: false, hintText: null },
+
+  // L27 Medium — "Five-color rhythm": medium ramp, streak shot rewards here.
+  { id: 27, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple'],
+    worldConfig: B4_MED2, duration: 100, spawnBudget: 22, laneTargetCarCount: 3,
+    showArrow: false, hintText: null },
+
+  // L28 Hard — "Industrial grind": fast + tanky. Trucks and BigRigs dominate.
+  { id: 28, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple'],
+    worldConfig: B4_HARD, duration: 90, spawnBudget: 24, laneTargetCarCount: 3,
+    showArrow: false, hintText: null },
+
+  // L29 Easy (Relief) — "Midpoint reset": soft pressure before L30 boss.
+  { id: 29, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple'],
+    worldConfig: B4_REL, duration: 100, spawnBudget: 18, laneTargetCarCount: 2,
+    showArrow: false, hintText: null },
+
+  // L30 Medium — BOSS "Industrial Finale": 5 colors, tank-heavy spawn mix.
+  // Design: tanks make up ~40% of spawns. Player must plan multi-shot sequences.
+  { id: 30, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple'],
+    worldConfig: { hpMultiplier: 1.30, speed: { base: 5.8, variance: 0.6 } },
+    duration: 100, spawnBudget: 28, laneTargetCarCount: 3,
+    showArrow: false, hintText: null },
+
+  // L31 Hard — "Night Highway opens": all 6 colors. Orange arrives with W3 theme.
+  // Hardest level with Orange introduction (never intro on an easy level).
+  { id: 31, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'],
+    worldConfig: B4_HARD2, duration: 90, spawnBudget: 26, laneTargetCarCount: 3,
+    showArrow: false, hintText: 'NEW! Orange — all 6 colors, Night Highway begins' },
+
+  // L32 Boss-Hard — "Highway storm": 6 colors, brutal. World 2 rescue moment.
+  { id: 32, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'],
+    worldConfig: B4_BH, duration: 85, spawnBudget: 28, laneTargetCarCount: 3,
+    showArrow: false, hintText: null },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // BLOCK 5 — L33-L40 | Night Highway (dark sky, neon lights)
+  // Pattern: Easy / Medium / Medium(Boss) / Hard / Relief / Medium / Hard / Boss-Hard(Boss)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // L33 Easy (Relief) — "Nightfall": 6 colors, much lower pressure. Eyes adjust to theme.
+  { id: 33, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'],
+    worldConfig: B5_EASY, duration: 100, spawnBudget: 22, laneTargetCarCount: 2,
+    showArrow: false, hintText: null },
+
+  // L34 Medium — "Highway patrol": 6 colors, steady ramp. Combos are optimal here.
+  { id: 34, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'],
+    worldConfig: B5_MED, duration: 95, spawnBudget: 24, laneTargetCarCount: 3,
+    showArrow: false, hintText: null },
+
+  // L35 Medium — BOSS "Night Rush": all 6 colors, INSANE speed, LOW hp.
+  // Design: cars die in 1-2 shots but advance every second. React instantly or breach.
+  // Speed boss — the designed challenge is reflex, not planning.
+  { id: 35, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'],
+    worldConfig: { hpMultiplier: 0.80, speed: { base: 8.0, variance: 0.5 } },
+    duration: 90, spawnBudget: 30, laneTargetCarCount: 3,
+    showArrow: false, hintText: null },
+
+  // L36 Hard — "Neon siege": 6 colors, high hp, sustained pressure.
+  { id: 36, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'],
+    worldConfig: B5_HARD, duration: 90, spawnBudget: 28, laneTargetCarCount: 3,
+    showArrow: false, hintText: null },
+
+  // L37 Easy (Relief) — "Last breath": gentler wave before the final gauntlet.
+  { id: 37, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'],
+    worldConfig: B5_REL, duration: 100, spawnBudget: 22, laneTargetCarCount: 2,
+    showArrow: false, hintText: null },
+
+  // L38 Medium — "Storm warning": all types, all colors, fast ramp.
+  { id: 38, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'],
+    worldConfig: B5_MED2, duration: 90, spawnBudget: 28, laneTargetCarCount: 3,
+    showArrow: false, hintText: null },
+
+  // L39 Hard — "Pre-finale": everything the player has learned. No mercy.
+  { id: 39, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'],
+    worldConfig: B5_HARD2, duration: 85, spawnBudget: 30, laneTargetCarCount: 3,
+    showArrow: false, hintText: null },
+
+  // L40 Boss-Hard — BOSS "Grandmaster Finale": all 6 colors, all car types.
+  // Design: budget 35 across 4 lanes, max density. Every mechanic must be used.
+  // The intended solution: streak combos to kill tanks, freeze during surge waves,
+  // SWAP when columns lock, bomb on tank clusters.
+  { id: 40, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'],
+    worldConfig: { hpMultiplier: 1.50, speed: { base: 7.0, variance: 0.8 } },
+    duration: 120, spawnBudget: 35, laneTargetCarCount: 4,
+    showArrow: false, hintText: null },
 ];
 
 export class LevelManager {
@@ -117,19 +335,15 @@ export class LevelManager {
     this._autoTuner = null;
   }
 
-  // Wire up AutoTuner so difficulty modifiers are applied to level configs.
-  // Call once on app startup, before the first level is started.
   setAutoTuner(autoTuner) {
     this._autoTuner = autoTuner;
   }
 
-  // The current level config object, with AutoTuner modifiers applied if any.
   get current() {
     const cfg = PROGRESSION[this._idx];
     if (!this._autoTuner) return cfg;
 
     const mod = this._autoTuner.getModifier(cfg.id);
-    // Only copy when a modifier is actually non-trivial, to avoid churn.
     if (mod.speedFactor === 1.0 && mod.hpFactor === 1.0) return cfg;
 
     return {
@@ -144,47 +358,34 @@ export class LevelManager {
     };
   }
 
-  // Display number shown in the HUD / win screen.
   get levelNumber() {
     return this.current.id;
   }
 
-  // Move to the next entry.  Stays at the last entry once L20 is reached.
-  // Returns the new current config.
   advance() {
     if (this._idx < PROGRESSION.length - 1) this._idx++;
     return this.current;
   }
 
-  // Jump directly to a level by id (1-40).  No-op for unknown ids.
   goToLevel(id) {
     const idx = PROGRESSION.findIndex(cfg => cfg.id === id);
     if (idx >= 0) this._idx = idx;
   }
 
-  // True once we've reached the last level.
   get isFinalLevel() {
     return this._idx === PROGRESSION.length - 1;
   }
 
-  // World number for the current level (1 = L1-20, 2 = L21-40).
   get world() { return this.current.id <= 20 ? 1 : 2; }
 
-  // Total number of levels.
   get totalLevels() { return PROGRESSION.length; }
 
-  // Returns all level configs for a given world number.
   getLevelsForWorld(worldNum) {
     const start = (worldNum - 1) * 20 + 1;
     const end   = worldNum * 20;
     return PROGRESSION.filter(cfg => cfg.id >= start && cfg.id <= end);
   }
 
-  /**
-   * Generate an escalating config for Survival mode.
-   * Each wave is 30s. Difficulty increases every wave.
-   * @param {number} wave — starting from 1
-   */
   static getSurvivalConfig(wave) {
     const speed   = Math.min(9.5, 4.0 + wave * 0.28);
     const hp      = Math.min(2.0, 0.65 + wave * 0.04);
@@ -201,7 +402,7 @@ export class LevelManager {
       colCount:    4,
       colors,
       worldConfig: { hpMultiplier: hp, speed: { base: speed, variance: 0.6 } },
-      duration:    30,   // 30s per wave
+      duration:    30,
       noRescue:    true,
     };
   }

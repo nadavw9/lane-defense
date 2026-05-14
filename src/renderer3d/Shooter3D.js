@@ -267,7 +267,6 @@ export class Shooter3D {
         slot.badgeTex.dispose();
         slot.sphereMesh.geometry.dispose();
         slot.fuseMesh.geometry.dispose();
-        slot.badgeMesh.geometry.dispose();
         slot.sphereMat.dispose();
         slot.fuseMat.dispose();
         slot.badgeMat.dispose();
@@ -329,26 +328,26 @@ export class Shooter3D {
     group.add(fuseMesh);
 
     // ── Damage badge — colored pill, bold white number ────────────────────────
-    // Positioned below the sphere in screen space (+Z = lower on screen).
-    // depthTest:false ensures it always renders even though it sits near y=0.
+    // Sprite always faces the camera; depthTest:false ensures it renders over
+    // the sphere regardless of depth order.  Scale is compensated against the
+    // group scale so all slots show the same world-space badge size (queue
+    // slots at 0.7× the front-slot size for clear depth hierarchy).
     const badgeCanvas = document.createElement('canvas');
     badgeCanvas.width  = BADGE_CVS_W;
     badgeCanvas.height = BADGE_CVS_H;
     const badgeCtx = badgeCanvas.getContext('2d');
     const badgeTex = new THREE.CanvasTexture(badgeCanvas);
-    const badgeMat = new THREE.MeshBasicMaterial({
+    const badgeMat = new THREE.SpriteMaterial({
       map: badgeTex, transparent: true, opacity: alpha, depthTest: false,
     });
-    const badgeMesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(BADGE_W, BADGE_H),
-      badgeMat,
-    );
-    badgeMesh.rotation.x = -Math.PI / 2;
-    badgeMesh.position.set(BOMB_CX, 0.005, BOMB_R + BADGE_H * 0.65);
+    const badgeMesh = new THREE.Sprite(badgeMat);
+    const siFactor  = slotIdx === 0 ? 1.0 : 0.7;
+    badgeMesh.scale.set(siFactor * BADGE_W / scale, siFactor * BADGE_H / scale, 1);
+    badgeMesh.position.set(BOMB_CX, BOMB_CY, BOMB_CZ);
     group.add(badgeMesh);
 
-    // All meshes render only on the shooter camera (layer 1)
-    group.traverse(obj => { if (obj.isMesh) obj.layers.set(1); });
+    // All meshes and sprites render only on the shooter camera (layer 1)
+    group.traverse(obj => { if (obj.isMesh || obj.isSprite) obj.layers.set(1); });
 
     group.scale.setScalar(scale);
     group.position.set(laneToX(laneIdx), 0, worldZ);

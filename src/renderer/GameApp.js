@@ -67,7 +67,6 @@ import { PauseScreen }            from '../screens/PauseScreen.js';
 import { TutorialOrchestrator }   from '../screens/TutorialOrchestrator.js';
 import { AchievementsScreen }     from '../screens/AchievementsScreen.js';
 import { StatsScreen }            from '../screens/StatsScreen.js';
-import { SurvivalScreen }          from '../screens/SurvivalScreen.js';
 import { AudioManager }           from '../audio/AudioManager.js';
 import { BoosterBar }             from './BoosterBar.js';
 import { adManager }            from '../ads/AdManager.js';
@@ -401,8 +400,6 @@ async function main() {
   // ── Meta screens ─────────────────────────────────────────────────────────
   let titleScreen        = null;
   let levelSelectScreen  = null;
-  let survivalScreen     = null;
-  let survivalWave       = 1;   // current survival wave (increments on each wave win)
   let shopScreen         = null;
   let dailyRewardScreen  = null;
   let settingsScreen     = null;
@@ -418,7 +415,6 @@ async function main() {
   // ── Per-level daily/no-rescue flags ───────────────────────────────────────
   let currentLevelIsDaily  = false;
   let noRescueThisLevel    = false;
-  let isSurvivalRun        = false;
   let dailyDateKey         = '';
   let coinsAtLevelStart    = 0;
 
@@ -509,7 +505,6 @@ async function main() {
 
     currentLevelIsDaily = cfg.isDaily  ?? false;
     noRescueThisLevel   = cfg.noRescue ?? false;
-    isSurvivalRun       = cfg.isSurvival ?? false;
     dailyDateKey        = currentLevelIsDaily ? dailyChallengeManager.getTodayKey() : '';
 
     // Restore persistent booster inventory for this level.
@@ -771,10 +766,6 @@ async function main() {
       onAchievements:     () => { showAchievements(() => { achievementsScreen?.destroy(); achievementsScreen = null; showTitle(); }); },
       onStats:            () => { showStats(); },
       loginStreak:        progress.loginStreak,
-      onSurvival: () => {
-        titleScreen?.destroy(); titleScreen = null;
-        showSurvival();
-      },
       onSettings: () => {
         showSettings(() => {
           settingsScreen.destroy();
@@ -782,24 +773,6 @@ async function main() {
         });
       },
       audio,
-    });
-  }
-
-  // ── Screen: Survival ─────────────────────────────────────────────────────
-  function showSurvival() {
-    survivalWave  = 1;
-    survivalScreen = new SurvivalScreen(app.stage, APP_W, APP_H, {
-      progress,
-      audio,
-      onBack: () => {
-        survivalScreen?.destroy(); survivalScreen = null;
-        showTitle();
-      },
-      onStart: () => {
-        survivalScreen?.destroy(); survivalScreen = null;
-        const cfg = { ...LevelManager.getSurvivalConfig(survivalWave), isSurvival: true };
-        transition.fadeOut(0.25, () => { _startLevel(cfg); transition.fadeIn(0.25, null); });
-      },
     });
   }
 
@@ -1308,20 +1281,7 @@ async function main() {
       });
 
       if (won) {
-        // ── Survival: wave complete — auto-advance to next wave ───────────
-        if (currentLevelIsDaily === false && isSurvivalRun) {
-          survivalWave++;
-          progress.recordSurvivalRun(survivalWave - 1, gs.totalKills);
-          const survivalAch = achievementManager.check('survival', { wave: survivalWave - 1 });
-          survivalAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
-          const nextWaveCfg = { ...LevelManager.getSurvivalConfig(survivalWave), isSurvival: true };
-          transition.fadeOut(0.20, () => {
-            _startLevel(nextWaveCfg);
-            transition.fadeIn(0.20, null);
-          });
-        } else {
-          showWin();
-        }
+        showWin();
       } else {
         audio.stopMusic();
         audio.play('lose_tone');

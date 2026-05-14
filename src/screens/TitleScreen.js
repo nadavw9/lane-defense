@@ -18,7 +18,7 @@ export class TitleScreen {
   constructor(stage, appW, appH, {
     onPlay, onDaily, hasDailyReward, onDailyChallenge,
     onAchievements, onStats, onSettings, audio,
-    loginStreak = 0, onSurvival = null,
+    loginStreak = 0,
   }) {
     this._container = new Container();
     this._carLayer  = new Container();
@@ -30,7 +30,7 @@ export class TitleScreen {
 
     stage.addChild(this._container);
     this._build(appW, appH, onPlay, onDaily, hasDailyReward, onDailyChallenge,
-                onAchievements, onStats, onSettings, audio, loginStreak, onSurvival);
+                onAchievements, onStats, onSettings, audio, loginStreak);
   }
 
   destroy() { this._container.destroy({ children: true }); }
@@ -44,7 +44,7 @@ export class TitleScreen {
   // ── Private ────────────────────────────────────────────────────────────────
 
   _build(w, h, onPlay, onDaily, hasDailyReward, onDailyChallenge,
-         onAchievements, onStats, onSettings, audio, loginStreak, onSurvival) {
+         onAchievements, onStats, onSettings, audio, loginStreak) {
 
     // ── Sky background ─────────────────────────────────────────────────────
     const sky = new Graphics();
@@ -182,10 +182,6 @@ export class TitleScreen {
     if (onDailyChallenge) {
       this._addPillBtn(CX - BTN_W2 / 2 - GAP / 2, rowY, '⚡ CHALLENGE',
         0x1565C0, 0xE3F2FD, () => { audio?.play('button_tap'); onDailyChallenge(); }, BTN_W2);
-    }
-    if (onSurvival) {
-      this._addPillBtn(CX + BTN_W2 / 2 + GAP / 2, rowY, '♾ SURVIVAL',
-        0xB71C1C, 0xFFEBEE, () => { audio?.play('button_tap'); onSurvival(); }, BTN_W2);
     }
 
     rowY += 54;

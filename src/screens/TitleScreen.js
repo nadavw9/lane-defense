@@ -129,27 +129,27 @@ export class TitleScreen {
     // Subtitle
     const sub = new Text({
       text: '🚗  Stop the cars!  🚗',
-      style: { fontSize: 17, fill: 0x1A237E, fontWeight: 'bold', align: 'center' },
+      style: { fontSize: 22, fill: 0x1A237E, fontWeight: 'bold', align: 'center' },
     });
-    sub.anchor.set(0.5, 0.5); sub.x = w / 2; sub.y = h * 0.28 + 104;
+    sub.anchor.set(0.5, 0.5); sub.x = w / 2; sub.y = h * 0.28 + 110;
     this._container.addChild(sub);
 
     // ── PLAY button ────────────────────────────────────────────────────────
-    const btnW = 240, btnH = 72;
+    const btnW = 280, btnH = 80;
     const btn  = new Graphics();
     // Outer glow/shadow
-    btn.roundRect(-btnW / 2 + 3, 3, btnW, btnH, 20);
+    btn.roundRect(-btnW / 2 + 3, 3, btnW, btnH, 22);
     btn.fill({ color: 0x1B5E20, alpha: 0.6 });
     // Button body
-    btn.roundRect(-btnW / 2, 0, btnW, btnH, 20);
+    btn.roundRect(-btnW / 2, 0, btnW, btnH, 22);
     btn.fill(0x43A047);
     // Highlight stripe
-    btn.roundRect(-btnW / 2 + 6, 4, btnW - 12, btnH / 2 - 4, 14);
+    btn.roundRect(-btnW / 2 + 6, 4, btnW - 12, btnH / 2 - 4, 16);
     btn.fill({ color: 0xFFFFFF, alpha: 0.18 });
     // Border
-    btn.roundRect(-btnW / 2, 0, btnW, btnH, 20);
+    btn.roundRect(-btnW / 2, 0, btnW, btnH, 22);
     btn.stroke({ color: 0x81C784, width: 3, alpha: 0.9 });
-    btn.x = w / 2; btn.y = h * 0.545;
+    btn.x = w / 2; btn.y = h * 0.51;
     btn.eventMode = 'static'; btn.cursor = 'pointer';
     btn.on('pointerdown', () => { audio?.play('button_tap'); onPlay(); });
     btn.on('pointerover',  () => { btn.scale.set(1.05); });
@@ -164,13 +164,18 @@ export class TitleScreen {
     this._container.addChild(btn);
 
     // ── Secondary row ──────────────────────────────────────────────────────
-    let rowY = h * 0.545 + 84;
+    // All secondary buttons share one neutral dark color — avoids 4-color chaos.
+    const SEC_BG  = 0x1E3A5F;
+    const SEC_TXT = 0xE8F0FF;
+
+    let rowY = h * 0.51 + btnH + 12;
     const CX = w / 2;
     const BTN_W2 = 150, GAP = 10;
 
     if (onDaily) {
+      // Daily reward keeps its own accent color — it's the secondary hero CTA.
       this._addPillBtn(CX, rowY, hasDailyReward ? '⭐ DAILY REWARD!' : '📅 Daily Reward',
-        hasDailyReward ? 0xF9A825 : 0x78909C, hasDailyReward ? 0xFFF9C4 : 0xECEFF1,
+        hasDailyReward ? 0xF9A825 : SEC_BG, hasDailyReward ? 0xFFF9C4 : SEC_TXT,
         () => { audio?.play('button_tap'); onDaily(); });
       if (loginStreak >= 2) {
         const badge = new Text({ text: `🔥${loginStreak}`, style: { fontSize: 14, fontWeight: 'bold', fill: 0xFF6F00 } });
@@ -179,34 +184,39 @@ export class TitleScreen {
       }
     }
 
-    rowY += 54;
+    rowY += 52;
 
     // 2×2 grid — Row 1: CHALLENGE | TROPHIES
     if (onDailyChallenge) {
       this._addPillBtn(CX - BTN_W2 / 2 - GAP / 2, rowY, '⚡ CHALLENGE',
-        0x1565C0, 0xE3F2FD, () => { audio?.play('button_tap'); onDailyChallenge(); }, BTN_W2);
+        SEC_BG, SEC_TXT, () => { audio?.play('button_tap'); onDailyChallenge(); }, BTN_W2);
     }
     if (onAchievements) {
       this._addPillBtn(CX + BTN_W2 / 2 + GAP / 2, rowY, '★ TROPHIES',
-        0xF57F17, 0xFFF8E1, () => { audio?.play('button_tap'); onAchievements(); }, BTN_W2);
+        SEC_BG, SEC_TXT, () => { audio?.play('button_tap'); onAchievements(); }, BTN_W2);
     }
 
-    rowY += 54;
+    rowY += 52;
 
-    // 2×2 grid — Row 2: STATS | ACHIEVEMENTS (no screen yet — Coming Soon toast)
+    // 2×2 grid — Row 2: STATS | ACHIEVEMENTS
     if (onStats) {
       this._addPillBtn(CX - BTN_W2 / 2 - GAP / 2, rowY, '📊 STATS',
-        0x4527A0, 0xEDE7F6, () => { audio?.play('button_tap'); onStats(); }, BTN_W2);
+        SEC_BG, SEC_TXT, () => { audio?.play('button_tap'); onStats(); }, BTN_W2);
     }
     this._addPillBtn(CX + BTN_W2 / 2 + GAP / 2, rowY, '🏆 ACHIEVEMENTS',
-      0x2E7D32, 0xE8F5E9, () => { audio?.play('button_tap'); this._showComingSoon(); }, BTN_W2);
+      SEC_BG, SEC_TXT, () => { audio?.play('button_tap'); this._showComingSoon(); }, BTN_W2);
 
-    // ── Settings gear (top-right) ──────────────────────────────────────────
+    // ── Settings gear (top-right) — 44px hit area for reliable finger tap ───
     if (onSettings) {
-      const gear = new Text({ text: '⚙️', style: { fontSize: 28 } });
-      gear.anchor.set(1, 0);  gear.x = w - 12; gear.y = 10;
-      gear.eventMode = 'static'; gear.cursor = 'pointer';
-      gear.on('pointerdown', onSettings);
+      const gearHit = new Graphics();
+      gearHit.rect(w - 52, 4, 48, 48);
+      gearHit.fill({ color: 0, alpha: 0 });
+      gearHit.eventMode = 'static'; gearHit.cursor = 'pointer';
+      gearHit.on('pointerdown', onSettings);
+      this._container.addChild(gearHit);
+
+      const gear = new Text({ text: '⚙️', style: { fontSize: 30 } });
+      gear.anchor.set(1, 0);  gear.x = w - 10; gear.y = 10;
       this._container.addChild(gear);
     }
   }

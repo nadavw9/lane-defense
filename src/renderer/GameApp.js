@@ -657,21 +657,6 @@ async function main() {
       _showLevelIntroSplash(levelManager.levelNumber);
     }
 
-    // L1 first-car tutorial: show when cars first appear (pauseGame: false so
-    // cars move slowly past and the player can see what to do)
-    if (levelId === 1) {
-      app.ticker.addOnce(() => {
-        tutOrch?.start({
-          id:        'first_car',
-          text:      'Cars incoming! Drag a shooter onto a lane — colors must match.',
-          bounds:    null,
-          handStart: null,
-          handEnd:   null,
-          pauseGame: false,
-        });
-      });
-    }
-
     // ── Switch to 3D renderer for gameplay ────────────────────────────────
     layers.get('backgroundLayer').visible   = false;
     layers.get('laneLayer').visible         = false;

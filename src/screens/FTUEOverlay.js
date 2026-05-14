@@ -282,7 +282,7 @@ export class FTUEOverlay {
     this._hudHints = grp;
 
     const style = {
-      fontSize: 12, fontWeight: 'bold', align: 'center',
+      fontSize: 13, fontWeight: 'bold', align: 'center',
       dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 0.9 },
     };
 

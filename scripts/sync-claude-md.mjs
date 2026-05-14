@@ -8,16 +8,22 @@
 //   #!/bin/sh
 //   node scripts/sync-claude-md.mjs
 //
-// Requires:  ANTHROPIC_API_KEY environment variable.
+// Uses Claude Code's existing auth — no ANTHROPIC_API_KEY needed.
 // Skips run: if no non-CLAUDE.md commits since last CLAUDE.md update.
 
 import { readFileSync, writeFileSync } from 'fs';
 import { execSync } from 'child_process';
+import { homedir } from 'os';
+import { join } from 'path';
+import Anthropic from '@anthropic-ai/sdk';
 
-const API_KEY = process.env.ANTHROPIC_API_KEY;
-if (!API_KEY) {
-  console.log('⚠️  ANTHROPIC_API_KEY not set — skipping CLAUDE.md sync.');
-  process.exit(0);
+function getAuthToken() {
+  try {
+    const creds = JSON.parse(readFileSync(join(homedir(), '.claude', '.credentials.json'), 'utf8'));
+    return creds?.claudeAiOauth?.accessToken ?? null;
+  } catch {
+    return null;
+  }
 }
 
 // Git log since the last commit that touched CLAUDE.md.
@@ -77,39 +83,27 @@ Return the corrected CLAUDE.md in full.`;
 async function run() {
   console.log('🔄 Syncing CLAUDE.md with recent commits…');
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type':      'application/json',
-      'x-api-key':         API_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
+  try {
+    const authToken = getAuthToken();
+    const client = authToken ? new Anthropic({ authToken }) : new Anthropic();
+    const response = await client.messages.create({
       model:      'claude-haiku-4-5-20251001',
       max_tokens: 8000,
       messages:   [{ role: 'user', content: prompt }],
-    }),
-  });
+    });
+    const updated = response.content?.[0]?.text;
 
-  if (!res.ok) {
-    const body = await res.text();
-    console.log(`⚠️  Anthropic API error ${res.status}: ${body}`);
+    if (!updated || updated.length < 200) {
+      console.log('⚠️  Haiku returned no content — CLAUDE.md not changed.');
+      process.exit(0);
+    }
+
+    writeFileSync('CLAUDE.md', updated, 'utf8');
+    console.log('✅ CLAUDE.md synced.');
+  } catch (e) {
+    console.log('⚠️  sync-claude-md failed: ' + e.message);
     process.exit(0);
   }
-
-  const data = await res.json();
-  const updated = data?.content?.[0]?.text;
-
-  if (!updated || updated.length < 200) {
-    console.log('⚠️  Haiku returned no content — CLAUDE.md not changed.');
-    process.exit(0);
-  }
-
-  writeFileSync('CLAUDE.md', updated, 'utf8');
-  console.log('✅ CLAUDE.md synced.');
 }
 
-run().catch(e => {
-  console.log('⚠️  sync-claude-md failed: ' + e.message);
-  process.exit(0);
-});
+run();

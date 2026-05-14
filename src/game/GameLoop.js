@@ -135,8 +135,9 @@ export class GameLoop {
     this._onBombExplode?.(bombPos, killed.length);
   }
 
-  // Called by GameApp when the player places a bomb — targets the front car
-  // in the specified lane (the one closest to the breach line).
+  // Called by GameApp when the player places a bomb — kills all cars in the
+  // same row as the front car of the target lane (row = grid depth, highest
+  // value = closest to the breach line).
   placeBombOnLane(laneIdx) {
     const gs = this._gs;
     const bs = this._boosterState;
@@ -148,26 +149,31 @@ export class GameLoop {
     // Front car = highest row (closest to breach).
     const frontCar = lane.cars.reduce((best, c) => (!best || c.row > best.row) ? c : best, null);
     if (!frontCar) {
-      // No car in lane — refund the bomb so the player isn't penalized.
+      // No car in target lane — refund the bomb so the player isn't penalized.
       bs.bombs = Math.min(bs.bombsMax ?? 3, bs.bombs + 1);
       return;
     }
 
-    // Instantly kill the front car regardless of HP.
-    const idx = lane.cars.indexOf(frontCar);
-    if (idx >= 0) lane.cars.splice(idx, 1);
-    const combo = gs.recordKill(false);
-    this._onKill(combo);
-    if (bs && gs.killsTowardBomb % KILLS_PER_BOMB === 0 && bs.bombs < BOMB_MAX_CHARGES) {
-      bs.bombs++;
-      this._onBombEarned?.();
+    // Find and kill every car at the same row across all lanes.
+    const targetRow = frontCar.row;
+    for (let li = 0; li < gs.lanes.length; li++) {
+      const l = gs.lanes[li];
+      for (let ci = l.cars.length - 1; ci >= 0; ci--) {
+        const car = l.cars[ci];
+        if (car.row !== targetRow) continue;
+        l.cars.splice(ci, 1);
+        const combo = gs.recordKill(false);
+        this._onKill(combo);
+        if (bs && gs.killsTowardBomb % KILLS_PER_BOMB === 0 && bs.bombs < BOMB_MAX_CHARGES) {
+          bs.bombs++;
+          this._onBombEarned?.();
+        }
+        this._onBombExplode?.(car.position, 1);
+      }
     }
 
-    // Brief freeze on remaining cars in the lane.
+    // Brief freeze on all remaining cars.
     gs.bombFreezeUntil = gs.elapsed + BOMB_FREEZE_DURATION;
-
-    // Explode at the front car's position for visuals.
-    this._onBombExplode?.(frontCar.position, 1);
   }
 
   // Place shooter in the firing slot for one short travel window, trigger

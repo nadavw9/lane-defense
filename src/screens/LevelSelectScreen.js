@@ -601,8 +601,7 @@ export class LevelSelectScreen {
     coins.anchor.set(0, 0.5); coins.x = 14; coins.y = 50;
     this._container.addChild(coins);
 
-    const canW2 = (progress.unlockedLevel ?? 1) > 20;
-    if (this._worldPage === 1 && canW2) {
+    if (this._worldPage === 1) {
       mkBtn('W2 ▶', w / 2 + 70, 1, 22, 0x66aaff, () => this._switchWorld(2));
     }
     if (this._worldPage === 2) {

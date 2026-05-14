@@ -221,7 +221,7 @@ function _addCountLabel(card, accentColor) {
 function _addNameLabel(card, name, accentColor) {
   const tx = new Text({
     text: name,
-    style: { fontSize: 8, fontWeight: 'bold', fill: accentColor, alpha: 0.7 },
+    style: { fontSize: 11, fontWeight: 'bold', fill: accentColor, alpha: 0.85 },
   });
   tx.anchor.set(0.5, 1);
   tx.x = CARD_W / 2;

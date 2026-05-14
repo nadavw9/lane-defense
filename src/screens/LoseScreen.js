@@ -95,7 +95,7 @@ export class LoseScreen {
       const s = Math.round(gs.timeRemaining ?? 0);
       subMsg = s > 0 ? `${s}s left when the car broke through!` : 'Just seconds away!';
     }
-    this._text(subMsg, cx, cy, { fontSize: 13, fill: 0x999999, fontWeight: 'normal' });
+    this._text(subMsg, cx, cy, { fontSize: 13, fill: 0xbbbbbb, fontWeight: 'normal' });
     cy += 28;
 
     // Stats
@@ -123,6 +123,8 @@ export class LoseScreen {
 
     // Hearts
     if (heartsRemaining !== null) {
+      this._text('LIVES REMAINING', cx, cy + 4, { fontSize: 11, fill: 0x667788, fontWeight: 'bold' });
+      cy += 20;
       this._drawHearts(cx, cy + 8, heartsRemaining);
       cy += 36;
     }
@@ -151,7 +153,7 @@ export class LoseScreen {
     bg.fill({ color: 0x0d0808, alpha: 0.85 });
     this._container.addChild(bg);
 
-    const lbl = new Text({ text: label, style: { fontSize: 12, fontWeight: 'bold', fill: 0x887777 } });
+    const lbl = new Text({ text: label, style: { fontSize: 12, fontWeight: 'bold', fill: 0xaabbcc } });
     lbl.anchor.set(0, 0.5);
     lbl.x = x + 10; lbl.y = y + h / 2;
     this._container.addChild(lbl);

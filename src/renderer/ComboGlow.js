@@ -5,13 +5,13 @@
 // combo 12+: red border + particles inward from the edges
 import { Graphics } from 'pixi.js';
 
-const GLOW_THICKNESS = 30;
+const GLOW_THICKNESS = 28;
 
 // Tiers: [minCombo, borderColor, baseAlpha]
 const TIERS = [
-  { min: 3,  color: 0xffdd44, alpha: 0.13 },
-  { min: 8,  color: 0xff8800, alpha: 0.20 },
-  { min: 12, color: 0xff3333, alpha: 0.28 },
+  { min: 3,  color: 0xffdd44, alpha: 0.07 },
+  { min: 8,  color: 0xff8800, alpha: 0.13 },
+  { min: 12, color: 0xff3333, alpha: 0.19 },
 ];
 
 export class ComboGlow {

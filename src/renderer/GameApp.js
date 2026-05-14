@@ -1475,10 +1475,7 @@ async function main() {
 
     // Juice updates
     laneFlash.update(dt);
-    // ComboGlow disabled — was drawing 30px yellow/orange border on all 4 screen edges
-    // (PixiJS glowLayer), which the user experienced as "the yellow frame that turns bright
-    // when we shoot" across many sessions. Passing combo=0 permanently clears it.
-    comboGlow.update(dt, 0);
+    comboGlow.update(dt, gs.combo);
     boosterBar.update(dt);
     transition.update(dt);
 
@@ -1556,6 +1553,36 @@ async function main() {
       audio.updateMusicPhase(gs.phase);
     }
   });
+
+  // ── Debug nav handle (used by Playwright audit screenshots) ─────────────
+  const _dbgCleanAll = () => {
+    titleScreen?.destroy();        titleScreen        = null;
+    levelSelectScreen?.destroy();  levelSelectScreen  = null;
+    shopScreen?.destroy();         shopScreen         = null;
+    dailyRewardScreen?.destroy();  dailyRewardScreen  = null;
+    settingsScreen?.destroy();     settingsScreen     = null;
+    pauseScreen?.destroy();        pauseScreen        = null;
+    achievementsScreen?.destroy(); achievementsScreen = null;
+    statsScreen?.destroy();        statsScreen        = null;
+    winScreen?.destroy();          winScreen          = null;
+    rescueOverlay?.destroy();      rescueOverlay      = null;
+    ftueOverlay?.destroy();        ftueOverlay        = null;
+    carTypeIntroCard?._destroy();  carTypeIntroCard   = null;
+  };
+  window._nav = {
+    showTitle:       () => { _dbgCleanAll(); showTitle(); },
+    showLevelSelect: () => { _dbgCleanAll(); showLevelSelect(); },
+    showShop:        () => { _dbgCleanAll(); showShop(); },
+    startLevel: (id) => { _dbgCleanAll(); _startLevel(id); },
+    showPause:   () => showPause(),
+    showWin: () => {
+      const fakeGs = { coins: 12, elapsed: 47, maxCarPosition: 42, maxCombo: 4, rescueUsed: false, won: true, isOver: true };
+      const ws = new WinScreen(app.stage, APP_W, APP_H, fakeGs, null,
+        () => { ws.destroy(); _dbgCleanAll(); showLevelSelect(); }, audio, ['combo'], 1);
+      winScreen = ws;
+    },
+    showLose: () => _showNoRescueLose(),
+  };
 
   // ── Boot: show title screen (game loop not started yet) ───────────────────
   showTitle();

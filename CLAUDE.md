@@ -138,7 +138,7 @@ This game targets **top-tier mobile hit** quality — Royal Match, Color Block J
 
 1. Player drags a shooter from a column onto a lane.
 2. One projectile fires (0.12s travel time, reduced by combo multiplier).
-3. `_advanceGrid()` runs — all cars advance one row toward the breach, regardless of hit/miss/damage.
+3. `_advanceGrid()` runs — all cars advance one row toward the breach on a color-match hit. A color-mismatch shot does NOT advance the grid (wasted slot, no ground lost).
 4. New cars spawn at row 0 (far end). Level ends when budget exhausted AND all lanes empty, or a car reaches row > MAX_ROW (breach = loss).
 
 **Win stars** (`WinScreen.calcStars`):
@@ -310,6 +310,15 @@ Password: `lanedefense2024` (store this somewhere safe too).
 
 ---
 
+## Key Design Documents
+
+Read these before making gameplay or level changes:
+
+- `docs/GAME_DESIGN.md` — design pillars, level master doc, difficulty rules, known bugs
+- `docs/balance-report.md` — current simulator results per level (run `tools/balance-sim.js` to refresh)
+
+---
+
 ## Mandatory Self-Audit
 
 After **any** commit that touches visual or gameplay code:
@@ -322,6 +331,12 @@ After **any** commit that touches visual or gameplay code:
    - FTUE overlays / tutorial banners positioned below the road (not covering cars)?
    - Shooter bomb columns rendering correctly in all active lanes?
 4. Fix any "no" before pushing.
+
+Before committing any change to `LevelManager.js` or `src/director/CarTypes.js`:
+
+1. Run `node tools/balance-sim.js --level=N --runs=500` for affected levels
+2. Confirm win rate is within target band for that level's difficulty tier
+3. If not — adjust level config, not the simulator
 
 ---
 

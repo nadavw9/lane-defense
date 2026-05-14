@@ -32,6 +32,12 @@ const MAX_TILT_X      = 0.20;
 const TURRET_ROT_SPEED = 0.18;
 const WHEEL_SPIN      = 3.5;    // radians per world unit (approx 1/wheelRadius)
 
+const AURA_THRESH = 83;       // car.position % threshold → last ~1 row from breach
+const AURA_RATE   = 1 / 0.3;  // blend speed (full on/off in 0.3 s)
+const AURA_FREQ   = 1.5;      // pulse Hz
+const AURA_AMP    = 0.3;      // pulse amplitude
+const _AURA_RED   = new THREE.Color(1, 0, 0);
+
 const COLOR_HEX = {
   Red:    0xE24B4A,
   Blue:   0x378ADD,
@@ -217,6 +223,20 @@ export class Car3D {
           }
         }
 
+        // Danger aura: pulsing red emissive overlay on cars within 1 row of breach.
+        entry._auraT += dt;
+        const auraTarget = (!isFrozen && car.position >= AURA_THRESH) ? 1.0 : 0.0;
+        const blendStep = AURA_RATE * dt;
+        if (auraTarget > entry._auraBlend) {
+          entry._auraBlend = Math.min(auraTarget, entry._auraBlend + blendStep);
+        } else {
+          entry._auraBlend = Math.max(auraTarget, entry._auraBlend - blendStep);
+        }
+        if (!isFrozen && entry._auraBlend > 0.001) {
+          entry.bodyMat.emissive.lerp(_AURA_RED, entry._auraBlend);
+          entry.bodyMat.emissiveIntensity += AURA_AMP * Math.sin(2 * Math.PI * AURA_FREQ * entry._auraT) * entry._auraBlend;
+        }
+
         // HP tracking (no darkening — cars keep vivid color at all damage levels)
         if (car.hp !== entry.lastHp) {
           entry.lastHp = car.hp;
@@ -337,6 +357,7 @@ export class Car3D {
       laneIdx, bossRing, bossRingMat, bossAngle: 0,
       groupY,
       renderZ: startZ, targetZ: startZ, lerpStartZ: startZ, lerpT: 1.0,
+      _auraBlend: 0, _auraT: 0,
     };
     return entry;
   }

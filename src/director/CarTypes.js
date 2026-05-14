@@ -18,7 +18,16 @@ export const CAR_TYPES = {
 // Each band unlocks additional types.  Phase still skews the distribution
 // within the allowed set so early phases stay light regardless of level.
 
-// L1–4: FTUE — small + big only.  Keeps HP predictable while teaching controls.
+// L1: FTUE intro — bikes only.  One car type = zero color confusion on first play.
+const WEIGHTS_L1 = {
+  CALM:     [{ value: 'small', weight: 1 }],
+  BUILD:    [{ value: 'small', weight: 1 }],
+  PRESSURE: [{ value: 'small', weight: 1 }],
+  CLIMAX:   [{ value: 'small', weight: 1 }],
+  RELIEF:   [{ value: 'small', weight: 1 }],
+};
+
+// L2–4: FTUE — small + big only.  Sedan introduced at L2.
 const WEIGHTS_FTUE = {
   CALM:     [{ value: 'small', weight: 60 }, { value: 'big', weight: 40 }],
   BUILD:    [{ value: 'small', weight: 40 }, { value: 'big', weight: 60 }],
@@ -64,6 +73,7 @@ const WEIGHTS_FULL = {
 };
 
 function bandWeights(level) {
+  if (level === 1) return WEIGHTS_L1;
   if (level <= 4)  return WEIGHTS_FTUE;
   if (level <= 8)  return WEIGHTS_MID;
   if (level <= 12) return WEIGHTS_HARD;

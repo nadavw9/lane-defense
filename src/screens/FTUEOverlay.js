@@ -272,7 +272,7 @@ export class FTUEOverlay {
     txt.y = 22;
     grp.addChild(txt);
 
-    grp.y = SHOOTER_AREA_Y - 54;
+    grp.y = ROAD_BOTTOM_Y + 2;  // below road — no cars here
   }
 
   // HUD labels for L1: timer and coins explanations just below the HUD bar.
@@ -394,7 +394,7 @@ export class FTUEOverlay {
     txt.x = appW / 2;
     txt.y = 22;
     grp.addChild(txt);
-    grp.y = SHOOTER_AREA_Y - 54;
+    grp.y = ROAD_BOTTOM_Y + 2;  // below road — no cars here
 
     // Transparent full-screen hitbox — any touch aborts the demo
     const hitbox = new Graphics();

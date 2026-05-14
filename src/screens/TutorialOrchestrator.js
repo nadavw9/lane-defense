@@ -13,6 +13,7 @@
 //   orch.completeIfActive(id);
 
 import { Container, Graphics, Text } from 'pixi.js';
+import { ROAD_BOTTOM_Y } from '../renderer/LaneRenderer.js';
 
 const STORAGE_KEY    = 'ftue_completed';
 const APP_W          = 390;
@@ -139,10 +140,10 @@ export class TutorialOrchestrator {
       this._container.addChild(this._borderGfx);
     }
 
-    // Instruction text — above spotlight if room, else below; centred if no bounds
+    // Instruction text — above spotlight if room, else below; no bounds → shooter area
     const textY = bounds
       ? (bounds.y > 44 ? bounds.y - 24 : bounds.y + bounds.h + 24)
-      : H / 2 - 60;
+      : ROAD_BOTTOM_Y + 24;  // below road — no cars here
     this._textObj = new Text({
       text,
       style: {

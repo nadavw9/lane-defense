@@ -41,6 +41,24 @@ export class TitleScreen {
     this._tickCars(dt);
     this._tickClouds(dt);
     this._tickToasts(dt);
+    this._tickShimmer();
+  }
+
+  _tickShimmer() {
+    if (!this._shimG) return;
+    const PERIOD  = 3.0;   // seconds between each sweep
+    const SWEEP   = 0.55;  // fraction of period during which bar is visible
+    const phase   = (this._elapsed % PERIOD) / PERIOD;
+    this._shimG.clear();
+    if (phase >= SWEEP) return;
+    const t      = phase / SWEEP;                 // 0→1 during visible window
+    const alpha  = Math.sin(t * Math.PI) * 0.20; // fade in/out
+    const x      = this._shimBaseX - 30 + (260 + 60) * t;
+    const slant  = 38;
+    const sy     = this._shimY;
+    const sh     = this._shimH;
+    this._shimG.poly([x, sy, x + 28, sy, x + 28 + slant, sy + sh, x + slant, sy + sh]);
+    this._shimG.fill({ color: 0xffffff, alpha });
   }
 
   // ── Private ────────────────────────────────────────────────────────────────
@@ -125,6 +143,14 @@ export class TitleScreen {
     title.x = w / 2; title.y = h * 0.28;
     this._container.addChild(title);
     this._titleRef = title;
+
+    // Shimmer sweep layer — redrawn each frame in update()
+    const shimG = new Graphics();
+    this._container.addChild(shimG);
+    this._shimG     = shimG;
+    this._shimY     = h * 0.28 - 72;   // top of title block
+    this._shimH     = 145;             // height of title block
+    this._shimBaseX = w / 2 - 130;    // leftmost shimmer start
 
     // Subtitle
     const sub = new Text({

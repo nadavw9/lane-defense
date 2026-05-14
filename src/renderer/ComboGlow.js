@@ -14,25 +14,56 @@ const TIERS = [
   { min: 12, color: 0xff3333, alpha: 0.19 },
 ];
 
+const MILESTONES = new Set([3, 8, 12]);
+
 export class ComboGlow {
   constructor(layerManager, appW, appH) {
-    this._g         = new Graphics();
-    this._appW      = appW;
-    this._appH      = appH;
-    this._pulse     = 0;
-    this._particles = [];
+    this._g          = new Graphics();
+    this._appW       = appW;
+    this._appH       = appH;
+    this._pulse      = 0;
+    this._particles  = [];
+    this._prevCombo  = 0;
+    this._flashAlpha = 0;
+    this._flashColor = 0xffdd44;
     layerManager.get('glowLayer').addChild(this._g);
   }
 
   // Call once per render frame.
   update(dt, combo) {
     this._pulse += dt * 3.5;
+
+    // Detect milestone crossing → trigger one-shot flash.
+    if (combo > this._prevCombo) {
+      for (const m of MILESTONES) {
+        if (this._prevCombo < m && combo >= m) {
+          const tier = TIERS.find(t => t.min === m) ?? TIERS[0];
+          this._flashAlpha = 0.55;
+          this._flashColor = tier.color;
+          break;
+        }
+      }
+    }
+    this._prevCombo = combo;
+
+    // Decay flash.
+    if (this._flashAlpha > 0) {
+      this._flashAlpha = Math.max(0, this._flashAlpha - dt * 3.5);
+    }
+
     this._g.clear();
 
-    if (combo < 3) {
+    if (combo < 3 && this._flashAlpha <= 0) {
       this._particles.length = 0;
       return;
     }
+
+    // One-shot milestone flash border (drawn at full brightness first).
+    if (this._flashAlpha > 0) {
+      this._drawBorder(this._flashColor, this._flashAlpha, GLOW_THICKNESS * 1.4);
+    }
+
+    if (combo < 3) return;
 
     // Pick highest qualifying tier.
     let tier = TIERS[0];

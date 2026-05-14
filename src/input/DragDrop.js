@@ -290,6 +290,7 @@ export class DragDrop {
     }
 
     this._ghost = this._createGhost(shooter, px + this._offsetX, py + this._offsetY);
+    this._ghost.scale.set(1.12);  // lifted-off feel during drag
   }
 
   _handleLaneDrop(laneIdx) {
@@ -303,6 +304,7 @@ export class DragDrop {
     }
     const targetX = getLaneScreenX(laneIdx);
     const targetY = ROAD_BOTTOM_Y;
+    if (this._ghost) this._ghost.scale.set(1.0);
     this._startAnim(
       this._ghost.x, this._ghost.y, targetX, targetY,
       FLY_DURATION, () => this._destroyGhost(),
@@ -343,6 +345,7 @@ export class DragDrop {
       ({ x: cx, y: cy } = this._benchRenderer.getSlotCenter(this._dragSourceIdx));
       if (this._benchRenderer) this._benchRenderer.draggingSlot = -1;
     }
+    if (this._ghost) this._ghost.scale.set(1.0);
     this._startAnim(
       this._ghost.x, this._ghost.y, cx, cy,
       SNAP_DURATION, () => this._destroyGhost(),

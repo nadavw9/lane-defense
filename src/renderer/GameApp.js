@@ -71,7 +71,6 @@ import { SurvivalScreen }          from '../screens/SurvivalScreen.js';
 import { AudioManager }           from '../audio/AudioManager.js';
 import { BoosterBar }             from './BoosterBar.js';
 import { adManager }            from '../ads/AdManager.js';
-import { BombReticle }           from './BombReticle.js';
 import { PopupQueue, PRIORITY }  from './PopupQueue.js';
 import { Analytics }              from '../analytics/Analytics.js';
 import { AutoTuner }             from '../analytics/AutoTuner.js';
@@ -341,10 +340,8 @@ async function main() {
       // BOMB button — toggle placement mode on/off.
       if (boosterState.bombMode) {
         boosterState.cancelBomb();
-        bombReticle.hide();
       } else if (boosterState.activateBomb()) {
         audio.play('booster_activate');
-        bombReticle.show();
         boostersUsedThisLevel.push('bomb');
         tutOrch?.completeIfActive('bomb');
       }
@@ -360,12 +357,6 @@ async function main() {
     },
   );
 
-  // ── Bomb placement reticle ─────────────────────────────────────────────────
-  const bombReticle = new BombReticle(layers, APP_W);
-  bombReticle.onCancel(() => {
-    boosterState.cancelBomb();
-    bombReticle.hide();
-  });
 
   // ── Per-level booster tracking (for analytics) ───────────────────────────
   let boostersUsedThisLevel = [];
@@ -537,7 +528,6 @@ async function main() {
     boosterState.freezeShots = 0;
     boosterState.cancelBomb();
     boosterState.cancelCycle();
-    bombReticle.hide();
 
     // Apply any ad-earned boosters from the pre-level popup BEFORE starting.
     // resetForLevel() is called AFTER applying so progress isn't cleared first.
@@ -1410,7 +1400,6 @@ async function main() {
         if (y < ROAD_TOP_Y || y > ROAD_BOTTOM_Y) return;
         // Determine lane from X position (perspective: use bottom-of-road mapping).
         const laneIdx = Math.max(0, Math.min(TOTAL_LANES - 1, Math.floor(x / (APP_W / TOTAL_LANES))));
-        bombReticle.hide();
         gameLoop.placeBombOnLane(laneIdx);
       },
       onDeployFromBench: (shooter, laneIdx) => {
@@ -1448,7 +1437,6 @@ async function main() {
   );
   new InputManager(app, dragDrop);
 
-  // Track raw pointer X/Y for bomb reticle targeting.
   let _lastPointerY = 300;
   let _lastPointerX = APP_W / 2;
   app.canvas.addEventListener('pointermove', (e) => {
@@ -1548,12 +1536,6 @@ async function main() {
     dragDrop.uiOverlayActive = !!(ftueOverlay || popupQueue.hasActive());
 
     dragDrop.update(dt);
-    // Bomb reticle: track pointer and update targeting overlay.
-    if (boosterState.bombMode) {
-      bombReticle.setPointerX(_lastPointerX);
-      bombReticle.setPointerY(_lastPointerY);
-      bombReticle.update(dt, gs.activeLanes);
-    }
 
     tickFloatingTexts(floatingTexts, dt);
 

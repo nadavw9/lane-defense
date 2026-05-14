@@ -8,3 +8,16 @@ android/build/
 android/local.properties
 *.apk
 *.aab
+*.keystore
+
+# Playwright audit screenshots and scripts (generated, not source)
+audit-*.png
+pf-*.png
+sa-*.png
+c3-*.png
+c4-*.png
+tfa-*.png
+va-*.png
+wfa-*.png
+*-audit.mjs
+post-fix-audit.mjs

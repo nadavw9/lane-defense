@@ -154,13 +154,16 @@ export class GameLoop {
       return;
     }
 
-    // Find and kill every car at the same row across all lanes.
-    const targetRow = frontCar.row;
+    // Find and kill every car at the same row across all lanes that matches the front car's color.
+    // Strategic: player waits for same-color cars to align in a row before firing.
+    const targetRow   = frontCar.row;
+    const targetColor = frontCar.color;
     for (let li = 0; li < gs.lanes.length; li++) {
       const l = gs.lanes[li];
       for (let ci = l.cars.length - 1; ci >= 0; ci--) {
         const car = l.cars[ci];
         if (car.row !== targetRow) continue;
+        if (car.color !== targetColor) continue;
         l.cars.splice(ci, 1);
         const combo = gs.recordKill(false);
         this._onKill(combo);
@@ -207,8 +210,7 @@ export class GameLoop {
 
     if (damageDealt === 0) {
       this._onMiss(laneIdx, carGameX);
-      // Turn-based: even a miss (wrong colour) advances the grid.
-      if (!gs.isOver) this._advanceGrid();
+      // Color mismatch: wasted bomb slot, grid does NOT advance.
       return;
     }
 

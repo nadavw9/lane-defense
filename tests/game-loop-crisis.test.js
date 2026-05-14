@@ -378,7 +378,7 @@ describe('GameState.rescue() — row/position consistency', () => {
     // After one grid advance, row should be ROWS_BACK-3 (not ROWS-1+1 = breach)
     const rowAfterRescue = car.row;
     const { loop } = makeLoop(gs);
-    loop._resolveShot(new Shooter({ color: 'Red', damage: 0, column: 0 }), 0); // miss → advance
+    loop._resolveShot(new Shooter({ color: 'Red', damage: 1, column: 0 }), 0); // hit → advance
 
     // Car should NOT have breached — row must still be inside the grid.
     expect(car.row).toBe(rowAfterRescue + 1);

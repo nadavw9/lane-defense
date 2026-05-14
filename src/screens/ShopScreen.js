@@ -1,64 +1,53 @@
 // ShopScreen — booster purchase screen accessible from Level Select.
 //
-// Shows three booster rows:
-//   Swap   — 20 coins, +1 charge; swap two shooter column colors
-//   Peek   — 20 coins, +1 charge; reveal upcoming shooter colors
-//   Freeze — 30 coins, +1 charge; freeze all cars for 10 seconds
-//
+// Shows four booster rows plus a daily-gift banner that fills the lower third.
 // Coin balance and booster counts update immediately on purchase.
-// Buying deducts coins via ProgressManager.spendCoins() and increments
-// booster counts via ProgressManager.setBoosters().
-// If boosterState is provided, in-memory counts are also updated so a
-// mid-session purchase takes effect without restarting.
 import { Container, Graphics, Text } from 'pixi.js';
+
+// Unified card background — all cards share one dark navy base.
+const CARD_BG     = 0x0d1525;
+const CARD_RADIUS = 12;
 
 const BOOSTER_DEFS = [
   {
-    key:      'swap',
-    label:    'SWAP',
-    desc:     'Swap two shooter\ncolumn colors',
-    cost:     20,
-    bg:       0x0a1a30,
-    border:   0x2255aa,
-    btnColor: 0x1a3a6a,
-    btnLabel: 0x66aaff,
+    key:       'swap',
+    label:     'SWAP',
+    icon:      '⇄',
+    desc:      'Swap two shooter\ncolumn colors',
+    cost:      20,
+    border:    0x2255cc,
+    btnBg:     0x1a5cc8,
   },
   {
-    key:      'peek',
-    label:    'PEEK',
-    desc:     'Reveal next 3\nincoming car colors',
-    cost:     20,
-    bg:       0x0a200a,
-    border:   0x225522,
-    btnColor: 0x1a4a1a,
-    btnLabel: 0x66ff88,
+    key:       'peek',
+    label:     'PEEK',
+    icon:      '👁',
+    desc:      'Reveal next 3\nincoming car colors',
+    cost:      20,
+    border:    0x228844,
+    btnBg:     0x1a8844,
   },
   {
-    key:      'freeze',
-    label:    'FREEZE',
-    desc:     'Freeze all cars\nfor 10 seconds',
-    cost:     30,
-    bg:       0x001a2a,
-    border:   0x004466,
-    btnColor: 0x002a44,
-    btnLabel: 0x44ccff,
+    key:       'freeze',
+    label:     'FREEZE',
+    icon:      '❄',
+    desc:      'Freeze all cars\nfor 10 seconds',
+    cost:      30,
+    border:    0x0088bb,
+    btnBg:     0x0077aa,
   },
   {
-    key:      'shield',
-    label:    'STREAK SHIELD',
-    desc:     'Protect your streak\nif you miss a day',
-    cost:     30,
-    bg:       0x1a1200,
-    border:   0xaa7700,
-    btnColor: 0x3a2a00,
-    btnLabel: 0xffcc44,
+    key:       'shield',
+    label:     'STREAK SHIELD',
+    icon:      '🛡',
+    desc:      'Protect your streak\nif you miss a day',
+    cost:      30,
+    border:    0xaa7700,
+    btnBg:     0x8855aa,
   },
 ];
 
 export class ShopScreen {
-  // progress     — ProgressManager (reads coins/boosters, persists changes)
-  // boosterState — BoosterState instance for in-memory sync (may be null)
-  // callbacks    — { onBack, onPurchase }
   constructor(stage, appW, appH, progress, boosterState, { onBack, onPurchase, audio }) {
     this._stage        = stage;
     this._appW         = appW;
@@ -77,9 +66,6 @@ export class ShopScreen {
     this._container.destroy({ children: true });
   }
 
-  // ── Private ────────────────────────────────────────────────────────────────
-
-  // Tear down and rebuild in-place (used after every purchase to refresh counts).
   _rebuild() {
     this._container.destroy({ children: true });
     this._container = new Container();
@@ -89,11 +75,12 @@ export class ShopScreen {
 
   _build() {
     const w = this._appW;
+    const h = this._appH;
     const p = this._progress;
 
     // Full-screen background
     const bg = new Graphics();
-    bg.rect(0, 0, w, this._appH);
+    bg.rect(0, 0, w, h);
     bg.fill(0x060610);
     bg.eventMode = 'static';
     this._container.addChild(bg);
@@ -101,7 +88,7 @@ export class ShopScreen {
     // ── Header ─────────────────────────────────────────────────────────────
     const backBtn = new Text({
       text: '← BACK',
-      style: { fontSize: 15, fontWeight: 'bold', fill: 0x44aaff },
+      style: { fontSize: 16, fontWeight: 'bold', fill: 0x44aaff },
     });
     backBtn.anchor.set(0, 0.5);
     backBtn.x = 14;
@@ -120,31 +107,37 @@ export class ShopScreen {
     title.y = 34;
     this._container.addChild(title);
 
-    // Coin balance (top-right)
     const coinsTxt = new Text({
       text: `◆ ${p.coins}`,
-      style: { fontSize: 17, fontWeight: 'bold', fill: 0xf5c842 },
+      style: { fontSize: 18, fontWeight: 'bold', fill: 0xf5c842 },
     });
     coinsTxt.anchor.set(1, 0.5);
     coinsTxt.x = w - 14;
     coinsTxt.y = 34;
     this._container.addChild(coinsTxt);
 
-    // Separator
     const sep = new Graphics();
-    sep.rect(0, 58, w, 1);
-    sep.fill({ color: 0x224466, alpha: 0.5 });
+    sep.rect(0, 58, w, 1.5);
+    sep.fill({ color: 0x224466, alpha: 0.7 });
     this._container.addChild(sep);
 
     // ── Booster cards ──────────────────────────────────────────────────────
-    const boosters = p.getBoosters();
-    const CARD_PAD = 12;
-    const CARD_H   = 120;
-    let   cardY    = 74;
+    const boosters  = p.getBoosters();
+    const CARD_PAD  = 12;
+    const CARD_H    = 118;
+    const CARD_GAP  = 10;
+    let   cardY     = 72;
 
     for (const def of BOOSTER_DEFS) {
       this._buildCard(def, boosters, cardY, CARD_PAD, CARD_H, w);
-      cardY += CARD_H + 10;
+      cardY += CARD_H + CARD_GAP;
+    }
+
+    // ── Daily Gift banner — fills the empty lower area ──────────────────────
+    const bannerY = cardY + 8;
+    const bannerH = h - bannerY - 16;
+    if (bannerH >= 72) {
+      this._buildDailyBanner(CARD_PAD, bannerY, w - CARD_PAD * 2, bannerH);
     }
   }
 
@@ -152,79 +145,120 @@ export class ShopScreen {
     const p        = this._progress;
     const CARD_W   = w - PAD * 2;
     const canAfford = p.coins >= def.cost;
-    const enabled  = canAfford;
 
-    // Card background
+    // Card background — unified dark navy for all cards
     const card = new Graphics();
-    card.roundRect(PAD, cardY, CARD_W, CARD_H, 12);
-    card.fill(def.bg);
-    card.roundRect(PAD, cardY, CARD_W, CARD_H, 12);
-    card.stroke({ color: def.border, width: 1.5, alpha: 0.7 });
+    card.roundRect(PAD, cardY, CARD_W, CARD_H, CARD_RADIUS);
+    card.fill(CARD_BG);
+    card.roundRect(PAD, cardY, CARD_W, CARD_H, CARD_RADIUS);
+    card.stroke({ color: def.border, width: 1.5, alpha: 0.75 });
     this._container.addChild(card);
+
+    // Left accent strip using border color
+    const accentBar = new Graphics();
+    accentBar.roundRect(PAD, cardY, 4, CARD_H, CARD_RADIUS);
+    accentBar.fill({ color: def.border, alpha: 0.9 });
+    this._container.addChild(accentBar);
 
     // Booster label
     const label = new Text({
       text: def.label,
-      style: { fontSize: 20, fontWeight: 'bold', fill: 0xffffff },
+      style: { fontSize: 19, fontWeight: 'bold', fill: 0xffffff },
     });
     label.anchor.set(0, 0.5);
-    label.x = PAD + 14;
+    label.x = PAD + 18;
     label.y = cardY + 28;
     this._container.addChild(label);
 
     // Description
     const desc = new Text({
       text: def.desc,
-      style: { fontSize: 13, fill: 0x88aabb, fontWeight: 'normal' },
+      style: { fontSize: 13, fill: 0x99bbcc, fontWeight: 'normal' },
     });
     desc.anchor.set(0, 0.5);
-    desc.x = PAD + 14;
+    desc.x = PAD + 18;
     desc.y = cardY + 72;
-    desc.alpha = 0.85;
+    desc.alpha = 0.90;
     this._container.addChild(desc);
 
-    // Count badge (e.g. "×3 owned")
-    const countKey  = def.key;
-    const ownedCt   = countKey === 'shield'
+    // Owned count badge
+    const countKey = def.key;
+    const ownedCt  = countKey === 'shield'
       ? (p.streakShields ?? 0)
       : (boosters[countKey] ?? 0);
-    const countTxt  = new Text({
+    const countTxt = new Text({
       text: `×${ownedCt} owned`,
-      style: { fontSize: 14, fontWeight: 'bold', fill: 0xaaccee },
+      style: { fontSize: 13, fontWeight: 'bold', fill: 0x99bbcc },
     });
-    countTxt.anchor.set(1, 0);
-    countTxt.x = PAD + CARD_W - 100;
-    countTxt.y = cardY + 14;
+    countTxt.anchor.set(1, 0.5);
+    countTxt.x = PAD + CARD_W - 104;
+    countTxt.y = cardY + 20;
     this._container.addChild(countTxt);
 
-    // BUY button
-    const BTN_W = 86, BTN_H = 40;
+    // BUY button — vivid colored background + white text
+    const BTN_W = 90, BTN_H = 40;
     const btnX  = PAD + CARD_W - BTN_W - 10;
     const btnY  = cardY + (CARD_H - BTN_H) / 2;
 
     const btn = new Graphics();
     btn.roundRect(btnX, btnY, BTN_W, BTN_H, 10);
-    btn.fill(enabled ? def.btnColor : 0x1a1a1a);
+    btn.fill(canAfford ? def.btnBg : 0x1a1a2a);
     btn.roundRect(btnX, btnY, BTN_W, BTN_H, 10);
-    btn.stroke({ color: enabled ? def.btnLabel : 0x333333, width: 1.5, alpha: enabled ? 0.8 : 0.3 });
+    btn.stroke({ color: canAfford ? 0xffffff : 0x333355, width: 1.5, alpha: canAfford ? 0.35 : 0.20 });
     this._container.addChild(btn);
 
     const btnLabelTxt = new Text({
       text: `◆ ${def.cost}`,
-      style: { fontSize: 15, fontWeight: 'bold', fill: enabled ? def.btnLabel : 0x555555 },
+      style: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        fill: canAfford ? 0xffffff : 0x555577,
+      },
     });
     btnLabelTxt.anchor.set(0.5, 0.5);
     btnLabelTxt.x = btnX + BTN_W / 2;
     btnLabelTxt.y = btnY + BTN_H / 2;
     this._container.addChild(btnLabelTxt);
 
-    if (enabled) {
+    if (canAfford) {
       btn.eventMode = 'static';
       btn.cursor    = 'pointer';
       btn.on('pointerdown', () => this._purchase(def));
-      btn.on('pointerover',  () => { btn.alpha = 0.75; });
+      btn.on('pointerover',  () => { btn.alpha = 0.80; });
       btn.on('pointerout',   () => { btn.alpha = 1.00; });
     }
+  }
+
+  _buildDailyBanner(x, y, w, h) {
+    const banner = new Graphics();
+    banner.roundRect(x, y, w, h, CARD_RADIUS);
+    banner.fill(0x0d1a10);
+    banner.roundRect(x, y, w, h, CARD_RADIUS);
+    banner.stroke({ color: 0x336622, width: 1.5, alpha: 0.7 });
+    this._container.addChild(banner);
+
+    const accentBar = new Graphics();
+    accentBar.roundRect(x, y, 4, h, CARD_RADIUS);
+    accentBar.fill({ color: 0x44aa44, alpha: 0.9 });
+    this._container.addChild(accentBar);
+
+    const headline = new Text({
+      text: '🎁  DAILY GIFT',
+      style: { fontSize: 17, fontWeight: 'bold', fill: 0x66dd66 },
+    });
+    headline.anchor.set(0.5, 0.5);
+    headline.x = x + w / 2;
+    headline.y = y + h / 2 - 12;
+    this._container.addChild(headline);
+
+    const sub = new Text({
+      text: 'Free coins every day — come back tomorrow!',
+      style: { fontSize: 12, fill: 0x99bbaa },
+    });
+    sub.anchor.set(0.5, 0.5);
+    sub.x = x + w / 2;
+    sub.y = y + h / 2 + 14;
+    this._container.addChild(sub);
   }
 
   _purchase(def) {
@@ -232,7 +266,6 @@ export class ShopScreen {
     if (!p.spendCoins(def.cost)) { this._audio?.play('button_tap'); return; }
     this._audio?.play('coin_collect');
 
-    // Increment the booster count in progress.
     const saved = p.getBoosters();
     if (def.key === 'swap') {
       p.setBoosters(saved.swap + 1, saved.peek, saved.freeze);
@@ -247,11 +280,9 @@ export class ShopScreen {
       p.addStreakShield(1);
     }
 
-    // Track cumulative purchases for Shopkeeper achievement.
     p.incrementBoostersPurchased();
     this._onPurchase?.();
 
-    // Rebuild UI to reflect new coin balance and counts.
     this._rebuild();
   }
 }

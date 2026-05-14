@@ -1575,6 +1575,7 @@ async function main() {
     showShop:        () => { _dbgCleanAll(); showShop(); },
     startLevel: (id) => { _dbgCleanAll(); _startLevel(id); },
     showPause:   () => showPause(),
+    addCoins:    (n) => progress.setCoins(progress.coins + n),
     showWin: () => {
       const fakeGs = { coins: 12, elapsed: 47, maxCarPosition: 42, maxCombo: 4, rescueUsed: false, won: true, isOver: true };
       const ws = new WinScreen(app.stage, APP_W, APP_H, fakeGs, null,

@@ -50,6 +50,7 @@ const B2_MED2 = { hpMultiplier: 0.95, speed: { base: 5.0, variance: 0.5 } };
 const B2_BH   = { hpMultiplier: 1.15, speed: { base: 5.5, variance: 0.5 } };
 
 // Block 3: Misty → Industrial transition (L17–24)
+const B3_DISC = { hpMultiplier: 1.00, speed: { base: 5.0, variance: 0.3 } }; // L17 streak discovery
 const B3_EASY = { hpMultiplier: 0.80, speed: { base: 4.5, variance: 0.4 } };
 const B3_MED  = { hpMultiplier: 1.00, speed: { base: 5.0, variance: 0.5 } };
 const B3_MED2 = { hpMultiplier: 1.05, speed: { base: 5.2, variance: 0.5 } };
@@ -181,10 +182,12 @@ const PROGRESSION = [
   // Streak Shot discovered naturally at L17 (level designed to reward it).
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // L17 Easy (Relief) — "Streak discovery": R+B+G, low pressure. Streak Shot can
-  // be discovered naturally — firing 3 correct in a row rewards double damage.
+  // L17 Easy (Relief) — "Streak discovery": R+B+G only (3 colors, simple palette).
+  // BigRig-heavy spawn ensures the player needs multiple hits per car → builds
+  // streak naturally. hpMultiplier=1.0, speed=5.0 so BigRigs feel weighty but
+  // not panicky. No tanks — discovery should feel rewarding, not punishing.
   { id: 17, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
-    worldConfig: B3_EASY, duration: 100, spawnBudget: 16, laneTargetCarCount: 2,
+    worldConfig: B3_DISC, duration: 100, spawnBudget: 22, laneTargetCarCount: 2,
     showArrow: false, hintText: null },
 
   // L18 Medium — "Streak mastery": R+B+G, moderate. Designed for combo building.

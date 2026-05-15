@@ -63,6 +63,17 @@ const WEIGHTS_HARD_PLUS = {
   RELIEF:   [{ value: 'small', weight: 30 }, { value: 'big', weight: 40 }, { value: 'jeep', weight: 20 }, { value: 'truck', weight: 10 }],
 };
 
+// L17 Streak Discovery — BigRig-heavy, no tank.  BigRigs are the "reward" for
+// earning a streak: a power shot can visibly dent a BigRig in ways that feel
+// surprising, prompting organic discovery of the mechanic.
+const WEIGHTS_L17_BIGRIG = {
+  CALM:     [{ value: 'small', weight: 20 }, { value: 'big', weight: 30 }, { value: 'jeep', weight: 25 }, { value: 'bigrig', weight: 25 }],
+  BUILD:    [{ value: 'small', weight: 5  }, { value: 'big', weight: 20 }, { value: 'jeep', weight: 25 }, { value: 'bigrig', weight: 50 }],
+  PRESSURE: [{ value: 'big',  weight: 10 }, { value: 'jeep', weight: 20 }, { value: 'truck', weight: 20 }, { value: 'bigrig', weight: 50 }],
+  CLIMAX:   [{ value: 'jeep', weight: 10 }, { value: 'truck', weight: 20 }, { value: 'bigrig', weight: 70 }],
+  RELIEF:   [{ value: 'small', weight: 30 }, { value: 'big', weight: 40 }, { value: 'jeep', weight: 20 }, { value: 'bigrig', weight: 10 }],
+};
+
 // L15+: all types including tank.  FR-4 still caps tank HP if max damage < 8.
 const WEIGHTS_FULL = {
   CALM:     [{ value: 'small', weight: 25 }, { value: 'big', weight: 35 }, { value: 'jeep', weight: 25 }, { value: 'truck', weight: 15 }],
@@ -73,11 +84,12 @@ const WEIGHTS_FULL = {
 };
 
 function bandWeights(level) {
-  if (level === 1) return WEIGHTS_L1;
-  if (level <= 4)  return WEIGHTS_FTUE;
-  if (level <= 8)  return WEIGHTS_MID;
-  if (level <= 12) return WEIGHTS_HARD;
-  if (level <= 14) return WEIGHTS_HARD_PLUS;
+  if (level === 1)  return WEIGHTS_L1;
+  if (level <= 4)   return WEIGHTS_FTUE;
+  if (level <= 8)   return WEIGHTS_MID;
+  if (level <= 12)  return WEIGHTS_HARD;
+  if (level <= 14)  return WEIGHTS_HARD_PLUS;
+  if (level === 17) return WEIGHTS_L17_BIGRIG;
   return WEIGHTS_FULL;
 }
 

@@ -86,6 +86,12 @@ export class GameState {
     // After a rescue, all cars slow to 70% for 5 seconds so the player can
     // breathe before the onslaught resumes.
     this.recoveryUntil = -Infinity;
+
+    // ── Streak Shot ────────────────────────────────────────────────────────
+    // 3 consecutive correct-color hits charge the streak. Any miss resets it.
+    // When streakActive, the next deploy fires a power shot (2× damage + slow).
+    this.streakCount  = 0;
+    this.streakActive = false;
   }
 
   // ── Active subsets ────────────────────────────────────────────────────────
@@ -190,6 +196,8 @@ export class GameState {
     this.won           = false;
     this.dilationUntil = -Infinity;
     this.recoveryUntil = -Infinity;
+    this.streakCount   = 0;
+    this.streakActive  = false;
     for (let i = 0; i < this.firingSlots.length; i++) this.firingSlots[i] = null;
     // Restore original duration (rescues add to it; reset removes those additions).
     // Duration is re-supplied by GameLoop.restart() which knows the base value.
@@ -205,6 +213,26 @@ export class GameState {
   resetCombo() {
     this.combo               = 0;
     this.comboFireMultiplier = 1.0;
+  }
+
+  // Called on every correct-color hit. Advances streak toward activation.
+  recordCorrectHit() {
+    if (this.streakActive) return;   // already charged — nothing to advance
+    this.streakCount++;
+    if (this.streakCount >= 3) this.streakActive = true;
+  }
+
+  // Called on any miss (wrong color). Resets streak entirely.
+  recordMiss() {
+    this.streakCount  = 0;
+    this.streakActive = false;
+  }
+
+  // Called when a power shot fires. Consumes the streak; counter resets to 0
+  // so the player must earn another 3 hits to charge again.
+  consumeStreak() {
+    this.streakCount  = 0;
+    this.streakActive = false;
   }
 
   // Trigger deploy time dilation starting from now.

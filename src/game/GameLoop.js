@@ -203,18 +203,36 @@ export class GameLoop {
     // Nothing to shoot at — slot clears silently.
     if (!frontCar) return;
 
-    const carGameX = frontCar.position;
-    gs.recordDeploy(shooter.color === frontCar.color);
+    const carGameX       = frontCar.position;
+    const isCorrectColor = shooter.color === frontCar.color;
+
+    // Streak Shot: charged streak + correct color → fire a power shot (2× damage).
+    let wasStreakShot = false;
+    if (isCorrectColor && gs.streakActive) {
+      shooter       = { ...shooter, damage: shooter.damage * 2 };
+      wasStreakShot = true;
+    }
+
+    gs.recordDeploy(isCorrectColor);
 
     const { kills, carryOverKills, damageDealt } = this._combat.resolve(shooter, lane);
 
     if (damageDealt === 0) {
       this._onMiss(laneIdx, carGameX);
+      gs.recordMiss();
       // Color mismatch: wasted bomb slot, grid does NOT advance.
       return;
     }
 
-    this._onHit(laneIdx, carGameX, shooter.color, damageDealt, kills > 0);
+    if (wasStreakShot) {
+      gs.consumeStreak();
+      // Slow surviving front car for 1 grid turn (car was not killed by the power shot).
+      if (kills === 0) frontCar.slowedTurns = 1;
+    } else {
+      gs.recordCorrectHit();
+    }
+
+    this._onHit(laneIdx, carGameX, shooter.color, damageDealt, kills > 0, wasStreakShot);
 
     if (kills > 0) {
       if (carryOverKills > 0) this._onChain(laneIdx, carGameX);
@@ -295,8 +313,10 @@ export class GameLoop {
     }
 
     // 1. Move all cars forward one row.
+    // Streak Shot slow: a power-shot hit car skips one advance turn.
     for (let li = 0; li < gs.activeLaneCount; li++) {
       for (const car of gs.lanes[li].cars) {
+        if ((car.slowedTurns ?? 0) > 0) { car.slowedTurns--; continue; }
         car.row++;
         car.position = this._rowToPosition(car.row, ROWS);
         if (car.position > gs.maxCarPosition) gs.maxCarPosition = car.position;

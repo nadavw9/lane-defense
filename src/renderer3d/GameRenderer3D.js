@@ -270,6 +270,7 @@ export class GameRenderer3D {
     this._particles?.update(dt);
     this._postFX?.update(dt);
     this._cars?.update(dt, isFrozen);
+    this._shooters?.setStreak(gameState?.streakCount ?? 0, gameState?.streakActive ?? false);
     this._shooters?.update(dt, elapsed);
     this._projectiles?.update(dt);
 

@@ -114,6 +114,12 @@ function drawDamageBadge(ctx, W, H, damage, colorHex) {
   ctx.fillText(String(damage), W / 2, H / 2 + 1);
 }
 
+// ── Heat glow tables (indexed by tier 0-3) ────────────────────────────────────
+const HEAT_EMISSIVE_COLOR = [null, 0xffee44, 0xff7700, 0xff2200]; // tier→target emissive tint
+const HEAT_ADD_INTENSITY  = [0,    0.08,     0.18,    0.35     ]; // tier→extra emissive intensity
+const HEAT_SCALE_MULT     = [1.0,  1.0,      1.02,    1.0      ]; // tier→scale (active uses pulse)
+const HEAT_LERP_PER_SEC   = 0.08 * 60;                            // 0.08/frame at 60fps
+
 // ── Punch ease-out ─────────────────────────────────────────────────────────────
 function easeOut3(t) { return 1 - Math.pow(1 - Math.min(t, 1), 3); }
 
@@ -129,6 +135,10 @@ export class Shooter3D {
     }
 
     this._activeColCount = LANE_COUNT;
+
+    // ── Streak Shot heat glow state ────────────────────────────────────────────
+    this._streakCount  = 0;
+    this._streakActive = false;
 
     // ── Spark beads — one per lane, flicker orange/yellow at fuse tip ─────────
     this._sparkBeads = [];
@@ -176,6 +186,12 @@ export class Shooter3D {
     // Immediate white emissive flash
     slot.sphereMat.emissive.setHex(0xffffff);
     slot.sphereMat.emissiveIntensity = 1.0;
+  }
+
+  /** Called each frame with the current global streak state from GameState. */
+  setStreak(streakCount, streakActive) {
+    this._streakCount  = streakCount;
+    this._streakActive = streakActive;
   }
 
   update(dt, elapsed) {
@@ -238,6 +254,46 @@ export class Shooter3D {
           if (slot._punchT >= PUNCH_DUR) {
             slot._punching = false;
             slot.group.scale.setScalar(slot._baseScale);
+          }
+        }
+
+        // ── Heat glow — streak charge indicator on front slot ────────────────
+        if (si === 0 && !slot._flashing) {
+          const tier = this._streakActive ? 3 : Math.min(this._streakCount, 2);
+          const lerpAlpha = Math.min(1, HEAT_LERP_PER_SEC * dt);
+
+          // Emissive color: lerp base bomb color toward heat tint.
+          const baseCol = new THREE.Color(slot.lastColor > 0 ? slot.lastColor : 0x888888);
+          if (tier > 0) {
+            const heatCol = new THREE.Color(HEAT_EMISSIVE_COLOR[tier]);
+            slot.sphereMat.emissive.lerp(baseCol.clone().lerp(heatCol, 0.70), lerpAlpha);
+          } else {
+            slot.sphereMat.emissive.lerp(baseCol, lerpAlpha);
+          }
+
+          // Emissive intensity: base + heat additive, with 2Hz pulse when active.
+          let targetIntensity = SLOT_EMISSIVE[0] + HEAT_ADD_INTENSITY[tier];
+          if (this._streakActive) {
+            targetIntensity += 0.10 * Math.abs(Math.sin(2 * Math.PI * 2 * elapsed));
+          }
+          slot.sphereMat.emissiveIntensity +=
+            (targetIntensity - slot.sphereMat.emissiveIntensity) * lerpAlpha;
+
+          // Scale: lerp toward tier target; active uses 2Hz pulse 1.0→1.06.
+          if (!slot._punching) {
+            let targetScale = HEAT_SCALE_MULT[tier] * slot._baseScale;
+            if (this._streakActive) {
+              targetScale = slot._baseScale * (1.0 + 0.06 * Math.abs(Math.sin(2 * Math.PI * 2 * elapsed)));
+            }
+            const curScale = slot.group.scale.x;
+            slot.group.scale.setScalar(curScale + (targetScale - curScale) * lerpAlpha);
+          }
+
+          // Fuse flicker: rapid intensity oscillation when streak is fully charged.
+          if (this._streakActive) {
+            slot.fuseMat.emissiveIntensity = 0.35 + 0.25 * (0.5 + 0.5 * Math.sin(elapsed * 20));
+          } else if (tier === 0) {
+            slot.fuseMat.emissiveIntensity = 0.20;
           }
         }
 

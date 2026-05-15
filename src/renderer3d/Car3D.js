@@ -32,6 +32,13 @@ const MAX_TILT_X      = 0.20;
 const TURRET_ROT_SPEED = 0.18;
 const WHEEL_SPIN      = 3.5;    // radians per world unit (approx 1/wheelRadius)
 
+// Power hit (streak shot impact) parameters
+const POWER_FLASH_DUR  = 0.25;  // white→orange flash duration in seconds
+const POWER_SQUASH_DUR = 0.18;  // squash-and-stretch peak in seconds
+const POWER_SCALE_PEAK = 1.12;  // peak scale multiplier at squash
+const _POWER_WHITE     = new THREE.Color(1, 1, 1);
+const _POWER_ORANGE    = new THREE.Color(1, 0.45, 0.10);
+
 const AURA_THRESH = 83;       // car.position % threshold → last ~1 row from breach
 const AURA_RATE   = 1 / 0.3;  // blend speed (full on/off in 0.3 s)
 const AURA_FREQ   = 1.5;      // pulse Hz
@@ -108,6 +115,31 @@ export class Car3D {
     this._live.clear();
     for (const d of this._dying) this._disposeDying(d);
     this._dying.length = 0;
+  }
+
+  /**
+   * Trigger power-hit visual on the front car of `laneIdx`.
+   * isKill=true → car will be removed; explosion handled by Particles3D.
+   * isKill=false → car survives; apply soot overlay + flash.
+   */
+  triggerPowerHit(laneIdx, isKill) {
+    // Find the front car of this lane (highest row / closest to breach).
+    const lane = this._lanes[laneIdx];
+    if (!lane) return;
+    const frontCar = lane.cars.reduce((best, c) => (!best || c.row > best.row) ? c : best, null);
+    if (!frontCar) return;
+    const entry = this._live.get(frontCar);
+    if (!entry) return;
+
+    entry._powerFlashT   = 0;
+    entry._powerFlashing = true;
+    entry._powerSquashT  = 0;
+    entry._powerSquashing = true;
+
+    // Surviving car: add soot overlay via a dark mesh layer.
+    if (!isKill && !entry._sootMesh) {
+      entry._sootMesh = this._addSootOverlay(entry);
+    }
   }
 
   update(dt, isFrozen = false) {
@@ -223,6 +255,35 @@ export class Car3D {
           }
         }
 
+        // Power hit flash: white→orange emissive over 0.25 s.
+        if (entry._powerFlashing) {
+          entry._powerFlashT += dt;
+          const prog = Math.min(1, entry._powerFlashT / POWER_FLASH_DUR);
+          if (prog < 1) {
+            // First half: white; second half: lerp white→orange
+            const flashCol = prog < 0.4
+              ? _POWER_WHITE
+              : _POWER_WHITE.clone().lerp(_POWER_ORANGE, (prog - 0.4) / 0.6);
+            entry.bodyMat.emissive.copy(flashCol);
+            entry.bodyMat.emissiveIntensity = 1.0 - 0.70 * prog;
+          } else {
+            entry._powerFlashing = false;
+          }
+        }
+
+        // Power hit squash-and-stretch: scale spike to 1.12× then spring back.
+        if (entry._powerSquashing) {
+          entry._powerSquashT += dt;
+          const prog = Math.min(1, entry._powerSquashT / POWER_SQUASH_DUR);
+          const spike = Math.sin(Math.PI * prog);  // 0→1→0 over duration
+          const s = 1 + (POWER_SCALE_PEAK - 1) * spike;
+          g.scale.setScalar((entry.group.userData.baseScale ?? 1.0) * s);
+          if (prog >= 1) {
+            entry._powerSquashing = false;
+            g.scale.setScalar(entry.group.userData.baseScale ?? 1.0);
+          }
+        }
+
         // Danger aura: pulsing red emissive overlay on cars within 1 row of breach.
         entry._auraT += dt;
         const auraTarget = (!isFrozen && car.position >= AURA_THRESH) ? 1.0 : 0.0;
@@ -333,6 +394,9 @@ export class Car3D {
       if (mat.metalness !== undefined) mat.metalness = metalness;
     }
 
+    // Store base scale for squash-and-stretch spring-back.
+    group.userData.baseScale = group.scale.x;
+
     // Boss ring
     let bossRing = null, bossRingMat = null;
     if (car.type === 'boss') {
@@ -358,6 +422,9 @@ export class Car3D {
       groupY,
       renderZ: startZ, targetZ: startZ, lerpStartZ: startZ, lerpT: 1.0,
       _auraBlend: 0, _auraT: 0,
+      _powerFlashing: false, _powerFlashT: 0,
+      _powerSquashing: false, _powerSquashT: 0,
+      _sootMesh: null,
     };
     return entry;
   }
@@ -439,6 +506,25 @@ export class Car3D {
     group.userData.tankPtLight = ptLight;
 
     return { bodyMat: bm, turretGroup };
+  }
+
+  // Wrap the car group in a dark semi-transparent bounding box to simulate soot.
+  _addSootOverlay(entry) {
+    const box = new THREE.Box3().setFromObject(entry.group);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    if (size.lengthSq() < 0.001) return null;  // safety: empty group
+    const geo = new THREE.BoxGeometry(size.x * 1.05, size.y * 1.05, size.z * 1.05);
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0x111111,
+      transparent: true,
+      opacity: 0.22,
+      depthWrite: false,
+      side: THREE.BackSide,  // render inside-out so it wraps the car
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    entry.group.add(mesh);
+    return mesh;
   }
 
   // ── Disposal ───────────────────────────────────────────────────────────────────

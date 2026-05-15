@@ -145,18 +145,22 @@ export class GameRenderer3D {
   // ── Event API (called from GameApp callbacks) ──────────────────────────────
 
   /** Colored hit sparks + damage number + optional explosion. */
-  onHit(laneIdx, color, damage, isKill) {
+  onHit(laneIdx, color, damage, isKill, wasStreakShot = false) {
     this._particles?.spawnHit(laneIdx, color);
     this._particles?.spawnDamageNumber(laneIdx, damage);
+    if (wasStreakShot) {
+      this._cars?.triggerPowerHit(laneIdx, isKill);
+    }
     if (isKill) {
-      this._particles?.spawnExplosion(laneIdx, color);
-      this._cameraFX?.shake(0.12, 0.25);
-      this._postFX?.triggerChroma(0.022, 0.30);
+      const explodeScale = wasStreakShot ? 1.25 : 1.0;
+      this._particles?.spawnExplosion(laneIdx, color, explodeScale);
+      this._cameraFX?.shake(wasStreakShot ? 0.20 : 0.12, 0.25);
+      this._postFX?.triggerChroma(wasStreakShot ? 0.035 : 0.022, 0.30);
       // No bloom spike on kill — headlights already bloom at base strength 0.65
       const cachedPos = this._laneCarPosCache[laneIdx] ?? 50;
       this._scorchMarks?.spawnScorch(laneIdx, cachedPos);
     } else {
-      this._postFX?.triggerChroma(0.010, 0.18);
+      this._postFX?.triggerChroma(wasStreakShot ? 0.018 : 0.010, 0.18);
     }
   }
 

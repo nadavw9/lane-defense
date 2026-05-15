@@ -168,19 +168,20 @@ export class Particles3D {
    * Spawn a kill explosion: large colored burst + shockwave ring + flash light.
    * @param {number} laneIdx
    * @param {string} color
+   * @param {number} [scale=1.0] — optional size multiplier (1.25 for power-shot kills)
    */
-  spawnExplosion(laneIdx, color) {
+  spawnExplosion(laneIdx, color, scale = 1.0) {
     const pos = this._frontCarPos(laneIdx);
     if (!pos) return;
 
     const hex   = COLOR_HEX[color] ?? 0xffffff;
-    const count = 9 + Math.floor(Math.random() * 4);   // 9–12
+    const count = Math.round((9 + Math.floor(Math.random() * 4)) * scale);   // 9–15 at 1.25×
 
     // ── Large colored burst particles ───────────────────────────────────────
     for (let i = 0; i < count; i++) {
       const angle = (i / count) * Math.PI * 2 + Math.random() * 0.4;
-      const speed = 5 + Math.random() * 8;
-      const size  = 0.10 + Math.random() * 0.12;
+      const speed = (5 + Math.random() * 8) * scale;
+      const size  = (0.10 + Math.random() * 0.12) * scale;
       const geo   = explGeoForSize(size);
       const mat   = new THREE.MeshStandardMaterial({
         color:             hex,
@@ -217,7 +218,7 @@ export class Particles3D {
     ring.rotation.x = -Math.PI / 2;
     ring.position.set(pos.x, 0.02, pos.z);
     this._scene.add(ring);
-    this._shockwaves.push({ mesh: ring, mat: ringMat, life: 0.38, maxLife: 0.38, scaleRate: 10 });
+    this._shockwaves.push({ mesh: ring, mat: ringMat, life: 0.38 * scale, maxLife: 0.38 * scale, scaleRate: 10 * scale });
 
     // ── Dynamic light flash ──────────────────────────────────────────────────
     this._lighting?.explosionFlash(hex, pos.x, PARTICLE_Y, pos.z);

@@ -1228,10 +1228,10 @@ async function main() {
       haptics.light();
     },
 
-    onHit: (laneIdx, gameX, color, damage, isKill) => {
+    onHit: (laneIdx, gameX, color, damage, isKill, wasStreakShot) => {
       particles.spawnHit(laneIdx, gameX, color);
       particles.spawnDamageNumber(laneIdx, gameX, damage);
-      gameRenderer3D.onHit(laneIdx, color, damage, isKill);
+      gameRenderer3D.onHit(laneIdx, color, damage, isKill, wasStreakShot);
       if (isKill) {
         particles.spawnExplosion(laneIdx, gameX, color);
         audio.play('car_destroy');

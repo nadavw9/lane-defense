@@ -19,7 +19,8 @@ import { LayerManager }    from './LayerManager.js';
 import { LaneRenderer, laneCenterX, posToScreenY, ROAD_TOP_Y, ROAD_BOTTOM_Y } from './LaneRenderer.js';
 import { spriteFlags }     from './SpriteFlags.js';
 import { CityBackground }  from './CityBackground.js';
-import { CarRenderer }     from './CarRenderer.js';
+import { Car2D }           from './Car2D.js';
+import { Road2D }          from './Road2D.js';
 import { ShooterRenderer } from './ShooterRenderer.js';
 import { HUDRenderer }     from './HUDRenderer.js';
 import { ParticleSystem }  from './ParticleSystem.js';
@@ -146,9 +147,9 @@ function spawnFloatingText(parent, x, y, text, color = 0xffffff) {
 
 const COLORS   = ['red', 'blue', 'green', 'yellow', 'purple', 'orange'];
 const _B       = import.meta.env.BASE_URL;   // '' in dev, '/lane-defense/' on GH Pages
+const CAR_TYPE_SPRITES = ['bike', 'sedan', 'van', 'truck', 'bigrig', 'tank'];
 const CAR_URLS = [
-  ...COLORS.map(c => `${_B}sprites/cars/car-${c}.png`),
-  `${_B}sprites/cars/car-boss.png`,
+  ...CAR_TYPE_SPRITES.map(t => `${_B}sprites/cars/types/sprite-${t}.png`),
 ];
 const SHOOTER_URLS = COLORS.flatMap(c => [
   `${_B}sprites/shooters/shooter-${c}-idle.png`,
@@ -453,7 +454,9 @@ async function main() {
   let gameLoopStarted = false;
 
   // ── Renderers ────────────────────────────────────────────────────────────
-  const carRenderer        = new CarRenderer(layers, lanes);
+  const carRenderer        = new Car2D(layers, lanes);
+  const road2d             = new Road2D(layers);
+  road2d.hide();   // shown only during gameplay (title uses LaneRenderer backdrop)
   const shooterRenderer    = new ShooterRenderer(layers, columns, boosterState);
   const firingLineRenderer = new FiringLineRenderer(layers, gs.firingSlots);
 
@@ -556,7 +559,9 @@ async function main() {
     if ((cfg.laneCount ?? 4) >= 3) featureBanners.fire('multi_lane', 'New lane open! Each lane needs a matching-color shooter.');
     if (benchUnlocked && levelId === 6) featureBanners.fire('bench_appear', 'Bench unlocked — store a shooter here for later!');
     setActiveCounts({ laneCount: cfg.laneCount ?? 4, colCount: cfg.colCount ?? 4 });
-    carRenderer.clearAll();
+    carRenderer.reset();
+    road2d.setLaneCount(cfg.laneCount ?? 4);
+    road2d.reset();
     firingLineRenderer.reset();
     firingLineRenderer.setActiveLaneCount(cfg.laneCount ?? 4);
     gameRenderer3D.resetLevel();
@@ -657,12 +662,14 @@ async function main() {
       _showLevelIntroSplash(levelManager.levelNumber);
     }
 
-    // ── Switch to 3D renderer for gameplay ────────────────────────────────
+    // ── 2D top-down gameplay: Road2D + Car2D draw in the PixiJS overlay ───
+    // (Three.js scene still hosts shooters / projectiles / particles.)
     layers.get('backgroundLayer').visible   = false;
-    layers.get('laneLayer').visible         = false;
-    layers.get('carLayer').visible          = false;
+    layers.get('laneLayer').visible         = true;   // hosts Road2D
+    layers.get('carLayer').visible          = true;   // hosts Car2D
     layers.get('shooterColumnLayer').visible = true;
     layers.get('activeShooterLayer').visible = true;
+    road2d.show();
     gameRenderer3D.show();
   }
 
@@ -736,6 +743,8 @@ async function main() {
     audio.playMusic('title');
     // Keep 2D shooter layers hidden — 3D renderer handles shooter visuals.
     gameRenderer3D.hide();
+    road2d.hide();                                  // title uses LaneRenderer backdrop
+    carRenderer.clearAll();
     layers.get('backgroundLayer').visible    = true;
     layers.get('laneLayer').visible          = true;
     layers.get('carLayer').visible           = true;
@@ -1225,6 +1234,7 @@ async function main() {
       if (colIdx  >= 0) shooterRenderer.triggerDeployPunch(colIdx);
       if (colIdx  >= 0) gameRenderer3D.triggerDeployPunch(colIdx);
       if (laneIdx >= 0) gameRenderer3D.onShoot(laneIdx);
+      road2d.scrollTick();   // road rushes toward player by one car-advance
       haptics.light();
     },
 
@@ -1232,6 +1242,7 @@ async function main() {
       particles.spawnHit(laneIdx, gameX, color);
       particles.spawnDamageNumber(laneIdx, gameX, damage);
       gameRenderer3D.onHit(laneIdx, color, damage, isKill, wasStreakShot);
+      if (wasStreakShot) carRenderer.triggerPowerHit(laneIdx, isKill);
       if (isKill) {
         particles.spawnExplosion(laneIdx, gameX, color);
         audio.play('car_destroy');
@@ -1471,6 +1482,7 @@ async function main() {
     hudRenderer.update(dt);
     hudRenderer.setHearts(livesManager.hearts);
     particles.update(dt);
+    road2d.update(dt);
     carRenderer.update(dt, boosterState.isFrozen());
     shooterRenderer.update(gs.elapsed, dt);
     benchRenderer.update();
@@ -1557,6 +1569,11 @@ async function main() {
     ftueOverlay?.destroy();        ftueOverlay        = null;
     carTypeIntroCard?._destroy();  carTypeIntroCard   = null;
   };
+  window._game = {
+    gameLoop, columns, gs, dragDrop,
+    deploy: (colIdx, laneIdx) => gameLoop.deploy(colIdx, laneIdx),
+  };
+
   window._nav = {
     showTitle:       () => { _dbgCleanAll(); showTitle(); },
     showLevelSelect: () => { _dbgCleanAll(); showLevelSelect(); },

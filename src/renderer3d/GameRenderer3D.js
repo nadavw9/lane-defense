@@ -15,7 +15,6 @@ import { Lighting3D }    from './Lighting3D.js';
 import { levelTheme }    from './ThemeRegistry.js';
 import { Road3D }        from './Road3D.js';
 import { Skybox3D }      from './Skybox3D.js';
-import { Car3D }         from './Car3D.js';
 import { Shooter3D }     from './Shooter3D.js';
 import { Projectile3D }  from './Projectile3D.js';
 import { Particles3D }   from './Particles3D.js';
@@ -370,7 +369,8 @@ export class GameRenderer3D {
     this._particles?.dispose();
 
     const scene = this._scene3d.scene;
-    this._cars        = new Car3D(scene, this._lanes);
+    // Cars are now rendered in 2D by Car2D (PixiJS overlay) — no 3D car meshes.
+    this._cars        = null;
     this._shooters    = new Shooter3D(scene, this._columns);
     this._projectiles = new Projectile3D(scene, this._firingSlots, this._lanes);
     this._particles   = new Particles3D(scene, this._lighting, this._lanes);

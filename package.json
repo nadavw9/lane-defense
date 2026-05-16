@@ -15,7 +15,6 @@
   "license": "ISC",
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.96.0",
-    "@napi-rs/canvas": "^1.0.0",
     "@playwright/test": "^1.59.1",
     "howler": "^2.2.4",
     "pixi-filters": "^6.1.5",

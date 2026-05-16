@@ -1,4 +1,4 @@
-// Car2D — top-down 2D sprite car renderer (replaces the retired 3D Car3D.js).
+// Car2D — top-down 2D sprite car renderer (replaces the retired 3D car meshes).
 //
 // Each live car is a PIXI.Sprite of its TYPE sprite (sprite-bike.png etc.),
 // tinted at runtime to its colour. The game is viewed straight from above, so
@@ -118,7 +118,7 @@ export class Car2D {
   }
 
   // Streak (power) shot landed on the front car of `laneIdx`.
-  // isKill is accepted for API parity with the old Car3D; the burst itself
+  // isKill is accepted for API parity with the old 3D renderer; the burst
   // is produced by the normal destroy path when the car is removed.
   triggerPowerHit(laneIdx, isKill) {  // eslint-disable-line no-unused-vars
     const lane = this._lanes[laneIdx];

@@ -167,7 +167,9 @@ export class Shooter3D {
   setLaneCount(n) {
     for (let li = 0; li < this._slots.length; li++) {
       const x = laneToX(li, n);
-      for (const slot of this._slots[li]) slot.group.position.x = x;
+      for (let si = 0; si < this._slots[li].length; si++) {
+        this._slots[li][si].group.position.x = x + BOMB_CX * (1 - SLOT_SCALE[si]);
+      }
       const sb = this._sparkBeads[li];
       if (sb) sb.bead.position.x = x + BOMB_CX + 0.15;
     }
@@ -406,7 +408,7 @@ export class Shooter3D {
     group.traverse(obj => { if (obj.isMesh || obj.isSprite) obj.layers.set(1); });
 
     group.scale.setScalar(scale);
-    group.position.set(laneToX(laneIdx), 0, worldZ);
+    group.position.set(laneToX(laneIdx) + BOMB_CX * (1 - scale), 0, worldZ);
     group.visible = false;
     this._scene.add(group);
 

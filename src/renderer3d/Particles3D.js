@@ -12,7 +12,7 @@
 import * as THREE from 'three';
 import { posToZ, laneToX } from './Scene3D.js';
 
-// Y position of car body centre on road (mirrors Car3D.CAR_Y).
+// Y position of car body centre on road (legacy 3D world-space height).
 const CAR_Y = 0.43;
 
 // ── Shared geometry (created once) ────────────────────────────────────────────

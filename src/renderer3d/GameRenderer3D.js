@@ -13,8 +13,6 @@
 import { Scene3D, posToZ } from './Scene3D.js';
 import { Lighting3D }    from './Lighting3D.js';
 import { levelTheme }    from './ThemeRegistry.js';
-import { Road3D }        from './Road3D.js';
-import { Skybox3D }      from './Skybox3D.js';
 import { Shooter3D }     from './Shooter3D.js';
 import { Projectile3D }  from './Projectile3D.js';
 import { Particles3D }   from './Particles3D.js';
@@ -22,8 +20,6 @@ import { CameraFX }      from './CameraFX.js';
 import { LaneFlash3D }   from './LaneFlash3D.js';
 import { PostFX3D }      from './PostFX3D.js';
 import { ScorchMarks3D } from './ScorchMarks3D.js';
-import { Environment3D } from './Environment3D.js';
-import { Ambient3D }     from './Ambient3D.js';
 
 export class GameRenderer3D {
   constructor(width, height) {
@@ -86,14 +82,14 @@ export class GameRenderer3D {
 
     this._scene3d  = new Scene3D(this._canvas, this._width, this._height);
     this._lighting = new Lighting3D(this._scene3d.scene);
-    this._skybox   = new Skybox3D(this._scene3d.scene);
-    this._road     = new Road3D(this._scene3d.scene);
+    // Skybox / Road3D / Environment / Ambient were perspective-era set
+    // dressing. The game is now a clean top-down 2D view (Road2D + Car2D in
+    // the PixiJS overlay), so the Three.js scene only hosts shooters,
+    // projectiles and particles over Scene3D's dark backdrop.
     this._cameraFX    = new CameraFX(this._scene3d.camera);
     this._laneFlash   = new LaneFlash3D(this._scene3d.scene);
     this._scorchMarks = new ScorchMarks3D(this._scene3d.scene);
     this._postFX      = new PostFX3D(this._scene3d.composer);
-    this._environment = new Environment3D(this._scene3d.scene);
-    this._ambient     = new Ambient3D(this._scene3d.scene);
 
     this._mounted = true;
   }
@@ -263,8 +259,8 @@ export class GameRenderer3D {
     this._prevFrozen = isFrozen;
 
     this._lighting.update(dt);
-    this._skybox.update(dt);
-    this._road.update(dt);
+    this._skybox?.update(dt);
+    this._road?.update(dt);
     this._environment?.update(dt);
     this._ambient?.update(dt);
     this._cameraFX?.update(dt);

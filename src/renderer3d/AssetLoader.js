@@ -1,20 +1,11 @@
-// AssetLoader — singleton that pre-loads all GLB models before gameplay starts.
-// Car3D and Environment3D call getModel(name) to get a deep-cloned THREE.Group
-// with per-instance materials so each car/tree can be tinted independently.
+// AssetLoader — singleton that pre-loads environment GLB models before
+// gameplay starts. Environment3D calls getModel(name) to get a deep-cloned
+// THREE.Group with per-instance materials so each prop can be tinted
+// independently. (Cars are 2D sprites now — see Car2D.js — so no car GLBs.)
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.js';
-
-// Maps CarTypes key → GLB filename (without .glb), or null for procedural types.
-export const CAR_ASSET_MAP = {
-  small:  'bike',
-  big:    'sedan',
-  jeep:   'van',
-  truck:  'truck',
-  bigrig: 'bigrig',
-  tank:   null,   // procedural geometry built in Car3D._buildTank(); no Kenney 3D tank exists
-};
 
 const ENV_ASSETS = [
   'tree-pine', 'tree-oak',
@@ -33,11 +24,6 @@ class AssetLoader {
     const base = import.meta.env.BASE_URL;
     const jobs  = [];
 
-    // Deduplicate and skip null entries (procedural types like tank)
-    const carGlbs = [...new Set(Object.values(CAR_ASSET_MAP).filter(Boolean))];
-    for (const name of carGlbs) {
-      jobs.push(this._loadOne(name, `${base}models/cars/${name}.glb`));
-    }
     for (const name of ENV_ASSETS) {
       jobs.push(this._loadOne(name, `${base}models/environment/${name}.glb`));
     }
@@ -58,14 +44,9 @@ class AssetLoader {
   }
 
   // Returns a deep-cloned Group with own materials (safe for per-instance tinting).
-  // nameOrType may be a CarTypes key ('small') or a direct glb name ('tree-pine').
-  getModel(nameOrType) {
-    const glbName = (nameOrType in CAR_ASSET_MAP) ? CAR_ASSET_MAP[nameOrType] : nameOrType;
-
-    // null means the type uses procedural geometry — return fallback box as placeholder
-    if (glbName === null) return this._fallbackBox();
-
-    const source = this._models[glbName];
+  // name is a direct glb basename ('tree-pine', 'bush', …).
+  getModel(name) {
+    const source = this._models[name];
     if (source) {
       const clone = skeletonClone(source);
       clone.traverse(node => {

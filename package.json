@@ -20,7 +20,7 @@
     "howler": "^2.2.4",
     "pixi-filters": "^6.1.5",
     "pixi.js": "^8.17.1",
-    "vite": "^8.0.3",
+    "vite": "^8.0.13",
     "vitest": "^4.1.2"
   },
   "dependencies": {

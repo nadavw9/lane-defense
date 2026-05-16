@@ -15,7 +15,6 @@ import { Lighting3D }    from './Lighting3D.js';
 import { levelTheme }    from './ThemeRegistry.js';
 import { Shooter3D }     from './Shooter3D.js';
 import { Projectile3D }  from './Projectile3D.js';
-import { Particles3D }   from './Particles3D.js';
 import { CameraFX }      from './CameraFX.js';
 import { LaneFlash3D }   from './LaneFlash3D.js';
 import { PostFX3D }      from './PostFX3D.js';
@@ -33,7 +32,6 @@ export class GameRenderer3D {
     this._cars     = null;
     this._shooters = null;
     this._projectiles = null;
-    this._particles   = null;
     this._cameraFX    = null;
     this._laneFlash    = null;
     this._postFX       = null;
@@ -50,7 +48,6 @@ export class GameRenderer3D {
     this._lanes       = null;
     this._columns     = null;
     this._firingSlots = null;
-    this._prevFrozen  = false;
   }
 
   // ── Lifecycle ───────────────────────────────────────────────────────────────
@@ -123,7 +120,6 @@ export class GameRenderer3D {
   resetLevel() {
     this._cars?.clearAll();
     this._projectiles?.reset();
-    this._particles?.dispose();
     this._laneFlash?.dispose();
     this._scorchMarks?.dispose();
     this._cameraFX?.reset();
@@ -131,7 +127,6 @@ export class GameRenderer3D {
     this._postFX?.setCombo(0);
     this._skybox?.setCombo(0);
     if (this._mounted && this._lanes) {
-      this._particles   = new Particles3D(this._scene3d.scene, this._lighting, this._lanes);
       this._laneFlash   = new LaneFlash3D(this._scene3d.scene);
       this._scorchMarks = new ScorchMarks3D(this._scene3d.scene);
     }
@@ -141,14 +136,12 @@ export class GameRenderer3D {
 
   /** Colored hit sparks + damage number + optional explosion. */
   onHit(laneIdx, color, damage, isKill, wasStreakShot = false) {
-    this._particles?.spawnHit(laneIdx, color);
-    this._particles?.spawnDamageNumber(laneIdx, damage);
+    // Hit sparks / damage numbers / kill explosion are 2D now (ParticleSystem
+    // via Car2D). This path keeps only the Three.js camera/post FX + scorch.
     if (wasStreakShot) {
       this._cars?.triggerPowerHit(laneIdx, isKill);
     }
     if (isKill) {
-      const explodeScale = wasStreakShot ? 1.25 : 1.0;
-      this._particles?.spawnExplosion(laneIdx, color, explodeScale);
       this._cameraFX?.shake(wasStreakShot ? 0.20 : 0.12, 0.25);
       this._postFX?.triggerChroma(wasStreakShot ? 0.035 : 0.022, 0.30);
       // No bloom spike on kill — headlights already bloom at base strength 0.65
@@ -161,7 +154,6 @@ export class GameRenderer3D {
 
   /** Grey miss puffs (wrong-color shot). */
   onMiss(laneIdx) {
-    this._particles?.spawnMiss(laneIdx);
     this._postFX?.triggerChroma(0.006, 0.15);   // tiny chroma on miss
   }
 
@@ -205,7 +197,8 @@ export class GameRenderer3D {
    * @param {number} carsHit  number of cars damaged
    */
   onBombExplode(bombPos, carsHit) {
-    this._particles?.spawnBombExplosion(bombPos);
+    // Bomb blast particles are 2D now (ParticleSystem.spawnBombExplosion,
+    // fired from GameApp). Keep the Three.js shake / bloom / chroma / flash.
     const shakeMag = 0.30 + Math.min(carsHit, 6) * 0.04;
     this._cameraFX?.shake(shakeMag, 0.55);
     this._scene3d?.setBloomStrength(1.5);
@@ -249,14 +242,8 @@ export class GameRenderer3D {
     if (this._canvas?.style.display === 'none') return;
 
     const isFrozen = (gameState?.boosterState?.isFrozen?.() ?? false) || (gameState?.lanes && elapsed < (gameState.bombFreezeUntil ?? -Infinity));
-
-    // Detect freeze onset — spawn ice burst on each lane that has a car
-    if (isFrozen && !this._prevFrozen && this._particles && this._lanes) {
-      for (let i = 0; i < this._lanes.length; i++) {
-        if (this._lanes[i]?.cars.length > 0) this._particles.spawnFreezeActivation(i);
-      }
-    }
-    this._prevFrozen = isFrozen;
+    // Freeze-activation particles are 2D now (ParticleSystem, fired from
+    // GameApp's render loop on the rising edge).
 
     this._lighting.update(dt);
     this._skybox?.update(dt);
@@ -266,7 +253,6 @@ export class GameRenderer3D {
     this._cameraFX?.update(dt);
     this._laneFlash?.update(dt);
     this._scorchMarks?.update(dt);
-    this._particles?.update(dt);
     this._postFX?.update(dt);
     this._cars?.update(dt, isFrozen);
     this._shooters?.setStreak(gameState?.streakCount ?? 0, gameState?.streakActive ?? false);
@@ -308,7 +294,6 @@ export class GameRenderer3D {
     this._cars?.clearAll();
     this._projectiles?.dispose();
     this._shooters?.dispose();
-    this._particles?.dispose();
     this._laneFlash?.dispose();
     this._scorchMarks?.dispose();
     this._postFX?.dispose();
@@ -336,7 +321,6 @@ export class GameRenderer3D {
     this._cars        = null;
     this._shooters    = null;
     this._projectiles = null;
-    this._particles   = null;
     this._cameraFX    = null;
     this._laneFlash    = null;
     this._postFX       = null;
@@ -362,14 +346,13 @@ export class GameRenderer3D {
     this._cars?.clearAll();
     this._projectiles?.dispose();
     this._shooters?.dispose();
-    this._particles?.dispose();
 
     const scene = this._scene3d.scene;
-    // Cars are now rendered in 2D by Car2D (PixiJS overlay) — no 3D car meshes.
+    // Cars + particles are 2D now (Car2D / ParticleSystem in the PixiJS
+    // overlay). The Three.js scene only hosts shooters + projectiles.
     this._cars        = null;
     this._shooters    = new Shooter3D(scene, this._columns);
     this._projectiles = new Projectile3D(scene, this._firingSlots, this._lanes);
-    this._particles   = new Particles3D(scene, this._lighting, this._lanes);
   }
 
   

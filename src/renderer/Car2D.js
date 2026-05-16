@@ -12,7 +12,8 @@
 //   • Danger aura  — red pulsing GlowFilter within 2 rows of the breach
 //   • Freeze       — blue tint while the board is frozen
 //   • Power hit    — white→orange flash on a streak (power) shot
-//   • Destroy      — scale-up + fade + 8-particle burst
+//   • Destroy      — husk scale-up + fade; kill explosion is fired through
+//                    the PixiJS ParticleSystem (particleLayer, above the road)
 //
 // Reads lane state, never writes it.
 import { Sprite, Graphics, Container, Texture, Assets } from 'pixi.js';
@@ -77,8 +78,6 @@ const SPEED_LINE_LIFE  = 0.30;  // s
 const POWER_FLASH_DUR  = 0.25;  // s  white→orange
 const DEATH_DURATION   = 0.15;  // s  scale-up + fade
 const DEATH_SCALE      = 1.40;
-const DEATH_PARTICLES  = 8;
-const DEATH_PART_LIFE  = 0.40;  // s
 
 function lerpHex(a, b, t) {
   const ar = (a >> 16) & 0xff, ag = (a >> 8) & 0xff, ab = a & 0xff;
@@ -89,15 +88,18 @@ function lerpHex(a, b, t) {
 }
 
 export class Car2D {
-  constructor(layerManager, lanes) {
+  // `particles` is the PixiJS ParticleSystem — Car2D fires the kill explosion
+  // through it (single source for ALL kills: direct, chain, carry-over) so the
+  // burst always renders in particleLayer, above the road.
+  constructor(layerManager, lanes, particles = null) {
     this._layer = layerManager.get('carLayer');
     this._layer.sortableChildren = true;
-    this._lanes  = lanes;
+    this._lanes     = lanes;
+    this._particles = particles;
     this._t      = 0;
     this._visuals = new Map();   // Car → visual entry
     this._dying   = [];          // { container, life }
     this._speed   = [];          // { g, life }
-    this._parts   = [];          // { g, vx, vy, life }
   }
 
   clearAll() {
@@ -107,8 +109,6 @@ export class Car2D {
     this._dying.length = 0;
     for (const s of this._speed) s.g.destroy();
     this._speed.length = 0;
-    for (const p of this._parts) p.g.destroy();
-    this._parts.length = 0;
   }
 
   // Level restart — wipe everything and reset the wobble clock.
@@ -138,10 +138,11 @@ export class Car2D {
     const liveCars = new Set();
     for (const lane of this._lanes) for (const car of lane.cars) liveCars.add(car);
 
-    // Retire removed cars into the death animation list + spawn burst.
+    // Retire removed cars: fire the kill explosion through the PixiJS
+    // ParticleSystem (renders above the road) and start the fade-out.
     for (const [car, v] of this._visuals) {
       if (!liveCars.has(car)) {
-        this._spawnBurst(v.container.x, v.container.y, v.tint);
+        this._particles?.spawnExplosion(v.laneIdx, car.position, car.color, v.powerFlashing);
         v.sprite.filters = [];   // drop any danger glow before fade
         this._dying.push({ container: v.container, life: DEATH_DURATION, baseScale: v.container.scale.x });
         this._visuals.delete(car);
@@ -153,6 +154,7 @@ export class Car2D {
       for (const car of this._lanes[laneIdx].cars) {
         let v = this._visuals.get(car);
         if (!v) { v = this._createVisual(car, laneIdx); this._visuals.set(car, v); }
+        v.laneIdx = laneIdx;
 
         // Advance detection → speed lines while the car moves forward.
         if (car.position > v.lastPos + 0.01) {
@@ -217,16 +219,6 @@ export class Car2D {
       s.g.alpha = 0.4 * (s.life / SPEED_LINE_LIFE);
       s.g.y += s.vy * dt;
     }
-
-    // Death particles.
-    for (let i = this._parts.length - 1; i >= 0; i--) {
-      const p = this._parts[i];
-      p.life -= dt;
-      if (p.life <= 0) { p.g.destroy(); this._parts.splice(i, 1); continue; }
-      p.g.x += p.vx * dt;
-      p.g.y += p.vy * dt;
-      p.g.alpha = p.life / DEATH_PART_LIFE;
-    }
   }
 
   // ── Private ──────────────────────────────────────────────────────────────────
@@ -255,6 +247,7 @@ export class Car2D {
 
     return {
       container, sprite, tint,
+      laneIdx,
       lastPos: car.position,
       powerFlashing: false, powerFlashT: 0,
       glow: null,
@@ -274,19 +267,6 @@ export class Car2D {
       g.zIndex = Math.round(position) - 1;
       this._layer.addChild(g);
       this._speed.push({ g, life: SPEED_LINE_LIFE, vy: 60 });
-    }
-  }
-
-  _spawnBurst(x, y, tint) {
-    for (let i = 0; i < DEATH_PARTICLES; i++) {
-      const a = (i / DEATH_PARTICLES) * Math.PI * 2;
-      const sp = 90 + Math.random() * 60;
-      const g = new Graphics();
-      g.circle(0, 0, 4).fill({ color: tint });
-      g.x = x; g.y = y;
-      g.zIndex = 9999;
-      this._layer.addChild(g);
-      this._parts.push({ g, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: DEATH_PART_LIFE });
     }
   }
 }

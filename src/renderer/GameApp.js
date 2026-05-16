@@ -454,7 +454,8 @@ async function main() {
   let gameLoopStarted = false;
 
   // ── Renderers ────────────────────────────────────────────────────────────
-  const carRenderer        = new Car2D(layers, lanes);
+  let _prevFrozen = false;   // freeze-activation rising-edge tracker
+  const carRenderer        = new Car2D(layers, lanes, particles);
   const road2d             = new Road2D(layers);
   road2d.hide();   // shown only during gameplay (title uses LaneRenderer backdrop)
   const shooterRenderer    = new ShooterRenderer(layers, columns, boosterState);
@@ -1244,7 +1245,8 @@ async function main() {
       gameRenderer3D.onHit(laneIdx, color, damage, isKill, wasStreakShot);
       if (wasStreakShot) carRenderer.triggerPowerHit(laneIdx, isKill);
       if (isKill) {
-        particles.spawnExplosion(laneIdx, gameX, color);
+        // Kill explosion is fired by Car2D's destroy detection (covers
+        // direct, chain and carry-over kills uniformly, in particleLayer).
         audio.play('car_destroy');
         haptics.killDouble();
       } else {
@@ -1331,8 +1333,7 @@ async function main() {
   };
   gameLoop._onBombExplode = (bombPos, carsHit) => {
     gameRenderer3D.onBombExplode(bombPos, carsHit);
-    // 2D particle fallback: explosion at each hit car position.
-    // (GameRenderer3D handles 3D; we fire audio and 2D haptics here.)
+    particles.spawnBombExplosion(bombPos);   // 2D blast, above the road
     audio.play('car_destroy');
     haptics.heavy();
     if (carsHit > 0) {
@@ -1483,7 +1484,11 @@ async function main() {
     hudRenderer.setHearts(livesManager.hearts);
     particles.update(dt);
     road2d.update(dt);
-    carRenderer.update(dt, boosterState.isFrozen());
+    // Freeze activation: blue-white fan across all lanes on the rising edge.
+    const _frozenNow = boosterState.isFrozen();
+    if (_frozenNow && !_prevFrozen) particles.spawnFreezeActivation();
+    _prevFrozen = _frozenNow;
+    carRenderer.update(dt, _frozenNow);
     shooterRenderer.update(gs.elapsed, dt);
     benchRenderer.update();
     firingLineRenderer.update(dt);

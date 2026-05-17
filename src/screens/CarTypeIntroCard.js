@@ -6,16 +6,7 @@
 //   const card = new CarTypeIntroCard(stage, APP_W, APP_H, typeKey, onDismiss);
 //   app.ticker.add(ticker => { if (!card.update(ticker.deltaMS / 1000)) { app.ticker.remove(...); } });
 
-import { Container, Graphics, Text, Sprite, Texture, Assets } from 'pixi.js';
-
-// CarTypes key → generated top-down sprite basename (mirrors Car2D.TYPE_SPRITE).
-const TYPE_SPRITE = {
-  small: 'bike', big: 'sedan', jeep: 'van',
-  truck: 'truck', bigrig: 'bigrig', tank: 'tank',
-};
-// Vivid demo tint for the card illustration (white sprite × tint).
-const DEMO_TINT = 0xFF4444;
-const _BASE = import.meta.env.BASE_URL;
+import { Container, Graphics, Text } from 'pixi.js';
 
 // ── Per-type display data ─────────────────────────────────────────────────────
 // headerLabel: replaces "MEET THE" — used for tutorial-tone cards (e.g. L1 TIP)
@@ -93,7 +84,7 @@ export class CarTypeIntroCard {
     this._dismissed = false;
 
     const W = appW, H = appH;
-    const CW = 300, CH = 400;
+    const CW = 300, CH = 290;
     const CX = (W - CW) / 2, CY = (H - CH) / 2 - 30;
 
     const c = new Container();
@@ -149,29 +140,15 @@ export class CarTypeIntroCard {
     });
     nameTxt.anchor.set(0.5, 0);
     nameTxt.x = W / 2;
-    nameTxt.y = CY + 38;
+    nameTxt.y = CY + 42;
     // After Pixi renders the text we know the real pixel width; clamp to card.
     const maxNameW = CW - 20;
     if (nameTxt.width > maxNameW) nameTxt.scale.set(maxNameW / nameTxt.width);
     c.addChild(nameTxt);
 
-    // ── Car illustration — large top-down type sprite, vivid demo tint ───────
-    const spriteBox = 128;
-    const spriteCY  = CY + 110 + spriteBox / 2;
-    const tex = Assets.get(`${_BASE}sprites/cars/types/sprite-${TYPE_SPRITE[typeKey] ?? 'sedan'}.png`);
-    if (tex && tex !== Texture.EMPTY) {
-      const carSprite = new Sprite(tex);
-      carSprite.anchor.set(0.5);
-      carSprite.scale.set(spriteBox / (tex.width || 256));
-      carSprite.tint = DEMO_TINT;
-      carSprite.x = W / 2;
-      carSprite.y = spriteCY;
-      c.addChild(carSprite);
-    }
-
-    // ── HP badge — raw heart + number (no "HP", no damage sentence) ──────────
+    // ── HP badge ─────────────────────────────────────────────────────────────
     const hpBadge = new Graphics();
-    const bw = 110, bh = 40, bx = W / 2 - bw / 2, by = CY + 110 + spriteBox + 18;
+    const bw = 120, bh = 36, bx = W / 2 - bw / 2, by = CY + 42 + 62 + 10;
     // Pill background in type color
     hpBadge.roundRect(bx, by, bw, bh, bh / 2);
     hpBadge.fill({ color: info.color, alpha: 0.90 });
@@ -181,10 +158,10 @@ export class CarTypeIntroCard {
     c.addChild(hpBadge);
 
     const hpTxt = new Text({
-      text: `❤ ${info.hp}`,
+      text: `❤  ${info.hp} HP`,
       style: {
-        fontSize:   24,
-        fontWeight: '900',
+        fontSize:   17,
+        fontWeight: 'bold',
         fill:       0xffffff,
         dropShadow: { color: 0x000000, blur: 4, distance: 0, alpha: 0.60 },
       },

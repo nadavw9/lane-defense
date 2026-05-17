@@ -95,10 +95,7 @@ export class Scene3D {
 
     // ── Scene ───────────────────────────────────────────────────────────────
     this.scene = new THREE.Scene();
-    // No fog — top-down view, all objects equidistant from camera.
-    // Dark backdrop: the decorative 3D environment/sky was retired with the
-    // move to a 2D top-down view; the scene only hosts shooters/particles now.
-    this.scene.background = new THREE.Color(0x0e0e1a);
+    this.scene.fog = new THREE.Fog(FOG_COLOR, FOG_NEAR, FOG_FAR);
 
     // ── Environment map ──────────────────────────────────────────────────────
     const pmrem = new THREE.PMREMGenerator(this.renderer);
@@ -108,31 +105,19 @@ export class Scene3D {
     this.scene.environmentIntensity = 0.35;
     pmrem.dispose();
 
-    // ── Top-down orthographic main camera ────────────────────────────────────
-    // Camera sits above the road centre looking straight down.
-    // Z axis: ROAD_Z_FAR(-22) = top of screen, ROAD_Z_NEAR(0) = bottom.
-    // Camera up = (0,0,-1) so negative-Z is "up" on screen.
-    const ROAD_CTR_Z = (ROAD_Z_FAR + ROAD_Z_NEAR) / 2;  // = -11
-    const aspect     = width / height;
-    const initHw     = roadHalfW(4);
-    const initOrthoW = initHw + 4;          // road half-width + side margin
-    const initOrthoH = initOrthoW / aspect;
+    // ── Road camera ──────────────────────────────────────────────────────────
+    this.camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 200);
+    this.camera.position.set(0, 4.0, 7.5);
+    this.camera.lookAt(0, 0.6, -3);
+    this.camera.layers.set(0);
 
-    this.camera = new THREE.OrthographicCamera(
-      -initOrthoW,  initOrthoW,
-       initOrthoH, -initOrthoH,
-      0.1, 200,
-    );
-    this.camera.position.set(0, 20, ROAD_CTR_Z);
-    this.camera.up.set(0, 0, -1);
-    this.camera.lookAt(0, 0, ROAD_CTR_Z);
-    this.camera.layers.enableAll();   // sees road (0), bombs (1), HP sprites (2)
-
-    // ── HP sprite camera — same as main (layer 2 only) ───────────────────────
-    this.hpCamera = this.camera.clone();
+    // ── HP sprite camera ─────────────────────────────────────────────────────
+    this.hpCamera = new THREE.PerspectiveCamera(45, width / height, 0.1, 200);
+    this.hpCamera.position.set(0, 4.0, 7.5);
+    this.hpCamera.lookAt(0, 0.6, -3);
     this.hpCamera.layers.set(2);
 
-    // ── Shooter camera kept for API compat but no longer used in renderDual ──
+    // ── Shooter viewport — top-down orthographic, adapts to lane count ────────
     const hw = roadHalfW(4);
     this.shooterCamera = new THREE.OrthographicCamera(-hw, hw, 2.0, -1.8, -50, 50);
     this.shooterCamera.position.set(0, 4.5, 0);
@@ -184,20 +169,6 @@ export class Scene3D {
     this.shooterCamera.left  = -hw;
     this.shooterCamera.right =  hw;
     this.shooterCamera.updateProjectionMatrix();
-
-    // Fit main orthographic camera to new road width.
-    const orthoW = roadHalfW(n) + 4;
-    const orthoH = orthoW / (this.width / this.height);
-    this.camera.left   = -orthoW;
-    this.camera.right  =  orthoW;
-    this.camera.top    =  orthoH;
-    this.camera.bottom = -orthoH;
-    this.camera.updateProjectionMatrix();
-    this.hpCamera.left   = -orthoW;
-    this.hpCamera.right  =  orthoW;
-    this.hpCamera.top    =  orthoH;
-    this.hpCamera.bottom = -orthoH;
-    this.hpCamera.updateProjectionMatrix();
   }
 
   // ── Renderer wrappers ─────────────────────────────────────────────────────
@@ -208,23 +179,39 @@ export class Scene3D {
     this.renderer.setSize(width, height, false);
     this.composer.setSize(width, height);
     this._bloomPass.resolution.set(width, height);
-
-    // Recompute orthographic bounds to maintain the same world-space coverage.
-    const orthoW = this.camera.right;   // right == initOrthoW, unchanged by resize
-    const orthoH = orthoW / (width / height);
-    this.camera.top    =  orthoH;
-    this.camera.bottom = -orthoH;
+    this.camera.aspect   = width / height;
     this.camera.updateProjectionMatrix();
-    this.hpCamera.top    =  orthoH;
-    this.hpCamera.bottom = -orthoH;
+    this.hpCamera.aspect = width / height;
     this.hpCamera.updateProjectionMatrix();
   }
 
   render() { this.composer.render(); }
 
   renderDual() {
-    // Top-down camera sees all layers — single composite render covers everything.
-    this.composer.render();
+    const { renderer, composer } = this;
+    const w = this.width;
+    const h = this.height;
+    const SHOOTER_GL_Y = h - 700;
+    const SHOOTER_GL_H = 180;
+
+    renderer.autoClear = false;
+
+    renderer.setViewport(0, 0, w, h);
+    renderer.clear(true, true, true);
+    composer.render();
+
+    renderer.clearDepth();
+    renderer.render(this.scene, this.hpCamera);
+
+    renderer.clearDepth();
+    renderer.setViewport(0, SHOOTER_GL_Y, w, SHOOTER_GL_H);
+    renderer.setScissor(0, SHOOTER_GL_Y, w, SHOOTER_GL_H);
+    renderer.setScissorTest(true);
+    renderer.render(this.scene, this.shooterCamera);
+    renderer.setScissorTest(false);
+    renderer.setViewport(0, 0, w, h);
+
+    renderer.autoClear = true;
   }
 
   destroy() {

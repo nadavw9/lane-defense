@@ -58,7 +58,7 @@ export const THEMES = {
   },
   // Night Highway (World 3, L31+): near-black sky, deep navy horizon, white-blue
   // headlight scatter fog. Low ambient — car emissives must carry the scene.
-  // emissiveBoost is a legacy 3D theme knob (car glow in dark conditions).
+  // emissiveBoost is read by Car3D to increase car glow in dark conditions.
   nightHighway: {
     sky:    { zenith: 0x050a18, mid: 0x0a1530, horizon: 0x0a1a3a, glow: 0x1a2a5a },
     hemi:   { sky: 0x0a1a3a, ground: 0x050f1a, intensity: 0.40 },

@@ -42,14 +42,11 @@ const COMBO_PULLBACK = [
 export class CameraFX {
   constructor(camera) {
     this._camera = camera;
-    this._orthographic = camera.isOrthographicCamera;
 
-    if (!this._orthographic) {
-      camera.position.copy(CAM_POS);
-      camera.lookAt(CAM_TARGET);
-      camera.fov = CAM_FOV;
-      camera.updateProjectionMatrix();
-    }
+    camera.position.copy(CAM_POS);
+    camera.lookAt(CAM_TARGET);
+    camera.fov = CAM_FOV;
+    camera.updateProjectionMatrix();
 
     this._shakeMag  = 0;
     this._shakeTime = 0;
@@ -104,7 +101,6 @@ export class CameraFX {
 
   /** Call every frame. Returns true if any animation is still running. */
   update(dt) {
-    if (this._orthographic) return false;
     const cam = this._camera;
     let shakeX = 0, shakeY = 0;
 
@@ -181,7 +177,6 @@ export class CameraFX {
 
   /** Sweep camera from a high steep angle to the resting pose over 0.6 s. */
   startLevelIntro() {
-    if (this._orthographic) return;
     this._introActive = true;
     this._introT      = 0;
     this._camera.position.copy(INTRO_FROM_POS);
@@ -191,7 +186,6 @@ export class CameraFX {
 
   /** Reset to resting pose (call when leaving gameplay). */
   reset() {
-    if (this._orthographic) return;
     this._shakeTime        = 0;
     this._breachT          = -1;
     this._currentPullbackZ = 0;

@@ -15,7 +15,7 @@ const MOTE_DRIFT  = 0.04;      // slow upward float speed
 const MOTE_SWAY   = 0.012;     // gentle XZ sway amplitude
 
 const BIRD_COUNT  = 6;
-const RAY_COUNT   = 0;
+const RAY_COUNT   = 3;
 
 export class Ambient3D {
   constructor(scene) {

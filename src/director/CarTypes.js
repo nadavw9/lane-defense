@@ -1,8 +1,9 @@
 // CarTypes — HP values for each car type.
 // CarDirector uses pickCarType() to assign a type to each normal car spawn.
-// Car2D maps each type to a top-down sprite (TYPE_SPRITE in Car2D.js):
-//   small → bike, big → sedan, jeep → van,
-//   truck → truck, bigrig → bigrig, tank → tank
+// Car3D uses TYPE_SCALES (in Car3D.js) for visual sizing; the GLB asset for
+// each type is mapped in AssetLoader.CAR_ASSET_MAP:
+//   small → bike.glb, big → sedan.glb, jeep → van.glb,
+//   truck → truck.glb, bigrig → bigrig.glb, tank → procedural (no GLB)
 
 export const CAR_TYPES = {
   small:  { hp:  2, label: 'Motorbike' },

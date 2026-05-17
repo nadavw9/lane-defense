@@ -96,12 +96,13 @@ export class FiringLineRenderer {
   // Call every render frame.
   update(dt) {
     for (let i = 0; i < LANE_COUNT; i++) {
-      const g = this._bgGraphics[i];
-      g.clear();
-      this._sprites[i].visible = false;
+      const g    = this._bgGraphics[i];
 
+      // Inactive lanes: clear and hide — don't draw empty slot circles.
       if (i >= this._activeLaneCount) {
-        this._slotWasActive[i] = false;
+        g.clear();
+        this._sprites[i].visible = false;
+        this._slotWasActive[i]   = false;
         continue;
       }
 
@@ -109,10 +110,40 @@ export class FiringLineRenderer {
       const cx   = (i + 0.5) * ROAD_BOTTOM_W / LANE_COUNT;
       const cy   = ROAD_BOTTOM_Y;
 
+      g.clear();
+
       if (slot) {
+        const color = COLOR_MAP[slot.shooter.color] ?? 0x888888;
+
+        // Outer glow ring
+        g.circle(cx, cy, SLOT_R + 5);
+        g.fill({ color, alpha: 0.18 });
+
+        // Filled slot disc
+        g.circle(cx, cy, SLOT_R);
+        g.fill({ color, alpha: 0.65 });
+        g.circle(cx, cy, SLOT_R);
+        g.stroke({ color: 0xffffff, width: 1.5, alpha: 0.55 });
+
+        // Fire sprite
+        const sp  = this._sprites[i];
+        const tex = Assets.get(fireUrl(slot.shooter.color));
+        if (tex) {
+          if (sp.texture !== tex) {
+            sp.texture = tex;
+            const max = Math.max(tex.width, tex.height);
+            sp.scale.set(FIRE_DIAM / max);
+          }
+          sp.x       = cx;
+          sp.y       = cy;
+          sp.visible = true;
+        } else {
+          sp.visible = false;
+        }
+
+        // Spawn exactly one projectile the frame this slot first becomes active.
         if (!this._slotWasActive[i]) {
-          const color = COLOR_MAP[slot.shooter.color] ?? 0x888888;
-          const proj  = new Graphics();
+          const proj = new Graphics();
           proj.circle(0, 0, PROJ_R);
           proj.fill({ color, alpha: 0.90 });
           proj.x = cx;
@@ -122,7 +153,22 @@ export class FiringLineRenderer {
         }
         this._slotWasActive[i] = true;
       } else {
-        this._slotWasActive[i] = false;
+        // Empty slot
+        this._sprites[i].visible  = false;
+        this._slotWasActive[i]    = false;
+
+        g.circle(cx, cy, SLOT_R);
+        g.fill({ color: 0x0d0d1a, alpha: 0.55 });
+
+        // Hover highlight from DragDrop
+        if (this._hoverIdx === i) {
+          const hColor = this._hoverMatch ? 0x44ff88 : 0xff4444;
+          g.circle(cx, cy, SLOT_R);
+          g.stroke({ color: hColor, width: 2.5, alpha: 0.75 });
+        } else {
+          g.circle(cx, cy, SLOT_R);
+          g.stroke({ color: 0x334455, width: 1.5, alpha: 0.40 });
+        }
       }
     }
 

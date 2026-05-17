@@ -34,7 +34,6 @@ const LANE_GLOW_WIDTH   = 3.75;
 
 const ROAD_LENGTH   = ROAD_Z_NEAR - ROAD_Z_FAR;
 const ROAD_CENTER_Z = (ROAD_Z_FAR + ROAD_Z_NEAR) / 2;
-const NEAR_EXT_LEN  = 24;
 
 
 export class Road3D {
@@ -141,7 +140,7 @@ export class Road3D {
         (0.5 + 0.5 * Math.sin(t * (Math.PI * 2 / BREACH_PULSE_PERIOD)));
       this._breachMat.emissiveIntensity = p;
       if (this._breachGlowMat) {
-        this._breachGlowMat.opacity = 0;
+        this._breachGlowMat.opacity = 0.10 + 0.12 * (p / BREACH_EMISSIVE_HI);
       }
     }
 
@@ -161,7 +160,7 @@ export class Road3D {
       const pos = trail.geo.attributes.position;
       for (let i = 0; i < pos.count; i++) {
         let z = pos.getZ(i) + TRAFFIC_DOT_SPEED * dt;
-        if (z > ROAD_Z_NEAR - 4) z = ROAD_Z_FAR;
+        if (z > ROAD_Z_NEAR) z = ROAD_Z_FAR;
         pos.setZ(i, z);
       }
       pos.needsUpdate = true;
@@ -359,6 +358,7 @@ export class Road3D {
     // Near-ground extension — covers the frustum area in front of the breach
     // line (Z=0 to Z≈22) that the perspective camera sees below the road.
     // Without this, Three.js clears to black there, creating a black void.
+    const NEAR_EXT_LEN = 24;
     const nearExtMat = new THREE.MeshStandardMaterial({
       color: COL_ASPHALT_DARK, roughness: 0.88, metalness: 0.02, envMapIntensity: 0.1,
     });
@@ -407,10 +407,10 @@ export class Road3D {
       const bx = side * (hw + 0.55);
 
       const body = new THREE.Mesh(
-        new THREE.BoxGeometry(0.7, 0.45, ROAD_LENGTH + NEAR_EXT_LEN),
+        new THREE.BoxGeometry(0.7, 0.45, ROAD_LENGTH),
         new THREE.MeshStandardMaterial({ color: COL_BARRIER, roughness: 0.85, metalness: 0.05 }),
       );
-      body.position.set(bx, 0.22, ROAD_Z_FAR + (ROAD_LENGTH + NEAR_EXT_LEN) / 2);
+      body.position.set(bx, 0.22, ROAD_CENTER_Z);
       this._group.add(body);
 
       const reflMat = new THREE.MeshBasicMaterial({ color: COL_REFLECTOR });
@@ -443,7 +443,7 @@ export class Road3D {
     this._group.add(line);
 
     this._breachGlowMat = new THREE.SpriteMaterial({
-      color: COL_BREACH_LINE, transparent: true, opacity: 0, sizeAttenuation: true,
+      color: COL_BREACH_LINE, transparent: true, opacity: 0.18, sizeAttenuation: true,
     });
     this._breachGlow = new THREE.Sprite(this._breachGlowMat);
     this._breachGlow.scale.set(hw * 2.2, 1.4, 1);
@@ -492,7 +492,7 @@ export class Road3D {
       geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
       geo.setAttribute('color',    new THREE.BufferAttribute(colors,    3));
       const mat = new THREE.PointsMaterial({
-        size: 0.14, vertexColors: true, transparent: true, opacity: 0.40, sizeAttenuation: true,
+        size: 0.14, vertexColors: true, transparent: true, opacity: 0.72, sizeAttenuation: true,
       });
       this._group.add(new THREE.Points(geo, mat));
       this._trafficTrails.push({ geo, mat });

@@ -1,176 +1,168 @@
 # Lane Defense — Session Handoff
 
-**Session Date:** [Current]  
-**Status:** Ready for next session  
+_Last updated after the top-down-migration revert._
 
----
+## Current State
+- **Last good commit: `4278d9f`** — "revert top-down migration — restart
+  visual approach carefully" (HEAD on `master`, pushed). _(This is the
+  finalized hash of the revert; an earlier intermediate hash `cafa98b`
+  was superseded — always trust `git log --oneline -1`.)_
+- **478 tests passing** (`npm test`), 5 todo, 2 skipped — 16 test files.
+- **Perspective 3D camera — restored and confirmed working** (verified
+  via Playwright screenshot: receding road + horizon/sky, shaded GLB
+  cars, green scenery, 3D bombs with prominent front bomb + queue).
+- All gameplay mechanics intact: streak shot, wrong-color no-advance,
+  row-bomb color-matching, 40 levels, balance sim. These pre-date the
+  revert boundary (`2feb82a`) and were never touched.
+- Kept dev tooling: `scripts/kill-browser.{bat,sh}` + `npm run
+  browser:kill` (clears stuck Playwright Chrome / SingletonLock).
+  ⚠️ Only run it BEFORE a Playwright session — running it mid-session
+  kills the MCP's own browser.
 
-## Current Phase
+## What Was Just Tried and Failed
+Top-down camera migration (commits `d87a2ff`→`2cbb4e5`) — **REVERTED**
+back to `2feb82a` (last good perspective-renderer state).
 
-**Release Build & Context Handoff**
+Root cause: too many systems changed simultaneously with no visual
+checkpoint between steps. Generated sprites were thin/tiny within a
+256² canvas of mostly transparent padding; the 1-lane level rendered a
+full-width 390px road so a single car looked lost in a void; PixiJS
+Road2D/Car2D occluded Three.js particles; bombs (still Three.js
+Shooter3D) became unaligned specks. Net: layout collapsed.
 
-This session focused on:
-1. Finalizing release build configuration (signed APK ready for Play Store)
-2. Synchronizing CLAUDE.md with actual codebase state
-3. Establishing automated context-handoff workflow
+**DO NOT attempt the top-down migration again in a single large prompt.**
+If revisiting: one system at a time, screenshot after each step, user
+approval before proceeding.
 
-No new features shipped this session. All work was infrastructure & documentation.
+Tooling note: the Playwright MCP browser in this environment is
+unstable — it closes after ~4–5 calls and deadlocks on relaunch
+(`SingletonLock`). Plan verification around that: minimal calls,
+combine PLAY→L1→START into one short (<1s) evaluate, screenshot
+immediately, recover with `browser:kill` only between sessions.
 
----
+## Top Priority for Next Session
+The game still needs a proper top-down view, BUT approached carefully:
 
-## Commits This Session
+- **Step 1 — Camera angle ONLY.** Change the perspective camera to a
+  top-down orthographic camera in `Scene3D.js`. No sprite changes, no
+  road changes, no particle changes. Screenshot. If the existing GLB
+  cars read acceptably from above → proceed. If not → only adjust the
+  camera angle/height until they do.
+- **Step 2 — Sprites** (only after Step 1 is user-approved). Prefer
+  real artist-drawn 256×256 top-down PNGs over procedurally generated
+  shapes (the generator route failed once).
+- **Step 3 — Road** (only after Step 2 is user-approved).
+- **Never combine steps.** Commit + screenshot + approval between each.
 
-```
-0992259 release build config -- signed APK ready for Play Store
-28e4380 add sync-claude-md script + fix missing auth header in context-handoff
-5e5bcde rewrite CLAUDE.md -- accurate current state, remove all stale references
-```
+## Key Design Documents (read before ANY design work)
+- `docs/VISION.md` — LOCKED design contract. Cannot be changed to fit
+  code; code changes to fit it.
+- `docs/GAME_DESIGN.md` — level master table, difficulty rules,
+  known bugs.
+- `docs/balance-report-realistic.md` — difficulty ground truth
+  (3 skill profiles: beginner/average/skilled). Regenerate via
+  `node tools/balance-sim.js`.
 
-**What changed:**
-- Build config now generates signed APK with keystore (added to `.gitignore`)
-- `sync-claude-md` bash script auto-updates CLAUDE.md from recent git history
-- CLAUDE.md fully resynced — removed all stale references, added correct tech stack & architecture
+## Architecture
+- **Director / Renderer separation** — `src/director/` is the headless
+  brain; never imports pixi/three; never touched by renderers.
+  Renderers read GameState, never mutate it. Enforced by convention +
+  the 455-test director suite.
+- **Dual canvas:** PixiJS canvas (z=1, screens/HUD/2D) overlays the
+  Three.js canvas (z=0, gameplay viewport). Transparent PixiJS bg, no
+  shared WebGL context.
+- **Two Three.js cameras:** perspective camera (road/cars/env,
+  pos ~(0,4,7.5) lookAt (0,0.6,-3)) and an orthographic camera on
+  layer 1 (shooter/bomb columns). `CameraFX.js` may override the
+  perspective resting pose.
+- Car rendering: `src/renderer3d/Car3D.js` (GLB models via
+  `AssetLoader.js` → `CAR_ASSET_MAP`: small→bike, big→sedan,
+  jeep→van, truck→truck, bigrig→bigrig; tank is procedural geometry).
+- Shooter rendering: `src/renderer3d/Shooter3D.js` (orthographic,
+  layer 1). Road: `src/renderer3d/Road3D.js`. Plus Skybox3D,
+  Environment3D, Ambient3D, ScorchMarks3D, LaneFlash3D, PostFX3D.
+- Particles: `src/renderer3d/Particles3D.js` (Three.js) +
+  `src/renderer/ParticleSystem.js` (PixiJS, particleLayer).
+- `src/renderer/PopupQueue.js` — ALL popups/banners/toasts route here
+  (priority: CRITICAL > TUTORIAL > CAR_TYPE > ACHIEVEMENT > COMBO >
+  AMBIENT; 0.4s debounce; AMBIENT can stack 3, others 1).
+- `src/renderer/PositionRegistry.js` — single source of truth for
+  lane/column screen positions. `setActiveCounts({laneCount,colCount})`
+  called from `GameApp._startLevel()` BEFORE renderers init. All
+  hit-testing/overlay math must use it.
+- `src/renderer/LayerManager.js` — fixed PixiJS z-order: background,
+  lane, car, shooterColumn, activeShooter, particle, glow, hud, drag.
+- Legacy `LaneRenderer.js` / `ShooterRenderer.js` are hidden during
+  gameplay but their exported constants are still used for hit-testing.
 
----
+## Gameplay Mechanics (all working, do NOT touch)
+- Turn-based grid: one row advances per correct (color-matched) shot;
+  new cars spawn at row 0. Loss when a car passes MAX_ROW (breach).
+- Wrong color: no damage AND no advance (shipped — never revert).
+- Bomb booster: hits the entire row, color-matching cars only
+  (shipped — never revert). Earned every 10 kills, max 3 held; 2s
+  concussion freeze on detonation.
+- Streak Shot: 3 consecutive correct hits → next shot is a
+  double-damage power shot + slows the hit car for 1 shot.
+  - `streakCount` / `streakActive` in GameState; logic in GameLoop.
+  - Bomb heat glow tiers in Shooter3D: yellow → orange → red.
+  - Car3D shows squash+stretch + soot overlay on a power hit.
+  - Discovered organically at L17 (BigRig-heavy band), never via a
+    tutorial card.
+- Danger Aura: red pulse on cars within ~2 rows of the breach gate.
+- FREEZE booster: skips grid advance for the next 3 shots.
+- Rescue: rewarded ad → add time + `shuffleForRescue()` (force ≥2
+  column tops to match front-car colors).
+- Win stars: 3★ no-rescue & maxCarPos<60; 2★ no-rescue & <80; else 1★.
+- Car type intro cards (once per type, localStorage-tracked). Verified
+  `LEVEL_INTRO_TYPE` in `GameApp.js`:
+  **L1 small(bike) · L2 big(sedan) · L5 jeep(van) · L9 truck ·
+  L13 bigrig · L15 tank.** _(Note: bigrig is **L13**, not L11.)_
+  HP — small 2, big 4, jeep 5, truck 6, bigrig 10, tank 20.
+  Fairness rules FR-1..FR-5 enforced in the Director (viability guard,
+  ≤3/4 same color, avg damage ≥50% avg HP, tank HP cap, ≥2 colors).
 
-## Open Issues (Priority Order)
+## What Is NOT Done (production gates)
+- Top-down visual overhaul (planned, failed once — careful stepwise
+  retry per the plan above).
+- Artist-drawn top-down sprites (256×256 PNGs designed for a top-down
+  view — needed before any sprite step; generator route failed).
+- AdMob real IDs — Google TEST IDs are live in `src/ads/AdManager.js`
+  (`REWARDED_AD_ID`/`INTERSTITIAL_AD_ID` =
+  `ca-app-pub-3940256099942544/...`; `initializeForTesting: true`).
+  Replace both with production unit IDs before release. Web fallback
+  `_showPlatformAd()` simulates a 5s ad — replace with real SDK call.
+- Signed release APK. **Keystore exists and MUST NOT be lost:**
+  `C:\Users\dalit\lane-defense\android\lane-defense-release.keystore`
+  (gitignored; password `lanedefense2024`). Losing it = cannot ever
+  update the app on Play Store. Back it up off-machine.
+- Play Store listing (screenshots, feature graphic, privacy policy,
+  Data Safety form, closed test ≥12 testers × 14 days).
 
-### 🔴 High
-
-1. **AdMob integration incomplete**
-   - `AdManager.js` wraps `@capacitor-community/admob@^8.0.0` but untested on real device
-   - Banner & interstitial ads need QA on Android
-   - Location: `src/ads/AdManager.js`
-   - **Blocker for Play Store submission**
-
-2. **Analytics data validation**
-   - Firebase writes to `lanedefense-analytics-default-rtdb` but no schema validation
-   - Need audit of `src/analytics/` to ensure GDPR compliance (especially for analytics opt-out)
-   - **Blocker for app store listing in EU**
-
-### 🟡 Medium
-
-3. **Three.js dual-camera sync edge cases**
-   - Perspective camera (road/cars) at `(0, 9, 16)`, orthographic (bombs) on layer 1
-   - No known issues but bomb placement hit-testing relies on `PositionRegistry` math — vulnerable to camera changes
-   - **Preventative:** Unit tests for `posToZ()`, `getColumnScreenBounds()` math
-
-4. **Playwright E2E coverage gaps**
-   - Only level progression tested; bomb drag-drop, damage resolution, lane breach not covered
-   - **Risk:** Regression in core combat loop could ship undetected
-   - Location: `tests/e2e/`
-
-5. **Mobile responsiveness at extreme aspect ratios**
-   - PixiJS HUD tested on 16:9 (standard) but not on foldable/tablet layouts
-   - `PositionRegistry` may need dynamic bounds recalc
-
-### 🟢 Low
-
-6. **Audio procedural generation latency**
-   - Web Audio setup on first play can cause frame stutter (< 100ms, not critical)
-   - Document in README or defer initialization
-
-7. **Legacy PixiJS renderers still exported**
-   - `LaneRenderer.js`, `ShooterRenderer.js` hidden during gameplay but code lives on
-   - Safe to leave; consider deprecation comment for future cleanup
-
----
-
-## Architecture Decisions & Patterns
-
-### 1. Position Registry as Single Source of Truth
-`src/renderer/PositionRegistry.js` gates all lane/column screen math. Called from `GameApp._startLevel()` to bind `{laneCount, colCount}`. **This pattern is solid — no changes needed.**
-
-### 2. Director ↔ Renderer Boundary
-- Director (`src/director/`) is pure state machine — zero rendering imports
-- Renderer (`src/renderer/` + `src/renderer3d/`) reads GameState, never mutates it
-- **Enforced by linter rules.** Working well.
-
-### 3. Dual-Canvas Stack
-- Three.js (z-behind, WebGL)
-- PixiJS (z-front, WebGL) 
-- No shared context; clean separation. **No issues found.**
-
-### 4. Turn-Based Mechanic (Recent)
-- Survival mode removed (commit `cc90487`)
-- Each wave queued at level start; GameLoop advances lanes after bomb resolves
-- **Simplifies AI, improves UX.** Stable.
-
----
-
-## Exact Next Steps
-
-### Session N+1 Priorities
-
-1. **[CRITICAL] Device QA on AdMob**
-   - Test banner & interstitial on physical Android device (API 28+)
-   - Validate no crashes, correct revenue tracking
-   - Ensure app can exit after ad without freeze
-   - Location: `src/ads/AdManager.js`, entry point: `GameApp.js`
-
-2. **[CRITICAL] GDPR audit**
-   - Review `src/analytics/` for user consent flow
-   - Ensure Firebase opt-out is honored
-   - Add privacy policy link to settings screen
-
-3. **[HIGH] E2E test expansion**
-   - Add bomb drag-drop scenario (start level, drag bomb to lane, verify hit)
-   - Add lane breach scenario (queue overflow, verify game over)
-   - Run suite before next Play Store build
-   - Location: `tests/e2e/`
-
-4. **[MEDIUM] Camera math test suite**
-   - Unit tests for `posToZ(p)` formula validation
-   - Test `PositionRegistry` bounds at 3/4/5 lane configs
-   - Location: Create `tests/unit/PositionRegistry.test.js`
-
-5. **[MEDIUM] Responsive design check**
-   - Test on tablet (iPad 12.9" or equivalent)
-   - Verify HUD elements scale correctly
-   - Check bomb-column layout doesn't overlap lanes
-
-6. **[LOW] Deprecation comments**
-   - Mark `LaneRenderer.js` and `ShooterRenderer.js` as "Legacy: kept for const exports"
-   - Document when safe to remove (post v1.0)
-
----
-
-## Bugs Discovered, Not Yet Fixed
-
-**None critical.**
-
-Minor observation: Audio procedural generation can spike CPU on first play (Web Audio synthesis). Not a blocker — document in README under "Known Limitations" and defer if user reports battery drain.
-
----
+## Session Rules
+- Read `docs/VISION.md` in full before any design or level work.
+- Run `node tools/balance-sim.js` before committing level changes;
+  confirm win rate is in the target band for that level's tier.
+- One visual change at a time; screenshot after each; user approval
+  before proceeding. Never combine camera + sprites + road.
+- `npm test` must be green after every commit.
+- Commit messages: no emojis; end with the Co-Authored-By trailer.
+- Push to `master` → GitHub Action runs tests → deploys to GH Pages.
+- Don't re-add HP bars to cars (removed — damage via emissive glow).
+  Don't re-add a start gate above the road. Don't add a
+  survival/endless mode (incompatible with the turn-based grid).
 
 ## Useful Commands
-
 ```bash
-# Auto-update CLAUDE.md from git history
-npm run sync-claude-md
-
-# Run full test suite
-npm run test
-
-# Run E2E suite
-npm run test:e2e
-
-# Build signed APK (requires keystore)
-npm run build:android
-
-# Live dev server
-npm run dev
+npm run dev            # Vite dev server (--host for LAN/phone)
+npm test               # full Vitest suite (must be green)
+npm run build          # production build → dist/
+npm run browser:kill   # clear stuck Playwright Chrome (BEFORE a session only)
+node tools/balance-sim.js   # regenerate difficulty report
 ```
 
----
-
 ## Context Files
-
-- **CLAUDE.md** — Full project context (auto-loaded each session)
-- **This file** — Handoff summary (this session's delta + next steps)
-- **Repo:** https://github.com/nadavw9/lane-defense
-- **Live:** https://nadavw9.github.io/lane-defense/
-
----
-
-**Ready to hand off. No blockers for resumption.**
+- `CLAUDE.md` — full project context (auto-loaded each session).
+- This file — current-state handoff + careful retry plan.
+- Repo: https://github.com/nadavw9/lane-defense ·
+  Live: https://nadavw9.github.io/lane-defense/

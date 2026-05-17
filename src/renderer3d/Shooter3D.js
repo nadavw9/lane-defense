@@ -9,23 +9,22 @@
 //   slot 0 (front/active) at top, slot 3 (deep queue) at bottom.
 
 import * as THREE from 'three';
-import { laneToX } from './Scene3D.js';
+import { laneToX, queueZ, CELL } from './Scene3D.js';
 
 // ── Layout ─────────────────────────────────────────────────────────────────────
-const SLOT_Z     = [-1.5, -0.5, 0.5, 1.4];
-const LANE_COUNT = 4;
-
-// ── Per-slot depth parameters ──────────────────────────────────────────────────
-// emissive is high so candy colors read vividly regardless of scene lighting.
-const SLOT_SCALE    = [1.18, 0.78, 0.62, 0.48];
-const SLOT_ALPHA    = [1.00, 0.82, 0.68, 0.55];
-const SLOT_EMISSIVE = [0.50, 0.30, 0.18, 0.10];
+const LANE_COUNT  = 4;
+const SLOT_COUNT  = 4;                 // queue depth (matches Scene3D.SLOT_COUNT)
 
 // ── Bomb geometry (group-local coords) ────────────────────────────────────────
-const BOMB_R  = 0.36;
-const BOMB_CX = -0.25;   // slight X offset for asymmetry/artistry
+const BOMB_R      = 0.4 * CELL;        // 1.6 — ~80% cell fill (was magic 0.36)
+const BOMB_CX = 0;       // centered on lane (grid-derived, not eyeballed)
 const BOMB_CY = BOMB_R;  // sphere sits with bottom at y=0
 const BOMB_CZ = 0;
+
+// ── Uniform grid parameters ────────────────────────────────────────────────────
+// all bombs equal — no fake depth fade
+const SLOT_ALPHA_ALL    = 1.0;         // all bombs equal — no fake depth fade
+const SLOT_EMISSIVE_ALL = 0.45;        // single emissive level for every slot
 
 // ── Spark bead ─────────────────────────────────────────────────────────────────
 const SPARK_BEAD_RADIUS   = 0.062;
@@ -131,7 +130,9 @@ export class Shooter3D {
 
     this._slots = [];
     for (let li = 0; li < LANE_COUNT; li++) {
-      this._slots.push(SLOT_Z.map((z, si) => this._createSlot(li, z, si)));
+      this._slots.push(
+        Array.from({ length: SLOT_COUNT }, (_, si) => this._createSlot(li, queueZ(si), si)),
+      );
     }
 
     this._activeColCount = LANE_COUNT;
@@ -153,9 +154,9 @@ export class Shooter3D {
       const bead = new THREE.Mesh(
         new THREE.SphereGeometry(SPARK_BEAD_RADIUS, 8, 8), mat,
       );
-      bead.position.set(laneToX(li) + BOMB_CX + 0.15, BOMB_CY + 0.38, SLOT_Z[0] - 0.30);
+      bead.position.set(laneToX(li) + BOMB_CX + 0.15, BOMB_CY + 0.38, queueZ(0) - 0.30);
       bead.visible = false;
-      bead.layers.set(1);
+      bead.layers.set(0);
       this._scene.add(bead);
       this._sparkBeads.push({ bead, mat });
     }
@@ -207,7 +208,7 @@ export class Shooter3D {
         continue;
       }
 
-      for (let si = 0; si < SLOT_Z.length; si++) {
+      for (let si = 0; si < SLOT_COUNT; si++) {
         const slot    = slots[si];
         const shooter = col.shooters?.[si] ?? null;
 
@@ -234,10 +235,10 @@ export class Shooter3D {
           if (slot._flashT >= FLASH_DUR) {
             slot._flashing = false;
             slot.sphereMat.emissive.setHex(slot.lastColor > 0 ? slot.lastColor : 0x888888);
-            slot.sphereMat.emissiveIntensity = SLOT_EMISSIVE[0];
+            slot.sphereMat.emissiveIntensity = SLOT_EMISSIVE_ALL;
           } else {
             const prog = slot._flashT / FLASH_DUR;
-            slot.sphereMat.emissiveIntensity = 1.0 - (1.0 - SLOT_EMISSIVE[0]) * easeOut3(prog);
+            slot.sphereMat.emissiveIntensity = 1.0 - (1.0 - SLOT_EMISSIVE_ALL) * easeOut3(prog);
             const t  = easeOut3(prog);
             const fc = new THREE.Color(0xffffff).lerp(new THREE.Color(slot.lastColor), t);
             slot.sphereMat.emissive.copy(fc);
@@ -272,7 +273,7 @@ export class Shooter3D {
           }
 
           // Emissive intensity: base + heat additive, with 2Hz pulse when active.
-          let targetIntensity = SLOT_EMISSIVE[0] + HEAT_ADD_INTENSITY[tier];
+          let targetIntensity = SLOT_EMISSIVE_ALL + HEAT_ADD_INTENSITY[tier];
           if (this._streakActive) {
             targetIntensity += 0.10 * Math.abs(Math.sin(2 * Math.PI * 2 * elapsed));
           }
@@ -338,9 +339,9 @@ export class Shooter3D {
   // ── Private ───────────────────────────────────────────────────────────────────
 
   _createSlot(laneIdx, worldZ, slotIdx) {
-    const alpha    = SLOT_ALPHA[slotIdx];
-    const emissive = SLOT_EMISSIVE[slotIdx];
-    const scale    = SLOT_SCALE[slotIdx];
+    const alpha    = SLOT_ALPHA_ALL;
+    const emissive = SLOT_EMISSIVE_ALL;
+    const scale    = 1.0;
     const group    = new THREE.Group();
 
     // ── Candy sphere — color-dominant body ───────────────────────────────────
@@ -397,13 +398,13 @@ export class Shooter3D {
       map: badgeTex, transparent: true, opacity: alpha, depthTest: false,
     });
     const badgeMesh = new THREE.Sprite(badgeMat);
-    const siFactor  = slotIdx === 0 ? 1.0 : 0.7;
+    const siFactor  = 1.0;
     badgeMesh.scale.set(siFactor * BADGE_W / scale, siFactor * BADGE_H / scale, 1);
     badgeMesh.position.set(BOMB_CX, BOMB_CY, BOMB_CZ);
     group.add(badgeMesh);
 
-    // All meshes and sprites render only on the shooter camera (layer 1)
-    group.traverse(obj => { if (obj.isMesh || obj.isSprite) obj.layers.set(1); });
+    // All meshes and sprites render only on the unified top-down camera (layer 0)
+    group.traverse(obj => { if (obj.isMesh || obj.isSprite) obj.layers.set(0); });
 
     group.scale.setScalar(scale);
     group.position.set(laneToX(laneIdx), 0, worldZ);

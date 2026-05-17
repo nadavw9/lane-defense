@@ -33,6 +33,13 @@ export const ROAD_Z_NEAR      =   0;   // gameplay zone near edge (breach line)
 export const ROAD_Z_SPAWN     = -22;   // semantic alias: where cars enter the road
 export const ROAD_Z_VANISHING = -65;   // road surface extends here visually (no gameplay)
 
+// ── Unified grid constants (single source of truth) ───────────────────────────
+export const CELL       = 4.0;            // == lane width (laneToX pitch)
+export const SLOT_COUNT = 4;              // bomb queue depth (== Shooter3D SLOT_Z length)
+
+/** World Z of bomb-queue slot s (0 = front/active, nearest the breach line). */
+export function queueZ(s) { return (s + 1) * CELL; }   // 4, 8, 12, 16
+
 // 4-lane backward-compat constants (static).
 export const ROAD_HALF_W = 8.4;
 export const LANE_X      = [-6, -2, 2, 6];
@@ -105,25 +112,15 @@ export class Scene3D {
     this.scene.environmentIntensity = 0.35;
     pmrem.dispose();
 
-    // ── Road camera ──────────────────────────────────────────────────────────
-    this.camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 200);
-    this.camera.position.set(0, 4.0, 7.5);
-    this.camera.lookAt(0, 0.6, -3);
-    this.camera.layers.set(0);
-
-    // ── HP sprite camera ─────────────────────────────────────────────────────
-    this.hpCamera = new THREE.PerspectiveCamera(45, width / height, 0.1, 200);
-    this.hpCamera.position.set(0, 4.0, 7.5);
-    this.hpCamera.lookAt(0, 0.6, -3);
-    this.hpCamera.layers.set(2);
-
-    // ── Shooter viewport — top-down orthographic, adapts to lane count ────────
-    const hw = roadHalfW(4);
-    this.shooterCamera = new THREE.OrthographicCamera(-hw, hw, 2.0, -1.8, -50, 50);
-    this.shooterCamera.position.set(0, 4.5, 0);
-    this.shooterCamera.up.set(0, 0, -1);
-    this.shooterCamera.lookAt(0, 0, 0);
-    this.shooterCamera.layers.set(1);
+    // ── Single top-down orthographic camera ──────────────────────────────────
+    // Looks straight down -Y. World +X → screen right; world -Z (far/spawn) →
+    // screen up. Frustum is computed from the coordinate system, never typed.
+    this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
+    this.camera.position.set(0, 8, 0);   // ortho: Y only affects clipping
+    this.camera.up.set(0, 0, -1);
+    this.camera.layers.enableAll();        // one camera renders all layers
+    this._activeLaneCount = 4;
+    this._computeFrustum(4);
 
     // ── Dashed column dividers (layer 1 — shooter viewport only) ─────────────
     this._divMeshes    = [];
@@ -164,11 +161,8 @@ export class Scene3D {
     this._divMaterials = [];
     this._buildDividers(n);
 
-    // Fit orthographic shooter camera to new road width.
-    const hw = roadHalfW(n);
-    this.shooterCamera.left  = -hw;
-    this.shooterCamera.right =  hw;
-    this.shooterCamera.updateProjectionMatrix();
+    this._activeLaneCount = n;
+    this._computeFrustum(n);
   }
 
   // ── Renderer wrappers ─────────────────────────────────────────────────────
@@ -179,39 +173,14 @@ export class Scene3D {
     this.renderer.setSize(width, height, false);
     this.composer.setSize(width, height);
     this._bloomPass.resolution.set(width, height);
-    this.camera.aspect   = width / height;
-    this.camera.updateProjectionMatrix();
-    this.hpCamera.aspect = width / height;
-    this.hpCamera.updateProjectionMatrix();
+    this._computeFrustum(this._activeLaneCount);
   }
 
   render() { this.composer.render(); }
 
   renderDual() {
-    const { renderer, composer } = this;
-    const w = this.width;
-    const h = this.height;
-    const SHOOTER_GL_Y = h - 700;
-    const SHOOTER_GL_H = 180;
-
-    renderer.autoClear = false;
-
-    renderer.setViewport(0, 0, w, h);
-    renderer.clear(true, true, true);
-    composer.render();
-
-    renderer.clearDepth();
-    renderer.render(this.scene, this.hpCamera);
-
-    renderer.clearDepth();
-    renderer.setViewport(0, SHOOTER_GL_Y, w, SHOOTER_GL_H);
-    renderer.setScissor(0, SHOOTER_GL_Y, w, SHOOTER_GL_H);
-    renderer.setScissorTest(true);
-    renderer.render(this.scene, this.shooterCamera);
-    renderer.setScissorTest(false);
-    renderer.setViewport(0, 0, w, h);
-
-    renderer.autoClear = true;
+    // Single ortho camera, single pass. (Name kept for call-site compat.)
+    this.composer.render();
   }
 
   destroy() {
@@ -227,6 +196,40 @@ export class Scene3D {
   getBloomStrength()  { return this._bloomPass.strength; }
 
   // ── Private ───────────────────────────────────────────────────────────────
+
+  /** Derive ortho frustum from world rect + canvas aspect (symmetric letterbox). */
+  _computeFrustum(n) {
+    const halfX  = roadHalfW(n);                       // lane mapping
+    const zFar   = ROAD_Z_FAR;                         // -22 (spawn)
+    const zNear  = queueZ(SLOT_COUNT - 1);             // 16  (queue bottom)
+    const zSpan  = zNear - zFar;                        // 38
+    const zCtr   = (zFar + zNear) / 2;                  // -3
+    const worldAspect  = (2 * halfX) / zSpan;
+    const canvasAspect = this.width / this.height;
+
+    let fHalfX, fHalfZ;
+    if (worldAspect > canvasAspect) {                   // X limiting → expand Z
+      fHalfX = halfX;
+      fHalfZ = halfX / canvasAspect;
+    } else {                                            // Z limiting → expand X
+      fHalfZ = zSpan / 2;
+      fHalfX = (zSpan / 2) * canvasAspect;
+    }
+    const cam = this.camera;
+    cam.left   = -fHalfX; cam.right = fHalfX;
+    cam.top    =  fHalfZ; cam.bottom = -fHalfZ;
+    // Orthographic Y affects ONLY fog distance + clipping, never projected
+    // size. It must sit ABOVE the tallest scene object (cars/boss ≈ 3) and
+    // BELOW the minimum theme fog-near (20, misty/autumn) so colours stay
+    // vivid in every theme. Derived bound — not an eyeballed aesthetic value.
+    const camY = 8;
+    cam.position.set(0, camY, zCtr);
+    cam.lookAt(0, 0, zCtr);
+    cam.up.set(0, 0, -1);
+    cam.near = 0.1;
+    cam.far  = camY + 6;          // brackets ground (≈ -0.5) .. tallest object
+    cam.updateProjectionMatrix();
+  }
 
   _buildDividers(n) {
     // Dividers between consecutive lanes — n-1 dividers for n lanes.

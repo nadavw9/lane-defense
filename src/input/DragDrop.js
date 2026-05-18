@@ -104,7 +104,6 @@ export class DragDrop {
   //   onLaneHover(laneIdx, colorHex)  — 3D road lane glow
   //   onLaneClear()                   — remove 3D road lane glow
   // boosterState       — optional
-  // firingLineRenderer — optional
   // firingSlots        — optional live ref to gs.firingSlots
   constructor(
     layerManager,
@@ -116,7 +115,7 @@ export class DragDrop {
     { onDeploy, onDeployFromBench, onBenchStore, onColorMismatch, onBenchFull, onBombPlaced,
       onLaneHover, onLaneClear } = {},
     boosterState = null,
-    firingLineRenderer = null,
+    _unused = null,
     firingSlots = null,
   ) {
     this._dragLayer       = layerManager.get('dragLayer');
@@ -137,8 +136,7 @@ export class DragDrop {
     this._onLaneHover       = onLaneHover        ?? (() => {});
     this._onLaneClear       = onLaneClear        ?? (() => {});
 
-    this._firingLineRenderer = firingLineRenderer;
-    this._firingSlots        = firingSlots;
+    this._firingSlots = firingSlots;
 
     // ── State ──────────────────────────────────────────────────────────────
     this._state         = 'idle';
@@ -371,7 +369,6 @@ export class DragDrop {
         const isOccupied = this._firingSlots?.[laneIdx] != null;
         const isMatch    = this._checkColorMatch(laneIdx);
         this._showLaneHighlight(laneIdx, (isMatch && !isOccupied) ? colorHex : HIGHLIGHT_RED);
-        if (!isOccupied) this._firingLineRenderer?.setHoverSlot(laneIdx, isMatch);
         this._onLaneHover(laneIdx, colorHex);
       }
       return;
@@ -390,7 +387,6 @@ export class DragDrop {
       const isOccupied = this._firingSlots?.[laneIdx] != null;
       const isMatch    = this._checkColorMatch(laneIdx);
       this._showLaneHighlight(laneIdx, (isMatch && !isOccupied) ? colorHex : HIGHLIGHT_RED);
-      if (!isOccupied) this._firingLineRenderer?.setHoverSlot(laneIdx, isMatch);
       this._onLaneHover(laneIdx, colorHex);
     }
   }
@@ -587,7 +583,6 @@ export class DragDrop {
 
   _clearHighlights() {
     for (const h of this._highlights) h.visible = false;
-    this._firingLineRenderer?.clearHover();
     this._onLaneClear();
   }
 

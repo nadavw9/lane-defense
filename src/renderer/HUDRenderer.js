@@ -536,27 +536,7 @@ export class HUDRenderer {
   }
 
   _refreshLaneDots() {
-    const activeLanes = this._gs.activeLaneCount ?? 4;
-    const colW        = this._appW / activeLanes;
-
-    for (let i = 0; i < 4; i++) {
-      const dot = this._laneDots[i];
-      dot.clear();
-      if (i >= activeLanes) continue;
-
-      const lane     = this._gs.lanes?.[i];
-      const frontCar = lane?.cars?.find(c => c.hp > 0);
-      if (!frontCar) continue;
-
-      const hex = CAR_COLOR_MAP[frontCar.color];
-      if (!hex) continue;
-
-      const cx = (i + 0.5) * colW;
-      dot.circle(cx, LANE_DOT_Y, 5);
-      dot.fill({ color: hex, alpha: 0.85 });
-      dot.circle(cx, LANE_DOT_Y, 5);
-      dot.stroke({ color: 0xffffff, width: 0.8, alpha: 0.35 });
-    }
+    for (const dot of this._laneDots) dot.clear();
   }
 
   _refreshComboGlow() {

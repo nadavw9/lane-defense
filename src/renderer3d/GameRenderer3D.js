@@ -97,6 +97,7 @@ export class GameRenderer3D {
     this._environment = new Environment3D(this._scene3d.scene);
     this._environment.setVisible(false);  // grass/flowers not suited for top-down view
     this._ambient     = new Ambient3D(this._scene3d.scene);
+    this._ambient._group.visible = false;  // light rays / birds appear as corner artifacts in top-down view
 
     this._mounted = true;
   }

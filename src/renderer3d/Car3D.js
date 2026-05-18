@@ -1,49 +1,34 @@
-// Car3D — manages all live car meshes in the 3D road scene.
-// small/big/jeep/truck/bigrig → Kenney Car Kit GLB models (CC0).
-// tank → procedural geometry (no Kenney 3D tank exists; the kit is 2D sprites only).
-// HP darkening, damage state, death animation all preserved.
+// Car3D — flat colored billboard planes per car type, shaped via CanvasTexture.
+// Top-down orthographic view. Each type has a distinct silhouette.
+//
+// Type → shape mapping (game type → visual description):
+//   small  → Motorbike: narrow tall rect  (30% × 55%)
+//   big    → Sedan:     wide short rect   (60% × 50%)
+//   jeep   → Van:       wide medium rect  (70% × 52%)
+//   truck  → Truck:     square-ish rect   (65% × 65%)
+//   bigrig → Big Rig:   tall rect + cab line at 35% (65% × 85%)
+//   tank   → Tank:      wide rect + turret circle   (80% × 70%)
+//   boss   → Boss:      largest rect (90% × 90%)
 
 import * as THREE from 'three';
 import { CELL, posToZ, laneToX } from './Scene3D.js';
-import { assetLoader } from './AssetLoader.js';
 
-// Uniform scale applied to each loaded GLB model
-const TYPE_SCALES = {
-  small:  0.70,
-  big:    0.90,
-  jeep:   1.00,
-  truck:  1.10,
-  bigrig: 1.25,
-  boss:   1.35,
-};
+const CVS    = 128;
+const MARGIN = 6;   // canvas px margin so 4px stroke is fully visible
 
-const CAR_Y       = 0;     // GLB wheel bottoms sit at y = 0
-const CAR_Y_TANK  = 0.43;  // procedural tank group Y so tracks touch road
-const HL_Y        = 0.5;   // approximate headlight height for GLB cars
-
-// Coordinate constants for the procedural tank builder (ported from brand-cars.html)
-const SX = 1.74;           // X scale: design space → game width
-const OY = -CAR_Y_TANK;   // Y offset aligns tank geometry to road surface
 const DEATH_DURATION  = 0.30;
 const DEATH_SCALE_MAX = 1.40;
 const DEATH_VY        = 2.5;
 const LERP_DURATION   = 0.45;
 const MAX_TILT_X      = 0.20;
-const TURRET_ROT_SPEED = 0.18;
-const WHEEL_SPIN      = 3.5;    // radians per world unit (approx 1/wheelRadius)
 
-// Power hit (streak shot impact) parameters
-const POWER_FLASH_DUR  = 0.25;  // white→orange flash duration in seconds
-const POWER_SQUASH_DUR = 0.18;  // squash-and-stretch peak in seconds
-const POWER_SCALE_PEAK = 1.12;  // peak scale multiplier at squash
-const _POWER_WHITE     = new THREE.Color(1, 1, 1);
-const _POWER_ORANGE    = new THREE.Color(1, 0.45, 0.10);
+const POWER_FLASH_DUR  = 0.25;
+const POWER_SQUASH_DUR = 0.18;
+const POWER_SCALE_PEAK = 1.12;
 
-const AURA_THRESH = 83;       // car.position % threshold → last ~1 row from breach
-const AURA_RATE   = 1 / 0.3;  // blend speed (full on/off in 0.3 s)
-const AURA_FREQ   = 1.5;      // pulse Hz
-const AURA_AMP    = 0.3;      // pulse amplitude
-const _AURA_RED   = new THREE.Color(1, 0, 0);
+const AURA_RATE = 1 / 0.3;
+const AURA_FREQ = 1.5;
+const AURA_AMP  = 0.3;
 
 const COLOR_HEX = {
   Red:    0xE24B4A,
@@ -55,18 +40,23 @@ const COLOR_HEX = {
   Boss:   0xcc44cc,
 };
 
+// Per-type plane dimensions (fractions of CELL) and canvas draw config.
+// PlaneGeometry = CELL*wF × CELL*hF — plane aspect ratio gives correct proportions.
+// Canvas texture is always 128×128; plane stretching corrects the aspect.
+const TYPE_DIMS = {
+  small:  { wF: 0.30, hF: 0.55, radius: 18, kind: 'rect'   },
+  big:    { wF: 0.60, hF: 0.50, radius: 12, kind: 'rect'   },
+  jeep:   { wF: 0.70, hF: 0.52, radius: 12, kind: 'rect'   },
+  truck:  { wF: 0.65, hF: 0.65, radius: 12, kind: 'rect'   },
+  bigrig: { wF: 0.65, hF: 0.85, radius: 12, kind: 'bigrig' },
+  tank:   { wF: 0.80, hF: 0.70, radius: 12, kind: 'tank'   },
+  boss:   { wF: 0.90, hF: 0.90, radius: 14, kind: 'rect'   },
+};
+
 function carHex(car) {
   return COLOR_HEX[car.color] ?? (car.type === 'boss' ? COLOR_HEX.Boss : 0x888888);
 }
 
-// Returns true if a material should be EXCLUDED from color tinting.
-// Wheels/tires, glass, headlights/taillights, chrome/trim, tank tracks/hatch keep their own colors.
-function _isExcludedMaterial(mat) {
-  if (!mat?.isMaterial) return true;
-  return /wheel|tire|tyre|glass|window|windshield|chrome|rim|track|tread|hatch|light|lamp|lens/i.test(mat.name);
-}
-
-// Convert a hex color to a vibrant jewel tone: S→1.0, L clamped to 0.45–0.55.
 function _boostColor(hex) {
   const c = new THREE.Color(hex);
   const hsl = {};
@@ -77,24 +67,69 @@ function _boostColor(hex) {
   return (Math.round(c.r * 255) << 16) | (Math.round(c.g * 255) << 8) | Math.round(c.b * 255);
 }
 
-// ── Material helpers for procedural tank ──────────────────────────────────────
-
-function _paintMat(hex) {
-  return new THREE.MeshStandardMaterial({
-    color: hex, metalness: 0.08, roughness: 0.30, transparent: true, opacity: 1,
-    emissive: new THREE.Color(hex), emissiveIntensity: 0.28,
-  });
+function _rrect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(x, y, w, h, r);
+  } else {
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y,     x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x,     y + h, r);
+    ctx.arcTo(x,     y + h, x,     y,     r);
+    ctx.arcTo(x,     y,     x + w, y,     r);
+    ctx.closePath();
+  }
 }
-function _darkMat(hex = 0x1a1a1a) {
-  return new THREE.MeshStandardMaterial({ color: hex, metalness: 0.20, roughness: 0.80, transparent: true, opacity: 1 });
-}
-function _tireMat() { return _darkMat(0x111114); }
 
-// ── Shared geos that are never disposed ────────────────────────────────────────
+function _drawCarShape(ctx, W, H, type, hex) {
+  ctx.clearRect(0, 0, W, H);
+  const cfg = TYPE_DIMS[type] ?? TYPE_DIMS.big;
+  const M   = MARGIN;
+  const cw  = W - 2 * M;
+  const ch  = H - 2 * M;
+  const r   = cfg.radius;
+  const cr  = (hex >> 16) & 0xff;
+  const cg  = (hex >>  8) & 0xff;
+  const cb  =  hex        & 0xff;
+
+  ctx.fillStyle   = `rgb(${cr},${cg},${cb})`;
+  ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+  ctx.lineWidth   = 4;
+
+  if (cfg.kind === 'bigrig') {
+    _rrect(ctx, M, M, cw, ch, r);
+    ctx.fill(); ctx.stroke();
+    // Thin horizontal line at 35% from top — cab/trailer division
+    const lineY = M + ch * 0.35;
+    ctx.beginPath();
+    ctx.moveTo(M + 3, lineY);
+    ctx.lineTo(M + cw - 3, lineY);
+    ctx.lineWidth   = 2;
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.stroke();
+
+  } else if (cfg.kind === 'tank') {
+    // Hull
+    _rrect(ctx, M, M, cw, ch, r);
+    ctx.fill(); ctx.stroke();
+    // Turret: darker shade centered on canvas
+    const dr = Math.round(cr * 0.70);
+    const dg = Math.round(cg * 0.70);
+    const db = Math.round(cb * 0.70);
+    ctx.beginPath();
+    ctx.arc(W / 2, H / 2, 20, 0, Math.PI * 2);
+    ctx.fillStyle   = `rgb(${dr},${dg},${db})`;
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.lineWidth   = 3;
+    ctx.fill(); ctx.stroke();
+
+  } else {
+    _rrect(ctx, M, M, cw, ch, r);
+    ctx.fill(); ctx.stroke();
+  }
+}
 
 let _bossTorusGeo = null;
-
-// ── Car3D class ────────────────────────────────────────────────────────────────
 
 export class Car3D {
   constructor(scene, lanes) {
@@ -102,7 +137,7 @@ export class Car3D {
     this._lanes         = lanes;
     this._live          = new Map();
     this._dying         = [];
-    this._emissiveBoost = 0;
+    this._emissiveBoost = 0;  // kept for setTheme API compat
     if (!_bossTorusGeo) _bossTorusGeo = new THREE.TorusGeometry(1.4, 0.06, 8, 28);
   }
 
@@ -117,29 +152,17 @@ export class Car3D {
     this._dying.length = 0;
   }
 
-  /**
-   * Trigger power-hit visual on the front car of `laneIdx`.
-   * isKill=true → car will be removed; explosion handled by Particles3D.
-   * isKill=false → car survives; apply soot overlay + flash.
-   */
   triggerPowerHit(laneIdx, isKill) {
-    // Find the front car of this lane (highest row / closest to breach).
     const lane = this._lanes[laneIdx];
     if (!lane) return;
     const frontCar = lane.cars.reduce((best, c) => (!best || c.row > best.row) ? c : best, null);
     if (!frontCar) return;
     const entry = this._live.get(frontCar);
     if (!entry) return;
-
-    entry._powerFlashT   = 0;
-    entry._powerFlashing = true;
-    entry._powerSquashT  = 0;
+    entry._powerFlashT    = 0;
+    entry._powerFlashing  = true;
+    entry._powerSquashT   = 0;
     entry._powerSquashing = true;
-
-    // Surviving car: add soot overlay via a dark mesh layer.
-    if (!isKill && !entry._sootMesh) {
-      entry._sootMesh = this._addSootOverlay(entry);
-    }
   }
 
   update(dt, isFrozen = false) {
@@ -149,22 +172,24 @@ export class Car3D {
     for (const [car, entry] of this._live) {
       if (!liveCars.has(car)) {
         this._dying.push({
-          group: entry.group,
-          bossRing: entry.bossRing, bossRingMat: entry.bossRingMat,
-          t: 0,
+          group: entry.group, bossRing: entry.bossRing, bossRingMat: entry.bossRingMat, t: 0,
         });
         this._live.delete(car);
       }
     }
 
     for (let laneIdx = 0; laneIdx < this._lanes.length; laneIdx++) {
-      for (const car of this._lanes[laneIdx].cars) {
+      const _laneCars = this._lanes[laneIdx].cars;
+      const _maxRow   = _laneCars.length > 0
+        ? _laneCars.reduce((m, c) => Math.max(m, c.row), 0) : -1;
+
+      for (const car of _laneCars) {
         if (!this._live.has(car)) this._live.set(car, this._createEntry(car, laneIdx));
 
         const entry = this._live.get(car);
         const g     = entry.group;
 
-        // Render-side position lerp
+        // Smooth position lerp
         const newTargetZ = posToZ(car.position);
         if (Math.abs(newTargetZ - entry.targetZ) > 0.001) {
           entry.lerpStartZ = entry.renderZ;
@@ -180,128 +205,96 @@ export class Car3D {
           entry.renderZ = entry.targetZ;
           g.rotation.x  = 0;
         }
-        g.position.set(laneToX(laneIdx), entry.groupY, entry.renderZ);
-
-        // Wheel spin
-        const dZ = entry.renderZ - entry.lastRenderZ;
-        if (Math.abs(dZ) > 0.0001) {
-          for (const w of entry.wheels) w.rotation.x -= dZ * WHEEL_SPIN;
-        }
-        entry.lastRenderZ = entry.renderZ;
+        g.position.set(laneToX(laneIdx), 0, entry.renderZ);
 
         // Boss ring orbit
         if (entry.bossRing) {
           entry.bossAngle += dt * 1.8;
-          const gp = g.position;
-          entry.bossRing.position.set(gp.x, gp.y + 0.5, gp.z);
+          entry.bossRing.position.set(g.position.x, g.position.y + 0.5, g.position.z);
           entry.bossRing.rotation.y = entry.bossAngle;
           entry.bossRing.rotation.x = 0.35;
           entry.bossRingMat.emissiveIntensity = 1.2 + 0.6 * Math.sin(entry.bossAngle * 3);
         }
 
-        // Tank turret rotation
-        if (entry.turretGroup) entry.turretGroup.rotation.y += dt * TURRET_ROT_SPEED;
-
         const hpRatio = car.maxHp > 0 ? car.hp / car.maxHp : 0;
 
-        // Damage visual state
+        // MeshBasicMaterial — all visual effects via .color tinting
+        entry._auraT += dt;
+        let colorSet = false;
+
         if (isFrozen) {
-          if (!entry._prevFrozen) {
-            // First freeze frame: tint all body materials 40% toward ice blue
-            const ICE_R = 0xAA / 255, ICE_G = 0xDD / 255, ICE_B = 0xFF / 255;
-            for (let mi = 0; mi < entry.colorMats.length; mi++) {
-              const base = entry.colorBaseHexes[mi];
-              const br = ((base >> 16) & 0xff) / 255;
-              const bg = ((base >>  8) & 0xff) / 255;
-              const bb = ( base        & 0xff) / 255;
-              entry.colorMats[mi].color.setRGB(
-                br * 0.6 + ICE_R * 0.4,
-                bg * 0.6 + ICE_G * 0.4,
-                bb * 0.6 + ICE_B * 0.4,
-              );
-            }
-            entry._prevFrozen = true;
-          }
-          entry.bodyMat.emissive.setHex(0xAADDFF);
-          entry.bodyMat.emissiveIntensity = 0.35;
+          entry.bodyMat.color.setRGB(0.67, 0.87, 1.0);  // ice-blue tint
+          if (!entry._prevFrozen) entry._prevFrozen = true;
           g.rotation.z = 0;
-          for (const hl of entry.headLights) hl.intensity = 0.30;
+          colorSet = true;
         } else {
           if (entry._prevFrozen) {
-            // Unfreeze: restore original vivid colors
-            for (let mi = 0; mi < entry.colorMats.length; mi++) {
-              entry.colorMats[mi].color.setHex(entry.colorBaseHexes[mi]);
-            }
             entry._prevFrozen = false;
+            entry.bodyMat.color.setHex(0xffffff);
           }
-        }
-        if (!isFrozen) {
-          const eb = this._emissiveBoost;
-          if (hpRatio < 0.35) {
-            entry.bodyMat.emissive.setHex(0xff3300);
-            entry.bodyMat.emissiveIntensity = 0.25 + eb;
-            g.rotation.z = -0.10 * (1 - hpRatio);
-            for (const hl of entry.headLights) hl.intensity = 0.10 + eb * 0.5;
-          } else if (hpRatio < 0.65) {
-            entry.bodyMat.emissive.setHex(0xff7700);
-            entry.bodyMat.emissiveIntensity = 0.15 + eb;
-            g.rotation.z = -0.04 * (1 - hpRatio);
-            for (const hl of entry.headLights) hl.intensity = 0.15 + eb * 0.5;
-          } else {
-            entry.bodyMat.emissive.setHex(entry.colorBaseHexes[0] ?? 0x000000);
-            entry.bodyMat.emissiveIntensity = 0.28 + eb;
-            g.rotation.z = 0;
-            for (const hl of entry.headLights) hl.intensity = 0.30 + eb * 0.5;
+
+          // Power hit flash: white → orange
+          if (entry._powerFlashing) {
+            entry._powerFlashT += dt;
+            const prog = Math.min(1, entry._powerFlashT / POWER_FLASH_DUR);
+            if (prog < 1) {
+              if (prog < 0.4) {
+                const t = prog / 0.4;
+                entry.bodyMat.color.setRGB(1, 1 - 0.55 * t, 1 - 0.9 * t);
+              } else {
+                const t = (prog - 0.4) / 0.6;
+                entry.bodyMat.color.setRGB(1, 0.45 + 0.55 * t, 0.1 + 0.9 * t);
+              }
+            } else {
+              entry._powerFlashing = false;
+            }
+            colorSet = true;
+          }
+
+          // Danger aura: pulsing red tint on 2 frontmost cars per lane
+          const _isNearBreach = _maxRow >= 0 && car.row >= _maxRow - 1;
+          const auraTarget = _isNearBreach ? 1.0 : 0.0;
+          const blendStep  = AURA_RATE * dt;
+          entry._auraBlend = auraTarget > entry._auraBlend
+            ? Math.min(auraTarget, entry._auraBlend + blendStep)
+            : Math.max(auraTarget, entry._auraBlend - blendStep);
+
+          if (!colorSet && entry._auraBlend > 0.001) {
+            const pulse  = 0.7 + AURA_AMP * Math.sin(2 * Math.PI * AURA_FREQ * entry._auraT);
+            const redAmt = entry._auraBlend * pulse;
+            entry.bodyMat.color.setRGB(1, 1 - 0.65 * redAmt, 1 - 0.65 * redAmt);
+            colorSet = true;
+          }
+
+          // Damage tint (lowest priority)
+          if (!colorSet) {
+            if (hpRatio < 0.35) {
+              entry.bodyMat.color.setRGB(1.0, 0.40, 0.30);
+              g.rotation.z = -0.10 * (1 - hpRatio);
+            } else if (hpRatio < 0.65) {
+              entry.bodyMat.color.setRGB(1.0, 0.65, 0.40);
+              g.rotation.z = -0.04 * (1 - hpRatio);
+            } else {
+              entry.bodyMat.color.setHex(0xffffff);
+              g.rotation.z = 0;
+            }
           }
         }
 
-        // Power hit flash: white→orange emissive over 0.25 s.
-        if (entry._powerFlashing) {
-          entry._powerFlashT += dt;
-          const prog = Math.min(1, entry._powerFlashT / POWER_FLASH_DUR);
-          if (prog < 1) {
-            // First half: white; second half: lerp white→orange
-            const flashCol = prog < 0.4
-              ? _POWER_WHITE
-              : _POWER_WHITE.clone().lerp(_POWER_ORANGE, (prog - 0.4) / 0.6);
-            entry.bodyMat.emissive.copy(flashCol);
-            entry.bodyMat.emissiveIntensity = 1.0 - 0.70 * prog;
-          } else {
-            entry._powerFlashing = false;
-          }
-        }
-
-        // Power hit squash-and-stretch: scale spike to 1.12× then spring back.
+        // Power hit squash-and-stretch
         if (entry._powerSquashing) {
           entry._powerSquashT += dt;
-          const prog = Math.min(1, entry._powerSquashT / POWER_SQUASH_DUR);
-          const spike = Math.sin(Math.PI * prog);  // 0→1→0 over duration
-          const s = 1 + (POWER_SCALE_PEAK - 1) * spike;
-          g.scale.setScalar((entry.group.userData.baseScale ?? 1.0) * s);
+          const prog  = Math.min(1, entry._powerSquashT / POWER_SQUASH_DUR);
+          const spike = Math.sin(Math.PI * prog);
+          const s     = 1 + (POWER_SCALE_PEAK - 1) * spike;
+          g.scale.setScalar((g.userData.baseScale ?? 1.0) * s);
           if (prog >= 1) {
             entry._powerSquashing = false;
-            g.scale.setScalar(entry.group.userData.baseScale ?? 1.0);
+            g.scale.setScalar(g.userData.baseScale ?? 1.0);
           }
         }
 
-        // Danger aura: pulsing red emissive overlay on cars within 1 row of breach.
-        entry._auraT += dt;
-        const auraTarget = (!isFrozen && car.position >= AURA_THRESH) ? 1.0 : 0.0;
-        const blendStep = AURA_RATE * dt;
-        if (auraTarget > entry._auraBlend) {
-          entry._auraBlend = Math.min(auraTarget, entry._auraBlend + blendStep);
-        } else {
-          entry._auraBlend = Math.max(auraTarget, entry._auraBlend - blendStep);
-        }
-        if (!isFrozen && entry._auraBlend > 0.001) {
-          entry.bodyMat.emissive.lerp(_AURA_RED, entry._auraBlend);
-          entry.bodyMat.emissiveIntensity += AURA_AMP * Math.sin(2 * Math.PI * AURA_FREQ * entry._auraT) * entry._auraBlend;
-        }
-
-        // HP tracking (no darkening — cars keep vivid color at all damage levels)
-        if (car.hp !== entry.lastHp) {
-          entry.lastHp = car.hp;
-        }
+        if (car.hp !== entry.lastHp) entry.lastHp = car.hp;
       }
     }
 
@@ -314,7 +307,9 @@ export class Car3D {
       const scale = 1 + (DEATH_SCALE_MAX - 1) * prog;
       d.group.scale.set(scale, scale, scale);
       d.group.position.y += DEATH_VY * dt;
-      d.group.traverse(child => { if (child.material) child.material.opacity = 1 - prog; });
+      d.group.traverse(child => {
+        if (child.isMesh && child.material) child.material.opacity = 1 - prog;
+      });
     }
   }
 
@@ -323,80 +318,33 @@ export class Car3D {
   _createEntry(car, laneIdx) {
     const hex        = carHex(car);
     const boostedHex = _boostColor(hex);
-    const colorMats  = [];
-    const colorBaseHexes = [];
 
-    let group, bodyMat, turretGroup = null, wheels = [], headLights = [];
+    const canvas = document.createElement('canvas');
+    canvas.width  = CVS;
+    canvas.height = CVS;
+    _drawCarShape(canvas.getContext('2d'), CVS, CVS, car.type, boostedHex);
+    const tex = new THREE.CanvasTexture(canvas);
 
-    if (car.type === 'tank') {
-      // ── Tank: procedural builder (Kenney has no 3D tank GLB) ─────────────────
-      group = new THREE.Group();
-      const result = this._buildTank(group, boostedHex, colorMats, colorBaseHexes);
-      bodyMat      = result.bodyMat;
-      bodyMat.emissive.setHex(boostedHex);
-      bodyMat.emissiveIntensity = 0.28;
-      turretGroup  = result.turretGroup;
-      if (group.userData.tankPtLight) headLights.push(group.userData.tankPtLight);
+    // MeshBasicMaterial: unaffected by scene lights, color tinting for effects
+    const bodyMat = new THREE.MeshBasicMaterial({
+      map:         tex,
+      transparent: true,
+      alphaTest:   0.05,
+      color:       new THREE.Color(0xffffff),
+      side:        THREE.DoubleSide,
+    });
 
-    } else {
-      // ── All other types: Kenney Car Kit GLB ───────────────────────────────────
-      group = assetLoader.getModel(car.type);
-      group.scale.setScalar(TYPE_SCALES[car.type] ?? 1.0);
+    const cfg   = TYPE_DIMS[car.type] ?? TYPE_DIMS.big;
+    const group = new THREE.Group();
+    const mesh  = new THREE.Mesh(
+      new THREE.PlaneGeometry(CELL * cfg.wF, CELL * cfg.hF),
+      bodyMat,
+    );
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.y = 0.05;
+    group.add(mesh);
 
-      // Ensure all materials support transparency (needed for death fade + damage)
-      group.traverse(node => {
-        if (!node.isMesh) return;
-        const mats = Array.isArray(node.material) ? node.material : [node.material];
-        for (const m of mats) { m.transparent = true; m.opacity = 1; }
-      });
-
-      // Tint ALL non-excluded materials aggressively to the lane's boosted color
-      group.traverse(node => {
-        if (!node.isMesh) return;
-        const mats = Array.isArray(node.material) ? node.material : [node.material];
-        for (const mat of mats) {
-          if (_isExcludedMaterial(mat)) continue;
-          mat.color.setHex(boostedHex);
-          mat.emissive.setHex(boostedHex);
-          mat.emissiveIntensity = 0.28;
-          mat.roughness = 0.30;
-          mat.metalness = 0.08;
-          if (!bodyMat) bodyMat = mat;
-          colorMats.push(mat);
-          colorBaseHexes.push(boostedHex);
-        }
-      });
-
-      // Fallback: if no body material detected, create one manually
-      if (!bodyMat) {
-        bodyMat = new THREE.MeshStandardMaterial({ color: boostedHex, transparent: true, opacity: 1, roughness: 0.30, metalness: 0.08 });
-        bodyMat.emissive.setHex(boostedHex);
-        bodyMat.emissiveIntensity = 0.28;
-        colorMats.push(bodyMat);
-        colorBaseHexes.push(boostedHex);
-      }
-
-      // Find wheels by mesh name for spin animation
-      group.traverse(node => {
-        if (node.isMesh && /wheel|tire|tyre/i.test(node.name)) wheels.push(node);
-      });
-
-      // Headlight point light at front of car
-      const ptLight = new THREE.PointLight(0xffffaa, car.type === 'boss' ? 0.80 : 0.30, 4);
-      ptLight.position.set(0, HL_Y, 1.2);
-      group.add(ptLight);
-      headLights.push(ptLight);
-    }
-
-    const metalness = 0.08;
-    for (const mat of colorMats) {
-      if (mat.metalness !== undefined) mat.metalness = metalness;
-    }
-
-    // Store base scale for squash-and-stretch spring-back.
-    group.userData.baseScale = group.scale.x;
-
-    // Boss ring
+    // Boss: orbiting torus ring for visual identity
     let bossRing = null, bossRingMat = null;
     if (car.type === 'boss') {
       bossRingMat = new THREE.MeshStandardMaterial({
@@ -407,134 +355,20 @@ export class Car3D {
       this._scene.add(bossRing);
     }
 
-    // Top-down color billboard: flat plane shows car clearly from above.
-    // Width and length derived from CELL (lane width) — no eyeballed constants.
-    const billGeo  = new THREE.PlaneGeometry(CELL * 0.75, CELL * 0.85);
-    const billMat  = new THREE.MeshBasicMaterial({ color: boostedHex });
-    const billMesh = new THREE.Mesh(billGeo, billMat);
-    billMesh.rotation.x = -Math.PI / 2;
-    billMesh.position.y = 0.02;
-    group.add(billMesh);
-    group.userData.billGeo = billGeo;
-    group.userData.billMat = billMat;
-
-    const groupY = car.type === 'tank' ? CAR_Y_TANK : CAR_Y;
-    group.position.set(laneToX(laneIdx), groupY, posToZ(car.position));
+    group.userData.baseScale = 1.0;
+    const startZ = posToZ(car.position);
+    group.position.set(laneToX(laneIdx), 0, startZ);
     this._scene.add(group);
 
-    const startZ = posToZ(car.position);
-    const entry = {
-      group, bodyMat, colorMats, colorBaseHexes,
-      headLights,
-      wheels, turretGroup, lastRenderZ: startZ,
+    return {
+      group, bodyMat, glowHex: boostedHex,
       lastHp: -1, _prevFrozen: false,
-      laneIdx, bossRing, bossRingMat, bossAngle: 0,
-      groupY,
+      bossRing, bossRingMat, bossAngle: 0,
       renderZ: startZ, targetZ: startZ, lerpStartZ: startZ, lerpT: 1.0,
       _auraBlend: 0, _auraT: 0,
       _powerFlashing: false, _powerFlashT: 0,
       _powerSquashing: false, _powerSquashT: 0,
-      _sootMesh: null,
     };
-    return entry;
-  }
-
-  // ── Procedural tank builder ────────────────────────────────────────────────────
-  // Used because Kenney's "Tanks" pack is 2D-sprite-only (no GLB available).
-  // Hull sits at y = CAR_Y_TANK so the group is positioned the same way as legacy cars.
-
-  _buildTank(group, hex, colorMats, colorBaseHexes) {
-    const w = 1.55 * SX, l = 2.8;
-    const bm = _paintMat(hex);
-    const dm = _darkMat(0x3a3a3a);
-    const tm = _tireMat();
-    const camoMat = new THREE.MeshStandardMaterial({ color: 0x6a7a3a, roughness: 0.85, transparent: true, opacity: 1 });
-    colorMats.push(bm); colorBaseHexes.push(hex);
-
-    const hull = new THREE.Mesh(new THREE.BoxGeometry(w, 0.5, l - 0.4), bm);
-    hull.position.set(0, 0.55 + OY, 0); hull.castShadow = hull.receiveShadow = true; group.add(hull);
-
-    const front = new THREE.Mesh(new THREE.BoxGeometry(w, 0.30, 0.5), dm);
-    front.position.set(0, 0.48 + OY, l / 2 - 0.25); front.rotation.x = -0.25; group.add(front);
-
-    for (const [x, y, z, h, xs, zs] of [
-      [ 0.4 * SX, 0.85 + OY,  0.3, 0.08, 0.5 * SX, 0.4],
-      [-0.5 * SX, 0.85 + OY, -0.4, 0.10, 0.4 * SX, 0.5],
-      [ 0.0,      0.85 + OY, -0.9, 0.06, 0.6 * SX, 0.3],
-    ]) {
-      const patch = new THREE.Mesh(new THREE.BoxGeometry(xs, h, zs), camoMat);
-      patch.position.set(x, y, z); group.add(patch);
-    }
-
-    for (const s of [-1, 1]) {
-      const trackBase = new THREE.Mesh(new THREE.BoxGeometry(0.28 * SX, 0.36, l), dm);
-      trackBase.position.set(s * (w / 2 + 0.04 * SX), 0.22 + OY, 0); group.add(trackBase);
-      for (let i = 0; i < 9; i++) {
-        const tread = new THREE.Mesh(new THREE.BoxGeometry(0.32 * SX, 0.06, 0.12), tm);
-        tread.position.set(s * (w / 2 + 0.04 * SX), 0.42 + OY, -l / 2 + 0.2 + i * (l - 0.4) / 8);
-        group.add(tread);
-      }
-      for (let i = 0; i < 5; i++) {
-        const rw = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.10, 12), tm);
-        rw.rotation.z = Math.PI / 2;
-        rw.position.set(s * (w / 2 + 0.04 * SX), 0.18 + OY, -l / 2 + 0.32 + i * (l - 0.6) / 4);
-        group.add(rw);
-      }
-    }
-
-    const turretGroup = new THREE.Group();
-    const turretBody  = new THREE.Mesh(new THREE.CylinderGeometry(0.55 * SX, 0.65 * SX, 0.42, 12), bm);
-    turretBody.position.y = 0.21; turretGroup.add(turretBody);
-    const hatch = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.10, 12), dm);
-    hatch.position.y = 0.47; turretGroup.add(hatch);
-    const breech = new THREE.Mesh(new THREE.BoxGeometry(0.22 * SX, 0.22, 0.4), dm);
-    breech.position.set(0, 0.21, 0.45); turretGroup.add(breech);
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.10, 1.4, 12), dm);
-    barrel.rotation.x = Math.PI / 2; barrel.position.set(0, 0.21, 1.25); turretGroup.add(barrel);
-    const muzzle = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.10, 0.18, 12), dm);
-    muzzle.rotation.x = Math.PI / 2; muzzle.position.set(0, 0.21, 1.95); turretGroup.add(muzzle);
-    turretGroup.position.set(0, 0.85 + OY, -0.1);
-    group.add(turretGroup);
-
-    const R = 0.18 * SX, r = 0.075 * SX;
-    const starShape = new THREE.Shape();
-    for (let i = 0; i < 10; i++) {
-      const rad = i % 2 === 0 ? R : r;
-      const a   = -Math.PI / 2 + (i / 10) * Math.PI * 2;
-      if (i === 0) starShape.moveTo(Math.cos(a) * rad, Math.sin(a) * rad);
-      else         starShape.lineTo(Math.cos(a) * rad, Math.sin(a) * rad);
-    }
-    starShape.closePath();
-    const star = new THREE.Mesh(new THREE.ShapeGeometry(starShape),
-      new THREE.MeshStandardMaterial({ color: 0xf0f0e0, transparent: true, opacity: 1 }));
-    star.rotation.x = -Math.PI / 2;
-    star.position.set(0, 1.31 + OY, -0.2);
-    group.add(star);
-
-    const ptLight = new THREE.PointLight(0xffffaa, 0.30, 4);
-    ptLight.position.set(0, 0.60 + OY, l / 2 + 0.2); group.add(ptLight);
-    group.userData.tankPtLight = ptLight;
-
-    return { bodyMat: bm, turretGroup };
-  }
-
-  // Wrap the car group in a dark semi-transparent bounding box to simulate soot.
-  _addSootOverlay(entry) {
-    const box = new THREE.Box3().setFromObject(entry.group);
-    const size = new THREE.Vector3();
-    box.getSize(size);
-    if (size.lengthSq() < 0.001) return null;  // safety: empty group
-    const geo = new THREE.BoxGeometry(size.x * 1.05, size.y * 1.05, size.z * 1.05);
-    const mat = new THREE.MeshStandardMaterial({
-      color: 0x111111,
-      transparent: true,
-      opacity: 0.22,
-      depthWrite: false,
-      side: THREE.BackSide,  // render inside-out so it wraps the car
-    });
-    const mesh = new THREE.Mesh(geo, mat);
-    entry.group.add(mesh);
-    return mesh;
   }
 
   // ── Disposal ───────────────────────────────────────────────────────────────────
@@ -550,16 +384,11 @@ export class Car3D {
   }
 
   _disposeGroup(group) {
-    group.userData.billGeo?.dispose();
-    group.userData.billMat?.dispose();
-    const isTankGroup = !!group.userData.tankPtLight;
     group.traverse(obj => {
-      // GLB geometries are shared across clones — do not dispose them.
-      // Procedural tank geometries are unique per instance — safe to dispose.
-      if (isTankGroup && obj.geometry) obj.geometry.dispose();
-      if (obj.material) {
-        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-        for (const m of mats) m.dispose();
+      if (obj.isMesh) {
+        obj.geometry?.dispose();
+        const mats = Array.isArray(obj.material) ? obj.material : (obj.material ? [obj.material] : []);
+        for (const m of mats) { m.map?.dispose(); m.dispose(); }
       }
     });
     this._scene.remove(group);

@@ -15,6 +15,12 @@ import { laneToX, queueZ, CELL } from './Scene3D.js';
 const LANE_COUNT  = 4;
 const SLOT_COUNT  = 4;                 // queue depth (matches Scene3D.SLOT_COUNT)
 
+// slotZ: compact Z positions so all 4 slots map to screen y < 752 (above booster bar).
+// Frustum: zFar=-22, zNear=queueZ(3)=6.4, span=28.4.
+// screenY = (worldZ+22)/28.4*844. Booster bar at y=752 → worldZ≈3.3.
+// slot 0→0.75, 1→1.5, 2→2.25, 3→3.0 all yield screenY < 752.
+function slotZ(s) { return (s + 1) * CELL * 0.1875; }
+
 // ── Bomb geometry (group-local coords) ────────────────────────────────────────
 const BOMB_R      = 0.16 * CELL;       // 0.64 — 40% of previous, feels throwable
 const BOMB_CX = 0;       // centered on lane (grid-derived, not eyeballed)
@@ -131,7 +137,7 @@ export class Shooter3D {
     this._slots = [];
     for (let li = 0; li < LANE_COUNT; li++) {
       this._slots.push(
-        Array.from({ length: SLOT_COUNT }, (_, si) => this._createSlot(li, queueZ(si), si)),
+        Array.from({ length: SLOT_COUNT }, (_, si) => this._createSlot(li, slotZ(si), si)),
       );
     }
 
@@ -154,7 +160,7 @@ export class Shooter3D {
       const bead = new THREE.Mesh(
         new THREE.SphereGeometry(SPARK_BEAD_RADIUS, 8, 8), mat,
       );
-      bead.position.set(laneToX(li) + BOMB_CX + 0.15, BOMB_CY + 0.38, queueZ(0) - 0.30);
+      bead.position.set(laneToX(li) + BOMB_CX + 0.15, BOMB_CY + 0.38, slotZ(0) - 0.30);
       bead.visible = false;
       bead.layers.set(0);
       this._scene.add(bead);
@@ -171,12 +177,12 @@ export class Shooter3D {
       const slots = this._slots[li];
       for (let si = 0; si < slots.length; si++) {
         slots[si].group.position.x = x;
-        slots[si].group.position.z = queueZ(si);   // keep Z in sync when queueZ changes
+        slots[si].group.position.z = slotZ(si);
       }
       const sb = this._sparkBeads[li];
       if (sb) {
         sb.bead.position.x = x + BOMB_CX + 0.15;
-        sb.bead.position.z = queueZ(0) - 0.30;     // keep Z in sync
+        sb.bead.position.z = slotZ(0) - 0.30;
       }
     }
   }
@@ -219,8 +225,19 @@ export class Shooter3D {
         const slot    = slots[si];
         const shooter = col.shooters?.[si] ?? null;
 
-        if (!shooter) { slot.group.visible = false; continue; }
-        slot.group.visible = true;
+        if (!shooter) {
+          slot.group.visible      = true;
+          slot.sphereMesh.visible = false;
+          slot.fuseMesh.visible   = false;
+          slot.badgeMesh.visible  = false;
+          slot.emptyMesh.visible  = true;
+          continue;
+        }
+        slot.group.visible      = true;
+        slot.sphereMesh.visible = true;
+        slot.fuseMesh.visible   = true;
+        slot.badgeMesh.visible  = true;
+        slot.emptyMesh.visible  = false;
 
         const hex    = COLOR_HEX[shooter.color] ?? 0x888888;
         const damage = shooter.damage ?? 1;
@@ -311,8 +328,8 @@ export class Shooter3D {
         }
       }
 
-      // Spark bead flicker
-      const mainVisible = slots[0].group.visible;
+      // Spark bead flicker — only when front slot has a real shooter
+      const mainVisible = slots[0].group.visible && !!(this._columns[li].shooters?.[0]);
       const bead = this._sparkBeads[li];
       bead.bead.visible = mainVisible;
       if (mainVisible) {
@@ -331,8 +348,10 @@ export class Shooter3D {
         slot.badgeTex.dispose();
         slot.sphereMesh.geometry.dispose();
         slot.fuseMesh.geometry.dispose();
+        slot.emptyMesh.geometry.dispose();
         slot.sphereMat.dispose();
         slot.fuseMat.dispose();
+        slot.emptyMat.dispose();
         slot.badgeMat.dispose();
         this._scene.remove(slot.group);
       }
@@ -405,10 +424,29 @@ export class Shooter3D {
       map: badgeTex, transparent: true, opacity: alpha, depthTest: false,
     });
     const badgeMesh = new THREE.Sprite(badgeMat);
-    const siFactor  = 1.0;
-    badgeMesh.scale.set(siFactor * BADGE_W / scale, siFactor * BADGE_H / scale, 1);
-    badgeMesh.position.set(BOMB_CX, BOMB_CY, BOMB_CZ);
+    // World-space scale; BADGE_W × BADGE_H world units
+    badgeMesh.scale.set(BADGE_W / scale, BADGE_H / scale, 1);
+    // Position above sphere top so it's visible looking straight down from camera
+    badgeMesh.position.set(BOMB_CX, BOMB_CY + BOMB_R + 0.2, BOMB_CZ);
     group.add(badgeMesh);
+
+    // ── Empty slot placeholder — dim grey sphere, visible when no shooter ────
+    const emptyMat  = new THREE.MeshStandardMaterial({
+      color:             0x888888,
+      emissive:          0x333333,
+      emissiveIntensity: 0.10,
+      metalness:         0.0,
+      roughness:         0.70,
+      transparent:       true,
+      opacity:           0.25,
+    });
+    const emptyMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(BOMB_R, 12, 8),
+      emptyMat,
+    );
+    emptyMesh.position.set(BOMB_CX, BOMB_CY, BOMB_CZ);
+    emptyMesh.visible = false;
+    group.add(emptyMesh);
 
     // All meshes and sprites render only on the unified top-down camera (layer 0)
     group.traverse(obj => { if (obj.isMesh || obj.isSprite) obj.layers.set(0); });
@@ -422,6 +460,7 @@ export class Shooter3D {
       group,
       sphereMesh, sphereMat,
       fuseMesh,   fuseMat,
+      emptyMesh,  emptyMat,
       badgeCanvas, badgeCtx, badgeTex, badgeMesh, badgeMat,
       lastColor:  -1,
       lastDamage: -1,

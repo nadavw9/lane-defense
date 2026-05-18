@@ -274,7 +274,7 @@ export class FTUEOverlay {
     txt.y = 22;
     grp.addChild(txt);
 
-    grp.y = ROAD_BOTTOM_Y + 2;  // below road — no cars here
+    grp.y = 700;  // above booster bar (752) with 8px gap, clear of road and bombs
   }
 
   // Permanently suppressed — was cluttering the top-down HUD with TIMER/COINS labels.
@@ -373,7 +373,7 @@ export class FTUEOverlay {
     txt.x = appW / 2;
     txt.y = 22;
     grp.addChild(txt);
-    grp.y = ROAD_BOTTOM_Y + 2;  // below road — no cars here
+    grp.y = 700;  // above booster bar (752) with 8px gap, clear of road and bombs
 
     // Transparent full-screen hitbox — any touch aborts the demo
     const hitbox = new Graphics();

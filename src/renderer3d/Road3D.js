@@ -9,9 +9,9 @@ import * as THREE from 'three';
 import { ROAD_Z_FAR, ROAD_Z_NEAR, ROAD_Z_VANISHING, laneToX, roadHalfW, posToZ } from './Scene3D.js';
 
 // ── Tweakable design constants ─────────────────────────────────────────────────
-const COL_ASPHALT      = 0x3a3835;   // warm dark asphalt
-const COL_ASPHALT_DARK = 0x2e2c2a;
-const COL_DIVIDER      = 0xfff5a0;   // bright sunny yellow lane dividers
+const COL_ASPHALT      = 0x1c1c1e;   // very dark warm grey (design spec)
+const COL_ASPHALT_DARK = 0x161618;
+const COL_DIVIDER      = 0xffffff;   // white lane dividers
 const COL_BARRIER      = 0x9a9a9a;   // medium concrete — not glowing white
 const COL_BARRIER_TOP  = 0xb0b0b0;   // slightly lighter cap, no glow
 const COL_REFLECTOR    = 0xffdd00;
@@ -280,17 +280,7 @@ export class Road3D {
       this._group.add(strip);
     }
 
-    // Wet surface mirror overlay
-    const waterMesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(W, ROAD_LENGTH * 0.6),
-      new THREE.MeshStandardMaterial({
-        color: 0x112233, roughness: 0.0, metalness: 1.0,
-        transparent: true, opacity: 0.22, envMapIntensity: 1.8, depthWrite: false,
-      }),
-    );
-    waterMesh.rotation.x = -Math.PI / 2;
-    waterMesh.position.set(0, 0.005, ROAD_Z_FAR + ROAD_LENGTH * 0.7);
-    this._group.add(waterMesh);
+    // Wet surface mirror overlay removed — was tinting road blue (0x112233 metalness:1.0)
 
     // Expansion joints
     const jointMat = new THREE.MeshBasicMaterial({
@@ -368,7 +358,7 @@ export class Road3D {
     const period    = dashLen + gapLen;
     const dashCount = Math.ceil(ROAD_LENGTH / period);
     const dashMat   = new THREE.MeshBasicMaterial({
-      color: COL_DIVIDER, transparent: true, opacity: 0.75,
+      color: COL_DIVIDER, transparent: true, opacity: 0.25,
     });
 
     // Divider between lane i and i+1: x = laneToX(i, n) + 2.0
@@ -434,23 +424,8 @@ export class Road3D {
   }
 
   _buildReflectionStrips() {
-    const hw = roadHalfW(this._laneCount);
+    // Removed — colored emissive strips (yellow/blue/green) were visible from top-down view
     this._reflStrips = [];
-    for (let i = 0; i < REFL_STRIP_COLORS.length; i++) {
-      const mat = new THREE.MeshStandardMaterial({
-        color:             0x000000,
-        emissive:          new THREE.Color(REFL_STRIP_COLORS[i]),
-        emissiveIntensity: 0.30,
-        transparent:       true,
-        opacity:           0.55,
-        depthWrite:        false,
-      });
-      const strip = new THREE.Mesh(new THREE.PlaneGeometry(hw * 2, 0.06), mat);
-      strip.rotation.x = -Math.PI / 2;
-      strip.position.set(0, 0.002, ROAD_Z_FAR + i * 0.6 + 0.5);
-      this._group.add(strip);
-      this._reflStrips.push({ mat });
-    }
   }
 
   _buildTrafficTrails() {
@@ -512,9 +487,7 @@ export class Road3D {
 
     // Concrete cap at the road's far edge — visible as a horizontal bar
     // at the top of the top-down viewport (Z = ROAD_Z_FAR is top of screen).
-    const capMat = new THREE.MeshStandardMaterial({
-      color: COL_BARRIER, roughness: 0.80, metalness: 0.05,
-    });
+    const capMat = new THREE.MeshBasicMaterial({ color: COL_BARRIER });
     const cap = new THREE.Mesh(new THREE.PlaneGeometry(hw * 2, capD), capMat);
     cap.rotation.x = -Math.PI / 2;
     cap.position.set(0, 0.01, ROAD_Z_FAR + capD / 2);

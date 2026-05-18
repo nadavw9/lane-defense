@@ -26,7 +26,6 @@ import { ParticleSystem }  from './ParticleSystem.js';
 import { LaneFlash }       from './LaneFlash.js';
 import { ComboGlow }       from './ComboGlow.js';
 
-import { FiringLineRenderer } from './FiringLineRenderer.js';
 import { DragDrop }        from '../input/DragDrop.js';
 import { InputManager }    from '../input/InputManager.js';
 import { BenchStorage }    from '../game/BenchStorage.js';
@@ -453,9 +452,8 @@ async function main() {
   let gameLoopStarted = false;
 
   // ── Renderers ────────────────────────────────────────────────────────────
-  const carRenderer        = new CarRenderer(layers, lanes);
-  const shooterRenderer    = new ShooterRenderer(layers, columns, boosterState);
-  const firingLineRenderer = new FiringLineRenderer(layers, gs.firingSlots);
+  const carRenderer     = new CarRenderer(layers, lanes);
+  const shooterRenderer = new ShooterRenderer(layers, columns, boosterState);
 
   // ── Level config helper ───────────────────────────────────────────────────
   function applyLevelConfig(cfg) {
@@ -559,8 +557,6 @@ async function main() {
     // returns correct lane/column screen positions for the current level geometry.
     ftueOverlay = _makeFTUEOverlay(app.stage, APP_W, APP_H, cfg);
     carRenderer.clearAll();
-    firingLineRenderer.reset();
-    firingLineRenderer.setActiveLaneCount(cfg.laneCount ?? 4);
     gameRenderer3D.resetLevel();
     gameRenderer3D.applyTheme(levelId);
     gameRenderer3D.setActiveLaneCount(cfg.laneCount ?? 4);
@@ -1382,7 +1378,7 @@ async function main() {
       },
     },
     boosterState,
-    firingLineRenderer,
+    null,
     gs.firingSlots,
   );
   new InputManager(app, dragDrop);
@@ -1476,7 +1472,6 @@ async function main() {
     carRenderer.update(dt, boosterState.isFrozen());
     shooterRenderer.update(gs.elapsed, dt);
     benchRenderer.update();
-    firingLineRenderer.update(dt);
 
     // Disable lane hover tints while any tutorial / combo / achievement overlay
     // is on screen so the colored lane flash doesn't bleed through the UI.

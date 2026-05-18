@@ -37,8 +37,9 @@ export const ROAD_Z_VANISHING = -65;   // road surface extends here visually (no
 export const CELL       = 4.0;            // == lane width (laneToX pitch)
 export const SLOT_COUNT = 4;              // bomb queue depth (== Shooter3D SLOT_Z length)
 
-/** World Z of bomb-queue slot s (0 = front/active, nearest the breach line). */
-export function queueZ(s) { return (s + 1) * CELL; }   // 4, 8, 12, 16
+/** World Z of bomb-queue slot s (0 = front/active, nearest the breach line).
+ *  Step = 0.4 × CELL → slots at 1.6, 3.2, 4.8, 6.4 (≈22% of screen height). */
+export function queueZ(s) { return (s + 1) * CELL * 0.4; }   // 1.6, 3.2, 4.8, 6.4
 
 // 4-lane backward-compat constants (static).
 export const ROAD_HALF_W = 8.4;
@@ -103,6 +104,7 @@ export class Scene3D {
     // ── Scene ───────────────────────────────────────────────────────────────
     this.scene = new THREE.Scene();
     this.scene.fog = new THREE.Fog(FOG_COLOR, FOG_NEAR, FOG_FAR);
+    this.scene.background = new THREE.Color(0x0d1117);  // dark neutral behind road
 
     // ── Environment map ──────────────────────────────────────────────────────
     const pmrem = new THREE.PMREMGenerator(this.renderer);

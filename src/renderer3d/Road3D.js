@@ -2,7 +2,7 @@
 //          traffic light trails, emissive reflection strips, speed lines,
 //          and per-lane hover glow for drag feedback.
 //
-// The road runs from Z = ROAD_Z_FAR (-40) to Z = ROAD_Z_NEAR (0).
+// The road runs from Z = ROAD_Z_FAR (-22) to Z = ROAD_Z_NEAR (0).
 // Call setLaneCount(n) to rebuild geometry for 1–4 active lanes.
 
 import * as THREE from 'three';
@@ -221,6 +221,7 @@ export class Road3D {
     this._buildReflectionStrips();
     this._buildTrafficTrails();
     this._buildSpeedLines();
+    this._buildTerminus();
   }
 
   _clearGeometry() {
@@ -258,26 +259,21 @@ export class Road3D {
     const hw   = roadHalfW(n);
     const W    = hw * 2;
 
-    // Main asphalt plane
+    // Main asphalt plane — MeshBasicMaterial so dark color is not washed by lighting
     const geo = new THREE.PlaneGeometry(W, ROAD_LENGTH, 1, 16);
-    const mat = new THREE.MeshStandardMaterial({
-      color: COL_ASPHALT, roughness: 0.72, metalness: 0.06, envMapIntensity: 0.3,
-    });
+    const mat = new THREE.MeshBasicMaterial({ color: COL_ASPHALT });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.set(0, -0.01, ROAD_CENTER_Z);
     this._group.add(mesh);
 
-    // Per-lane alternating colour strips
+    // Per-lane alternating colour strips — basic material for true asphalt tones
     for (let i = 0; i < n; i++) {
       const x     = laneToX(i, n);
       const color = i % 2 === 0 ? COL_ASPHALT : COL_ASPHALT_DARK;
       const strip = new THREE.Mesh(
         new THREE.PlaneGeometry(3.85, ROAD_LENGTH),
-        new THREE.MeshStandardMaterial({
-          color, roughness: i % 2 === 0 ? 0.70 : 0.78,
-          metalness: 0.05, envMapIntensity: 0.25,
-        }),
+        new THREE.MeshBasicMaterial({ color }),
       );
       strip.rotation.x = -Math.PI / 2;
       strip.position.set(x, 0, ROAD_CENTER_Z);
@@ -313,9 +309,7 @@ export class Road3D {
     const vanishCenterZ = ROAD_Z_VANISHING + VANISH_LEN / 2;
 
     const vanishGeo = new THREE.PlaneGeometry(W, VANISH_LEN, 1, 6);
-    const vanishMat = new THREE.MeshStandardMaterial({
-      color: COL_ASPHALT, roughness: 0.65, metalness: 0.12, envMapIntensity: 0.25,
-    });
+    const vanishMat = new THREE.MeshBasicMaterial({ color: COL_ASPHALT });
     const vanishMesh = new THREE.Mesh(vanishGeo, vanishMat);
     vanishMesh.rotation.x = -Math.PI / 2;
     vanishMesh.position.set(0, -0.01, vanishCenterZ);
@@ -327,9 +321,7 @@ export class Road3D {
       const color = i % 2 === 0 ? COL_ASPHALT : COL_ASPHALT_DARK;
       const strip = new THREE.Mesh(
         new THREE.PlaneGeometry(3.85, VANISH_LEN),
-        new THREE.MeshStandardMaterial({
-          color, roughness: i % 2 === 0 ? 0.52 : 0.62, metalness: 0.12, envMapIntensity: 0.25,
-        }),
+        new THREE.MeshBasicMaterial({ color }),
       );
       strip.rotation.x = -Math.PI / 2;
       strip.position.set(x, 0, vanishCenterZ);
@@ -359,9 +351,7 @@ export class Road3D {
     // line (Z=0 to Z≈22) that the perspective camera sees below the road.
     // Without this, Three.js clears to black there, creating a black void.
     const NEAR_EXT_LEN = 24;
-    const nearExtMat = new THREE.MeshStandardMaterial({
-      color: COL_ASPHALT_DARK, roughness: 0.88, metalness: 0.02, envMapIntensity: 0.1,
-    });
+    const nearExtMat = new THREE.MeshBasicMaterial({ color: COL_ASPHALT_DARK });
     const nearExtMesh = new THREE.Mesh(
       new THREE.PlaneGeometry(W + 12, NEAR_EXT_LEN),
       nearExtMat,
@@ -401,28 +391,20 @@ export class Road3D {
 
 
   _buildBarriers() {
+    // Barriers are concrete walls designed for perspective view.
+    // In top-down ortho the top face dominates and reads as bright white strips.
+    // Use MeshBasicMaterial matching asphalt so they blend with the road surface.
     const n = this._laneCount;
     const hw = roadHalfW(n);
     for (const side of [-1, 1]) {
       const bx = side * (hw + 0.55);
-
       const body = new THREE.Mesh(
         new THREE.BoxGeometry(0.7, 0.45, ROAD_LENGTH),
-        new THREE.MeshStandardMaterial({ color: COL_BARRIER, roughness: 0.85, metalness: 0.05 }),
+        new THREE.MeshBasicMaterial({ color: COL_ASPHALT_DARK }),
       );
       body.position.set(bx, 0.22, ROAD_CENTER_Z);
       this._group.add(body);
-
-      const reflMat = new THREE.MeshBasicMaterial({ color: COL_REFLECTOR });
-      const reflGeo = new THREE.CircleGeometry(0.06, 8);
-      const innerX  = bx - side * 0.36;
-      for (let i = 0; i < 10; i++) {
-        const z    = ROAD_Z_FAR + (i + 0.5) * (ROAD_LENGTH / 10);
-        const refl = new THREE.Mesh(reflGeo, reflMat);
-        refl.position.set(innerX, 0.28, z);
-        refl.rotation.y = side * Math.PI / 2;
-        this._group.add(refl);
-      }
+      // Reflector dots omitted — not visible from top-down at this scale
     }
   }
 
@@ -521,6 +503,31 @@ export class Road3D {
       this._group.add(new THREE.Points(geo, mat));
       this._speedLines.push({ geo, mat });
     }
+  }
+
+  _buildTerminus() {
+    const n    = this._laneCount;
+    const hw   = roadHalfW(n);
+    const capD = 1.0;   // Z-depth of terminus band inside the play road
+
+    // Concrete cap at the road's far edge — visible as a horizontal bar
+    // at the top of the top-down viewport (Z = ROAD_Z_FAR is top of screen).
+    const capMat = new THREE.MeshStandardMaterial({
+      color: COL_BARRIER, roughness: 0.80, metalness: 0.05,
+    });
+    const cap = new THREE.Mesh(new THREE.PlaneGeometry(hw * 2, capD), capMat);
+    cap.rotation.x = -Math.PI / 2;
+    cap.position.set(0, 0.01, ROAD_Z_FAR + capD / 2);
+    this._group.add(cap);
+
+    // Bright boundary stripe at the road/cap junction
+    const lineMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff, transparent: true, opacity: 0.65,
+    });
+    const line = new THREE.Mesh(new THREE.PlaneGeometry(hw * 2, 0.14), lineMat);
+    line.rotation.x = -Math.PI / 2;
+    line.position.set(0, 0.015, ROAD_Z_FAR + 0.07);
+    this._group.add(line);
   }
 
   _buildNoiseOverlay() {

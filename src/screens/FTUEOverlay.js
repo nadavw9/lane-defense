@@ -67,12 +67,14 @@ export class FTUEOverlay {
 
     if (levelConfig.showArrow && levelConfig.hintText) {
       if (levelConfig.id === 1) {
-        // Replace static arrow with animated hand drag tutorial
-        this._buildHandDemo(appW, appH);
+        // Replace static arrow with animated hand drag tutorial.
+        // Pass counts directly from config — PositionRegistry may not yet be
+        // updated to the current level's geometry at construction time.
+        this._buildHandDemo(appW, appH, levelConfig.colCount ?? 1, levelConfig.laneCount ?? 1);
       } else {
         this._buildArrowHint(appW, levelConfig.hintText);
       }
-      this._buildHUDHints(appW);   // L1: timer + coins labels
+      // _buildHUDHints suppressed — TIMER/COINS labels clutter top-down HUD
     } else if (levelConfig.hintText) {
       this._buildBanner(appW, levelConfig.hintText);
     }
@@ -275,31 +277,8 @@ export class FTUEOverlay {
     grp.y = ROAD_BOTTOM_Y + 2;  // below road — no cars here
   }
 
-  // HUD labels for L1: timer and coins explanations just below the HUD bar.
-  _buildHUDHints(w) {
-    const grp = new Container();
-    this._container.addChild(grp);
-    this._hudHints = grp;
-
-    const style = {
-      fontSize: 13, fontWeight: 'bold', align: 'center',
-      dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 0.9 },
-    };
-
-    // Timer label (left-aligned, points upward)
-    const timerTxt = new Text({ text: '↑ TIMER\nSurvive until it\nruns out!', style: { ...style, fill: 0x44cc88 } });
-    timerTxt.anchor.set(0, 0);
-    timerTxt.x = 8;
-    timerTxt.y = HUD_H + 4;
-    grp.addChild(timerTxt);
-
-    // Coins label (right-aligned, points upward)
-    const coinsTxt = new Text({ text: 'COINS ↑\nEarn by\nkilling cars', style: { ...style, fill: 0xf5c842 } });
-    coinsTxt.anchor.set(1, 0);
-    coinsTxt.x = w - 8;
-    coinsTxt.y = HUD_H + 4;
-    grp.addChild(coinsTxt);
-  }
+  // Permanently suppressed — was cluttering the top-down HUD with TIMER/COINS labels.
+  _buildHUDHints(_w) {}
 
   // Area labels for L3: "INCOMING CARS" above lanes, "YOUR SHOOTERS" below.
   _buildAreaLabels(w) {
@@ -371,7 +350,7 @@ export class FTUEOverlay {
     return grp;
   }
 
-  _buildHandDemo(appW, _appH) {
+  _buildHandDemo(appW, _appH, colCount = 1, laneCount = 1) {
     // Banner
     const grp = new Container();
     this._container.addChild(grp);
@@ -414,11 +393,10 @@ export class FTUEOverlay {
     emoji.alpha = 0;
     this._container.addChild(emoji);
 
-    const startX = getColumnScreenX(0);
+    const startX = (0.5) * (appW / colCount);
     const startY = getColumnScreenY() - TOP_RADIUS * 0.5;
-    const endX   = getLaneScreenX(0);
+    const endX   = (0.5) * (appW / laneCount);   // appW === ROAD_BOTTOM_W
     const endY   = ROAD_BOTTOM_Y - 35;
-
     emoji.x = startX;
     emoji.y = startY;
 

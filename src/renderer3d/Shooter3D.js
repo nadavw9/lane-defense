@@ -16,7 +16,7 @@ const LANE_COUNT  = 4;
 const SLOT_COUNT  = 4;                 // queue depth (matches Scene3D.SLOT_COUNT)
 
 // ── Bomb geometry (group-local coords) ────────────────────────────────────────
-const BOMB_R      = 0.4 * CELL;        // 1.6 — ~80% cell fill (was magic 0.36)
+const BOMB_R      = 0.16 * CELL;       // 0.64 — 40% of previous, feels throwable
 const BOMB_CX = 0;       // centered on lane (grid-derived, not eyeballed)
 const BOMB_CY = BOMB_R;  // sphere sits with bottom at y=0
 const BOMB_CZ = 0;
@@ -168,9 +168,16 @@ export class Shooter3D {
   setLaneCount(n) {
     for (let li = 0; li < this._slots.length; li++) {
       const x = laneToX(li, n);
-      for (const slot of this._slots[li]) slot.group.position.x = x;
+      const slots = this._slots[li];
+      for (let si = 0; si < slots.length; si++) {
+        slots[si].group.position.x = x;
+        slots[si].group.position.z = queueZ(si);   // keep Z in sync when queueZ changes
+      }
       const sb = this._sparkBeads[li];
-      if (sb) sb.bead.position.x = x + BOMB_CX + 0.15;
+      if (sb) {
+        sb.bead.position.x = x + BOMB_CX + 0.15;
+        sb.bead.position.z = queueZ(0) - 0.30;     // keep Z in sync
+      }
     }
   }
 

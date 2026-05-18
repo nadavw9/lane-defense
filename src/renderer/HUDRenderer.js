@@ -537,7 +537,7 @@ export class HUDRenderer {
 
   _refreshLaneDots() {
     const activeLanes = this._gs.activeLaneCount ?? 4;
-    const colW        = this._appW / 4;
+    const colW        = this._appW / activeLanes;
 
     for (let i = 0; i < 4; i++) {
       const dot = this._laneDots[i];

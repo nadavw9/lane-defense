@@ -107,7 +107,7 @@ export class FiringLineRenderer {
       }
 
       const slot = this._firingSlots[i];
-      const cx   = (i + 0.5) * ROAD_BOTTOM_W / LANE_COUNT;
+      const cx   = (i + 0.5) * ROAD_BOTTOM_W / this._activeLaneCount;
       const cy   = ROAD_BOTTOM_Y;
 
       g.clear();

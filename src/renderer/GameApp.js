@@ -536,7 +536,6 @@ async function main() {
     hudRenderer.setLevel(currentLevelIsDaily ? 'D' : levelManager.levelNumber);
     const objTotal = gs.spawnBudget !== null ? gs.spawnBudget : gs.targetKills;
     hudRenderer.showObjective(`Defeat ${objTotal} cars`);
-    ftueOverlay = _makeFTUEOverlay(app.stage, APP_W, APP_H, cfg);
 
     // Feature gating: daily challenge unlocks everything; normal levels gate by id.
     const benchUnlocked  = currentLevelIsDaily || levelId >= 6;
@@ -556,6 +555,9 @@ async function main() {
     if ((cfg.laneCount ?? 4) >= 3) featureBanners.fire('multi_lane', 'New lane open! Each lane needs a matching-color shooter.');
     if (benchUnlocked && levelId === 6) featureBanners.fire('bench_appear', 'Bench unlocked — store a shooter here for later!');
     setActiveCounts({ laneCount: cfg.laneCount ?? 4, colCount: cfg.colCount ?? 4 });
+    // FTUEOverlay must be created AFTER setActiveCounts so that PositionRegistry
+    // returns correct lane/column screen positions for the current level geometry.
+    ftueOverlay = _makeFTUEOverlay(app.stage, APP_W, APP_H, cfg);
     carRenderer.clearAll();
     firingLineRenderer.reset();
     firingLineRenderer.setActiveLaneCount(cfg.laneCount ?? 4);

@@ -206,10 +206,18 @@ export class Environment3D {
   constructor(scene) {
     this._scene    = scene;
     this._laneCount = 4;
+    this._visible  = true;
     this._left     = null;
     this._right    = null;
     this._mountain = new MountainSilhouette(scene);
     this._rebuild(4);
+  }
+
+  setVisible(v) {
+    this._visible = v;
+    if (this._mountain._mesh) this._mountain._mesh.visible = v;
+    for (const m of (this._left?._meshes  ?? [])) m.visible = v;
+    for (const m of (this._right?._meshes ?? [])) m.visible = v;
   }
 
   setLaneCount(n) {
@@ -218,6 +226,7 @@ export class Environment3D {
     this._left?.dispose();
     this._right?.dispose();
     this._rebuild(n);
+    if (!this._visible) this.setVisible(false);
   }
 
   // Environment is static — no per-frame update needed.

@@ -88,12 +88,14 @@ export class GameRenderer3D {
     this._scene3d  = new Scene3D(this._canvas, this._width, this._height);
     this._lighting = new Lighting3D(this._scene3d.scene);
     this._skybox   = new Skybox3D(this._scene3d.scene);
+    this._skybox._group.visible = false;  // sky/hills geometry not suited for top-down view
     this._road     = new Road3D(this._scene3d.scene);
     this._cameraFX    = new CameraFX(this._scene3d.camera);
     this._laneFlash   = new LaneFlash3D(this._scene3d.scene);
     this._scorchMarks = new ScorchMarks3D(this._scene3d.scene);
     this._postFX      = new PostFX3D(this._scene3d.composer);
     this._environment = new Environment3D(this._scene3d.scene);
+    this._environment.setVisible(false);  // grass/flowers not suited for top-down view
     this._ambient     = new Ambient3D(this._scene3d.scene);
 
     this._mounted = true;

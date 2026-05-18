@@ -4,7 +4,7 @@
 // HP darkening, damage state, death animation all preserved.
 
 import * as THREE from 'three';
-import { posToZ, laneToX } from './Scene3D.js';
+import { CELL, posToZ, laneToX } from './Scene3D.js';
 import { assetLoader } from './AssetLoader.js';
 
 // Uniform scale applied to each loaded GLB model
@@ -322,6 +322,7 @@ export class Car3D {
 
   _createEntry(car, laneIdx) {
     const hex        = carHex(car);
+    const boostedHex = _boostColor(hex);
     const colorMats  = [];
     const colorBaseHexes = [];
 
@@ -329,7 +330,6 @@ export class Car3D {
 
     if (car.type === 'tank') {
       // ── Tank: procedural builder (Kenney has no 3D tank GLB) ─────────────────
-      const boostedHex = _boostColor(hex);
       group = new THREE.Group();
       const result = this._buildTank(group, boostedHex, colorMats, colorBaseHexes);
       bodyMat      = result.bodyMat;
@@ -351,7 +351,6 @@ export class Car3D {
       });
 
       // Tint ALL non-excluded materials aggressively to the lane's boosted color
-      const boostedHex = _boostColor(hex);
       group.traverse(node => {
         if (!node.isMesh) return;
         const mats = Array.isArray(node.material) ? node.material : [node.material];
@@ -407,6 +406,17 @@ export class Car3D {
       bossRing = new THREE.Mesh(_bossTorusGeo, bossRingMat);
       this._scene.add(bossRing);
     }
+
+    // Top-down color billboard: flat plane shows car clearly from above.
+    // Width and length derived from CELL (lane width) — no eyeballed constants.
+    const billGeo  = new THREE.PlaneGeometry(CELL * 0.75, CELL * 0.85);
+    const billMat  = new THREE.MeshBasicMaterial({ color: boostedHex });
+    const billMesh = new THREE.Mesh(billGeo, billMat);
+    billMesh.rotation.x = -Math.PI / 2;
+    billMesh.position.y = 0.02;
+    group.add(billMesh);
+    group.userData.billGeo = billGeo;
+    group.userData.billMat = billMat;
 
     const groupY = car.type === 'tank' ? CAR_Y_TANK : CAR_Y;
     group.position.set(laneToX(laneIdx), groupY, posToZ(car.position));
@@ -540,6 +550,8 @@ export class Car3D {
   }
 
   _disposeGroup(group) {
+    group.userData.billGeo?.dispose();
+    group.userData.billMat?.dispose();
     const isTankGroup = !!group.userData.tankPtLight;
     group.traverse(obj => {
       // GLB geometries are shared across clones — do not dispose them.

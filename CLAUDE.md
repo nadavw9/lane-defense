@@ -2,198 +2,188 @@
 
 > **For Claude Code: auto-loaded on every session. Read in full before any task.**
 
-## What This Is
+---
 
-Hybrid-casual mobile puzzle-defense game. Cars in colored lanes advance toward the player one row per shot. Player drags color-coded "bombs" (shooters) onto lanes — color must match the front car to deal damage. Survive the level's car queue without a breach.
+## 1. THE STANDARD
+
+Every visual change must meet **Play Store quality** before being approved. This is a hard gate, not an aspiration.
+
+**Approval process:**
+1. Screenshot from **L5 or higher** (never L1 — single lane, not representative)
+2. Ask: *"Would a player downloading this from the Play Store think this looks and feels like a professional game?"*
+3. If no → keep fixing. Do not commit.
+4. Reference bar: **Royal Match, Color Block Jam, Toon Blast.**
+
+---
+
+## 2. What This Is
+
+Hybrid-casual mobile puzzle-defense game. Cars in colored lanes advance toward the player one row per correct shot. Player drags color-coded bombs onto lanes — color must match the front car to deal damage. Turn-based grid, not real-time. 40 levels across 3 worlds. Live on GitHub Pages; native Android via Capacitor.
 
 - **Live URL:** https://nadavw9.github.io/lane-defense/
-- **Repo:** https://github.com/nadavw9/lane-defense (public)
-- **App ID:** `com.nadavw.lanedefense` (Capacitor, Android)
-- **Firebase analytics DB:** https://lanedefense-analytics-default-rtdb.firebaseio.com/
+- **Repo:** https://github.com/nadavw9/lane-defense
+- **App ID:** `com.nadavw.lanedefense`
 
 ---
 
-## MANDATORY: Read Before Any Design Work
+## 3. Mandatory Reads
 
-Before touching `LevelManager.js`, `GameLoop.js`, `ThemeRegistry.js`,
-`LevelSelectScreen.js`, or `CarTypes.js`:
+Before any design, level, or gameplay change, read these in full:
 
-1. Read `docs/VISION.md` in full
-2. Read `docs/GAME_DESIGN.md` in full
-3. Ask: does my planned change serve the vision?
-4. If not — redesign the approach, not the vision
+- `docs/VISION.md` — **locked design contract. Do not modify without explicit user approval.**
+- `docs/GAME_DESIGN.md` — level master table, difficulty rules, known bugs
+- `docs/balance-report-realistic.md` — difficulty ground truth per level
 
-The vision in `docs/VISION.md` is a locked contract.
-It cannot be quietly adjusted to fit existing code.
-Existing code must be adjusted to fit the vision.
+Files this applies to: `LevelManager.js`, `GameLoop.js`, `ThemeRegistry.js`, `LevelSelectScreen.js`, `CarTypes.js`.
 
 ---
 
-## Tech Stack
-
-| Layer | Library | Version |
-|---|---|---|
-| 3D gameplay | Three.js | ^0.167.0 |
-| 2D UI / screens | PixiJS | ^8.17.1 (devDep) |
-| Audio | Howler.js | ^2.2.4 (devDep) |
-| Ads | @capacitor-community/admob | ^8.0.0 |
-| Native wrapper | @capacitor/android | ^8.3.0 |
-| Build | Vite | ^8.0.3 |
-| Tests | Vitest | ^4.1.2 |
-| E2E | Playwright | ^1.59.1 |
-| Language | Pure JavaScript, ES modules, Node 18+ (CI: Node 24) |
-
----
-
-## Architecture
+## 4. Architecture
 
 ### Directory layout
 
-- `src/director/` — headless game brain. Never imports pixi.js or three.js.
-- `src/renderer/` — PixiJS 2D — screens, HUD, bench, drag-drop, all 2D UI.
-- `src/renderer3d/` — Three.js 3D — road, cars, bombs, sky, environment.
+- `src/director/` — headless game brain. **Never imports pixi.js or three.js.**
+- `src/renderer/` — PixiJS 2D: screens, HUD, bench, drag-drop, all 2D UI.
+- `src/renderer3d/` — Three.js 3D: road, cars, bombs, sky, environment.
 - `src/game/` — glue: GameLoop, GameState, CombatResolver, LevelManager.
-- `src/screens/` — all menu/dialog/overlay screens.
+- `src/screens/` — menu/dialog/overlay screens (PixiJS).
 - `src/input/` — DragDrop and pointer handling.
-- `src/audio/` — procedural Web Audio music & SFX.
 - `src/ads/` — AdMob wrapper (`AdManager.js`).
-- `src/analytics/` — Firebase analytics + auto-tuning.
+- `src/analytics/` — Firebase analytics.
 
-**Director never modifies render objects. Renderer never mutates GameState.**
+**Director never modifies render objects. Renderers never mutate GameState.**
 
 ### Dual-renderer canvas stack
 
 PixiJS canvas (z-front) overlays the Three.js canvas (z-behind). They share no WebGL context.
 
-Three.js scene uses **two cameras**:
-- **Perspective camera** — road, cars, environment. Position `(0, 9, 16)`, lookAt `(0, 0, -8)`, FOV 60°. Set by `CameraFX.js` constructor (overrides Scene3D.js defaults).
-- **Orthographic top-down camera** on layer 1 — bomb/shooter columns (Shooter3D.js).
+### Camera — single top-down orthographic
 
-The legacy PixiJS LaneRenderer and ShooterRenderer are **hidden during gameplay**. Their exported constants are still used for hit-testing math.
+One `OrthographicCamera` in `Scene3D.js` renders everything. No perspective camera, no CameraFX.js, no dual-camera setup.
 
-### 3D Scene Layout
+- Position: `(0, 8, zCtr)` where `zCtr = (ROAD_Z_FAR + queueZ(3)) / 2 ≈ -7.8`
+- `lookAt(0, 0, zCtr)`, `up = (0, 0, -1)` — true top-down
+- `camera.layers.enableAll()` — one pass covers road, cars, and bomb columns
+
+### 3D Scene Coordinate System
 
 ```
-Z = -65  ROAD_Z_VANISHING  — visual horizon (no gameplay here)
-Z = -40  ROAD_Z_FAR        — road geometry start
-Z = -22  posToZ(0)         — car spawn line  (posToZ(p) = -22 + p/100 * 22)
-Z =   0  ROAD_Z_NEAR       — breach line (red pulse)
+Z = -22  ROAD_Z_FAR   — car spawn line (far/top of screen)
+Z =   0  ROAD_Z_NEAR  — breach line (near/bottom of gameplay area)
+Z = +1.6 to +6.4      — bomb queue slots (below road, above HUD)
+Z = -65  ROAD_Z_VANISHING — visual road extension (no gameplay)
 ```
 
-- Lane width = 4.0 world units.
-- For 4 lanes: X = −6, −2, +2, +6.
+Lane width = `CELL = 4.0` world units. For 4 lanes: X = −6, −2, +2, +6.
+
+`laneToX(idx, n)` and `posToZ(position)` are the only correct way to compute positions. Never hardcode X/Z values.
 
 ### Position Registry (CRITICAL — never bypass)
 
-`src/renderer/PositionRegistry.js` is the single source of truth for lane/column screen positions.
+`src/renderer/PositionRegistry.js` is the single source of truth for lane/column screen positions. Called from `GameApp._startLevel()` before renderers initialize. All hit-testing and overlay positioning must use the registry.
 
-API: `setActiveCounts({laneCount, colCount})`, `getLaneScreenX/Y`, `getColumnScreenX/Y`, `getLaneScreenBounds`, `getColumnScreenBounds`.
+### Popup Queue
 
-Called from `GameApp._startLevel()` BEFORE renderers initialize. All hit-testing and overlay positioning MUST use the registry. Hardcoded `COL_W * 0.5` is forbidden.
+`src/renderer/PopupQueue.js` — all popups/banners/toasts route here.  
+Priorities (highest first): CRITICAL, TUTORIAL, CAR_TYPE, ACHIEVEMENT, COMBO, AMBIENT.  
+**No ad-hoc popup spawning.** Ever.
 
 ### Sprite paths
 
-Always `${import.meta.env.BASE_URL}sprites/...`. Hardcoded `/sprites/...` causes GitHub Pages 404 — silent crash.
+Always `${import.meta.env.BASE_URL}sprites/...`. Hardcoded `/sprites/...` causes GitHub Pages 404.
 
-### Theme System
+### Themes (ThemeRegistry.js)
 
-`src/renderer3d/ThemeRegistry.js` defines 5 sub-variants of the "woods" theme:
-
-| Levels | Theme | Fog near/far |
-|---|---|---|
-| L1–4 | morning (cream/gold sky) | 30 / 92 |
-| L5–8 | afternoon (deep blue sky) | 38 / 128 |
-| L9–12 | sunset (indigo/orange) | 24 / 90 |
-| L13–16 | misty (cool grey overcast) | **20 / 70** |
-| L17+ | autumn (amber/gold) | 20 / 75 |
-
-Misty fog was fixed to near=20 so cars remain visible throughout the road.
-
-### Popup Queue (CRITICAL)
-
-`src/renderer/PopupQueue.js` — centralized priority queue for ALL popups/banners/toasts.
-
-Priorities (highest first): CRITICAL, TUTORIAL, CAR_TYPE, ACHIEVEMENT, COMBO, AMBIENT.  
-0.4s debounce between non-AMBIENT popups. AMBIENT can stack 3; others: 1 concurrent.
-
-All new popups must go through this queue. No ad-hoc spawning.
+| Levels | Theme | Notes |
+|--------|-------|-------|
+| L1–4   | morning | warm cream-gold |
+| L5–8   | afternoon | deep blue sky |
+| L9–12  | sunset | indigo-orange |
+| L13–15 | misty | cool grey; fog near=20 minimum — do not lower |
+| L16–30 | industrial | steel grey + orange hazard (World 2) |
+| L31+   | nightHighway | near-black sky, neon fog (World 3) |
 
 ---
 
-## Current Phase: Phase 3 — Polish & Production
+## 5. Current State
 
-Phase 1 (Director) and Phase 2 (PixiJS renderer) are done. Phase 3 introduced the full Three.js 3D rewrite for the gameplay viewport. PixiJS still owns all screens, HUD, and 2D overlays.
+### Tests
+**478 passing**, 5 todo — 18 test files. Run: `npm test`. All headless (no render tests).
 
----
+### What is done
+- **40 levels** configured in `LevelManager.js` (L1–L40, three worlds)
+- **Car type intro cards** (`src/screens/CarTypeIntroCard.js`) — fires at: L1 small, L2 big, L5 jeep, L9 truck, L13 bigrig, L15 tank
+- **Streak Shot** — `streakCount` + `streakActive` in `GameState.js`; 3 consecutive correct hits → double-damage power shot
+- **AdMob** — `src/ads/AdManager.js` with Google **test** IDs for rewarded video and interstitial
+- **Signed release keystore** — `android/lane-defense-release.keystore` (gitignored). **Never delete.**
+- **Balance simulator** — `tools/balance-sim.js`
+- **Car rendering** — flat `PlaneGeometry` + `CanvasTexture` + `MeshBasicMaterial`. No GLB models.
+- **Danger Aura** — red pulse on cars within 2 rows of breach gate
+- **Fairness rules** (FR-1 through FR-5) enforced in `GameLoop._enforceViableMove()`
+- **Wrong-color shot = no advance** (shipped — never revert)
+- **Bomb hits color-matching cars only** (shipped — never revert)
 
-## Design Philosophy
-
-This game targets **top-tier mobile hit** quality — Royal Match, Color Block Jam, Block Blast tier.
-
-- Be a designer, not just an implementer. If something looks amateur, fix it structurally.
-- Bold colors, clear hierarchy, satisfying micro-animations, instant-readable iconography, no clutter.
-- Cards/buttons/badges: proper rounded corners (10–14px), drop shadows, gradient fills.
-- Typography: bold, high-contrast, ≥18pt for any UI text.
-- Every interaction has feedback (scale, glow, particle, sound).
-- Ask "would Royal Match ship this?" before any visual decision.
-
----
-
-## Visual Design Contract
-
-- Car colors are vivid at ALL damage levels. No HP darkening. Damage is shown by emissive orange/red glow + slight rotation tilt only.
-- Shooter (bomb) colors: candy-bright MeshStandardMaterial with emissive boost.
-- Damage number badge: colored pill background + bold white number. No HP bars.
-- One dominant background tone per theme (sky, ground, fog all shift toward it at reduced saturation). Hero elements (cars, bombs) always win visual hierarchy.
-
----
-
-## Gameplay Mechanics
-
-**Turn-based grid**, not real-time movement:
-
-1. Player drags a shooter from a column onto a lane.
-2. One projectile fires (0.12s travel time, reduced by combo multiplier).
-3. `_advanceGrid()` runs — all cars advance one row toward the breach on a color-match hit. A color-mismatch shot does NOT advance the grid (wasted slot, no ground lost).
-4. New cars spawn at row 0 (far end). Level ends when budget exhausted AND all lanes empty, or a car reaches row > MAX_ROW (breach = loss).
-
-**Win stars** (`WinScreen.calcStars`):
-- 3 stars: no rescue used AND `maxCarPosition < 60`
-- 2 stars: no rescue used AND `maxCarPosition < 80`
-- 1 star: otherwise (rescue used, or car got too close)
-
-**Bomb mechanic**: earned at every 10 kills (max 3 held). Tap road to place; damages all cars within radius 22 position-units. Triggers 2s concussion freeze.
-
-**FREEZE booster**: skips grid advance for next 3 shots.
-
-**Rescue**: rewarded ad → add time + `shuffleForRescue()` (force ≥2 column tops to match front car colors).
+### What is NOT done (production gates)
+- Replace AdMob test IDs with production unit IDs
+- Signed release APK for Play Store
+- Play Store listing (screenshots, feature graphic, privacy policy, Data Safety form)
+- Closed test track ≥ 12 testers × 14 days
+- World 2 / World 3 themes exist in ThemeRegistry; their visuals have not been art-directed
+- City repair meta loop (city visible on level select, state saved to ProgressManager — see VISION.md)
 
 ---
 
-## Car Type System
+## 6. Mandatory Self-Audit Before Every Commit
 
-Six types + boss. HP values and spawn schedule:
+Take screenshots from: **L5** (4-lane afternoon), **L9** (sunset), **L13** (misty), **L17** (industrial / World 2).  
+**Never use L1** as a visual benchmark (single lane, no representative load).
 
-| Type | HP | First intro level |
-|---|---|---|
-| small | 2 | L1 |
-| big | 4 | L2 |
-| jeep | 5 | L5 |
-| truck | 6 | L9 |
-| bigrig | 7 | L13 |
-| tank | 20 | L15 |
-| boss | — | special |
+Check each frame:
+- Are car colors vivid and instantly readable by color? (no washed-out tints)
+- Do car shapes differ visibly by type? (bike narrow, tank wide with turret, bigrig long)
+- Are cars visible throughout the road in misty theme?
+- Are bomb columns aligned under their lanes?
+- Is the breach line visible as a real danger threshold?
+- Does the Play Store standard question (section 1) get a YES?
 
-`LEVEL_INTRO_TYPE` in `GameApp.js`: `{ 1: 'small', 2: 'big', 5: 'jeep', 9: 'truck', 13: 'bigrig', 15: 'tank' }` — verified against actual code.
+Fix any NO before committing.
 
-**3D geometry source:**
-- small, big, jeep, truck, bigrig → Kenney Car Kit GLB models (CC0 licensed, `public/models/`)
-- tank → procedural Three.js geometry (box body + cylinder turret + torus treads)
-- boss → sphere body + orbiting torus ring
+Before committing any change to `LevelManager.js` or `CarTypes.js`:
+1. Run `node tools/balance-sim.js --level=N --runs=500` for affected levels
+2. Win rate must be within target band for that level's difficulty tier
+3. If not — adjust level config, not the simulator
 
 ---
 
-## Color Palette
+## 7. What NOT to Touch
+
+- `src/director/` — 478 tests cover it; changes need matching test updates
+- `src/models/` — data classes; shape changes cascade everywhere
+- Vite config base-path logic
+- `BASE_URL` sprite path patterns
+- `docs/VISION.md` — locked contract; do not modify without user approval
+- The Play Store standard in section 1 — never downgrade this requirement
+- Test files (unless adding tests or updating assertions for intentional behavior changes)
+
+---
+
+## 8. Anti-Patterns (Forbidden)
+
+- Spawning popups outside `PopupQueue`
+- Computing lane/column positions without `PositionRegistry`
+- Hardcoded X/Z world coords instead of `laneToX()` / `posToZ()`
+- Adding new top-level `src/` folders without discussion
+- Band-aid patches when a structural fix is correct
+- Preserving "for compatibility" code that no longer serves a purpose
+- **Do not re-add HP bars to cars** — intentionally removed; damage shown via emissive glow only
+- **Do not re-add a start gate above the road** — intentionally removed from Road3D.js
+- **Do not re-add survival/endless mode** — incompatible with turn-based grid; was removed
+- **Do not commit visual changes without a screenshot from L5+**
+- **Do not reference L1 as a visual quality benchmark**
+
+---
+
+## 9. Color Palette
 
 ```
 Red:    #E24B4A   (0xE24B4A)
@@ -205,82 +195,23 @@ Orange: #D85A30   (0xD85A30)
 Boss:   #CC44CC   (0xCC44CC)
 ```
 
-Duplicated in: `src/renderer3d/Shooter3D.js`, `Projectile3D.js`, `Car3D.js`, `src/input/DragDrop.js`. Update all four if changing any color.
+Duplicated in: `Car3D.js`, `Shooter3D.js`, `Projectile3D.js`, `src/input/DragDrop.js`. Update all four if changing any color.
 
 ---
 
-## Fairness Rules (Director enforces — never violate)
+## 10. Fairness Rules (Director enforces — never violate)
 
-1. **FR-1** At least 1 column top must color-match at least 1 front car (viability guard in `GameLoop._enforceViableMove()`).
-2. **FR-2** At most 3 of 4 front cars can share the same color.
+1. **FR-1** At least 1 column top must color-match at least 1 front car.
+2. **FR-2** At most 3 of 4 front cars share the same color.
 3. **FR-3** Average shooter damage ≥ 50% of average front car HP.
-4. **FR-4** No car HP exceeds 2.5× the highest available shooter damage. Tank (HP=20) only spawns when damage 8+ shooters are in the pool.
+4. **FR-4** No car HP exceeds 2.5× the highest available shooter damage.
 5. **FR-5** At least 2 distinct colors in the top shooter row.
 
-Viability guard also checks **bench slots** (L6+): if a bench shooter matches a front car color, no force-recolor needed.
+Viability guard also checks bench slots (L6+).
 
 ---
 
-## AdMob Status — IMPLEMENTED (test IDs)
-
-`src/ads/AdManager.js` — singleton, initialized at app startup.
-
-| Ad type | Unit ID (Google test) | Trigger |
-|---|---|---|
-| Rewarded | `ca-app-pub-3940256099942544/5224354917` | Rescue button on LoseScreen |
-| Interstitial | `ca-app-pub-3940256099942544/1033173712` | LoseScreen dismiss (throttled ≥30s between shows) |
-
-**Booster ad costs**: swap=1, peek=1, freeze=1, bomb=3.
-
-**Web fallback**: `_showPlatformAd()` shows a 5-second mock overlay (progress bar + countdown). Not a no-op — it simulates ad completion. Replace `_showPlatformAd()` body with the real SDK call when going live.
-
-**Before release**: replace both `*_AD_ID` constants with production Play Store ad unit IDs.
-
----
-
-## Production Gates (NOT YET DONE)
-
-- [ ] Replace AdMob test IDs with production IDs
-- [ ] Signed release keystore + APK
-- [ ] Play Store listing — screenshots, feature graphic, privacy policy, Data Safety form
-- [ ] Closed test track ≥ 12 testers × 14 days
-
----
-
-## Test Suite
-
-- **460 tests passing**, 5 todo, 2 skipped — 17 test files
-- Run: `npm test`
-- All tests are headless (Director / GameLoop / GameState). No render tests.
-- CI runs on every push via `.github/workflows/deploy.yml`. Failed tests block deploy.
-
----
-
-## Build and Deploy
-
-```bash
-npm run dev      # Vite dev server with --host (phone access on LAN)
-npm run build    # production build → dist/
-```
-
-Push to `master` → GitHub Action → tests pass → deploy to GH Pages → live in ~60s.
-
-Workflow: https://github.com/nadavw9/lane-defense/actions
-
----
-
-## Token Rules (Claude Code)
-
-- `/clear` between unrelated tasks
-- `/compact` when context grows long
-- Default model: sonnet. Opus only for complex architecture decisions
-- Batch multiple file edits into single prompts
-- Name exact files; don't explore unnecessarily
-- `.claudeignore` excludes: node_modules, dist, android, .git
-
----
-
-## Coding Preferences
+## 11. Coding Preferences
 
 - Pure JavaScript (no TypeScript)
 - ES modules, Node 18+ (CI: Node 24)
@@ -292,68 +223,37 @@ Workflow: https://github.com/nadavw9/lane-defense/actions
 
 ---
 
-## KEYSTORE — NEVER DELETE
+## 12. Useful Commands
+
+```bash
+npm run dev            # Vite dev server (--host for LAN/phone)
+npm test               # full Vitest suite (must be green)
+npm run build          # production build → dist/
+npm run browser:kill   # clear stuck Playwright Chrome (BEFORE a session only)
+node tools/balance-sim.js --level=N --runs=500   # regenerate level difficulty
+window._nav.startLevel(5)   # dev API — jump directly to L5 in browser
+```
+
+---
+
+## 13. Token Rules (Claude Code)
+
+- `/clear` between unrelated tasks
+- `/compact` when context grows long
+- Batch multiple file edits into single prompts
+- Name exact files; don't explore unnecessarily
+- `.claudeignore` excludes: node_modules, dist, android, .git
+
+---
+
+## 14. KEYSTORE — NEVER DELETE
 
 `android/lane-defense-release.keystore` is NOT in git (gitignored).  
-It lives at: `C:\Users\dalit\lane-defense\android\lane-defense-release.keystore`
+Path: `C:\Users\dalit\lane-defense\android\lane-defense-release.keystore`
 
 **LOSING THIS FILE = LOSING THE ABILITY TO UPDATE THE APP ON PLAY STORE FOREVER.**  
-Back it up to a USB drive or cloud storage immediately.  
-Password: `lanedefense2024` (store this somewhere safe too).
+Password: `lanedefense2024`
 
 ---
 
-## What NOT to Touch
-
-- `src/director/` — 455 tests cover it; changes need matching test updates
-- `src/models/` — data classes; shape changes cascade everywhere
-- Vite config base-path logic
-- `BASE_URL` sprite path patterns
-- Test files (unless adding new tests or updating assertions to match intentional behavior changes)
-
----
-
-## Anti-Patterns (Forbidden)
-
-- Spawning popups outside `PopupQueue`
-- Computing lane/column positions without `PositionRegistry`
-- Adding new top-level `src/` folders without discussing first
-- Band-aid patches when a structural fix is correct
-- Preserving "for compatibility" code that no longer serves a purpose
-- **Do not re-add HP bars to cars** — intentionally removed; damage shown via emissive glow only
-- **Do not re-add a start gate above the road** — intentionally removed from Road3D.js
-- **Do not add a survival/endless mode** — incompatible with the turn-based grid mechanic; was removed
-
----
-
-## Key Design Documents
-
-Read these before making gameplay or level changes:
-
-- `docs/GAME_DESIGN.md` — design pillars, level master doc, difficulty rules, known bugs
-- `docs/balance-report.md` — current simulator results per level (run `tools/balance-sim.js` to refresh)
-
----
-
-## Mandatory Self-Audit
-
-After **any** commit that touches visual or gameplay code:
-
-1. Run `npm run dev` and open the game in a browser.
-2. Playwright-screenshot **L1, L5, L9, L13** (one per theme: morning, afternoon, sunset, misty).
-3. Check each frame:
-   - Car colors vivid and clearly distinct? (not washed-out or foggy)
-   - Cars visible throughout the full road in the misty theme?
-   - FTUE overlays / tutorial banners positioned below the road (not covering cars)?
-   - Shooter bomb columns rendering correctly in all active lanes?
-4. Fix any "no" before pushing.
-
-Before committing any change to `LevelManager.js` or `src/director/CarTypes.js`:
-
-1. Run `node tools/balance-sim.js --level=N --runs=500` for affected levels
-2. Confirm win rate is within target band for that level's difficulty tier
-3. If not — adjust level config, not the simulator
-
----
-
-*Last updated: 2026-05-14 — full rewrite from codebase. Previous version had stale camera coords, test count, start-gate reference, and TutorialHand.js filename.*
+*Last updated: 2026-05-19 — full rewrite from verified codebase. Removed all stale/unverifiable content.*

@@ -475,34 +475,38 @@ export class FeatureBanners {
     this._seen.add(key);
     this._persist();
     const appW = this._appW;
-    this._pq.enqueue(PRIORITY.TUTORIAL, (w) => FeatureBanners._buildPill(w ?? appW, text), 4.0);
+    this._pq.enqueue(PRIORITY.TUTORIAL, (w) => FeatureBanners._buildPill(w ?? appW, text), 2.5);
   }
 
   _persist() {
     try { localStorage.setItem('ftue_banners', JSON.stringify([...this._seen])); } catch {}
   }
 
+  // Compact right-aligned toast: 200px wide, anchored to right edge.
+  // Positioned below the HUD bar (ZONE_Y[TUTORIAL]=76) so it never
+  // overlaps the level badge, hearts, or the gameplay road.
   static _buildPill(w, text) {
     const grp = new Container();
-    const PW = w - 60, PH = 42, PX = 30;
+    const PW = 210, PH = 38;
+    const PX = w - PW - 10;   // right-aligned, 10px from edge
 
     const bg = new Graphics();
-    bg.roundRect(PX, 0, PW, PH, 21);
-    bg.fill({ color: 0xffffff, alpha: 0.96 });
-    bg.roundRect(PX, 0, PW, PH, 21);
-    bg.stroke({ color: 0x44aaff, width: 2, alpha: 0.80 });
+    bg.roundRect(PX, 0, PW, PH, 10);
+    bg.fill({ color: 0x081830, alpha: 0.88 });
+    bg.roundRect(PX, 0, PW, PH, 10);
+    bg.stroke({ color: 0x44aaff, width: 1.5, alpha: 0.85 });
     grp.addChild(bg);
 
     const txt = new Text({
       text,
       style: {
-        fontSize: 14, fontWeight: 'bold', fill: 0x0a1a33, align: 'center',
-        wordWrap: true, wordWrapWidth: PW - 24,
-        dropShadow: { color: 0x000000, blur: 3, distance: 0, alpha: 0.25 },
+        fontSize: 12, fontWeight: 'bold', fill: 0xeef4ff, align: 'right',
+        wordWrap: true, wordWrapWidth: PW - 16,
+        dropShadow: { color: 0x000000, blur: 4, distance: 0, alpha: 0.60 },
       },
     });
-    txt.anchor.set(0.5, 0.5);
-    txt.x = w / 2;
+    txt.anchor.set(1.0, 0.5);   // right-aligned anchor
+    txt.x = PX + PW - 8;
     txt.y = PH / 2;
     grp.addChild(txt);
     return grp;

@@ -1,35 +1,46 @@
-// Car3D — flat colored billboard planes per car type, shaped via CanvasTexture.
-// Top-down orthographic view. Each type has a distinct silhouette.
+// Car3D — PNG sprite billboards per car type + programmatic tank/boss.
+// Top-down orthographic view. Sprites loaded via TextureLoader, tinted via
+// MeshBasicMaterial.color for runtime color identity and per-frame effects.
 //
-// Type → shape mapping (game type → visual description):
-//   small  → Motorbike: narrow tall rect  (30% × 55%)
-//   big    → Sedan:     wide short rect   (60% × 50%)
-//   jeep   → Van:       wide medium rect  (70% × 52%)
-//   truck  → Truck:     square-ish rect   (65% × 65%)
-//   bigrig → Big Rig:   tall rect + cab line at 35% (65% × 85%)
-//   tank   → Tank:      wide rect + turret circle   (80% × 70%)
-//   boss   → Boss:      largest rect (90% × 90%)
+// Type → sprite file:
+//   small  → motorbike.png
+//   big    → sedan.png
+//   jeep   → jeep.png
+//   truck  → truck.png
+//   bigrig → bigrig.png
+//   tank   → programmatic CanvasTexture (wide hull + turret + barrel)
+//   boss   → programmatic CanvasTexture (styled rectangle)
 
 import * as THREE from 'three';
 import { CELL, posToZ, laneToX } from './Scene3D.js';
 
-const CVS    = 128;
-const MARGIN = 6;   // canvas px margin so 4px stroke is fully visible
+// ── Canvas size for programmatic textures ────────────────────────────────────
+const CVS    = 256;
+const MARGIN = 8;
 
-const DEATH_DURATION  = 0.30;
-const DEATH_SCALE_MAX = 1.40;
-const DEATH_VY        = 2.5;
-const LERP_DURATION   = 0.45;
-const MAX_TILT_X      = 0.20;
-
+// ── Timings ──────────────────────────────────────────────────────────────────
+const LERP_DURATION    = 0.25;
+const DEATH_DURATION   = 0.30;
+const DEATH_SCALE_MAX  = 1.40;
+const DEATH_VY         = 2.5;
+const MAX_TILT_X       = 0.20;
+const SPAWN_OFFSET     = 1.8;  // world units off-screen at spawn
 const POWER_FLASH_DUR  = 0.25;
 const POWER_SQUASH_DUR = 0.18;
 const POWER_SCALE_PEAK = 1.12;
 
+// ── Danger aura ───────────────────────────────────────────────────────────────
 const AURA_RATE = 1 / 0.3;
 const AURA_FREQ = 1.5;
 const AURA_AMP  = 0.3;
 
+// ── Wobble ───────────────────────────────────────────────────────────────────
+const WOBBLE_X_AMP   = 0.08;
+const WOBBLE_X_FREQ  = 1.1;
+const WOBBLE_ROT_AMP = 0.015;
+const WOBBLE_ROT_FREQ = 0.9;
+
+// ── Colors ───────────────────────────────────────────────────────────────────
 const COLOR_HEX = {
   Red:    0xE24B4A,
   Blue:   0x378ADD,
@@ -37,22 +48,44 @@ const COLOR_HEX = {
   Yellow: 0xEF9F27,
   Purple: 0x7F77DD,
   Orange: 0xD85A30,
-  Boss:   0xcc44cc,
+  Boss:   0xCC44CC,
 };
 
-// Per-type plane dimensions (fractions of CELL) and canvas draw config.
-// PlaneGeometry = CELL*wF × CELL*hF — plane aspect ratio gives correct proportions.
-// Canvas texture is always 128×128; plane stretching corrects the aspect.
+// ── Per-type plane dimensions (fractions of CELL) ───────────────────────────
+// PlaneGeometry = CELL*wF × CELL*hF.
 const TYPE_DIMS = {
-  small:  { wF: 0.30, hF: 0.55, radius: 18, kind: 'rect'   },
-  big:    { wF: 0.60, hF: 0.50, radius: 12, kind: 'rect'   },
-  jeep:   { wF: 0.70, hF: 0.52, radius: 12, kind: 'rect'   },
-  truck:  { wF: 0.65, hF: 0.65, radius: 12, kind: 'rect'   },
-  bigrig: { wF: 0.65, hF: 0.85, radius: 12, kind: 'bigrig' },
-  tank:   { wF: 0.80, hF: 0.70, radius: 12, kind: 'tank'   },
-  boss:   { wF: 0.90, hF: 0.90, radius: 14, kind: 'rect'   },
+  small:  { wF: 0.30, hF: 0.55 },
+  big:    { wF: 0.65, hF: 0.55 },
+  jeep:   { wF: 0.75, hF: 0.58 },
+  truck:  { wF: 0.68, hF: 0.70 },
+  bigrig: { wF: 0.68, hF: 0.90 },
+  tank:   { wF: 0.82, hF: 0.72 },
+  boss:   { wF: 0.95, hF: 0.95 },
 };
 
+// ── Sprite map for PNG-backed types ──────────────────────────────────────────
+const SPRITE_MAP = {
+  small:  'sprites/designed/motorbike.png',
+  big:    'sprites/designed/sedan.png',
+  jeep:   'sprites/designed/jeep.png',
+  truck:  'sprites/designed/truck.png',
+  bigrig: 'sprites/designed/bigrig.png',
+};
+
+// Module-level texture cache (shared across all Car3D instances)
+const _texLoader = new THREE.TextureLoader();
+const _texCache  = {};
+
+function _getSpriteTex(type, base) {
+  if (!_texCache[type]) {
+    const tex = _texLoader.load(`${base}${SPRITE_MAP[type]}`);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    _texCache[type] = tex;
+  }
+  return _texCache[type];
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
 function carHex(car) {
   return COLOR_HEX[car.color] ?? (car.type === 'boss' ? COLOR_HEX.Boss : 0x888888);
 }
@@ -81,63 +114,80 @@ function _rrect(ctx, x, y, w, h, r) {
   }
 }
 
-function _drawCarShape(ctx, W, H, type, hex) {
+// ── Programmatic texture drawing (tank, boss) ─────────────────────────────────
+function _drawTank(ctx, W, H) {
   ctx.clearRect(0, 0, W, H);
-  const cfg = TYPE_DIMS[type] ?? TYPE_DIMS.big;
-  const M   = MARGIN;
-  const cw  = W - 2 * M;
-  const ch  = H - 2 * M;
-  const r   = cfg.radius;
-  const cr  = (hex >> 16) & 0xff;
-  const cg  = (hex >>  8) & 0xff;
-  const cb  =  hex        & 0xff;
 
-  ctx.fillStyle   = `rgb(${cr},${cg},${cb})`;
-  ctx.strokeStyle = 'rgba(255,255,255,0.45)';
-  ctx.lineWidth   = 4;
+  // Caterpillar tracks on left and right edges
+  ctx.fillStyle = '#444444';
+  ctx.fillRect(MARGIN, MARGIN, 14, H - 2 * MARGIN);
+  ctx.fillRect(W - MARGIN - 14, MARGIN, 14, H - 2 * MARGIN);
 
-  if (cfg.kind === 'bigrig') {
-    _rrect(ctx, M, M, cw, ch, r);
-    ctx.fill(); ctx.stroke();
-    // Thin horizontal line at 35% from top — cab/trailer division
-    const lineY = M + ch * 0.35;
-    ctx.beginPath();
-    ctx.moveTo(M + 3, lineY);
-    ctx.lineTo(M + cw - 3, lineY);
-    ctx.lineWidth   = 2;
-    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-    ctx.stroke();
+  // Hull
+  const hx = MARGIN + 16, hy = H * 0.10;
+  const hw = W - 2 * (MARGIN + 16), hh = H * 0.80;
+  _rrect(ctx, hx, hy, hw, hh, 10);
+  ctx.fillStyle = '#E0E0E0';
+  ctx.fill();
+  ctx.strokeStyle = '#333333';
+  ctx.lineWidth = 4;
+  ctx.stroke();
 
-  } else if (cfg.kind === 'tank') {
-    // Hull
-    _rrect(ctx, M, M, cw, ch, r);
-    ctx.fill(); ctx.stroke();
-    // Turret: darker shade centered on canvas
-    const dr = Math.round(cr * 0.70);
-    const dg = Math.round(cg * 0.70);
-    const db = Math.round(cb * 0.70);
-    ctx.beginPath();
-    ctx.arc(W / 2, H / 2, 20, 0, Math.PI * 2);
-    ctx.fillStyle   = `rgb(${dr},${dg},${db})`;
-    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-    ctx.lineWidth   = 3;
-    ctx.fill(); ctx.stroke();
+  // Turret (centered)
+  ctx.beginPath();
+  ctx.arc(W / 2, H / 2, 38, 0, Math.PI * 2);
+  ctx.fillStyle = '#C8C8C8';
+  ctx.fill();
+  ctx.strokeStyle = '#333333';
+  ctx.lineWidth = 3;
+  ctx.stroke();
 
-  } else {
-    _rrect(ctx, M, M, cw, ch, r);
-    ctx.fill(); ctx.stroke();
-  }
+  // Barrel — points downward (nose = bottom of image)
+  const bw = 10, bh = 52;
+  ctx.fillStyle = '#444444';
+  ctx.fillRect(W / 2 - bw / 2, H / 2 + 10, bw, bh);
 }
 
+function _drawBoss(ctx, W, H, hex) {
+  ctx.clearRect(0, 0, W, H);
+  const cr = (hex >> 16) & 0xff;
+  const cg = (hex >>  8) & 0xff;
+  const cb =  hex        & 0xff;
+  _rrect(ctx, MARGIN, MARGIN, W - 2 * MARGIN, H - 2 * MARGIN, 14);
+  ctx.fillStyle = `rgb(${cr},${cg},${cb})`;
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+  ctx.lineWidth = 4;
+  ctx.stroke();
+  // Boss mark — inner X
+  const m = MARGIN + 18;
+  ctx.beginPath();
+  ctx.moveTo(m, m); ctx.lineTo(W - m, H - m);
+  ctx.moveTo(W - m, m); ctx.lineTo(m, H - m);
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.lineWidth = 6;
+  ctx.stroke();
+}
+
+// ── Speed line geometry (reused) ─────────────────────────────────────────────
+let _slGeo = null;
+function _getSpeedLineGeo() {
+  if (!_slGeo) _slGeo = new THREE.PlaneGeometry(0.08, 0.50);
+  return _slGeo;
+}
+
+// ── Boss torus (reused) ───────────────────────────────────────────────────────
 let _bossTorusGeo = null;
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export class Car3D {
   constructor(scene, lanes) {
-    this._scene         = scene;
-    this._lanes         = lanes;
-    this._live          = new Map();
-    this._dying         = [];
-    this._emissiveBoost = 0;  // kept for setTheme API compat
+    this._scene = scene;
+    this._lanes = lanes;
+    this._live  = new Map();
+    this._dying = [];
+    this._emissiveBoost = 0;
     if (!_bossTorusGeo) _bossTorusGeo = new THREE.TorusGeometry(1.4, 0.06, 8, 28);
   }
 
@@ -169,14 +219,19 @@ export class Car3D {
     const liveCars = new Set();
     for (const lane of this._lanes) for (const car of lane.cars) liveCars.add(car);
 
+    // Retire cars no longer in state
     for (const [car, entry] of this._live) {
       if (!liveCars.has(car)) {
+        this._killSpeedLines(entry);
         this._dying.push({
-          group: entry.group, bossRing: entry.bossRing, bossRingMat: entry.bossRingMat, t: 0,
+          group: entry.group, bossRing: entry.bossRing,
+          bossRingMat: entry.bossRingMat, t: 0,
         });
         this._live.delete(car);
       }
     }
+
+    const now = performance.now() / 1000;
 
     for (let laneIdx = 0; laneIdx < this._lanes.length; laneIdx++) {
       const _laneCars = this._lanes[laneIdx].cars;
@@ -189,25 +244,37 @@ export class Car3D {
         const entry = this._live.get(car);
         const g     = entry.group;
 
-        // Smooth position lerp
+        // ── Smooth advance lerp ───────────────────────────────────────────────
         const newTargetZ = posToZ(car.position);
         if (Math.abs(newTargetZ - entry.targetZ) > 0.001) {
           entry.lerpStartZ = entry.renderZ;
           entry.targetZ    = newTargetZ;
           entry.lerpT      = 0;
+          // Spawn speed lines when advancing (not on first spawn)
+          if (!entry._isSpawning) this._spawnSpeedLines(entry, laneIdx, car);
         }
         if (entry.lerpT < 1) {
           entry.lerpT   = Math.min(1, entry.lerpT + dt / LERP_DURATION);
           const eased   = 1 - Math.pow(1 - entry.lerpT, 3);
           entry.renderZ = entry.lerpStartZ + (entry.targetZ - entry.lerpStartZ) * eased;
           g.rotation.x  = -MAX_TILT_X * Math.sin(Math.PI * entry.lerpT);
+          if (entry.lerpT >= 1) entry._isSpawning = false;
         } else {
-          entry.renderZ = entry.targetZ;
-          g.rotation.x  = 0;
+          entry.renderZ   = entry.targetZ;
+          g.rotation.x    = 0;
+          entry._isSpawning = false;
         }
-        g.position.set(laneToX(laneIdx), 0, entry.renderZ);
 
-        // Boss ring orbit
+        // ── Update speed lines ────────────────────────────────────────────────
+        this._updateSpeedLines(entry, dt);
+
+        // ── Wobble ────────────────────────────────────────────────────────────
+        const wobbleX   = Math.sin(now * WOBBLE_X_FREQ   + laneIdx * 0.7) * WOBBLE_X_AMP;
+        const wobbleRot = Math.sin(now * WOBBLE_ROT_FREQ + laneIdx * 1.3) * WOBBLE_ROT_AMP;
+
+        g.position.set(laneToX(laneIdx) + wobbleX, 0, entry.renderZ);
+
+        // ── Boss ring ─────────────────────────────────────────────────────────
         if (entry.bossRing) {
           entry.bossAngle += dt * 1.8;
           entry.bossRing.position.set(g.position.x, g.position.y + 0.5, g.position.z);
@@ -218,22 +285,21 @@ export class Car3D {
 
         const hpRatio = car.maxHp > 0 ? car.hp / car.maxHp : 0;
 
-        // MeshBasicMaterial — all visual effects via .color tinting
+        // ── Color effects (MeshBasicMaterial tinting) ─────────────────────────
         entry._auraT += dt;
         let colorSet = false;
 
         if (isFrozen) {
-          entry.bodyMat.color.setRGB(0.67, 0.87, 1.0);  // ice-blue tint
+          entry.bodyMat.color.setRGB(0.67, 0.87, 1.0);
           if (!entry._prevFrozen) entry._prevFrozen = true;
-          g.rotation.z = 0;
           colorSet = true;
         } else {
           if (entry._prevFrozen) {
             entry._prevFrozen = false;
-            entry.bodyMat.color.setHex(0xffffff);
+            entry.bodyMat.color.setHex(entry.baseHex);
           }
 
-          // Power hit flash: white → orange
+          // Power hit flash
           if (entry._powerFlashing) {
             entry._powerFlashT += dt;
             const prog = Math.min(1, entry._powerFlashT / POWER_FLASH_DUR);
@@ -245,13 +311,13 @@ export class Car3D {
                 const t = (prog - 0.4) / 0.6;
                 entry.bodyMat.color.setRGB(1, 0.45 + 0.55 * t, 0.1 + 0.9 * t);
               }
+              colorSet = true;
             } else {
               entry._powerFlashing = false;
             }
-            colorSet = true;
           }
 
-          // Danger aura: pulsing red tint on 2 frontmost cars per lane
+          // Danger aura — 2 frontmost cars per lane
           const _isNearBreach = _maxRow >= 0 && car.row >= _maxRow - 1;
           const auraTarget = _isNearBreach ? 1.0 : 0.0;
           const blendStep  = AURA_RATE * dt;
@@ -270,18 +336,23 @@ export class Car3D {
           if (!colorSet) {
             if (hpRatio < 0.35) {
               entry.bodyMat.color.setRGB(1.0, 0.40, 0.30);
-              g.rotation.z = -0.10 * (1 - hpRatio);
             } else if (hpRatio < 0.65) {
               entry.bodyMat.color.setRGB(1.0, 0.65, 0.40);
-              g.rotation.z = -0.04 * (1 - hpRatio);
             } else {
-              entry.bodyMat.color.setHex(0xffffff);
-              g.rotation.z = 0;
+              entry.bodyMat.color.setHex(entry.baseHex);
             }
           }
         }
 
-        // Power hit squash-and-stretch
+        // ── Damage rotation tilt ──────────────────────────────────────────────
+        let tiltZ = 0;
+        if (!isFrozen) {
+          if (hpRatio < 0.35)      tiltZ = -0.10 * (1 - hpRatio);
+          else if (hpRatio < 0.65) tiltZ = -0.04 * (1 - hpRatio);
+        }
+        g.rotation.z = tiltZ + wobbleRot;
+
+        // ── Power squash-and-stretch ──────────────────────────────────────────
         if (entry._powerSquashing) {
           entry._powerSquashT += dt;
           const prog  = Math.min(1, entry._powerSquashT / POWER_SQUASH_DUR);
@@ -298,7 +369,7 @@ export class Car3D {
       }
     }
 
-    // Death animations
+    // ── Death animations ──────────────────────────────────────────────────────
     for (let i = this._dying.length - 1; i >= 0; i--) {
       const d = this._dying[i];
       d.t += dt;
@@ -313,26 +384,50 @@ export class Car3D {
     }
   }
 
-  // ── Entry creation ─────────────────────────────────────────────────────────────
+  // ── Entry creation ─────────────────────────────────────────────────────────
 
   _createEntry(car, laneIdx) {
     const hex        = carHex(car);
     const boostedHex = _boostColor(hex);
 
-    const canvas = document.createElement('canvas');
-    canvas.width  = CVS;
-    canvas.height = CVS;
-    _drawCarShape(canvas.getContext('2d'), CVS, CVS, car.type, boostedHex);
-    const tex = new THREE.CanvasTexture(canvas);
+    const hasPNG = SPRITE_MAP[car.type] != null;
+    let bodyMat;
 
-    // MeshBasicMaterial: unaffected by scene lights, color tinting for effects
-    const bodyMat = new THREE.MeshBasicMaterial({
-      map:         tex,
-      transparent: true,
-      alphaTest:   0.05,
-      color:       new THREE.Color(0xffffff),
-      side:        THREE.DoubleSide,
-    });
+    if (hasPNG) {
+      const tex = _getSpriteTex(car.type, import.meta.env.BASE_URL);
+      bodyMat = new THREE.MeshBasicMaterial({
+        map:         tex,
+        transparent: true,
+        alphaTest:   0.08,
+        color:       new THREE.Color(boostedHex),
+        side:        THREE.DoubleSide,
+      });
+    } else if (car.type === 'tank') {
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = CVS;
+      _drawTank(canvas.getContext('2d'), CVS, CVS);
+      const tex = new THREE.CanvasTexture(canvas);
+      bodyMat = new THREE.MeshBasicMaterial({
+        map:         tex,
+        transparent: true,
+        alphaTest:   0.05,
+        color:       new THREE.Color(boostedHex),
+        side:        THREE.DoubleSide,
+      });
+    } else {
+      // boss
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = CVS;
+      _drawBoss(canvas.getContext('2d'), CVS, CVS, boostedHex);
+      const tex = new THREE.CanvasTexture(canvas);
+      bodyMat = new THREE.MeshBasicMaterial({
+        map:         tex,
+        transparent: true,
+        alphaTest:   0.05,
+        color:       new THREE.Color(0xffffff),
+        side:        THREE.DoubleSide,
+      });
+    }
 
     const cfg   = TYPE_DIMS[car.type] ?? TYPE_DIMS.big;
     const group = new THREE.Group();
@@ -344,7 +439,7 @@ export class Car3D {
     mesh.position.y = 0.05;
     group.add(mesh);
 
-    // Boss: orbiting torus ring for visual identity
+    // Boss ring
     let bossRing = null, bossRingMat = null;
     if (car.type === 'boss') {
       bossRingMat = new THREE.MeshStandardMaterial({
@@ -356,22 +451,78 @@ export class Car3D {
     }
 
     group.userData.baseScale = 1.0;
-    const startZ = posToZ(car.position);
-    group.position.set(laneToX(laneIdx), 0, startZ);
+
+    // Spawn animation: start off-screen (further from breach)
+    const targetZ = posToZ(car.position);
+    const spawnZ  = targetZ - SPAWN_OFFSET;
+    group.position.set(laneToX(laneIdx), 0, spawnZ);
+
     this._scene.add(group);
 
     return {
-      group, bodyMat, glowHex: boostedHex,
+      group, bodyMat,
+      baseHex: car.type === 'boss' ? 0xffffff : boostedHex,
       lastHp: -1, _prevFrozen: false,
       bossRing, bossRingMat, bossAngle: 0,
-      renderZ: startZ, targetZ: startZ, lerpStartZ: startZ, lerpT: 1.0,
+      renderZ: spawnZ, targetZ, lerpStartZ: spawnZ, lerpT: 0,
+      _isSpawning: true,
       _auraBlend: 0, _auraT: 0,
       _powerFlashing: false, _powerFlashT: 0,
       _powerSquashing: false, _powerSquashT: 0,
+      _speedLines: [],
     };
   }
 
-  // ── Disposal ───────────────────────────────────────────────────────────────────
+  // ── Speed lines ───────────────────────────────────────────────────────────
+
+  _spawnSpeedLines(entry, laneIdx, car) {
+    const cfg = TYPE_DIMS[car.type] ?? TYPE_DIMS.big;
+    const lx  = laneToX(laneIdx);
+    const geo  = _getSpeedLineGeo();
+
+    for (let i = 0; i < 2; i++) {
+      const mat = new THREE.MeshBasicMaterial({
+        color:       new THREE.Color(entry.baseHex),
+        transparent: true,
+        opacity:     0.50,
+        depthWrite:  false,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.rotation.x = -Math.PI / 2;
+      const xOff = (i === 0 ? -0.30 : 0.30) * CELL * cfg.wF;
+      mesh.position.set(lx + xOff, 0.03, entry.renderZ - 0.30);
+      this._scene.add(mesh);
+      entry._speedLines.push({ mesh, mat, t: 0, startZ: entry.renderZ });
+    }
+  }
+
+  _updateSpeedLines(entry, dt) {
+    for (const sl of entry._speedLines) {
+      sl.t += dt;
+      const prog = Math.min(1, sl.t / LERP_DURATION);
+      sl.mat.opacity = 0.50 * (1 - prog);
+      sl.mesh.position.z = sl.startZ - 0.30 - prog * 0.40;
+    }
+    // Remove finished lines
+    entry._speedLines = entry._speedLines.filter(sl => {
+      if (sl.t >= LERP_DURATION) {
+        this._scene.remove(sl.mesh);
+        sl.mat.dispose();
+        return false;
+      }
+      return true;
+    });
+  }
+
+  _killSpeedLines(entry) {
+    for (const sl of entry._speedLines) {
+      this._scene.remove(sl.mesh);
+      sl.mat.dispose();
+    }
+    entry._speedLines.length = 0;
+  }
+
+  // ── Disposal ───────────────────────────────────────────────────────────────
 
   _disposeDying(d) {
     this._disposeGroup(d.group);
@@ -379,6 +530,7 @@ export class Car3D {
   }
 
   _disposeEntry(entry) {
+    this._killSpeedLines(entry);
     this._disposeGroup(entry.group);
     if (entry.bossRing) { entry.bossRingMat?.dispose(); this._scene.remove(entry.bossRing); }
   }
@@ -388,7 +540,11 @@ export class Car3D {
       if (obj.isMesh) {
         obj.geometry?.dispose();
         const mats = Array.isArray(obj.material) ? obj.material : (obj.material ? [obj.material] : []);
-        for (const m of mats) { m.map?.dispose(); m.dispose(); }
+        for (const m of mats) {
+          // Do NOT dispose cached sprite textures — only dispose CanvasTextures
+          if (m.map && !(Object.values(_texCache).includes(m.map))) m.map.dispose();
+          m.dispose();
+        }
       }
     });
     this._scene.remove(group);

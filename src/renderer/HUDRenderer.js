@@ -41,6 +41,10 @@ const CAR_COLOR_MAP = {
   Yellow: 0xEF9F27, Purple: 0x7F77DD, Orange: 0xD85A30,
 };
 
+// Combo display floats below the HUD bar so it never competes with the
+// level badge or heart icons that occupy the HUD row.
+const COMBO_Y        = HUD_H + 22;   // 92px — just below the 70px HUD bar
+
 const LANE_DOT_Y     = 513;
 const SPRING_K       = 380;
 const SPRING_D       = 18;
@@ -160,7 +164,7 @@ export class HUDRenderer {
     });
     this._comboText.anchor.set(0.5, 0.5);
     this._comboText.x = appWidth / 2;
-    this._comboText.y = TEXT_MID;
+    this._comboText.y = COMBO_Y;
     this._layer.addChild(this._comboText);
 
     // ── Combo gauge ──────────────────────────────────────────────────────
@@ -545,17 +549,17 @@ export class HUDRenderer {
     g.clear();
     if (combo < 2) return;
 
-    const glowW = 150 + combo * 4;
-    const glowH = 34;
+    const glowW = 160 + combo * 4;
+    const glowH = 38;
     const cx    = this._appW / 2;
-    const cy    = TEXT_MID;
+    const cy    = COMBO_Y;
 
-    g.roundRect(cx - glowW / 2, cy - glowH / 2, glowW, glowH, 10);
-    g.fill({ color: this._curTierColor, alpha: 0.18 });
+    g.roundRect(cx - glowW / 2, cy - glowH / 2, glowW, glowH, 12);
+    g.fill({ color: this._curTierColor, alpha: 0.22 });
 
     if (this._tierFlashT > 0) {
       const flashA = (this._tierFlashT / 0.12) * 0.55;
-      g.roundRect(cx - glowW / 2, cy - glowH / 2, glowW, glowH, 10);
+      g.roundRect(cx - glowW / 2, cy - glowH / 2, glowW, glowH, 12);
       g.fill({ color: 0xffffff, alpha: flashA });
     }
   }

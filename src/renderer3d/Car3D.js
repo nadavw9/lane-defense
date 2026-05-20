@@ -123,20 +123,20 @@ function _drawTank(ctx, W, H) {
   ctx.fillRect(MARGIN, MARGIN, 14, H - 2 * MARGIN);
   ctx.fillRect(W - MARGIN - 14, MARGIN, 14, H - 2 * MARGIN);
 
-  // Hull
+  // Hull — pure white so material.color tint reaches full saturation
   const hx = MARGIN + 16, hy = H * 0.10;
   const hw = W - 2 * (MARGIN + 16), hh = H * 0.80;
   _rrect(ctx, hx, hy, hw, hh, 10);
-  ctx.fillStyle = '#E0E0E0';
+  ctx.fillStyle = '#FFFFFF';
   ctx.fill();
-  ctx.strokeStyle = '#333333';
+  ctx.strokeStyle = '#222222';
   ctx.lineWidth = 4;
   ctx.stroke();
 
-  // Turret (centered)
+  // Turret (centered) — slightly off-white for visual layering
   ctx.beginPath();
   ctx.arc(W / 2, H / 2, 38, 0, Math.PI * 2);
-  ctx.fillStyle = '#C8C8C8';
+  ctx.fillStyle = '#EEEEEE';
   ctx.fill();
   ctx.strokeStyle = '#333333';
   ctx.lineWidth = 3;

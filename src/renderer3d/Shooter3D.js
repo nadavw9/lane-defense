@@ -46,13 +46,15 @@ const BADGE_CVS_W = BADGE_CVS_W_FRONT;
 const BADGE_CVS_H = BADGE_CVS_H_FRONT;
 
 // ── Color palette ──────────────────────────────────────────────────────────────
+// Bomb-specific palette — deliberately more vivid than car tint colors.
+// Bombs are the primary interactive element; they must read instantly.
 const COLOR_HEX = {
-  Red:    0xE24B4A,
-  Blue:   0x378ADD,
-  Green:  0x639922,
-  Yellow: 0xEF9F27,
-  Purple: 0x7F77DD,
-  Orange: 0xD85A30,
+  Red:    0xFF2222,
+  Blue:   0x2266FF,
+  Green:  0x22CC22,
+  Yellow: 0xFFCC00,
+  Purple: 0xAA22FF,
+  Orange: 0xFF7700,
 };
 
 // ── Cross-browser rounded rect path helper ────────────────────────────────────

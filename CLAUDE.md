@@ -16,7 +16,37 @@ Every visual change must meet **Play Store quality** before being approved. This
 
 ---
 
-## 2. What This Is
+## 2. NO COMPROMISE ON TOOLS
+
+When the best tool for a task is not available, STOP.
+Do not find a workaround. Do not use an inferior alternative silently.
+
+The correct behavior:
+1. Stop immediately
+2. State clearly: "I need [tool] to do this properly.
+   Please install it with: [exact install command]"
+3. Wait for the user to install it
+4. Only then continue
+
+Examples of what is NOT acceptable:
+- sharp not installed → using Playwright to convert SVGs (worse output, fragile)
+- canvas not installed → drawing with ASCII art or inline HTML
+- Figma tokens exceeded → switching to Canva without asking
+- A package missing → rewriting logic to avoid needing it
+
+The user would rather wait 2 minutes to install the right tool
+than get a worse result immediately.
+
+This applies to: npm packages, system tools, MCP connections,
+API access, or any capability gap.
+
+Exception: if two tools are genuinely equivalent in output quality,
+Claude may choose either. But "it works" is not equivalent to
+"it produces the best result."
+
+---
+
+## 3. What This Is
 
 Hybrid-casual mobile puzzle-defense game. Cars in colored lanes advance toward the player one row per correct shot. Player drags color-coded bombs onto lanes — color must match the front car to deal damage. Turn-based grid, not real-time. 40 levels across 3 worlds. Live on GitHub Pages; native Android via Capacitor.
 
@@ -26,7 +56,7 @@ Hybrid-casual mobile puzzle-defense game. Cars in colored lanes advance toward t
 
 ---
 
-## 3. Mandatory Reads
+## 4. Mandatory Reads
 
 Before any design, level, or gameplay change, read these in full:
 
@@ -38,7 +68,7 @@ Files this applies to: `LevelManager.js`, `GameLoop.js`, `ThemeRegistry.js`, `Le
 
 ---
 
-## 4. Architecture
+## 5. Architecture
 
 ### Directory layout
 
@@ -105,7 +135,7 @@ Always `${import.meta.env.BASE_URL}sprites/...`. Hardcoded `/sprites/...` causes
 
 ---
 
-## 5. Current State
+## 6. Current State
 
 ### Tests
 **478 passing**, 5 todo — 18 test files. Run: `npm test`. All headless (no render tests).
@@ -133,7 +163,7 @@ Always `${import.meta.env.BASE_URL}sprites/...`. Hardcoded `/sprites/...` causes
 
 ---
 
-## 6. Mandatory Self-Audit Before Every Commit
+## 7. Mandatory Self-Audit Before Every Commit
 
 Take screenshots from: **L5** (4-lane afternoon), **L9** (sunset), **L13** (misty), **L17** (industrial / World 2).  
 **Never use L1** as a visual benchmark (single lane, no representative load).
@@ -144,7 +174,7 @@ Check each frame:
 - Are cars visible throughout the road in misty theme?
 - Are bomb columns aligned under their lanes?
 - Is the breach line visible as a real danger threshold?
-- Does the Play Store standard question (section 1) get a YES?
+- Does the Play Store standard question (section 1 — THE STANDARD) get a YES?
 
 Fix any NO before committing.
 
@@ -155,7 +185,7 @@ Before committing any change to `LevelManager.js` or `CarTypes.js`:
 
 ---
 
-## 7. What NOT to Touch
+## 8. What NOT to Touch
 
 - `src/director/` — 478 tests cover it; changes need matching test updates
 - `src/models/` — data classes; shape changes cascade everywhere
@@ -167,7 +197,7 @@ Before committing any change to `LevelManager.js` or `CarTypes.js`:
 
 ---
 
-## 8. Anti-Patterns (Forbidden)
+## 9. Anti-Patterns (Forbidden)
 
 - Spawning popups outside `PopupQueue`
 - Computing lane/column positions without `PositionRegistry`
@@ -183,7 +213,7 @@ Before committing any change to `LevelManager.js` or `CarTypes.js`:
 
 ---
 
-## 9. Color Palette
+## 10. Color Palette
 
 ```
 Red:    #E24B4A   (0xE24B4A)
@@ -199,7 +229,7 @@ Duplicated in: `Car3D.js`, `Shooter3D.js`, `Projectile3D.js`, `src/input/DragDro
 
 ---
 
-## 10. Fairness Rules (Director enforces — never violate)
+## 11. Fairness Rules (Director enforces — never violate)
 
 1. **FR-1** At least 1 column top must color-match at least 1 front car.
 2. **FR-2** At most 3 of 4 front cars share the same color.
@@ -211,7 +241,7 @@ Viability guard also checks bench slots (L6+).
 
 ---
 
-## 11. Coding Preferences
+## 12. Coding Preferences
 
 - Pure JavaScript (no TypeScript)
 - ES modules, Node 18+ (CI: Node 24)
@@ -223,7 +253,7 @@ Viability guard also checks bench slots (L6+).
 
 ---
 
-## 12. Useful Commands
+## 13. Useful Commands
 
 ```bash
 npm run dev            # Vite dev server (--host for LAN/phone)
@@ -236,7 +266,7 @@ window._nav.startLevel(5)   # dev API — jump directly to L5 in browser
 
 ---
 
-## 13. Token Rules (Claude Code)
+## 14. Token Rules (Claude Code)
 
 - `/clear` between unrelated tasks
 - `/compact` when context grows long
@@ -246,7 +276,7 @@ window._nav.startLevel(5)   # dev API — jump directly to L5 in browser
 
 ---
 
-## 14. KEYSTORE — NEVER DELETE
+## 15. KEYSTORE — NEVER DELETE
 
 `android/lane-defense-release.keystore` is NOT in git (gitignored).  
 Path: `C:\Users\dalit\lane-defense\android\lane-defense-release.keystore`

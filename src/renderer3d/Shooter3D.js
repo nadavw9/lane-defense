@@ -15,11 +15,9 @@ import { laneToX, queueZ, CELL } from './Scene3D.js';
 const LANE_COUNT  = 4;
 const SLOT_COUNT  = 4;                 // queue depth (matches Scene3D.SLOT_COUNT)
 
-// slotZ: compact Z positions so all 4 slots map to screen y < 752 (above booster bar).
-// Frustum: zFar=-22, zNear=queueZ(3)=6.4, span=28.4.
-// screenY = (worldZ+22)/28.4*844. Booster bar at y=752 → worldZ≈3.3.
-// slot 0→0.75, 1→1.5, 2→2.25, 3→3.0 all yield screenY < 752.
-function slotZ(s) { return (s + 1) * CELL * 0.1875; }
+// slotZ: evenly spaced slots with room below for future bomb-grid additions.
+// Step = CELL * 0.26 ≈ 1.04 world units per slot.
+function slotZ(s) { return (s + 1) * CELL * 0.26; }
 
 // ── Bomb geometry (group-local coords) ────────────────────────────────────────
 const BOMB_R      = 0.16 * CELL;       // 0.64 — 40% of previous, feels throwable
@@ -37,10 +35,15 @@ const SPARK_BEAD_RADIUS   = 0.062;
 const SPARK_FLICKER_SPEED = 12;
 
 // ── Badge canvas ───────────────────────────────────────────────────────────────
-const BADGE_CVS_W = 96;
-const BADGE_CVS_H = 56;
-const BADGE_W     = 0.82;   // world-space width
-const BADGE_H     = 0.46;
+// Front slot gets a large crisp badge; queue slots get a clearly visible smaller one.
+const BADGE_CVS_W_FRONT = 128;  const BADGE_CVS_H_FRONT = 80;
+const BADGE_CVS_W_QUEUE = 96;   const BADGE_CVS_H_QUEUE = 60;
+const BADGE_WORLD_W_FRONT = 1.30;  const BADGE_WORLD_H_FRONT = 0.80;
+const BADGE_WORLD_W_QUEUE = 0.82;  const BADGE_WORLD_H_QUEUE = 0.50;
+
+// Legacy aliases kept for drawDamageBadge call-sites that use W/H directly.
+const BADGE_CVS_W = BADGE_CVS_W_FRONT;
+const BADGE_CVS_H = BADGE_CVS_H_FRONT;
 
 // ── Color palette ──────────────────────────────────────────────────────────────
 const COLOR_HEX = {
@@ -77,42 +80,44 @@ function drawDamageBadge(ctx, W, H, damage, colorHex) {
 
   ctx.clearRect(0, 0, W, H);
 
-  const pw = W * 0.88, ph = H * 0.70;
+  // Pill occupies 90% width, 78% height — more canvas used → larger visible badge
+  const pw = W * 0.90, ph = H * 0.78;
   const px = (W - pw) / 2, py = (H - ph) / 2;
   const r  = ph / 2;
 
-  // Drop shadow behind the pill
-  ctx.shadowColor   = 'rgba(0,0,0,0.65)';
-  ctx.shadowBlur    = 5;
+  // Drop shadow
+  ctx.shadowColor   = 'rgba(0,0,0,0.80)';
+  ctx.shadowBlur    = Math.max(4, H * 0.10);
   ctx.shadowOffsetX = 0;
-  ctx.shadowOffsetY = 3;
+  ctx.shadowOffsetY = Math.max(2, H * 0.05);
 
-  // Colored pill background
+  // Colored pill background — full saturation, full opacity
   _roundRect(ctx, px, py, pw, ph, r);
   ctx.fillStyle = `rgb(${cr},${cg},${cb})`;
   ctx.fill();
 
   ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
 
-  // Top-gloss strip: 30% white overlay on upper 38% of pill
-  _roundRect(ctx, px + 2, py + 2, pw - 4, ph * 0.38, r);
-  ctx.fillStyle = 'rgba(255,255,255,0.30)';
+  // Top-gloss strip
+  _roundRect(ctx, px + 2, py + 2, pw - 4, ph * 0.40, r);
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
   ctx.fill();
 
-  // Thin white rim border for crisp edge separation
+  // White rim border — crisp separation from sphere
   _roundRect(ctx, px, py, pw, ph, r);
-  ctx.strokeStyle = 'rgba(255,255,255,0.40)';
-  ctx.lineWidth   = 1.2;
+  ctx.strokeStyle = 'rgba(255,255,255,0.70)';
+  ctx.lineWidth   = 2.0;
   ctx.stroke();
 
-  // Number: weight-900 bold, white fill + dark stroke for max legibility
-  const fontSize = Math.round(ph * 0.88);
+  // Number — weight-900, fills most of pill height
+  const fontSize = Math.round(ph * 0.90);
   ctx.font         = `900 ${fontSize}px Arial`;
   ctx.textAlign    = 'center';
   ctx.textBaseline = 'middle';
 
-  ctx.lineWidth   = 4.0;
-  ctx.strokeStyle = 'rgba(0,0,0,0.82)';
+  // Thick dark stroke for legibility over any bomb color
+  ctx.lineWidth   = Math.max(5, fontSize * 0.18);
+  ctx.strokeStyle = 'rgba(0,0,0,0.90)';
   ctx.strokeText(String(damage), W / 2, H / 2 + 1);
 
   ctx.fillStyle = '#ffffff';
@@ -160,7 +165,7 @@ export class Shooter3D {
       const bead = new THREE.Mesh(
         new THREE.SphereGeometry(SPARK_BEAD_RADIUS, 8, 8), mat,
       );
-      bead.position.set(laneToX(li) + BOMB_CX + 0.15, BOMB_CY + 0.38, slotZ(0) - 0.30);
+      bead.position.set(laneToX(li) + BOMB_CX + 0.22, BOMB_CY * 1.60 + 0.55, slotZ(0) - 0.40);
       bead.visible = false;
       bead.layers.set(0);
       this._scene.add(bead);
@@ -248,7 +253,7 @@ export class Shooter3D {
           slot.lastDamage = damage;
           slot.sphereMat.color.setHex(hex);
           slot.sphereMat.emissive.setHex(hex);
-          drawDamageBadge(slot.badgeCtx, BADGE_CVS_W, BADGE_CVS_H, damage, hex);
+          drawDamageBadge(slot.badgeCtx, slot.badgeCanvas.width, slot.badgeCanvas.height, damage, hex);
           slot.badgeTex.needsUpdate = true;
         }
 
@@ -367,7 +372,14 @@ export class Shooter3D {
   _createSlot(laneIdx, worldZ, slotIdx) {
     const alpha    = SLOT_ALPHA_ALL;
     const emissive = SLOT_EMISSIVE_ALL;
-    const scale    = 1.0;
+    // Front slot is dramatically larger — it's the primary interactive element.
+    // Queue slots are clearly secondary (smaller, less visual weight).
+    const isFront  = slotIdx === 0;
+    const scale    = isFront ? 1.40 : 0.85;
+    const badgeCvsW = isFront ? BADGE_CVS_W_FRONT : BADGE_CVS_W_QUEUE;
+    const badgeCvsH = isFront ? BADGE_CVS_H_FRONT : BADGE_CVS_H_QUEUE;
+    const badgeWorldW = isFront ? BADGE_WORLD_W_FRONT : BADGE_WORLD_W_QUEUE;
+    const badgeWorldH = isFront ? BADGE_WORLD_H_FRONT : BADGE_WORLD_H_QUEUE;
     const group    = new THREE.Group();
 
     // ── Candy sphere — color-dominant body ───────────────────────────────────
@@ -416,18 +428,18 @@ export class Shooter3D {
     // group scale so all slots show the same world-space badge size (queue
     // slots at 0.7× the front-slot size for clear depth hierarchy).
     const badgeCanvas = document.createElement('canvas');
-    badgeCanvas.width  = BADGE_CVS_W;
-    badgeCanvas.height = BADGE_CVS_H;
+    badgeCanvas.width  = badgeCvsW;
+    badgeCanvas.height = badgeCvsH;
     const badgeCtx = badgeCanvas.getContext('2d');
     const badgeTex = new THREE.CanvasTexture(badgeCanvas);
     const badgeMat = new THREE.SpriteMaterial({
       map: badgeTex, transparent: true, opacity: alpha, depthTest: false,
     });
     const badgeMesh = new THREE.Sprite(badgeMat);
-    // World-space scale; BADGE_W × BADGE_H world units
-    badgeMesh.scale.set(BADGE_W / scale, BADGE_H / scale, 1);
-    // Position above sphere top so it's visible looking straight down from camera
-    badgeMesh.position.set(BOMB_CX, BOMB_CY + BOMB_R + 0.2, BOMB_CZ);
+    // World-space size is fixed per slot tier regardless of group scale.
+    badgeMesh.scale.set(badgeWorldW / scale, badgeWorldH / scale, 1);
+    // Position badge above sphere top — offset scales with sphere size.
+    badgeMesh.position.set(BOMB_CX, BOMB_CY + BOMB_R + 0.15, BOMB_CZ);
     group.add(badgeMesh);
 
     // ── Empty slot placeholder — dim grey sphere, visible when no shooter ────

@@ -27,6 +27,7 @@
     "@capacitor/cli": "^8.3.0",
     "@capacitor/core": "^8.3.0",
     "@capacitor/haptics": "^8.0.2",
+    "sharp": "^0.34.5",
     "three": "^0.167.0"
   }
 }

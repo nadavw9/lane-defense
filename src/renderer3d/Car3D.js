@@ -1,13 +1,14 @@
-// Car3D — PNG sprite billboards per car type + programmatic tank/boss.
-// Top-down orthographic view. Sprites loaded via TextureLoader, tinted via
-// MeshBasicMaterial.color for runtime color identity and per-frame effects.
+// Car3D — PNG sprite billboards per car color + programmatic tank/boss.
+// Top-down orthographic view. Pre-colored sprites keyed by car.color;
+// material.color stays white (no tint). Size/shape set by TYPE_DIMS per type.
 //
-// Type → sprite file:
-//   small  → motorbike.png
-//   big    → sedan.png
-//   jeep   → jeep.png
-//   truck  → truck.png
-//   bigrig → bigrig.png
+// Color → sprite file (public/sprites/designed/):
+//   Red    → car-red-processed.png
+//   Blue   → car-blue-processed.png
+//   Green  → car-green-processed.png
+//   Yellow → car-yellow-processed.png
+//   Orange → car-orange-processed.png
+//   Purple → car-purple-processed.png
 //   tank   → programmatic CanvasTexture (wide hull + turret + barrel)
 //   boss   → programmatic CanvasTexture (styled rectangle)
 
@@ -63,26 +64,27 @@ const TYPE_DIMS = {
   boss:   { wF: 0.95, hF: 0.95 },
 };
 
-// ── Sprite map for PNG-backed types ──────────────────────────────────────────
+// ── Sprite map keyed by car COLOR (pre-colored PNGs, no material tint needed) ─
 const SPRITE_MAP = {
-  small:  'sprites/designed/motorbike.png',
-  big:    'sprites/designed/sedan.png',
-  jeep:   'sprites/designed/jeep.png',
-  truck:  'sprites/designed/truck.png',
-  bigrig: 'sprites/designed/bigrig.png',
+  Red:    'sprites/designed/car-red-processed.png',
+  Blue:   'sprites/designed/car-blue-processed.png',
+  Green:  'sprites/designed/car-green-processed.png',
+  Yellow: 'sprites/designed/car-yellow-processed.png',
+  Orange: 'sprites/designed/car-orange-processed.png',
+  Purple: 'sprites/designed/car-purple-processed.png',
 };
 
 // Module-level texture cache (shared across all Car3D instances)
 const _texLoader = new THREE.TextureLoader();
 const _texCache  = {};
 
-function _getSpriteTex(type, base) {
-  if (!_texCache[type]) {
-    const tex = _texLoader.load(`${base}${SPRITE_MAP[type]}`);
+function _getSpriteTex(colorKey, base) {
+  if (!_texCache[colorKey]) {
+    const tex = _texLoader.load(`${base}${SPRITE_MAP[colorKey]}`);
     tex.colorSpace = THREE.SRGBColorSpace;
-    _texCache[type] = tex;
+    _texCache[colorKey] = tex;
   }
-  return _texCache[type];
+  return _texCache[colorKey];
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -396,16 +398,18 @@ export class Car3D {
     const hex        = carHex(car);
     const boostedHex = _boostColor(hex);
 
-    const hasPNG = SPRITE_MAP[car.type] != null;
+    // Pre-colored sprites: keyed by car.color; tank/boss use programmatic textures
+    const colorKey = SPRITE_MAP[car.color] != null && car.type !== 'tank' && car.type !== 'boss'
+      ? car.color : null;
     let bodyMat;
 
-    if (hasPNG) {
-      const tex = _getSpriteTex(car.type, import.meta.env.BASE_URL);
+    if (colorKey) {
+      const tex = _getSpriteTex(colorKey, import.meta.env.BASE_URL);
       bodyMat = new THREE.MeshBasicMaterial({
         map:         tex,
         transparent: true,
         alphaTest:   0.08,
-        color:       new THREE.Color(boostedHex),
+        color:       new THREE.Color(0xffffff),  // sprite is pre-colored — no tint
         side:        THREE.DoubleSide,
       });
     } else if (car.type === 'tank') {
@@ -467,7 +471,7 @@ export class Car3D {
 
     return {
       group, bodyMat,
-      baseHex: car.type === 'boss' ? 0xffffff : boostedHex,
+      baseHex: (colorKey || car.type === 'boss') ? 0xffffff : boostedHex,
       lastHp: -1, _prevFrozen: false,
       bossRing, bossRingMat, bossAngle: 0,
       renderZ: spawnZ, targetZ, lerpStartZ: spawnZ, lerpT: 0,

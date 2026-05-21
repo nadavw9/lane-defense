@@ -93,11 +93,12 @@ function carHex(car) {
 function _boostColor(hex) {
   const c = new THREE.Color(hex);
   const hsl = {};
-  c.getHSL(hsl);
+  c.getHSL(hsl, THREE.SRGBColorSpace);
   hsl.s = 1.0;
-  hsl.l = Math.max(0.45, Math.min(0.55, hsl.l));
-  c.setHSL(hsl.h, hsl.s, hsl.l);
-  return (Math.round(c.r * 255) << 16) | (Math.round(c.g * 255) << 8) | Math.round(c.b * 255);
+  // Keep L in sRGB perceptual space, never above 0.50 (avoids washed-out tints)
+  hsl.l = Math.max(0.35, Math.min(0.50, hsl.l));
+  c.setHSL(hsl.h, hsl.s, hsl.l, THREE.SRGBColorSpace);
+  return c.getHex(THREE.SRGBColorSpace);
 }
 
 function _rrect(ctx, x, y, w, h, r) {
@@ -327,17 +328,22 @@ export class Car3D {
 
           if (!colorSet && entry._auraBlend > 0.001) {
             const pulse  = 0.7 + AURA_AMP * Math.sin(2 * Math.PI * AURA_FREQ * entry._auraT);
-            const redAmt = entry._auraBlend * pulse;
-            entry.bodyMat.color.setRGB(1, 1 - 0.65 * redAmt, 1 - 0.65 * redAmt);
+            const t = entry._auraBlend * pulse * 0.55;
+            // Boost red channel, dim others — preserves hue identity while signalling danger
+            entry.bodyMat.color.setHex(entry.baseHex);
+            const mc = entry.bodyMat.color;
+            mc.r = Math.min(1.0, mc.r + t * 0.40);
+            mc.g = mc.g * (1 - t * 0.55);
+            mc.b = mc.b * (1 - t * 0.55);
             colorSet = true;
           }
 
-          // Damage tint (lowest priority)
+          // Damage tint (lowest priority) — darken base color, preserve hue identity
           if (!colorSet) {
-            if (hpRatio < 0.35) {
-              entry.bodyMat.color.setRGB(1.0, 0.40, 0.30);
-            } else if (hpRatio < 0.65) {
-              entry.bodyMat.color.setRGB(1.0, 0.65, 0.40);
+            const bright = hpRatio < 0.35 ? 0.45 : hpRatio < 0.65 ? 0.70 : 1.0;
+            if (bright < 1.0) {
+              entry.bodyMat.color.setHex(entry.baseHex);
+              entry.bodyMat.color.multiplyScalar(bright);
             } else {
               entry.bodyMat.color.setHex(entry.baseHex);
             }

@@ -167,10 +167,6 @@ export class HUDRenderer {
     this._comboText.y = COMBO_Y;
     this._layer.addChild(this._comboText);
 
-    // ── Combo gauge ──────────────────────────────────────────────────────
-    this._comboGauge = new Graphics();
-    this._layer.addChild(this._comboGauge);
-
     // ── Multiplier badge ─────────────────────────────────────────────────
     this._multiBadge = new Text({
       text: '',
@@ -315,7 +311,6 @@ export class HUDRenderer {
     this._refreshComboText();
     this._refreshFrozenBadge();
     this._refreshCoinsText();
-    this._refreshComboGauge();
     this._refreshMultiBadge();
     this._refreshLaneDots();
     this._updateConfetti(dt);
@@ -502,31 +497,6 @@ export class HUDRenderer {
       this._coinsText.text = String(coins);
       this._lastCoins      = coins;
     }
-  }
-
-  _refreshComboGauge() {
-    const g      = this._comboGauge;
-    const combo  = this._gs.combo;
-    const gaugeH = 100;
-    const gaugeW = 5;
-    const gaugeX = this._appW - gaugeW - 2;
-    const gaugeY = HUD_H + 8;
-
-    g.clear();
-    g.roundRect(gaugeX, gaugeY, gaugeW, gaugeH, 2.5);
-    g.fill({ color: 0x223344, alpha: 0.55 });
-
-    if (combo < 2) return;
-
-    const fill  = Math.min(gaugeH, Math.round((combo / 10) * gaugeH));
-    const col   = combo >= 7 ? 0xff3333 : combo >= 5 ? 0xff8800 : 0xffcc00;
-    const pulse = combo >= 7 ? (0.55 + 0.45 * Math.sin(this._elapsed * 8)) : 1;
-
-    g.roundRect(gaugeX, gaugeY + gaugeH - fill, gaugeW, fill, 2.5);
-    g.fill({ color: col, alpha: 0.40 + 0.55 * pulse });
-
-    g.circle(gaugeX + gaugeW / 2, gaugeY + gaugeH - fill, 4);
-    g.fill({ color: col, alpha: 0.60 * pulse });
   }
 
   _refreshMultiBadge() {

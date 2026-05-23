@@ -16,6 +16,7 @@ import { RenderPass }      from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass }      from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { ROAD_TOP_Y, ROAD_BOTTOM_Y } from '../renderer/LaneRenderer.js';
 
 // ── Tweakable design constants ─────────────────────────────────────────────────
 const FOG_COLOR = 0xffd0a8;   // morning default — themes override on level start
@@ -32,6 +33,10 @@ export const ROAD_Z_FAR       = -22;   // gameplay zone far edge (cars spawn her
 export const ROAD_Z_NEAR      =   0;   // gameplay zone near edge (breach line)
 export const ROAD_Z_SPAWN     = -22;   // semantic alias: where cars enter the road
 export const ROAD_Z_VANISHING = -65;   // road surface extends here visually (no gameplay)
+
+// Extra world units revealed above ROAD_Z_FAR so a bigrig body (half-depth ≈2.52)
+// is fully visible before it crosses the spawn line.
+const SPAWN_VIEWPORT_EXTRA = 4.0;
 
 // ── Unified grid constants (single source of truth) ───────────────────────────
 export const CELL       = 4.0;            // == lane width (laneToX pitch)
@@ -199,37 +204,33 @@ export class Scene3D {
 
   // ── Private ───────────────────────────────────────────────────────────────
 
-  /** Derive ortho frustum from world rect + canvas aspect (symmetric letterbox). */
+  /** Derive ortho frustum so z=ROAD_Z_FAR projects to y=ROAD_TOP_Y and
+   *  z=ROAD_Z_NEAR projects to y=ROAD_BOTTOM_Y in PixiJS screen coordinates.
+   *  The top is extended by SPAWN_VIEWPORT_EXTRA so the full car body is visible
+   *  before it crosses the spawn line. The bottom is preserved (bomb zone unchanged). */
   _computeFrustum(n) {
-    const halfX  = roadHalfW(n);                       // lane mapping
-    const zFar   = ROAD_Z_FAR;                         // -22 (spawn)
-    const zNear  = queueZ(SLOT_COUNT - 1);             // 16  (queue bottom)
-    const zSpan  = zNear - zFar;                        // 38
-    const zCtr   = (zFar + zNear) / 2;                  // -3
-    const worldAspect  = (2 * halfX) / zSpan;
-    const canvasAspect = this.width / this.height;
+    const roadZSpan  = ROAD_Z_NEAR - ROAD_Z_FAR;                       // 22
+    const pixiRoadH  = ROAD_BOTTOM_Y - ROAD_TOP_Y;                     // 466
+    const fHalfZ     = roadZSpan * this.height / (2 * pixiRoadH);      // 19.922
+    const topFrac    = ROAD_TOP_Y / this.height;                       // 44/844
+    const baseCenter = ROAD_Z_FAR + fHalfZ * (1 - 2 * topFrac);       // -4.156
 
-    let fHalfX, fHalfZ;
-    if (worldAspect > canvasAspect) {                   // X limiting → expand Z
-      fHalfX = halfX;
-      fHalfZ = halfX / canvasAspect;
-    } else {                                            // Z limiting → expand X
-      fHalfZ = zSpan / 2;
-      fHalfX = (zSpan / 2) * canvasAspect;
-    }
-    const cam = this.camera;
-    cam.left   = -fHalfX; cam.right = fHalfX;
-    cam.top    =  fHalfZ; cam.bottom = -fHalfZ;
-    // Orthographic Y affects ONLY fog distance + clipping, never projected
-    // size. It must sit ABOVE the tallest scene object (cars/boss ≈ 3) and
-    // BELOW the minimum theme fog-near (20, misty/autumn) so colours stay
-    // vivid in every theme. Derived bound — not an eyeballed aesthetic value.
+    // Keep frustum bottom fixed; extend top only.
+    const bottomZ  = baseCenter + fHalfZ;                              // +15.768
+    const topZ     = ROAD_Z_FAR - SPAWN_VIEWPORT_EXTRA;               // -26
+    const fHalfZe  = (bottomZ - topZ) / 2;                            // 20.884
+    const zCenter  = (bottomZ + topZ) / 2;                            // -5.116
+    const fHalfX   = fHalfZe * (this.width / this.height);
+
+    const cam  = this.camera;
     const camY = 8;
-    cam.position.set(0, camY, zCtr);
-    cam.lookAt(0, 0, zCtr);
+    cam.left   = -fHalfX; cam.right  =  fHalfX;
+    cam.top    =  fHalfZe; cam.bottom = -fHalfZe;
+    cam.position.set(0, camY, zCenter);
+    cam.lookAt(0, 0, zCenter);
     cam.up.set(0, 0, -1);
     cam.near = 0.1;
-    cam.far  = camY + 6;          // brackets ground (≈ -0.5) .. tallest object
+    cam.far  = camY + 6;
     cam.updateProjectionMatrix();
   }
 

@@ -1,15 +1,14 @@
-// Car3D — PNG sprite billboards per car color + programmatic tank/boss.
-// Top-down orthographic view. Pre-colored sprites keyed by car.color;
-// material.color stays white (no tint). Size/shape set by TYPE_DIMS per type.
+// Car3D — PNG sprite billboards per car type+color + programmatic boss.
+// Top-down orthographic view. Pre-colored sprites; material.color stays white.
+// Size/shape set by TYPE_DIMS per type.
 //
-// Color → sprite file (public/sprites/designed/):
-//   Red    → car-red-processed.png
-//   Blue   → car-blue-processed.png
-//   Green  → car-green-processed.png
-//   Yellow → car-yellow-processed.png
-//   Orange → car-orange-processed.png
-//   Purple → car-purple-processed.png
-//   tank   → programmatic CanvasTexture (wide hull + turret + barrel)
+// Sprite files (public/sprites/designed/):
+//   small  → bike-{color}.png
+//   big    → car-{color}-processed.png
+//   jeep   → van-{color}.png
+//   truck  → truck-{color}.png
+//   bigrig → bigrig-{color}.png
+//   tank   → tank.png (single military-green sprite, no tint)
 //   boss   → programmatic CanvasTexture (styled rectangle)
 
 import * as THREE from 'three';
@@ -20,12 +19,13 @@ const CVS    = 256;
 const MARGIN = 8;
 
 // ── Timings ──────────────────────────────────────────────────────────────────
-const LERP_DURATION    = 0.25;
+const LERP_DURATION       = 0.25;
+const SPAWN_LERP_DURATION = 0.45;  // slower entry so cars glide in rather than snap
 const DEATH_DURATION   = 0.30;
 const DEATH_SCALE_MAX  = 1.40;
 const DEATH_VY         = 2.5;
 const MAX_TILT_X       = 0.20;
-const SPAWN_OFFSET     = 1.8;  // world units off-screen at spawn
+const SPAWN_OFFSET     = 5.0;   // bigrig half-height=2.52 + frustum margin → fully off-screen
 const POWER_FLASH_DUR  = 0.25;
 const POWER_SQUASH_DUR = 0.18;
 const POWER_SCALE_PEAK = 1.12;
@@ -55,36 +55,75 @@ const COLOR_HEX = {
 // ── Per-type plane dimensions (fractions of CELL) ───────────────────────────
 // PlaneGeometry = CELL*wF × CELL*hF.
 const TYPE_DIMS = {
-  small:  { wF: 0.30, hF: 0.55 },
-  big:    { wF: 0.65, hF: 0.55 },
-  jeep:   { wF: 0.75, hF: 0.58 },
-  truck:  { wF: 0.68, hF: 0.70 },
-  bigrig: { wF: 0.68, hF: 0.90 },
-  tank:   { wF: 0.82, hF: 0.72 },
-  boss:   { wF: 0.95, hF: 0.95 },
+  small:  { wF: 0.60, hF: 0.77 },
+  big:    { wF: 0.91, hF: 0.77 },
+  jeep:   { wF: 1.05, hF: 0.81 },
+  truck:  { wF: 0.95, hF: 0.98 },
+  bigrig: { wF: 0.95, hF: 1.26 },
+  tank:   { wF: 1.15, hF: 1.01 },
+  boss:   { wF: 1.33, hF: 1.33 },
 };
 
-// ── Sprite map keyed by car COLOR (pre-colored PNGs, no material tint needed) ─
+// ── Sprite map: nested by type → color (pre-colored PNGs, no material tint) ──
 const SPRITE_MAP = {
-  Red:    'sprites/designed/car-red-processed.png',
-  Blue:   'sprites/designed/car-blue-processed.png',
-  Green:  'sprites/designed/car-green-processed.png',
-  Yellow: 'sprites/designed/car-yellow-processed.png',
-  Orange: 'sprites/designed/car-orange-processed.png',
-  Purple: 'sprites/designed/car-purple-processed.png',
+  small: {
+    Red:    'sprites/designed/bike-red.png',
+    Blue:   'sprites/designed/bike-blue.png',
+    Green:  'sprites/designed/bike-green.png',
+    Yellow: 'sprites/designed/bike-yellow.png',
+    Orange: 'sprites/designed/bike-orange.png',
+    Purple: 'sprites/designed/bike-purple.png',
+  },
+  big: {
+    Red:    'sprites/designed/car-red-processed.png',
+    Blue:   'sprites/designed/car-blue-processed.png',
+    Green:  'sprites/designed/car-green-processed.png',
+    Yellow: 'sprites/designed/car-yellow-processed.png',
+    Orange: 'sprites/designed/car-orange-processed.png',
+    Purple: 'sprites/designed/car-purple-processed.png',
+  },
+  jeep: {
+    Red:    'sprites/designed/van-red.png',
+    Blue:   'sprites/designed/van-blue.png',
+    Green:  'sprites/designed/van-green.png',
+    Yellow: 'sprites/designed/van-yellow.png',
+    Orange: 'sprites/designed/van-orange.png',
+    Purple: 'sprites/designed/van-purple.png',
+  },
+  truck: {
+    Red:    'sprites/designed/truck-red.png',
+    Blue:   'sprites/designed/truck-blue.png',
+    Green:  'sprites/designed/truck-green.png',
+    Yellow: 'sprites/designed/truck-yellow.png',
+    Orange: 'sprites/designed/truck-orange.png',
+    Purple: 'sprites/designed/truck-purple.png',
+  },
+  bigrig: {
+    Red:    'sprites/designed/bigrig-red.png',
+    Blue:   'sprites/designed/bigrig-blue.png',
+    Green:  'sprites/designed/bigrig-green.png',
+    Yellow: 'sprites/designed/bigrig-yellow.png',
+    Orange: 'sprites/designed/bigrig-orange.png',
+    Purple: 'sprites/designed/bigrig-purple.png',
+  },
+  tank: { all: 'sprites/designed/tank.png' },
 };
 
 // Module-level texture cache (shared across all Car3D instances)
 const _texLoader = new THREE.TextureLoader();
 const _texCache  = {};
 
-function _getSpriteTex(colorKey, base) {
-  if (!_texCache[colorKey]) {
-    const tex = _texLoader.load(`${base}${SPRITE_MAP[colorKey]}`);
+function _getSpriteTex(type, color, base) {
+  const cacheKey = type === 'tank' ? 'tank' : `${type}:${color}`;
+  if (!_texCache[cacheKey]) {
+    const spritePath = type === 'tank'
+      ? SPRITE_MAP.tank.all
+      : SPRITE_MAP[type]?.[color];
+    const tex = _texLoader.load(`${base}${spritePath}`);
     tex.colorSpace = THREE.SRGBColorSpace;
-    _texCache[colorKey] = tex;
+    _texCache[cacheKey] = tex;
   }
-  return _texCache[colorKey];
+  return _texCache[cacheKey];
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -117,40 +156,7 @@ function _rrect(ctx, x, y, w, h, r) {
   }
 }
 
-// ── Programmatic texture drawing (tank, boss) ─────────────────────────────────
-function _drawTank(ctx, W, H) {
-  ctx.clearRect(0, 0, W, H);
-
-  // Caterpillar tracks on left and right edges
-  ctx.fillStyle = '#444444';
-  ctx.fillRect(MARGIN, MARGIN, 14, H - 2 * MARGIN);
-  ctx.fillRect(W - MARGIN - 14, MARGIN, 14, H - 2 * MARGIN);
-
-  // Hull — pure white so material.color tint reaches full saturation
-  const hx = MARGIN + 16, hy = H * 0.10;
-  const hw = W - 2 * (MARGIN + 16), hh = H * 0.80;
-  _rrect(ctx, hx, hy, hw, hh, 10);
-  ctx.fillStyle = '#FFFFFF';
-  ctx.fill();
-  ctx.strokeStyle = '#222222';
-  ctx.lineWidth = 4;
-  ctx.stroke();
-
-  // Turret (centered) — slightly off-white for visual layering
-  ctx.beginPath();
-  ctx.arc(W / 2, H / 2, 38, 0, Math.PI * 2);
-  ctx.fillStyle = '#EEEEEE';
-  ctx.fill();
-  ctx.strokeStyle = '#333333';
-  ctx.lineWidth = 3;
-  ctx.stroke();
-
-  // Barrel — points downward (nose = bottom of image)
-  const bw = 10, bh = 52;
-  ctx.fillStyle = '#444444';
-  ctx.fillRect(W / 2 - bw / 2, H / 2 + 10, bw, bh);
-}
-
+// ── Programmatic texture drawing (boss only) ──────────────────────────────────
 function _drawBoss(ctx, W, H, hex) {
   ctx.clearRect(0, 0, W, H);
   const cr = (hex >> 16) & 0xff;
@@ -257,7 +263,8 @@ export class Car3D {
           if (!entry._isSpawning) this._spawnSpeedLines(entry, laneIdx, car);
         }
         if (entry.lerpT < 1) {
-          entry.lerpT   = Math.min(1, entry.lerpT + dt / LERP_DURATION);
+          const dur     = entry._isSpawning ? SPAWN_LERP_DURATION : LERP_DURATION;
+          entry.lerpT   = Math.min(1, entry.lerpT + dt / dur);
           const eased   = 1 - Math.pow(1 - entry.lerpT, 3);
           entry.renderZ = entry.lerpStartZ + (entry.targetZ - entry.lerpStartZ) * eased;
           g.rotation.x  = -MAX_TILT_X * Math.sin(Math.PI * entry.lerpT);
@@ -398,34 +405,21 @@ export class Car3D {
     const hex        = carHex(car);
     const boostedHex = _boostColor(hex);
 
-    // Pre-colored sprites: keyed by car.color; tank/boss use programmatic textures
-    const colorKey = SPRITE_MAP[car.color] != null && car.type !== 'tank' && car.type !== 'boss'
-      ? car.color : null;
+    // Pre-colored sprites for all types except boss (which stays programmatic)
+    const hasSprite = SPRITE_MAP[car.type] != null && car.type !== 'boss';
     let bodyMat;
 
-    if (colorKey) {
-      const tex = _getSpriteTex(colorKey, import.meta.env.BASE_URL);
+    if (hasSprite) {
+      const tex = _getSpriteTex(car.type, car.color, import.meta.env.BASE_URL);
       bodyMat = new THREE.MeshBasicMaterial({
         map:         tex,
         transparent: true,
         alphaTest:   0.08,
-        color:       new THREE.Color(0xffffff),  // sprite is pre-colored — no tint
-        side:        THREE.DoubleSide,
-      });
-    } else if (car.type === 'tank') {
-      const canvas = document.createElement('canvas');
-      canvas.width = canvas.height = CVS;
-      _drawTank(canvas.getContext('2d'), CVS, CVS);
-      const tex = new THREE.CanvasTexture(canvas);
-      bodyMat = new THREE.MeshBasicMaterial({
-        map:         tex,
-        transparent: true,
-        alphaTest:   0.05,
-        color:       new THREE.Color(boostedHex),
+        color:       new THREE.Color(0xffffff),  // pre-colored sprite — no tint
         side:        THREE.DoubleSide,
       });
     } else {
-      // boss
+      // boss — programmatic canvas
       const canvas = document.createElement('canvas');
       canvas.width = canvas.height = CVS;
       _drawBoss(canvas.getContext('2d'), CVS, CVS, boostedHex);
@@ -471,7 +465,7 @@ export class Car3D {
 
     return {
       group, bodyMat,
-      baseHex: (colorKey || car.type === 'boss') ? 0xffffff : boostedHex,
+      baseHex: 0xffffff,  // always white — all sprites pre-colored, boss canvas bakes color
       lastHp: -1, _prevFrozen: false,
       bossRing, bossRingMat, bossAngle: 0,
       renderZ: spawnZ, targetZ, lerpStartZ: spawnZ, lerpT: 0,

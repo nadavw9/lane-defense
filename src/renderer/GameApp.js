@@ -70,7 +70,7 @@ import { AudioManager }           from '../audio/AudioManager.js';
 import { BoosterBar }             from './BoosterBar.js';
 import { adManager }            from '../ads/AdManager.js';
 import { PopupQueue, PRIORITY }  from './PopupQueue.js';
-import { Analytics }              from '../analytics/Analytics.js';
+import { Analytics, logEvent }    from '../analytics/Analytics.js';
 import { AutoTuner }             from '../analytics/AutoTuner.js';
 import { AchievementManager }     from '../game/AchievementManager.js';
 import { DailyChallengeManager }  from '../game/DailyChallengeManager.js';
@@ -331,9 +331,9 @@ async function main() {
   const comboGlow     = new ComboGlow(layers, APP_W, APP_H);
   const boosterBar    = new BoosterBar(
     layers, boosterState, gs, APP_W,
-    () => { audio.play('booster_activate'); boosterState.activateSwap(); boostersUsedThisLevel.push('swap'); tutOrch?.completeIfActive('swap'); },
-    () => { audio.play('booster_activate'); boosterState.activatePeek(gs.elapsed); boostersUsedThisLevel.push('peek'); tutOrch?.completeIfActive('peek'); },
-    () => { audio.play('booster_activate'); boosterState.activateFreeze(); boostersUsedThisLevel.push('freeze'); tutOrch?.completeIfActive('freeze'); },
+    () => { audio.play('booster_activate'); boosterState.activateSwap(); boostersUsedThisLevel.push('swap'); logEvent('booster_used', { booster: 'swap', levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber }); tutOrch?.completeIfActive('swap'); },
+    () => { audio.play('booster_activate'); boosterState.activatePeek(gs.elapsed); boostersUsedThisLevel.push('peek'); logEvent('booster_used', { booster: 'peek', levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber }); tutOrch?.completeIfActive('peek'); },
+    () => { audio.play('booster_activate'); boosterState.activateFreeze(); boostersUsedThisLevel.push('freeze'); logEvent('booster_used', { booster: 'freeze', levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber }); tutOrch?.completeIfActive('freeze'); },
     () => {
       // BOMB button — toggle placement mode on/off.
       if (boosterState.bombMode) {
@@ -341,6 +341,7 @@ async function main() {
       } else if (boosterState.activateBomb()) {
         audio.play('booster_activate');
         boostersUsedThisLevel.push('bomb');
+        logEvent('booster_used', { booster: 'bomb', levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber });
         tutOrch?.completeIfActive('bomb');
       }
     },
@@ -351,6 +352,7 @@ async function main() {
       } else {
         boosterState.activateCycle();
         boostersUsedThisLevel.push('cycle');
+        logEvent('booster_used', { booster: 'cycle', levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber });
       }
     },
   );
@@ -500,6 +502,8 @@ async function main() {
       cfg     = levelManager.current;
       levelId = levelIdOrConfig;
     }
+
+    logEvent('level_started', { levelId });
 
     currentLevelIsDaily = cfg.isDaily  ?? false;
     noRescueThisLevel   = cfg.noRescue ?? false;
@@ -1266,9 +1270,12 @@ async function main() {
         benchUsed:      gs.benchUsed,
       });
 
+      const _evtLevelId = currentLevelIsDaily ? 'daily' : levelManager.levelNumber;
       if (won) {
+        logEvent('level_completed', { levelId: _evtLevelId });
         showWin();
       } else {
+        logEvent('level_failed', { levelId: _evtLevelId });
         audio.stopMusic();
         audio.play('lose_tone');
         shakeTime = 0;
@@ -1554,22 +1561,6 @@ async function main() {
     ftueOverlay?.destroy();        ftueOverlay        = null;
     carTypeIntroCard?._destroy();  carTypeIntroCard   = null;
   };
-  window._nav = {
-    showTitle:       () => { _dbgCleanAll(); showTitle(); },
-    showLevelSelect: () => { _dbgCleanAll(); showLevelSelect(); },
-    showShop:        () => { _dbgCleanAll(); showShop(); },
-    startLevel: (id) => { _dbgCleanAll(); _startLevel(id); },
-    showPause:   () => showPause(),
-    addCoins:    (n) => progress.setCoins(progress.coins + n),
-    showWin: () => {
-      const fakeGs = { coins: 12, elapsed: 47, maxCarPosition: 42, maxCombo: 4, rescueUsed: false, won: true, isOver: true };
-      const ws = new WinScreen(app.stage, APP_W, APP_H, fakeGs, null,
-        () => { ws.destroy(); _dbgCleanAll(); showLevelSelect(); }, audio, ['combo'], 1);
-      winScreen = ws;
-    },
-    showLose: () => _showNoRescueLose(),
-  };
-
   // ── Boot: show title screen (game loop not started yet) ───────────────────
   showTitle();
 
@@ -1600,28 +1591,30 @@ function _makeFTUEOverlay(stage, w, h, cfg) {
 
 function _buildComboPopup(w) {
   const grp = new Container();
+  const PW = 180, PH = 52;
+  const PX = (w - PW) / 2;
 
   const bg = new Graphics();
-  bg.roundRect(30, 0, w - 60, 64, 14);
-  bg.fill({ color: 0x1a0800, alpha: 0.92 });
-  bg.roundRect(30, 0, w - 60, 64, 14);
-  bg.stroke({ color: 0xff9922, width: 2, alpha: 0.85 });
+  bg.roundRect(PX, 0, PW, PH, 14);
+  bg.fill({ color: 0x1a0800, alpha: 0.82 });
+  bg.roundRect(PX, 0, PW, PH, 14);
+  bg.stroke({ color: 0xff9922, width: 1.5, alpha: 0.75 });
   grp.addChild(bg);
 
   const title = new Text({
     text: 'COMBO ×3!',
-    style: { fontSize: 20, fontWeight: 'bold', fill: 0xffcc22,
+    style: { fontSize: 22, fontWeight: 'bold', fill: 0xffcc22,
       dropShadow: { color: 0x000000, blur: 4, distance: 2, alpha: 0.9 } },
   });
   title.anchor.set(0.5, 0);
   title.x = w / 2;
-  title.y = 6;
+  title.y = 4;
   grp.addChild(title);
 
   const body = new Text({
-    text: 'Chain kills for bonus coins and fire speed!',
-    style: { fontSize: 13, fontWeight: 'bold', fill: 0xffe8aa, align: 'center',
-      wordWrap: true, wordWrapWidth: w - 80,
+    text: 'Chain kills for bonus coins!',
+    style: { fontSize: 11, fontWeight: 'bold', fill: 0xffe8aa, align: 'center',
+      wordWrap: true, wordWrapWidth: PW - 20,
       dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 0.9 } },
   });
   body.anchor.set(0.5, 0);

@@ -97,3 +97,15 @@ export class Analytics {
     }
   }
 }
+
+// Fire-and-forget discrete event logger. Wraps every failure so analytics
+// never affect gameplay.
+export function logEvent(eventName, data) {
+  try {
+    fetch(`${DB_URL}/events.json`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ event: eventName, ...data, ts: Date.now() }),
+    }).catch(() => {});
+  } catch (_) {}
+}

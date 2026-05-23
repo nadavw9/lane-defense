@@ -17,9 +17,11 @@ const COL_BARRIER_TOP  = 0xb0b0b0;   // slightly lighter cap, no glow
 const COL_REFLECTOR    = 0xffdd00;
 const COL_BREACH_LINE  = 0xdd2222;
 
-const BREACH_EMISSIVE_LO  = 0.6;
-const BREACH_EMISSIVE_HI  = 1.0;
-const BREACH_PULSE_PERIOD = 1.5;   // seconds
+const SHOULDER_COLOR = 0x1a1a1a;   // dark pavement flanking road
+const SHOULDER_W     = 5.0;        // world units wide (≈60 px on screen)
+const EDGE_LINE_W    = 0.15;       // white edge stripe width (world units)
+
+const BREACH_EMISSIVE_BASE = 0.15; // starting intensity for breach-line pulse
 
 const TRAFFIC_DOT_COUNT = 30;
 const TRAFFIC_DOT_SPEED = 4.0;    // world units / sec
@@ -134,13 +136,12 @@ export class Road3D {
     this._elapsed += dt;
     const t = this._elapsed;
 
-    // Breach line emissive pulse
+    // Breach line emissive pulse — subtle 1 Hz sine glow
     if (this._breachMat) {
-      const p = BREACH_EMISSIVE_LO + (BREACH_EMISSIVE_HI - BREACH_EMISSIVE_LO) *
-        (0.5 + 0.5 * Math.sin(t * (Math.PI * 2 / BREACH_PULSE_PERIOD)));
+      const p = Math.sin(t * Math.PI * 2) * 0.15 + BREACH_EMISSIVE_BASE;
       this._breachMat.emissiveIntensity = p;
       if (this._breachGlowMat) {
-        this._breachGlowMat.opacity = 0.10 + 0.12 * (p / BREACH_EMISSIVE_HI);
+        this._breachGlowMat.opacity = 0.08 + 0.10 * (p / (BREACH_EMISSIVE_BASE * 2));
       }
     }
 
@@ -349,6 +350,32 @@ export class Road3D {
     nearExtMesh.rotation.x = -Math.PI / 2;
     nearExtMesh.position.set(0, -0.02, ROAD_Z_NEAR + NEAR_EXT_LEN / 2);
     this._group.add(nearExtMesh);
+
+    // ── Road shoulders — dark pavement strips flanking both sides ─────────
+    const shoulderMat = new THREE.MeshBasicMaterial({ color: SHOULDER_COLOR });
+    for (const side of [-1, 1]) {
+      const sx = side * (hw + SHOULDER_W / 2);
+      const shoulder = new THREE.Mesh(
+        new THREE.PlaneGeometry(SHOULDER_W, ROAD_LENGTH),
+        shoulderMat,
+      );
+      shoulder.rotation.x = -Math.PI / 2;
+      shoulder.position.set(sx, -0.015, ROAD_CENTER_Z);
+      this._group.add(shoulder);
+
+      // White edge line at the road/shoulder boundary
+      const edgeMat = new THREE.MeshBasicMaterial({
+        color: 0xffffff, transparent: true, opacity: 0.20,
+      });
+      const ex = side * (hw + EDGE_LINE_W / 2);
+      const edge = new THREE.Mesh(
+        new THREE.PlaneGeometry(EDGE_LINE_W, ROAD_LENGTH),
+        edgeMat,
+      );
+      edge.rotation.x = -Math.PI / 2;
+      edge.position.set(ex, 0.002, ROAD_CENTER_Z);
+      this._group.add(edge);
+    }
   }
 
   _buildLaneDividers() {
@@ -404,7 +431,7 @@ export class Road3D {
     this._breachMat = new THREE.MeshStandardMaterial({
       color:             COL_BREACH_LINE,
       emissive:          new THREE.Color(COL_BREACH_LINE),
-      emissiveIntensity: BREACH_EMISSIVE_LO,
+      emissiveIntensity: BREACH_EMISSIVE_BASE,
       transparent:       true,
       opacity:           0.85,
       roughness:         0.5,

@@ -23,10 +23,10 @@ const TEXT_MID = Math.round(BAR_Y + BAR_H + (HUD_H - BAR_Y - BAR_H) / 2);  // 44
 const HUD_BG = 0x08081a;
 
 const COMBO_TIERS = [
-  { min: 2,  color: 0xffee44, size: 24 },
-  { min: 4,  color: 0xffee44, size: 28 },
-  { min: 7,  color: 0xff9922, size: 33 },
-  { min: 11, color: 0xff3333, size: 38 },
+  { min: 2,  color: 0xffee44, size: 26, glowColor: 0xFFCC00, glowAlpha: 0.30 },
+  { min: 4,  color: 0xffee44, size: 26, glowColor: 0xFF8800, glowAlpha: 0.40 },
+  { min: 7,  color: 0xff9922, size: 26, glowColor: 0xFF2200, glowAlpha: 0.50 },
+  { min: 11, color: 0xff3333, size: 26, glowColor: 0xFF2200, glowAlpha: 0.50 },
 ];
 
 const MULT_TIERS = [
@@ -41,9 +41,11 @@ const CAR_COLOR_MAP = {
   Yellow: 0xEF9F27, Purple: 0x7F77DD, Orange: 0xD85A30,
 };
 
-// Combo display floats below the HUD bar so it never competes with the
-// level badge or heart icons that occupy the HUD row.
-const COMBO_Y        = HUD_H + 22;   // 92px — just below the 70px HUD bar
+// Combo pill sits flush with the HUD bottom edge — above the visible road
+// where cars appear. During combo (≥2 kills = ≥2 grid advances) the nearest
+// car is at road position 22% = screen Y≈147px, leaving ≥45px clearance.
+const COMBO_Y        = HUD_H + 16;   // 86px — pill top = HUD_H = 70px
+const COMBO_PILL_H   = 32;
 
 const LANE_DOT_Y     = 513;
 const SPRING_K       = 380;
@@ -64,21 +66,21 @@ export class HUDRenderer {
     this._layer = layerManager.get('hudLayer');
     this._audio = audioManager;
 
-    this._elapsed      = 0;
-    this._lastCoins    = -1;
-    this._lastCombo    = 0;
-    this._lastHearts   = -1;
-    this._lastRatio    = 0;
-    this._bounceScale  = 1;
-    this._bounceVel    = 0;
-    this._flashGold    = 0;
-    this._prevAtTarget = false;
-    this._objTimer     = 0;
-    this._objText      = null;
-    this._confetti     = [];
-    this._prevComboTier = -1;
-    this._tierFlashT    = 0;
-    this._curTierColor  = 0xffee44;
+    this._elapsed       = 0;
+    this._lastCoins     = -1;
+    this._lastCombo     = 0;
+    this._lastHearts    = -1;
+    this._lastRatio     = 0;
+    this._bounceT       = 0;   // countdown for 1.0→1.25→1.0 scale over 0.2s
+    this._flashGold     = 0;
+    this._prevAtTarget  = false;
+    this._objTimer      = 0;
+    this._objText       = null;
+    this._confetti      = [];
+    this._prevComboTier  = -1;
+    this._tierFlashT     = 0;
+    this._curTierColor   = 0xffee44;
+    this._curTierGlowAlpha = 0.30;
 
     // ── Background + progress bar (redrawn every frame) ─────────────────
     this._bg = new Graphics();
@@ -275,8 +277,7 @@ export class HUDRenderer {
   }
 
   bumpCombo(combo) {
-    this._bounceScale = 1.4;
-    this._bounceVel   = 0;
+    this._bounceT = 0.2;
     this._updateComboStyle(combo);
   }
 
@@ -465,14 +466,14 @@ export class HUDRenderer {
   }
 
   _stepSpring(dt) {
-    if (Math.abs(this._bounceScale - 1) < 0.001 && Math.abs(this._bounceVel) < 0.001) {
-      this._bounceScale = 1;
+    if (this._bounceT <= 0) {
       this._comboText.scale.set(1);
       return;
     }
-    this._bounceVel   += (-SPRING_K * (this._bounceScale - 1) - SPRING_D * this._bounceVel) * dt;
-    this._bounceScale += this._bounceVel * dt;
-    this._comboText.scale.set(this._bounceScale);
+    this._bounceT = Math.max(0, this._bounceT - dt);
+    const frac  = 1 - this._bounceT / 0.2;   // 0→1 over 0.2s
+    const scale = 1 + 0.25 * Math.sin(Math.PI * frac);  // 1.0→1.25→1.0
+    this._comboText.scale.set(scale);
   }
 
   _refreshComboText() {
@@ -519,13 +520,13 @@ export class HUDRenderer {
     g.clear();
     if (combo < 2) return;
 
-    const glowW = 160 + combo * 4;
-    const glowH = 38;
+    const glowW = 200;
+    const glowH = COMBO_PILL_H;
     const cx    = this._appW / 2;
     const cy    = COMBO_Y;
 
     g.roundRect(cx - glowW / 2, cy - glowH / 2, glowW, glowH, 12);
-    g.fill({ color: this._curTierColor, alpha: 0.22 });
+    g.fill({ color: this._curTierColor, alpha: this._curTierGlowAlpha });
 
     if (this._tierFlashT > 0) {
       const flashA = (this._tierFlashT / 0.12) * 0.55;
@@ -545,6 +546,7 @@ export class HUDRenderer {
       this._tierFlashT    = 0.12;
     }
     this._curTierColor             = tier.color;
+    this._curTierGlowAlpha         = tier.glowAlpha;
     this._comboText.style.fill     = tier.color;
     this._comboText.style.fontSize = tier.size;
   }

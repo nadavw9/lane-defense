@@ -133,6 +133,18 @@ export class ShooterRenderer {
 
     this.draggingColumn = -1;
 
+    // ── Bomb queue tray — dark backdrop behind all 4 columns ─────────────
+    const trayY = SHOOTER_AREA_Y - 4;
+    const trayH = PIP_Y + PIP_RADIUS + 8 - trayY;
+    const tray  = new Graphics();
+    // Filled dark base (light touch — 3D bomb spheres render behind PixiJS)
+    tray.roundRect(-16, trayY, 390 + 32, trayH, 12);
+    tray.fill({ color: 0x0d1117, alpha: 0.25 });
+    // Subtle border to frame the zone without obscuring bomb colors
+    tray.roundRect(-16, trayY, 390 + 32, trayH, 12);
+    tray.stroke({ color: 0x445566, width: 1, alpha: 0.50 });
+    this._layer.addChild(tray);
+
     // Wrapper container for all 4 column UIs — hides them without touching BenchRenderer.
     // Exposed as `container` so GameApp can call shooterRenderer.container.visible = false.
     this._columnsGroup = new Container();

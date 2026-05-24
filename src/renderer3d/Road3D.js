@@ -15,13 +15,10 @@ const COL_DIVIDER      = 0xffffff;   // white lane dividers
 const COL_BARRIER      = 0x9a9a9a;   // medium concrete — not glowing white
 const COL_BARRIER_TOP  = 0xb0b0b0;   // slightly lighter cap, no glow
 const COL_REFLECTOR    = 0xffdd00;
-const COL_BREACH_LINE  = 0xdd2222;
 
 const SHOULDER_COLOR = 0x1a1a1a;   // dark pavement flanking road
 const SHOULDER_W     = 5.0;        // world units wide (≈60 px on screen)
 const EDGE_LINE_W    = 0.15;       // white edge stripe width (world units)
-
-const BREACH_EMISSIVE_BASE = 0.15; // starting intensity for breach-line pulse
 
 const TRAFFIC_DOT_COUNT = 30;
 const TRAFFIC_DOT_SPEED = 4.0;    // world units / sec
@@ -46,11 +43,10 @@ export class Road3D {
 
     this._elapsed       = 0;
     this._laneCount     = 4;
+    this._roadColor     = COL_ASPHALT;
+    this._roadColorDark = COL_ASPHALT_DARK;
 
     // Refs to animated materials — reset on each rebuild.
-    this._breachMat     = null;
-    this._breachGlowMat = null;
-    this._breachGlow    = null;
     this._reflStrips    = [];
     this._trafficTrails = [];
     this._speedLines    = [];
@@ -58,6 +54,8 @@ export class Road3D {
     this._bombRings      = [];
     this._dividers       = [];
     this._noiseTex       = null;
+    // Road surface materials — updated by setTheme() without rebuild.
+    this._roadMats      = [];
 
     this._build();
   }
@@ -69,7 +67,7 @@ export class Road3D {
    * Preserves any in-flight bomb rings (they expire on their own).
    */
   setLaneCount(n) {
-    if (n === this._laneCount && this._breachMat !== null) return;
+    if (n === this._laneCount && this._built) return;
     this._laneCount = n;
 
     // Clear existing geometry (leave bomb rings — they auto-expire).
@@ -79,6 +77,22 @@ export class Road3D {
 
   // Legacy no-op kept for call-site compat (replaced by setLaneCount).
   setActiveLaneCount(n) { this.setLaneCount(n); }
+
+  /** Update road surface color from theme. No geometry rebuild needed. */
+  setTheme(theme) {
+    if (!theme?.roadColor) return;
+    const base = theme.roadColor;
+    // Dark variant: subtract a small fixed offset per channel to keep contrast
+    const dr = Math.max(0, ((base >> 16) & 0xff) - 6);
+    const dg = Math.max(0, ((base >>  8) & 0xff) - 6);
+    const db = Math.max(0, ( base        & 0xff) - 6);
+    const dark = (dr << 16) | (dg << 8) | db;
+    this._roadColor     = base;
+    this._roadColorDark = dark;
+    for (const entry of this._roadMats) {
+      entry.mat.color.setHex(entry.dark ? dark : base);
+    }
+  }
 
   // ── Lane glow ─────────────────────────────────────────────────────────────────
   showLaneGlow(laneIdx, colorHex) {
@@ -135,15 +149,6 @@ export class Road3D {
   update(dt) {
     this._elapsed += dt;
     const t = this._elapsed;
-
-    // Breach line emissive pulse — subtle 1 Hz sine glow
-    if (this._breachMat) {
-      const p = Math.sin(t * Math.PI * 2) * 0.15 + BREACH_EMISSIVE_BASE;
-      this._breachMat.emissiveIntensity = p;
-      if (this._breachGlowMat) {
-        this._breachGlowMat.opacity = 0.08 + 0.10 * (p / (BREACH_EMISSIVE_BASE * 2));
-      }
-    }
 
     // Reflection strips — cycle aurora colours
     const auroraC = REFL_STRIP_COLORS.map(h => new THREE.Color(h));
@@ -214,11 +219,11 @@ export class Road3D {
   // ── Private — geometry builders ──────────────────────────────────────────────
 
   _build() {
+    this._built = true;
     this._buildRoadSurface();
     this._buildNoiseOverlay();
     this._buildLaneDividers();
     this._buildBarriers();
-    this._buildBreachLine();
     this._buildReflectionStrips();
     this._buildTrafficTrails();
     this._buildSpeedLines();
@@ -249,39 +254,35 @@ export class Road3D {
     this._trafficTrails = [];
     this._speedLines    = [];
     this._dividers      = [];
-    this._breachMat     = null;
-    this._breachGlowMat = null;
-    this._breachGlow    = null;
-    this._gate          = null;
+    this._roadMats      = [];
+    this._built         = false;
   }
 
   _buildRoadSurface() {
     const n    = this._laneCount;
     const hw   = roadHalfW(n);
     const W    = hw * 2;
+    const base = this._roadColor;
+    const dark = this._roadColorDark;
 
     // Main asphalt plane — MeshBasicMaterial so dark color is not washed by lighting
-    const geo = new THREE.PlaneGeometry(W, ROAD_LENGTH, 1, 16);
-    const mat = new THREE.MeshBasicMaterial({ color: COL_ASPHALT });
-    const mesh = new THREE.Mesh(geo, mat);
+    const mat = new THREE.MeshBasicMaterial({ color: base });
+    this._roadMats.push({ mat, dark: false });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(W, ROAD_LENGTH, 1, 16), mat);
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.set(0, -0.01, ROAD_CENTER_Z);
     this._group.add(mesh);
 
-    // Per-lane alternating colour strips — basic material for true asphalt tones
+    // Per-lane alternating colour strips
     for (let i = 0; i < n; i++) {
-      const x     = laneToX(i, n);
-      const color = i % 2 === 0 ? COL_ASPHALT : COL_ASPHALT_DARK;
-      const strip = new THREE.Mesh(
-        new THREE.PlaneGeometry(3.85, ROAD_LENGTH),
-        new THREE.MeshBasicMaterial({ color }),
-      );
+      const isDark  = i % 2 !== 0;
+      const stripMat = new THREE.MeshBasicMaterial({ color: isDark ? dark : base });
+      this._roadMats.push({ mat: stripMat, dark: isDark });
+      const strip = new THREE.Mesh(new THREE.PlaneGeometry(3.85, ROAD_LENGTH), stripMat);
       strip.rotation.x = -Math.PI / 2;
-      strip.position.set(x, 0, ROAD_CENTER_Z);
+      strip.position.set(laneToX(i, n), 0, ROAD_CENTER_Z);
       this._group.add(strip);
     }
-
-    // Wet surface mirror overlay removed — was tinting road blue (0x112233 metalness:1.0)
 
     // Expansion joints
     const jointMat = new THREE.MeshBasicMaterial({
@@ -296,30 +297,27 @@ export class Road3D {
     }
 
     // ── Visual background extension: road continues to vanishing point ─────
-    const VANISH_LEN    = ROAD_Z_FAR - ROAD_Z_VANISHING;  // 43 units
+    const VANISH_LEN    = ROAD_Z_FAR - ROAD_Z_VANISHING;
     const vanishCenterZ = ROAD_Z_VANISHING + VANISH_LEN / 2;
 
-    const vanishGeo = new THREE.PlaneGeometry(W, VANISH_LEN, 1, 6);
-    const vanishMat = new THREE.MeshBasicMaterial({ color: COL_ASPHALT });
-    const vanishMesh = new THREE.Mesh(vanishGeo, vanishMat);
+    const vanishMat = new THREE.MeshBasicMaterial({ color: base });
+    this._roadMats.push({ mat: vanishMat, dark: false });
+    const vanishMesh = new THREE.Mesh(new THREE.PlaneGeometry(W, VANISH_LEN, 1, 6), vanishMat);
     vanishMesh.rotation.x = -Math.PI / 2;
     vanishMesh.position.set(0, -0.01, vanishCenterZ);
     this._group.add(vanishMesh);
 
-    // Per-lane alternating strips in the extension
     for (let i = 0; i < n; i++) {
-      const x     = laneToX(i, n);
-      const color = i % 2 === 0 ? COL_ASPHALT : COL_ASPHALT_DARK;
-      const strip = new THREE.Mesh(
-        new THREE.PlaneGeometry(3.85, VANISH_LEN),
-        new THREE.MeshBasicMaterial({ color }),
-      );
+      const isDark   = i % 2 !== 0;
+      const vsMat    = new THREE.MeshBasicMaterial({ color: isDark ? dark : base });
+      this._roadMats.push({ mat: vsMat, dark: isDark });
+      const strip = new THREE.Mesh(new THREE.PlaneGeometry(3.85, VANISH_LEN), vsMat);
       strip.rotation.x = -Math.PI / 2;
-      strip.position.set(x, 0, vanishCenterZ);
+      strip.position.set(laneToX(i, n), 0, vanishCenterZ);
       this._group.add(strip);
     }
 
-    // Lane dividers in the extension (dimmer opacity — fade into distance)
+    // Lane dividers in the extension
     const extDashMat = new THREE.MeshBasicMaterial({
       color: COL_DIVIDER, transparent: true, opacity: 0.35,
     });
@@ -338,20 +336,19 @@ export class Road3D {
       }
     }
 
-    // Near-ground extension — covers the frustum area in front of the breach
-    // line (Z=0 to Z≈22) that the perspective camera sees below the road.
-    // Without this, Three.js clears to black there, creating a black void.
+    // Near-ground extension — covers frustum area below breach line
     const NEAR_EXT_LEN = 24;
-    const nearExtMat = new THREE.MeshBasicMaterial({ color: COL_ASPHALT_DARK });
+    const nearMat = new THREE.MeshBasicMaterial({ color: dark });
+    this._roadMats.push({ mat: nearMat, dark: true });
     const nearExtMesh = new THREE.Mesh(
       new THREE.PlaneGeometry(W + 12, NEAR_EXT_LEN),
-      nearExtMat,
+      nearMat,
     );
     nearExtMesh.rotation.x = -Math.PI / 2;
     nearExtMesh.position.set(0, -0.02, ROAD_Z_NEAR + NEAR_EXT_LEN / 2);
     this._group.add(nearExtMesh);
 
-    // ── Road shoulders — dark pavement strips flanking both sides ─────────
+    // ── Road shoulders ────────────────────────────────────────────────────
     const shoulderMat = new THREE.MeshBasicMaterial({ color: SHOULDER_COLOR });
     for (const side of [-1, 1]) {
       const sx = side * (hw + SHOULDER_W / 2);
@@ -363,7 +360,6 @@ export class Road3D {
       shoulder.position.set(sx, -0.015, ROAD_CENTER_Z);
       this._group.add(shoulder);
 
-      // White edge line at the road/shoulder boundary
       const edgeMat = new THREE.MeshBasicMaterial({
         color: 0xffffff, transparent: true, opacity: 0.20,
       });
@@ -423,31 +419,6 @@ export class Road3D {
       this._group.add(body);
       // Reflector dots omitted — not visible from top-down at this scale
     }
-  }
-
-  _buildBreachLine() {
-    const hw  = roadHalfW(this._laneCount);
-    const geo = new THREE.PlaneGeometry(hw * 2, 0.25);
-    this._breachMat = new THREE.MeshStandardMaterial({
-      color:             COL_BREACH_LINE,
-      emissive:          new THREE.Color(COL_BREACH_LINE),
-      emissiveIntensity: BREACH_EMISSIVE_BASE,
-      transparent:       true,
-      opacity:           0.85,
-      roughness:         0.5,
-    });
-    const line = new THREE.Mesh(geo, this._breachMat);
-    line.rotation.x = -Math.PI / 2;
-    line.position.set(0, 0.005, ROAD_Z_NEAR);
-    this._group.add(line);
-
-    this._breachGlowMat = new THREE.SpriteMaterial({
-      color: COL_BREACH_LINE, transparent: true, opacity: 0.18, sizeAttenuation: true,
-    });
-    this._breachGlow = new THREE.Sprite(this._breachGlowMat);
-    this._breachGlow.scale.set(hw * 2.2, 1.4, 1);
-    this._breachGlow.position.set(0, 0.3, ROAD_Z_NEAR);
-    this._group.add(this._breachGlow);
   }
 
   _buildReflectionStrips() {

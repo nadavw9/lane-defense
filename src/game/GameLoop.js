@@ -377,7 +377,7 @@ export class GameLoop {
         if (gs.spawnBudget <= 0) break;
         const lane = gs.lanes[li];
         if (lane.cars.length < target && !lane.cars.some(c => c.row === 0)) {
-          const car = this._carDir.generateCar(lane, 'CALM', gs.world, gs.colors);
+          const car = this._carDir.generateCar(lane, 'CALM', gs.world, gs.colors, gs.gridRows);
           car.row = 0; car.position = 0;
           lane.addCar(car);
           this.onNewCarType?.(car.type);
@@ -396,7 +396,7 @@ export class GameLoop {
         [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
       }
       for (const li of candidates.slice(0, maxNew)) {
-        const car = this._carDir.generateCar(gs.lanes[li], 'CALM', gs.world, gs.colors);
+        const car = this._carDir.generateCar(gs.lanes[li], 'CALM', gs.world, gs.colors, gs.gridRows);
         car.row = 0; car.position = 0;
         gs.lanes[li].addCar(car);
         this.onNewCarType?.(car.type);
@@ -530,7 +530,7 @@ export class GameLoop {
 
     if (gs.initialCars && gs.initialCars.length > 0 && gs.activeLaneCount > 0) {
       for (const def of gs.initialCars) {
-        const car    = this._carDir.generateCar(gs.lanes[0], 'CALM', gs.world, gs.colors);
+        const car    = this._carDir.generateCar(gs.lanes[0], 'CALM', gs.world, gs.colors, ROWS);
         car.row      = def.row ?? 0;
         car.type     = def.type ?? car.type;
         car.position = this._rowToPosition(car.row, ROWS);
@@ -538,7 +538,7 @@ export class GameLoop {
         spendBudget();
       }
       for (let li = 1; li < gs.activeLaneCount; li++) {
-        const car    = this._carDir.generateCar(gs.lanes[li], 'CALM', gs.world, gs.colors);
+        const car    = this._carDir.generateCar(gs.lanes[li], 'CALM', gs.world, gs.colors, ROWS);
         car.row      = 0;
         car.position = this._rowToPosition(0, ROWS);
         gs.lanes[li].addCar(car);
@@ -546,7 +546,7 @@ export class GameLoop {
       }
     } else {
       for (let li = 0; li < gs.activeLaneCount; li++) {
-        const car    = this._carDir.generateCar(gs.lanes[li], 'CALM', gs.world, gs.colors);
+        const car    = this._carDir.generateCar(gs.lanes[li], 'CALM', gs.world, gs.colors, ROWS);
         car.row      = 0;
         car.position = this._rowToPosition(0, ROWS);
         gs.lanes[li].addCar(car);

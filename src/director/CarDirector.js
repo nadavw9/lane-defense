@@ -36,7 +36,7 @@ export class CarDirector {
   // car (HP 1–2) followed immediately on the next spawn call by a same-color
   // reward car (also HP 1–2).  Total pair HP is 2–4, so any dmg≥3 shot can
   // chain-kill both, creating a reliable carry-over opportunity.
-  generateCar(lane, phase, worldConfig, colorPalette) {
+  generateCar(lane, phase, worldConfig, colorPalette, gridRows) {
     const laneId = lane.id ?? lane;
 
     // Lazy-init per-lane carry-over counters.
@@ -64,7 +64,8 @@ export class CarDirector {
       return this._buildCarryOverCar(color, worldConfig); // bait car
     }
 
-    return this._buildCar(color, phase, worldConfig);
+    const availableRows = gridRows !== undefined ? gridRows - 1 : undefined;
+    return this._buildCar(color, phase, worldConfig, availableRows);
   }
 
   // Pick a color from colorPalette.
@@ -137,8 +138,8 @@ export class CarDirector {
 
   // ─── Private helpers ──────────────────────────────────────────────────────
 
-  _buildCar(color, phase, worldConfig) {
-    const type = pickCarType(this._rng, this._level, phase);
+  _buildCar(color, phase, worldConfig, availableRows) {
+    const type = pickCarType(this._rng, this._level, phase, availableRows);
     const hp   = Math.max(HP_MINIMUM, CAR_TYPES[type].hp);
 
     const speed = worldConfig.speed.base +

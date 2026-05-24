@@ -6,12 +6,12 @@
 //   truck → truck.glb, bigrig → bigrig.glb, tank → procedural (no GLB)
 
 export const CAR_TYPES = {
-  small:  { hp:  2, label: 'Motorbike' },
-  big:    { hp:  4, label: 'Sedan'     },
-  jeep:   { hp:  5, label: 'Van'       },
-  truck:  { hp:  6, label: 'Truck'     },
-  bigrig: { hp: 10, label: 'Big Rig'   },
-  tank:   { hp: 20, label: 'Tank'      },
+  small:  { hp:  2, label: 'Motorbike', minSpawnRow: 0 },
+  big:    { hp:  4, label: 'Sedan',     minSpawnRow: 0 },
+  jeep:   { hp:  5, label: 'Van',       minSpawnRow: 1 },
+  truck:  { hp:  6, label: 'Truck',     minSpawnRow: 2 },
+  bigrig: { hp: 10, label: 'Big Rig',   minSpawnRow: 3 },
+  tank:   { hp: 20, label: 'Tank',      minSpawnRow: 4 },
 };
 
 // ── Level-band weight tables ───────────────────────────────────────────────────
@@ -93,8 +93,12 @@ function bandWeights(level) {
   return WEIGHTS_FULL;
 }
 
-export function pickCarType(rng, level, phase) {
-  const band    = bandWeights(level ?? 1);
-  const weights = band[phase] ?? band.BUILD;
+export function pickCarType(rng, level, phase, availableRows) {
+  const band = bandWeights(level ?? 1);
+  let weights = band[phase] ?? band.BUILD;
+  if (availableRows !== undefined) {
+    const filtered = weights.filter(w => (CAR_TYPES[w.value]?.minSpawnRow ?? 0) <= availableRows);
+    if (filtered.length > 0) weights = filtered;
+  }
   return rng.weightedPick(weights);
 }

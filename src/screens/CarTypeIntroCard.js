@@ -6,54 +6,28 @@
 //   const card = new CarTypeIntroCard(stage, APP_W, APP_H, typeKey, onDismiss);
 //   app.ticker.add(ticker => { if (!card.update(ticker.deltaMS / 1000)) { app.ticker.remove(...); } });
 
-import { Container, Graphics, Text } from 'pixi.js';
+import { Container, Graphics, Text, Sprite, Assets } from 'pixi.js';
+
+const BASE_URL = import.meta.env.BASE_URL ?? '';
 
 // ── Per-type display data ─────────────────────────────────────────────────────
-// headerLabel: replaces "MEET THE" — used for tutorial-tone cards (e.g. L1 TIP)
 const TYPE_INFO = {
-  small: {
-    label:       'Motorbike',
-    hp:          2,
-    desc:        'Fast scout — destroyed in one direct hit',
-    color:       0x44BB99,
-    headerLabel: 'TIP',
-  },
-  big: {
-    label: 'Sedan',
-    hp:    4,
-    desc:  'Standard vehicle — takes two hits to stop',
-    color: 0xDD8833,
-  },
-  jeep: {
-    label: 'Van',
-    hp:    5,
-    desc:  'Armored cargo van — needs multiple direct hits',
-    color: 0x378ADD,
-  },
-  truck: {
-    label: 'Truck',
-    hp:    6,
-    desc:  'Heavy-duty hauler — tough body, slow moving',
-    color: 0x639922,
-  },
-  bigrig: {
-    label: 'Big Rig',
-    hp:    10,
-    desc:  'Industrial freight hauler — reinforced cab',
-    color: 0xD85A30,
-  },
-  tank: {
-    label: 'Tank',
-    hp:    20,
-    desc:  'Military-grade armor — unleash everything',
-    color: 0x7F77DD,
-  },
+  small:  { name: 'MOTORBIKE', hp:  2, color: 0x44BB99, sprite: 'sprites/designed/bike-red.png'          },
+  big:    { name: 'SEDAN',     hp:  4, color: 0xDD8833, sprite: 'sprites/designed/car-red-processed.png' },
+  jeep:   { name: 'VAN',       hp:  5, color: 0x378ADD, sprite: 'sprites/designed/van-red.png'           },
+  truck:  { name: 'TRUCK',     hp:  6, color: 0x639922, sprite: 'sprites/designed/truck-red.png'         },
+  bigrig: { name: 'BIG RIG',   hp: 10, color: 0xD85A30, sprite: 'sprites/designed/bigrig-red.png'        },
+  tank:   { name: 'TANK',      hp: 20, color: 0x7F77DD, sprite: 'sprites/designed/tank.png'              },
 };
 
-const DISPLAY_MS    = 2500;   // ms the card stays on screen
-const ANIM_IN_MS    = 220;    // card bounce-in duration
-const ANIM_OUT_MS   = 180;    // card fade-out duration
+const DISPLAY_MS    = 2500;
+const ANIM_IN_MS    = 220;
+const ANIM_OUT_MS   = 180;
 const LS_KEY        = 'lane_defense_seen_car_types';
+
+// Sprite display dimensions
+const SPR_W = 88;
+const SPR_H = 108;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -84,8 +58,12 @@ export class CarTypeIntroCard {
     this._dismissed = false;
 
     const W = appW, H = appH;
-    const CW = 300, CH = 290;
+    const CW = 320, CH = 220;
     const CX = (W - CW) / 2, CY = (H - CH) / 2 - 30;
+
+    // Left sprite zone: CX → CX+110; right text zone: CX+110 → CX+320
+    const SPRITE_ZONE_W = 110;
+    const TEXT_CENTER_X = CX + SPRITE_ZONE_W + (CW - SPRITE_ZONE_W) / 2;  // ≈ CX+215
 
     const c = new Container();
     c.eventMode = 'static';
@@ -99,60 +77,89 @@ export class CarTypeIntroCard {
     bg.fill({ color: 0x000000, alpha: 0.72 });
     c.addChild(bg);
 
-    // ── Card background (dark purple → dark blue gradient via two rects) ─────
+    // ── Card background ──────────────────────────────────────────────────────
     const card = new Graphics();
-    // Outer glow (border) — the type's accent color
+    // Outer glow border in accent color
     card.roundRect(CX - 2, CY - 2, CW + 4, CH + 4, 16);
     card.fill({ color: info.color, alpha: 0.55 });
     // Inner dark panel
     card.roundRect(CX, CY, CW, CH, 14);
     card.fill({ color: 0x0e0b1c, alpha: 1.0 });
-    // Subtle top-gradient overlay: lighter purple at top
+    // Subtle top-gradient overlay
     card.roundRect(CX, CY, CW, CH * 0.45, 14);
     card.fill({ color: 0x1c1038, alpha: 1.0 });
     c.addChild(card);
     this._card = card;
 
-    // ── Header label ("MEET THE" or type-specific override like "TIP") ──────────
+    // ── Sprite zone — colored placeholder replaced async by actual sprite ────
+    const spriteContainer = new Container();
+    c.addChild(spriteContainer);
+    this._spriteContainer = spriteContainer;
+
+    // Placeholder: colored rounded rect while sprite loads
+    const placeholder = new Graphics();
+    const ph = info.color;
+    placeholder.roundRect(CX + 11, CY + (CH - SPR_H) / 2, SPR_W, SPR_H, 10);
+    placeholder.fill({ color: ph, alpha: 0.25 });
+    spriteContainer.addChild(placeholder);
+    this._placeholder = placeholder;
+
+    // Async sprite load
+    const spriteUrl = `${BASE_URL}${info.sprite}`;
+    Assets.load(spriteUrl).then(tex => {
+      if (this._container?.destroyed || this._dismissed) return;
+      const spr = new Sprite(tex);
+      // Scale to fit within SPR_W × SPR_H maintaining aspect ratio
+      const scale = Math.min(SPR_W / spr.width, SPR_H / spr.height);
+      spr.scale.set(scale);
+      spr.anchor.set(0.5, 0.5);
+      spr.x = CX + SPRITE_ZONE_W / 2;
+      spr.y = CY + CH / 2;
+      spriteContainer.removeChild(placeholder);
+      placeholder.destroy();
+      spriteContainer.addChild(spr);
+    }).catch(() => { /* keep placeholder on load failure */ });
+
+    // ── "MEET THE" header ────────────────────────────────────────────────────
     const meetTxt = new Text({
-      text: info.headerLabel ?? 'MEET THE',
+      text: 'MEET THE',
       style: {
-        fontSize:   11,
-        fontWeight: 'bold',
-        fill:       0x8899bb,
+        fontSize:      11,
+        fontWeight:    'bold',
+        fill:          0x8899bb,
         letterSpacing: 3,
       },
     });
     meetTxt.anchor.set(0.5, 0);
-    meetTxt.x = W / 2;
-    meetTxt.y = CY + 22;
+    meetTxt.x = TEXT_CENTER_X;
+    meetTxt.y = CY + 20;
     c.addChild(meetTxt);
 
-    // ── Type name (dominant) — scale-to-fit if wider than card ──────────────
+    // ── Type name (dominant) ─────────────────────────────────────────────────
     const nameTxt = new Text({
-      text: info.label.toUpperCase(),
+      text: info.name,
       style: {
-        fontSize:   54,
+        fontSize:   46,
         fontWeight: '900',
         fill:       0xffffff,
         dropShadow: { color: info.color, blur: 22, distance: 0, alpha: 0.70 },
       },
     });
     nameTxt.anchor.set(0.5, 0);
-    nameTxt.x = W / 2;
-    nameTxt.y = CY + 42;
-    // After Pixi renders the text we know the real pixel width; clamp to card.
-    const maxNameW = CW - 20;
+    nameTxt.x = TEXT_CENTER_X;
+    nameTxt.y = CY + 38;
+    // Clamp to right zone width
+    const maxNameW = CW - SPRITE_ZONE_W - 16;
     if (nameTxt.width > maxNameW) nameTxt.scale.set(maxNameW / nameTxt.width);
     c.addChild(nameTxt);
 
     // ── HP badge ─────────────────────────────────────────────────────────────
+    const bw = 120, bh = 36;
+    const bx = TEXT_CENTER_X - bw / 2;
+    const by = CY + 108;
     const hpBadge = new Graphics();
-    const bw = 120, bh = 36, bx = W / 2 - bw / 2, by = CY + 42 + 62 + 10;
-    // Pill background in type color
     hpBadge.roundRect(bx, by, bw, bh, bh / 2);
     hpBadge.fill({ color: info.color, alpha: 0.90 });
-    // Top gloss
     hpBadge.roundRect(bx + 2, by + 2, bw - 4, bh * 0.42, bh / 2);
     hpBadge.fill({ color: 0xffffff, alpha: 0.22 });
     c.addChild(hpBadge);
@@ -167,28 +174,12 @@ export class CarTypeIntroCard {
       },
     });
     hpTxt.anchor.set(0.5, 0.5);
-    hpTxt.x = W / 2;
+    hpTxt.x = TEXT_CENTER_X;
     hpTxt.y = by + bh / 2;
     c.addChild(hpTxt);
 
-    // ── Description ──────────────────────────────────────────────────────────
-    const descTxt = new Text({
-      text: info.desc,
-      style: {
-        fontSize:   13,
-        fill:       0xaabbcc,
-        align:      'center',
-        wordWrap:   true,
-        wordWrapWidth: CW - 40,
-      },
-    });
-    descTxt.anchor.set(0.5, 0);
-    descTxt.x = W / 2;
-    descTxt.y = by + bh + 14;
-    c.addChild(descTxt);
-
     // ── Timer bar ────────────────────────────────────────────────────────────
-    const barY  = CY + CH - 26;
+    const barY  = CY + CH - 22;
     const barBg = new Graphics();
     barBg.roundRect(CX + 20, barY, CW - 40, 6, 3);
     barBg.fill({ color: 0x223344, alpha: 0.80 });
@@ -216,14 +207,12 @@ export class CarTypeIntroCard {
     if (this._dismissed || !this._container) return false;
     this._elapsed += dt * 1000;
 
-    const total = ANIM_IN_MS + DISPLAY_MS + ANIM_OUT_MS;
-
     // Animate in
     if (this._animIn) {
       const prog = Math.min(1, this._elapsed / ANIM_IN_MS);
       const e    = 1 - Math.pow(1 - prog, 3);
       this._container.alpha = e;
-      const s = 0.70 + 0.30 * e + (prog < 0.6 ? (0.6 - prog) * 0.12 : 0);  // slight overshoot
+      const s = 0.70 + 0.30 * e + (prog < 0.6 ? (0.6 - prog) * 0.12 : 0);
       if (this._card) this._card.scale.set(s);
       if (prog >= 1) this._animIn = false;
     }

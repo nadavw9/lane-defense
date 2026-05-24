@@ -19,6 +19,7 @@ import { LayerManager }    from './LayerManager.js';
 import { LaneRenderer, laneCenterX, posToScreenY, ROAD_TOP_Y, ROAD_BOTTOM_Y } from './LaneRenderer.js';
 import { spriteFlags }     from './SpriteFlags.js';
 import { CityBackground }  from './CityBackground.js';
+import { CityEdges }       from './CityEdges.js';
 import { CarRenderer }     from './CarRenderer.js';
 import { ShooterRenderer } from './ShooterRenderer.js';
 import { HUDRenderer }     from './HUDRenderer.js';
@@ -63,6 +64,7 @@ import { ShopScreen }             from '../screens/ShopScreen.js';
 import { DailyRewardScreen }      from '../screens/DailyRewardScreen.js';
 import { SettingsScreen }         from '../screens/SettingsScreen.js';
 import { PauseScreen }            from '../screens/PauseScreen.js';
+import { CarManualScreen }        from '../screens/CarManualScreen.js';
 import { TutorialOrchestrator }   from '../screens/TutorialOrchestrator.js';
 import { AchievementsScreen }     from '../screens/AchievementsScreen.js';
 import { StatsScreen }            from '../screens/StatsScreen.js';
@@ -248,6 +250,7 @@ async function main() {
   const layers      = new LayerManager(app.stage);
   const laneRenderer = new LaneRenderer(layers, APP_W);
   const cityBg       = new CityBackground(layers, APP_W);
+  const cityEdges    = new CityEdges(layers, APP_W);
 
   // ── 3D Renderer — replaces LaneRenderer + CityBackground during gameplay ─
   // Wrapped in try/catch: if WebGL is unavailable (some mobile browsers, quota
@@ -405,6 +408,7 @@ async function main() {
   let dailyRewardScreen  = null;
   let settingsScreen     = null;
   let pauseScreen        = null;
+  let carManualScreen    = null;
   let achievementsScreen = null;
   let statsScreen        = null;
 
@@ -442,6 +446,28 @@ async function main() {
     g.on('pointerdown', () => showPause());
     g.on('pointerover',  () => { g.alpha = 0.70; });
     g.on('pointerout',   () => { g.alpha = 1.00; });
+    layers.get('hudLayer').addChild(g);
+    return g;
+  })();
+
+  // ── Book icon — opens car encyclopedia (top-left of HUD, shown during gameplay) ─
+  const bookBtn = (() => {
+    const HIT = 40;
+    const g   = new Graphics();
+    g.roundRect(0, 0, HIT, HIT, 8);
+    g.fill({ color: 0x000000, alpha: 0.40 });
+    g.x       = 4;
+    g.y       = 2;
+    g.eventMode = 'static';
+    g.cursor    = 'pointer';
+    g.visible   = false;
+    g.on('pointerdown', () => showCarManual());
+    g.on('pointerover',  () => { g.alpha = 0.70; });
+    g.on('pointerout',   () => { g.alpha = 1.00; });
+    const icon = new Text({ text: '📖', style: { fontSize: 22 } });
+    icon.anchor.set(0.5, 0.5);
+    icon.x = HIT / 2; icon.y = HIT / 2;
+    g.addChild(icon);
     layers.get('hudLayer').addChild(g);
     return g;
   })();
@@ -602,6 +628,7 @@ async function main() {
     }
 
     pauseBtn.visible = true;
+    bookBtn.visible  = true;
 
     // ── Booster unlock popup (once per feature, normal levels only) ───────────
     const UNLOCK_LEVELS = [6, 8, 12, 14];
@@ -735,6 +762,7 @@ async function main() {
   // ── Screen: Title ─────────────────────────────────────────────────────────
   function showTitle() {
     pauseBtn.visible = false;
+    bookBtn.visible  = false;
     audio.playMusic('title');
     // Keep 2D shooter layers hidden — 3D renderer handles shooter visuals.
     gameRenderer3D.hide();
@@ -966,16 +994,44 @@ async function main() {
     settingsScreen = new SettingsScreen(app.stage, APP_W, APP_H, audio, { onClose }, progress, haptics);
   }
 
+  // ── Screen: Car Manual ────────────────────────────────────────────────────
+  function showCarManual(fromPause = false) {
+    const wasPlaying = gameLoopStarted && !gameLoop.paused && !gs.isOver;
+    if (wasPlaying) gameLoop.pause();
+    bookBtn.visible  = false;
+    pauseBtn.visible = false;
+    carManualScreen = new CarManualScreen(app.stage, APP_W, APP_H, {
+      onClose: () => {
+        carManualScreen?.destroy();
+        carManualScreen = null;
+        if (fromPause) {
+          showPause();
+        } else {
+          bookBtn.visible  = true;
+          pauseBtn.visible = true;
+          if (wasPlaying) gameLoop.resume();
+        }
+      },
+    });
+  }
+
   // ── Screen: Pause ─────────────────────────────────────────────────────────
   function showPause() {
     gameLoop.pause();
     pauseBtn.visible = false;
+    bookBtn.visible  = false;
     pauseScreen = new PauseScreen(app.stage, APP_W, APP_H, {
       onResume: () => {
         pauseScreen.destroy();
-        pauseScreen   = null;
+        pauseScreen      = null;
         pauseBtn.visible = true;
+        bookBtn.visible  = true;
         gameLoop.resume();
+      },
+      onCarManual: () => {
+        pauseScreen.destroy();
+        pauseScreen = null;
+        showCarManual(true);
       },
       onSettings: () => {
         pauseScreen.destroy();
@@ -1450,6 +1506,7 @@ async function main() {
     // Background + road + overlay updates
     cityBg.update(gs.elapsed);
     laneRenderer.update(gs.elapsed);
+    cityEdges.update(dt);
     unlockScreen?.update(dt);
     boosterSpotlight?.update(dt);
     tutOrch?.update(dt);
@@ -1554,6 +1611,7 @@ async function main() {
     dailyRewardScreen?.destroy();  dailyRewardScreen  = null;
     settingsScreen?.destroy();     settingsScreen     = null;
     pauseScreen?.destroy();        pauseScreen        = null;
+    carManualScreen?.destroy();    carManualScreen    = null;
     achievementsScreen?.destroy(); achievementsScreen = null;
     statsScreen?.destroy();        statsScreen        = null;
     winScreen?.destroy();          winScreen          = null;
@@ -1563,7 +1621,6 @@ async function main() {
   };
   // ── Boot: show title screen (game loop not started yet) ───────────────────
   showTitle();
-
 
   // ── Post-boot overlays (deferred so title is visible first) ───────────────
 

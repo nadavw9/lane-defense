@@ -3,6 +3,7 @@
 //
 // Buttons:
 //   RESUME      — close overlay, unpause game
+//   CAR INFO    — open car encyclopedia
 //   SETTINGS    — open settings (game stays paused)
 //   SHARE       — copy/share the game URL
 //   QUIT TO MENU — end the current attempt, go to level select
@@ -11,11 +12,11 @@ import { Container, Graphics, Text } from 'pixi.js';
 const GAME_URL = 'https://nadavw9.github.io/lane-defense/';
 
 export class PauseScreen {
-  // callbacks: { onResume, onSettings, onQuit }
-  constructor(stage, appW, appH, { onResume, onSettings, onQuit, audio }) {
+  // callbacks: { onResume, onCarManual, onSettings, onQuit }
+  constructor(stage, appW, appH, { onResume, onCarManual, onSettings, onQuit, audio }) {
     this._container = new Container();
     stage.addChild(this._container);
-    this._build(appW, appH, onResume, onSettings, onQuit, audio);
+    this._build(appW, appH, onResume, onCarManual, onSettings, onQuit, audio);
   }
 
   destroy() {
@@ -24,7 +25,7 @@ export class PauseScreen {
 
   // ── Private ────────────────────────────────────────────────────────────────
 
-  _build(w, h, onResume, onSettings, onQuit, audio) {
+  _build(w, h, onResume, onCarManual, onSettings, onQuit, audio) {
     // Semi-transparent backdrop — blocks clicks to game layers.
     const backdrop = new Graphics();
     backdrop.rect(0, 0, w, h);
@@ -32,8 +33,8 @@ export class PauseScreen {
     backdrop.eventMode = 'static';
     this._container.addChild(backdrop);
 
-    // Panel — tall enough for 4 buttons
-    const panelW = 290, panelH = 360;
+    // Panel — tall enough for 5 buttons
+    const panelW = 290, panelH = 418;
     const px = (w - panelW) / 2;
     const py = (h - panelH) / 2 - 30;
 
@@ -58,9 +59,10 @@ export class PauseScreen {
     this._container.addChild(title);
     y += 56;
 
-    const tap = (fn) => () => { audio?.play('button_tap'); fn(); };
-    this._btn('RESUME',       cx, y, 0x1a5a2a, 0x55ff99, tap(onResume));   y += 58;
-    this._btn('SETTINGS',     cx, y, 0x1a2a4a, 0x55aaff, tap(onSettings)); y += 58;
+    const tap = (fn) => () => { audio?.play('button_tap'); fn?.(); };
+    this._btn('RESUME',       cx, y, 0x1a5a2a, 0x55ff99, tap(onResume));     y += 58;
+    this._btn('📖 CAR INFO',  cx, y, 0x1a2040, 0xaaccff, tap(onCarManual));  y += 58;
+    this._btn('SETTINGS',     cx, y, 0x1a2a4a, 0x55aaff, tap(onSettings));   y += 58;
 
     // Share button — uses Web Share API on mobile, clipboard fallback on desktop.
     const shareBtn = this._btn('SHARE GAME', cx, y, 0x1a1a3a, 0xaaaaff, tap(async () => {

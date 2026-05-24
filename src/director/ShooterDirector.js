@@ -8,6 +8,16 @@ import {
 } from './DirectorConfig.js';
 import { Shooter } from '../models/Shooter.js';
 
+// Shots before an active lane color must be force-inserted into the queue.
+const COLOR_WINDOW = 7;
+
+// Extra weight added to damage values 6-8 based on max car HP on the road.
+// Checked in descending HP order; first match wins.
+const HP_DAMAGE_BOOST = [
+  [10, 12],  // bigrig / tank — strong boost to high-damage values
+  [ 7,  6],  // truck — moderate boost
+];
+
 export class ShooterDirector {
   constructor(config, rng, fairnessArbiter) {
     this._config  = config;
@@ -21,21 +31,32 @@ export class ShooterDirector {
     // CRISIS assist state
     this._lastCrisisTime = -Infinity;
     this._deployLog      = []; // timestamps of recent player deploys
+
+    // Color availability window — guarantees every active lane color appears
+    // within every COLOR_WINDOW-shot rolling window.
+    this._colorLastSeen = {};  // { color → shotIndex }
+    this._shotCount     = 0;
   }
 
   // ─── Public API ───────────────────────────────────────────────────────────
 
   // Generate one shooter for a column.
-  // Color: 60% chance to pick from current front-car colors (demand-match),
+  // Color: forced if an active lane color is overdue in the availability window;
+  //        else 60% demand-match (stack-weighted) toward front-car colors;
   //        40% uniform from palette.
-  // Damage: weighted by phaseParams.damageSkew (easy / standard / hard).
+  // Damage: HP-aware pool — scaled by max car HP currently on the road.
   // FairnessArbiter runs after generation and may override color or damage.
   generateShooter(column, gameState, phaseParams) {
-    const colId   = this._colId(column);
-    const color   = this._demandMatchColor(gameState);
-    const damage  = this._pickDamage(phaseParams.damageSkew);
+    const colId  = this._colId(column);
+    const color  = this._overdueColor(gameState) ?? this._demandMatchColor(gameState);
+    const damage = this._pickDamageForContext(phaseParams.damageSkew, gameState);
     const shooter = new Shooter({ color, damage, column: colId });
     this._arbiter.checkShooter(shooter, gameState);
+
+    // Track post-arbiter color so the window reflects what was actually delivered.
+    this._shotCount++;
+    this._colorLastSeen[shooter.color] = this._shotCount;
+
     return shooter;
   }
 
@@ -149,18 +170,87 @@ export class ShooterDirector {
     return (column !== null && typeof column === 'object') ? column.id : column;
   }
 
+  // Return the most-overdue active lane color if any color has been absent for
+  // COLOR_WINDOW shots; null otherwise.  "Active" = any color present in lanes.
+  _overdueColor(gameState) {
+    const active = new Set();
+    for (const lane of gameState.lanes) {
+      for (const car of lane.cars) active.add(car.color);
+    }
+    if (active.size === 0) return null;
+
+    let oldest = null, oldestSeen = this._shotCount;
+    for (const color of active) {
+      const lastSeen = this._colorLastSeen[color] ?? 0;
+      if (this._shotCount - lastSeen >= COLOR_WINDOW && lastSeen < oldestSeen) {
+        oldest     = color;
+        oldestSeen = lastSeen;
+      }
+    }
+    return oldest;
+  }
+
   // 60% chance to reroll toward a current front-car color; 40% uniform palette.
+  // When demand-matching, colors are weighted by their total stack depth across
+  // all lanes so a color with more queued cars gets proportionally higher odds.
   _demandMatchColor(gameState) {
     const frontCars = gameState.lanes.map(l => l.frontCar()).filter(Boolean);
     if (frontCars.length > 0 && this._rng.next() < 0.6) {
-      return this._rng.pick(frontCars.map(c => c.color));
+      const stackCounts = {};
+      for (const lane of gameState.lanes) {
+        for (const car of lane.cars) {
+          stackCounts[car.color] = (stackCounts[car.color] ?? 0) + 1;
+        }
+      }
+      const weighted = frontCars.map(c => ({
+        value:  c.color,
+        weight: stackCounts[c.color] ?? 1,
+      }));
+      return this._rng.weightedPick(weighted);
     }
     return this._rng.pick(gameState.colorPalette);
+  }
+
+  // Context-aware damage pick:
+  //   • bike-only road (max HP ≤ 2): cap pool at values ≤ 4
+  //   • heavy car present (max HP ≥ 7): add extra weight to values 6-8
+  _pickDamageForContext(skew, gameState) {
+    const base  = DAMAGE_WEIGHTS[skew] ?? DAMAGE_WEIGHTS.standard;
+    const maxHp = this._maxCarHp(gameState);
+
+    if (maxHp > 0 && maxHp <= 2) {
+      const bikePool = base.filter(e => e.value <= 4);
+      if (bikePool.length > 0) return this._rng.weightedPick(bikePool);
+    }
+
+    let boost = 0;
+    for (const [threshold, b] of HP_DAMAGE_BOOST) {
+      if (maxHp >= threshold) { boost = b; break; }
+    }
+    if (boost > 0) {
+      const boosted = base.map(e =>
+        e.value >= 6 ? { value: e.value, weight: e.weight + boost } : e,
+      );
+      return this._rng.weightedPick(boosted);
+    }
+
+    return this._rng.weightedPick(base);
   }
 
   _pickDamage(skew) {
     const pool = DAMAGE_WEIGHTS[skew] ?? DAMAGE_WEIGHTS.standard;
     return this._rng.weightedPick(pool);
+  }
+
+  // Maximum HP of any car currently on the road across all lanes.
+  _maxCarHp(gameState) {
+    let max = 0;
+    for (const lane of gameState.lanes) {
+      for (const car of lane.cars) {
+        if (car.hp > max) max = car.hp;
+      }
+    }
+    return max;
   }
 
   // Pick a random front-car color, or null if no front cars exist.

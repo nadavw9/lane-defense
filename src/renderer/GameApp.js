@@ -1286,10 +1286,10 @@ async function main() {
       haptics.light();
     },
 
-    onHit: (laneIdx, gameX, color, damage, isKill, wasStreakShot) => {
+    onHit: (laneIdx, gameX, color, damage, isKill) => {
       particles.spawnHit(laneIdx, gameX, color);
       particles.spawnDamageNumber(laneIdx, gameX, damage);
-      gameRenderer3D.onHit(laneIdx, color, damage, isKill, wasStreakShot);
+      gameRenderer3D.onHit(laneIdx, color, damage, isKill);
       if (isKill) {
         particles.spawnExplosion(laneIdx, gameX, color);
         audio.play('car_destroy');
@@ -1500,7 +1500,7 @@ async function main() {
     const dt = Math.min(ticker.deltaMS / 1000, 0.05);
 
     // 3D scene update + render (runs when gameRenderer3D is visible/active).
-    gameRenderer3D.update({ lanes: gs.lanes, boosterState, isBreaching: gs.isOver && !gs.won, streakCount: gs.streakCount, streakActive: gs.streakActive }, dt, gs.elapsed);
+    gameRenderer3D.update({ lanes: gs.lanes, boosterState, isBreaching: gs.isOver && !gs.won }, dt, gs.elapsed);
     gameRenderer3D.render();
 
     // Background + road + overlay updates

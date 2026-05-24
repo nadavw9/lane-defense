@@ -113,7 +113,7 @@ export class GameRenderer3D {
   hide() { if (this._canvas) this._canvas.style.display = 'none'; }
   isVisible() { return !!this._canvas && this._canvas.style.display !== 'none'; }
 
-  // Apply per-level theme: sky gradient, lighting, and fog.
+  // Apply per-level theme: sky gradient, lighting, fog, and background.
   applyTheme(levelId) {
     if (!this._scene3d) return;
     const theme = levelTheme(typeof levelId === 'number' ? levelId : 5);
@@ -123,9 +123,15 @@ export class GameRenderer3D {
       fog.near = theme.fog.near;
       fog.far  = theme.fog.far;
     }
+    // Background tints the area outside the road — use sky zenith so each
+    // theme has a distinct outer-frame color (sunset indigo vs misty grey).
+    if (this._scene3d.scene.background && theme.sky?.zenith != null) {
+      this._scene3d.scene.background.setHex(theme.sky.zenith);
+    }
     this._lighting?.setTheme(theme);
     this._skybox?.setTheme(theme);
     this._cars?.setTheme(theme);
+    this._road?.setTheme?.(theme);
   }
 
   resetLevel() {
@@ -148,22 +154,17 @@ export class GameRenderer3D {
   // ── Event API (called from GameApp callbacks) ──────────────────────────────
 
   /** Colored hit sparks + damage number + optional explosion. */
-  onHit(laneIdx, color, damage, isKill, wasStreakShot = false) {
+  onHit(laneIdx, color, damage, isKill) {
     this._particles?.spawnHit(laneIdx, color);
     this._particles?.spawnDamageNumber(laneIdx, damage);
-    if (wasStreakShot) {
-      this._cars?.triggerPowerHit(laneIdx, isKill);
-    }
     if (isKill) {
-      const explodeScale = wasStreakShot ? 1.25 : 1.0;
-      this._particles?.spawnExplosion(laneIdx, color, explodeScale);
-      this._cameraFX?.shake(wasStreakShot ? 0.20 : 0.12, 0.25);
-      this._postFX?.triggerChroma(wasStreakShot ? 0.035 : 0.022, 0.30);
-      // No bloom spike on kill — headlights already bloom at base strength 0.65
+      this._particles?.spawnExplosion(laneIdx, color, 1.0);
+      this._cameraFX?.shake(0.12, 0.25);
+      this._postFX?.triggerChroma(0.022, 0.30);
       const cachedPos = this._laneCarPosCache[laneIdx] ?? 50;
       this._scorchMarks?.spawnScorch(laneIdx, cachedPos);
     } else {
-      this._postFX?.triggerChroma(wasStreakShot ? 0.018 : 0.010, 0.18);
+      this._postFX?.triggerChroma(0.010, 0.18);
     }
   }
 
@@ -277,7 +278,6 @@ export class GameRenderer3D {
     this._particles?.update(dt);
     this._postFX?.update(dt);
     this._cars?.update(dt, isFrozen);
-    this._shooters?.setStreak(gameState?.streakCount ?? 0, gameState?.streakActive ?? false);
     this._shooters?.update(dt, elapsed);
     this._projectiles?.update(dt);
 

@@ -20,7 +20,8 @@ import {
   COLUMN_DEPTH,
   CRISIS,
   SDR_LEVELS,
-  COMBO_TIERS,
+  COLOR_BOMB_THRESHOLD,
+  FREEZE_THRESHOLD,
   COMBO_WINDOW,
   CARRYOVER_COIN_BONUS,
   DEPLOY_DILATION,
@@ -419,26 +420,17 @@ describe('Silent Difficulty Reduction', () => {
 // ─── Combo System ─────────────────────────────────────────────────────────────
 
 describe('Combo system', () => {
-  it('defines 4 combo tiers', () => {
-    expect(COMBO_TIERS.length).toBe(4)
+  it('color bomb threshold is 4 kills', () => {
+    expect(COLOR_BOMB_THRESHOLD).toBe(4)
   })
 
-  const expected = [
-    { threshold: 3,  fireSpeedMultiplier: 1.2, coinBonus: 3,  duration: 4 },
-    { threshold: 5,  fireSpeedMultiplier: 1.4, coinBonus: 8,  duration: 5 },
-    { threshold: 8,  fireSpeedMultiplier: 1.6, coinBonus: 15, duration: 6 },
-    { threshold: 12, fireSpeedMultiplier: 2.0, coinBonus: 25, duration: 8 },
-  ]
+  it('freeze threshold is 7 kills', () => {
+    expect(FREEZE_THRESHOLD).toBe(7)
+  })
 
-  for (let i = 0; i < expected.length; i++) {
-    const e = expected[i]
-    it(`${e.threshold}-combo: ${e.fireSpeedMultiplier}x fire speed, +${e.coinBonus} coins, ${e.duration}s`, () => {
-      expect(COMBO_TIERS[i].threshold).toBe(e.threshold)
-      expect(COMBO_TIERS[i].fireSpeedMultiplier).toBe(e.fireSpeedMultiplier)
-      expect(COMBO_TIERS[i].coinBonus).toBe(e.coinBonus)
-      expect(COMBO_TIERS[i].duration).toBe(e.duration)
-    })
-  }
+  it('freeze threshold is greater than color bomb threshold', () => {
+    expect(FREEZE_THRESHOLD).toBeGreaterThan(COLOR_BOMB_THRESHOLD)
+  })
 
   it('combo window is 5 seconds', () => {
     expect(COMBO_WINDOW).toBe(5)
@@ -446,13 +438,6 @@ describe('Combo system', () => {
 
   it('carry-over coin bonus is 5', () => {
     expect(CARRYOVER_COIN_BONUS).toBe(5)
-  })
-
-  it('fire speed multipliers increase with combo tier', () => {
-    for (let i = 1; i < COMBO_TIERS.length; i++) {
-      expect(COMBO_TIERS[i].fireSpeedMultiplier)
-        .toBeGreaterThan(COMBO_TIERS[i - 1].fireSpeedMultiplier)
-    }
   })
 })
 

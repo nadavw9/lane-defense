@@ -3,7 +3,8 @@
 // and GameLoop is the only writer.
 //
 // Rule: nothing outside GameLoop ever writes to GameState.
-import { COMBO_WINDOW, DEPLOY_DILATION, CARRYOVER_COIN_BONUS, COMBO_TIERS } from '../director/DirectorConfig.js';
+import { COMBO_WINDOW, DEPLOY_DILATION, CARRYOVER_COIN_BONUS,
+         COLOR_BOMB_THRESHOLD, FREEZE_THRESHOLD } from '../director/DirectorConfig.js';
 
 export class GameState {
   // laneCount / colCount — how many of the 4 lanes/columns are active.
@@ -44,9 +45,11 @@ export class GameState {
     // ── Combo ─────────────────────────────────────────────────────────────
     this.combo        = 0;
     this.lastKillTime = -Infinity;
-    // Active combo tier multiplier — used by GameLoop to shorten shot travel
-    // time so the player can fire faster at high combos.  Resets when combo breaks.
-    this.comboFireMultiplier = 1.0;
+    // Power-shot arm flags — set when combo crosses the threshold; cleared when shot fires.
+    this.colorBombArmed  = false;
+    this.freezeArmed     = false;
+    // Combo freeze: how many grid advances to skip after a freeze power shot fires.
+    this.comboFreezeShots = 0;
 
     // ── Stats ─────────────────────────────────────────────────────────────
     this.totalKills     = 0;
@@ -87,11 +90,6 @@ export class GameState {
     // breathe before the onslaught resumes.
     this.recoveryUntil = -Infinity;
 
-    // ── Streak Shot ────────────────────────────────────────────────────────
-    // 3 consecutive correct-color hits charge the streak. Any miss resets it.
-    // When streakActive, the next deploy fires a power shot (2× damage + slow).
-    this.streakCount  = 0;
-    this.streakActive = false;
   }
 
   // ── Active subsets ────────────────────────────────────────────────────────
@@ -135,15 +133,9 @@ export class GameState {
 
     this.coins += 1 + (isCarryOver ? CARRYOVER_COIN_BONUS : 0);
 
-    // Award milestone bonus coins and activate fire-speed boost when the
-    // combo hits a tier threshold exactly (first time each streak).
-    for (const tier of COMBO_TIERS) {
-      if (this.combo === tier.threshold) {
-        this.coins              += tier.coinBonus;
-        this.comboFireMultiplier = tier.fireSpeedMultiplier;
-        break;
-      }
-    }
+    // Arm power shots when combo crosses milestones.
+    if (this.combo === COLOR_BOMB_THRESHOLD) this.colorBombArmed = true;
+    if (this.combo === FREEZE_THRESHOLD)     this.freezeArmed    = true;
 
     return this.combo;
   }
@@ -178,7 +170,9 @@ export class GameState {
     this.elapsed       = 0;
     this.combo         = 0;
     this.lastKillTime  = -Infinity;
-    this.comboFireMultiplier = 1.0;
+    this.colorBombArmed  = false;
+    this.freezeArmed     = false;
+    this.comboFreezeShots = 0;
     this.totalKills     = 0;
     this.carryOvers     = 0;
     this.totalDeploys   = 0;
@@ -196,8 +190,6 @@ export class GameState {
     this.won           = false;
     this.dilationUntil = -Infinity;
     this.recoveryUntil = -Infinity;
-    this.streakCount   = 0;
-    this.streakActive  = false;
     for (let i = 0; i < this.firingSlots.length; i++) this.firingSlots[i] = null;
     // Restore original duration (rescues add to it; reset removes those additions).
     // Duration is re-supplied by GameLoop.restart() which knows the base value.
@@ -211,28 +203,9 @@ export class GameState {
   }
 
   resetCombo() {
-    this.combo               = 0;
-    this.comboFireMultiplier = 1.0;
-  }
-
-  // Called on every correct-color hit. Advances streak toward activation.
-  recordCorrectHit() {
-    if (this.streakActive) return;   // already charged — nothing to advance
-    this.streakCount++;
-    if (this.streakCount >= 3) this.streakActive = true;
-  }
-
-  // Called on any miss (wrong color). Resets streak entirely.
-  recordMiss() {
-    this.streakCount  = 0;
-    this.streakActive = false;
-  }
-
-  // Called when a power shot fires. Consumes the streak; counter resets to 0
-  // so the player must earn another 3 hits to charge again.
-  consumeStreak() {
-    this.streakCount  = 0;
-    this.streakActive = false;
+    this.combo        = 0;
+    this.colorBombArmed = false;
+    this.freezeArmed    = false;
   }
 
   // Trigger deploy time dilation starting from now.

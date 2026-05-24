@@ -177,12 +177,10 @@ export const SDR_LEVELS = [
 
 // ─── Combo System ─────────────────────────────────────────────────────────────
 
-export const COMBO_TIERS = [
-  { threshold: 3,  fireSpeedMultiplier: 1.2, coinBonus: 3,  duration: 4 },
-  { threshold: 5,  fireSpeedMultiplier: 1.4, coinBonus: 8,  duration: 5 },
-  { threshold: 8,  fireSpeedMultiplier: 1.6, coinBonus: 15, duration: 6 },
-  { threshold: 12, fireSpeedMultiplier: 2.0, coinBonus: 25, duration: 8 },
-];
+// Power-shot milestones.  Reaching threshold arms the next shot as that power.
+// Combo resets to 0 after the armed power shot fires.
+export const COLOR_BOMB_THRESHOLD = 4;  // kills → next shot destroys all same-color cars
+export const FREEZE_THRESHOLD     = 7;  // kills → next shot freezes all cars for 1 grid turn
 
 export const COMBO_WINDOW = 5;       // seconds between kills to maintain combo
 export const CARRYOVER_COIN_BONUS = 5; // coins for a carry-over kill

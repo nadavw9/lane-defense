@@ -53,9 +53,11 @@ export class GameLoop {
     this._onMiss   = onMiss     ?? (() => {});
     this._onEnd    = onEnd      ?? (() => {});
     this._onCrisis      = onCrisis      ?? (() => {});
-    this._onBombEarned  = null;  // set by GameApp after construction
-    this._onBombExplode = null;  // set by GameApp after construction
-    this.onNewCarType   = null;  // set by GameApp; fires with typeKey when a car is added to a lane
+    this._onBombEarned   = null;  // set by GameApp after construction
+    this._onBombExplode  = null;  // set by GameApp after construction
+    this._onColorBomb    = null;  // set by GameApp; (color, laneOrder) → visual FX
+    this._onComboFreeze  = null;  // set by GameApp; () → visual FX
+    this.onNewCarType    = null;  // set by GameApp; fires with typeKey when a car is added to a lane
 
     // Base level duration — used to reset gs.duration on restart.
     this._baseDuration = gameState.duration;
@@ -187,8 +189,7 @@ export class GameLoop {
   // colIdx === -1 means the shooter came from the bench (no punch animation).
   _startFiring(shooter, laneIdx, colIdx) {
     const gs         = this._gs;
-    const travelTime = SHOT_TRAVEL_TIME / (gs.comboFireMultiplier ?? 1.0);
-    gs.firingSlots[laneIdx] = { shooter, colIdx, timeLeft: travelTime };
+    gs.firingSlots[laneIdx] = { shooter, colIdx, timeLeft: SHOT_TRAVEL_TIME };
     this._onShoot(shooter.damage, laneIdx, colIdx);
     gs.triggerDilation();
   }
@@ -206,11 +207,19 @@ export class GameLoop {
     const carGameX       = frontCar.position;
     const isCorrectColor = shooter.color === frontCar.color;
 
-    // Streak Shot: charged streak + correct color → fire a power shot (2× damage).
-    let wasStreakShot = false;
-    if (isCorrectColor && gs.streakActive) {
-      shooter       = { ...shooter, damage: shooter.damage * 2 };
-      wasStreakShot = true;
+    // Color bomb power shot: destroy all same-color cars across all lanes.
+    if (gs.colorBombArmed) {
+      gs.colorBombArmed = false;
+      this._fireColorBomb(shooter.color);
+      gs.resetCombo();
+      this._onColorBomb?.(shooter.color);
+      return;
+    }
+
+    // Freeze power shot: normal hit resolves, then all cars skip the next grid advance.
+    const isFreezeShot = gs.freezeArmed;
+    if (isFreezeShot) {
+      gs.freezeArmed = false;
     }
 
     gs.recordDeploy(isCorrectColor);
@@ -219,20 +228,17 @@ export class GameLoop {
 
     if (damageDealt === 0) {
       this._onMiss(laneIdx, carGameX);
-      gs.recordMiss();
       // Color mismatch: wasted bomb slot, grid does NOT advance.
       return;
     }
 
-    if (wasStreakShot) {
-      gs.consumeStreak();
-      // Slow surviving front car for 1 grid turn (car was not killed by the power shot).
-      if (kills === 0) frontCar.slowedTurns = 1;
-    } else {
-      gs.recordCorrectHit();
+    if (isFreezeShot) {
+      gs.comboFreezeShots = 1;
+      gs.resetCombo();
+      this._onComboFreeze?.();
     }
 
-    this._onHit(laneIdx, carGameX, shooter.color, damageDealt, kills > 0, wasStreakShot);
+    this._onHit(laneIdx, carGameX, shooter.color, damageDealt, kills > 0);
 
     if (kills > 0) {
       if (carryOverKills > 0) this._onChain(laneIdx, carGameX);
@@ -252,6 +258,26 @@ export class GameLoop {
 
     // Turn-based: advance the grid after every hit — damage-only AND kill shots.
     if (!gs.isOver) this._advanceGrid();
+  }
+
+  // Color bomb power shot: instantly remove all cars matching `color` from every lane.
+  // Kills are registered (combo, coins, bomb charge) but the grid does NOT advance.
+  _fireColorBomb(color) {
+    const gs = this._gs;
+    const bs = this._boosterState;
+    for (let li = 0; li < gs.activeLaneCount; li++) {
+      const lane = gs.lanes[li];
+      for (let ci = lane.cars.length - 1; ci >= 0; ci--) {
+        if (lane.cars[ci].color !== color) continue;
+        lane.cars.splice(ci, 1);
+        const combo = gs.recordKill(false);
+        this._onKill(combo);
+        if (bs && gs.killsTowardBomb % KILLS_PER_BOMB === 0 && bs.bombs < BOMB_MAX_CHARGES) {
+          bs.bombs++;
+          this._onBombEarned?.();
+        }
+      }
+    }
   }
 
   // Full level restart — resets state and reprimes cars/columns.
@@ -301,9 +327,12 @@ export class GameLoop {
     const ROWS     = gs.gridRows ?? 6;
     const MAX_ROW  = ROWS - 1;
 
-    // FREEZE booster: skip grid advance for next 3 shots, then expire.
-    if (this._boosterState?.isFrozen()) {
-      this._boosterState.consumeFreezeShot();
+    // FREEZE (booster or combo power shot): skip grid advance, cars don't move.
+    const boosterFrozen = this._boosterState?.isFrozen() ?? false;
+    const comboFrozen   = gs.comboFreezeShots > 0;
+    if (boosterFrozen || comboFrozen) {
+      if (boosterFrozen) this._boosterState.consumeFreezeShot();
+      if (comboFrozen)   gs.comboFreezeShots--;
       // Still refill columns and run viability guard, but cars don't move.
       const dirState = gs.asDirectorState();
       const phaseParams = gs.phaseMan.getParams();
@@ -313,10 +342,8 @@ export class GameLoop {
     }
 
     // 1. Move all cars forward one row.
-    // Streak Shot slow: a power-shot hit car skips one advance turn.
     for (let li = 0; li < gs.activeLaneCount; li++) {
       for (const car of gs.lanes[li].cars) {
-        if ((car.slowedTurns ?? 0) > 0) { car.slowedTurns--; continue; }
         car.row++;
         car.position = this._rowToPosition(car.row, ROWS);
         if (car.position > gs.maxCarPosition) gs.maxCarPosition = car.position;

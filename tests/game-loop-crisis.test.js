@@ -401,10 +401,6 @@ describe('BUG4 — tank advances one row per shot, HP decreases by shot damage',
     gs.lanes[0].addCar(tank);
 
     for (let shot = 1; shot <= 5; shot++) {
-      // Reset streak each shot so streak-shot mechanics don't interfere with this
-      // test's focus on per-shot damage and row-advance correctness.
-      gs.streakCount  = 0;
-      gs.streakActive = false;
       const prevHp  = tank.hp;
       const prevRow = tank.row;
       loop._resolveShot(new Shooter({ color: 'Red', damage: 2, column: 0 }), 0);

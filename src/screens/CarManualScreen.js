@@ -178,29 +178,46 @@ export class CarManualScreen {
       this._container.addChild(tipTxt);
 
     } else {
-      // Locked: silhouette circle + "???"
+      // Locked: silhouette circle with lock symbol + ??? name + ? HP badge
       const lockBg = new Graphics();
       lockBg.circle(sprCX, sprCY, 30);
-      lockBg.fill({ color: 0x1a2a3a, alpha: 0.80 });
+      lockBg.fill({ color: 0x151e28, alpha: 0.90 });
       lockBg.circle(sprCX, sprCY, 30);
-      lockBg.stroke({ color: 0x334455, width: 1.5, alpha: 0.60 });
+      lockBg.stroke({ color: 0x2a3a4a, width: 1.5, alpha: 0.70 });
       this._container.addChild(lockBg);
 
-      const lockQ = new Text({
-        text: '?',
-        style: { fontSize: 26, fontWeight: 'bold', fill: 0x445566 },
-      });
-      lockQ.anchor.set(0.5, 0.5);
-      lockQ.x = sprCX; lockQ.y = sprCY;
-      this._container.addChild(lockQ);
+      // Lock body (rectangle)
+      const lockBody = new Graphics();
+      lockBody.roundRect(sprCX - 9, sprCY - 2, 18, 14, 3);
+      lockBody.fill({ color: 0x334455, alpha: 1 });
+      this._container.addChild(lockBody);
+      // Lock shackle (arc top)
+      const shackle = new Graphics();
+      shackle.arc(sprCX, sprCY - 4, 8, Math.PI, 0);
+      shackle.stroke({ color: 0x334455, width: 4 });
+      this._container.addChild(shackle);
 
       const qTxt = new Text({
         text: '???',
-        style: { fontSize: 18, fontWeight: 'bold', fill: 0x334455 },
+        style: { fontSize: 17, fontWeight: '900', fill: 0x334455 },
       });
-      qTxt.anchor.set(0, 0.5);
-      qTxt.x = textX; qTxt.y = sprCY;
+      qTxt.anchor.set(0, 0);
+      qTxt.x = textX; qTxt.y = ey + 12;
       this._container.addChild(qTxt);
+
+      // "? HP" badge — same layout as revealed HP badge but greyed out
+      const hpBadge = new Graphics();
+      hpBadge.roundRect(textX, ey + 36, 70, 26, 13);
+      hpBadge.fill({ color: 0x1e2d3e, alpha: 1 });
+      this._container.addChild(hpBadge);
+
+      const hpTxt = new Text({
+        text: '? HP',
+        style: { fontSize: 13, fontWeight: 'bold', fill: 0x44596e },
+      });
+      hpTxt.anchor.set(0, 0.5);
+      hpTxt.x = textX + 10; hpTxt.y = ey + 36 + 13;
+      this._container.addChild(hpTxt);
     }
   }
 }

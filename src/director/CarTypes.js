@@ -63,9 +63,8 @@ const WEIGHTS_HARD_PLUS = {
   RELIEF:   [{ value: 'small', weight: 30 }, { value: 'big', weight: 40 }, { value: 'jeep', weight: 20 }, { value: 'truck', weight: 10 }],
 };
 
-// L17 Streak Discovery — BigRig-heavy, no tank.  BigRigs are the "reward" for
-// earning a streak: a power shot can visibly dent a BigRig in ways that feel
-// surprising, prompting organic discovery of the mechanic.
+// L17 BigRig-heavy, no tank. BigRigs reward sustained accuracy — multiple hits
+// prompts organic color-bomb discovery.
 const WEIGHTS_L17_BIGRIG = {
   CALM:     [{ value: 'small', weight: 20 }, { value: 'big', weight: 30 }, { value: 'jeep', weight: 25 }, { value: 'bigrig', weight: 25 }],
   BUILD:    [{ value: 'small', weight: 5  }, { value: 'big', weight: 20 }, { value: 'jeep', weight: 25 }, { value: 'bigrig', weight: 50 }],

@@ -1,10 +1,9 @@
-// HUDRenderer — 70px HUD bar at the top of the screen.
+﻿// HUDRenderer — 70px HUD bar at the top of the screen.
 //
 //   • Pill progress bar with green gradient fill + animated sheen + "kills/target"
 //   • Purple gradient level badge (L7 pill)
 //   • Heart icons × 5
 //   • Combo text (spring bounce) + right-edge vertical gauge
-//   • Multiplier badge  ×1.2 / ×1.5 / ×2 / ×3
 //   • 3D gold coin disc + coins counter
 //   • Lane color dots just above shooter area
 //   • Objective banner (3 s auto-fade)
@@ -27,13 +26,6 @@ const COMBO_TIERS = [
   { min: 4,  color: 0xffee44, size: 26, glowColor: 0xFF8800, glowAlpha: 0.40 },
   { min: 7,  color: 0xff9922, size: 26, glowColor: 0xFF2200, glowAlpha: 0.50 },
   { min: 11, color: 0xff3333, size: 26, glowColor: 0xFF2200, glowAlpha: 0.50 },
-];
-
-const MULT_TIERS = [
-  { min: 11, label: '×3' },
-  { min: 7,  label: '×2' },
-  { min: 5,  label: '×1.5' },
-  { min: 3,  label: '×1.2' },
 ];
 
 const CAR_COLOR_MAP = {
@@ -169,21 +161,6 @@ export class HUDRenderer {
     this._comboText.y = COMBO_Y;
     this._layer.addChild(this._comboText);
 
-    // ── Multiplier badge ─────────────────────────────────────────────────
-    this._multiBadge = new Text({
-      text: '',
-      style: {
-        fontSize:   18,
-        fontWeight: 'bold',
-        fill:       0xffcc00,
-        dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 0.8 },
-      },
-    });
-    this._multiBadge.anchor.set(1, 0.5);
-    this._multiBadge.x = appWidth - 106;
-    this._multiBadge.y = TEXT_MID;
-    this._layer.addChild(this._multiBadge);
-
     // ── 3D coin disc (drawn once, static) ────────────────────────────────
     this._coinDisc = new Graphics();
     this._layer.addChild(this._coinDisc);
@@ -312,7 +289,6 @@ export class HUDRenderer {
     this._refreshComboText();
     this._refreshFrozenBadge();
     this._refreshCoinsText();
-    this._refreshMultiBadge();
     this._refreshLaneDots();
     this._updateConfetti(dt);
 
@@ -505,16 +481,6 @@ export class HUDRenderer {
       this._coinsText.text = String(coins);
       this._lastCoins      = coins;
     }
-  }
-
-  _refreshMultiBadge() {
-    const combo = this._gs.combo;
-    let label = '';
-    for (const tier of MULT_TIERS) {
-      if (combo >= tier.min) { label = tier.label; break; }
-    }
-    if (this._multiBadge.text !== label) this._multiBadge.text = label;
-    this._multiBadge.alpha = label ? 1 : 0;
   }
 
   _refreshLaneDots() {

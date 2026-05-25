@@ -50,7 +50,7 @@ const B2_MED2 = { hpMultiplier: 0.95, speed: { base: 5.0, variance: 0.5 } };
 const B2_BH   = { hpMultiplier: 1.15, speed: { base: 5.5, variance: 0.5 } };
 
 // Block 3: Misty → Industrial transition (L17–24)
-const B3_DISC = { hpMultiplier: 1.00, speed: { base: 5.0, variance: 0.3 } }; // L17 streak discovery
+const B3_DISC = { hpMultiplier: 1.00, speed: { base: 5.0, variance: 0.3 } }; // L17 color-bomb discovery
 const B3_EASY = { hpMultiplier: 0.80, speed: { base: 4.5, variance: 0.4 } };
 const B3_MED  = { hpMultiplier: 1.00, speed: { base: 5.0, variance: 0.5 } };
 const B3_MED2 = { hpMultiplier: 1.05, speed: { base: 5.2, variance: 0.5 } };
@@ -214,19 +214,19 @@ const PROGRESSION = [
   // ═══════════════════════════════════════════════════════════════════════════
   // BLOCK 3 — L17-L24 | Misty → Industrial themes
   // Pattern: Easy / Medium / Medium / Hard(Boss) / Relief / Medium / Hard / Boss-Hard
-  // Streak Shot discovered naturally at L17 (level designed to reward it).
+  // Color-bomb discovered naturally at L17 (level designed to reward it).
   // gridRows: 5 (bigrig hF=1.26, row_spacing=5.5, gap=0.46)
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // L17 Easy (Relief) — "Streak discovery": R+B+G only (3 colors, simple palette).
+  // L17 Easy (Relief) — "Color-bomb discovery": R+B+G only (3 colors, simple palette).
   // BigRig-heavy spawn ensures the player needs multiple hits per car → builds
-  // streak naturally. hpMultiplier=1.0, speed=5.0 so BigRigs feel weighty but
+  // combo naturally. hpMultiplier=1.0, speed=5.0 so BigRigs feel weighty but
   // not panicky. No tanks — discovery should feel rewarding, not punishing.
   { id: 17, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
     worldConfig: R_L17_V2, duration: 100, spawnBudget: 22, laneTargetCarCount: 2, gridRows: 5,
     showArrow: false, hintText: null },
 
-  // L18 Medium — "Streak mastery": R+B+G, moderate. Designed for combo building.
+  // L18 Medium — "Combo mastery": R+B+G, moderate. Designed for combo building.
   { id: 18, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
     worldConfig: R_3C_MED, duration: 100, spawnBudget: 18, laneTargetCarCount: 3, gridRows: 5,
     showArrow: false, hintText: null },
@@ -283,7 +283,7 @@ const PROGRESSION = [
     worldConfig: R_5C_MED, duration: 100, spawnBudget: 22, laneTargetCarCount: 3, gridRows: 5,
     showArrow: false, hintText: null },
 
-  // L27 Medium — "Five-color rhythm": medium ramp, streak shot rewards here.
+  // L27 Medium — "Five-color rhythm": medium ramp, combo play rewarded here.
   { id: 27, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple'],
     worldConfig: R_5C_MED, duration: 100, spawnBudget: 22, laneTargetCarCount: 3, gridRows: 5,
     showArrow: false, hintText: null },
@@ -362,7 +362,7 @@ const PROGRESSION = [
 
   // L40 Boss-Hard — BOSS "Grandmaster Finale": all 6 colors, all car types.
   // Design: budget 35 across 4 lanes, max density. Every mechanic must be used.
-  // The intended solution: streak combos to kill tanks, freeze during surge waves,
+  // The intended solution: color-bomb combos to kill tanks, freeze during surge waves,
   // SWAP when columns lock, bomb on tank clusters.
   { id: 40, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'],
     worldConfig: R_6C_BH_LONG,

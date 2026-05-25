@@ -4,7 +4,7 @@
 //
 // AI strategy: for each column, fire the top shooter at the most advanced lane
 // whose front car matches the shooter's color.  Skill profiles add accuracy
-// rolls and streak tracking to model real human behavior.
+// rolls to model real human behavior.
 import { SeededRandom }    from '../utils/SeededRandom.js';
 import { FairnessArbiter } from '../director/FairnessArbiter.js';
 import { CarDirector }     from '../director/CarDirector.js';
@@ -29,10 +29,10 @@ const DT = 1 / 60; // seconds per simulation tick
 // Optimal cycles almost instantly (0.1s); real players decide once every few seconds.
 // A higher delay means the player sits on a bad color longer → more wasted fire windows.
 const SKILL_PROFILES = {
-  optimal:  { accuracy: 1.00, streakBoost: 0,    useCycle: true,  cycleDelay: 0.10 },
-  beginner: { accuracy: 0.60, streakBoost: 0,    useCycle: false, cycleDelay: 0    },
-  average:  { accuracy: 0.82, streakBoost: 0.70, useCycle: true,  cycleDelay: 3.0  },
-  skilled:  { accuracy: 0.93, streakBoost: 0.80, useCycle: true,  cycleDelay: 0.75 },
+  optimal:  { accuracy: 1.00, useCycle: true,  cycleDelay: 0.10 },
+  beginner: { accuracy: 0.60, useCycle: false, cycleDelay: 0    },
+  average:  { accuracy: 0.82, useCycle: true,  cycleDelay: 3.0  },
+  skilled:  { accuracy: 0.93, useCycle: true,  cycleDelay: 0.75 },
 };
 
 // Wraps FairnessArbiter to count the fraction of checks that required a fix.
@@ -62,7 +62,7 @@ export class SimulationRunner {
   // levelConfig: { duration (s), colors (array), world (1–5), worldConfig (optional direct override),
   //               skill ('optimal' | 'beginner' | 'average' | 'skilled') }
   // worldConfig takes precedence over world when provided.
-  // skill defaults to 'average' — models real human accuracy and streak behavior.
+  // skill defaults to 'average' — models real human accuracy and cycle behavior.
   constructor(levelConfig = {}) {
     this._cfg = {
       duration:    levelConfig.duration    ?? 90,
@@ -107,10 +107,6 @@ export class SimulationRunner {
     let maxCombo        = 0;
     let lastKillTime    = -Infinity;
     let lostAt          = null;
-
-    // Streak Shot tracking — mirrors GameState.streakCount/streakActive.
-    let streakCount  = 0;
-    let streakActive = false;
 
     // Deploy time dilation: tracks the end-time of the current slow window.
     // Every shooter deploy slows all cars to DEPLOY_DILATION.speedMultiplier for
@@ -208,18 +204,10 @@ export class SimulationRunner {
       const usedCols = new Set();
 
       // Returns true if the simulated player fires the correct color this shot.
-      // At streakCount=2 the player is more deliberate — streakBoost raises the
-      // effective accuracy toward completing the streak.
-      const _isCorrect = () => {
-        if (profile.accuracy >= 1.0) return true;
-        const eff = (profile.streakBoost > 0 && streakCount >= 2)
-          ? profile.accuracy + profile.streakBoost * (1 - profile.accuracy)
-          : profile.accuracy;
-        return rng.next() < eff;
-      };
+      const _isCorrect = () => rng.next() < profile.accuracy;
 
-      // isCorrect=true  → correct color: track streak, apply 2× on power shot.
-      // isCorrect=false → misfire: consume the column + timer, reset streak, no damage.
+      // isCorrect=true  → correct color: apply damage.
+      // isCorrect=false → misfire: consume the column + timer, no damage.
       const _fire = (col, lane, isCorrect = true) => {
         const s = columns[col].top();
         usedCols.add(col);
@@ -227,21 +215,8 @@ export class SimulationRunner {
         dilationActiveUntil = elapsed + DEPLOY_DILATION.duration;
         fireTimers[col] = s.fireDuration;
         columns[col].consume();
-        if (!isCorrect) {
-          streakCount  = 0;
-          streakActive = false;
-          return;
-        }
-        let damage = s.damage;
-        if (streakActive) {
-          damage      *= 2;
-          streakCount  = 0;
-          streakActive = false;
-        } else {
-          streakCount++;
-          if (streakCount >= 3) streakActive = true;
-        }
-        const { kills, carryOverKills } = this._applyDamage(damage, lane);
+        if (!isCorrect) return;
+        const { kills, carryOverKills } = this._applyDamage(s.damage, lane);
         carsKilled += kills;
         carryOvers += carryOverKills;
         if (kills > 0) {

@@ -572,12 +572,21 @@ export class GameLoop {
         spendBudget();
       }
     } else {
+      // Stagger initial cars across rows so the road looks populated from frame 1.
+      // With target=1 → row 0 only; target=2 → rows 0, floor(ROWS/2);
+      // target≥3 → rows spread from 0 to floor(ROWS*0.7) in equal steps.
+      const target   = gs.laneTargetCarCount ?? 1;
+      const maxRow   = Math.floor(ROWS * 0.7);
+      const rowStep  = target > 1 ? Math.floor(maxRow / (target - 1)) : 0;
+      const initRows = Array.from({ length: target }, (_, i) => Math.min(i * rowStep, ROWS - 1));
       for (let li = 0; li < gs.activeLaneCount; li++) {
-        const car    = this._carDir.generateCar(gs.lanes[li], 'CALM', gs.world, gs.colors, ROWS);
-        car.row      = 0;
-        car.position = this._rowToPosition(0, ROWS);
-        gs.lanes[li].addCar(car);
-        spendBudget();
+        for (const row of initRows) {
+          const car    = this._carDir.generateCar(gs.lanes[li], 'CALM', gs.world, gs.colors, ROWS);
+          car.row      = row;
+          car.position = this._rowToPosition(row, ROWS);
+          gs.lanes[li].addCar(car);
+          spendBudget();
+        }
       }
     }
     this._enforceViableMove(gs);

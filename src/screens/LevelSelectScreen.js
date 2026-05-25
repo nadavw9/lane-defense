@@ -2,7 +2,7 @@
 import { Container, Graphics, Text } from 'pixi.js';
 import { adManager, AD_COSTS } from '../ads/AdManager.js';
 
-const HEADER_H = 68;
+const HEADER_H = 76;
 const NODE_R   = 26;
 const COLS_X   = [52, 150, 240, 338];
 const ROWS_Y   = [138, 302, 466, 630, 794];
@@ -17,6 +17,23 @@ const LEVEL_COLORS = [
 ];
 
 function levelColor(levelId) { return LEVEL_COLORS[(levelId - 1) % LEVEL_COLORS.length]; }
+
+// Difficulty indicators: easy → nothing, medium → orange dot, hard → double red dot,
+// boss (L10/20/30/40) → skull.
+const LEVEL_DIFFICULTY = {
+  2:'medium', 3:'medium', 4:'hard',
+  6:'medium', 7:'hard',   8:'hard',
+  10:'boss',
+  11:'medium', 12:'hard',  14:'medium', 15:'hard', 16:'hard',
+  18:'medium', 19:'medium',
+  20:'boss',
+  22:'medium', 23:'hard',  24:'hard',
+  26:'medium', 27:'medium', 28:'hard',
+  30:'boss',
+  31:'hard',   32:'hard',  34:'medium', 35:'medium', 36:'hard',
+  38:'medium', 39:'hard',
+  40:'boss',
+};
 
 function nodePos(levelId) {
   const i = levelId - 1;
@@ -554,6 +571,23 @@ export class LevelSelectScreen {
         node.addChild(wk);
       }
 
+      // Difficulty indicator — sits just below the node disc
+      const diff = LEVEL_DIFFICULTY[levelId];
+      if (diff === 'boss') {
+        const skull = new Text({ text: '💀', style: { fontSize: 12 } });
+        skull.anchor.set(0.5, 0.5); skull.x = 0; skull.y = NODE_R + 10;
+        node.addChild(skull);
+      } else if (diff === 'hard') {
+        const dg = new Graphics();
+        dg.circle(-5, NODE_R + 10, 4); dg.fill({ color: 0xff3333, alpha: 0.95 });
+        dg.circle( 5, NODE_R + 10, 4); dg.fill({ color: 0xff3333, alpha: 0.95 });
+        node.addChild(dg);
+      } else if (diff === 'medium') {
+        const dg = new Graphics();
+        dg.circle(0, NODE_R + 10, 4); dg.fill({ color: 0xff8800, alpha: 0.95 });
+        node.addChild(dg);
+      }
+
       disc.eventMode = 'static'; disc.cursor = 'pointer';
       disc.on('pointerdown', onClick);
       disc.on('pointerover',  () => { node.scale.set(1.10); });
@@ -595,27 +629,31 @@ export class LevelSelectScreen {
       return t;
     };
 
-    mkBtn('← BACK', 14,   0, 22, 0x66aaff, onBack);
-    mkBtn('SHOP',   w-14, 1, 22, 0xf5c842, () => onShop?.());
-    if (onAchievements) mkBtn('★ ACHIEVEMENTS', w - 14, 1, 50, 0x99bbcc, onAchievements);
+    // Row 1 — navigation buttons
+    mkBtn('← BACK', 14,   0, 18, 0x66aaff, onBack);
+    mkBtn('SHOP',   w-14, 1, 18, 0xf5c842, () => onShop?.());
 
+    // Row 2 — world title + world-switch chevrons
     const title = new Text({ text: `WORLD ${this._worldPage}`, style: {
       fontSize: 22, fontWeight: 'bold', fill: 0xffffff,
       dropShadow: { color: 0x3399ff, blur: 10, distance: 0, alpha: 0.7 },
     }});
-    title.anchor.set(0.5, 0.5); title.x = w / 2; title.y = 22;
+    title.anchor.set(0.5, 0.5); title.x = w / 2; title.y = 42;
     this._container.addChild(title);
 
-    const coins = new Text({ text: `🏅 ${progress.coins ?? 0}`, style: { fontSize: 14, fontWeight: 'bold', fill: 0xf5c842 } });
-    coins.anchor.set(0, 0.5); coins.x = 14; coins.y = 50;
-    this._container.addChild(coins);
-
     if (this._worldPage === 1) {
-      mkBtn('W2 ▶', w / 2 + 70, 1, 22, 0x66aaff, () => this._switchWorld(2));
+      mkBtn('W2 ▶', w / 2 + 70, 1, 42, 0x66aaff, () => this._switchWorld(2));
     }
     if (this._worldPage === 2) {
-      mkBtn('◀ W1', w / 2 - 70, 0, 22, 0x66aaff, () => this._switchWorld(1));
+      mkBtn('◀ W1', w / 2 - 70, 0, 42, 0x66aaff, () => this._switchWorld(1));
     }
+
+    // Row 3 — coins and achievements
+    const coins = new Text({ text: `🏅 ${progress.coins ?? 0}`, style: { fontSize: 14, fontWeight: 'bold', fill: 0xf5c842 } });
+    coins.anchor.set(0, 0.5); coins.x = 14; coins.y = 62;
+    this._container.addChild(coins);
+
+    if (onAchievements) mkBtn('★ ACHIEVEMENTS', w - 14, 1, 62, 0x99bbcc, onAchievements);
   }
 
   // Draw a city building near a level node.
@@ -639,23 +677,23 @@ export class LevelSelectScreen {
       g.lineTo(bx + bw,  by + bh);
       g.lineTo(bx,       by + bh);
       g.closePath();
-      g.fill({ color: 0x1e2530, alpha: 0.85 });
+      g.fill({ color: 0x3a3a4a, alpha: 0.85 });
     } else if (state === 1) {
       // Scaffolding — grey facade + 4 yellow horizontal bars
       g.rect(bx, by, bw, bh);
-      g.fill({ color: 0x2e3a48, alpha: 0.90 });
+      g.fill({ color: 0x4a4a5a, alpha: 0.90 });
       for (let i = 0; i < 4; i++) {
         g.rect(bx - 3, by + 4 + i * 8, bw + 6, 3);
-        g.fill({ color: 0xf0a020, alpha: 0.88 });
+        g.fill({ color: 0xFFD700, alpha: 0.88 });
       }
     } else {
       // Complete — lit facade with warm window glow (3×2 grid)
       g.rect(bx, by, bw, bh);
-      g.fill({ color: 0x4a6070, alpha: 0.92 });
+      g.fill({ color: 0x5a5a7a, alpha: 0.92 });
       for (let col = 0; col < 3; col++) {
         for (let row = 0; row < 2; row++) {
           g.circle(bx + 10 + col * 14, by + 9 + row * 14, 3.5);
-          g.fill({ color: 0xffe08a, alpha: 0.95 });
+          g.fill({ color: 0xFFF8E0, alpha: 0.95 });
         }
       }
     }

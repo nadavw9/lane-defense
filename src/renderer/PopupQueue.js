@@ -38,7 +38,7 @@ const DEBOUNCE_S = 0.4;
 // Y position (top-left of the popup group) for each priority zone.
 const ZONE_Y = {
   [PRIORITY.CRITICAL]:    320,
-  [PRIORITY.TUTORIAL]:     76,   // just below 70px HUD bar — was 56 (inside HUD)
+  [PRIORITY.TUTORIAL]:    776,   // bottom of screen (844 × 0.92) — keeps road clear
   [PRIORITY.CAR_TYPE]:    220,
   [PRIORITY.ACHIEVEMENT]:  74,
   [PRIORITY.COMBO]:       144,

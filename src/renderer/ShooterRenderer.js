@@ -11,6 +11,7 @@ import { Sprite, Graphics, Container, Text, Assets } from 'pixi.js';
 import { spriteFlags } from './SpriteFlags.js';
 import { isColorblind, SHAPES } from '../game/ColorblindMode.js';
 import { getColumnScreenX, getColumnScreenY, getColScreenW } from './PositionRegistry.js';
+import { BAR_Y as BOOSTER_BAR_Y } from './BoosterBar.js';
 
 // ── Layout ────────────────────────────────────────────────────────────────────
 export const SHOOTER_AREA_Y  = 520;
@@ -133,9 +134,9 @@ export class ShooterRenderer {
 
     this.draggingColumn = -1;
 
-    // ── Bomb queue tray — dark backdrop behind all 4 columns ─────────────
+    // ── Bomb queue tray — dark backdrop from bomb columns to booster bar ──
     const trayY = SHOOTER_AREA_Y - 4;
-    const trayH = PIP_Y + PIP_RADIUS + 8 - trayY;
+    const trayH = BOOSTER_BAR_Y - trayY;   // extends flush to top of booster bar
     const tray  = new Graphics();
     // Filled dark base (light touch — 3D bomb spheres render behind PixiJS)
     tray.roundRect(-16, trayY, 390 + 32, trayH, 12);

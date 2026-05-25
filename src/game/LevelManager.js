@@ -146,17 +146,17 @@ const PROGRESSION = [
 
   // L6 Medium — "Bench unlocks": first time bench is available. R+B still.
   { id: 6, laneCount: 4, colCount: 4, colors: ['Red', 'Blue'],
-    worldConfig: R_2C_MED_100, duration: 100, spawnBudget: 14, laneTargetCarCount: 2, gridRows: 7,
+    worldConfig: R_2C_MED_100, duration: 100, spawnBudget: 18, laneTargetCarCount: 3, gridRows: 7,
     showArrow: false, hintText: 'NEW! Bench — store a shooter to use later' },
 
   // L7 Hard — "Green arrives": 3 colors for the first time. Pattern reset.
   { id: 7, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
-    worldConfig: R_3C_HARD, duration: 100, spawnBudget: 14, laneTargetCarCount: 2, gridRows: 7,
+    worldConfig: R_3C_HARD, duration: 100, spawnBudget: 18, laneTargetCarCount: 3, gridRows: 7,
     showArrow: false, hintText: 'NEW! Green shooters — 3 colors to manage now' },
 
   // L8 Boss-Hard — "Green boss": all 4 lanes, 3 colors, full density. Rescue moment.
   { id: 8, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
-    worldConfig: R_3C_BH, duration: 90, spawnBudget: 16, laneTargetCarCount: 3, gridRows: 7,
+    worldConfig: R_3C_BH, duration: 90, spawnBudget: 20, laneTargetCarCount: 3, gridRows: 7,
     showArrow: false, hintText: null },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -168,7 +168,7 @@ const PROGRESSION = [
 
   // L9 Easy (Relief) — "Recovery": R+B+G, gentle re-entry. SWAP booster unlocks.
   { id: 9, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
-    worldConfig: B2_EASY, duration: 100, spawnBudget: 14, laneTargetCarCount: 2, gridRows: 6,
+    worldConfig: B2_EASY, duration: 100, spawnBudget: 14, laneTargetCarCount: 3, gridRows: 6,
     showArrow: false, hintText: 'NEW! SWAP booster — exchange two column colors' },
 
   // L10 Medium — BOSS "The Bench Test": R+B only (puzzle). Dense 3 cars/lane.

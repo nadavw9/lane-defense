@@ -9,6 +9,7 @@ import { Container } from 'pixi.js';
 
 const LAYER_NAMES = [
   'backgroundLayer',
+  'cityEdgeLayer',   // city sidewalk/park strips on road sides + road scan lines
   'laneLayer',
   'carLayer',
   'shooterColumnLayer',

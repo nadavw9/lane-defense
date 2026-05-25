@@ -35,6 +35,11 @@ console.log(`Navigating to ${URL} …`);
 await page.goto(URL, { waitUntil: 'networkidle', timeout: 30_000 });
 await page.waitForTimeout(2000);
 
+// Clear tutorial seen state so banners fire fresh
+await page.evaluate(() => {
+  try { localStorage.removeItem('ftue_banners'); } catch {}
+});
+
 // Jump straight to L5
 console.log('Starting L5 …');
 await page.evaluate(() => window._nav?.startLevel(5));

@@ -55,12 +55,12 @@ const COLOR_HEX = {
 // ── Per-type plane dimensions (fractions of CELL) ───────────────────────────
 // PlaneGeometry = CELL*wF × CELL*hF.
 const TYPE_DIMS = {
-  small:  { wF: 0.60, hF: 0.77 },
-  big:    { wF: 0.91, hF: 0.77 },
-  jeep:   { wF: 1.05, hF: 0.81 },
-  truck:  { wF: 0.95, hF: 0.98 },
-  bigrig: { wF: 0.95, hF: 1.26 },
-  tank:   { wF: 1.15, hF: 1.01 },
+  small:  { wF: 0.40, hF: 0.77 },   // motorbike — recognizable handlebar width
+  big:    { wF: 0.58, hF: 0.77 },   // standard sedan
+  jeep:   { wF: 0.62, hF: 0.81 },   // van — just wider than sedan
+  truck:  { wF: 0.60, hF: 0.98 },   // pickup
+  bigrig: { wF: 0.60, hF: 1.26 },   // semi — long but not wide
+  tank:   { wF: 0.72, hF: 1.01 },   // widest, still within lane
   boss:   { wF: 1.33, hF: 1.33 },
 };
 

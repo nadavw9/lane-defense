@@ -2,7 +2,7 @@
 //   SWAP • PEEK • FREEZE • CYCLE • BOMB
 import { Graphics, Text } from 'pixi.js';
 
-const BAR_Y   = 752;
+export const BAR_Y   = 752;
 const BAR_H   = 68;
 
 // ── Icon card layout ──────────────────────────────────────────────────────────

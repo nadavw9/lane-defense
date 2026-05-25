@@ -77,6 +77,8 @@ export class AudioManager {
       case 'win_fanfare':      return this._winFanfare();
       case 'lose_tone':        return this._loseTone();
       case 'crisis_assist':    return this._crisisAssist();
+      case 'color_bomb':       return this._colorBomb(opts.color ?? 'Red');
+      case 'freeze_activate':  return this._freezeActivate();
     }
   }
 
@@ -749,6 +751,60 @@ export class AudioManager {
     g.gain.exponentialRampToValueAtTime(0.001, now + 1.8);
     osc.connect(g); g.connect(this._master);
     osc.start(now + 0.4); osc.stop(now + 1.9);
+  }
+
+  // Dramatic chord burst + noise — fires when a color bomb clears all same-color cars.
+  // Each color has a distinct root across a full octave span + unique waveform so
+  // they're audibly different on mobile speakers.
+  _colorBomb(color) {
+    const ctx  = this._ctx, now = ctx.currentTime;
+    // Roots span A2–A3 (110–220 Hz) — full octave separation between extremes.
+    // Waveform varies per color for timbral differentiation beyond pitch.
+    const profiles = {
+      Red:    { root: 220.0, wave: 'sawtooth' },  // A3 — sharp, aggressive
+      Blue:   { root: 146.8, wave: 'triangle'  },  // D3 — mellow, mid
+      Green:  { root: 196.0, wave: 'square'    },  // G3 — buzzy, bright
+      Yellow: { root: 261.6, wave: 'triangle'  },  // C4 — warm, high
+      Purple: { root: 123.5, wave: 'sine'      },  // B2 — dark, deep
+      Orange: { root: 174.6, wave: 'sawtooth'  },  // F3 — warm-aggressive
+    };
+    const { root, wave } = profiles[color] ?? { root: 220, wave: 'triangle' };
+    // Major triad arpeggio: root, maj3 (×1.25), perf5 (×1.5), octave (×2)
+    [root, root * 1.25, root * 1.5, root * 2.0].forEach((f, i) => {
+      const t = now + i * 0.045;
+      const osc = ctx.createOscillator(), g = ctx.createGain();
+      osc.type = wave;
+      osc.frequency.value = f;
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.28, t + 0.018);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.48);
+      osc.connect(g); g.connect(this._master);
+      osc.start(t); osc.stop(t + 0.50);
+    });
+    // Wide noise burst — impact body
+    this._noiseBurst(0.45, 2200, now, 0.08);
+    this._noiseBurst(0.20, 600,  now + 0.06, 0.38);
+  }
+
+  // Shimmering high-frequency ice crystal — combo freeze activates.
+  _freezeActivate() {
+    const ctx  = this._ctx, now = ctx.currentTime;
+    // Two rapid ascending runs of high sparkle tones
+    const run1 = [1318.5, 1760.0, 2093.0, 2637.0];  // E6 A6 C7 E7
+    const run2 = [1567.9, 2093.0, 2637.0, 3136.0];  // G6 C7 E7 G7
+    [...run1, ...run2].forEach((f, i) => {
+      const t = now + i * 0.032;
+      const osc = ctx.createOscillator(), g = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = f;
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.14, t + 0.008);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.24);
+      osc.connect(g); g.connect(this._master);
+      osc.start(t); osc.stop(t + 0.26);
+    });
+    // Quiet high-freq shimmer tail
+    this._noiseBurst(0.08, 8000, now + 0.15, 0.20);
   }
 
   // ── Utilities ─────────────────────────────────────────────────────────────

@@ -1401,11 +1401,12 @@ async function main() {
   // ── Combo power-shot callbacks ────────────────────────────────────────────
   gameLoop._onColorBomb = (color) => {
     comboFX.triggerColorBomb(color);
-    audio.play('car_destroy');
+    audio.play('color_bomb', { color });
     haptics.heavy();
   };
   gameLoop._onComboFreeze = () => {
     comboFX.triggerFreeze();
+    audio.play('freeze_activate');
     haptics.medium();
   };
 

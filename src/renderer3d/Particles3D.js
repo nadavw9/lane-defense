@@ -22,6 +22,7 @@ let _ringGeo     = null;   // flat ring for shockwave
 let _explGeoSm   = null;   // ~0.10 radius
 let _explGeoMd   = null;   // ~0.15 radius
 let _explGeoLg   = null;   // ~0.20 radius
+let _explGeoOct  = null;   // octahedron — star/diamond shape for kill sparks & snowflakes
 
 function sharedGeo() {
   if (!_sparkGeo) {
@@ -29,7 +30,8 @@ function sharedGeo() {
     _ringGeo   = new THREE.RingGeometry(0.1, 0.3, 24);
     _explGeoSm = new THREE.SphereGeometry(0.10, 6, 4);
     _explGeoMd = new THREE.SphereGeometry(0.15, 6, 4);
-    _explGeoLg = new THREE.SphereGeometry(0.20, 6, 4);
+    _explGeoLg  = new THREE.SphereGeometry(0.20, 6, 4);
+    _explGeoOct = new THREE.OctahedronGeometry(0.12, 0);
   }
 }
 
@@ -82,6 +84,9 @@ export class Particles3D {
 
     // Accumulator for sub-frame exhaust timing (emit ~2 puffs/s per car).
     this._exhaustAccum = 0;
+
+    // Set to true by dispose() so setTimeout callbacks skip spawning after cleanup.
+    this._disposed = false;
 
     this._dmgCanvas = document.createElement('canvas');
     this._dmgCanvas.width  = DMG_CANVAS_W;
@@ -175,15 +180,16 @@ export class Particles3D {
     if (!pos) return;
 
     const hex   = COLOR_HEX[color] ?? 0xffffff;
-    const count = Math.round((9 + Math.floor(Math.random() * 4)) * scale);   // 9–15 at 1.25×
+    const count = 12;   // fixed: 8 spheres + 4 star octahedrons
 
     // ── Large colored burst particles ───────────────────────────────────────
     for (let i = 0; i < count; i++) {
-      const angle = (i / count) * Math.PI * 2 + Math.random() * 0.4;
-      const speed = (5 + Math.random() * 8) * scale;
-      const size  = (0.10 + Math.random() * 0.12) * scale;
-      const geo   = explGeoForSize(size);
-      const mat   = new THREE.MeshStandardMaterial({
+      const angle  = (i / count) * Math.PI * 2 + Math.random() * 0.4;
+      const speed  = (5 + Math.random() * 8) * scale;
+      const isStar = i >= 8;
+      const size   = (0.10 + Math.random() * 0.12) * scale;
+      const geo    = isStar ? _explGeoOct : explGeoForSize(size);
+      const mat    = new THREE.MeshStandardMaterial({
         color:             hex,
         emissive:          hex,
         emissiveIntensity: 1.5,
@@ -194,6 +200,10 @@ export class Particles3D {
       mesh.position.set(pos.x + (Math.random() - 0.5) * 0.2,
                         PARTICLE_Y + 0.1,
                         pos.z + (Math.random() - 0.5) * 0.2);
+      if (isStar) {
+        mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+        mesh.scale.multiplyScalar(scale);
+      }
       this._scene.add(mesh);
 
       this._sparks.push({
@@ -204,6 +214,7 @@ export class Particles3D {
         life:    0.52,
         maxLife: 0.52,
         isExplosion: true,
+        dry: isStar ? (Math.random() - 0.5) * 10 : 0,
       });
     }
 
@@ -269,29 +280,32 @@ export class Particles3D {
     const car = this._lanes[laneIdx]?.cars[0];
     const z   = car ? posToZ(car.position) : 0;
 
-    const count = 10;
+    const count = 12;
     for (let i = 0; i < count; i++) {
       const angle = (i / count) * Math.PI * 2;
-      const speed = 2.5 + Math.random() * 2.5;
-      const hex   = i % 2 === 0 ? 0xAADDFF : 0xffffff;
+      const speed = 1.5 + Math.random() * 1.5;
+      const hex   = i % 3 === 0 ? 0xffffff : (i % 3 === 1 ? 0xAADDFF : 0xCCEEFF);
       const mat   = new THREE.MeshStandardMaterial({
-        color: hex, emissive: hex, emissiveIntensity: 1.4,
+        color: hex, emissive: hex, emissiveIntensity: 1.8,
         transparent: true, opacity: 1,
       });
-      const geo  = explGeoForSize(0.07 + Math.random() * 0.07);
-      const mesh = new THREE.Mesh(geo, mat);
+      // Flat octahedron looks like a 4-pointed snowflake crystal from top-down
+      const mesh = new THREE.Mesh(_explGeoOct, mat);
+      mesh.scale.y = 0.18;   // flatten so it reads as a snowflake from above
+      mesh.rotation.y = Math.random() * Math.PI;
       mesh.position.set(
-        x + Math.cos(angle) * 0.4 + (Math.random() - 0.5) * 0.2,
-        PARTICLE_Y + 0.15 + Math.random() * 0.4,
-        z + Math.sin(angle) * 0.4,
+        x + Math.cos(angle) * 0.6 + (Math.random() - 0.5) * 0.3,
+        PARTICLE_Y + 0.15 + Math.random() * 0.3,
+        z + Math.sin(angle) * 0.6,
       );
       this._scene.add(mesh);
       this._sparks.push({
         mesh, mat,
-        vx: Math.cos(angle) * speed * 0.7,
-        vy: 1.2 + Math.random() * 2.0,
-        vz: Math.sin(angle) * speed * 0.5,
-        life: 0.55, maxLife: 0.55,
+        vx: Math.cos(angle) * speed * 0.25,
+        vy: 2.5 + Math.random() * 2.0,   // strong upward drift
+        vz: Math.sin(angle) * speed * 0.25,
+        life: 0.65, maxLife: 0.65,
+        dry: (Math.random() - 0.5) * 5,  // slow spin around Y (top-down axis)
       });
     }
 
@@ -312,65 +326,90 @@ export class Particles3D {
    * @param {number} bombPos  road-position 0-100
    */
   spawnBombExplosion(bombPos) {
-    const z   = posToZ(bombPos);
-    const count = 20;
+    const z      = posToZ(bombPos);
+    const nLanes = this._lanes.length || 4;
 
-    // ── Large amber burst across all lanes ─────────────────────────────────
+    // Left-to-right cascade: fire each lane 80ms apart at 2× particle size
+    for (let li = 0; li < nLanes; li++) {
+      const delay = li * 80;
+      setTimeout(() => {
+        if (this._disposed) return;
+        this._spawnBombLaneBurst(li, z);
+      }, delay);
+    }
+
+    // Global shockwave + light flashes after all lanes have fired
+    const finalDelay = nLanes * 80;
+    setTimeout(() => {
+      if (this._disposed) return;
+
+      const waveMatAmber = new THREE.MeshBasicMaterial({
+        color: 0xff8800, transparent: true, opacity: 0.60, side: THREE.DoubleSide,
+      });
+      const bigRing = new THREE.Mesh(_ringGeo, waveMatAmber);
+      bigRing.rotation.x = -Math.PI / 2;
+      bigRing.position.set(0, 0.02, z);
+      this._scene.add(bigRing);
+      this._shockwaves.push({ mesh: bigRing, mat: waveMatAmber, life: 0.5, maxLife: 0.5, scaleRate: 20 });
+
+      const waveMatBlue = new THREE.MeshBasicMaterial({
+        color: 0x44ccff, transparent: true, opacity: 0.45, side: THREE.DoubleSide,
+      });
+      const iceRing = new THREE.Mesh(_ringGeo, waveMatBlue);
+      iceRing.rotation.x = -Math.PI / 2;
+      iceRing.position.set(0, 0.04, z);
+      this._scene.add(iceRing);
+      this._shockwaves.push({ mesh: iceRing, mat: waveMatBlue, life: 0.7, maxLife: 0.7, scaleRate: 14 });
+
+      this._lighting?.explosionFlash(0xff8800, 0, PARTICLE_Y + 0.5, z);
+      setTimeout(() => { if (!this._disposed) this._lighting?.explosionFlash(0xffffff, 0, PARTICLE_Y + 0.5, z); }, 80);
+      setTimeout(() => { if (!this._disposed) this._lighting?.explosionFlash(0x44ccff, 0, PARTICLE_Y + 0.5, z); }, 200);
+    }, finalDelay);
+  }
+
+  /** Spawn a single-lane amber burst for the color-bomb cascade. */
+  _spawnBombLaneBurst(laneIdx, z) {
+    const x     = laneToX(laneIdx);
+    const count = 5;
+
     for (let i = 0; i < count; i++) {
-      const angle  = (i / count) * Math.PI * 2 + Math.random() * 0.3;
-      const spread = 3 + Math.random() * 5;  // wider than normal explosion
-      const size   = 0.14 + Math.random() * 0.18;
-      const geo    = explGeoForSize(size);
-      const hex    = i % 3 === 0 ? 0xff8800 : (i % 3 === 1 ? 0xffdd00 : 0xff4400);
-      const mat    = new THREE.MeshStandardMaterial({
-        color:             hex,
-        emissive:          hex,
-        emissiveIntensity: 1.8,
-        transparent:       true,
-        opacity:           1,
+      const angle = (i / count) * Math.PI * 2 + Math.random() * 0.4;
+      const speed = 5 + Math.random() * 8;
+      const hex   = i % 3 === 0 ? 0xff8800 : (i % 3 === 1 ? 0xffdd00 : 0xff4400);
+      const geo   = explGeoForSize(0.20);   // 2× default max sphere size
+      const mat   = new THREE.MeshStandardMaterial({
+        color: hex, emissive: hex, emissiveIntensity: 1.8,
+        transparent: true, opacity: 1,
       });
       const mesh = new THREE.Mesh(geo, mat);
-      // Spread X across the full road width (≈ ±3 lanes)
+      mesh.scale.multiplyScalar(2.0);   // 2× visual scale
       mesh.position.set(
-        (Math.random() - 0.5) * 6,
+        x + (Math.random() - 0.5) * 0.8,
         PARTICLE_Y + 0.2,
-        z + (Math.random() - 0.5) * 2,
+        z + (Math.random() - 0.5) * 1.0,
       );
       this._scene.add(mesh);
       this._sparks.push({
         mesh, mat,
-        vx: Math.cos(angle) * spread * 0.8,
+        vx: Math.cos(angle) * speed * 0.6,
         vy: 4 + Math.random() * 8,
-        vz: Math.sin(angle) * spread * 0.5,
+        vz: Math.sin(angle) * speed * 0.4,
         life: 0.65, maxLife: 0.65,
         isExplosion: true,
       });
     }
 
-    // ── Large amber shockwave ring ─────────────────────────────────────────
-    const waveMatAmber = new THREE.MeshBasicMaterial({
-      color: 0xff8800, transparent: true, opacity: 0.60, side: THREE.DoubleSide,
+    // Per-lane mini shockwave ring
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xff8800, transparent: true, opacity: 0.55, side: THREE.DoubleSide,
     });
-    const bigRing = new THREE.Mesh(_ringGeo, waveMatAmber);
-    bigRing.rotation.x = -Math.PI / 2;
-    bigRing.position.set(0, 0.02, z);
-    this._scene.add(bigRing);
-    this._shockwaves.push({ mesh: bigRing, mat: waveMatAmber, life: 0.5, maxLife: 0.5, scaleRate: 20 });
+    const ring = new THREE.Mesh(_ringGeo, mat);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(x, 0.02, z);
+    this._scene.add(ring);
+    this._shockwaves.push({ mesh: ring, mat, life: 0.40, maxLife: 0.40, scaleRate: 12 });
 
-    // ── Ice-blue concussion freeze ring (second wave) ──────────────────────
-    const waveMatBlue = new THREE.MeshBasicMaterial({
-      color: 0x44ccff, transparent: true, opacity: 0.45, side: THREE.DoubleSide,
-    });
-    const iceRing = new THREE.Mesh(_ringGeo, waveMatBlue);
-    iceRing.rotation.x = -Math.PI / 2;
-    iceRing.position.set(0, 0.04, z);
-    this._scene.add(iceRing);
-    this._shockwaves.push({ mesh: iceRing, mat: waveMatBlue, life: 0.7, maxLife: 0.7, scaleRate: 14 });
-
-    // ── Three sequential dynamic light flashes ─────────────────────────────
-    this._lighting?.explosionFlash(0xff8800, 0, PARTICLE_Y + 0.5, z);
-    setTimeout(() => this._lighting?.explosionFlash(0xffffff, 0, PARTICLE_Y + 0.5, z), 80);
-    setTimeout(() => this._lighting?.explosionFlash(0x44ccff, 0, PARTICLE_Y + 0.5, z), 200);
+    this._lighting?.explosionFlash(0xff8800, x, PARTICLE_Y, z);
   }
 
     // ── Per-frame update ──────────────────────────────────────────────────────────
@@ -385,7 +424,8 @@ export class Particles3D {
         if (p.mesh.geometry !== _sparkGeo &&
             p.mesh.geometry !== _explGeoSm &&
             p.mesh.geometry !== _explGeoMd &&
-            p.mesh.geometry !== _explGeoLg) p.mesh.geometry.dispose();
+            p.mesh.geometry !== _explGeoLg &&
+            p.mesh.geometry !== _explGeoOct) p.mesh.geometry.dispose();
         p.mat.dispose();
         this._scene.remove(p.mesh);
         this._sparks.splice(i, 1);
@@ -393,6 +433,8 @@ export class Particles3D {
       }
 
       p.vy += GRAVITY * dt;
+      if (p.dry) p.mesh.rotation.y += p.dry * dt;
+      if (p.drx) p.mesh.rotation.x += p.drx * dt;
       p.mesh.position.x += p.vx * dt;
       p.mesh.position.y += p.vy * dt;
       p.mesh.position.z += p.vz * dt;
@@ -497,11 +539,13 @@ export class Particles3D {
   }
 
   dispose() {
+    this._disposed = true;
     for (const p of this._sparks) {
       if (p.mesh.geometry !== _sparkGeo &&
           p.mesh.geometry !== _explGeoSm &&
           p.mesh.geometry !== _explGeoMd &&
-          p.mesh.geometry !== _explGeoLg) p.mesh.geometry.dispose();
+          p.mesh.geometry !== _explGeoLg &&
+          p.mesh.geometry !== _explGeoOct) p.mesh.geometry.dispose();
       p.mat.dispose();
       this._scene.remove(p.mesh);
     }

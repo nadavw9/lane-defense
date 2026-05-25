@@ -251,9 +251,56 @@ Viability guard also checks bench slots (L6+).
 - No emojis in commit messages
 - Inline styles for HTML-based UI (no Tailwind)
 
+### Commit Scope Rule
+When deciding what to commit:
+1. Always commit `src/` changes
+2. Always commit new files in `src/` or `scripts/`
+3. Skip: `docs/level-screenshots/`, `public/sprites/raw/`, `*.png` in project root
+4. When uncertain: commit it. Easier to revert than to lose work.
+
+Never spend more than 30 seconds deciding what to commit.
+
 ---
 
-## 13. Useful Commands
+## 13. Tooling
+
+### Screenshot Standard
+Always use `scripts/screenshot.mjs` for Playwright screenshots.
+Path: `docs/level-screenshots/current/[name].png`
+Read back with: `Read docs/level-screenshots/current/[name].png`
+
+```js
+import { takeScreenshot } from './screenshot.mjs';
+const filepath = await takeScreenshot(page, 'L5-gameplay');
+// then: Read tool on filepath
+```
+
+### Playwright PixiJS Clicks
+Use `scripts/pixi-coords.mjs` for all game canvas interactions.
+Stage dimensions: **390 × 844**.
+Always target: `canvas:not(#three-canvas)` — the Three.js canvas (`#three-canvas`) has `pointer-events:none` and swallows all events silently.
+Never recalculate coordinate math from scratch.
+
+```js
+import { tapStage, getPixiRect, stageToClient } from './pixi-coords.mjs';
+await tapStage(page, 195, 470);  // PLAY button
+```
+
+### Active Skills (exact invocation names)
+Run `claude skill list` to see all. Key skills for this project:
+
+| Skill | When to use |
+|-------|-------------|
+| `requesting-code-review` | Before every commit |
+| `lane-defense-audit` | Visual quality audit |
+| `systematic-debugging` | Any bug or unexpected behavior |
+| `lane-defense-design-system` | UI/screen design work |
+| `brainstorming` | Before new feature/component work |
+| `verification-before-completion` | Final check before marking done |
+
+---
+
+## 14. Useful Commands
 
 ```bash
 npm run dev            # Vite dev server (--host for LAN/phone)
@@ -266,7 +313,7 @@ window._nav.startLevel(5)   # dev API — jump directly to L5 in browser
 
 ---
 
-## 14. Token Rules (Claude Code)
+## 15. Token Rules (Claude Code)
 
 - `/clear` between unrelated tasks
 - `/compact` when context grows long
@@ -276,7 +323,7 @@ window._nav.startLevel(5)   # dev API — jump directly to L5 in browser
 
 ---
 
-## 15. KEYSTORE — NEVER DELETE
+## 16. KEYSTORE — NEVER DELETE
 
 `android/lane-defense-release.keystore` is NOT in git (gitignored).  
 Path: `C:\Users\dalit\lane-defense\android\lane-defense-release.keystore`
@@ -286,4 +333,4 @@ Password: `lanedefense2024`
 
 ---
 
-*Last updated: 2026-05-19 — full rewrite from verified codebase. Removed all stale/unverifiable content.*
+*Last updated: 2026-05-25 — added Tooling section (screenshot standard, PixiJS coords, active skills), commit scope rule.*

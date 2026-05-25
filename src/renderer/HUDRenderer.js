@@ -14,8 +14,8 @@
 import { Graphics, Text } from 'pixi.js';
 
 const HUD_H    = 70;
-const BAR_H    = 14;
-const BAR_Y    = 3;
+const BAR_H    = 18;
+const BAR_Y    = 2;
 const BAR_X    = 8;
 // Vertical centre of the row below the progress bar
 const TEXT_MID = Math.round(BAR_Y + BAR_H + (HUD_H - BAR_Y - BAR_H) / 2);  // 44
@@ -346,23 +346,30 @@ export class HUDRenderer {
     g.rect(0, HUD_H - 1, appW, 1);
     g.fill({ color: 0xffffff, alpha: 0.06 });
 
-    // Bar track (pill)
+    // Bar track (pill) — slightly lighter so the track reads against the HUD
     g.roundRect(BAR_X, BAR_Y, barFW, BAR_H, barR);
-    g.fill({ color: 0x000000, alpha: 0.50 });
+    g.fill({ color: 0x000000, alpha: 0.60 });
     g.roundRect(BAR_X, BAR_Y, barFW, BAR_H, barR);
-    g.fill({ color: 0x1a2040, alpha: 0.85 });
+    g.fill({ color: 0x243060, alpha: 0.90 });
 
     // Progress fill
     if (fillW >= BAR_H) {
+      // Glow halo: wider, taller, low-alpha rect behind the fill
+      g.roundRect(BAR_X - 2, BAR_Y - 3, fillW + 4, BAR_H + 6, barR + 2);
+      g.fill({ color: col, alpha: 0.22 });
+
       g.roundRect(BAR_X, BAR_Y, fillW, BAR_H, barR);
       g.fill(col);
       // Lighter top strip — simulates gradient
       if (fillW > barR * 2) {
         g.rect(BAR_X + barR * 0.6, BAR_Y + 1, fillW - barR * 1.2, BAR_H * 0.45);
-        g.fill({ color: 0xffffff, alpha: 0.18 });
+        g.fill({ color: 0xffffff, alpha: 0.20 });
       }
     } else if (fillW > 0) {
-      g.rect(BAR_X, BAR_Y, fillW, BAR_H);
+      // Glow halo for small fill
+      g.roundRect(BAR_X - 1, BAR_Y - 2, fillW + 2, BAR_H + 4, barR + 1);
+      g.fill({ color: col, alpha: 0.20 });
+      g.roundRect(BAR_X, BAR_Y, fillW, BAR_H, barR);
       g.fill(col);
     }
 
@@ -552,9 +559,10 @@ export class HUDRenderer {
   }
 
   _refreshFrozenBadge() {
-    const boosterState = this._gs?.boosterState;
-    const frozen = boosterState?.isFrozen?.() ?? false;
-    const shots  = frozen ? (boosterState.freezeShots ?? 0) : 0;
+    const boosterState  = this._gs?.boosterState;
+    const boosterFrozen = boosterState?.isFrozen?.() ?? false;
+    const comboFrozen   = (this._gs?.comboFreezeShots ?? 0) > 0;
+    const frozen = boosterFrozen || comboFrozen;
 
     const g = this._frozenBadgeGfx;
     g.clear();
@@ -568,8 +576,10 @@ export class HUDRenderer {
     g.roundRect(BAR_X, BAR_Y, barFW, BAR_H, BAR_H / 2);
     g.fill({ color: 0x44aaff, alpha: pulse });
 
-    // "❄ FROZEN  2 shots" text centered on bar
-    this._frozenBadgeText.text = `❄ FROZEN  ${shots} shot${shots !== 1 ? 's' : ''}`;
+    const label = comboFrozen
+      ? '❄ FROZEN  1 free turn'
+      : `❄ FROZEN  ${boosterState.freezeShots ?? 0} shot${(boosterState.freezeShots ?? 0) !== 1 ? 's' : ''}`;
+    this._frozenBadgeText.text = label;
     this._progressText.alpha   = 0;   // hide kill fraction while frozen
   }
 

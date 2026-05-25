@@ -77,6 +77,7 @@ import { AutoTuner }             from '../analytics/AutoTuner.js';
 import { AchievementManager }     from '../game/AchievementManager.js';
 import { DailyChallengeManager }  from '../game/DailyChallengeManager.js';
 import { CarTypeIntroCard, shouldShowIntro, markCarTypeSeen } from '../screens/CarTypeIntroCard.js';
+import { ComboFX } from './ComboFX.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const APP_W       = 390;
@@ -1228,6 +1229,9 @@ async function main() {
     });
   }
 
+  // ── Combo FX (screen flash + floating power text) ────────────────────────
+  const comboFX = new ComboFX(layers.get('glowLayer'), layers.get('hudLayer'), APP_W, APP_H);
+
   // ── Game loop ─────────────────────────────────────────────────────────────
   const gameLoop = new GameLoop({
     app, gameState: gs, carDir, shooterDir,
@@ -1394,6 +1398,17 @@ async function main() {
     }
   };
 
+  // ── Combo power-shot callbacks ────────────────────────────────────────────
+  gameLoop._onColorBomb = (color) => {
+    comboFX.triggerColorBomb(color);
+    audio.play('car_destroy');
+    haptics.heavy();
+  };
+  gameLoop._onComboFreeze = () => {
+    comboFX.triggerFreeze();
+    haptics.medium();
+  };
+
   // ── Tutorial orchestrator (needs gameLoop ref, created here) ─────────────
   tutOrch = new TutorialOrchestrator(app.stage, gameLoop);
 
@@ -1500,8 +1515,12 @@ async function main() {
     const dt = Math.min(ticker.deltaMS / 1000, 0.05);
 
     // 3D scene update + render (runs when gameRenderer3D is visible/active).
-    gameRenderer3D.update({ lanes: gs.lanes, boosterState, isBreaching: gs.isOver && !gs.won }, dt, gs.elapsed);
+    gameRenderer3D.update({ lanes: gs.lanes, boosterState, isBreaching: gs.isOver && !gs.won,
+                             comboFreezeShots: gs.comboFreezeShots }, dt, gs.elapsed);
     gameRenderer3D.render();
+
+    // Combo power-shot FX (vignette + floating text).
+    comboFX.update(dt);
 
     // Background + road + overlay updates
     cityBg.update(gs.elapsed);

@@ -257,7 +257,9 @@ export class GameRenderer3D {
     if (!this._mounted) return;
     if (this._canvas?.style.display === 'none') return;
 
-    const isFrozen = (gameState?.boosterState?.isFrozen?.() ?? false) || (gameState?.lanes && elapsed < (gameState.bombFreezeUntil ?? -Infinity));
+    const isFrozen = (gameState?.boosterState?.isFrozen?.() ?? false)
+      || (gameState?.lanes && elapsed < (gameState.bombFreezeUntil ?? -Infinity))
+      || (gameState?.comboFreezeShots ?? 0) > 0;
 
     // Detect freeze onset — spawn ice burst on each lane that has a car
     if (isFrozen && !this._prevFrozen && this._particles && this._lanes) {

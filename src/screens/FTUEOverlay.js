@@ -255,26 +255,26 @@ export class FTUEOverlay {
     this._banner = grp;
 
     const bg = new Graphics();
-    bg.roundRect(20, 0, w - 40, 44, 10);
+    bg.roundRect(20, 0, w - 40, 38, 10);
     bg.fill({ color: 0x000000, alpha: 0.65 });
-    bg.roundRect(20, 0, w - 40, 44, 10);
+    bg.roundRect(20, 0, w - 40, 38, 10);
     bg.stroke({ color: 0x44aaff, width: 1.5, alpha: 0.50 });
     grp.addChild(bg);
 
     const txt = new Text({
       text,
       style: {
-        fontSize: 15, fontWeight: 'bold', fill: 0x88ccff, align: 'center',
+        fontSize: 14, fontWeight: 'bold', fill: 0x88ccff, align: 'center',
         wordWrap: true, wordWrapWidth: w - 60,
         dropShadow: { color: 0x000000, blur: 4, distance: 2, alpha: 0.9 },
       },
     });
     txt.anchor.set(0.5, 0.5);
     txt.x = w / 2;
-    txt.y = 22;
+    txt.y = 19;
     grp.addChild(txt);
 
-    grp.y = 700;  // above booster bar (752) with 8px gap, clear of road and bombs
+    grp.y = 710;  // 10px below bomb grid bottom (700), 4px above booster bar (752)
   }
 
   // Permanently suppressed — was cluttering the top-down HUD with TIMER/COINS labels.
@@ -356,24 +356,24 @@ export class FTUEOverlay {
     this._container.addChild(grp);
 
     const bg = new Graphics();
-    bg.roundRect(20, 0, appW - 40, 44, 10);
+    bg.roundRect(20, 0, appW - 40, 38, 10);
     bg.fill({ color: 0x110800, alpha: 0.80 });
-    bg.roundRect(20, 0, appW - 40, 44, 10);
+    bg.roundRect(20, 0, appW - 40, 38, 10);
     bg.stroke({ color: 0xffee44, width: 1.5, alpha: 0.70 });
     grp.addChild(bg);
 
     const txt = new Text({
       text: 'Drag bombs to matching cars!',
       style: {
-        fontSize: 16, fontWeight: 'bold', fill: 0xffee88, align: 'center',
+        fontSize: 15, fontWeight: 'bold', fill: 0xffee88, align: 'center',
         dropShadow: { color: 0x000000, blur: 4, distance: 2, alpha: 0.9 },
       },
     });
     txt.anchor.set(0.5, 0.5);
     txt.x = appW / 2;
-    txt.y = 22;
+    txt.y = 19;
     grp.addChild(txt);
-    grp.y = 700;  // above booster bar (752) with 8px gap, clear of road and bombs
+    grp.y = 710;  // 10px below bomb grid bottom (700), 4px above booster bar (752)
 
     // Transparent full-screen hitbox — any touch aborts the demo
     const hitbox = new Graphics();

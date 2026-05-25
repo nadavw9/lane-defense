@@ -95,7 +95,7 @@ export class LevelSelectScreen {
       const { x, y } = nodePos(localId);
       const stars    = progress.getStars(levelId);
       const repairState = stars >= 3 ? 2 : stars >= 1 ? 1 : 0;
-      this._buildCityBuilding(x - 32, y - 38, repairState); // offset: 32px left, 38px above node center
+      this._buildCityBuilding(x, y - 50, repairState); // centered above node, 50px above node center
     }
 
     for (let levelId = firstId; levelId <= lastId; levelId++) {
@@ -618,44 +618,44 @@ export class LevelSelectScreen {
     }
   }
 
-  // Draw a small city building near a level node.
+  // Draw a city building near a level node.
   // state 0=damaged, 1=scaffolding, 2=complete (gleaming).
-  // cx/cy is the building center; building is 16×22px.
+  // cx/cy is the building center; building is 48×36px.
   _buildCityBuilding(cx, cy, state) {
     const g  = new Graphics();
-    const bw = 16, bh = 22;
+    const bw = 48, bh = 36;
     const bx = cx - bw / 2;
     const by = cy - bh;
 
     if (state === 0) {
       // Damaged — dark crumbled shape with jagged roofline
-      g.moveTo(bx,      by + 7);
-      g.lineTo(bx + 3,  by + 3);
-      g.lineTo(bx + 7,  by + 6);
-      g.lineTo(bx + 11, by);
-      g.lineTo(bx + 14, by + 4);
-      g.lineTo(bx + bw, by + 7);
-      g.lineTo(bx + bw, by + bh);
-      g.lineTo(bx,      by + bh);
+      g.moveTo(bx,       by + 12);
+      g.lineTo(bx + 6,   by + 5);
+      g.lineTo(bx + 14,  by + 10);
+      g.lineTo(bx + 22,  by);
+      g.lineTo(bx + 30,  by + 7);
+      g.lineTo(bx + 38,  by + 3);
+      g.lineTo(bx + bw,  by + 12);
+      g.lineTo(bx + bw,  by + bh);
+      g.lineTo(bx,       by + bh);
       g.closePath();
-      g.fill({ color: 0x1e2530, alpha: 0.80 });
+      g.fill({ color: 0x1e2530, alpha: 0.85 });
     } else if (state === 1) {
-      // Scaffolding — grey rect + 3 yellow horizontal bars
+      // Scaffolding — grey facade + 4 yellow horizontal bars
       g.rect(bx, by, bw, bh);
-      g.fill({ color: 0x2e3a48, alpha: 0.85 });
-      for (let i = 0; i < 3; i++) {
-        g.rect(bx - 2, by + 2 + i * 8, bw + 4, 2);
-        g.fill({ color: 0xf0a020, alpha: 0.82 });
+      g.fill({ color: 0x2e3a48, alpha: 0.90 });
+      for (let i = 0; i < 4; i++) {
+        g.rect(bx - 3, by + 4 + i * 8, bw + 6, 3);
+        g.fill({ color: 0xf0a020, alpha: 0.88 });
       }
     } else {
-      // Complete — lit facade with warm window glow
+      // Complete — lit facade with warm window glow (3×2 grid)
       g.rect(bx, by, bw, bh);
-      g.fill({ color: 0x4a6070, alpha: 0.90 });
-      // 6 window lights in a 2×3 grid
-      for (let col = 0; col < 2; col++) {
-        for (let row = 0; row < 3; row++) {
-          g.circle(bx + 5 + col * 7, by + 4 + row * 7, 1.8);
-          g.fill({ color: 0xffe08a, alpha: 0.92 });
+      g.fill({ color: 0x4a6070, alpha: 0.92 });
+      for (let col = 0; col < 3; col++) {
+        for (let row = 0; row < 2; row++) {
+          g.circle(bx + 10 + col * 14, by + 9 + row * 14, 3.5);
+          g.fill({ color: 0xffe08a, alpha: 0.95 });
         }
       }
     }

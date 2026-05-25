@@ -126,6 +126,12 @@ export class WinScreen {
     this._coinCountCurrent = 0;
     this._coinValText      = null;
 
+    // City building repair animation (tracks coin count-up progress)
+    this._cityBldGfx    = null;   // Graphics object redrawn on state change
+    this._cityBldLabel  = null;   // "REPAIRED!" text, shown at state 2
+    this._cityBldState  = -1;     // current drawn state
+    this._cityBldTarget = 0;      // target state from stars earned
+
     this._build(appW, appH, gs, onNext, onMenu, audio, improved, levelId);
   }
 
@@ -200,6 +206,16 @@ export class WinScreen {
       );
       if (this._coinValText) {
         this._coinValText.text = `+${Math.floor(this._coinCountCurrent)}`;
+      }
+    }
+
+    // City building repair animation — steps through states as coins count up
+    if (this._cityBldTarget > 0 && this._coinCountTarget > 0) {
+      const prog = this._coinCountCurrent / this._coinCountTarget;
+      const targetNow = prog >= 1.0 ? this._cityBldTarget
+        : (prog >= 0.4 && this._cityBldTarget >= 1 ? 1 : 0);
+      if (targetNow !== this._cityBldState) {
+        this._setCityBldState(targetNow);
       }
     }
   }
@@ -279,6 +295,12 @@ export class WinScreen {
     this._coinCountTarget  = gs.coins;
     this._coinCountCurrent = 0;
     this._coinValText      = this._statRow(px + 14, y, panelW - 28, ROW_H, '◆  COINS EARNED', '+0', 0xf5c842);
+
+    // City building repair mini-animation — top-right corner of panel
+    this._cityBldTarget = stars >= 3 ? 2 : stars >= 1 ? 1 : 0;
+    if (this._cityBldTarget > 0) {
+      this._buildCityAnim(px + panelW - 62, py + 12);
+    }
     y += ROW_H + ROW_GAP;
     this._statRow(px + 14, y, panelW - 28, ROW_H, '⚡  BEST COMBO', `×${gs.maxCombo}`, 0xff8844);
     if (is3Star) {
@@ -382,6 +404,88 @@ export class WinScreen {
     }
     g.poly(pts2d);
     g.fill(color);
+  }
+
+  _buildCityAnim(x, y) {
+    // Container for the building icon + label, top-right of win panel
+    const grp = new Container();
+    grp.x = x;
+    grp.y = y;
+    this._container.addChild(grp);
+
+    // Background pill
+    const pill = new Graphics();
+    pill.roundRect(0, 0, 52, 44, 8);
+    pill.fill({ color: 0x081420, alpha: 0.75 });
+    grp.addChild(pill);
+
+    // The building graphics object (redrawn on state change)
+    this._cityBldGfx = new Graphics();
+    this._cityBldGfx.x = 6;
+    this._cityBldGfx.y = 5;
+    grp.addChild(this._cityBldGfx);
+
+    // "REPAIRED!" label — hidden until state 2
+    const lbl = new Text({
+      text: 'FIXED!',
+      style: { fontSize: 9, fontWeight: 'bold', fill: 0x66ff99,
+        dropShadow: { color: 0x000000, blur: 3, distance: 0, alpha: 0.9 } },
+    });
+    lbl.anchor.set(0.5, 0);
+    lbl.x = 26; lbl.y = 33;
+    lbl.visible = false;
+    grp.addChild(lbl);
+    this._cityBldLabel = lbl;
+
+    // Draw initial state 0 immediately
+    this._setCityBldState(0);
+  }
+
+  _setCityBldState(state) {
+    if (!this._cityBldGfx || state === this._cityBldState) return;
+    this._cityBldState = state;
+    const g = this._cityBldGfx;
+    g.clear();
+    WinScreen._drawBldGraphic(g, 40, 28, state);
+    if (this._cityBldLabel) {
+      this._cityBldLabel.visible = (state === 2);
+    }
+  }
+
+  static _drawBldGraphic(g, bw, bh, state) {
+    const bx = 0, by = 0;
+    if (state === 0) {
+      // Damaged — jagged roofline
+      g.moveTo(bx,       by + 9);
+      g.lineTo(bx + 5,   by + 4);
+      g.lineTo(bx + 12,  by + 8);
+      g.lineTo(bx + 18,  by);
+      g.lineTo(bx + 25,  by + 5);
+      g.lineTo(bx + 32,  by + 2);
+      g.lineTo(bx + bw,  by + 9);
+      g.lineTo(bx + bw,  by + bh);
+      g.lineTo(bx,       by + bh);
+      g.closePath();
+      g.fill({ color: 0x1e2530, alpha: 0.90 });
+    } else if (state === 1) {
+      // Scaffolding — grey + yellow bars
+      g.rect(bx, by, bw, bh);
+      g.fill({ color: 0x2e3a48, alpha: 0.92 });
+      for (let i = 0; i < 3; i++) {
+        g.rect(bx, by + 3 + i * 8, bw, 2.5);
+        g.fill({ color: 0xf0a020, alpha: 0.90 });
+      }
+    } else {
+      // Complete — lit facade with warm windows
+      g.rect(bx, by, bw, bh);
+      g.fill({ color: 0x4a6070, alpha: 0.95 });
+      for (let col = 0; col < 3; col++) {
+        for (let row = 0; row < 2; row++) {
+          g.circle(bx + 7 + col * 12, by + 6 + row * 12, 3);
+          g.fill({ color: 0xffe08a, alpha: 1.0 });
+        }
+      }
+    }
   }
 
   _button(label, cx, y, bgColor, labelColor, onClick, isNext = false) {

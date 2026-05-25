@@ -696,46 +696,42 @@ async function main() {
     gameRenderer3D.show();
   }
 
-  // ── Level intro splash ("LEVEL X" bounce-in, 1.5 s) ─────────────────────
+  // ── Level intro splash — compact top-center pill badge (1.2 s) ───────────
   function _showLevelIntroSplash(levelNumber) {
-    const c    = new Container();
+    const c = new Container();
+    c.y = 66;   // pill top = 66-22 = 44 → flush with road top, never covers road or cars
     app.stage.addChild(c);
 
-    // Semi-dark background flash
-    const flash = new Graphics();
-    flash.rect(0, 0, APP_W, APP_H);
-    flash.fill({ color: 0x000000, alpha: 0.40 });
-    c.addChild(flash);
+    const PW = 160, PH = 44;
+    const bg = new Graphics();
+    bg.roundRect(-PW / 2, -PH / 2, PW, PH, 12);
+    bg.fill({ color: 0x1a1a2e, alpha: 0.85 });
+    c.addChild(bg);
 
     const txt = new Text({
       text: `LEVEL ${levelNumber}`,
       style: {
-        fontSize:   52,
+        fontSize:   20,
         fontWeight: 'bold',
         fill:       0xffffff,
-        dropShadow: { color: 0x00cc44, blur: 20, distance: 0, alpha: 0.8 },
+        dropShadow: { color: 0x000000, blur: 6, distance: 0, alpha: 0.7 },
       },
     });
     txt.anchor.set(0.5, 0.5);
-    txt.x     = APP_W / 2;
-    txt.y     = APP_H / 2;
-    txt.scale.set(0.3);
-    txt.alpha = 0;
     c.addChild(txt);
+
+    c.x     = APP_W / 2;
+    c.alpha = 0;
 
     let t = 0;
     const unsub = app.ticker.add((ticker) => {
       t += ticker.deltaMS / 1000;
-      if (t < 0.25) {
-        const prog = t / 0.25;
-        const e    = 1 - Math.pow(1 - prog, 3);
-        txt.scale.set(0.3 + e * 0.7 + (prog < 0.5 ? (0.5 - prog) * 0.3 : 0));
-        txt.alpha  = prog;
-        flash.alpha = 0.40 * (1 - prog * 0.5);
+      if (t < 0.2) {
+        c.alpha = t / 0.2;
       } else if (t < 1.0) {
-        txt.scale.set(1); txt.alpha = 1; flash.alpha = 0;
-      } else if (t < 1.35) {
-        txt.alpha = 1 - (t - 1.0) / 0.35;
+        c.alpha = 1;
+      } else if (t < 1.2) {
+        c.alpha = 1 - (t - 1.0) / 0.2;
       } else {
         app.ticker.remove(unsub);
         c.destroy({ children: true });

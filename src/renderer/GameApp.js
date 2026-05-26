@@ -1622,7 +1622,6 @@ async function main() {
   // ── Boot: show title screen (game loop not started yet) ───────────────────
   showTitle();
 
-
   // ── Post-boot overlays (deferred so title is visible first) ───────────────
 
   // Streak master achievement — needs achievementManager which is declared later.

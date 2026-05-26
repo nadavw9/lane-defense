@@ -15,7 +15,6 @@ const INTERSTITIAL_MIN_MS = 30_000;   // minimum gap between interstitials
 // ── Booster costs (ads required to unlock) ─────────────────────────────────
 export const AD_COSTS = {
   swap:   1,   // 1 ad → Swap booster for this level
-  peek:   1,   // 1 ad → Peek booster
   freeze: 1,   // 1 ad → Freeze booster
   bomb:   3,   // 3 ads → Bomb booster (best power-up)
 };

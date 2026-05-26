@@ -191,14 +191,6 @@ export class DragDrop {
       return;
     }
 
-    if (this._boosterState?.cycleMode) {
-      if (y >= SHOOTER_AREA_Y && y <= SHOOTER_AREA_Y + SHOOTER_AREA_H) {
-        const cycleCol = Math.max(0, Math.min(getActiveColCount() - 1, Math.floor(x / getColScreenW())));
-        this._boosterState.tapCycleColumn(cycleCol, this._columns);
-      }
-      return;
-    }
-
     if (col !== -1 && this._columns[col].top()) {
       const shooter = this._columns[col].top();
       this._startDrag('column', col, shooter, x, y, x, y);

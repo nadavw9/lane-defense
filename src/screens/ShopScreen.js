@@ -19,15 +19,6 @@ const BOOSTER_DEFS = [
     btnBg:     0x1a5cc8,
   },
   {
-    key:       'peek',
-    label:     'PEEK',
-    icon:      '👁',
-    desc:      'Reveal next 3\nincoming car colors',
-    cost:      20,
-    border:    0x228844,
-    btnBg:     0x1a8844,
-  },
-  {
     key:       'freeze',
     label:     'FREEZE',
     icon:      '❄',
@@ -268,13 +259,10 @@ export class ShopScreen {
 
     const saved = p.getBoosters();
     if (def.key === 'swap') {
-      p.setBoosters(saved.swap + 1, saved.peek, saved.freeze);
+      p.setBoosters(saved.swap + 1, saved.freeze);
       if (this._boosterState) this._boosterState.swap = saved.swap + 1;
-    } else if (def.key === 'peek') {
-      p.setBoosters(saved.swap, saved.peek + 1, saved.freeze);
-      if (this._boosterState) this._boosterState.peek = saved.peek + 1;
     } else if (def.key === 'freeze') {
-      p.setBoosters(saved.swap, saved.peek, saved.freeze + 1);
+      p.setBoosters(saved.swap, saved.freeze + 1);
       if (this._boosterState) this._boosterState.freeze = saved.freeze + 1;
     } else if (def.key === 'shield') {
       p.addStreakShield(1);

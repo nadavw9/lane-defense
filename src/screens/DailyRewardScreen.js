@@ -247,8 +247,5 @@ function _rewardLabel(reward) {
   if (reward.type === 'swap') {
     return { line1: '+1', line2: 'SWAP', color: 0x66aaff };
   }
-  if (reward.type === 'peek') {
-    return { line1: '+1', line2: 'PEEK', color: 0x66ff88 };
-  }
   return { line1: '?', line2: null, color: 0xffffff };
 }

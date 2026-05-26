@@ -18,7 +18,7 @@ export const DAILY_REWARDS = [
   { type: 'coins', amount: 20 },   // Day 3
   { type: 'swap',  amount: 1  },   // Day 4
   { type: 'coins', amount: 30 },   // Day 5
-  { type: 'peek',  amount: 1  },   // Day 6
+  { type: 'coins', amount: 25 },   // Day 6
   { type: 'coins', amount: 50 },   // Day 7
 ];
 
@@ -29,7 +29,7 @@ function defaults() {
     unlockedLevel:          1,
     stars:                  {},
     coins:                  0,
-    boosters:               { swap: 3, peek: 3, freeze: 0 },
+    boosters:               { swap: 3, freeze: 0 },
     dailyReward:            { day: 0, lastClaim: null },
     seenComboTip:           false,
     seenUnlocks:            {},
@@ -43,7 +43,7 @@ function defaults() {
     longestCombo:           0,
     totalAccurateShots:     0,
     totalShots:             0,
-    boosterUseCounts:       { swap: 0, peek: 0, freeze: 0 },
+    boosterUseCounts:       { swap: 0, freeze: 0 },
     // v1.1 additions
     hearts:              5,
     heartsLastDepleted:  null,
@@ -124,10 +124,9 @@ export class ProgressManager {
     return true;
   }
 
-  setBoosters(swap, peek, freeze = 0) {
+  setBoosters(swap, freeze = 0) {
     this._data.boosters = {
       swap:   Math.max(0, swap),
-      peek:   Math.max(0, peek),
       freeze: Math.max(0, freeze),
     };
     this._save();
@@ -193,7 +192,6 @@ export class ProgressManager {
   }
 
   recordBoosterUsed(boosterType) {
-    // boosterType: 'swap', 'peek', or 'freeze'
     if (this._data.boosterUseCounts[boosterType] !== undefined) {
       this._data.boosterUseCounts[boosterType]++;
       this._save();
@@ -206,10 +204,9 @@ export class ProgressManager {
 
   getFavoriteBooster() {
     const counts = this._data.boosterUseCounts;
-    const max = Math.max(counts.swap ?? 0, counts.peek ?? 0, counts.freeze ?? 0);
+    const max = Math.max(counts.swap ?? 0, counts.freeze ?? 0);
     if (max === 0) return 'None';
     if (counts.swap === max) return 'Swap';
-    if (counts.peek === max) return 'Peek';
     return 'Freeze';
   }
 
@@ -333,7 +330,6 @@ export class ProgressManager {
 
     if      (reward.type === 'coins')  this._data.coins += reward.amount;
     else if (reward.type === 'swap')   this._data.boosters.swap   += reward.amount;
-    else if (reward.type === 'peek')   this._data.boosters.peek   += reward.amount;
     else if (reward.type === 'freeze') this._data.boosters.freeze += reward.amount;
 
     this._data.dailyReward.lastClaim = Date.now();

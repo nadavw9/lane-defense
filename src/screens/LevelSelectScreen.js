@@ -2,7 +2,7 @@
 import { Container, Graphics, Text } from 'pixi.js';
 import { adManager, AD_COSTS } from '../ads/AdManager.js';
 
-const HEADER_H = 76;
+const HEADER_H = 88;
 const NODE_R   = 26;
 const COLS_X   = [52, 150, 240, 338];
 const ROWS_Y   = [138, 302, 466, 630, 794];
@@ -629,31 +629,31 @@ export class LevelSelectScreen {
       return t;
     };
 
-    // Row 1 — navigation buttons
-    mkBtn('← BACK', 14,   0, 18, 0x66aaff, onBack);
-    mkBtn('SHOP',   w-14, 1, 18, 0xf5c842, () => onShop?.());
+    // Row 1 — navigation buttons (y=16, font 18 → text half-height≈9px → bottom≈25px)
+    mkBtn('← BACK', 14,   0, 16, 0x66aaff, onBack);
+    mkBtn('SHOP',   w-14, 1, 16, 0xf5c842, () => onShop?.());
 
-    // Row 2 — world title + world-switch chevrons
+    // Row 2 — world title + world-switch chevrons (y=44, font 22 → top≈33px, gap≈8px ✓)
     const title = new Text({ text: `WORLD ${this._worldPage}`, style: {
       fontSize: 22, fontWeight: 'bold', fill: 0xffffff,
       dropShadow: { color: 0x3399ff, blur: 10, distance: 0, alpha: 0.7 },
     }});
-    title.anchor.set(0.5, 0.5); title.x = w / 2; title.y = 42;
+    title.anchor.set(0.5, 0.5); title.x = w / 2; title.y = 44;
     this._container.addChild(title);
 
     if (this._worldPage === 1) {
-      mkBtn('W2 ▶', w / 2 + 70, 1, 42, 0x66aaff, () => this._switchWorld(2));
+      mkBtn('W2 ▶', w / 2 + 70, 1, 44, 0x66aaff, () => this._switchWorld(2));
     }
     if (this._worldPage === 2) {
-      mkBtn('◀ W1', w / 2 - 70, 0, 42, 0x66aaff, () => this._switchWorld(1));
+      mkBtn('◀ W1', w / 2 - 70, 0, 44, 0x66aaff, () => this._switchWorld(1));
     }
 
-    // Row 3 — coins and achievements
+    // Row 3 — coins and achievements (y=76, font 14 → top≈69px, gap≈14px ✓)
     const coins = new Text({ text: `🏅 ${progress.coins ?? 0}`, style: { fontSize: 14, fontWeight: 'bold', fill: 0xf5c842 } });
-    coins.anchor.set(0, 0.5); coins.x = 14; coins.y = 62;
+    coins.anchor.set(0, 0.5); coins.x = 14; coins.y = 76;
     this._container.addChild(coins);
 
-    if (onAchievements) mkBtn('★ ACHIEVEMENTS', w - 14, 1, 62, 0x99bbcc, onAchievements);
+    if (onAchievements) mkBtn('★ ACHIEVEMENTS', w - 14, 1, 76, 0x99bbcc, onAchievements);
   }
 
   // Draw a city building near a level node.

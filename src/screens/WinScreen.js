@@ -425,18 +425,6 @@ export class WinScreen {
     this._cityBldGfx.y = 5;
     grp.addChild(this._cityBldGfx);
 
-    // "REPAIRED!" label — hidden until state 2
-    const lbl = new Text({
-      text: 'FIXED!',
-      style: { fontSize: 9, fontWeight: 'bold', fill: 0x66ff99,
-        dropShadow: { color: 0x000000, blur: 3, distance: 0, alpha: 0.9 } },
-    });
-    lbl.anchor.set(0.5, 0);
-    lbl.x = 26; lbl.y = 33;
-    lbl.visible = false;
-    grp.addChild(lbl);
-    this._cityBldLabel = lbl;
-
     // Draw initial state 0 immediately
     this._setCityBldState(0);
   }
@@ -447,9 +435,6 @@ export class WinScreen {
     const g = this._cityBldGfx;
     g.clear();
     WinScreen._drawBldGraphic(g, 40, 28, state);
-    if (this._cityBldLabel) {
-      this._cityBldLabel.visible = (state === 2);
-    }
   }
 
   static _drawBldGraphic(g, bw, bh, state) {

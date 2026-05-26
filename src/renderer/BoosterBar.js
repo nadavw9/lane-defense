@@ -1,5 +1,5 @@
-// BoosterBar — five 52×52 icon-card booster buttons + bomb kill-progress pips.
-//   SWAP • PEEK • FREEZE • CYCLE • BOMB
+// BoosterBar — three 52×52 icon-card booster buttons + bomb kill-progress pips.
+//   SWAP • FREEZE • BOMB
 import { Graphics, Text } from 'pixi.js';
 
 export const BAR_Y   = 752;
@@ -10,19 +10,19 @@ const CARD_W    = 52;
 const CARD_H    = 52;
 const CARD_GAP  = 8;
 const CARD_R    = 10;
-const NUM_CARDS = 5;
+const NUM_CARDS = 3;
 const TOTAL_W   = NUM_CARDS * CARD_W + (NUM_CARDS - 1) * CARD_GAP;
 const BAR_XOFF  = Math.round((390 - TOTAL_W) / 2);
 const CARD_Y    = BAR_Y + Math.round((BAR_H - CARD_H) / 2);
 
 const CARD_X = Array.from({ length: NUM_CARDS }, (_, i) => BAR_XOFF + i * (CARD_W + CARD_GAP));
-// Indices: 0=SWAP, 1=PEEK, 2=FREEZE, 3=CYCLE, 4=BOMB
+// Indices: 0=SWAP, 1=FREEZE, 2=BOMB
 
 const KILLS_PER_BOMB = 10;
 const PIP_Y          = BAR_Y + BAR_H - 9;
 
 export class BoosterBar {
-  constructor(layerManager, boosterState, gameState, appW, onSwap, onPeek, onFreeze, onBomb, onCycle) {
+  constructor(layerManager, boosterState, gameState, appW, onSwap, onFreeze, onBomb) {
     this._state = boosterState;
     this._gs    = gameState;
     this._layer = layerManager.get('hudLayer');
@@ -36,13 +36,10 @@ export class BoosterBar {
     this._layer.addChild(bg);
 
     this._swapBtn   = _makeCard(this._layer, CARD_X[0], 0x66aaff, _iconSwap,   'SWAP',   onSwap);
-    this._peekBtn   = _makeCard(this._layer, CARD_X[1], 0xaaff66, _iconPeek,   'PEEK',   onPeek);
-    this._freezeBtn = _makeCard(this._layer, CARD_X[2], 0x44ccff, _iconFreeze, 'FREEZE', onFreeze);
-    this._cycleBtn  = _makeCard(this._layer, CARD_X[3], 0xffdd66, _iconCycle,  'CYCLE',  onCycle);
-    this._bombBtn   = _makeBombCard(this._layer, CARD_X[4], onBomb);
+    this._freezeBtn = _makeCard(this._layer, CARD_X[1], 0x44ccff, _iconFreeze, 'FREEZE', onFreeze);
+    this._bombBtn   = _makeBombCard(this._layer, CARD_X[2], onBomb);
 
     this._swapBtn._unlocked   = false;
-    this._peekBtn._unlocked   = false;
     this._freezeBtn._unlocked = false;
 
     this._bombGlow = new Graphics();
@@ -53,7 +50,7 @@ export class BoosterBar {
     const pipR   = 3.5;
     const pipGap = 5;
     const pipsW  = KILLS_PER_BOMB * (pipR * 2) + (KILLS_PER_BOMB - 1) * pipGap;
-    const pipX0  = CARD_X[4] + (CARD_W - pipsW) / 2 + pipR;
+    const pipX0  = CARD_X[2] + (CARD_W - pipsW) / 2 + pipR;
     for (let i = 0; i < KILLS_PER_BOMB; i++) {
       const pip = new Graphics();
       pip.circle(0, 0, pipR);
@@ -71,37 +68,29 @@ export class BoosterBar {
     this._bombFlashT = 0;
   }
 
-  setButtonVisibility(swap, peek, freeze) {
+  setButtonVisibility(swap, freeze) {
     this._swapBtn._unlocked   = swap;
-    this._peekBtn._unlocked   = peek;
     this._freezeBtn._unlocked = freeze;
   }
 
   update(dt = 0) {
     const s  = this._state;
     const gs = this._gs;
-    const el = gs.elapsed;
 
     // ── Count badge labels (short form — icon identifies the button) ──────────
     const swapLabel   = `×${s.swap}`;
-    const peekLabel   = `×${s.peek}`;
     const freezeLabel = `×${s.freeze}`;
-    const cycleLabel  = s.cycleMode ? 'TAP' : `×${s.cycle}`;
     const bombLabel   = s.bombMode  ? 'CANCEL' : `×${s.bombs}`;
 
     if (this._swapBtn.label.text   !== swapLabel)   this._swapBtn.label.text   = swapLabel;
-    if (this._peekBtn.label.text   !== peekLabel)   this._peekBtn.label.text   = peekLabel;
     if (this._freezeBtn.label.text !== freezeLabel) this._freezeBtn.label.text = freezeLabel;
-    if (this._cycleBtn.label.text  !== cycleLabel)  this._cycleBtn.label.text  = cycleLabel;
     if (this._bombBtn.label.text   !== bombLabel) {
       this._bombBtn.label.text = bombLabel;
       if (this._bombBtn.bombIcon) this._bombBtn.bombIcon.visible = !s.bombMode;
     }
 
     this._swapBtn.alpha   = !this._swapBtn._unlocked   ? 0.18 : s.swap   <= 0 ? 0.28 : s.swapMode ? 0.55 : 1.0;
-    this._peekBtn.alpha   = !this._peekBtn._unlocked   ? 0.18 : (s.peek  <= 0 || s.isPeeking(el)) ? 0.28 : 1.0;
     this._freezeBtn.alpha = !this._freezeBtn._unlocked ? 0.18 : (s.freeze <= 0 || s.isFrozen())  ? 0.28 : 1.0;
-    this._cycleBtn.alpha  = s.cycle <= 0 ? 0.28 : s.cycleMode ? 0.55 : 1.0;
     this._bombBtn.alpha   = (s.bombs <= 0 && !s.bombMode) ? 0.30 : s.bombMode ? 0.70 : 1.0;
 
     // ── Bomb card glow / pulse ────────────────────────────────────────────────
@@ -110,13 +99,13 @@ export class BoosterBar {
     const glowColor  = s.bombMode ? 0xff3300 : 0xffaa00;
 
     this._bombGlow.clear();
-    this._bombGlow.roundRect(CARD_X[4] - 2, CARD_Y - 2, CARD_W + 4, CARD_H + 4, CARD_R + 2);
+    this._bombGlow.roundRect(CARD_X[2] - 2, CARD_Y - 2, CARD_W + 4, CARD_H + 4, CARD_R + 2);
     this._bombGlow.stroke({ color: glowColor, width: 2, alpha: pulseAlpha * (s.bombs > 0 ? 1.8 : 1) });
 
     if (this._bombFlashT > 0) {
       this._bombFlashT = Math.max(0, this._bombFlashT - dt);
       const fl = this._bombFlashT / 0.5;
-      this._bombGlow.roundRect(CARD_X[4] - 4, CARD_Y - 4, CARD_W + 8, CARD_H + 8, CARD_R + 4);
+      this._bombGlow.roundRect(CARD_X[2] - 4, CARD_Y - 4, CARD_W + 8, CARD_H + 8, CARD_R + 4);
       this._bombGlow.stroke({ color: 0xffdd00, width: 4, alpha: fl });
     }
 
@@ -161,7 +150,7 @@ export class BoosterBar {
       },
     });
     t.anchor.set(0.5, 1);
-    t.x = CARD_X[4] + CARD_W / 2;
+    t.x = CARD_X[2] + CARD_W / 2;
     t.y = BAR_Y - 4;
     this._readyTextT = 1.4;
     this._layer.addChild(t);
@@ -284,18 +273,6 @@ function _iconSwap(g, cx, cy, c) {
   g.fill({ color: 0xffffff, alpha: 0.88 });
 }
 
-function _iconPeek(g, cx, cy, c) {
-  // Eye shape
-  g.ellipse(cx, cy, 13, 7); g.fill({ color: c, alpha: 0.18 });
-  g.ellipse(cx, cy, 13, 7); g.stroke({ color: c, width: 1.5, alpha: 0.85 });
-  // Iris
-  g.circle(cx, cy, 4.5); g.fill({ color: c, alpha: 0.85 });
-  // Pupil
-  g.circle(cx, cy, 2.2); g.fill({ color: 0x000000, alpha: 0.9 });
-  // Shine
-  g.circle(cx + 1.5, cy - 1.5, 1.2); g.fill({ color: 0xffffff, alpha: 0.95 });
-}
-
 function _iconFreeze(g, cx, cy, c) {
   // 4-arm cross (main axes)
   g.rect(cx - 1.5, cy - 10, 3, 20); g.fill({ color: c, alpha: 0.85 });
@@ -310,19 +287,4 @@ function _iconFreeze(g, cx, cy, c) {
   }
   // Center dot
   g.circle(cx, cy, 2.8); g.fill({ color: 0xffffff, alpha: 0.9 });
-}
-
-function _iconCycle(g, cx, cy, c) {
-  // Partial arc (≈300°)
-  g.arc(cx, cy, 9, -Math.PI * 0.80, Math.PI * 0.80);
-  g.stroke({ color: c, width: 2.5, alpha: 0.85 });
-  // Arrowhead at arc end
-  const a  = Math.PI * 0.80;
-  const ax = cx + Math.cos(a) * 9;
-  const ay = cy + Math.sin(a) * 9;
-  g.moveTo(ax - 4, ay - 1);
-  g.lineTo(ax + 4, ay + 2);
-  g.lineTo(ax - 1, ay + 6);
-  g.closePath();
-  g.fill({ color: c, alpha: 0.9 });
 }

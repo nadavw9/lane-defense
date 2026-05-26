@@ -1,6 +1,6 @@
 // BoosterUnlockScreen — full-screen popup shown once when a new feature unlocks.
 //
-// Appears on levels 6 (bench), 8 (swap), 12 (peek), 14 (freeze).
+// Appears on levels 6 (bench), 8 (swap), 14 (freeze).
 // GameApp pauses the game loop before showing this and resumes on dismiss.
 // Call update(dt) each render tick for the fade-in animation.
 import { Graphics, Text, Container } from 'pixi.js';
@@ -15,11 +15,6 @@ const UNLOCKS = {
     name:   'Swap Unlocked!',
     color:  0xEF9F27,
     desc:   'Instantly swap the colors\nof two shooter columns.',
-  },
-  12: {
-    name:   'Peek Unlocked!',
-    color:  0x7F77DD,
-    desc:   'Reveal upcoming shooter colors\nfor the next 5 seconds.',
   },
   14: {
     name:   'Freeze Unlocked!',

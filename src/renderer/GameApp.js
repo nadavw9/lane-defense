@@ -317,7 +317,6 @@ async function main() {
   {
     const saved = progress.getBoosters();
     boosterState.swap   = saved.swap;
-    boosterState.peek   = saved.peek;
     boosterState.freeze = saved.freeze ?? 0;
   }
 
@@ -336,7 +335,6 @@ async function main() {
   const boosterBar    = new BoosterBar(
     layers, boosterState, gs, APP_W,
     () => { audio.play('booster_activate'); boosterState.activateSwap(); boostersUsedThisLevel.push('swap'); logEvent('booster_used', { booster: 'swap', levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber }); tutOrch?.completeIfActive('swap'); },
-    () => { audio.play('booster_activate'); boosterState.activatePeek(gs.elapsed); boostersUsedThisLevel.push('peek'); logEvent('booster_used', { booster: 'peek', levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber }); tutOrch?.completeIfActive('peek'); },
     () => { audio.play('booster_activate'); boosterState.activateFreeze(); boostersUsedThisLevel.push('freeze'); logEvent('booster_used', { booster: 'freeze', levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber }); tutOrch?.completeIfActive('freeze'); },
     () => {
       // BOMB button — toggle placement mode on/off.
@@ -347,16 +345,6 @@ async function main() {
         boostersUsedThisLevel.push('bomb');
         logEvent('booster_used', { booster: 'bomb', levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber });
         tutOrch?.completeIfActive('bomb');
-      }
-    },
-    () => {
-      // CYCLE button — rotate selected column's queue (top → back).
-      if (boosterState.cycleMode) {
-        boosterState.cancelCycle();
-      } else {
-        boosterState.activateCycle();
-        boostersUsedThisLevel.push('cycle');
-        logEvent('booster_used', { booster: 'cycle', levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber });
       }
     },
   );
@@ -540,18 +528,15 @@ async function main() {
     // L14 first-visit: grant 2 free freeze charges if player has none.
     const savedBoosters = progress.getBoosters();
     if (levelId === 14 && savedBoosters.freeze === 0) {
-      progress.setBoosters(savedBoosters.swap, savedBoosters.peek, 2);
+      progress.setBoosters(savedBoosters.swap, 2);
       savedBoosters.freeze = 2;
     }
     boosterState.swap        = savedBoosters.swap;
-    boosterState.peek        = savedBoosters.peek;
     boosterState.freeze      = savedBoosters.freeze ?? 0;
     boosterState.swapMode    = false;
     boosterState.swapFirst   = -1;
-    boosterState.peekUntil   = -Infinity;
     boosterState.freezeShots = 0;
     boosterState.cancelBomb();
-    boosterState.cancelCycle();
 
     // Apply any ad-earned boosters from the pre-level popup BEFORE starting.
     // resetForLevel() is called AFTER applying so progress isn't cleared first.
@@ -569,11 +554,10 @@ async function main() {
     // Feature gating: daily challenge unlocks everything; normal levels gate by id.
     const benchUnlocked  = currentLevelIsDaily || levelId >= 6;
     const swapUnlocked   = currentLevelIsDaily || levelId >= 8;
-    const peekUnlocked   = currentLevelIsDaily || levelId >= 12;
     const freezeUnlocked = currentLevelIsDaily || levelId >= 14;
     benchStorage.reset();
     benchRenderer.setVisible(benchUnlocked);
-    boosterBar.setButtonVisibility(swapUnlocked, peekUnlocked, freezeUnlocked);
+    boosterBar.setButtonVisibility(swapUnlocked, freezeUnlocked);
 
     boostersUsedThisLevel       = [];
     firstDeployTooltipShown     = false;
@@ -592,6 +576,7 @@ async function main() {
     gameRenderer3D.applyTheme(levelId);
     gameRenderer3D.setActiveLaneCount(cfg.laneCount ?? 4);
     gameRenderer3D.setActiveColCount(cfg.colCount ?? 4);
+    cityEdges.setLaneCount(cfg.laneCount ?? 4);
     gameRenderer3D.startLevelIntro();
     gameRenderer3D.setCombo(0);
     shooterRenderer.enable3DMode(true);
@@ -632,13 +617,12 @@ async function main() {
     bookBtn.visible  = true;
 
     // ── Booster unlock popup (once per feature, normal levels only) ───────────
-    const UNLOCK_LEVELS = [6, 8, 12, 14];
+    const UNLOCK_LEVELS = [6, 8, 14];
     // Maps level ID → booster bar key for the spotlight (level 6 = bench, no spotlight)
-    const SPOTLIGHT_BOOSTER = { 8: 'swap', 12: 'peek', 14: 'freeze' };
+    const SPOTLIGHT_BOOSTER = { 8: 'swap', 14: 'freeze' };
     // Spotlight-to-tutorial configs for each booster (bounds match BoosterBar layout)
     const TUTOR_BOOSTER = {
-      swap:   { id: 'swap',   text: 'SWAP — tap to swap two shooters instantly!',        bounds: { x: 49,  y: 760, w: 52, h: 52 }, handStart: { x: 75,  y: 728 }, handEnd: { x: 75,  y: 786 } },
-      peek:   { id: 'peek',   text: 'PEEK — tap to preview the next incoming cars!',     bounds: { x: 109, y: 760, w: 52, h: 52 }, handStart: { x: 135, y: 728 }, handEnd: { x: 135, y: 786 } },
+      swap:   { id: 'swap',   text: 'SWAP — tap to swap two shooters instantly!',        bounds: { x: 109, y: 760, w: 52, h: 52 }, handStart: { x: 135, y: 728 }, handEnd: { x: 135, y: 786 } },
       freeze: { id: 'freeze', text: 'FREEZE — tap to stop all cars for a few seconds!', bounds: { x: 169, y: 760, w: 52, h: 52 }, handStart: { x: 195, y: 728 }, handEnd: { x: 195, y: 786 } },
     };
 
@@ -1061,7 +1045,7 @@ async function main() {
 
     // Persist coins and boosters.
     progress.setCoins(gs.coins);
-    progress.setBoosters(boosterState.swap, boosterState.peek, boosterState.freeze);
+    progress.setBoosters(boosterState.swap, boosterState.freeze);
 
     // Track coins earned this level for the Collector achievement.
     const coinsEarned = Math.max(0, gs.coins - coinsAtLevelStart);
@@ -1637,6 +1621,7 @@ async function main() {
   };
   // ── Boot: show title screen (game loop not started yet) ───────────────────
   showTitle();
+
 
   // ── Post-boot overlays (deferred so title is visible first) ───────────────
 

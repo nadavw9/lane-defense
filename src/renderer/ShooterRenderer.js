@@ -4,7 +4,6 @@
 //   • top shooter   — idle sprite (bouncing), swaps to fire sprite while deployed
 //   • second shooter — idle sprite at 40% opacity
 //   • third shooter  — idle sprite at 45% opacity (always visible)
-//   • peek pips (4th/5th) — tiny idle sprites at cx±22 while Peek is active
 //
 // Textures must be preloaded by GameApp before ShooterRenderer is instantiated.
 import { Sprite, Graphics, Container, Text, Assets } from 'pixi.js';
@@ -22,19 +21,18 @@ export const COL_W           = 390 / COL_COUNT;  // 97.5 px
 export const TOP_RADIUS    = 34;   // kept for DragDrop hit-testing
 export const SECOND_RADIUS = 24;
 const        THIRD_RADIUS  = 17;
-const        PIP_RADIUS    = 9;
+
 
 export const TOP_Y    = SHOOTER_AREA_Y + 24;    // 544 — ortho: worldZ=-1.5 → screen Y 544
 export const SECOND_Y = SHOOTER_AREA_Y + 71;    // 591 — slot1 worldZ=-0.5
 const        THIRD_Y  = SHOOTER_AREA_Y + 118;   // 638 — slot2 worldZ=+0.5
 const        SLOT3_Y  = SHOOTER_AREA_Y + 161;   // 681 — slot3 worldZ=+1.4
-const        PIP_Y    = SHOOTER_AREA_Y + 174;   // 694 — peek pips row
 
 // Target rendered diameters (diameter, not radius) at 1× scale
 const TOP_DIAM    = TOP_RADIUS    * 2;   // 68 px
 const SECOND_DIAM = SECOND_RADIUS * 2;   // 48 px
 const THIRD_DIAM  = THIRD_RADIUS  * 2;   // 34 px
-const PIP_DIAM    = PIP_RADIUS    * 2;   // 18 px
+
 
 // Idle bounce
 const BOUNCE_AMP   = 4;
@@ -165,8 +163,6 @@ export class ShooterRenderer {
     this._secondTexts   = [];
     this._thirdSprites  = [];
     this._thirdTexts    = [];
-    this._pipLeft       = [];   // peek pip left  (4th shooter)
-    this._pipRight      = [];   // peek pip right (5th shooter)
 
     // Queue depth badge: shows "+N" in 3D mode below front slot
     this._queueBadges = [];
@@ -215,17 +211,6 @@ export class ShooterRenderer {
       t3.visible = false;
       colContainer.addChild(t3);
       this._thirdTexts.push(t3);
-
-      // ── Peek pips ───────────────────────────────────────────────────────────
-      const pipL = new Sprite();
-      pipL.anchor.set(0.5); pipL.visible = false;
-      colContainer.addChild(pipL);
-      this._pipLeft.push(pipL);
-
-      const pipR = new Sprite();
-      pipR.anchor.set(0.5); pipR.visible = false;
-      colContainer.addChild(pipR);
-      this._pipRight.push(pipR);
 
       // ── Top shooter ─────────────────────────────────────────────────────────
       const topContainer = new Container();
@@ -280,7 +265,6 @@ export class ShooterRenderer {
 
   update(elapsed, dt = 0) {
     const bounce    = Math.sin(elapsed * BOUNCE_SPEED) * BOUNCE_AMP;
-    const isPeeking = this._boosterState?.isPeeking(elapsed) ?? false;
     const bs        = this._boosterState;
 
     for (let i = 0; i < COL_COUNT; i++) {
@@ -294,7 +278,7 @@ export class ShooterRenderer {
       // ── Panel background ────────────────────────────────────────────────────
       // Fully transparent — the 3D Shooter3D turrets rendered in the bottom
       // Three.js viewport show through. PixiJS draws only damage numbers,
-      // drag hit areas, and the swap/peek highlights on top.
+      // drag hit areas, and the swap highlights on top.
       const panelX = i * colW + PANEL_PAD;
       const panelW = colW - PANEL_PAD * 2;
       g.roundRect(panelX, SHOOTER_AREA_Y + PANEL_PAD, panelW, SHOOTER_AREA_H - PANEL_PAD * 2, PANEL_RADIUS);
@@ -377,17 +361,6 @@ export class ShooterRenderer {
       this._thirdSprites[i].visible  = false;
       this._thirdTexts[i].visible    = false;
 
-      // ── Peek pips ───────────────────────────────────────────────────────────
-      if (isPeeking) {
-        const fourth = col.shooters[3] ?? null;
-        const fifth  = col.shooters[4] ?? null;
-        this._showPip(this._pipLeft[i],  fourth, cx - 22, PIP_Y);
-        this._showPip(this._pipRight[i], fifth,  cx + 22, PIP_Y);
-      } else {
-        this._pipLeft[i].visible  = false;
-        this._pipRight[i].visible = false;
-      }
-
       // ── Top shooter ─────────────────────────────────────────────────────────
       const top      = col.top();
       const topY     = TOP_Y + (this.draggingColumn === i ? 0 : bounce);
@@ -436,8 +409,6 @@ export class ShooterRenderer {
     // Hide all sprite objects for this column.
     this._secondSprites[i].visible = false;
     this._thirdSprites[i].visible  = false;
-    this._pipLeft[i].visible       = false;
-    this._pipRight[i].visible      = false;
     this._topSprites[i].visible    = false;
 
     // ── Second shooter — small cannon on bgGraphics ───────────────────────────
@@ -494,13 +465,4 @@ export class ShooterRenderer {
     }
   }
 
-  _showPip(pipSprite, shooter, x, y) {
-    if (!shooter) { pipSprite.visible = false; return; }
-    const tex = Assets.get(idleUrl(shooter.color));
-    if (tex && pipSprite.texture !== tex) { pipSprite.texture = tex; fitSprite(pipSprite, PIP_DIAM); }
-    pipSprite.x       = x;
-    pipSprite.y       = y;
-    pipSprite.alpha   = 0.45;
-    pipSprite.visible = true;
-  }
 }

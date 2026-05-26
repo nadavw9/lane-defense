@@ -11,22 +11,18 @@ import { Container, Graphics, Text } from 'pixi.js';
 
 // ── Booster metadata ──────────────────────────────────────────────────────────
 const BOOSTER_INFO = {
-  swap:   { label: 'SWAP UNLOCKED!',   desc: 'Exchange two\nshooter columns',          color: 0x66aaff },
-  peek:   { label: 'PEEK UNLOCKED!',   desc: 'Preview upcoming\nshooters',              color: 0xaaff66 },
-  freeze: { label: 'FREEZE UNLOCKED!', desc: 'Freeze all cars\nfor 10 seconds',         color: 0x44ccff },
-  cycle:  { label: 'CYCLE UNLOCKED!',  desc: 'Rotate column\nshooters',                 color: 0xffdd66 },
+  swap:   { label: 'SWAP UNLOCKED!',   desc: 'Exchange two\nshooter columns',           color: 0x66aaff },
+  freeze: { label: 'FREEZE UNLOCKED!', desc: 'Freeze all cars\nfor 10 seconds',          color: 0x44ccff },
   bomb:   { label: 'BOMB READY!',      desc: 'Earned by killing 10 cars\ntap to blast!', color: 0xff8844 },
 };
 
 // Button centres in screen px — matches new 52×52 icon card layout in BoosterBar.
-// BAR_XOFF=49, CARD_W=52, CARD_GAP=8 → CARD_X[i]=49+i*60; centre=CARD_X[i]+26
+// BAR_XOFF=109, CARD_W=52, CARD_GAP=8 → CARD_X[i]=109+i*60; centre=CARD_X[i]+26
 // CARD_Y=760, centre Y=786
 const BUTTON_POS = {
-  swap:   { x:  75, y: 786 },
-  peek:   { x: 135, y: 786 },
+  swap:   { x: 135, y: 786 },
   freeze: { x: 195, y: 786 },
-  cycle:  { x: 255, y: 786 },
-  bomb:   { x: 315, y: 786 },
+  bomb:   { x: 255, y: 786 },
 };
 
 const SPOT_R = 40;

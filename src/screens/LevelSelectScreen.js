@@ -593,16 +593,31 @@ export class LevelSelectScreen {
       disc.on('pointerover',  () => { node.scale.set(1.10); });
       disc.on('pointerout',   () => { node.scale.set(1.00); });
     } else {
-      // Locked node — dim grey
+      // Locked node — dim tinted with level color, number visible but muted
       const disc = new Graphics();
-      disc.circle(0, 0, NODE_R + 3); disc.fill({ color: 0x1a2030, alpha: 0.85 });
-      disc.circle(0, 0, NODE_R);     disc.fill(0x0d1020);
+      disc.circle(0, 0, NODE_R + 3);
+      disc.fill({ color: 0x0d1a2e, alpha: 0.90 });
+      disc.circle(0, 0, NODE_R);
+      disc.fill({ color, alpha: 0.22 });
+      // Dim ring border in level color
+      disc.circle(0, 0, NODE_R);
+      disc.stroke({ color, width: 2, alpha: 0.35 });
       node.addChild(disc);
+
+      // Level number — visible but muted
+      const num = new Text({ text: String(levelId), style: {
+        fontSize: 14, fontWeight: 'bold', fill: color,
+      }});
+      num.anchor.set(0.5, 0.5);
+      num.alpha = 0.40;
+      node.addChild(num);
+
+      // Small lock icon below number
       const lock = new Graphics();
-      lock.arc(0, -4, 5, Math.PI, 0, false);
-      lock.stroke({ color: 0x2a3a4a, width: 2, alpha: 0.70 });
-      lock.roundRect(-5, -2, 10, 8, 2); lock.fill({ color: 0x1a2a38, alpha: 0.85 });
-      lock.circle(0, 2, 2);            lock.fill(0x0d141e);
+      lock.arc(0, -NODE_R + 9, 4, Math.PI, 0, false);
+      lock.stroke({ color: 0x3a5070, width: 1.5, alpha: 0.55 });
+      lock.roundRect(-4, -NODE_R + 12, 8, 7, 2);
+      lock.fill({ color: 0x1a2a38, alpha: 0.70 });
       node.addChild(lock);
     }
 

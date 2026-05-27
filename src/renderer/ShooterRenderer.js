@@ -12,6 +12,11 @@ import { isColorblind, SHAPES } from '../game/ColorblindMode.js';
 import { getColumnScreenX, getColumnScreenY, getColScreenW } from './PositionRegistry.js';
 import { BAR_Y as BOOSTER_BAR_Y } from './BoosterBar.js';
 
+// Road geometry — mirrors CityEdges / Scene3D constants
+const APP_W          = 390;
+const FRUSTUM_HALF_X = 9.650;
+function _roadHW(n) { return n * 2.0 + 0.4; }
+
 // ── Layout ────────────────────────────────────────────────────────────────────
 export const SHOOTER_AREA_Y  = 520;
 export const SHOOTER_AREA_H  = 180;   // 520–700 (bench row follows at 703)
@@ -133,16 +138,11 @@ export class ShooterRenderer {
     this.draggingColumn = -1;
 
     // ── Bomb queue tray — dark backdrop from bomb columns to booster bar ──
-    const trayY = SHOOTER_AREA_Y - 4;
-    const trayH = BOOSTER_BAR_Y - trayY;   // extends flush to top of booster bar
-    const tray  = new Graphics();
-    // Filled dark base (light touch — 3D bomb spheres render behind PixiJS)
-    tray.roundRect(-16, trayY, 390 + 32, trayH, 12);
-    tray.fill({ color: 0x0d1117, alpha: 0.25 });
-    // Subtle border to frame the zone without obscuring bomb colors
-    tray.roundRect(-16, trayY, 390 + 32, trayH, 12);
-    tray.stroke({ color: 0x445566, width: 1, alpha: 0.50 });
-    this._layer.addChild(tray);
+    this._trayY = SHOOTER_AREA_Y - 4;
+    this._trayH = BOOSTER_BAR_Y - this._trayY;
+    this._tray  = new Graphics();
+    this._layer.addChild(this._tray);
+    this._drawTray(4);   // default; GameApp calls setLaneCount at level start
 
     // Wrapper container for all 4 column UIs — hides them without touching BenchRenderer.
     // Exposed as `container` so GameApp can call shooterRenderer.container.visible = false.
@@ -399,6 +399,19 @@ export class ShooterRenderer {
         }
       }
     }
+  }
+
+  setLaneCount(n) { this._drawTray(n); }
+
+  _drawTray(n) {
+    const hw_px = (_roadHW(n) / (2 * FRUSTUM_HALF_X)) * APP_W;
+    const trayX = APP_W / 2 - hw_px - 16;
+    const trayW = hw_px * 2 + 32;
+    this._tray.clear();
+    this._tray.roundRect(trayX, this._trayY, trayW, this._trayH, 12);
+    this._tray.fill({ color: 0x0d1117, alpha: 0.25 });
+    this._tray.roundRect(trayX, this._trayY, trayW, this._trayH, 12);
+    this._tray.stroke({ color: 0x445566, width: 1, alpha: 0.50 });
   }
 
   // ── Private ──────────────────────────────────────────────────────────────────

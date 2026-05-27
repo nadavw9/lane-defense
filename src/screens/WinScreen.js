@@ -281,7 +281,7 @@ export class WinScreen {
     // Title
     const title      = is3Star ? 'PERFECT DEFENSE!' : 'LEVEL COMPLETE';
     const titleColor = is3Star ? 0xffcc00 : 0x44ff88;
-    const titleSize  = is3Star ? 26 : 28;
+    const titleSize  = is3Star ? 22 : 26;
     this._text(title, cx, y, { fontSize: titleSize, fill: titleColor,
       dropShadow: is3Star ? { color: 0xff8800, blur: 18, distance: 0, alpha: 0.8 } : undefined });
     y += 48;

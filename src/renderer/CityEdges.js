@@ -11,6 +11,8 @@ import { ROAD_TOP_Y, ROAD_BOTTOM_Y } from './LaneRenderer.js';
 
 const APP_W  = 390;
 const ROAD_H = ROAD_BOTTOM_Y - ROAD_TOP_Y;
+// Bomb zone extends to just above the booster bar
+const BOMB_ZONE_BOTTOM = 752;
 
 // Frustum half-X in world units — derived from Scene3D._computeFrustum constants.
 // fHalfZe ≈ 20.884 → fHalfX = 20.884 * (390/844) ≈ 9.650
@@ -156,6 +158,12 @@ export class CityEdges {
     // Subtle top highlight on sidewalk
     g.rect(swalkX, ROAD_TOP_Y, swalkW, 1);
     g.fill({ color: 0xffffff, alpha: 0.10 });
+
+    // Extend city color into the bomb zone below the road (same palette, no buildings)
+    const extH = BOMB_ZONE_BOTTOM - ROAD_BOTTOM_Y;
+    g.rect(bx,     ROAD_BOTTOM_Y, buildW, extH); g.fill(COL_BUILD_BG);
+    g.rect(kerbX,  ROAD_BOTTOM_Y, kerbW,  extH); g.fill(COL_KERB);
+    g.rect(swalkX, ROAD_BOTTOM_Y, swalkW, extH); g.fill(COL_SWALK);
   }
 
   _drawBuildings(g, bx, buildW, wins, trees) {

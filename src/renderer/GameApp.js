@@ -577,6 +577,7 @@ async function main() {
     gameRenderer3D.setActiveLaneCount(cfg.laneCount ?? 4);
     gameRenderer3D.setActiveColCount(cfg.colCount ?? 4);
     cityEdges.setLaneCount(cfg.laneCount ?? 4);
+    shooterRenderer.setLaneCount(cfg.laneCount ?? 4);
     gameRenderer3D.startLevelIntro();
     gameRenderer3D.setCombo(0);
     shooterRenderer.enable3DMode(true);
@@ -1109,6 +1110,11 @@ async function main() {
       }
     }
 
+    // Re-save coins (captures any weekly bonus added above) and set display
+    // delta so WinScreen shows what was earned this level, not the wallet total.
+    progress.setCoins(gs.coins);
+    gs.coins = Math.max(0, gs.coins - coinsAtLevelStart);
+
     winScreen = new WinScreen(
       app.stage, APP_W, APP_H, gs,
       onNext,
@@ -1619,6 +1625,19 @@ async function main() {
     ftueOverlay?.destroy();        ftueOverlay        = null;
     carTypeIntroCard?._destroy();  carTypeIntroCard   = null;
   };
+  // ── Dev navigation API ────────────────────────────────────────────────────
+  if (import.meta.env.DEV) {
+    window._nav = {
+      startLevel: (n) => {
+        [titleScreen, levelSelectScreen, winScreen].forEach(s => s?.destroy());
+        titleScreen = levelSelectScreen = winScreen = null;
+        _startLevel(n);
+      },
+      showWin: () => showWin(),
+      showLevelSelect: () => showLevelSelect(),
+    };
+  }
+
   // ── Boot: show title screen (game loop not started yet) ───────────────────
   showTitle();
 

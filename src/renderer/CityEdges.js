@@ -4,24 +4,23 @@
 // fill the exact space outside the visible road, regardless of how narrow the
 // road is for low-lane-count levels.
 //
+// When sprites are preloaded (spriteFlags.loaded), building segments use
+// building-1 through building-4 PNG sprites instead of flat colored rects.
+// Windows and trees remain code-drawn and layer on top.
+//
 // Layer: cityEdgeLayer — sits between backgroundLayer and laneLayer.
 
-import { Graphics, Container } from 'pixi.js';
+import { Graphics, Container, Sprite, Assets } from 'pixi.js';
+import { spriteFlags } from './SpriteFlags.js';
 import { ROAD_TOP_Y, ROAD_BOTTOM_Y } from './LaneRenderer.js';
 
 const APP_W  = 390;
 const ROAD_H = ROAD_BOTTOM_Y - ROAD_TOP_Y;
-// Bomb zone extends to just above the booster bar
 const BOMB_ZONE_BOTTOM = 752;
 
-// Frustum half-X in world units — derived from Scene3D._computeFrustum constants.
-// fHalfZe ≈ 20.884 → fHalfX = 20.884 * (390/844) ≈ 9.650
 const FRUSTUM_HALF_X = 9.650;
-
-// roadHalfW(n) mirrors Scene3D.roadHalfW — n * 2.0 + 0.4
 function _roadHW(n) { return n * 2.0 + 0.4; }
 
-// Compute how many pixels of city strip appear on each side given lane count.
 function _stripWidths(laneCount) {
   const hw     = _roadHW(laneCount);
   const leftW  = Math.max(0, Math.round((-hw / (2 * FRUSTUM_HALF_X) + 0.5) * APP_W));
@@ -29,30 +28,21 @@ function _stripWidths(laneCount) {
   return { leftW, rightW };
 }
 
-// Colors — dark urban night palette
 const COL_SWALK    = 0xB8B0A0;
 const COL_KERB     = 0x888070;
 const COL_BUILD_BG = 0x1E1E28;
 
-// Building facade colors — 5 variants for depth
 const BUILD_COLORS = [0x1E2030, 0x252535, 0x1A1A28, 0x222238, 0x1C1C2C];
 
-// Window colors — lit warm/cool, plus dim (unlit)
 const WIN_COLORS = [0xFFE88A, 0xFFD54F, 0xE0F4FF, 0xFFEE88, 0xFFF3B0];
 const WIN_DIM    = 0x2A3050;
 
-// Tree canopy
-const COL_TREE = 0x1A3A1A;
-
-// Scan-line overlay
 const SL_SPACING = 8;
 const SL_ALPHA   = 0.028;
 
-// Fixed sizes for sidewalk / kerb (clamped if strip is very narrow)
 const SWALK_MAX = 10;
 const KERB_MAX  =  3;
 
-// Buildings: y-span definitions as fractions of ROAD_H (5 segments per side)
 const BLDG_Y = [
   { yFrac: 0.00, hFrac: 0.18, cIdx: 0 },
   { yFrac: 0.20, hFrac: 0.22, cIdx: 2 },
@@ -61,7 +51,6 @@ const BLDG_Y = [
   { yFrac: 0.84, hFrac: 0.16, cIdx: 4 },
 ];
 
-// Deterministic per-building window pattern: { bldgIdx, row, col, lit }
 const LEFT_WINS = [
   { b:0,r:0,c:0,lit:1 }, { b:0,r:0,c:1,lit:0 }, { b:0,r:1,c:0,lit:1 }, { b:0,r:1,c:1,lit:1 },
   { b:1,r:0,c:0,lit:0 }, { b:1,r:0,c:1,lit:1 }, { b:1,r:1,c:0,lit:1 }, { b:1,r:1,c:1,lit:0 },
@@ -80,6 +69,12 @@ const RIGHT_WINS = [
 const LEFT_TREES  = [{ yFrac: 0.10 }, { yFrac: 0.38 }, { yFrac: 0.74 }];
 const RIGHT_TREES = [{ yFrac: 0.19 }, { yFrac: 0.54 }, { yFrac: 0.88 }];
 
+// Deterministic building variant selection per slot (stable across redraws)
+const _BASE = import.meta.env.BASE_URL;
+function _buildingUrl(sideIdx, slotIdx) {
+  return `${_BASE}sprites/designed/building-${((sideIdx * 3 + slotIdx) % 4) + 1}.png`;
+}
+
 export class CityEdges {
   constructor(layerManager, appW) {
     this._appW  = appW;
@@ -88,7 +83,7 @@ export class CityEdges {
     this._container = new Container();
     this._layer.addChild(this._container);
 
-    this._draw(4);   // default to 4 lanes; GameApp calls setLaneCount at level start
+    this._draw(4);
   }
 
   setLaneCount(n) {
@@ -104,12 +99,16 @@ export class CityEdges {
     const { leftW, rightW } = _stripWidths(laneCount);
     const appW = this._appW;
 
+    // Building sprites sit under everything (added first = lower z-order)
+    if (leftW  > 0) this._addBuildingSprites(0,          leftW,  0);
+    if (rightW > 0) this._addBuildingSprites(appW - rightW, rightW, 1);
+
+    // All other elements on top: sidewalk, kerb, windows, trees, scan lines
     const g = new Graphics();
 
-    if (leftW > 0)  this._drawStrip(g, 0,        leftW,  false);
+    if (leftW  > 0) this._drawStrip(g, 0,          leftW,  false);
     if (rightW > 0) this._drawStrip(g, appW - rightW, rightW, true);
 
-    // Scan lines across full road surface
     for (let y = ROAD_TOP_Y; y < ROAD_BOTTOM_Y; y += SL_SPACING) {
       g.rect(0, y, appW, 1);
       g.fill({ color: 0xffffff, alpha: SL_ALPHA });
@@ -118,48 +117,64 @@ export class CityEdges {
     this._container.addChild(g);
   }
 
-  // Draw one city strip.  `x0` is left edge, `w` is strip width.
-  // `rightSide`: if true, sidewalk is innermost (road-adjacent), buildings outermost.
-  _drawStrip(g, x0, w, rightSide) {
+  // Compute strip layout from x0 + width (shared between sprite and graphics paths)
+  _layout(x0, w, rightSide) {
     const swalkW = Math.min(SWALK_MAX, Math.round(w * 0.30));
     const kerbW  = Math.min(KERB_MAX,  Math.round(w * 0.10));
     const buildW = Math.max(1, w - swalkW - kerbW);
-
     let bx, swalkX, kerbX;
     if (rightSide) {
-      // layout: sidewalk | kerb | buildings (outermost)
-      swalkX = x0;
-      kerbX  = x0 + swalkW;
-      bx     = x0 + swalkW + kerbW;
+      swalkX = x0; kerbX = x0 + swalkW; bx = x0 + swalkW + kerbW;
     } else {
-      // layout: buildings | kerb | sidewalk (road-adjacent)
-      bx     = x0;
-      kerbX  = x0 + buildW;
-      swalkX = x0 + buildW + kerbW;
+      bx = x0; kerbX = x0 + buildW; swalkX = x0 + buildW + kerbW;
+    }
+    return { bx, swalkX, kerbX, swalkW, kerbW, buildW };
+  }
+
+  // Add one Sprite per building segment; only called when spriteFlags.loaded.
+  _addBuildingSprites(x0, w, sideIdx) {
+    if (!spriteFlags.loaded) return;
+    const { bx, buildW } = this._layout(x0, w, sideIdx === 1);
+    for (let i = 0; i < BLDG_Y.length; i++) {
+      const b       = BLDG_Y[i];
+      const by      = ROAD_TOP_Y + b.yFrac * ROAD_H;
+      const bh      = b.hFrac * ROAD_H;
+      const texture = Assets.get(_buildingUrl(sideIdx, i));
+      if (!texture) continue;
+      const sprite  = new Sprite(texture);
+      sprite.x      = bx;
+      sprite.y      = by;
+      sprite.width  = buildW;
+      sprite.height = bh;
+      this._container.addChild(sprite);
+    }
+  }
+
+  _drawStrip(g, x0, w, rightSide) {
+    const { bx, swalkX, kerbX, swalkW, kerbW, buildW } = this._layout(x0, w, rightSide);
+
+    // Building zone background — only when sprites are not loaded.
+    // When sprites are loaded, sprites sit under this Graphics layer, so the
+    // background rect would cover them. Small inter-segment gaps fall through to
+    // the CityBackground layer and are imperceptibly thin.
+    if (!spriteFlags.loaded) {
+      g.rect(bx, ROAD_TOP_Y, buildW, ROAD_H);
+      g.fill(COL_BUILD_BG);
     }
 
-    // Building zone background
-    g.rect(bx, ROAD_TOP_Y, buildW, ROAD_H);
-    g.fill(COL_BUILD_BG);
-
-    // Tiled building segments
     const wins  = rightSide ? RIGHT_WINS  : LEFT_WINS;
     const trees = rightSide ? RIGHT_TREES : LEFT_TREES;
     this._drawBuildings(g, bx, buildW, wins, trees);
 
-    // Kerb stripe
     g.rect(kerbX, ROAD_TOP_Y, kerbW, ROAD_H);
     g.fill(COL_KERB);
 
-    // Sidewalk
     g.rect(swalkX, ROAD_TOP_Y, swalkW, ROAD_H);
     g.fill(COL_SWALK);
 
-    // Subtle top highlight on sidewalk
     g.rect(swalkX, ROAD_TOP_Y, swalkW, 1);
     g.fill({ color: 0xffffff, alpha: 0.10 });
 
-    // Extend city color into the bomb zone below the road (same palette, no buildings)
     const extH = BOMB_ZONE_BOTTOM - ROAD_BOTTOM_Y;
     g.rect(bx,     ROAD_BOTTOM_Y, buildW, extH); g.fill(COL_BUILD_BG);
     g.rect(kerbX,  ROAD_BOTTOM_Y, kerbW,  extH); g.fill(COL_KERB);
@@ -167,33 +182,32 @@ export class CityEdges {
   }
 
   _drawBuildings(g, bx, buildW, wins, trees) {
-    // Scale window grid to building width — at least 2 cols when buildW ≥ 8px
-    const cols  = buildW >= 8 ? 2 : 1;
-    const ww    = Math.max(1, Math.round(buildW / (cols * 3.5)));  // window width
-    const wh    = Math.max(1, Math.round(ww * 1.0));               // window height
+    const cols = buildW >= 8 ? 2 : 1;
+    const ww   = Math.max(1, Math.round(buildW / (cols * 3.5)));
+    const wh   = Math.max(1, Math.round(ww * 1.0));
 
-    // Slight opacity variation per building for depth
     const OPACITIES = [0.92, 0.85, 0.95, 0.88, 0.90];
 
-    for (let i = 0; i < BLDG_Y.length; i++) {
-      const b   = BLDG_Y[i];
-      const by  = ROAD_TOP_Y + b.yFrac * ROAD_H;
-      const bh  = b.hFrac * ROAD_H;
-      const col = BUILD_COLORS[b.cIdx];
-
-      g.rect(bx, by, buildW, bh);
-      g.fill({ color: col, alpha: OPACITIES[i] });
+    // Only draw flat-color building rects when sprites are not loaded (fallback).
+    if (!spriteFlags.loaded) {
+      for (let i = 0; i < BLDG_Y.length; i++) {
+        const b  = BLDG_Y[i];
+        const by = ROAD_TOP_Y + b.yFrac * ROAD_H;
+        const bh = b.hFrac * ROAD_H;
+        g.rect(bx, by, buildW, bh);
+        g.fill({ color: BUILD_COLORS[b.cIdx], alpha: OPACITIES[i] });
+      }
     }
 
-    // Windows drawn over building rects
+    // Windows always drawn (they overlay sprites or fallback rects)
     for (const w of wins) {
-      const b   = BLDG_Y[w.b];
-      const by  = ROAD_TOP_Y + b.yFrac * ROAD_H;
-      const bh  = b.hFrac * ROAD_H;
+      const b    = BLDG_Y[w.b];
+      const by   = ROAD_TOP_Y + b.yFrac * ROAD_H;
+      const bh   = b.hFrac * ROAD_H;
       const rows = 2;
       const padX = Math.max(1, (buildW - cols * (ww + 1)) / 2);
       const padY = Math.max(2, (bh - rows * (wh + 2)) / 2);
-      if (w.c >= cols) continue;   // skip extra windows if too narrow
+      if (w.c >= cols) continue;
       const wx  = bx + padX + w.c * (ww + 1);
       const wy  = by + padY + w.r * (wh + 2);
       const col = w.lit ? WIN_COLORS[(w.b * 3 + w.r * 2 + w.c) % WIN_COLORS.length] : WIN_DIM;
@@ -201,7 +215,7 @@ export class CityEdges {
       g.fill(col);
     }
 
-    // Tree canopies (World 1 feel)
+    // Tree canopies always drawn
     const cx = bx + buildW / 2;
     const tr  = Math.max(3, Math.round(buildW * 0.30));
     for (const t of trees) {

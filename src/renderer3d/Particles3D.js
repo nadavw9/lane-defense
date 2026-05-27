@@ -10,7 +10,21 @@
 // draw-call overhead is negligible on mobile WebGL.
 
 import * as THREE from 'three';
-import { posToZ, laneToX } from './Scene3D.js';
+import { posToZ, laneToX, CELL } from './Scene3D.js';
+
+// ── Explosion sprite texture (loaded once) ────────────────────────────────────
+const _exTexLoader = new THREE.TextureLoader();
+let   _explosionTex = null;
+function _getExplosionTex() {
+  if (!_explosionTex) {
+    _explosionTex = _exTexLoader.load(
+      `${import.meta.env.BASE_URL}sprites/designed/explosion.png`,
+    );
+    _explosionTex.colorSpace = THREE.SRGBColorSpace;
+  }
+  return _explosionTex;
+}
+const EXPL_PLANE_SIZE = CELL * 1.40;   // ≈ 5.6 world units — covers car + margin
 
 // Y position of car body centre on road (mirrors Car3D.CAR_Y).
 const CAR_Y = 0.43;
@@ -74,9 +88,10 @@ export class Particles3D {
     this._lanes    = lanes;
 
     // Active particle entries.
-    this._sparks     = [];
-    this._shockwaves = [];
-    this._dmgNums    = [];
+    this._sparks            = [];
+    this._shockwaves        = [];
+    this._dmgNums           = [];
+    this._explosionSprites  = [];
 
     // Exhaust smoke: persistent puffs emitted from cars each frame.
     // { mesh, mat, vx, vy, vz, life, maxLife }
@@ -179,44 +194,25 @@ export class Particles3D {
     const pos = this._frontCarPos(laneIdx);
     if (!pos) return;
 
-    const hex   = COLOR_HEX[color] ?? 0xffffff;
-    const count = 12;   // fixed: 8 spheres + 4 star octahedrons
+    const hex = COLOR_HEX[color] ?? 0xffffff;
 
-    // ── Large colored burst particles ───────────────────────────────────────
-    for (let i = 0; i < count; i++) {
-      const angle  = (i / count) * Math.PI * 2 + Math.random() * 0.4;
-      const speed  = (5 + Math.random() * 8) * scale;
-      const isStar = i >= 8;
-      const size   = (0.10 + Math.random() * 0.12) * scale;
-      const geo    = isStar ? _explGeoOct : explGeoForSize(size);
-      const mat    = new THREE.MeshStandardMaterial({
-        color:             hex,
-        emissive:          hex,
-        emissiveIntensity: 1.5,
-        transparent:       true,
-        opacity:           1,
-      });
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.set(pos.x + (Math.random() - 0.5) * 0.2,
-                        PARTICLE_Y + 0.1,
-                        pos.z + (Math.random() - 0.5) * 0.2);
-      if (isStar) {
-        mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
-        mesh.scale.multiplyScalar(scale);
-      }
-      this._scene.add(mesh);
-
-      this._sparks.push({
-        mesh, mat,
-        vx: Math.cos(angle) * speed,
-        vy: 3 + Math.random() * 6,
-        vz: Math.sin(angle) * speed * 0.6,
-        life:    0.52,
-        maxLife: 0.52,
-        isExplosion: true,
-        dry: isStar ? (Math.random() - 0.5) * 10 : 0,
-      });
-    }
+    // ── Explosion sprite — flat plane lying on XZ, fades over 0.4s ──────────
+    const exMat = new THREE.MeshBasicMaterial({
+      map:        _getExplosionTex(),
+      transparent: true,
+      alphaTest:   0.01,
+      color:       new THREE.Color(0xffffff),
+      depthWrite:  false,
+      side:        THREE.DoubleSide,
+    });
+    const exMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(EXPL_PLANE_SIZE * scale, EXPL_PLANE_SIZE * scale),
+      exMat,
+    );
+    exMesh.rotation.x = -Math.PI / 2;
+    exMesh.position.set(pos.x, 0.15, pos.z);
+    this._scene.add(exMesh);
+    this._explosionSprites.push({ mesh: exMesh, mat: exMat, life: 0.40, maxLife: 0.40 });
 
     // ── Shockwave ring ───────────────────────────────────────────────────────
     const ringMat = new THREE.MeshBasicMaterial({
@@ -447,6 +443,23 @@ export class Particles3D {
       p.mat.emissiveIntensity = frac * (p.isExplosion ? 1.5 : 1.2);
     }
 
+    // ── Explosion sprites ─────────────────────────────────────────────────────
+    for (let i = this._explosionSprites.length - 1; i >= 0; i--) {
+      const e = this._explosionSprites[i];
+      e.life -= dt;
+      if (e.life <= 0) {
+        e.mesh.geometry.dispose();
+        e.mat.dispose();
+        this._scene.remove(e.mesh);
+        this._explosionSprites.splice(i, 1);
+        continue;
+      }
+      const frac = e.life / e.maxLife;
+      e.mat.opacity = frac;
+      const sc = 1 + (1 - frac) * 0.5;
+      e.mesh.scale.set(sc, 1, sc);
+    }
+
     // ── Shockwave rings ──────────────────────────────────────────────────────
     for (let i = this._shockwaves.length - 1; i >= 0; i--) {
       const s = this._shockwaves[i];
@@ -558,10 +571,14 @@ export class Particles3D {
     for (const s of this._smoke) {
       s.mesh.geometry.dispose(); s.mat.dispose(); this._scene.remove(s.mesh);
     }
-    this._sparks.length     = 0;
-    this._shockwaves.length = 0;
-    this._dmgNums.length    = 0;
-    this._smoke.length      = 0;
+    for (const e of this._explosionSprites) {
+      e.mesh.geometry.dispose(); e.mat.dispose(); this._scene.remove(e.mesh);
+    }
+    this._sparks.length            = 0;
+    this._shockwaves.length        = 0;
+    this._dmgNums.length           = 0;
+    this._smoke.length             = 0;
+    this._explosionSprites.length  = 0;
   }
 
   // ── Private ──────────────────────────────────────────────────────────────────

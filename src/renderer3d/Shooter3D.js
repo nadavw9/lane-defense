@@ -1,6 +1,6 @@
-// Shooter3D — Bomb visual: one solid-color sphere + damage badge per slot.
-// Top-down orthographic camera: bombs appear as colored circles from above.
-// No fuse, no spark — one sphere, one badge, nothing else.
+// Shooter3D — Bomb visual: flat powerball sprite + damage badge per slot.
+// Top-down orthographic camera: PlaneGeometry rotated to face up shows the
+// full bomb sprite (fuse, spark, shine) from directly above.
 //
 // Slot layout: 4 evenly-spaced cells filling the bomb zone (Z=0 breach line
 // to Z≈11.2 booster bar). Each cell = CELL × 0.70 world units tall.
@@ -8,6 +8,21 @@
 
 import * as THREE from 'three';
 import { laneToX, CELL } from './Scene3D.js';
+
+// ── Powerball texture cache (one loader shared across all slots) ───────────────
+const _texLoader  = new THREE.TextureLoader();
+const _texCache   = {};
+function _getPowerballTex(colorName) {
+  const key = colorName.toLowerCase();
+  if (!_texCache[key]) {
+    const tex = _texLoader.load(
+      `${import.meta.env.BASE_URL}sprites/designed/powerball-${key}.png`,
+    );
+    tex.colorSpace = THREE.SRGBColorSpace;
+    _texCache[key] = tex;
+  }
+  return _texCache[key];
+}
 
 // ── Layout ─────────────────────────────────────────────────────────────────────
 const LANE_COUNT = 4;
@@ -18,10 +33,12 @@ function slotZ(s) { return (s + 0.5) * CELL * 0.70; }
 
 // ── Bomb geometry ──────────────────────────────────────────────────────────────
 // BOMB_R = cell_height × 0.38 = CELL × 0.70 × 0.38 ≈ CELL × 0.266.
-const BOMB_R  = CELL * 0.266;   // ≈ 1.064 world units
-const BOMB_CX = 0;
-const BOMB_CY = BOMB_R;         // sphere sits with bottom at y=0
-const BOMB_CZ = 0;
+const BOMB_R   = CELL * 0.266;   // ≈ 1.064 world units (body radius for badge sizing)
+const BOMB_CX  = 0;
+const BOMB_CZ  = 0;
+// Plane size: sprite is 1254×1254 with bomb body ~72% of image → scale up so
+// body diameter matches the original sphere's visual size.
+const BOMB_PLANE_SIZE = BOMB_R * 2.8;
 
 // ── Badge canvas — single size for all slots ───────────────────────────────────
 // BADGE_WORLD_H = 1.10 world units ≈ 22 px on screen (readable from across a room)
@@ -142,9 +159,6 @@ export class Shooter3D {
     slot.group.scale.setScalar(1.40 * slot._baseScale);
     slot._punchT   = 0;
     slot._punching = true;
-    slot._flashT   = 0;
-    slot._flashing = true;
-    slot.sphereMat.color.setHex(0xffffff);
   }
 
   update(dt, elapsed) {
@@ -179,28 +193,14 @@ export class Shooter3D {
         const hex    = COLOR_HEX[shooter.color] ?? 0x888888;
         const damage = shooter.damage ?? 1;
 
-        // Sync color + badge on change
-        if (slot.lastColor !== hex || slot.lastDamage !== damage) {
-          slot.lastColor  = hex;
+        // Sync sprite texture + badge on color/damage change
+        if (slot.lastColor !== shooter.color || slot.lastDamage !== damage) {
+          slot.lastColor  = shooter.color;
           slot.lastDamage = damage;
-          slot.sphereMat.color.setHex(hex);
+          slot.sphereMesh.material.map = _getPowerballTex(shooter.color);
+          slot.sphereMesh.material.needsUpdate = true;
           drawDamageBadge(slot.badgeCtx, BADGE_CVS_W, BADGE_CVS_H, damage, hex);
           slot.badgeTex.needsUpdate = true;
-        }
-
-        // White flash decay after punch
-        if (si === 0 && slot._flashing) {
-          slot._flashT += dt;
-          const FLASH_DUR = 0.08;
-          if (slot._flashT >= FLASH_DUR) {
-            slot._flashing = false;
-            slot.sphereMat.color.setHex(slot.lastColor > 0 ? slot.lastColor : 0x888888);
-          } else {
-            const fc = new THREE.Color(0xffffff).lerp(
-              new THREE.Color(slot.lastColor), easeOut3(slot._flashT / FLASH_DUR),
-            );
-            slot.sphereMat.color.copy(fc);
-          }
         }
 
         // Punch scale spring (front slot only)
@@ -229,8 +229,8 @@ export class Shooter3D {
       for (const slot of laneSlots) {
         slot.badgeTex.dispose();
         slot.sphereMesh.geometry.dispose();
+        slot.sphereMesh.material.dispose();
         slot.emptyMesh.geometry.dispose();
-        slot.sphereMat.dispose();
         slot.emptyMat.dispose();
         slot.badgeMat.dispose();
         this._scene.remove(slot.group);
@@ -244,16 +244,19 @@ export class Shooter3D {
   _createSlot(laneIdx, worldZ) {
     const group = new THREE.Group();
 
-    // ── Sphere — MeshBasicMaterial for true, lighting-independent color ────────
-    const sphereMat = new THREE.MeshBasicMaterial({
-      color:       new THREE.Color(0x888888),
-      transparent: false,
-    });
+    // ── Bomb plane — powerball sprite lying flat (top-down camera sees full sprite)
     const sphereMesh = new THREE.Mesh(
-      new THREE.SphereGeometry(BOMB_R, 26, 18),
-      sphereMat,
+      new THREE.PlaneGeometry(BOMB_PLANE_SIZE, BOMB_PLANE_SIZE),
+      new THREE.MeshBasicMaterial({
+        transparent: true,
+        alphaTest:   0.05,
+        color:       new THREE.Color(0xffffff),
+        side:        THREE.DoubleSide,
+        depthWrite:  false,
+      }),
     );
-    sphereMesh.position.set(BOMB_CX, BOMB_CY, BOMB_CZ);
+    sphereMesh.rotation.x = -Math.PI / 2;
+    sphereMesh.position.set(BOMB_CX, 0.05, BOMB_CZ);
     group.add(sphereMesh);
 
     // ── Damage badge — colored pill, bold white number ─────────────────────────
@@ -267,7 +270,7 @@ export class Shooter3D {
     });
     const badgeMesh = new THREE.Sprite(badgeMat);
     badgeMesh.scale.set(BADGE_WORLD_W, BADGE_WORLD_H, 1);
-    badgeMesh.position.set(BOMB_CX, BOMB_CY + BOMB_R + 0.60, BOMB_CZ);
+    badgeMesh.position.set(BOMB_CX, BOMB_R + 0.60, BOMB_CZ);
     group.add(badgeMesh);
 
     // ── Empty slot placeholder — dim grey sphere when no shooter ──────────────
@@ -284,7 +287,7 @@ export class Shooter3D {
       new THREE.SphereGeometry(BOMB_R, 12, 8),
       emptyMat,
     );
-    emptyMesh.position.set(BOMB_CX, BOMB_CY, BOMB_CZ);
+    emptyMesh.position.set(BOMB_CX, BOMB_R, BOMB_CZ);
     emptyMesh.visible = false;
     group.add(emptyMesh);
 
@@ -297,13 +300,12 @@ export class Shooter3D {
 
     return {
       group,
-      sphereMesh, sphereMat,
+      sphereMesh,
       emptyMesh,  emptyMat,
       badgeCanvas, badgeCtx, badgeTex, badgeMesh, badgeMat,
-      lastColor:  -1,
+      lastColor:  '',
       lastDamage: -1,
       _punching: false, _punchT: 0,
-      _flashing: false, _flashT: 0,
       _baseScale: 1.0,
     };
   }

@@ -156,7 +156,8 @@ const SHOOTER_URLS = COLORS.flatMap(c => [
   `${_B}sprites/shooters/shooter-${c}-idle.png`,
   `${_B}sprites/shooters/shooter-${c}-fire.png`,
 ]);
-const ALL_SPRITE_URLS = [...CAR_URLS, ...SHOOTER_URLS];
+const BUILDING_URLS = [1, 2, 3, 4].map(i => `${_B}sprites/designed/building-${i}.png`);
+const ALL_SPRITE_URLS = [...CAR_URLS, ...SHOOTER_URLS, ...BUILDING_URLS];
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 

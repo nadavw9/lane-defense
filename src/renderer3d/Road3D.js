@@ -8,6 +8,35 @@
 import * as THREE from 'three';
 import { ROAD_Z_FAR, ROAD_Z_NEAR, ROAD_Z_VANISHING, laneToX, roadHalfW, posToZ } from './Scene3D.js';
 
+// ── Road tile texture (loaded once, shared across rebuilds) ───────────────────
+const _roadTexLoader = new THREE.TextureLoader();
+let   _roadTex = null;
+function _getRoadTex() {
+  if (!_roadTex) {
+    _roadTex = _roadTexLoader.load(
+      `${import.meta.env.BASE_URL}sprites/designed/road-tile.jpg`,
+    );
+    _roadTex.wrapS  = _roadTex.wrapT = THREE.RepeatWrapping;
+    _roadTex.colorSpace = THREE.SRGBColorSpace;
+  }
+  return _roadTex;
+}
+
+// ── Breach-warning texture (loaded once) ──────────────────────────────────────
+const _breachTexLoader = new THREE.TextureLoader();
+let   _breachTex = null;
+function _getBreachTex() {
+  if (!_breachTex) {
+    _breachTex = _breachTexLoader.load(
+      `${import.meta.env.BASE_URL}sprites/designed/breach-warning.png`,
+    );
+    _breachTex.wrapS       = THREE.RepeatWrapping;
+    _breachTex.wrapT       = THREE.ClampToEdgeWrapping;
+    _breachTex.colorSpace  = THREE.SRGBColorSpace;
+  }
+  return _breachTex;
+}
+
 // ── Tweakable design constants ─────────────────────────────────────────────────
 const COL_ASPHALT      = 0x1c1c1e;   // very dark warm grey (design spec)
 const COL_ASPHALT_DARK = 0x161618;
@@ -228,6 +257,7 @@ export class Road3D {
     this._buildTrafficTrails();
     this._buildSpeedLines();
     this._buildTerminus();
+    this._buildBreachLine();
   }
 
   _clearGeometry() {
@@ -262,29 +292,22 @@ export class Road3D {
     const n    = this._laneCount;
     const hw   = roadHalfW(n);
     const W    = hw * 2;
-    const base = this._roadColor;
     const dark = this._roadColorDark;
 
-    // Main asphalt plane — MeshBasicMaterial so dark color is not washed by lighting
-    const mat = new THREE.MeshBasicMaterial({ color: base });
-    this._roadMats.push({ mat, dark: false });
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(W, ROAD_LENGTH, 1, 16), mat);
+    // ── Tiled asphalt texture — one tile = 4 world units (≈ 1 lane width) ────
+    const roadTex = _getRoadTex();
+
+    // Main asphalt plane
+    const texCopyMain = roadTex.clone();
+    texCopyMain.repeat.set(W / 4.0, ROAD_LENGTH / 4.0);
+    texCopyMain.needsUpdate = true;
+    const mat = new THREE.MeshBasicMaterial({ map: texCopyMain });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(W, ROAD_LENGTH, 1, 1), mat);
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.set(0, -0.01, ROAD_CENTER_Z);
     this._group.add(mesh);
 
-    // Per-lane alternating colour strips
-    for (let i = 0; i < n; i++) {
-      const isDark  = i % 2 !== 0;
-      const stripMat = new THREE.MeshBasicMaterial({ color: isDark ? dark : base });
-      this._roadMats.push({ mat: stripMat, dark: isDark });
-      const strip = new THREE.Mesh(new THREE.PlaneGeometry(3.85, ROAD_LENGTH), stripMat);
-      strip.rotation.x = -Math.PI / 2;
-      strip.position.set(laneToX(i, n), 0, ROAD_CENTER_Z);
-      this._group.add(strip);
-    }
-
-    // Expansion joints
+    // Expansion joints — subtle white lines across full road width
     const jointMat = new THREE.MeshBasicMaterial({
       color: 0xffffff, transparent: true, opacity: 0.06,
     });
@@ -300,22 +323,14 @@ export class Road3D {
     const VANISH_LEN    = ROAD_Z_FAR - ROAD_Z_VANISHING;
     const vanishCenterZ = ROAD_Z_VANISHING + VANISH_LEN / 2;
 
-    const vanishMat = new THREE.MeshBasicMaterial({ color: base });
-    this._roadMats.push({ mat: vanishMat, dark: false });
-    const vanishMesh = new THREE.Mesh(new THREE.PlaneGeometry(W, VANISH_LEN, 1, 6), vanishMat);
+    const texCopyVanish = roadTex.clone();
+    texCopyVanish.repeat.set(W / 4.0, VANISH_LEN / 4.0);
+    texCopyVanish.needsUpdate = true;
+    const vanishMat = new THREE.MeshBasicMaterial({ map: texCopyVanish, color: 0x888888 });
+    const vanishMesh = new THREE.Mesh(new THREE.PlaneGeometry(W, VANISH_LEN, 1, 1), vanishMat);
     vanishMesh.rotation.x = -Math.PI / 2;
     vanishMesh.position.set(0, -0.01, vanishCenterZ);
     this._group.add(vanishMesh);
-
-    for (let i = 0; i < n; i++) {
-      const isDark   = i % 2 !== 0;
-      const vsMat    = new THREE.MeshBasicMaterial({ color: isDark ? dark : base });
-      this._roadMats.push({ mat: vsMat, dark: isDark });
-      const strip = new THREE.Mesh(new THREE.PlaneGeometry(3.85, VANISH_LEN), vsMat);
-      strip.rotation.x = -Math.PI / 2;
-      strip.position.set(laneToX(i, n), 0, vanishCenterZ);
-      this._group.add(strip);
-    }
 
     // Lane dividers in the extension
     const extDashMat = new THREE.MeshBasicMaterial({
@@ -336,7 +351,7 @@ export class Road3D {
       }
     }
 
-    // Near-ground extension — covers frustum area below breach line
+    // Near-ground extension — covers frustum area below breach line (flat dark)
     const NEAR_EXT_LEN = 24;
     const nearMat = new THREE.MeshBasicMaterial({ color: dark });
     this._roadMats.push({ mat: nearMat, dark: true });
@@ -499,6 +514,27 @@ export class Road3D {
     line.rotation.x = -Math.PI / 2;
     line.position.set(0, 0.015, ROAD_Z_FAR + 0.07);
     this._group.add(line);
+  }
+
+  _buildBreachLine() {
+    const hw = roadHalfW(this._laneCount);
+    const W  = hw * 2;
+    // Strip height: 0.80 world units, centered on Z=0 (ROAD_Z_NEAR).
+    // Sprite is 1774×887 (2:1 aspect) → tile horizontally so hazard stripes
+    // repeat at natural scale: each tile = 0.80 × 1.60 world units.
+    const H  = 0.80;
+    const tex = _getBreachTex();
+    const texCopy = tex.clone();
+    texCopy.repeat.set(W / (H * 2), 1);
+    texCopy.needsUpdate = true;
+
+    const mat = new THREE.MeshBasicMaterial({
+      map: texCopy, transparent: true, alphaTest: 0.05, depthWrite: false,
+    });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(W, H), mat);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(0, 0.02, ROAD_Z_NEAR);
+    this._group.add(mesh);
   }
 
   _buildNoiseOverlay() {

@@ -6,6 +6,13 @@
 //
 // Skills: optimal | beginner | average (default) | skilled
 //
+// Movement model: discrete row-based (gridRows=11, rows 0–10, breach at row >= 11)
+// - Each correct-color shot: ALL cars in ALL active lanes advance 1 row
+// - Each wrong-color shot: no advance
+// - Fresh spawn: row 0
+// - Breach: row >= 11 (i.e., row > gridRows-1)
+// - Refill: when a lane has fewer than laneTargetCarCount cars, spawn 1 car per advance step
+//
 // Targets vs AVERAGE player (from Phase 3 rebalance):
 //   Easy:       75-92% win rate
 //   Medium:     50-72%
@@ -40,11 +47,15 @@ if (!cfg) {
 }
 
 const runner = new SimulationRunner({
-  duration:    cfg.duration,
-  colors:      cfg.colors,
-  worldConfig: cfg.worldConfig,
-  levelId:     levelId,
+  duration:         cfg.duration,
+  colors:           cfg.colors,
+  worldConfig:      cfg.worldConfig,
+  levelId:          levelId,
   skill,
+  laneCount:        cfg.laneCount,
+  laneTargetCarCount: cfg.laneTargetCarCount,
+  spawnBudget:      cfg.spawnBudget,
+  gridRows:         cfg.gridRows,
 });
 
 const stats  = runner.runBatch(runs, 1);

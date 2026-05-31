@@ -1,6 +1,13 @@
-// SimulationRunner — headless level simulator.
+// SimulationRunner — headless level simulator using discrete row-based movement.
 // Ties together all director modules and runs a simulated player to produce
 // aggregate stats for tuning the director.
+//
+// Movement model: discrete rows (0–10, breach at 11+)
+// - Each correct-color shot: ALL cars in ALL active lanes advance 1 row
+// - Each wrong-color shot: no advance
+// - Fresh spawn: row 0
+// - Refill: spawn 1 car per advance step per lane (up to laneTargetCarCount, within spawnBudget)
+// - Breach: row >= 11 (gridRows = 11, so breach = row > 10)
 //
 // AI strategy: for each column, fire the top shooter at the most advanced lane
 // whose front car matches the shooter's color.  Skill profiles add accuracy
@@ -20,7 +27,7 @@ import {
   DEPLOY_DILATION,
 } from '../director/DirectorConfig.js';
 
-const DT = 1 / 60; // seconds per simulation tick
+const DT = 1 / 60; // seconds per simulation tick (used for fire cooldowns only)
 
 // Simulated-player accuracy and behavior profiles.
 // 'optimal' preserves the original perfect-play baseline; all others model
@@ -63,21 +70,27 @@ export class SimulationRunner {
   //               skill ('optimal' | 'beginner' | 'average' | 'skilled'),
   //               levelId (optional) — passed to CarDirector.setLevel() so car-type weights
   //               match the actual level band (bikes-only L1 vs trucks/bigrigs/tanks L15+).
-  //               Omit for generic/world-based tests; always supply for per-level balance checks. }
+  //               Omit for generic/world-based tests; always supply for per-level balance checks.
+  //               laneCount (4 default), laneTargetCarCount (1 default), spawnBudget, gridRows (11 default) }
   // worldConfig takes precedence over world when provided.
   // skill defaults to 'average' — models real human accuracy and cycle behavior.
   constructor(levelConfig = {}) {
     this._cfg = {
-      duration:    levelConfig.duration    ?? 90,
-      colors:      levelConfig.colors      ?? ['Red', 'Blue'],
-      world:       levelConfig.world       ?? 1,
-      worldConfig: levelConfig.worldConfig ?? null,
-      skill:       levelConfig.skill       ?? 'average',
-      levelId:     levelConfig.levelId     ?? null,
+      duration:           levelConfig.duration           ?? 90,
+      colors:             levelConfig.colors             ?? ['Red', 'Blue'],
+      world:              levelConfig.world              ?? 1,
+      worldConfig:        levelConfig.worldConfig        ?? null,
+      skill:              levelConfig.skill              ?? 'average',
+      levelId:            levelConfig.levelId            ?? null,
+      laneCount:          levelConfig.laneCount          ?? 4,
+      laneTargetCarCount: levelConfig.laneTargetCarCount ?? 1,
+      spawnBudget:        levelConfig.spawnBudget        ?? Infinity,
+      gridRows:           levelConfig.gridRows           ?? 11,
     };
   }
 
   // Simulate one complete level deterministically using the given seed.
+  // DISCRETE MOVEMENT MODEL: cars advance 1 row per correct-color shot (not per tick).
   // Returns:
   //   won                — true if the level timer expired without a breach
   //   timeElapsed        — seconds survived (or full duration on win)
@@ -93,6 +106,12 @@ export class SimulationRunner {
     const worldConfig = this._cfg.worldConfig ?? WORLD_CONFIG[world];
     const profile     = SKILL_PROFILES[this._cfg.skill] ?? SKILL_PROFILES.average;
 
+    // In discrete model, speed affects fire cadence (faster speed = shorter fire delays).
+    // Base speed is typically 3–7; normalize to get a cadence multiplier.
+    // Higher speed = lower fire delay multiplier → faster shots.
+    const speedBase = worldConfig.speed?.base ?? 5.0;
+    const fireDelayMultiplier = 5.0 / speedBase;  // speed 5 → 1.0x delay, speed 10 → 0.5x
+
     // ── Instantiate subsystems ─────────────────────────────────────────────
     const rng        = new SeededRandom(seed);
     const arbiter    = new CountingArbiter();
@@ -104,6 +123,15 @@ export class SimulationRunner {
     const lanes   = [0, 1, 2, 3].map(id => new Lane({ id }));
     const columns = [0, 1, 2, 3].map(id => new Column({ id }));
 
+    // ── Discrete movement model: cars have integer row (0–gridRows-1, breach at >= gridRows) ──
+    // Each correct-color shot advances ALL cars in ALL active lanes by 1 row.
+    const BREACH_ROW = this._cfg.gridRows;
+    const discreteLanes = [0, 1, 2, 3].map(id => ({
+      id,
+      cars: [],  // Array of { row: number, hp: number, type: string, color: string }
+    }));
+    let spawnBudgetRemaining = this._cfg.spawnBudget;
+
     // ── Tracking ───────────────────────────────────────────────────────────
     let carsKilled      = 0;
     let carryOvers      = 0;
@@ -113,21 +141,18 @@ export class SimulationRunner {
     let lastKillTime    = -Infinity;
     let lostAt          = null;
 
-    // Deploy time dilation: tracks the end-time of the current slow window.
-    // Every shooter deploy slows all cars to DEPLOY_DILATION.speedMultiplier for
-    // DEPLOY_DILATION.duration seconds, modelling the in-game deploy animation pause.
-    let dilationActiveUntil = -Infinity;
-
     // Per-column fire timers: seconds until a column may fire again.
     const fireTimers = [0, 0, 0, 0];
 
     // ── Initial state ──────────────────────────────────────────────────────
-    // Pre-spawn one car per lane so the level starts with active threats.
-    const calmCfg = PHASE_CONFIG['CALM'];
-    for (const lane of lanes) {
-      const car = carDir.generateCar(lane, 'CALM', worldConfig, colors);
-      lane.addCar(car);
-      carDir.resetSpawnTimer(lane, calmCfg);
+    // Pre-spawn one car per lane at row 0 so the level starts with active threats.
+    for (const lane of discreteLanes) {
+      if (spawnBudgetRemaining > 0) {
+        const car = carDir.generateCar({ id: lane.id }, 'CALM', worldConfig, colors, this._cfg.gridRows);
+        const adjustedHp = Math.max(1, Math.round(car.hp * worldConfig.hpMultiplier));
+        lane.cars.push({ row: 0, hp: adjustedHp, type: car.type, color: car.color });
+        spawnBudgetRemaining--;
+      }
     }
 
     // Fill all columns before the first tick.
@@ -137,6 +162,8 @@ export class SimulationRunner {
     shooterDir.fillColumns(columns, initState, initParams);
 
     // ── Main loop ──────────────────────────────────────────────────────────
+    // DISCRETE MODEL: cars advance 1 row per CORRECT-COLOR shot, not per tick.
+    // Ticks are only used for fire timers (cool-downs), shooter refill, and cycle delays.
     const totalTicks = Math.ceil(duration * 60);
 
     for (let tick = 0; tick < totalTicks; tick++) {
@@ -144,97 +171,69 @@ export class SimulationRunner {
       phaseMan.update(elapsed);
 
       const currentPhase = phaseMan.getCurrentPhase();
-      const phaseParams  = phaseMan.getParams();      // interpolated (damageSkew, etc.)
-      const phaseCfg     = PHASE_CONFIG[currentPhase]; // raw (spawn cooldowns)
+      const phaseParams  = phaseMan.getParams();
+      const phaseCfg     = PHASE_CONFIG[currentPhase];
       const gameState    = this._buildState(lanes, columns, colors, elapsed, phaseMan);
 
-      // 1. Advance all cars toward the breach.
-      // Deploy dilation slows all cars when a shooter was recently deployed.
-      const speedMult = elapsed < dilationActiveUntil
-        ? DEPLOY_DILATION.speedMultiplier : 1.0;
-      for (const lane of lanes) {
-        lane.advance(DT * speedMult);
-      }
-
-      // 2. Breach check — any car at position ≥ 100 ends the level.
-      if (lanes.some(l => l.isBreached())) {
+      // 1. Breach check — any car at row >= BREACH_ROW ends the level.
+      if (discreteLanes.some(l => l.cars.length > 0 && l.cars[0].row >= BREACH_ROW)) {
         lostAt = elapsed;
         break;
       }
 
-      // 3. Spawn new cars when each lane's cooldown expires.
-      carDir.updateSpawnTimers(lanes, DT, phaseCfg);
-      for (const lane of lanes) {
-        if (carDir.isReadyToSpawn(lane)) {
-          const car = carDir.generateCar(lane, currentPhase, worldConfig, colors);
-          lane.addCar(car);
-          carDir.resetSpawnTimer(lane, phaseCfg);
-        }
-      }
-
-      // 4. Refill shooter columns (does nothing for full columns).
+      // 2. Refill shooter columns (does nothing for full columns).
       shooterDir.fillColumns(columns, gameState, phaseParams);
 
-      // 5. AI fires — lane-urgency-first strategy:
-      //
-      //   Pass A (coverage): for each lane sorted by front-car position desc,
-      //   find the highest-damage ready column whose top matches the lane's
-      //   color. This ensures the most-advanced car always gets the best
-      //   available shot, and each lane gets at most one column.
-      //
-      //   Pass B (focus-fire): any remaining ready columns can pile onto
-      //   critical lanes (position ≥ CRITICAL_POS) that still have HP left.
-      //   Models a player redirecting idle fingers to the most dangerous lane.
-      //
-      //   Pass C (cycle): idle columns with no matching lane discard their top
-      //   shooter so the column advances toward a useful color.
-      //
-      // Fire-timer precision: subtract DT and snap to 0 when the result is
-      // below floating-point noise, preventing a 1-tick delay caused by
-      // 2.2 − 132×(1/60) ≈ 3e-16 > 0 failing the readiness check.
-      const CRITICAL_POS = 75;
+      // 3. AI fires — lane-urgency-first strategy based on row advancement.
+      // Fire timers are in seconds; decrement by DT each tick.
       const FP_EPSILON   = 1e-9;
 
-      // Decrement all timers up front.
+      // Decrement all timers.
       for (let c = 0; c < 4; c++) {
         fireTimers[c] = Math.max(0, fireTimers[c] - DT);
         if (fireTimers[c] < FP_EPSILON) fireTimers[c] = 0;
       }
 
-      // Sort lanes most-urgent first.
-      const urgentLanes = lanes
-        .filter(l => l.frontCar() !== null)
-        .sort((a, b) => b.frontCar().position - a.frontCar().position);
+      // Sort lanes by most-advanced car (highest row first).
+      const urgentLanes = discreteLanes
+        .filter(l => l.cars.length > 0)
+        .sort((a, b) => (b.cars[0]?.row ?? -1) - (a.cars[0]?.row ?? -1));
 
       const usedCols = new Set();
+      let correctShotFired = false;  // track if any correct shot fired this tick → advance all cars
 
       // Returns true if the simulated player fires the correct color this shot.
       const _isCorrect = () => rng.next() < profile.accuracy;
 
-      // isCorrect=true  → correct color: apply damage.
-      // isCorrect=false → misfire: consume the column + timer, no damage.
+      // Fire a shot. If isCorrect=true, mark correctShotFired=true → trigger row advance.
       const _fire = (col, lane, isCorrect = true) => {
         const s = columns[col].top();
         usedCols.add(col);
         shooterDir.recordDeploy(elapsed);
-        dilationActiveUntil = elapsed + DEPLOY_DILATION.duration;
-        fireTimers[col] = s.fireDuration;
+        fireTimers[col] = s.fireDuration * fireDelayMultiplier;  // apply speed-based cadence multiplier
         columns[col].consume();
         if (!isCorrect) return;
-        const { kills, carryOverKills } = this._applyDamage(s.damage, lane);
-        carsKilled += kills;
-        carryOvers += carryOverKills;
-        if (kills > 0) {
-          currentCombo = (elapsed - lastKillTime <= COMBO_WINDOW)
-            ? currentCombo + kills : kills;
-          lastKillTime  = elapsed;
-          if (currentCombo > maxCombo) maxCombo = currentCombo;
+
+        // Apply damage to front car.
+        if (lane.cars.length > 0) {
+          const car = lane.cars[0];
+          car.hp -= s.damage;
+          if (car.hp <= 0) {
+            lane.cars.shift();  // remove front car
+            carsKilled++;
+            currentCombo = (elapsed - lastKillTime <= COMBO_WINDOW)
+              ? currentCombo + 1 : 1;
+            lastKillTime = elapsed;
+            if (currentCombo > maxCombo) maxCombo = currentCombo;
+          }
         }
+        correctShotFired = true;
       };
 
       // Pass A — coverage: one best-match column per lane.
       for (const lane of urgentLanes) {
-        const car = lane.frontCar();
+        if (lane.cars.length === 0) continue;
+        const car = lane.cars[0];
         let bestCol = -1, bestDmg = -1;
         for (let c = 0; c < 4; c++) {
           if (usedCols.has(c) || fireTimers[c] > 0) continue;
@@ -247,20 +246,19 @@ export class SimulationRunner {
         if (bestCol !== -1) _fire(bestCol, lane, _isCorrect());
       }
 
-      // Pass B — focus-fire: pile onto any critical lane still in danger.
+      // Pass B — focus-fire: pile onto any high-row lane still in danger.
+      const CRITICAL_ROW = Math.floor(BREACH_ROW * 0.75);  // 75% of way to breach
       for (const lane of urgentLanes) {
-        const car = lane.frontCar();
-        if (!car || car.position < CRITICAL_POS) break; // sorted desc, rest are safe
+        if (lane.cars.length === 0 || lane.cars[0].row < CRITICAL_ROW) continue;
         for (let c = 0; c < 4; c++) {
           if (usedCols.has(c) || fireTimers[c] > 0) continue;
           const s = columns[c].top();
-          if (s && s.color === car.color) { _fire(c, lane, _isCorrect()); break; }
+          if (s && s.color === lane.cars[0].color) { _fire(c, lane, _isCorrect()); break; }
         }
       }
 
       // Pass C — cycle: idle columns discard a non-matching top so the column
       // works toward a useful color. cycleDelay models the player's reaction time.
-      // Beginners don't cycle — they sit on whatever color is showing.
       if (profile.useCycle) {
         for (let c = 0; c < 4; c++) {
           if (usedCols.has(c) || fireTimers[c] > 0) continue;
@@ -271,16 +269,45 @@ export class SimulationRunner {
         }
       }
 
+      // 4. CORRECT-COLOR shot fired → advance ALL cars in ALL lanes by 1 row.
+      if (correctShotFired) {
+        for (const lane of discreteLanes) {
+          for (const car of lane.cars) {
+            car.row++;
+          }
+        }
+      }
+
+      // 5. Refill lanes: spawn cars to maintain laneTargetCarCount per lane.
+      // Mirrors real _refillLanes: only 1 car spawns per advance, and only if no car
+      // is still in the spawn zone (row < 2).  This staggers cars naturally.
+      for (const lane of discreteLanes) {
+        if (
+          lane.cars.length < this._cfg.laneTargetCarCount &&
+          !lane.cars.some(c => c.row < 2) &&
+          spawnBudgetRemaining > 0
+        ) {
+          const car = carDir.generateCar({ id: lane.id }, currentPhase, worldConfig, colors, this._cfg.gridRows);
+          const adjustedHp = Math.max(1, Math.round(car.hp * worldConfig.hpMultiplier));
+          lane.cars.push({ row: 0, hp: adjustedHp, type: car.type, color: car.color });
+          spawnBudgetRemaining--;
+        }
+      }
+
       // 6. Attempt a CRISIS assist when the phase permits it.
-      if (phaseParams.crisisEnabled) {
-        const crisis = shooterDir.triggerCrisis(gameState);
-        if (crisis) {
-          crisisTriggered++;
-          const { kills, carryOverKills } = this._applyDamage(
-            crisis.shooter.damage, crisis.lane
-          );
-          carsKilled += kills;
-          carryOvers += carryOverKills;
+      if (phaseParams.crisisEnabled && discreteLanes.some(l => l.cars.length > 0)) {
+        // Find the most advanced lane for crisis.
+        const crisisLane = discreteLanes.reduce((a, b) =>
+          (a.cars[0]?.row ?? -1) > (b.cars[0]?.row ?? -1) ? a : b
+        );
+        if (crisisLane.cars.length > 0) {
+          const car = crisisLane.cars[0];
+          car.hp -= 10;  // arbitrary crisis damage
+          if (car.hp <= 0) {
+            crisisLane.cars.shift();
+            carsKilled++;
+            crisisTriggered++;
+          }
         }
       }
     }

@@ -64,6 +64,15 @@ const TYPE_DIMS = {
   boss:   { wF: 1.33, hF: 1.33 },
 };
 
+// X-offset corrections (world units) for sprites whose car body is not centered
+// in the PNG canvas. Formula: -(imgCX - bboxCX) / imgWidth * planeWorldWidth.
+// Measured via sharp bounding-box analysis (scripts/screenshot-city-edges.mjs).
+const SPRITE_X_OFFSET = {
+  small:  -(3.5  / 512) * (CELL * TYPE_DIMS.small.wF),    // bike: body 3.5px right of center
+  truck:   (7.0  / 448) * (CELL * TYPE_DIMS.truck.wF),    // truck: body 7px left of center
+  bigrig:  (31.5 / 299) * (CELL * TYPE_DIMS.bigrig.wF),   // bigrig: body 31.5px left of center
+};
+
 // ── Sprite map: nested by type → color (pre-colored PNGs, no material tint) ──
 const SPRITE_MAP = {
   small: {
@@ -282,7 +291,7 @@ export class Car3D {
         const wobbleX   = Math.sin(now * WOBBLE_X_FREQ   + laneIdx * 0.7) * WOBBLE_X_AMP;
         const wobbleRot = Math.sin(now * WOBBLE_ROT_FREQ + laneIdx * 1.3) * WOBBLE_ROT_AMP;
 
-        g.position.set(laneToX(laneIdx) + wobbleX, 0, entry.renderZ);
+        g.position.set(laneToX(laneIdx, this._lanes.length) + wobbleX, 0, entry.renderZ);
 
         // ── Boss ring ─────────────────────────────────────────────────────────
         if (entry.bossRing) {
@@ -441,6 +450,7 @@ export class Car3D {
     );
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.y = 0.05;
+    mesh.position.x = SPRITE_X_OFFSET[car.type] ?? 0;
     group.add(mesh);
 
     // Boss ring
@@ -457,9 +467,11 @@ export class Car3D {
     group.userData.baseScale = 1.0;
 
     // Spawn animation: start off-screen (further from breach)
-    const targetZ = posToZ(car.position);
-    const spawnZ  = targetZ - SPAWN_OFFSET;
-    group.position.set(laneToX(laneIdx), 0, spawnZ);
+    const targetZ  = posToZ(car.position);
+    const spawnZ   = targetZ - SPAWN_OFFSET;
+    const worldX   = laneToX(laneIdx, this._lanes.length);
+    group.position.set(worldX, 0, spawnZ);
+
 
     this._scene.add(group);
 
@@ -481,7 +493,7 @@ export class Car3D {
 
   _spawnSpeedLines(entry, laneIdx, car) {
     const cfg = TYPE_DIMS[car.type] ?? TYPE_DIMS.big;
-    const lx  = laneToX(laneIdx);
+    const lx  = laneToX(laneIdx, this._lanes.length);
     const geo  = _getSpeedLineGeo();
 
     for (let i = 0; i < 2; i++) {

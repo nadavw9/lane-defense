@@ -60,7 +60,10 @@ class CountingArbiter {
 
 export class SimulationRunner {
   // levelConfig: { duration (s), colors (array), world (1–5), worldConfig (optional direct override),
-  //               skill ('optimal' | 'beginner' | 'average' | 'skilled') }
+  //               skill ('optimal' | 'beginner' | 'average' | 'skilled'),
+  //               levelId (optional) — passed to CarDirector.setLevel() so car-type weights
+  //               match the actual level band (bikes-only L1 vs trucks/bigrigs/tanks L15+).
+  //               Omit for generic/world-based tests; always supply for per-level balance checks. }
   // worldConfig takes precedence over world when provided.
   // skill defaults to 'average' — models real human accuracy and cycle behavior.
   constructor(levelConfig = {}) {
@@ -70,6 +73,7 @@ export class SimulationRunner {
       world:       levelConfig.world       ?? 1,
       worldConfig: levelConfig.worldConfig ?? null,
       skill:       levelConfig.skill       ?? 'average',
+      levelId:     levelConfig.levelId     ?? null,
     };
   }
 
@@ -93,6 +97,7 @@ export class SimulationRunner {
     const rng        = new SeededRandom(seed);
     const arbiter    = new CountingArbiter();
     const carDir     = new CarDirector({}, rng);
+    if (this._cfg.levelId != null) carDir.setLevel(this._cfg.levelId);
     const shooterDir = new ShooterDirector({}, rng, arbiter);
     const phaseMan   = new IntensityPhase(duration);
 

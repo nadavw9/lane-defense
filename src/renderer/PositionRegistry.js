@@ -17,9 +17,14 @@ export function setActiveCounts({ laneCount = 4, colCount = 4 } = {}) {
   _colCount  = colCount;
 }
 
-// Screen X at the horizontal center of lane laneIdx (bottom-of-road perspective).
+// FRUSTUM_HALF_X mirrors Scene3D._computeFrustum at 390×844.
+const FRUSTUM_HALF_X = 9.651;
+const FRUSTUM_DIAM   = 2 * FRUSTUM_HALF_X;
+
+// Screen X at the horizontal center of lane laneIdx — aligned with 3D ortho projection.
 export function getLaneScreenX(laneIdx) {
-  return (laneIdx + 0.5) * (ROAD_BOTTOM_W / _laneCount);
+  const worldX = laneToX(laneIdx, _laneCount);
+  return (worldX + FRUSTUM_HALF_X) / FRUSTUM_DIAM * APP_W;
 }
 
 // Three.js world X for lane laneIdx.

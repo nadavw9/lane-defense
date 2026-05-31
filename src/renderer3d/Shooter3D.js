@@ -26,10 +26,13 @@ function _getPowerballTex(colorName) {
 
 // ── Layout ─────────────────────────────────────────────────────────────────────
 const LANE_COUNT = 4;
-const SLOT_COUNT = 4;
+const SLOT_COUNT = 3;   // visible queue depth (was 4; 4th slot is now the stash)
 
 // Bomb zone: Z=0 (breach) to Z≈11.2 (booster bar). Cell height = CELL × 0.70.
 function slotZ(s) { return (s + 0.5) * CELL * 0.70; }
+
+// Stash slot sits directly below the 3 queue slots (same position as old slot 3).
+const STASH_Z = slotZ(3);
 
 // ── Bomb geometry ──────────────────────────────────────────────────────────────
 // BOMB_R = cell_height × 0.38 = CELL × 0.70 × 0.38 ≈ CELL × 0.266.
@@ -129,11 +132,23 @@ export class Shooter3D {
     this._columns = columns;
     this._elapsed = 0;
 
+    this._bgPlane = this._createBgPlane();
+
     this._slots = [];
     for (let li = 0; li < LANE_COUNT; li++) {
       this._slots.push(
-        Array.from({ length: SLOT_COUNT }, (_, si) => this._createSlot(li, slotZ(si))),
+        Array.from({ length: SLOT_COUNT }, (_, si) => {
+          const slot = this._createSlot(li, slotZ(si));
+          if (si === 0) this._addColorBombOverlay(slot);
+          return slot;
+        }),
       );
+    }
+
+    // One stash slot per column — positioned at STASH_Z (below the 3 queue slots).
+    this._stashSlots = [];
+    for (let li = 0; li < LANE_COUNT; li++) {
+      this._stashSlots.push(this._createStashSlot(li, STASH_Z));
     }
 
     this._activeColCount = LANE_COUNT;
@@ -148,6 +163,10 @@ export class Shooter3D {
         this._slots[li][si].group.position.x = x;
         this._slots[li][si].group.position.z = slotZ(si);
       }
+      if (this._stashSlots[li]) {
+        this._stashSlots[li].group.position.x = x;
+        this._stashSlots[li].group.position.z = STASH_Z;
+      }
     }
   }
 
@@ -161,7 +180,7 @@ export class Shooter3D {
     slot._punching = true;
   }
 
-  update(dt, elapsed) {
+  update(dt, elapsed, colorBombArmed = false) {
     this._elapsed = elapsed;
 
     for (let li = 0; li < LANE_COUNT; li++) {
@@ -170,6 +189,7 @@ export class Shooter3D {
 
       if (li >= this._activeColCount) {
         for (const slot of slots) slot.group.visible = false;
+        if (this._stashSlots[li]) this._stashSlots[li].group.visible = false;
         continue;
       }
 
@@ -220,11 +240,64 @@ export class Shooter3D {
         if (si === 0) {
           slot.group.position.y = Math.sin(elapsed * 2.4) * 0.03;
         }
+
+        // Color-bomb armed indicator — front slot only
+        if (si === 0 && slot.cbOverlayMesh) {
+          const armed = colorBombArmed;
+          slot.cbOverlayMesh.visible = armed;
+          slot.cbSparkMesh.visible   = armed;
+          if (armed) {
+            // Slow gradient swirl — one full rotation every ~3 s
+            slot.cbOverlayMesh.rotation.z = (elapsed * Math.PI * 2) / 3;
+            // Very gentle shimmer, barely perceptible
+            slot.cbOverlayMat.opacity = 0.84 + 0.06 * Math.sin(elapsed * 2.0);
+            // Sparkle slow twinkle
+            slot.cbSparkMat.opacity = 0.60 + 0.40 * Math.abs(Math.sin(elapsed * 1.8));
+          }
+        }
+      }
+
+      // ── Stash slot ──────────────────────────────────────────────────────────
+      const stash = this._stashSlots[li];
+      if (!stash) continue;
+      stash.group.visible = true;
+
+      const stashedShooter = col.stash ?? null;
+      if (!stashedShooter) {
+        stash.sphereMesh.visible = false;
+        stash.badgeMesh.visible  = false;
+        stash.ringMesh.visible   = true;
+      } else {
+        stash.sphereMesh.visible = true;
+        stash.badgeMesh.visible  = true;
+        stash.ringMesh.visible   = false;
+
+        const hex    = COLOR_HEX[stashedShooter.color] ?? 0x888888;
+        const damage = stashedShooter.damage ?? 1;
+
+        if (stash.lastColor !== stashedShooter.color || stash.lastDamage !== damage) {
+          stash.lastColor  = stashedShooter.color;
+          stash.lastDamage = damage;
+          stash.sphereMesh.material.map = _getPowerballTex(stashedShooter.color);
+          stash.sphereMesh.material.needsUpdate = true;
+          drawDamageBadge(stash.badgeCtx, BADGE_CVS_W, BADGE_CVS_H, damage, hex);
+          stash.badgeTex.needsUpdate = true;
+          // Dim the stash bomb slightly to distinguish from queue bombs
+          stash.sphereMesh.material.opacity = 0.72;
+          stash.sphereMesh.material.needsUpdate = true;
+        }
       }
     }
   }
 
   dispose() {
+    if (this._bgPlane) {
+      this._bgPlane.material.map?.dispose();
+      this._bgPlane.material.dispose();
+      this._bgPlane.geometry.dispose();
+      this._scene.remove(this._bgPlane);
+      this._bgPlane = null;
+    }
     for (const laneSlots of this._slots) {
       for (const slot of laneSlots) {
         slot.badgeTex.dispose();
@@ -233,13 +306,64 @@ export class Shooter3D {
         slot.emptyMesh.geometry.dispose();
         slot.emptyMat.dispose();
         slot.badgeMat.dispose();
+        slot.cbOverlayMesh?.geometry.dispose();
+        slot.cbOverlayTex?.dispose();
+        slot.cbOverlayMat?.dispose();
+        slot.cbSparkTex?.dispose();
+        slot.cbSparkMat?.dispose();
         this._scene.remove(slot.group);
       }
     }
     this._slots = [];
+    for (const stash of this._stashSlots) {
+      stash.badgeTex.dispose();
+      stash.sphereMesh.geometry.dispose();
+      stash.sphereMesh.material.dispose();
+      stash.ringMesh.geometry.dispose();
+      stash.ringMat.dispose();
+      stash.badgeMat.dispose();
+      this._scene.remove(stash.group);
+    }
+    this._stashSlots = [];
   }
 
   // ── Private ─────────────────────────────────────────────────────────────────
+
+  _createBgPlane() {
+    // Covers full bomb zone: Z=0 (breach) to Z≈12.6 (past stash slot).
+    // Width wider than widest frustum (≈19.3) so edges are never visible.
+    // Y=-0.001 keeps us above the Road3D nearExtMesh at y=-0.02 so depth test wins.
+    const BG_W     = CELL * 5;     // 20 world units
+    const BG_DEPTH = CELL * 3.15;  // 12.6 world units — Z=0 to past stash
+
+    // Base color visible before/if texture loads — same range as the empty-slot ring color.
+    // map is set via onLoad so Three.js never renders the black "pending" placeholder.
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x888888,
+      side:  THREE.DoubleSide,
+    });
+    _texLoader.load(
+      `${import.meta.env.BASE_URL}sprites/raw/split/panel-workshop-surface.png`,
+      (tex) => {
+        tex.wrapS      = THREE.RepeatWrapping;
+        tex.wrapT      = THREE.RepeatWrapping;
+        tex.repeat.set(5, 3.15);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        mat.map        = tex;
+        // Texture pixels are ~16% gray panels / ~27% grid lines in sRGB.
+        // Values > 1.0 multiply the texture brightness so grid lines are clearly
+        // visible (target: panels ~30% display brightness, grid ~50%).
+        mat.color.setRGB(2.5, 2.6, 3.0);
+        mat.needsUpdate = true;
+      },
+    );
+    const geo  = new THREE.PlaneGeometry(BG_W, BG_DEPTH);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(0, 0.001, BG_DEPTH / 2);
+    this._scene.add(mesh);
+    return mesh;
+  }
 
   _createSlot(laneIdx, worldZ) {
     const group = new THREE.Group();
@@ -307,6 +431,159 @@ export class Shooter3D {
       lastDamage: -1,
       _punching: false, _punchT: 0,
       _baseScale: 1.0,
+    };
+  }
+
+  // Color-bomb-armed overlay: replaces bomb body with a swirling rainbow disc
+  // + one white 4-point sparkle badge at top-right. No rings, no halos.
+  _addColorBombOverlay(slot) {
+    // ── Rainbow gradient canvas ─────────────────────────────────────────────
+    const cvs = document.createElement('canvas');
+    cvs.width = cvs.height = 128;
+    const ctx = cvs.getContext('2d');
+    ctx.clearRect(0, 0, 128, 128);
+    const RAINBOW = ['#ff2222', '#ff8800', '#ffee00', '#22cc44', '#2288ff', '#cc22ff'];
+    if (ctx.createConicGradient) {
+      // Smooth gradient sweep starting at top (−π/2)
+      const grd = ctx.createConicGradient(-Math.PI / 2, 64, 64);
+      for (let i = 0; i <= 6; i++) grd.addColorStop(i / 6, RAINBOW[i % 6]);
+      ctx.beginPath();
+      ctx.arc(64, 64, 62, 0, Math.PI * 2);
+      ctx.fillStyle = grd;
+      ctx.fill();
+    } else {
+      // Fallback: 6 hard-edged pie slices
+      const slice = (Math.PI * 2) / 6;
+      for (let i = 0; i < 6; i++) {
+        ctx.beginPath();
+        ctx.moveTo(64, 64);
+        ctx.arc(64, 64, 62, i * slice, (i + 1) * slice);
+        ctx.closePath();
+        ctx.fillStyle = RAINBOW[i];
+        ctx.fill();
+      }
+    }
+    const overlayTex = new THREE.CanvasTexture(cvs);
+    const overlayMat = new THREE.MeshBasicMaterial({
+      map:         overlayTex,
+      transparent: true,
+      opacity:     0.88,
+      depthWrite:  false,
+      side:        THREE.DoubleSide,
+    });
+    const overlayMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(BOMB_PLANE_SIZE, BOMB_PLANE_SIZE),
+      overlayMat,
+    );
+    overlayMesh.rotation.x = -Math.PI / 2;
+    overlayMesh.position.set(0, 0.07, 0);  // just above the bomb sprite (y=0.05)
+    overlayMesh.visible = false;
+    slot.group.add(overlayMesh);
+
+    // ── 4-point sparkle ─────────────────────────────────────────────────────
+    const spkCvs = document.createElement('canvas');
+    spkCvs.width = spkCvs.height = 64;
+    const spkCtx = spkCvs.getContext('2d');
+    spkCtx.clearRect(0, 0, 64, 64);
+    spkCtx.save();
+    spkCtx.translate(32, 32);
+    spkCtx.fillStyle = '#ffffff';
+    // Vertical arm
+    spkCtx.beginPath();
+    spkCtx.ellipse(0, 0, 3, 22, 0, 0, Math.PI * 2);
+    spkCtx.fill();
+    // Horizontal arm
+    spkCtx.beginPath();
+    spkCtx.ellipse(0, 0, 22, 3, 0, 0, Math.PI * 2);
+    spkCtx.fill();
+    spkCtx.restore();
+    // Bright center
+    const cg = spkCtx.createRadialGradient(32, 32, 0, 32, 32, 5);
+    cg.addColorStop(0, 'rgba(255,255,255,1)');
+    cg.addColorStop(1, 'rgba(255,255,255,0)');
+    spkCtx.beginPath();
+    spkCtx.arc(32, 32, 5, 0, Math.PI * 2);
+    spkCtx.fillStyle = cg;
+    spkCtx.fill();
+
+    const spkTex  = new THREE.CanvasTexture(spkCvs);
+    const spkMat  = new THREE.SpriteMaterial({ map: spkTex, transparent: true, depthTest: false });
+    const spkMesh = new THREE.Sprite(spkMat);
+    spkMesh.scale.set(0.60, 0.60, 1);
+    // Top-right corner: +X right, −Z toward road = "up" on screen
+    spkMesh.position.set(BOMB_R * 1.00, 0.80, -BOMB_R * 0.98);
+    spkMesh.visible = false;
+    slot.group.add(spkMesh);
+
+    slot.cbOverlayMesh = overlayMesh;
+    slot.cbOverlayMat  = overlayMat;
+    slot.cbOverlayTex  = overlayTex;
+    slot.cbSparkMesh   = spkMesh;
+    slot.cbSparkMat    = spkMat;
+    slot.cbSparkTex    = spkTex;
+  }
+
+  // Creates the stash slot at worldZ. Uses a dashed ring for empty state instead
+  // of the queue's dim sphere, so the player can visually distinguish it.
+  _createStashSlot(laneIdx, worldZ) {
+    const group = new THREE.Group();
+
+    // ── Bomb plane — same as queue slots but 80% scale ─────────────────────────
+    const sphereMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(BOMB_PLANE_SIZE * 0.80, BOMB_PLANE_SIZE * 0.80),
+      new THREE.MeshBasicMaterial({
+        transparent: true,
+        alphaTest:   0.05,
+        opacity:     0.72,
+        color:       new THREE.Color(0xffffff),
+        side:        THREE.DoubleSide,
+        depthWrite:  false,
+      }),
+    );
+    sphereMesh.rotation.x = -Math.PI / 2;
+    sphereMesh.position.set(BOMB_CX, 0.05, BOMB_CZ);
+    sphereMesh.visible = false;
+    group.add(sphereMesh);
+
+    // ── Damage badge ───────────────────────────────────────────────────────────
+    const badgeCanvas = document.createElement('canvas');
+    badgeCanvas.width  = BADGE_CVS_W;
+    badgeCanvas.height = BADGE_CVS_H;
+    const badgeCtx = badgeCanvas.getContext('2d');
+    const badgeTex = new THREE.CanvasTexture(badgeCanvas);
+    const badgeMat = new THREE.SpriteMaterial({ map: badgeTex, transparent: true, depthTest: false });
+    const badgeMesh = new THREE.Sprite(badgeMat);
+    badgeMesh.scale.set(BADGE_WORLD_W * 0.80, BADGE_WORLD_H * 0.80, 1);
+    badgeMesh.position.set(BOMB_CX, BOMB_R * 0.80 + 0.50, BOMB_CZ);
+    badgeMesh.visible = false;
+    group.add(badgeMesh);
+
+    // ── Empty state: dashed ring (TorusGeometry seen from top looks like a circle)
+    const ringMat = new THREE.MeshBasicMaterial({
+      color:       0x556677,
+      transparent: true,
+      opacity:     0.55,
+      side:        THREE.DoubleSide,
+      depthWrite:  false,
+    });
+    const ringMesh = new THREE.Mesh(
+      new THREE.TorusGeometry(BOMB_R * 0.80, 0.07, 6, 16),
+      ringMat,
+    );
+    ringMesh.rotation.x = -Math.PI / 2;
+    ringMesh.position.set(BOMB_CX, 0.02, BOMB_CZ);
+    group.add(ringMesh);
+
+    group.traverse(obj => { if (obj.isMesh || obj.isSprite) obj.layers.set(0); });
+    group.scale.setScalar(1.0);
+    group.position.set(laneToX(laneIdx), 0, worldZ);
+    group.visible = false;
+    this._scene.add(group);
+
+    return {
+      group, sphereMesh, ringMesh, ringMat,
+      badgeCanvas, badgeCtx, badgeTex, badgeMesh, badgeMat,
+      lastColor: '', lastDamage: -1,
     };
   }
 }

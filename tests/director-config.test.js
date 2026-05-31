@@ -321,7 +321,7 @@ describe('Lane and column constants', () => {
   it('lane length is 100 units', () => { expect(LANE_LENGTH).toBe(100) })
   it('car gap is 8 units', () => { expect(CAR_GAP).toBe(8) })
   it('4 columns', () => { expect(COLUMN_COUNT).toBe(4) })
-  it('column depth is 6 shooters', () => { expect(COLUMN_DEPTH).toBe(6) })
+  it('column depth is 3 shooters', () => { expect(COLUMN_DEPTH).toBe(3) })
   it('spawn queue refills when below 4', () => { expect(SPAWN_QUEUE.refillThreshold).toBe(4) })
   it('spawn queue capacity range is 8–12', () => {
     expect(SPAWN_QUEUE.capacity.min).toBe(8)

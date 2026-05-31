@@ -151,7 +151,7 @@ export const LANE_PERSONALITIES = {
 // ─── Column / Shooter Config ─────────────────────────────────────────────────
 
 export const COLUMN_COUNT = 4;
-export const COLUMN_DEPTH = 6; // shooters per column
+export const COLUMN_DEPTH = 3; // shooters per column (matches COLUMN_CAPACITY in Column.js)
 
 // ─── CRISIS Assist ────────────────────────────────────────────────────────────
 

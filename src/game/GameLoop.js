@@ -403,7 +403,7 @@ export class GameLoop {
       for (let li = 0; li < gs.activeLaneCount; li++) {
         if (gs.spawnBudget <= 0) break;
         const lane = gs.lanes[li];
-        if (lane.cars.length < target && !lane.cars.some(c => c.row === 0)) {
+        if (lane.cars.length < target && !lane.cars.some(c => c.row < 2)) {
           const car = this._carDir.generateCar(lane, 'CALM', gs.world, gs.colors, gs.gridRows);
           car.row = 0; car.position = 0;
           lane.addCar(car);
@@ -416,7 +416,7 @@ export class GameLoop {
       const maxNew     = gs.activeLaneCount <= 2 ? 1 : 2;
       const candidates = [];
       for (let li = 0; li < gs.activeLaneCount; li++) {
-        if (!gs.lanes[li].cars.some(c => c.row === 0)) candidates.push(li);
+        if (!gs.lanes[li].cars.some(c => c.row < 2)) candidates.push(li);
       }
       for (let i = candidates.length - 1; i > 0; i--) {
         const j = Math.floor(this._rng.nextFloat(0, 1) * (i + 1));
@@ -461,8 +461,8 @@ export class GameLoop {
         const colIdx  = Math.max(0, Math.min(laneIdx >= 0 ? laneIdx : 0, gs.activeColCount - 1));
         crisis.shooter.column = colIdx;
         gs.columns[colIdx].shooters.unshift(crisis.shooter);
-        // Keep column within capacity.
-        if (gs.columns[colIdx].shooters.length > 6) gs.columns[colIdx].shooters.length = 6;
+        // Keep column within capacity (3 + 1 extra tolerance for crisis inject).
+        if (gs.columns[colIdx].shooters.length > 4) gs.columns[colIdx].shooters.length = 4;
         this._onCrisis(colIdx, laneIdx);
       }
     }

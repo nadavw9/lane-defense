@@ -24,6 +24,7 @@ import {
 import {
   COL_W, COL_COUNT, TOP_RADIUS, TOP_Y,
   SHOOTER_AREA_Y, SHOOTER_AREA_H,
+  STASH_Y,
 } from '../renderer/ShooterRenderer.js';
 import {
   getLaneScreenX, getLaneScreenBounds, getTopLaneScreenBounds,
@@ -90,6 +91,22 @@ function _drawSpark(g, x, y, angle, size) {
   g.fill({ color: 0xff8800 });
 }
 
+// Rainbow spark colors (cycles through the spectrum for color-bomb drag)
+const _RAINBOW_SPARK = [0xff0033, 0xff8800, 0xffee00, 0x00dd44, 0x0099ff, 0xcc33ff];
+// Draw 12-point rainbow spark burst for the color-bomb drag ghost
+function _drawRainbowSpark(g, x, y, angle, size, colorIdx) {
+  g.clear();
+  for (let i = 0; i < 12; i++) {
+    const a   = angle + (i / 12) * Math.PI * 2;
+    const len = (i % 2 === 0) ? size * 1.6 : size * 0.9;
+    g.moveTo(x, y);
+    g.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len);
+  }
+  g.stroke({ color: _RAINBOW_SPARK[colorIdx % _RAINBOW_SPARK.length], width: 3.2 });
+  g.circle(x, y, size * 0.50);
+  g.fill({ color: _RAINBOW_SPARK[(colorIdx + 2) % _RAINBOW_SPARK.length] });
+}
+
 export class DragDrop {
   // columns        — Column[] (live reference from GameState)
   // lanes          — Lane[]   (live reference from GameState, for color-match checks)
@@ -113,7 +130,7 @@ export class DragDrop {
     shooterRenderer,
     benchRenderer,
     { onDeploy, onDeployFromBench, onBenchStore, onColorMismatch, onBenchFull, onBombPlaced,
-      onLaneHover, onLaneClear } = {},
+      onLaneHover, onLaneClear, getColorBombArmed } = {},
     boosterState = null,
     _unused = null,
     firingSlots = null,
@@ -135,6 +152,7 @@ export class DragDrop {
     this._onBombPlaced      = onBombPlaced       ?? (() => {});
     this._onLaneHover       = onLaneHover        ?? (() => {});
     this._onLaneClear       = onLaneClear        ?? (() => {});
+    this._getColorBombArmed = getColorBombArmed  ?? null;
 
     this._firingSlots = firingSlots;
 
@@ -197,6 +215,15 @@ export class DragDrop {
       return;
     }
 
+    // Stash slot hit test — drag the stashed bomb back toward the queue or to a lane
+    const stashCol = this._hitTestStashSlot(x, y);
+    if (stashCol !== -1 && this._columns[stashCol].stash !== null) {
+      const shooter = this._columns[stashCol].stash;
+      const { x: scx, y: scy } = this._shooterRenderer.getStashCenter(stashCol);
+      this._startDrag('stash', stashCol, shooter, scx, scy, x, y);
+      return;
+    }
+
     const slot = this._benchRenderer?.hitTestSlot(x, y) ?? -1;
     if (slot !== -1 && this._benchStorage?.getSlot(slot)) {
       const shooter = this._benchStorage.getSlot(slot);
@@ -216,6 +243,33 @@ export class DragDrop {
     if (this._state !== 'dragging') return;
     this._clearHighlights();
     this._benchRenderer?.setHighlight(-1);
+
+    // ── Stash: drag column top DOWN to stash slot ────────────────────────────
+    if (this._dragSource === 'column' && this._hitTestStashArea(x, y)) {
+      this._handleStashDrop();
+      return;
+    }
+
+    // ── Retrieve: drag stash bomb UP (to queue zone or anywhere not a lane) ──
+    if (this._dragSource === 'stash') {
+      const laneIdx = this._hitTestLane(x, y);
+      if (laneIdx !== -1) {
+        // Allow deploying directly from stash to a lane (convenient shortcut)
+        if (!this._checkColorMatch(laneIdx)) {
+          this._onColorMismatch();
+          this._handleStashRetrieve(/* silent */ true);
+          return;
+        }
+        if (this._firingSlots?.[laneIdx]) {
+          this._handleStashRetrieve(/* silent */ true);
+          return;
+        }
+        this._handleStashDeployToLane(laneIdx);
+      } else {
+        this._handleStashRetrieve(false);
+      }
+      return;
+    }
 
     if (this._dragSource === 'column' && this._hitTestBenchArea(x, y)) {
       this._handleBenchDrop();
@@ -275,11 +329,12 @@ export class DragDrop {
 
     if (source === 'column') {
       this._shooterRenderer.draggingColumn = sourceIdx;
-    } else {
+    } else if (source === 'bench') {
       if (this._benchRenderer) this._benchRenderer.draggingSlot = sourceIdx;
     }
+    // 'stash' source: no dragging marker needed — ShooterRenderer reads col.stash directly
 
-    this._ghost = this._createGhost(shooter, px + this._offsetX, py + this._offsetY);
+    this._ghost = this._createGhost(shooter, px + this._offsetX, py + this._offsetY, this._getColorBombArmed?.() ?? false);
     this._ghost.scale.set(1.12);  // lifted-off feel during drag
   }
 
@@ -331,6 +386,9 @@ export class DragDrop {
     if (this._dragSource === 'column') {
       ({ x: cx, y: cy } = this._shooterRenderer.getTopShooterCenter(this._dragSourceIdx));
       this._shooterRenderer.draggingColumn = -1;
+    } else if (this._dragSource === 'stash') {
+      ({ x: cx, y: cy } = this._shooterRenderer.getStashCenter(this._dragSourceIdx));
+      // stash is still occupied — bomb was never removed since snap means failed drop
     } else {
       ({ x: cx, y: cy } = this._benchRenderer.getSlotCenter(this._dragSourceIdx));
       if (this._benchRenderer) this._benchRenderer.draggingSlot = -1;
@@ -355,13 +413,23 @@ export class DragDrop {
 
     const colorHex = COLOR_MAP[this._dragShooter?.color] ?? 0x888888;
 
-    if (this._dragSource === 'bench') {
+    if (this._dragSource === 'bench' || this._dragSource === 'stash') {
       const laneIdx = this._hitTestLane(x, y);
       if (laneIdx !== -1) {
         const isOccupied = this._firingSlots?.[laneIdx] != null;
         const isMatch    = this._checkColorMatch(laneIdx);
         this._showLaneHighlight(laneIdx, (isMatch && !isOccupied) ? colorHex : HIGHLIGHT_RED);
         this._onLaneHover(laneIdx, colorHex);
+      }
+      return;
+    }
+
+    // Column drag: highlight stash slot if hovering over stash area
+    if (this._hitTestStashArea(x, y)) {
+      const colIdx  = this._dragSourceIdx;
+      const col     = this._columns[colIdx];
+      if (col && col.stash === null) {
+        // stash is free — show subtle glow (handled by ShooterRenderer; nothing to do here)
       }
       return;
     }
@@ -424,9 +492,63 @@ export class DragDrop {
     return y >= BENCH_Y - 30 && y <= BENCH_Y + BENCH_SLOT_H + 10;
   }
 
+  _hitTestStashArea(x, y) {
+    return y >= STASH_Y - TOP_RADIUS - 12 && y <= STASH_Y + TOP_RADIUS + 12;
+  }
+
+  _hitTestStashSlot(x, y) {
+    if (!this._hitTestStashArea(x, y)) return -1;
+    for (let i = 0; i < getActiveColCount(); i++) {
+      if (Math.abs(x - getColumnScreenX(i)) <= COL_W / 2) return i;
+    }
+    return -1;
+  }
+
+  _handleStashDrop() {
+    const col = this._columns[this._dragSourceIdx];
+    if (!col.stashBomb()) {
+      // Stash already occupied or queue empty
+      this._snapBack();
+      return;
+    }
+    this._shooterRenderer.draggingColumn = -1;
+    const { x: tx, y: ty } = this._shooterRenderer.getStashCenter(this._dragSourceIdx);
+    this._startAnim(this._ghost.x, this._ghost.y, tx, ty, FLY_DURATION, () => this._destroyGhost());
+    this._state = 'flying';
+  }
+
+  // Retrieve the stash bomb back to the front of the queue.
+  // When snapOnly=true the ghost just snaps back without retrieval (caller already
+  // handled the state, e.g. a failed color-match deploy attempt).
+  _handleStashRetrieve(snapOnly = false) {
+    if (!snapOnly) {
+      const col = this._columns[this._dragSourceIdx];
+      col.retrieveStash();
+    }
+    const { x: tx, y: ty } = this._shooterRenderer.getTopShooterCenter(this._dragSourceIdx);
+    this._startAnim(this._ghost.x, this._ghost.y, tx, ty, SNAP_DURATION, () => this._destroyGhost());
+    this._state = 'snapping';
+  }
+
+  // Deploy directly from stash to a lane (shortcut: avoids a two-step retrieve → deploy).
+  // Removes from col.stash and uses the bench-deploy pathway so the queue is untouched.
+  _handleStashDeployToLane(laneIdx) {
+    const col     = this._columns[this._dragSourceIdx];
+    const shooter = col.stash;
+    col.stash = null;
+    this._onDeployFromBench(shooter, laneIdx);
+
+    const targetX = getLaneScreenX(laneIdx);
+    const targetY = ROAD_BOTTOM_Y;
+    if (this._ghost) this._ghost.scale.set(1.0);
+    this._startAnim(this._ghost.x, this._ghost.y, targetX, targetY, FLY_DURATION, () => this._destroyGhost());
+    this._state = 'flying';
+  }
+
   // ── Ghost creation ─────────────────────────────────────────────────────────
   // Returns a PIXI Container with a static bomb sprite + animated spark child.
-  _createGhost(shooter, x, y) {
+  // isColorBomb=true renders a rainbow ring, "★ALL" badge, and rainbow sparks.
+  _createGhost(shooter, x, y, isColorBomb = false) {
     const color  = COLOR_MAP[shooter.color] ?? 0x888888;
     const damage = shooter.damage ?? 1;
 
@@ -454,12 +576,29 @@ export class DragDrop {
     ctx.ellipse(cx, cy + R * 0.55, R * 1.30, R * 0.50, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // ── Outer glow ────────────────────────────────────────────────────────────
-    ctx.shadowColor = css;
-    ctx.shadowBlur  = 20;
-    ctx.fillStyle   = css;
-    ctx.beginPath(); ctx.arc(cx, cy, R + 5, 0, Math.PI * 2); ctx.fill();
-    ctx.shadowBlur  = 0;
+    // ── Outer glow — rainbow arc ring for color-bomb, solid color for normal ─
+    if (isColorBomb) {
+      // Prismatic arc segments — 6 rainbow slices forming a vivid outer ring
+      const RAINBOW = ['#ff0033','#ff8800','#ffee00','#00dd44','#0099ff','#cc33ff'];
+      for (let i = 0; i < RAINBOW.length; i++) {
+        const a0 = (i / RAINBOW.length) * Math.PI * 2 - Math.PI / 2;
+        const a1 = ((i + 1.05) / RAINBOW.length) * Math.PI * 2 - Math.PI / 2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, R + 22, a0, a1);
+        ctx.arc(cx, cy, R + 6,  a1, a0, true);
+        ctx.closePath();
+        ctx.fillStyle   = RAINBOW[i];
+        ctx.globalAlpha = 0.90;
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+      }
+    } else {
+      ctx.shadowColor = css;
+      ctx.shadowBlur  = 20;
+      ctx.fillStyle   = css;
+      ctx.beginPath(); ctx.arc(cx, cy, R + 5, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur  = 0;
+    }
 
     // ── Bomb body ─────────────────────────────────────────────────────────────
     ctx.fillStyle = css;
@@ -522,13 +661,14 @@ export class DragDrop {
     ctx.lineWidth   = 1.5;
     ctx.stroke();
 
-    ctx.font         = `bold ${Math.round(R * 0.70)}px Arial`;
-    ctx.fillStyle    = '#ffffff';
+    const badgeText = isColorBomb ? '★ALL' : String(damage);
+    ctx.font         = isColorBomb ? `bold ${Math.round(R * 0.52)}px Arial` : `bold ${Math.round(R * 0.70)}px Arial`;
+    ctx.fillStyle    = isColorBomb ? '#ffee44' : '#ffffff';
     ctx.textAlign    = 'center';
     ctx.textBaseline = 'middle';
     ctx.shadowColor  = 'rgba(0,0,0,0.9)';
     ctx.shadowBlur   = 3;
-    ctx.fillText(String(damage), badgeCX, badgeCY);
+    ctx.fillText(badgeText, badgeCX, badgeCY);
     ctx.shadowBlur   = 0;
 
     // ── Build PIXI container ─────────────────────────────────────────────────
@@ -550,12 +690,18 @@ export class DragDrop {
     container.alpha = 0.92;
     this._dragLayer.addChild(container);
 
-    // Animate spark rays every 80 ms
+    // Animate spark rays — rainbow cycling for color-bomb, normal yellow for regular
     let sparkAngle = 0;
+    let sparkColorIdx = 0;
     this._sparkInterval = setInterval(() => {
       if (sparkG.destroyed) return;
       sparkAngle += 0.45;
-      _drawSpark(sparkG, sparkOffX, sparkOffY, sparkAngle, S * 0.065);
+      if (isColorBomb) {
+        sparkColorIdx = (sparkColorIdx + 1) % _RAINBOW_SPARK.length;
+        _drawRainbowSpark(sparkG, sparkOffX, sparkOffY, sparkAngle, S * 0.070, sparkColorIdx);
+      } else {
+        _drawSpark(sparkG, sparkOffX, sparkOffY, sparkAngle, S * 0.065);
+      }
     }, SPARK_INTERVAL_MS);
 
     return container;

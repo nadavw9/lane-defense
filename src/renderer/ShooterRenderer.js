@@ -31,7 +31,7 @@ const        THIRD_RADIUS  = 17;
 export const TOP_Y    = SHOOTER_AREA_Y + 24;    // 544 — ortho: worldZ=-1.5 → screen Y 544
 export const SECOND_Y = SHOOTER_AREA_Y + 71;    // 591 — slot1 worldZ=-0.5
 const        THIRD_Y  = SHOOTER_AREA_Y + 118;   // 638 — slot2 worldZ=+0.5
-const        SLOT3_Y  = SHOOTER_AREA_Y + 161;   // 681 — slot3 worldZ=+1.4
+export const STASH_Y  = SHOOTER_AREA_Y + 161;   // 681 — stash slot (below 3-bomb queue)
 
 // Target rendered diameters (diameter, not radius) at 1× scale
 const TOP_DIAM    = TOP_RADIUS    * 2;   // 68 px
@@ -164,6 +164,11 @@ export class ShooterRenderer {
     this._thirdSprites  = [];
     this._thirdTexts    = [];
 
+    // Stash slot — one Graphics + Sprite + Text per column
+    this._stashGraphics = [];
+    this._stashSprites  = [];
+    this._stashTexts    = [];
+
     // Queue depth badge: shows "+N" in 3D mode below front slot
     this._queueBadges = [];
     for (let i = 0; i < COL_COUNT; i++) {
@@ -212,6 +217,23 @@ export class ShooterRenderer {
       colContainer.addChild(t3);
       this._thirdTexts.push(t3);
 
+      // ── Stash slot ──────────────────────────────────────────────────────────
+      const stashG = new Graphics();
+      colContainer.addChild(stashG);
+      this._stashGraphics.push(stashG);
+
+      const stashSp = new Sprite();
+      stashSp.anchor.set(0.5);
+      stashSp.visible = false;
+      colContainer.addChild(stashSp);
+      this._stashSprites.push(stashSp);
+
+      const stashT = new Text({ text: '', style: SECOND_TEXT_STYLE });
+      stashT.anchor.set(0.5);
+      stashT.visible = false;
+      colContainer.addChild(stashT);
+      this._stashTexts.push(stashT);
+
       // ── Top shooter ─────────────────────────────────────────────────────────
       const topContainer = new Container();
       colContainer.addChild(topContainer);
@@ -254,6 +276,10 @@ export class ShooterRenderer {
 
   getTopShooterCenter(colIdx) {
     return { x: getColumnScreenX(colIdx), y: getColumnScreenY() };
+  }
+
+  getStashCenter(colIdx) {
+    return { x: getColumnScreenX(colIdx), y: STASH_Y };
   }
 
   // Call with true during gameplay so Shooter3D handles the visuals.
@@ -325,6 +351,63 @@ export class ShooterRenderer {
         qb.bg.clear();
         qb.tx.visible = false;
         qb.bg.visible = false;
+      }
+
+      // ── Stash slot — always rendered (visible in both 2D and 3D modes) ────────
+      const stashG  = this._stashGraphics[i];
+      const stashSp = this._stashSprites[i];
+      const stashT  = this._stashTexts[i];
+      const stashed = col.stash ?? null;
+      const stashR  = SECOND_RADIUS;   // same radius as slot-1 bomb
+
+      stashG.clear();
+
+      // Separator line between queue and stash slot
+      const sepCX = cx;
+      stashG.moveTo(sepCX - colW * 0.30, STASH_Y - stashR - 6);
+      stashG.lineTo(sepCX + colW * 0.30, STASH_Y - stashR - 6);
+      stashG.stroke({ color: 0x445566, width: 1, alpha: 0.60 });
+
+      if (stashed) {
+        // Occupied: solid border circle tinted with shooter color
+        const col3 = COLOR_MAP[stashed.color] ?? 0x888888;
+        stashG.circle(sepCX, STASH_Y, stashR + 3);
+        stashG.fill({ color: col3, alpha: 0.18 });
+        stashG.circle(sepCX, STASH_Y, stashR + 3);
+        stashG.stroke({ color: col3, width: 2, alpha: 0.70 });
+
+        if (!this._mode3D) {
+          const url = idleUrl(stashed.color);
+          const tex = Assets.get(url);
+          if (tex) {
+            if (stashSp.texture !== tex) { stashSp.texture = tex; fitSprite(stashSp, stashR * 2); }
+            stashSp.x       = sepCX;
+            stashSp.y       = STASH_Y;
+            stashSp.alpha   = 0.80;
+            stashSp.visible = true;
+          } else {
+            stashSp.visible = false;
+          }
+          stashT.text    = String(stashed.damage);
+          stashT.x       = sepCX;
+          stashT.y       = STASH_Y + stashR + 8;
+          stashT.alpha   = 0.80;
+          stashT.visible = true;
+        } else {
+          stashSp.visible = false;
+          stashT.visible  = false;
+        }
+      } else {
+        // Empty: dashed-style ring (simulated by alternating arcs)
+        const DASH_COUNT = 8;
+        for (let d = 0; d < DASH_COUNT; d++) {
+          const a0 = (d / DASH_COUNT) * Math.PI * 2;
+          const a1 = ((d + 0.55) / DASH_COUNT) * Math.PI * 2;
+          stashG.arc(sepCX, STASH_Y, stashR + 1, a0, a1);
+          stashG.stroke({ color: 0x556677, width: 2, alpha: 0.50 });
+        }
+        stashSp.visible = false;
+        stashT.visible  = false;
       }
 
       // In 3D mode: panels transparent, Shooter3D renders ALL visuals including

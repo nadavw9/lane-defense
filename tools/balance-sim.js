@@ -43,6 +43,7 @@ const runner = new SimulationRunner({
   duration:    cfg.duration,
   colors:      cfg.colors,
   worldConfig: cfg.worldConfig,
+  levelId:     levelId,
   skill,
 });
 

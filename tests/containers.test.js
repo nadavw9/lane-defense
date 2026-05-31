@@ -274,22 +274,22 @@ describe('Column', () => {
   })
 
   describe('needsRefill()', () => {
-    it('returns true when column has fewer than 6 shooters', () => {
+    it('returns true when column has fewer than 3 shooters', () => {
       const col = new Column({ id: 0 })
       expect(col.needsRefill()).toBe(true)
       col.pushBottom(makeShooter())
       expect(col.needsRefill()).toBe(true)
     })
 
-    it('returns false when column has exactly 6 shooters', () => {
+    it('returns false when column has exactly 3 shooters', () => {
       const col = new Column({ id: 0 })
-      for (let i = 0; i < 6; i++) col.pushBottom(makeShooter())
+      for (let i = 0; i < 3; i++) col.pushBottom(makeShooter())
       expect(col.needsRefill()).toBe(false)
     })
 
     it('returns true again after consuming from a full column', () => {
       const col = new Column({ id: 0 })
-      for (let i = 0; i < 6; i++) col.pushBottom(makeShooter())
+      for (let i = 0; i < 3; i++) col.pushBottom(makeShooter())
       col.consume()
       expect(col.needsRefill()).toBe(true)
     })

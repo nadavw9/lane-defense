@@ -1,5 +1,5 @@
-// BoosterBar — three 52×52 icon-card booster buttons + bomb kill-progress pips.
-//   SWAP • FREEZE • BOMB
+// BoosterBar — three 52×52 icon-card booster buttons (SWAP • FREEZE • BOMB).
+// Each card shows a ×N count badge. Bomb glow pulses when bombs are available.
 import { Graphics, Text } from 'pixi.js';
 
 export const BAR_Y   = 752;
@@ -18,8 +18,6 @@ const CARD_Y    = BAR_Y + Math.round((BAR_H - CARD_H) / 2);
 const CARD_X = Array.from({ length: NUM_CARDS }, (_, i) => BAR_XOFF + i * (CARD_W + CARD_GAP));
 // Indices: 0=SWAP, 1=FREEZE, 2=BOMB
 
-const KILLS_PER_BOMB = 10;
-const PIP_Y          = BAR_Y + BAR_H - 9;
 
 export class BoosterBar {
   constructor(layerManager, boosterState, gameState, appW, onSwap, onFreeze, onBomb) {
@@ -44,22 +42,6 @@ export class BoosterBar {
 
     this._bombGlow = new Graphics();
     this._layer.addChild(this._bombGlow);
-
-    // Kill-progress pips centred under the bomb card.
-    this._pips = [];
-    const pipR   = 3.5;
-    const pipGap = 5;
-    const pipsW  = KILLS_PER_BOMB * (pipR * 2) + (KILLS_PER_BOMB - 1) * pipGap;
-    const pipX0  = CARD_X[2] + (CARD_W - pipsW) / 2 + pipR;
-    for (let i = 0; i < KILLS_PER_BOMB; i++) {
-      const pip = new Graphics();
-      pip.circle(0, 0, pipR);
-      pip.fill(0x333355);
-      pip.x = pipX0 + i * (pipR * 2 + pipGap);
-      pip.y = PIP_Y;
-      this._layer.addChild(pip);
-      this._pips.push(pip);
-    }
 
     this._readyText  = null;
     this._readyTextT = 0;
@@ -114,15 +96,6 @@ export class BoosterBar {
       this._spawnReadyText();
     }
     this._prevBombs = s.bombs;
-
-    // ── Kill-progress pips ────────────────────────────────────────────────────
-    const filled = gs.killsTowardBomb % KILLS_PER_BOMB;
-    for (let i = 0; i < KILLS_PER_BOMB; i++) {
-      const pip = this._pips[i];
-      pip.clear();
-      pip.circle(0, 0, 3.5);
-      pip.fill(i < filled ? 0xffaa00 : 0x333355);
-    }
 
     // ── "BOMB READY!" floating text ───────────────────────────────────────────
     if (this._readyText) {
@@ -187,22 +160,22 @@ function _cardBase(layer, x, accentColor) {
 
 function _addCountLabel(card, accentColor) {
   const badge = new Graphics();
-  badge.roundRect(-13, -9, 26, 18, 9);
-  badge.fill({ color: 0x050510, alpha: 0.88 });
-  badge.roundRect(-13, -9, 26, 18, 9);
-  badge.stroke({ color: accentColor, width: 1, alpha: 0.55 });
-  badge.x = CARD_W - 14;
-  badge.y = 13;
+  badge.roundRect(-17, -12, 34, 24, 12);
+  badge.fill({ color: 0x050510, alpha: 0.92 });
+  badge.roundRect(-17, -12, 34, 24, 12);
+  badge.stroke({ color: accentColor, width: 1.5, alpha: 0.70 });
+  badge.x = CARD_W - 16;
+  badge.y = 14;
   card.addChild(badge);
 
   const tx = new Text({
     text: '×0',
-    style: { fontSize: 10, fontWeight: 'bold', fill: 0xffffff,
-      dropShadow: { color: 0x000000, blur: 2, distance: 0, alpha: 0.8 } },
+    style: { fontSize: 16, fontWeight: 'bold', fill: 0xffffff,
+      dropShadow: { color: 0x000000, blur: 3, distance: 0, alpha: 0.9 } },
   });
   tx.anchor.set(0.5, 0.5);
-  tx.x = CARD_W - 14;
-  tx.y = 13;
+  tx.x = CARD_W - 16;
+  tx.y = 14;
   card.addChild(tx);
   return tx;
 }

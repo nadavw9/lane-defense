@@ -157,7 +157,12 @@ const SHOOTER_URLS = COLORS.flatMap(c => [
   `${_B}sprites/shooters/shooter-${c}-fire.png`,
 ]);
 const BUILDING_URLS = [1, 2, 3, 4].map(i => `${_B}sprites/designed/building-${i}.png`);
-const ALL_SPRITE_URLS = [...CAR_URLS, ...SHOOTER_URLS, ...BUILDING_URLS];
+const TREE_URLS     = ['oak', 'elm', 'pine'].map(t => `${_B}sprites/raw/split/tree-${t}-topdown.png`);
+const ENV_URLS      = [
+  `${_B}sprites/raw/split/sidewalk-grass-strip.png`,
+  `${_B}sprites/raw/split/panel-workshop-surface.png`,
+];
+const ALL_SPRITE_URLS = [...CAR_URLS, ...SHOOTER_URLS, ...BUILDING_URLS, ...TREE_URLS, ...ENV_URLS];
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 
@@ -1388,6 +1393,7 @@ async function main() {
   // ── Combo power-shot callbacks ────────────────────────────────────────────
   gameLoop._onColorBomb = (color) => {
     comboFX.triggerColorBomb(color);
+    gameRenderer3D.onColorBomb(color);
     audio.play('color_bomb', { color });
     haptics.heavy();
   };
@@ -1442,6 +1448,7 @@ async function main() {
       onLaneClear: () => {
         gameRenderer3D.clearLaneGlow();
       },
+      getColorBombArmed: () => gs.colorBombArmed,
     },
     boosterState,
     null,
@@ -1504,7 +1511,8 @@ async function main() {
 
     // 3D scene update + render (runs when gameRenderer3D is visible/active).
     gameRenderer3D.update({ lanes: gs.lanes, boosterState, isBreaching: gs.isOver && !gs.won,
-                             comboFreezeShots: gs.comboFreezeShots }, dt, gs.elapsed);
+                             comboFreezeShots: gs.comboFreezeShots,
+                             colorBombArmed: gs.colorBombArmed }, dt, gs.elapsed);
     gameRenderer3D.render();
 
     // Combo power-shot FX (vignette + floating text).
@@ -1636,6 +1644,8 @@ async function main() {
       },
       showWin: () => showWin(),
       showLevelSelect: () => showLevelSelect(),
+      stashBomb: (colIdx = 0) => gs?.columns[colIdx]?.stashBomb() ?? false,
+      getGs: () => gs,
     };
   }
 

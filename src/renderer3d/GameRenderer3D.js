@@ -224,6 +224,21 @@ export class GameRenderer3D {
     this._postFX?.setFlash(0.4, 0.05);
   }
 
+  /**
+   * Color-bomb power shot fired — multi-lane explosion, massive bloom, screen flash.
+   * Called from GameApp._onColorBomb after _fireColorBomb removes cars.
+   */
+  onColorBomb(color) {
+    // Fire explosions on all 4 lanes (some may have no car — spawnExplosion handles null)
+    for (let i = 0; i < 4; i++) {
+      this._particles?.spawnExplosion(i, color, 2.2);
+    }
+    this._cameraFX?.shake(0.45, 0.65);
+    this._scene3d?.setBloomStrength(3.0);
+    this._postFX?.triggerChroma(0.09, 1.00);
+    this._postFX?.setFlash(0.55, 0.12);
+  }
+
   /** Show a colored glow plane on the road lane during drag-hover. */
   showLaneGlow(laneIdx, colorHex) {
     this._road?.showLaneGlow(laneIdx, colorHex);
@@ -280,7 +295,7 @@ export class GameRenderer3D {
     this._particles?.update(dt);
     this._postFX?.update(dt);
     this._cars?.update(dt, isFrozen);
-    this._shooters?.update(dt, elapsed);
+    this._shooters?.update(dt, elapsed, gameState?.colorBombArmed ?? false);
     this._projectiles?.update(dt);
 
     // Decay breach back to 0 when not active.

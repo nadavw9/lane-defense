@@ -41,7 +41,7 @@ const B1_HARD2= { hpMultiplier: 0.82, speed: { base: 4.5, variance: 0.4 } };
 const B1_BH   = { hpMultiplier: 0.92, speed: { base: 4.8, variance: 0.4 } };
 
 // Block 2: Tutorial City — afternoon/sunset themes (L9–16)
-const B2_EASY = { hpMultiplier: 0.75, speed: { base: 4.0, variance: 0.4 } };
+const B2_EASY = { hpMultiplier: 0.75, speed: { base: 4.6, variance: 0.4 } }; // rebalanced for post-Batch-A road length
 const B2_MED  = { hpMultiplier: 0.88, speed: { base: 4.6, variance: 0.5 } };
 const B2_HARD = { hpMultiplier: 1.05, speed: { base: 5.0, variance: 0.5 } };
 const B2_REL  = { hpMultiplier: 0.72, speed: { base: 4.2, variance: 0.4 } };
@@ -100,7 +100,7 @@ const R_6C_MED  = { hpMultiplier: 0.78, speed: { base: 3.5, variance: 0.5 } }; /
 const R_6C_HARD = { hpMultiplier: 0.90, speed: { base: 4.0, variance: 0.5 } }; // ~44% Hard
 const R_6C_BH   = { hpMultiplier: 0.95, speed: { base: 4.5, variance: 0.6 } }; // ~26% Boss-Hard
 // Duration-specific variants (100 s levels have more pressure than 90 s calibration).
-const R_2C_EASY_100 = { hpMultiplier: 0.90, speed: { base: 4.5, variance: 0.2 } }; // ~90% Easy, 100s
+const R_2C_EASY_100 = { hpMultiplier: 0.90, speed: { base: 5.8, variance: 0.2 } }; // ~72% Easy, 100s (rebalanced for post-Batch-A road length)
 const R_2C_MED_100  = { hpMultiplier: 1.00, speed: { base: 5.5, variance: 0.3 } }; // ~63% Medium, 100s
 const R_L17_V2      = { hpMultiplier: 0.75, speed: { base: 4.0, variance: 0.3 } }; // ~90% Easy, L17 BigRig
 const R_6C_BH_LONG  = { hpMultiplier: 0.85, speed: { base: 4.0, variance: 0.6 } }; // ~24% BH, 120s finale
@@ -127,37 +127,37 @@ const PROGRESSION = [
 
   // L2 Medium — "Color matching": 2 lanes, Red+Blue. Learn color mismatch cost.
   { id: 2, laneCount: 2, colCount: 2, colors: ['Red', 'Blue'],
-    worldConfig: R_L2, duration: 70, spawnBudget: 10, laneTargetCarCount: 2, gridRows: 10,
+    worldConfig: R_L2, duration: 70, spawnBudget: 10, laneTargetCarCount: 2, gridRows: 12,
     showArrow: false, hintText: 'Color must match! Wrong color = no damage' },
 
   // L3 Medium — "Third lane": 3 lanes, same 2 colors. Multi-lane management.
   { id: 3, laneCount: 3, colCount: 3, colors: ['Red', 'Blue'],
-    worldConfig: R_2C_MED, duration: 90, spawnBudget: 12, laneTargetCarCount: 2, gridRows: 10,
+    worldConfig: R_2C_MED, duration: 90, spawnBudget: 12, laneTargetCarCount: 2, gridRows: 12,
     showArrow: false, hintText: null, showAreaLabels: true },
 
   // L4 Hard — "Full board": 4 lanes, Red+Blue. First real pressure.
   { id: 4, laneCount: 4, colCount: 4, colors: ['Red', 'Blue'],
-    worldConfig: R_2C_HARD, duration: 90, spawnBudget: 14, laneTargetCarCount: 2, gridRows: 10,
+    worldConfig: R_2C_HARD, duration: 90, spawnBudget: 14, laneTargetCarCount: 2, gridRows: 12,
     showArrow: false, hintText: null },
 
   // L5 Easy (Relief) — "Breathe": 4 lanes, R+B, lower pressure. Sets up bench need.
   { id: 5, laneCount: 4, colCount: 4, colors: ['Red', 'Blue'],
-    worldConfig: R_2C_EASY_100, duration: 100, spawnBudget: 20, laneTargetCarCount: 3, gridRows: 9,
+    worldConfig: R_2C_EASY_100, duration: 100, spawnBudget: 20, laneTargetCarCount: 3, gridRows: 13,
     showArrow: false, hintText: null },
 
   // L6 Medium — "Bench unlocks": first time bench is available. R+B still.
   { id: 6, laneCount: 4, colCount: 4, colors: ['Red', 'Blue'],
-    worldConfig: R_2C_MED_100, duration: 100, spawnBudget: 18, laneTargetCarCount: 3, gridRows: 9,
+    worldConfig: R_2C_MED_100, duration: 100, spawnBudget: 18, laneTargetCarCount: 3, gridRows: 12,
     showArrow: false, hintText: 'NEW! Bench — store a shooter to use later' },
 
   // L7 Hard — "Green arrives": 3 colors for the first time. Pattern reset.
   { id: 7, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
-    worldConfig: R_3C_HARD, duration: 100, spawnBudget: 18, laneTargetCarCount: 3, gridRows: 9,
+    worldConfig: R_3C_HARD, duration: 100, spawnBudget: 18, laneTargetCarCount: 3, gridRows: 12,
     showArrow: false, hintText: 'NEW! Green shooters — 3 colors to manage now' },
 
   // L8 Boss-Hard — "Green boss": all 4 lanes, 3 colors, full density. Rescue moment.
   { id: 8, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
-    worldConfig: R_3C_BH, duration: 90, spawnBudget: 20, laneTargetCarCount: 3, gridRows: 9,
+    worldConfig: R_3C_BH, duration: 90, spawnBudget: 20, laneTargetCarCount: 3, gridRows: 12,
     showArrow: false, hintText: null },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -169,7 +169,7 @@ const PROGRESSION = [
 
   // L9 Easy (Relief) — "Recovery": R+B+G, gentle re-entry. SWAP booster unlocks.
   { id: 9, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
-    worldConfig: B2_EASY, duration: 100, spawnBudget: 14, laneTargetCarCount: 3, gridRows: 8,
+    worldConfig: B2_EASY, duration: 100, spawnBudget: 14, laneTargetCarCount: 3, gridRows: 11,
     showArrow: false, hintText: 'NEW! SWAP booster — exchange two column colors' },
 
   // L10 Medium — BOSS "The Bench Test": R+B only (puzzle). Dense 3 cars/lane.
@@ -177,7 +177,7 @@ const PROGRESSION = [
   // High HP multiplier makes shooting through mismatches impossible.
   { id: 10, laneCount: 4, colCount: 4, colors: ['Red', 'Blue'],
     worldConfig: R_2C_MED_100,
-    duration: 100, spawnBudget: 18, laneTargetCarCount: 3, gridRows: 8,
+    duration: 100, spawnBudget: 18, laneTargetCarCount: 3, gridRows: 11,
     showArrow: false, hintText: null },
 
   // L11 Medium — "Back to three": R+B+G returns. BigRig introduced.
@@ -202,8 +202,10 @@ const PROGRESSION = [
 
   // L15 Hard — BOSS "Meet the Tank": first tank spawn. hp is softer to let player
   // experience the tank without insta-losing. Speed slow = time to plan shots.
+  // Inline config: R_3C_HARD (speed=6.5) is too hard once real tank weights apply;
+  // speed=5.0 gives ~46% skilled which is in the 35–55% target band.
   { id: 15, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
-    worldConfig: R_3C_HARD,
+    worldConfig: { hpMultiplier: 1.30, speed: { base: 5.0, variance: 0.5 } },
     duration: 100, spawnBudget: 18, laneTargetCarCount: 3, gridRows: 7,
     showArrow: false, hintText: null },
 

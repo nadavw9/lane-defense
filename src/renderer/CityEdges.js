@@ -87,10 +87,13 @@ const _BASE = import.meta.env.BASE_URL;
 // Sidewalk-grass strip — 64×256, tiles vertically behind city edge strips.
 const SWALK_GRASS_URL = `${_BASE}sprites/raw/split/sidewalk-grass-strip.png`;
 
-// Deterministic building variant selection per slot (stable across redraws)
-function _buildingUrl(sideIdx, slotIdx) {
-  return `${_BASE}sprites/designed/building-${((sideIdx * 3 + slotIdx) % 4) + 1}.png`;
-}
+// Theme building sets, swapped by world. tutorial keeps the original 4-variant
+// scheme; industrial/night each have 5 variants (one per building slot).
+const BUILDING_SET_INFO = {
+  tutorial:   { prefix: 'building',            count: 4 },
+  industrial: { prefix: 'building-industrial', count: 5 },
+  night:      { prefix: 'building-night',      count: 5 },
+};
 
 // Three top-down tree canopy sprites — oak, elm, pine.
 const TREE_URLS = [
@@ -107,15 +110,36 @@ export class CityEdges {
     this._container = new Container();
     this._layer.addChild(this._container);
 
-    this._draw(4);
+    this._laneCount   = 4;
+    this._buildingSet = 'tutorial';
+
+    this._draw(this._laneCount);
   }
 
   setLaneCount(n) {
+    this._laneCount = n;
+    this._redraw();
+  }
+
+  // Swap the theme building set (tutorial | industrial | night).
+  // Stores the set; the subsequent setLaneCount() call in _startLevel redraws.
+  setBuildingSet(set) {
+    this._buildingSet = BUILDING_SET_INFO[set] ? set : 'tutorial';
+  }
+
+  _redraw() {
     this._container.removeChildren();
-    this._draw(n);
+    this._draw(this._laneCount);
   }
 
   update(_dt) {}
+
+  // Build the sprite URL for one slot, using the active theme set.
+  // tutorial (count 4) keeps the original formula exactly; 5-variant sets reuse it.
+  _buildingUrl(sideIdx, slotIdx) {
+    const info = BUILDING_SET_INFO[this._buildingSet] ?? BUILDING_SET_INFO.tutorial;
+    return `${_BASE}sprites/designed/${info.prefix}-${((sideIdx * 3 + slotIdx) % info.count) + 1}.png`;
+  }
 
   // ── Private ─────────────────────────────────────────────────────────────────
 
@@ -204,7 +228,7 @@ export class CityEdges {
       const b       = BLDG_Y[i];
       const by      = ROAD_TOP_Y + b.yFrac * ROAD_H;
       const bh      = b.hFrac * ROAD_H;
-      const texture = Assets.get(_buildingUrl(sideIdx, i));
+      const texture = Assets.get(this._buildingUrl(sideIdx, i));
       if (!texture) continue;
       const sprite  = new Sprite(texture);
       sprite.x      = bx;

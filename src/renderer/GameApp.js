@@ -156,7 +156,22 @@ const SHOOTER_URLS = COLORS.flatMap(c => [
   `${_B}sprites/shooters/shooter-${c}-idle.png`,
   `${_B}sprites/shooters/shooter-${c}-fire.png`,
 ]);
-const BUILDING_URLS = [1, 2, 3, 4].map(i => `${_B}sprites/designed/building-${i}.png`);
+// Three theme building sets, swapped by world (see buildingSetForLevel).
+const BUILDING_SETS = {
+  tutorial:   [1, 2, 3, 4].map(i => `${_B}sprites/designed/building-${i}.png`),
+  industrial: [1, 2, 3, 4, 5].map(i => `${_B}sprites/designed/building-industrial-${i}.png`),
+  night:      [1, 2, 3, 4, 5].map(i => `${_B}sprites/designed/building-night-${i}.png`),
+};
+const BUILDING_URLS = [...BUILDING_SETS.tutorial, ...BUILDING_SETS.industrial, ...BUILDING_SETS.night];
+
+// World → building set. Tutorial City L1–15, Industrial Zone L16–30, Night Highway L31–40.
+// Daily challenge (non-numeric levelId) uses the tutorial set.
+function buildingSetForLevel(levelId) {
+  if (typeof levelId !== 'number') return 'tutorial';
+  if (levelId <= 15) return 'tutorial';
+  if (levelId <= 30) return 'industrial';
+  return 'night';
+}
 const TREE_URLS     = ['oak', 'elm', 'pine'].map(t => `${_B}sprites/raw/split/tree-${t}-topdown.png`);
 const ENV_URLS      = [
   `${_B}sprites/raw/split/sidewalk-grass-strip.png`,
@@ -582,6 +597,7 @@ async function main() {
     gameRenderer3D.applyTheme(levelId);
     gameRenderer3D.setActiveLaneCount(cfg.laneCount ?? 4);
     gameRenderer3D.setActiveColCount(cfg.colCount ?? 4);
+    cityEdges.setBuildingSet(buildingSetForLevel(levelId));
     cityEdges.setLaneCount(cfg.laneCount ?? 4);
     shooterRenderer.setLaneCount(cfg.laneCount ?? 4);
     gameRenderer3D.startLevelIntro();

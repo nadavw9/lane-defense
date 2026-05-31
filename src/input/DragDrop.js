@@ -498,8 +498,11 @@ export class DragDrop {
 
   _hitTestStashSlot(x, y) {
     if (!this._hitTestStashArea(x, y)) return -1;
+    // Find which stash slot (any column with a stashed bomb) is being hovered.
     for (let i = 0; i < getActiveColCount(); i++) {
-      if (Math.abs(x - getColumnScreenX(i)) <= COL_W / 2) return i;
+      if (this._columns[i].stash !== null && Math.abs(x - getColumnScreenX(i)) <= COL_W / 2) {
+        return i;
+      }
     }
     return -1;
   }
@@ -512,20 +515,39 @@ export class DragDrop {
       return;
     }
     this._shooterRenderer.draggingColumn = -1;
-    const { x: tx, y: ty } = this._shooterRenderer.getStashCenter(this._dragSourceIdx);
+    // Find the first empty stash slot across all columns (shared reserve).
+    let targetStashCol = -1;
+    for (let i = 0; i < this._columns.length; i++) {
+      if (this._columns[i].stash === null) {
+        targetStashCol = i;
+        break;
+      }
+    }
+    // If no empty stash slot found, snap back.
+    if (targetStashCol === -1) {
+      col.retrieveStash();  // undo the stashBomb() call
+      this._snapBack();
+      return;
+    }
+    // Move the stashed bomb to the empty stash slot.
+    const shooter = col.stash;
+    col.stash = null;
+    this._columns[targetStashCol].stash = shooter;
+    const { x: tx, y: ty } = this._shooterRenderer.getStashCenter(targetStashCol);
     this._startAnim(this._ghost.x, this._ghost.y, tx, ty, FLY_DURATION, () => this._destroyGhost());
     this._state = 'flying';
   }
 
-  // Retrieve the stash bomb back to the front of the queue.
-  // When snapOnly=true the ghost just snaps back without retrieval (caller already
+  // Retrieve the stash bomb (make it disappear from the stash without deploying).
+  // The stash slot simply empties; no bomb returns to any queue.
+  // When snapOnly=true the ghost just snaps back without clearing stash (caller already
   // handled the state, e.g. a failed color-match deploy attempt).
   _handleStashRetrieve(snapOnly = false) {
     if (!snapOnly) {
       const col = this._columns[this._dragSourceIdx];
-      col.retrieveStash();
+      col.stash = null;  // Clear the stash slot; bomb is consumed
     }
-    const { x: tx, y: ty } = this._shooterRenderer.getTopShooterCenter(this._dragSourceIdx);
+    const { x: tx, y: ty } = this._shooterRenderer.getStashCenter(this._dragSourceIdx);
     this._startAnim(this._ghost.x, this._ghost.y, tx, ty, SNAP_DURATION, () => this._destroyGhost());
     this._state = 'snapping';
   }

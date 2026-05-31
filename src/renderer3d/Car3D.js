@@ -8,7 +8,7 @@
 //   jeep   → van-{color}.png
 //   truck  → truck-{color}.png
 //   bigrig → bigrig-{color}.png
-//   tank   → tank.png (single military-green sprite, no tint)
+//   tank   → tank-{color}.png (per-color, so the colour-match read is clear)
 //   boss   → programmatic CanvasTexture (styled rectangle)
 
 import * as THREE from 'three';
@@ -115,7 +115,14 @@ const SPRITE_MAP = {
     Orange: 'sprites/designed/bigrig-orange.png',
     Purple: 'sprites/designed/bigrig-purple.png',
   },
-  tank: { all: 'sprites/designed/tank.png' },
+  tank: {
+    Red:    'sprites/designed/tank-red.png',
+    Blue:   'sprites/designed/tank-blue.png',
+    Green:  'sprites/designed/tank-green.png',
+    Yellow: 'sprites/designed/tank-yellow.png',
+    Orange: 'sprites/designed/tank-orange.png',
+    Purple: 'sprites/designed/tank-purple.png',
+  },
 };
 
 // Module-level texture cache (shared across all Car3D instances)
@@ -123,11 +130,9 @@ const _texLoader = new THREE.TextureLoader();
 const _texCache  = {};
 
 function _getSpriteTex(type, color, base) {
-  const cacheKey = type === 'tank' ? 'tank' : `${type}:${color}`;
+  const cacheKey = `${type}:${color}`;
   if (!_texCache[cacheKey]) {
-    const spritePath = type === 'tank'
-      ? SPRITE_MAP.tank.all
-      : SPRITE_MAP[type]?.[color];
+    const spritePath = SPRITE_MAP[type]?.[color];
     const tex = _texLoader.load(`${base}${spritePath}`);
     tex.colorSpace = THREE.SRGBColorSpace;
     _texCache[cacheKey] = tex;

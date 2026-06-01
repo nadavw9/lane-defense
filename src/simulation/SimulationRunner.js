@@ -141,6 +141,11 @@ export class SimulationRunner {
     let lastKillTime    = -Infinity;
     let lostAt          = null;
 
+    // Fidelity instrumentation (per-shot advance invariant). Not used for balance.
+    let correctShots    = 0;   // correct-color shots fired
+    let totalAdvances   = 0;   // times the grid advanced 1 row
+    let maxAdvPerTick   = 0;   // most advances in a single tick (proves multi-shot turns advance per shot)
+
     // Per-column fire timers: seconds until a column may fire again.
     const fireTimers = [0, 0, 0, 0];
 
@@ -200,21 +205,54 @@ export class SimulationRunner {
         .sort((a, b) => (b.cars[0]?.row ?? -1) - (a.cars[0]?.row ?? -1));
 
       const usedCols = new Set();
-      let correctShotFired = false;  // track if any correct shot fired this tick → advance all cars
+      const advBefore = totalAdvances;   // advances accrued this tick (for the invariant test)
 
       // Returns true if the simulated player fires the correct color this shot.
       const _isCorrect = () => rng.next() < profile.accuracy;
 
-      // Fire a shot. If isCorrect=true, mark correctShotFired=true → trigger row advance.
+      // Refill lanes to laneTargetCarCount. Mirrors GameLoop._refillLanes: only
+      // 1 car spawns per advance per lane, and only if no car is still in the
+      // spawn zone (row < 2), so cars stagger naturally.
+      const _refillLanes = () => {
+        for (const lane of discreteLanes) {
+          if (
+            lane.cars.length < this._cfg.laneTargetCarCount &&
+            !lane.cars.some(c => c.row < 2) &&
+            spawnBudgetRemaining > 0
+          ) {
+            const car = carDir.generateCar({ id: lane.id }, currentPhase, worldConfig, colors, this._cfg.gridRows);
+            const adjustedHp = Math.max(1, Math.round(car.hp * worldConfig.hpMultiplier));
+            lane.cars.push({ row: 0, hp: adjustedHp, type: car.type, color: car.color });
+            spawnBudgetRemaining--;
+          }
+        }
+      };
+
+      // ONE correct shot → advance ALL cars in ALL lanes by exactly 1 row, then
+      // check breach, then refill. Mirrors GameLoop._resolveShot → _advanceGrid,
+      // which runs PER SHOT. If 4 lanes fire in a turn, that is 4 advances.
+      const _advanceOneRow = () => {
+        totalAdvances++;
+        for (const lane of discreteLanes) for (const car of lane.cars) car.row++;
+        if (discreteLanes.some(l => l.cars.length > 0 && l.cars[0].row >= BREACH_ROW)) {
+          lostAt = elapsed;
+          return;
+        }
+        _refillLanes();
+      };
+
+      // Fire a shot. A CORRECT shot applies damage then advances the grid by 1
+      // row (per-shot). A WRONG shot consumes the bomb but does NOT advance.
       const _fire = (col, lane, isCorrect = true) => {
+        if (lostAt !== null) return;
         const s = columns[col].top();
         usedCols.add(col);
         shooterDir.recordDeploy(elapsed);
-        fireTimers[col] = s.fireDuration * fireDelayMultiplier;  // apply speed-based cadence multiplier
+        fireTimers[col] = s.fireDuration * fireDelayMultiplier;  // speed-based cadence
         columns[col].consume();
-        if (!isCorrect) return;
+        if (!isCorrect) return;   // wrong color = no advance
+        correctShots++;
 
-        // Apply damage to front car.
         if (lane.cars.length > 0) {
           const car = lane.cars[0];
           car.hp -= s.damage;
@@ -227,11 +265,12 @@ export class SimulationRunner {
             if (currentCombo > maxCombo) maxCombo = currentCombo;
           }
         }
-        correctShotFired = true;
+        _advanceOneRow();   // every correct shot advances exactly 1 row
       };
 
       // Pass A — coverage: one best-match column per lane.
       for (const lane of urgentLanes) {
+        if (lostAt !== null) break;
         if (lane.cars.length === 0) continue;
         const car = lane.cars[0];
         let bestCol = -1, bestDmg = -1;
@@ -249,6 +288,7 @@ export class SimulationRunner {
       // Pass B — focus-fire: pile onto any high-row lane still in danger.
       const CRITICAL_ROW = Math.floor(BREACH_ROW * 0.75);  // 75% of way to breach
       for (const lane of urgentLanes) {
+        if (lostAt !== null) break;
         if (lane.cars.length === 0 || lane.cars[0].row < CRITICAL_ROW) continue;
         for (let c = 0; c < 4; c++) {
           if (usedCols.has(c) || fireTimers[c] > 0) continue;
@@ -259,7 +299,7 @@ export class SimulationRunner {
 
       // Pass C — cycle: idle columns discard a non-matching top so the column
       // works toward a useful color. cycleDelay models the player's reaction time.
-      if (profile.useCycle) {
+      if (profile.useCycle && lostAt === null) {
         for (let c = 0; c < 4; c++) {
           if (usedCols.has(c) || fireTimers[c] > 0) continue;
           if (columns[c].shooters.length > 1) {
@@ -269,30 +309,8 @@ export class SimulationRunner {
         }
       }
 
-      // 4. CORRECT-COLOR shot fired → advance ALL cars in ALL lanes by 1 row.
-      if (correctShotFired) {
-        for (const lane of discreteLanes) {
-          for (const car of lane.cars) {
-            car.row++;
-          }
-        }
-      }
-
-      // 5. Refill lanes: spawn cars to maintain laneTargetCarCount per lane.
-      // Mirrors real _refillLanes: only 1 car spawns per advance, and only if no car
-      // is still in the spawn zone (row < 2).  This staggers cars naturally.
-      for (const lane of discreteLanes) {
-        if (
-          lane.cars.length < this._cfg.laneTargetCarCount &&
-          !lane.cars.some(c => c.row < 2) &&
-          spawnBudgetRemaining > 0
-        ) {
-          const car = carDir.generateCar({ id: lane.id }, currentPhase, worldConfig, colors, this._cfg.gridRows);
-          const adjustedHp = Math.max(1, Math.round(car.hp * worldConfig.hpMultiplier));
-          lane.cars.push({ row: 0, hp: adjustedHp, type: car.type, color: car.color });
-          spawnBudgetRemaining--;
-        }
-      }
+      maxAdvPerTick = Math.max(maxAdvPerTick, totalAdvances - advBefore);
+      if (lostAt !== null) break;   // a shot this tick caused a breach
 
       // 6. Attempt a CRISIS assist when the phase permits it.
       if (phaseParams.crisisEnabled && discreteLanes.some(l => l.cars.length > 0)) {
@@ -326,6 +344,10 @@ export class SimulationRunner {
       totalSpawns:       arbiter.totalCount,
       maxCombo,
       rescueWouldSave,
+      // Fidelity instrumentation — every correct shot advances exactly 1 row.
+      correctShots,
+      totalAdvances,
+      maxAdvPerTick,
     };
   }
 

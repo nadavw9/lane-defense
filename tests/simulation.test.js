@@ -22,14 +22,15 @@ describe('SimulationRunner — runLevel output shape', () => {
     expect(result).toHaveProperty('rescueWouldSave');
   });
 
-  it('timeElapsed equals duration on a win', () => {
-    // Run many seeds and find at least one win, verify timeElapsed = duration.
+  it('a win is reachable across seeds (turn-based: win = budget cleared, no breach)', () => {
+    // The model is turn-based with no clock; timeElapsed is deprecated (always 0).
+    // A win means the spawnBudget was cleared without a breach.
     const runner = new SimulationRunner(W1);
     let foundWin = false;
     for (let s = 1; s <= 50; s++) {
       const r = runner.runLevel(s);
       if (r.won) {
-        expect(r.timeElapsed).toBe(90);
+        expect(r.timeElapsed).toBe(0);   // deprecated field, no wall-clock
         foundWin = true;
         break;
       }
@@ -37,22 +38,10 @@ describe('SimulationRunner — runLevel output shape', () => {
     expect(foundWin).toBe(true);
   });
 
-  it('timeElapsed is less than duration on a loss', () => {
+  it('timeElapsed is the deprecated 0 sentinel (turn-based model has no clock)', () => {
     const runner = new SimulationRunner(W1);
-    let foundLoss = false;
-    for (let s = 1; s <= 50; s++) {
-      const r = runner.runLevel(s);
-      if (!r.won) {
-        expect(r.timeElapsed).toBeLessThan(90);
-        expect(r.timeElapsed).toBeGreaterThanOrEqual(0);
-        foundLoss = true;
-        break;
-      }
-    }
-    // If all 50 seeds won, that's surprisingly good — still a valid outcome.
-    if (!foundLoss) {
-      // Just verify structure is still correct
-      expect(runner.runLevel(1).won).toBeDefined();
+    for (let s = 1; s <= 10; s++) {
+      expect(runner.runLevel(s).timeElapsed).toBe(0);
     }
   });
 

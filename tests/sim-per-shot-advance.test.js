@@ -13,7 +13,8 @@ function cfgFor(levelId) {
   const c = lm.current;
   return {
     duration: c.duration, colors: c.colors, worldConfig: c.worldConfig,
-    levelId, laneCount: c.laneCount, laneTargetCarCount: c.laneTargetCarCount,
+    levelId, laneCount: c.laneCount, colCount: c.colCount,
+    laneTargetCarCount: c.laneTargetCarCount,
     spawnBudget: c.spawnBudget, gridRows: c.gridRows,
   };
 }
@@ -43,6 +44,21 @@ describe('SimulationRunner — per-shot advance fidelity', () => {
       if (res.maxAdvPerTick >= 2) sawMultiAdvanceTurn = true;
     }
     expect(sawMultiAdvanceTurn).toBe(true);
+  });
+
+  it('win rate is independent of speed.base (3.0 / 5.0 / 8.0 give identical results)', () => {
+    // speed.base is vestigial in the turn-based game; the sim must not read it.
+    // With the same seed and no speed dependence, results are bit-identical.
+    for (const levelId of [5, 9, 16, 32]) {
+      const base = cfgFor(levelId);
+      const rate = (sb) => {
+        const wc = { ...base.worldConfig, speed: { ...base.worldConfig.speed, base: sb } };
+        return new SimulationRunner({ ...base, worldConfig: wc, skill: 'average' }).runBatch(150, 1).winRate;
+      };
+      const r3 = rate(3.0), r5 = rate(5.0), r8 = rate(8.0);
+      expect(r3).toBe(r5);
+      expect(r5).toBe(r8);
+    }
   });
 
   it('the simulator contains no continuous .advance() movement path', () => {

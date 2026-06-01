@@ -18,7 +18,7 @@ const SLIDES = [
   {
     num: '01', accent: 0x378ADD,
     head: 'DRAG TO FIRE',
-    body: 'Drag a shooter up from the bottom\ninto a lane matching its color.',
+    body: 'Drag a bomb up from the bottom\ninto a lane matching its color.',
   },
   {
     num: '02', accent: 0xE24B4A,

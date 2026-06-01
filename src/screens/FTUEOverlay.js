@@ -8,7 +8,7 @@
 //            auto-fade after 8 s.
 //        L2: Color-match hint banner (auto-fade 8 s).
 //            After first kill: combo hint banner shows for 5 s.
-//        L3: Area labels "↑ INCOMING CARS" and "↓ YOUR SHOOTERS" auto-fade 6 s.
+//        L3: Area labels "↑ INCOMING CARS" and "↓ YOUR BOMBS" auto-fade 6 s.
 //            Plus dim mask (lanes 0-2, cols 0-2 already handled by mask).
 //        Other levels with hintText: auto-hiding text banner (8 s).
 //
@@ -283,7 +283,7 @@ export class FTUEOverlay {
   // Permanently suppressed — was cluttering the top-down HUD with TIMER/COINS labels.
   _buildHUDHints(_w) {}
 
-  // Area labels for L3: "INCOMING CARS" above lanes, "YOUR SHOOTERS" below.
+  // Area labels for L3: "INCOMING CARS" above lanes, "YOUR BOMBS" below.
   _buildAreaLabels(w) {
     const grp = new Container();
     this._container.addChild(grp);
@@ -300,7 +300,7 @@ export class FTUEOverlay {
     carsLbl.y = ROAD_TOP_Y + 4;
     grp.addChild(carsLbl);
 
-    const shootersLbl = new Text({ text: '↑  YOUR SHOOTERS  ↑', style: { ...style, fill: 0x66aaff } });
+    const shootersLbl = new Text({ text: '↑  YOUR BOMBS  ↑', style: { ...style, fill: 0x66aaff } });
     shootersLbl.anchor.set(0.5, 1);
     shootersLbl.x = w / 2;
     shootersLbl.y = SHOOTER_AREA_Y - 4;
@@ -310,7 +310,7 @@ export class FTUEOverlay {
   // Floating "Deals X damage!" tooltip near the shooter area.
   _buildDamageTip(w, damage) {
     const tip = new Text({
-      text: `This shooter deals ${damage} damage!`,
+      text: `This bomb deals ${damage} damage!`,
       style: {
         fontSize: 15, fontWeight: 'bold', fill: 0xffffff, align: 'center',
         dropShadow: { color: 0x000000, blur: 5, distance: 2, alpha: 0.9 },

@@ -122,7 +122,7 @@ const PROGRESSION = [
   { id: 1, laneCount: 1, colCount: 1, colors: ['Red'],
     worldConfig: B1_FTUE, duration: 60, targetKills: 5, spawnBudget: 5,
     laneTargetCarCount: 1, gridRows: 11, showArrow: true,
-    hintText: 'Drag the matching shooter to the lane' },
+    hintText: 'Drag the matching bomb to the lane' },
 
   // L2 Medium â€” "Color matching": 2 lanes, Red+Blue. Learn color mismatch cost.
   { id: 2, laneCount: 2, colCount: 2, colors: ['Red', 'Blue'],
@@ -147,12 +147,12 @@ const PROGRESSION = [
   // L6 Medium â€” "Bench unlocks": first time bench is available. R+B still.
   { id: 6, laneCount: 4, colCount: 4, colors: ['Red', 'Blue'],
     worldConfig: R_2C_MED_100, duration: 100, spawnBudget: 18, laneTargetCarCount: 3, gridRows: 11,
-    showArrow: false, hintText: 'NEW! Bench â€” store a shooter to use later' },
+    showArrow: false, hintText: 'NEW! Bench â€” store a bomb to use later' },
 
   // L7 Hard â€” "Green arrives": 3 colors for the first time. Pattern reset.
   { id: 7, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
     worldConfig: R_3C_HARD, duration: 100, spawnBudget: 18, laneTargetCarCount: 3, gridRows: 11,
-    showArrow: false, hintText: 'NEW! Green shooters â€” 3 colors to manage now' },
+    showArrow: false, hintText: 'NEW! Green bombs â€” 3 colors to manage now' },
 
   // L8 Boss-Hard â€” "Green boss": all 4 lanes, 3 colors, full density. Rescue moment.
   { id: 8, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
@@ -249,7 +249,7 @@ const PROGRESSION = [
   // L21 Easy (Relief) â€” "Yellow arrives": 4 colors. Light pressure after L20.
   { id: 21, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow'],
     worldConfig: R_4C_EASY, duration: 100, spawnBudget: 16, laneTargetCarCount: 2, gridRows: 11,
-    showArrow: false, hintText: 'NEW! Yellow shooters â€” 4 colors now' },
+    showArrow: false, hintText: 'NEW! Yellow bombs â€” 4 colors now' },
 
   // L22 Medium â€” "Four-color flow": Yellow integrated, building confidence.
   { id: 22, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow'],

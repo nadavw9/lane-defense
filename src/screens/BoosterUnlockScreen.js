@@ -9,12 +9,12 @@ const UNLOCKS = {
   6: {
     name:   'Bench Unlocked!',
     color:  0x378ADD,
-    desc:   'Store up to 4 unwanted shooters\nand retrieve them mid-battle.',
+    desc:   'Store up to 4 unwanted bombs\nand retrieve them mid-battle.',
   },
   8: {
     name:   'Swap Unlocked!',
     color:  0xEF9F27,
-    desc:   'Instantly swap the colors\nof two shooter columns.',
+    desc:   'Instantly swap the colors\nof two bomb columns.',
   },
   14: {
     name:   'Freeze Unlocked!',

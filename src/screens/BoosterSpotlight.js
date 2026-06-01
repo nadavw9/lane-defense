@@ -11,7 +11,7 @@ import { Container, Graphics, Text } from 'pixi.js';
 
 // ── Booster metadata ──────────────────────────────────────────────────────────
 const BOOSTER_INFO = {
-  swap:   { label: 'SWAP UNLOCKED!',   desc: 'Exchange two\nshooter columns',           color: 0x66aaff },
+  swap:   { label: 'SWAP UNLOCKED!',   desc: 'Exchange two\nbomb columns',             color: 0x66aaff },
   freeze: { label: 'FREEZE UNLOCKED!', desc: 'Freeze all cars\nfor 10 seconds',          color: 0x44ccff },
   bomb:   { label: 'BOMB READY!',      desc: 'Earned by killing 10 cars\ntap to blast!', color: 0xff8844 },
 };

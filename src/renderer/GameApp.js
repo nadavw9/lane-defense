@@ -589,8 +589,8 @@ async function main() {
     boosterBar.setVisible(true);       // restore bar hidden by a prior end-screen
 
     // FTUE feature banners fired at level start when a feature first appears.
-    if ((cfg.laneCount ?? 4) >= 3) featureBanners.fire('multi_lane', 'New lane open! Each lane needs a matching-color shooter.');
-    if (benchUnlocked && levelId === 6) featureBanners.fire('bench_appear', 'Bench unlocked — store a shooter here for later!');
+    if ((cfg.laneCount ?? 4) >= 3) featureBanners.fire('multi_lane', 'New lane open! Each lane needs a matching-color bomb.');
+    if (benchUnlocked && levelId === 6) featureBanners.fire('bench_appear', 'Bench unlocked — store a bomb here for later!');
     setActiveCounts({ laneCount: cfg.laneCount ?? 4, colCount: cfg.colCount ?? 4 });
     // FTUEOverlay must be created AFTER setActiveCounts so that PositionRegistry
     // returns correct lane/column screen positions for the current level geometry.
@@ -648,7 +648,7 @@ async function main() {
     const SPOTLIGHT_BOOSTER = { 8: 'swap', 14: 'freeze' };
     // Spotlight-to-tutorial configs for each booster (bounds match BoosterBar layout)
     const TUTOR_BOOSTER = {
-      swap:   { id: 'swap',   text: 'SWAP — tap to swap two shooters instantly!',        bounds: { x: 109, y: 760, w: 52, h: 52 }, handStart: { x: 135, y: 728 }, handEnd: { x: 135, y: 786 } },
+      swap:   { id: 'swap',   text: 'SWAP — tap to swap two bombs instantly!',        bounds: { x: 109, y: 760, w: 52, h: 52 }, handStart: { x: 135, y: 728 }, handEnd: { x: 135, y: 786 } },
       freeze: { id: 'freeze', text: 'FREEZE — tap to stop all cars for a few seconds!', bounds: { x: 169, y: 760, w: 52, h: 52 }, handStart: { x: 195, y: 728 }, handEnd: { x: 195, y: 786 } },
     };
 
@@ -672,7 +672,7 @@ async function main() {
             // L6 bench tutorial
             tutOrch?.start({
               id:        'bench',
-              text:      'New BENCH — drag a shooter here to store it for later!',
+              text:      'New BENCH — drag a bomb here to store it for later!',
               bounds:    { x: 0, y: 703, w: 390, h: 50 },
               handStart: { x: 195, y: 672 },
               handEnd:   { x: 195, y: 728 },
@@ -1330,7 +1330,7 @@ async function main() {
       particles.spawnMiss(laneIdx, gameX);
       gameRenderer3D.onMiss(laneIdx);
       audio.play('hit_miss');
-      featureBanners.fire('first_miss', 'No damage! Shooter color must match the car color.');
+      featureBanners.fire('first_miss', 'No damage! Bomb color must match the car color.');
     },
 
     onEnd: (won, laneIdx) => {
@@ -1596,7 +1596,7 @@ async function main() {
 
     // First-car FTUE banner: fires once the first enemy becomes visible.
     if (gameLoopStarted && !gs.isOver && gs.lanes.some(l => l.cars.length > 0)) {
-      featureBanners.fire('first_car', 'Cars incoming! Drag a shooter to the lane with a matching color.');
+      featureBanners.fire('first_car', 'Cars incoming! Drag a bomb to the lane with a matching color.');
     }
 
     // ── Breach camera ──────────────────────────────────────────────────────

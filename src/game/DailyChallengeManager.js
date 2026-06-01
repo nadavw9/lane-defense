@@ -12,7 +12,7 @@ const CHALLENGES = [
   },
   {
     name:        'Tank Invasion',
-    desc:        'Triple HP — bring your hardest-hitting shooters!',
+    desc:        'Triple HP — bring your hardest-hitting bombs!',
     colors:      ['Red', 'Blue', 'Green'],
     worldConfig: { hpMultiplier: 1.80, speed: { base: 3.5, variance: 0.3 } },
     duration:    100,

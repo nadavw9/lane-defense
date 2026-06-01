@@ -13,7 +13,7 @@ const BOOSTER_DEFS = [
     key:       'swap',
     label:     'SWAP',
     icon:      '⇄',
-    desc:      'Swap two shooter\ncolumn colors',
+    desc:      'Swap two bomb\ncolumn colors',
     cost:      20,
     border:    0x2255cc,
     btnBg:     0x1a5cc8,

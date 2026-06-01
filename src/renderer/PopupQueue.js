@@ -59,17 +59,27 @@ export class PopupQueue {
     // Elapsed clock — incremented by update(); used for debounce timestamps.
     this._elapsed = 0;
     this._tutorialActive = false;
+    this._suppressed = false;
   }
 
   // Tell the queue whether a TUTORIAL overlay is currently visible.
   // While true, COMBO and AMBIENT items are silently dropped.
   setTutorialActive(v) { this._tutorialActive = v; }
 
+  // Suppress ALL popups while a full-screen modal (win/lose) is up so toasts
+  // never render behind the panel. Clears anything already showing/queued.
+  // Achievements are still earned/recorded; only the toast is withheld.
+  setSuppressed(v) {
+    this._suppressed = v;
+    if (v) this.clear();
+  }
+
   // Queue a popup.
   //   priority — one of PRIORITY.*
   //   buildFn  — function(appWidth) returning a PixiJS Container
   //   duration — seconds before auto-dismiss (fade begins 0.8s before end)
   enqueue(priority, buildFn, duration = 3.0) {
+    if (this._suppressed) return;
     if (this._tutorialActive && (priority === PRIORITY.COMBO || priority === PRIORITY.AMBIENT)) return;
 
     // Debounce: ignore if same priority was dismissed too recently.
@@ -85,6 +95,7 @@ export class PopupQueue {
   // Call once per frame from the render loop.
   update(dt) {
     this._elapsed += dt;
+    if (this._suppressed) return;
 
     // Tick active slots.
     for (const [pri, slot] of Object.entries(this._active)) {

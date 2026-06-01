@@ -88,6 +88,9 @@ export class FTUEOverlay {
     this._container.destroy({ children: true });
   }
 
+  // Hide/show the whole overlay (used to clear FTUE hints behind end-screens).
+  setVisible(v) { this._container.visible = v; }
+
   // Call after the first deploy.  For early levels, optionally shows a
   // one-time damage tooltip near the shooter area.
   onFirstDeploy(damage) {

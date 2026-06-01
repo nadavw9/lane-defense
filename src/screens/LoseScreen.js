@@ -27,14 +27,11 @@ export class LoseScreen {
     if (!this._crackAnim.active) return;
     this._crackAnim.t += dt;
 
-    const crackProgress   = Math.min(this._crackAnim.t / 0.6, 1);
-    const overlayProgress = Math.max(0, Math.min((this._crackAnim.t - 0.6) / 0.3, 1));
-
+    const crackProgress = Math.min(this._crackAnim.t / 0.6, 1);
     if (this._crackGraphics) {
       this._crackGraphics.clear();
       this._drawCracks(this._crackGraphics, crackProgress);
     }
-    if (this._overlayGraphics) this._overlayGraphics.alpha = overlayProgress * 0.50;
     if (this._crackAnim.t >= 0.9) this._crackAnim.active = false;
   }
 
@@ -44,19 +41,18 @@ export class LoseScreen {
     this._crackOriginX = w / 2;
     this._crackOriginY = 510;
 
-    this._crackGraphics = new Graphics();
-    this._container.addChild(this._crackGraphics);
-
-    this._overlayGraphics = new Graphics();
-    this._overlayGraphics.rect(0, 0, w, h);
-    this._overlayGraphics.fill({ color: 0x000000, alpha: 0 });
-    this._container.addChild(this._overlayGraphics);
-
+    // Solid dim backdrop — immediate and reliable (matches WinScreen). Strongly
+    // darkens the world so it doesn't bleed through, and catches all touches.
+    // (The prior animated overlay used a 0-alpha fill, so it never dimmed.)
     const backdrop = new Graphics();
     backdrop.rect(0, 0, w, h);
-    backdrop.fill({ color: 0x000000, alpha: 0 });
+    backdrop.fill({ color: 0x000000, alpha: 0.85 });
     backdrop.eventMode = 'static';
     this._container.addChild(backdrop);
+
+    // Cracks render ON TOP of the dim (white lines read clearly on dark).
+    this._crackGraphics = new Graphics();
+    this._container.addChild(this._crackGraphics);
 
     this._generateCrackLines();
 

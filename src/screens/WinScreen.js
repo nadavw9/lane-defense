@@ -237,10 +237,11 @@ export class WinScreen {
     const stars    = calcStars(gs);
     const is3Star  = stars === 3;
 
-    // Backdrop — catches all touches so gameplay beneath isn't accessible
+    // Backdrop — catches all touches so gameplay beneath isn't accessible.
+    // Strong dim (0.90) so the road / cars / booster bar do not bleed through.
     const backdrop = new Graphics();
     backdrop.rect(0, 0, w, h);
-    backdrop.fill({ color: 0x000011, alpha: is3Star ? 0.72 : 0.82 });
+    backdrop.fill({ color: 0x000011, alpha: 0.90 });
     backdrop.eventMode = 'static';
     this._container.addChild(backdrop);
 
@@ -261,12 +262,13 @@ export class WinScreen {
       this._container.addChild(this._flashG);
     }
 
-    // Panel — sized so NEXT LEVEL button always lands at y < 502,
-    // keeping it safely above the shooter-drag start at y≈530.
+    // Panel — height sized so the action button always clears the last stat
+    // row with a visible gap (see button placement below). Shifted up 36px so
+    // the button stays high on screen; the modal backdrop blocks input anyway.
     const panelW = 320;
-    const panelH = onNext ? (is3Star ? 420 : 390) : (is3Star ? 380 : 350);
+    const panelH = is3Star ? 430 : 390;
     const px = (w - panelW) / 2;
-    const py = (h - panelH) / 2 - 20;
+    const py = (h - panelH) / 2 - 36;
     const cx = w / 2;
 
     const panel = new Graphics();
@@ -307,7 +309,10 @@ export class WinScreen {
       y += ROW_H + ROW_GAP;
       this._statRow(px + 14, y, panelW - 28, ROW_H, '★  PERFECT CLEAR', 'Flawless!', 0xffcc00);
     }
-    y += ROW_H + 8;
+    // Advance past the last stat row to the BUTTON CENTER position.
+    // _button() centers the button on this y, so we add the row body (ROW_H),
+    // an 18px gap, and the button's half-height (27) → 18px clear gap above it.
+    y += ROW_H + 18 + 27;
 
     // Buttons — registered as pending, enabled after BUTTON_ENABLE_DELAY.
     // Normal levels: only NEXT LEVEL (no LEVEL SELECT on win — matches Royal Match pattern).

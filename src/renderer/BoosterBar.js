@@ -32,6 +32,7 @@ export class BoosterBar {
     bg.rect(0, BAR_Y, appW, 1);
     bg.fill(0x1a1a3a);
     this._layer.addChild(bg);
+    this._bg = bg;
 
     this._swapBtn   = _makeCard(this._layer, CARD_X[0], 0x66aaff, _iconSwap,   'SWAP',   onSwap);
     this._freezeBtn = _makeCard(this._layer, CARD_X[1], 0x44ccff, _iconFreeze, 'FREEZE', onFreeze);
@@ -53,6 +54,14 @@ export class BoosterBar {
   setButtonVisibility(swap, freeze) {
     this._swapBtn._unlocked   = swap;
     this._freezeBtn._unlocked = freeze;
+  }
+
+  // Show/hide the entire bar (used to clear it behind end-screen modals).
+  // Visibility-only — does not restyle.
+  setVisible(v) {
+    for (const obj of [this._bg, this._swapBtn, this._freezeBtn, this._bombBtn, this._bombGlow, this._readyText]) {
+      if (obj) obj.visible = v;
+    }
   }
 
   update(dt = 0) {

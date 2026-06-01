@@ -584,6 +584,8 @@ async function main() {
     firstDeployTooltipShown     = false;
     firstKillDoneThisLevel      = false;
     popupQueue.clear();
+    popupQueue.setSuppressed(false);   // lift any end-screen toast suppression
+    boosterBar.setVisible(true);       // restore bar hidden by a prior end-screen
 
     // FTUE feature banners fired at level start when a feature first appears.
     if ((cfg.laneCount ?? 4) >= 3) featureBanners.fire('multi_lane', 'New lane open! Each lane needs a matching-color shooter.');
@@ -1062,6 +1064,12 @@ async function main() {
   // ── Screen: Win ───────────────────────────────────────────────────────────
   function showWin() {
     pauseBtn.visible = false;
+    bookBtn.visible  = false;
+    // Clear gameplay UI behind the modal: suppress toasts (achievements still
+    // recorded), hide the booster bar and any FTUE hint banner.
+    popupQueue.setSuppressed(true);
+    boosterBar.setVisible(false);
+    ftueOverlay?.setVisible(false);
     audio.stopMusic();
     // Delay fanfare slightly so the screen fade-in completes first.
     setTimeout(() => audio.play('win_fanfare'), 300);
@@ -1155,6 +1163,11 @@ async function main() {
   } 
   function _showNoRescueLose() {
     pauseBtn.visible = false;
+    bookBtn.visible  = false;
+    // Same modal cleanup as the win screen.
+    popupQueue.setSuppressed(true);
+    boosterBar.setVisible(false);
+    ftueOverlay?.setVisible(false);
     audio.stopMusic();
     audio.play('lose_tone');
 
@@ -1659,9 +1672,17 @@ async function main() {
         _startLevel(n);
       },
       showWin: () => showWin(),
+      showLose: () => _showNoRescueLose(),
       showLevelSelect: () => showLevelSelect(),
       stashBomb: (colIdx = 0) => gs?.columns[colIdx]?.stashBomb() ?? false,
       getGs: () => gs,
+      // Test hook: enqueue a sample achievement toast (verifies popup z-order /
+      // end-screen suppression).
+      fireTestAchievement: () => popupQueue.enqueue(
+        PRIORITY.ACHIEVEMENT,
+        (w) => _buildAchievementPopup(w, { name: 'Sharp Shooter', desc: 'Test achievement toast' }),
+        4.0,
+      ),
     };
   }
 

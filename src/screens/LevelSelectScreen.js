@@ -458,10 +458,16 @@ export class LevelSelectScreen {
       const reached = levelId < unlockedLevel;
       const c = levelColor(levelId);
 
-      // Road base
+      // Soft glow underlay so the route reads clearly against the dark map.
+      const glow = new Graphics();
+      glow.moveTo(ax, ay); glow.lineTo(bx, by);
+      glow.stroke({ color: reached ? c : 0x4a5590, width: 22, alpha: reached ? 0.22 : 0.16, cap: 'round' });
+      this._container.addChild(glow);
+
+      // Road base — brighter/thicker than before (was 0x1a2040 @0.50, easy to miss).
       const road = new Graphics();
       road.moveTo(ax, ay); road.lineTo(bx, by);
-      road.stroke({ color: reached ? c : 0x1a2040, width: 14, alpha: reached ? 0.55 : 0.50, cap: 'round' });
+      road.stroke({ color: reached ? c : 0x3a4470, width: 15, alpha: reached ? 0.70 : 0.66, cap: 'round' });
       this._container.addChild(road);
 
       // Road edge lines
@@ -656,11 +662,13 @@ export class LevelSelectScreen {
     title.anchor.set(0.5, 0.5); title.x = w / 2; title.y = 44;
     this._container.addChild(title);
 
+    // World-switch chevrons anchored to the screen EDGES, clear of the centered
+    // title (previously ±70px from center → the "1" collided with the arrow).
     if (this._worldPage === 1) {
-      mkBtn('W2 ▶', w / 2 + 70, 1, 44, 0x66aaff, () => this._switchWorld(2));
+      mkBtn('W2 ▶', w - 14, 1, 44, 0x66aaff, () => this._switchWorld(2));
     }
     if (this._worldPage === 2) {
-      mkBtn('◀ W1', w / 2 - 70, 0, 44, 0x66aaff, () => this._switchWorld(1));
+      mkBtn('◀ W1', 14, 0, 44, 0x66aaff, () => this._switchWorld(1));
     }
 
     // Row 3 — coins and achievements (y=76, font 14 → top≈69px, gap≈14px ✓)
@@ -671,44 +679,65 @@ export class LevelSelectScreen {
     if (onAchievements) mkBtn('★ ACHIEVEMENTS', w - 14, 1, 76, 0x99bbcc, onAchievements);
   }
 
-  // Draw a city building near a level node.
-  // state 0=damaged, 1=scaffolding, 2=complete (gleaming).
-  // cx/cy is the building center; building is 48×36px.
+  // Draw a city building beside a level node — part of the "rebuild the city"
+  // meta-loop. cx/cy is the building BASE (ground line). 46×40px above it.
+  // state 0=damaged ruin, 1=under construction (scaffolding), 2=restored.
   _buildCityBuilding(cx, cy, state) {
     const g  = new Graphics();
-    const bw = 48, bh = 36;
+    const bw = 46, bh = 40;
     const bx = cx - bw / 2;
-    const by = cy - bh;
+    const by = cy - bh;          // building top; base sits on the ground line at cy
+
+    // Ground shadow — anchors the building to the map so it reads as PLACED,
+    // not a rectangle floating between nodes.
+    g.ellipse(cx, cy + 2, bw * 0.52, 5);
+    g.fill({ color: 0x000000, alpha: 0.30 });
 
     if (state === 0) {
-      // Damaged — dark crumbled shape with jagged roofline
-      g.moveTo(bx,       by + 12);
-      g.lineTo(bx + 6,   by + 5);
-      g.lineTo(bx + 14,  by + 10);
-      g.lineTo(bx + 22,  by);
-      g.lineTo(bx + 30,  by + 7);
-      g.lineTo(bx + 38,  by + 3);
-      g.lineTo(bx + bw,  by + 12);
+      // DAMAGED — a broken building: collapsed jagged top, dark empty windows, rubble.
+      g.moveTo(bx,       by + 16);
+      g.lineTo(bx + 9,   by + 7);
+      g.lineTo(bx + 17,  by + 13);
+      g.lineTo(bx + 25,  by + 3);
+      g.lineTo(bx + 33,  by + 11);
+      g.lineTo(bx + bw,  by + 7);
       g.lineTo(bx + bw,  by + bh);
       g.lineTo(bx,       by + bh);
       g.closePath();
-      g.fill({ color: 0x3a3a4a, alpha: 0.85 });
+      g.fill({ color: 0x2b2f3e, alpha: 0.96 });
+      g.stroke({ color: 0x12141f, width: 2, alpha: 0.9 });
+      for (const [wx, wy] of [[9, 22], [27, 25], [15, 33]]) {
+        g.rect(bx + wx, by + wy, 6, 7);
+        g.fill({ color: 0x0c0e16, alpha: 0.92 });   // empty window holes
+      }
+      g.circle(bx + 6, cy, 3); g.circle(bx + bw - 8, cy, 4);
+      g.fill({ color: 0x20232f, alpha: 0.9 });        // rubble at base
     } else if (state === 1) {
-      // Scaffolding — grey facade + 4 yellow horizontal bars
-      g.rect(bx, by, bw, bh);
-      g.fill({ color: 0x4a4a5a, alpha: 0.90 });
-      for (let i = 0; i < 4; i++) {
-        g.rect(bx - 3, by + 4 + i * 8, bw + 6, 3);
-        g.fill({ color: 0xFFD700, alpha: 0.88 });
+      // UNDER CONSTRUCTION — facade + scaffold poles + a couple of lit windows.
+      g.rect(bx, by + 4, bw, bh - 4);
+      g.fill({ color: 0x3f4459, alpha: 0.96 });
+      g.stroke({ color: 0x12141f, width: 2, alpha: 0.9 });
+      for (const [wx, wy, lit] of [[8, 13, 1], [27, 13, 0], [8, 27, 1], [27, 27, 1]]) {
+        g.rect(bx + wx, by + wy, 9, 8);
+        g.fill({ color: lit ? 0xFFE08A : 0x20242f, alpha: lit ? 0.95 : 0.9 });
+      }
+      g.rect(bx + 2, by, 2.5, bh); g.rect(bx + bw - 4.5, by, 2.5, bh);   // vertical poles
+      g.fill({ color: 0xF0A020, alpha: 0.92 });
+      for (let i = 0; i < 3; i++) {                                       // horizontal scaffolds
+        g.rect(bx - 2, by + 7 + i * 12, bw + 4, 2.5);
+        g.fill({ color: 0xF0A020, alpha: 0.85 });
       }
     } else {
-      // Complete — lit facade with warm window glow (3×2 grid)
-      g.rect(bx, by, bw, bh);
-      g.fill({ color: 0x5a5a7a, alpha: 0.92 });
+      // RESTORED — bright facade, roof cap, all windows lit warm.
+      g.rect(bx - 2, by + 3, bw + 4, 5);
+      g.fill({ color: 0x6b7ac0, alpha: 0.96 });        // roof cap
+      g.rect(bx, by + 7, bw, bh - 7);
+      g.fill({ color: 0x5563a0, alpha: 0.97 });
+      g.stroke({ color: 0x2a3360, width: 2, alpha: 0.9 });
       for (let col = 0; col < 3; col++) {
         for (let row = 0; row < 2; row++) {
-          g.circle(bx + 10 + col * 14, by + 9 + row * 14, 3.5);
-          g.fill({ color: 0xFFF8E0, alpha: 0.95 });
+          g.rect(bx + 8 + col * 13, by + 14 + row * 12, 8, 8);
+          g.fill({ color: 0xFFF1C0, alpha: 0.96 });
         }
       }
     }

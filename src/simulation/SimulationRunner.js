@@ -83,6 +83,7 @@ export class SimulationRunner {
       skill:              levelConfig.skill              ?? 'average',
       levelId:            levelConfig.levelId            ?? null,
       laneCount:          levelConfig.laneCount          ?? 4,
+      colCount:           levelConfig.colCount           ?? levelConfig.laneCount ?? 4,
       laneTargetCarCount: levelConfig.laneTargetCarCount ?? 1,
       spawnBudget:        levelConfig.spawnBudget        ?? Infinity,
       gridRows:           levelConfig.gridRows           ?? 11,
@@ -120,13 +121,17 @@ export class SimulationRunner {
     const shooterDir = new ShooterDirector({}, rng, arbiter);
     const phaseMan   = new IntensityPhase(duration);
 
-    const lanes   = [0, 1, 2, 3].map(id => new Lane({ id }));
-    const columns = [0, 1, 2, 3].map(id => new Column({ id }));
+    // Respect the level's real lane/column counts so low-lane tutorial levels
+    // (L1-3) are simulated faithfully, not always as 4-lane.
+    const LANE_N = this._cfg.laneCount;
+    const COL_N  = this._cfg.colCount;
+    const lanes   = Array.from({ length: LANE_N }, (_, id) => new Lane({ id }));
+    const columns = Array.from({ length: COL_N }, (_, id) => new Column({ id }));
 
     // ── Discrete movement model: cars have integer row (0–gridRows-1, breach at >= gridRows) ──
     // Each correct-color shot advances ALL cars in ALL active lanes by 1 row.
     const BREACH_ROW = this._cfg.gridRows;
-    const discreteLanes = [0, 1, 2, 3].map(id => ({
+    const discreteLanes = Array.from({ length: LANE_N }, (_, id) => ({
       id,
       cars: [],  // Array of { row: number, hp: number, type: string, color: string }
     }));
@@ -147,7 +152,7 @@ export class SimulationRunner {
     let maxAdvPerTick   = 0;   // most advances in a single tick (proves multi-shot turns advance per shot)
 
     // Per-column fire timers: seconds until a column may fire again.
-    const fireTimers = [0, 0, 0, 0];
+    const fireTimers = Array(COL_N).fill(0);
 
     // ── Initial state ──────────────────────────────────────────────────────
     // Pre-spawn one car per lane at row 0 so the level starts with active threats.
@@ -194,7 +199,7 @@ export class SimulationRunner {
       const FP_EPSILON   = 1e-9;
 
       // Decrement all timers.
-      for (let c = 0; c < 4; c++) {
+      for (let c = 0; c < COL_N; c++) {
         fireTimers[c] = Math.max(0, fireTimers[c] - DT);
         if (fireTimers[c] < FP_EPSILON) fireTimers[c] = 0;
       }
@@ -274,7 +279,7 @@ export class SimulationRunner {
         if (lane.cars.length === 0) continue;
         const car = lane.cars[0];
         let bestCol = -1, bestDmg = -1;
-        for (let c = 0; c < 4; c++) {
+        for (let c = 0; c < COL_N; c++) {
           if (usedCols.has(c) || fireTimers[c] > 0) continue;
           const s = columns[c].top();
           if (s && s.color === car.color && s.damage > bestDmg) {
@@ -290,7 +295,7 @@ export class SimulationRunner {
       for (const lane of urgentLanes) {
         if (lostAt !== null) break;
         if (lane.cars.length === 0 || lane.cars[0].row < CRITICAL_ROW) continue;
-        for (let c = 0; c < 4; c++) {
+        for (let c = 0; c < COL_N; c++) {
           if (usedCols.has(c) || fireTimers[c] > 0) continue;
           const s = columns[c].top();
           if (s && s.color === lane.cars[0].color) { _fire(c, lane, _isCorrect()); break; }
@@ -300,7 +305,7 @@ export class SimulationRunner {
       // Pass C — cycle: idle columns discard a non-matching top so the column
       // works toward a useful color. cycleDelay models the player's reaction time.
       if (profile.useCycle && lostAt === null) {
-        for (let c = 0; c < 4; c++) {
+        for (let c = 0; c < COL_N; c++) {
           if (usedCols.has(c) || fireTimers[c] > 0) continue;
           if (columns[c].shooters.length > 1) {
             columns[c].consume();

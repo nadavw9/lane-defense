@@ -22,8 +22,8 @@ const PHASES = ['CALM', 'BUILD', 'PRESSURE', 'CLIMAX', 'RELIEF'];
 function verifyDiscreteModel() {
   const issues = [];
   const simSrc = readFileSync(path.join(__dirname, '..', 'src', 'simulation', 'SimulationRunner.js'), 'utf8');
-  // Required discrete markers
-  for (const marker of ['correctShotFired', 'car.row++', 'BREACH_ROW']) {
+  // Required discrete markers (per-shot advance model)
+  for (const marker of ['_advanceOneRow', 'car.row++', 'BREACH_ROW']) {
     if (!simSrc.includes(marker)) issues.push(`SimulationRunner missing discrete marker "${marker}"`);
   }
   // Forbidden continuous-model call (active code, not comment)
@@ -60,7 +60,7 @@ function carTypesForLevel(levelId, gridRows, colors) {
 function runProfile(cfg, levelId, skill) {
   const mk = () => new SimulationRunner({
     duration: cfg.duration, colors: cfg.colors, worldConfig: cfg.worldConfig,
-    levelId, skill, laneCount: cfg.laneCount,
+    levelId, skill, laneCount: cfg.laneCount, colCount: cfg.colCount,
     laneTargetCarCount: cfg.laneTargetCarCount, spawnBudget: cfg.spawnBudget,
     gridRows: cfg.gridRows,
   });
@@ -106,6 +106,7 @@ for (let levelId = 1; levelId <= 40; levelId++) {
   }
   rows.push({
     levelId,
+    lanes: cfg.laneCount,
     types: carTypesForLevel(levelId, cfg.gridRows, cfg.colors),
     colors: cfg.colors.length,
     speed: cfg.worldConfig?.speed?.base ?? '?',
@@ -129,13 +130,13 @@ if (errors.length) { console.log('\nSIM ERRORS:'); errors.forEach(e => console.l
 else console.log('All level sims completed without error.');
 
 console.log('\n--- TABLE: win rate by profile (gridRows=11) ---');
-console.log('Lvl | beg | avg | skl | opt | spd | bgt | ltcc | car types');
-console.log('----+-----+-----+-----+-----+-----+-----+------+----------------------------');
+console.log('Lvl | ln | beg | avg | skl | opt | spd | bgt | ltcc | car types');
+console.log('----+----+-----+-----+-----+-----+-----+-----+------+----------------------------');
 for (const r of rows) {
   const b = r.res.beginner, a = r.res.average, s = r.res.skilled, o = r.res.optimal;
   const hv = [b, a, s, o].some(x => x && x.spread > 7) ? ' ⚠HV' : '';
   console.log(
-    `${String(r.levelId).padStart(3)} |${pct(b?.win)}|${pct(a?.win)}|${pct(s?.win)}|${pct(o?.win)}|` +
+    `${String(r.levelId).padStart(3)} |${String(r.lanes).padStart(3)} |${pct(b?.win)}|${pct(a?.win)}|${pct(s?.win)}|${pct(o?.win)}|` +
     `${String(r.speed).padStart(4)} |${String(r.budget).padStart(4)} |${String(r.ltcc).padStart(5)} | ${r.types.join(', ')}${hv}`,
   );
 }

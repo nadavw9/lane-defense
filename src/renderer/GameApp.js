@@ -177,7 +177,8 @@ const ENV_URLS      = [
   `${_B}sprites/raw/split/sidewalk-grass-strip.png`,
   `${_B}sprites/raw/split/panel-workshop-surface.png`,
 ];
-const ALL_SPRITE_URLS = [...CAR_URLS, ...SHOOTER_URLS, ...BUILDING_URLS, ...TREE_URLS, ...ENV_URLS];
+const BOOSTER_URLS  = ['swap', 'freeze', 'bomb'].map(b => `${_B}sprites/designed/booster-${b}.png`);
+const ALL_SPRITE_URLS = [...CAR_URLS, ...SHOOTER_URLS, ...BUILDING_URLS, ...TREE_URLS, ...ENV_URLS, ...BOOSTER_URLS];
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 
@@ -1683,6 +1684,9 @@ async function main() {
         (w) => _buildAchievementPopup(w, { name: 'Sharp Shooter', desc: 'Test achievement toast' }),
         4.0,
       ),
+      setBoosters: (swap = 3, freeze = 3, bombs = 3) => {
+        boosterState.swap = swap; boosterState.freeze = freeze; boosterState.bombs = bombs;
+      },
     };
   }
 

@@ -1,19 +1,28 @@
-// BoosterBar — three 52×52 icon-card booster buttons (SWAP • FREEZE • BOMB).
-// Each card shows a ×N count badge. Bomb glow pulses when bombs are available.
-import { Graphics, Text } from 'pixi.js';
+// BoosterBar — three 64×64 icon-card booster buttons (SWAP • FREEZE • BOMB).
+// Icons are PNG sprites (booster-{swap,freeze,bomb}.png); each card shows a
+// ×N count badge and an 18px name label. Bomb glow pulses when bombs available.
+import { Graphics, Text, Sprite, Assets } from 'pixi.js';
+
+const _B = import.meta.env.BASE_URL;
+function boosterUrl(name) { return `${_B}sprites/designed/booster-${name}.png`; }
 
 export const BAR_Y   = 752;
 const BAR_H   = 68;
 
 // ── Icon card layout ──────────────────────────────────────────────────────────
-const CARD_W    = 52;
-const CARD_H    = 52;
-const CARD_GAP  = 8;
-const CARD_R    = 10;
+// 64px cards: generous tap target and room for a readable 18px label.
+const CARD_W    = 64;
+const CARD_H    = 64;
+const CARD_GAP  = 10;
+const CARD_R    = 12;
 const NUM_CARDS = 3;
 const TOTAL_W   = NUM_CARDS * CARD_W + (NUM_CARDS - 1) * CARD_GAP;
 const BAR_XOFF  = Math.round((390 - TOTAL_W) / 2);
 const CARD_Y    = BAR_Y + Math.round((BAR_H - CARD_H) / 2);
+
+const ICON_SIZE  = 32;   // sprite icon, centered in the upper card area
+const ICON_CY    = 22;   // icon center Y — above the bottom name label
+const LABEL_SIZE = 18;   // name label — meets the design-system UI floor
 
 const CARD_X = Array.from({ length: NUM_CARDS }, (_, i) => BAR_XOFF + i * (CARD_W + CARD_GAP));
 // Indices: 0=SWAP, 1=FREEZE, 2=BOMB
@@ -34,8 +43,8 @@ export class BoosterBar {
     this._layer.addChild(bg);
     this._bg = bg;
 
-    this._swapBtn   = _makeCard(this._layer, CARD_X[0], 0x66aaff, _iconSwap,   'SWAP',   onSwap);
-    this._freezeBtn = _makeCard(this._layer, CARD_X[1], 0x44ccff, _iconFreeze, 'FREEZE', onFreeze);
+    this._swapBtn   = _makeCard(this._layer, CARD_X[0], 0x66aaff, 'swap',   'SWAP',   onSwap);
+    this._freezeBtn = _makeCard(this._layer, CARD_X[1], 0x44ccff, 'freeze', 'FREEZE', onFreeze);
     this._bombBtn   = _makeBombCard(this._layer, CARD_X[2], onBomb);
 
     this._swapBtn._unlocked   = false;
@@ -173,8 +182,8 @@ function _addCountLabel(card, accentColor) {
   badge.fill({ color: 0x050510, alpha: 0.92 });
   badge.roundRect(-17, -12, 34, 24, 12);
   badge.stroke({ color: accentColor, width: 1.5, alpha: 0.70 });
-  badge.x = CARD_W - 16;
-  badge.y = 14;
+  badge.x = CARD_W - 18;
+  badge.y = 13;
   card.addChild(badge);
 
   const tx = new Text({
@@ -183,8 +192,8 @@ function _addCountLabel(card, accentColor) {
       dropShadow: { color: 0x000000, blur: 3, distance: 0, alpha: 0.9 } },
   });
   tx.anchor.set(0.5, 0.5);
-  tx.x = CARD_W - 16;
-  tx.y = 14;
+  tx.x = CARD_W - 18;
+  tx.y = 13;
   card.addChild(tx);
   return tx;
 }
@@ -192,7 +201,8 @@ function _addCountLabel(card, accentColor) {
 function _addNameLabel(card, name, accentColor) {
   const tx = new Text({
     text: name,
-    style: { fontSize: 11, fontWeight: 'bold', fill: accentColor, alpha: 0.85 },
+    style: { fontSize: LABEL_SIZE, fontWeight: 'bold', fill: accentColor,
+      dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 0.8 } },
   });
   tx.anchor.set(0.5, 1);
   tx.x = CARD_W / 2;
@@ -200,10 +210,30 @@ function _addNameLabel(card, name, accentColor) {
   card.addChild(tx);
 }
 
-function _makeCard(layer, x, accentColor, iconFn, name, onClick) {
+// Icon: PNG sprite when loaded (preferred), else programmatic glyph fallback.
+// Returns the display object so the bomb card can hide it in bomb-mode.
+function _addIconSprite(card, name, accentColor) {
+  const tex = Assets.get(boosterUrl(name));
+  if (tex) {
+    const sp = new Sprite(tex);
+    sp.anchor.set(0.5);
+    sp.scale.set(ICON_SIZE / Math.max(tex.width, tex.height));  // fit, no distortion
+    sp.x = CARD_W / 2;
+    sp.y = ICON_CY;
+    card.addChild(sp);
+    return sp;
+  }
+  const g  = new Graphics();
+  const fn = name === 'swap' ? _iconSwap : name === 'freeze' ? _iconFreeze : _iconBomb;
+  fn(g, CARD_W / 2, ICON_CY, accentColor);
+  card.addChild(g);
+  return g;
+}
+
+function _makeCard(layer, x, accentColor, iconName, name, onClick) {
   const card = _cardBase(layer, x, accentColor);
 
-  iconFn(card, CARD_W / 2, CARD_H / 2 - 5, accentColor);
+  _addIconSprite(card, iconName, accentColor);
   _addNameLabel(card, name, accentColor);
 
   const countTx = _addCountLabel(card, accentColor);
@@ -219,15 +249,8 @@ function _makeBombCard(layer, x, onClick) {
   const c    = 0xffaa00;
   const card = _cardBase(layer, x, c);
 
-  // Bomb icon (separate Graphics so it can be hidden in bomb-mode)
-  const icon = new Graphics();
-  const bx = CARD_W / 2, by = CARD_H / 2 - 5;
-  const R  = 9;
-  icon.circle(bx, by + 2, R); icon.fill({ color: 0x1a1006 });
-  icon.circle(bx, by + 2, R); icon.stroke({ color: c, width: 1.5, alpha: 0.9 });
-  icon.roundRect(bx - 1.5, by + 2 - R - 7, 3, 8, 1.5); icon.fill({ color: 0xffcc44 });
-  icon.circle(bx + 3, by + 2 - R - 6, 2.5); icon.fill({ color: 0xffff88 });
-  card.addChild(icon);
+  // Sprite icon (kept on `bombIcon` so it can be hidden in bomb-mode → CANCEL)
+  const icon = _addIconSprite(card, 'bomb', c);
   card.bombIcon = icon;
 
   _addNameLabel(card, 'BOMB', c);
@@ -269,4 +292,13 @@ function _iconFreeze(g, cx, cy, c) {
   }
   // Center dot
   g.circle(cx, cy, 2.8); g.fill({ color: 0xffffff, alpha: 0.9 });
+}
+
+function _iconBomb(g, cx, cy, c) {
+  // Round bomb body + lit fuse (fallback when the PNG sprite isn't loaded)
+  const R = 9;
+  g.circle(cx, cy + 2, R); g.fill({ color: 0x1a1006 });
+  g.circle(cx, cy + 2, R); g.stroke({ color: c, width: 1.5, alpha: 0.9 });
+  g.roundRect(cx - 1.5, cy + 2 - R - 7, 3, 8, 1.5); g.fill({ color: 0xffcc44 });
+  g.circle(cx + 3, cy + 2 - R - 6, 2.5); g.fill({ color: 0xffff88 });
 }

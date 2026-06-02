@@ -12,6 +12,12 @@ android/local.properties
 *.jks
 keystore.properties
 
+# Raw sprite sources (kept local; processed outputs live in sprites/designed/)
+public/sprites/raw/
+
+# Dev server log
+dev-server.log
+
 # Playwright audit screenshots and scripts (generated, not source)
 audit-*.png
 pf-*.png

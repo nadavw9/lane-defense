@@ -298,16 +298,11 @@ export class SimulationRunner {
         }
       }
 
-      // CRISIS assist (intensity-gated) — guaranteed-match kill on the worst lane.
-      if (phaseParams.crisisEnabled && discreteLanes.some(l => l.cars.length > 0)) {
-        const crisisLane = discreteLanes.reduce((a, b) =>
-          (a.cars[0]?.row ?? -1) > (b.cars[0]?.row ?? -1) ? a : b);
-        if (crisisLane.cars.length > 0) {
-          const car = crisisLane.cars[0];
-          car.hp -= 10;
-          if (car.hp <= 0) { crisisLane.cars.shift(); carsKilled++; crisisTriggered++; }
-        }
-      }
+      // (No CRISIS assist in the floor model: the FairnessArbiter already
+      // guarantees a viable matching column every turn, so the assist is
+      // redundant here. The old free no-advance kill diverged from the real
+      // game — crisis grants a BOMB the player must fire, not a free kill —
+      // and could empty the board with budget remaining, stalling the loop.)
 
       // Stall guard: a turn with no fire and no cycle would loop forever. Force
       // one column to discard (models the game's viability guard giving the
@@ -342,6 +337,7 @@ export class SimulationRunner {
       correctShots,
       totalAdvances,
       maxAdvPerTick,
+      turns,
     };
   }
 

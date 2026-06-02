@@ -61,6 +61,17 @@ describe('SimulationRunner — per-shot advance fidelity', () => {
     }
   });
 
+  it('no run stalls (turns stay far below the safety cap)', () => {
+    // Regression guard: a level that empties the board with budget remaining
+    // (e.g. an assist kill that does not refill) would loop to MAX_TURNS.
+    for (const levelId of [1, 9, 16, 40]) {
+      const r = new SimulationRunner({ ...cfgFor(levelId), skill: 'optimal' });
+      for (let seed = 1; seed <= 15; seed++) {
+        expect(r.runLevel(seed).turns).toBeLessThan(5000);
+      }
+    }
+  });
+
   it('the simulator contains no continuous .advance() movement path', () => {
     const src = readFileSync(path.join(__dirname, '..', 'src', 'simulation', 'SimulationRunner.js'), 'utf8');
     src.split('\n').forEach((ln) => {

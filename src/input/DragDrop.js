@@ -130,7 +130,7 @@ export class DragDrop {
     shooterRenderer,
     benchRenderer,
     { onDeploy, onDeployFromBench, onBenchStore, onColorMismatch, onBenchFull, onBombPlaced,
-      onLaneHover, onLaneClear, getColorBombArmed } = {},
+      onLaneHover, onLaneClear, getColorBombArmed, onColumnPickup } = {},
     boosterState = null,
     _unused = null,
     firingSlots = null,
@@ -153,6 +153,9 @@ export class DragDrop {
     this._onLaneHover       = onLaneHover        ?? (() => {});
     this._onLaneClear       = onLaneClear        ?? (() => {});
     this._getColorBombArmed = getColorBombArmed  ?? null;
+    // Returns true to INTERCEPT a column-top pickup (e.g. show a modal tutorial
+    // card first) — the drag does not start in that case.
+    this._onColumnPickup    = onColumnPickup     ?? (() => false);
 
     this._firingSlots = firingSlots;
 
@@ -189,11 +192,16 @@ export class DragDrop {
     }
 
     this.uiOverlayActive = false;
+    // When true, all pointer input is ignored (a modal card — e.g. an onboarding
+    // hint or the car-intro card — is up). The card dismisses via its own Pixi
+    // events, which are independent of this DOM-driven input path.
+    this.inputBlocked = false;
   }
 
   // ── Called by InputManager ─────────────────────────────────────────────────
 
   onPointerDown(x, y) {
+    if (this.inputBlocked) return;   // a modal card is up
     if (this._state !== 'idle') return;
 
     if (this._boosterState?.bombMode) {
@@ -211,6 +219,8 @@ export class DragDrop {
 
     if (col !== -1 && this._columns[col].top()) {
       const shooter = this._columns[col].top();
+      // A hint card may intercept the first pickup (shown before the drag).
+      if (this._onColumnPickup(shooter)) return;
       this._startDrag('column', col, shooter, x, y, x, y);
       return;
     }
@@ -233,6 +243,7 @@ export class DragDrop {
   }
 
   onPointerMove(x, y) {
+    if (this.inputBlocked) return;
     if (this._state !== 'dragging') return;
     this._ghost.x = x + this._offsetX;
     this._ghost.y = y + this._offsetY;
@@ -240,6 +251,7 @@ export class DragDrop {
   }
 
   onPointerUp(x, y) {
+    if (this.inputBlocked) return;
     if (this._state !== 'dragging') return;
     this._clearHighlights();
     this._benchRenderer?.setHighlight(-1);
@@ -334,7 +346,10 @@ export class DragDrop {
     }
     // 'stash' source: no dragging marker needed — ShooterRenderer reads col.stash directly
 
-    this._ghost = this._createGhost(shooter, px + this._offsetX, py + this._offsetY, this._getColorBombArmed?.() ?? false);
+    // Rainbow ghost is driven by the dragged shooter itself now (the color bomb
+    // is a real queue item, not a global armed state).
+    const isCB = shooter?.isColorBomb === true;
+    this._ghost = this._createGhost(shooter, px + this._offsetX, py + this._offsetY, isCB);
     this._ghost.scale.set(1.12);  // lifted-off feel during drag
   }
 
@@ -467,6 +482,8 @@ export class DragDrop {
 
   _checkColorMatch(laneIdx) {
     if (!this._lanes || !this._dragShooter) return true;
+    // Rainbow color bomb matches any lane — it clears the target lane's colour.
+    if (this._dragShooter.isColorBomb) return true;
     const frontCar = this._lanes[laneIdx]?.frontCar?.();
     if (!frontCar) return true;
     return this._dragShooter.color === frontCar.color;

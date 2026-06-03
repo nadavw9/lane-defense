@@ -63,6 +63,10 @@ function defaults() {
     crisisAssistsReceived:    0,  // times CRISIS assist fired (for achievement)
     totalCoinsSpent:          0,  // coins spent in shop (Big Spender achievement)
     totalDailyChallengesDone: 0,  // completed daily challenges (Daily Challenger achievement)
+    // v1.4 onboarding — one-time lifetime tutorial hints (see OnboardingHints.js)
+    hintHpMissShown:   false,  // car-survived-a-hit → "check the book" pointer
+    hintDamageShown:   false,  // first bomb pickup on L1 → match-damage tooltip
+    hintAdvanceShown:  false,  // first correct shot on L1 → "all cars advance" hint
   };
 }
     
@@ -78,6 +82,14 @@ export class ProgressManager {
   get coins()          { return this._data.coins; }
   get seenComboTip()   { return this._data.seenComboTip; }
   markSeenComboTip()   { this._data.seenComboTip = true; this._save(); }
+
+  // ── One-time onboarding hints (lifetime; persisted to localStorage) ────────
+  get hintHpMissShown()  { return !!this._data.hintHpMissShown; }
+  markHintHpMiss()       { this._data.hintHpMissShown = true; this._save(); }
+  get hintDamageShown()  { return !!this._data.hintDamageShown; }
+  markHintDamage()       { this._data.hintDamageShown = true; this._save(); }
+  get hintAdvanceShown() { return !!this._data.hintAdvanceShown; }
+  markHintAdvance()      { this._data.hintAdvanceShown = true; this._save(); }
 
   hasSeenUnlock(levelId) {
     return !!(this._data.seenUnlocks ?? {})[String(levelId)];

@@ -34,6 +34,7 @@ import { BenchRenderer }   from './BenchRenderer.js';
 
 import { GameState }       from '../game/GameState.js';
 import { GameLoop }        from '../game/GameLoop.js';
+import { COLOR_BOMB_STREAK } from '../director/DirectorConfig.js';
 import { CombatResolver }  from '../game/CombatResolver.js';
 import { LevelManager }    from '../game/LevelManager.js';
 import { BoosterState }    from '../game/BoosterState.js';
@@ -56,6 +57,7 @@ import { LoseScreen }                  from '../screens/LoseScreen.js';
 import { RescueOverlay }              from '../screens/RescueOverlay.js';
 import { BoosterUnlockScreen }        from '../screens/BoosterUnlockScreen.js';
 import { FTUEOverlay, FeatureBanners } from '../screens/FTUEOverlay.js';
+import { OnboardingHints }    from '../screens/OnboardingHints.js';
 import { BoosterSpotlight }      from '../screens/BoosterSpotlight.js';
 import { TransitionOverlay }      from '../screens/TransitionOverlay.js';
 import { TitleScreen }            from '../screens/TitleScreen.js';
@@ -385,6 +387,16 @@ async function main() {
   // ── FTUE per-feature banners (once-per-lifetime, persisted to localStorage) ─
   const featureBanners = new FeatureBanners(popupQueue, APP_W);
 
+  // ── Onboarding hints — three lifetime one-time tutorial MODAL cards (HP/book,
+  //    match-damage, cars-advance). Rendered on app.stage, above the HUD. ───────
+  const onboardingHints = new OnboardingHints(app.stage, APP_W, APP_H);
+  // Show a modal hint card: pause the loop while it's up, resume on dismiss.
+  function _showHintCard(show) {
+    const wasPlaying = gameLoopStarted && !gameLoop.paused && !gs.isOver;
+    if (wasPlaying) gameLoop.pause();
+    show(() => { if (wasPlaying && !gs.isOver) gameLoop.resume(); });
+  }
+
   // ── FTUE overlay ──────────────────────────────────────────────────────────
   let ftueOverlay = null;  // created in _startLevel
   let tutOrch     = null;  // assigned after gameLoop is constructed
@@ -481,6 +493,41 @@ async function main() {
     g.addChild(icon);
     layers.get('hudLayer').addChild(g);
     return g;
+  })();
+
+  // ── Color-bomb streak counter ───────────────────────────────────────────────
+  // Subtle row of pips in the gap between the breach line (y=510) and the bomb
+  // queue (y=544): fills as the player lands consecutive correct shots; at
+  // COLOR_BOMB_STREAK a rainbow bomb is earned. Hidden at streak 0 (unintrusive).
+  const streakUI = (() => {
+    const c   = new Container();
+    c.x = APP_W / 2; c.y = 527;
+    const PIPS = COLOR_BOMB_STREAK;
+    const SP = 15, R = 4.5;
+    const RAINBOW = [0xff4477, 0xffaa22, 0xffe14a, 0x44dd66, 0x4aa8ff, 0xb066ff];
+    const dots = [];
+    for (let i = 0; i < PIPS; i++) {
+      const d = new Graphics();
+      d.x = (i - (PIPS - 1) / 2) * SP;
+      c.addChild(d); dots.push(d);
+    }
+    c.visible = false;
+    layers.get('hudLayer').addChild(c);
+    return {
+      set(streak) {
+        c.visible = streak > 0;
+        for (let i = 0; i < PIPS; i++) {
+          const d = dots[i]; d.clear();
+          if (i < streak) {
+            d.circle(0, 0, R + 0.5).fill({ color: RAINBOW[i % RAINBOW.length] });
+            d.circle(0, 0, R + 0.5).stroke({ color: 0xffffff, width: 1, alpha: 0.5 });
+          } else {
+            d.circle(0, 0, R).fill({ color: 0x1a2738, alpha: 0.75 });
+            d.circle(0, 0, R).stroke({ color: 0x4a6788, width: 1, alpha: 0.6 });
+          }
+        }
+      },
+    };
   })();
 
   // ── Stage effects ─────────────────────────────────────────────────────────
@@ -605,6 +652,7 @@ async function main() {
     shooterRenderer.setLaneCount(cfg.laneCount ?? 4);
     gameRenderer3D.startLevelIntro();
     gameRenderer3D.setCombo(0);
+    streakUI.set(0);   // reset color-bomb streak pips on level (re)start
     shooterRenderer.enable3DMode(true);
     shooterRenderer.container.visible = false;
 
@@ -649,7 +697,7 @@ async function main() {
     // Spotlight-to-tutorial configs for each booster (bounds match BoosterBar layout)
     const TUTOR_BOOSTER = {
       swap:   { id: 'swap',   text: 'SWAP — tap to swap two bombs instantly!',        bounds: { x: 109, y: 760, w: 52, h: 52 }, handStart: { x: 135, y: 728 }, handEnd: { x: 135, y: 786 } },
-      freeze: { id: 'freeze', text: 'FREEZE — tap to stop all cars for a few seconds!', bounds: { x: 169, y: 760, w: 52, h: 52 }, handStart: { x: 195, y: 728 }, handEnd: { x: 195, y: 786 } },
+      freeze: { id: 'freeze', text: 'FREEZE — tap for one free shot, no cars advance!', bounds: { x: 169, y: 760, w: 52, h: 52 }, handStart: { x: 195, y: 728 }, handEnd: { x: 195, y: 786 } },
     };
 
     if (!currentLevelIsDaily && UNLOCK_LEVELS.includes(levelId) && !progress.hasSeenUnlock(levelId)) {
@@ -1324,6 +1372,21 @@ async function main() {
         audio.play('hit_match');
         haptics.medium();
       }
+
+      // ── One-time onboarding modal cards (lifetime, localStorage-flagged) ────
+      // Show at most one card per hit; the other (if eligible) fires next hit.
+      let _hintShownThisHit = false;
+      // Hint C — first correct-colour shot on L1: explain that all cars advance.
+      if (levelManager.levelNumber === 1 && !progress.hintAdvanceShown) {
+        progress.markHintAdvance();
+        _showHintCard((done) => onboardingHints.showAdvance(done));
+        _hintShownThisHit = true;
+      }
+      // Hint A — first time a car SURVIVES a hit (any level): point to the book.
+      if (!_hintShownThisHit && !isKill && damage > 0 && !progress.hintHpMissShown) {
+        progress.markHintHpMiss();
+        _showHintCard((done) => onboardingHints.showHpMiss(done));
+      }
     },
 
     onMiss: (laneIdx, gameX) => {
@@ -1421,9 +1484,9 @@ async function main() {
   };
 
   // ── Combo power-shot callbacks ────────────────────────────────────────────
-  gameLoop._onColorBomb = (color) => {
+  gameLoop._onColorBomb = (color, killed) => {
     comboFX.triggerColorBomb(color);
-    gameRenderer3D.onColorBomb(color);
+    gameRenderer3D.onColorBomb(color, killed);
     audio.play('color_bomb', { color });
     haptics.heavy();
   };
@@ -1431,6 +1494,15 @@ async function main() {
     comboFX.triggerFreeze();
     audio.play('freeze_activate');
     haptics.medium();
+  };
+  // Color-bomb streak: update the pip counter every correct/wrong shot.
+  gameLoop._onStreak = (streak) => streakUI.set(streak);
+  // Color bomb EARNED (streak reached): brief flash + SFX; rainbow now in queue.
+  gameLoop._onColorBombEarned = () => {
+    comboFX.triggerColorBomb('Rainbow');
+    audio.play('color_bomb', { color: 'Rainbow' });
+    haptics.heavy();
+    streakUI.set(0);
   };
 
   // ── Tutorial orchestrator (needs gameLoop ref, created here) ─────────────
@@ -1479,6 +1551,16 @@ async function main() {
         gameRenderer3D.clearLaneGlow();
       },
       getColorBombArmed: () => gs.colorBombArmed,
+      // Hint B — first bomb pickup on L1: intercept the pickup, show the
+      // match-damage modal card, and let the player drag once it's dismissed.
+      onColumnPickup: () => {
+        if (levelManager.levelNumber === 1 && !progress.hintDamageShown) {
+          progress.markHintDamage();
+          _showHintCard((done) => onboardingHints.showDamage(done));
+          return true;   // intercept this pickup; the drag does not start
+        }
+        return false;
+      },
     },
     boosterState,
     null,
@@ -1555,6 +1637,10 @@ async function main() {
     unlockScreen?.update(dt);
     boosterSpotlight?.update(dt);
     tutOrch?.update(dt);
+
+    // Onboarding modal hint cards: animate; block drag input while one is up.
+    onboardingHints.update(dt);
+    dragDrop.inputBlocked = onboardingHints.active || !!carTypeIntroCard;
 
     // ── Car type intro card ────────────────────────────────────────────────
     if (carTypeIntroCard) {
@@ -1687,6 +1773,10 @@ async function main() {
       setBoosters: (swap = 3, freeze = 3, bombs = 3) => {
         boosterState.swap = swap; boosterState.freeze = freeze; boosterState.bombs = bombs;
       },
+      // Manual shot + freeze drivers for automated playtest verification.
+      deploy: (colIdx, laneIdx) => gameLoop.deploy(colIdx, laneIdx),
+      activateFreeze: () => boosterState.activateFreeze(),
+      freezeState: () => ({ freeze: boosterState.freeze, freezeShots: boosterState.freezeShots, isFrozen: boosterState.isFrozen() }),
     };
   }
 

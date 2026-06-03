@@ -19,7 +19,7 @@ const UNLOCKS = {
   14: {
     name:   'Freeze Unlocked!',
     color:  0x88ccff,
-    desc:   'Stop all advancing cars\non the road for 10 seconds.',
+    desc:   'Your next shot is free —\nno cars advance that turn.',
   },
 };
 

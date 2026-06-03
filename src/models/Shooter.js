@@ -11,10 +11,14 @@ const FIRE_DURATION_BY_DAMAGE = {
 };
 
 export class Shooter {
-  constructor({ color, damage, column }) {
+  constructor({ color, damage, column, isColorBomb = false }) {
     this.color = color;
     this.damage = damage;
     this.column = column;
-    this.fireDuration = FIRE_DURATION_BY_DAMAGE[damage];
+    this.fireDuration = FIRE_DURATION_BY_DAMAGE[damage] ?? 2.0;
+    // Rainbow color-bomb powerball: earned via a correct-shot streak, deployed
+    // like a normal bomb but clears every car matching the target lane's front
+    // car colour. Carries no damage number (badge shows a star instead).
+    this.isColorBomb = isColorBomb;
   }
 }

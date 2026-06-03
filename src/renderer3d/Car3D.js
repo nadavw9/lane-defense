@@ -211,8 +211,16 @@ export class Car3D {
     this._live  = new Map();
     this._dying = [];
     this._emissiveBoost = 0;
+    // Active lane count — drives horizontal placement so cars center on the
+    // road for low-lane levels (L1-3). Defaults to all lanes; set per level via
+    // setLaneCount() (mirrors Shooter3D). Without this, L1 cars rendered at the
+    // 4-lane X (≈ -6) and sat off the narrow 1-lane road → invisible.
+    this._laneCount = lanes.length;
     if (!_bossTorusGeo) _bossTorusGeo = new THREE.TorusGeometry(1.4, 0.06, 8, 28);
   }
+
+  // Match the active lane count so laneToX centers cars on the current road.
+  setLaneCount(n) { this._laneCount = n; }
 
   setTheme(theme) {
     this._emissiveBoost = theme?.emissiveBoost ?? 0;
@@ -296,7 +304,7 @@ export class Car3D {
         const wobbleX   = Math.sin(now * WOBBLE_X_FREQ   + laneIdx * 0.7) * WOBBLE_X_AMP;
         const wobbleRot = Math.sin(now * WOBBLE_ROT_FREQ + laneIdx * 1.3) * WOBBLE_ROT_AMP;
 
-        g.position.set(laneToX(laneIdx, this._lanes.length) + wobbleX, 0, entry.renderZ);
+        g.position.set(laneToX(laneIdx, this._laneCount) + wobbleX, 0, entry.renderZ);
 
         // ── Boss ring ─────────────────────────────────────────────────────────
         if (entry.bossRing) {
@@ -474,7 +482,7 @@ export class Car3D {
     // Spawn animation: start off-screen (further from breach)
     const targetZ  = posToZ(car.position);
     const spawnZ   = targetZ - SPAWN_OFFSET;
-    const worldX   = laneToX(laneIdx, this._lanes.length);
+    const worldX   = laneToX(laneIdx, this._laneCount);
     group.position.set(worldX, 0, spawnZ);
 
 
@@ -498,7 +506,7 @@ export class Car3D {
 
   _spawnSpeedLines(entry, laneIdx, car) {
     const cfg = TYPE_DIMS[car.type] ?? TYPE_DIMS.big;
-    const lx  = laneToX(laneIdx, this._lanes.length);
+    const lx  = laneToX(laneIdx, this._laneCount);
     const geo  = _getSpeedLineGeo();
 
     for (let i = 0; i < 2; i++) {

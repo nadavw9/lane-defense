@@ -189,9 +189,15 @@ export class Particles3D {
    * @param {number} laneIdx
    * @param {string} color
    * @param {number} [scale=1.0] — optional size multiplier (1.25 for power-shot kills)
+   * @param {number|null} [posOverride=null] — explode at this road-position (0-100)
+   *   instead of the lane's current front car. Used by the color bomb so the
+   *   blast lands on the cars it actually destroyed (whose positions are captured
+   *   before removal), not on the survivors now at the front.
    */
-  spawnExplosion(laneIdx, color, scale = 1.0) {
-    const pos = this._frontCarPos(laneIdx);
+  spawnExplosion(laneIdx, color, scale = 1.0, posOverride = null) {
+    const pos = posOverride != null
+      ? { x: laneToX(laneIdx), z: posToZ(posOverride) }
+      : this._frontCarPos(laneIdx);
     if (!pos) return;
 
     const hex = COLOR_HEX[color] ?? 0xffffff;

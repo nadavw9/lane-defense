@@ -4,7 +4,7 @@
 //
 // Rule: nothing outside GameLoop ever writes to GameState.
 import { COMBO_WINDOW, DEPLOY_DILATION, CARRYOVER_COIN_BONUS,
-         COLOR_BOMB_THRESHOLD, FREEZE_THRESHOLD } from '../director/DirectorConfig.js';
+         FREEZE_THRESHOLD } from '../director/DirectorConfig.js';
 
 export class GameState {
   // laneCount / colCount — how many of the 4 lanes/columns are active.
@@ -46,8 +46,12 @@ export class GameState {
     this.combo        = 0;
     this.lastKillTime = -Infinity;
     // Power-shot arm flags — set when combo crosses the threshold; cleared when shot fires.
-    this.colorBombArmed  = false;
+    this.colorBombArmed  = false;   // legacy field, retained for save/serialise compat
     this.freezeArmed     = false;
+    // Color-bomb earn streak: consecutive correct-colour shots with no wrong
+    // shot or breach in between. Reaching COLOR_BOMB_STREAK earns a rainbow
+    // bomb in the queue; resets on a wrong shot, a breach, level start, or earn.
+    this.correctShotStreak = 0;
     // Combo freeze: how many grid advances to skip after a freeze power shot fires.
     this.comboFreezeShots = 0;
 
@@ -133,9 +137,10 @@ export class GameState {
 
     this.coins += 1 + (isCarryOver ? CARRYOVER_COIN_BONUS : 0);
 
-    // Arm power shots when combo crosses milestones.
-    if (this.combo === COLOR_BOMB_THRESHOLD) this.colorBombArmed = true;
-    if (this.combo === FREEZE_THRESHOLD)     this.freezeArmed    = true;
+    // Arm the combo-freeze power shot when the kill-combo crosses its milestone.
+    // (The color bomb is no longer combo-armed — it is earned via a separate
+    // correct-shot streak; see GameLoop streak handling.)
+    if (this.combo === FREEZE_THRESHOLD) this.freezeArmed = true;
 
     return this.combo;
   }
@@ -173,6 +178,7 @@ export class GameState {
     this.colorBombArmed  = false;
     this.freezeArmed     = false;
     this.comboFreezeShots = 0;
+    this.correctShotStreak = 0;
     this.totalKills     = 0;
     this.carryOvers     = 0;
     this.totalDeploys   = 0;

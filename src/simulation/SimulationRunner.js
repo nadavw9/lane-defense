@@ -87,6 +87,10 @@ export class SimulationRunner {
       laneTargetCarCount: levelConfig.laneTargetCarCount ?? 1,
       spawnBudget:        levelConfig.spawnBudget        ?? Infinity,
       gridRows:           levelConfig.gridRows           ?? 11,
+      // Optional per-shot observer for tuning tools. Called once per fired bomb
+      // with the shot's correctness (true = correct-colour, false = wrong).
+      // Default null → zero behaviour change for balance runs and tests.
+      onShot:             levelConfig.onShot             ?? null,
     };
   }
 
@@ -246,6 +250,7 @@ export class SimulationRunner {
         usedCols.add(col);
         shooterDir.recordDeploy(elapsed);
         columns[col].consume();
+        if (this._cfg.onShot) this._cfg.onShot(isCorrect);  // tuning hook (per fired bomb)
         if (!isCorrect) return;
         correctShots++;
         didFire = true;

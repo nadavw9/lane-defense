@@ -22,7 +22,7 @@ const BOOSTER_DEFS = [
     key:       'freeze',
     label:     'FREEZE',
     icon:      '❄',
-    desc:      'Freeze all cars\nfor 10 seconds',
+    desc:      'One free shot —\nno cars advance',
     cost:      30,
     border:    0x0088bb,
     btnBg:     0x0077aa,

@@ -228,10 +228,11 @@ export class GameRenderer3D {
    * Color-bomb power shot fired — multi-lane explosion, massive bloom, screen flash.
    * Called from GameApp._onColorBomb after _fireColorBomb removes cars.
    */
-  onColorBomb(color) {
-    // Fire explosions on all 4 lanes (some may have no car — spawnExplosion handles null)
-    for (let i = 0; i < 4; i++) {
-      this._particles?.spawnExplosion(i, color, 2.2);
+  onColorBomb(color, killed = []) {
+    // Explode ONLY on the cars actually destroyed (positions captured before
+    // removal), not on surviving front cars. No kills → no explosions.
+    for (const k of killed) {
+      this._particles?.spawnExplosion(k.laneIdx, color, 2.2, k.position);
     }
     this._cameraFX?.shake(0.45, 0.65);
     this._scene3d?.setBloomStrength(3.0);
@@ -255,10 +256,12 @@ export class GameRenderer3D {
   }
 
   setActiveLaneCount(n) {
+    this._activeLaneCount = n;       // remembered so rebuilt Car3D can re-apply it
     this._scene3d?.setLaneCount(n);
     this._road?.setLaneCount(n);
     this._cameraFX?.setLaneCount(n);
     this._shooters?.setLaneCount(n);
+    this._cars?.setLaneCount(n);     // center cars on low-lane roads (fixes L1-3)
     this._environment?.setLaneCount(n);
   }
 
@@ -394,6 +397,11 @@ export class GameRenderer3D {
     this._shooters    = new Shooter3D(scene, this._columns);
     this._projectiles = new Projectile3D(scene, this._firingSlots, this._lanes);
     this._particles   = new Particles3D(scene, this._lighting, this._lanes);
+    // Re-apply the active lane count to the freshly-built renderers.
+    if (this._activeLaneCount != null) {
+      this._cars.setLaneCount(this._activeLaneCount);
+      this._shooters.setLaneCount(this._activeLaneCount);
+    }
   }
 
   

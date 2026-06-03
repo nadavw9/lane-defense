@@ -123,6 +123,37 @@ function drawDamageBadge(ctx, W, H, damage, colorHex) {
   ctx.fillText(String(damage), W / 2, H / 2 + 1);
 }
 
+// Rainbow color-bomb badge — dark pill with a gold star (no damage number).
+function drawColorBombBadge(ctx, W, H) {
+  ctx.clearRect(0, 0, W, H);
+  const pw = W * 0.90, ph = H * 0.78;
+  const px = (W - pw) / 2, py = (H - ph) / 2;
+  const r  = ph / 2;
+
+  ctx.shadowColor   = 'rgba(0,0,0,0.80)';
+  ctx.shadowBlur    = Math.max(4, H * 0.10);
+  ctx.shadowOffsetY = Math.max(2, H * 0.05);
+  _roundRect(ctx, px, py, pw, ph, r);
+  ctx.fillStyle = 'rgb(40,30,55)';   // dark neutral so the gold star pops
+  ctx.fill();
+  ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+
+  _roundRect(ctx, px, py, pw, ph, r);
+  ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+  ctx.lineWidth   = 2.0;
+  ctx.stroke();
+
+  const fontSize = Math.round(ph * 0.82);
+  ctx.font         = `900 ${fontSize}px Arial`;
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth    = Math.max(5, fontSize * 0.18);
+  ctx.strokeStyle  = 'rgba(0,0,0,0.90)';
+  ctx.strokeText('★', W / 2, H / 2 + 1);
+  ctx.fillStyle = '#ffe14a';
+  ctx.fillText('★', W / 2, H / 2 + 1);
+}
+
 // ── Punch ease-out ─────────────────────────────────────────────────────────────
 function easeOut3(t) { return 1 - Math.pow(1 - Math.min(t, 1), 3); }
 
@@ -214,12 +245,19 @@ export class Shooter3D {
         const damage = shooter.damage ?? 1;
 
         // Sync sprite texture + badge on color/damage change
+        const isCB = shooter.isColorBomb === true;
         if (slot.lastColor !== shooter.color || slot.lastDamage !== damage) {
           slot.lastColor  = shooter.color;
           slot.lastDamage = damage;
-          slot.sphereMesh.material.map = _getPowerballTex(shooter.color);
-          slot.sphereMesh.material.needsUpdate = true;
-          drawDamageBadge(slot.badgeCtx, BADGE_CVS_W, BADGE_CVS_H, damage, hex);
+          if (isCB) {
+            // Rainbow: keep the prior powerball as a base; the rainbow swirl
+            // overlay (below) dominates. Badge shows a gold star, not a number.
+            drawColorBombBadge(slot.badgeCtx, BADGE_CVS_W, BADGE_CVS_H);
+          } else {
+            slot.sphereMesh.material.map = _getPowerballTex(shooter.color);
+            slot.sphereMesh.material.needsUpdate = true;
+            drawDamageBadge(slot.badgeCtx, BADGE_CVS_W, BADGE_CVS_H, damage, hex);
+          }
           slot.badgeTex.needsUpdate = true;
         }
 
@@ -241,9 +279,10 @@ export class Shooter3D {
           slot.group.position.y = Math.sin(elapsed * 2.4) * 0.03;
         }
 
-        // Color-bomb armed indicator — front slot only
+        // Color-bomb indicator — front slot only. Driven by the shooter itself
+        // now (the rainbow is a real queue item), not a global armed flag.
         if (si === 0 && slot.cbOverlayMesh) {
-          const armed = colorBombArmed;
+          const armed = shooter.isColorBomb === true;
           slot.cbOverlayMesh.visible = armed;
           slot.cbSparkMesh.visible   = armed;
           if (armed) {

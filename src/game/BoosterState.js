@@ -62,11 +62,13 @@ export class BoosterState {
     return 'swapped';
   }
 
-  // Freeze the grid for the next 3 shots.  Returns true on success.
+  // Freeze the grid for exactly the next shot (turn-based: one protected shot,
+  // no cars advance, then freeze ends). The game has no clock, so freeze is
+  // measured in shots/turns, not seconds.  Returns true on success.
   activateFreeze() {
     if (this.freeze <= 0) return false;
     this.freeze--;
-    this.freezeShots = 3;
+    this.freezeShots = 1;
     return true;
   }
 

@@ -197,7 +197,7 @@ const PROGRESSION = [
   // L14 Medium â€” "FREEZE intro": FREEZE booster unlocks. Level designed around it.
   { id: 14, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
     worldConfig: R_3C_MED, duration: 100, spawnBudget: 9, laneTargetCarCount: 2, gridRows: 11,
-    showArrow: false, hintText: 'NEW! FREEZE booster â€” next 3 shots don\'t advance cars! (2 free)' },
+    showArrow: false, hintText: 'NEW! FREEZE booster â€” your next shot is free, no cars advance! (2 free)' },
 
   // L15 Hard â€” BOSS "Meet the Tank": first tank spawn. hp is softer to let player
   // experience the tank without insta-losing. Speed slow = time to plan shots.

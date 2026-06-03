@@ -5,7 +5,8 @@
 // Public API:
 //   deploy(colIdx, laneIdx) — called by DragDrop; resolves combat immediately
 //   restart()               — full level reset + reprime; called by screens
-import { PHASE_CONFIG } from '../director/DirectorConfig.js';
+import { PHASE_CONFIG, COLOR_BOMB_STREAK } from '../director/DirectorConfig.js';
+import { Shooter } from '../models/Shooter.js';
 
 const KILLS_PER_BOMB      = 10;    // kills needed to earn one bomb charge
 const BOMB_MAX_CHARGES    = 3;     // max bombs a player can hold
@@ -55,8 +56,10 @@ export class GameLoop {
     this._onCrisis      = onCrisis      ?? (() => {});
     this._onBombEarned   = null;  // set by GameApp after construction
     this._onBombExplode  = null;  // set by GameApp after construction
-    this._onColorBomb    = null;  // set by GameApp; (color, laneOrder) → visual FX
+    this._onColorBomb    = null;  // set by GameApp; (color, killed) → visual FX when a rainbow fires
     this._onComboFreeze  = null;  // set by GameApp; () → visual FX
+    this._onColorBombEarned = null;  // set by GameApp; (colIdx) → "COLOR BOMB!" flash + SFX
+    this._onStreak          = null;  // set by GameApp; (streak) → update streak counter UI
     this.onNewCarType    = null;  // set by GameApp; fires with typeKey when a car is added to a lane
 
     // Base level duration — used to reset gs.duration on restart.
@@ -207,12 +210,14 @@ export class GameLoop {
     const carGameX       = frontCar.position;
     const isCorrectColor = shooter.color === frontCar.color;
 
-    // Color bomb power shot: destroy all same-color cars across all lanes.
-    if (gs.colorBombArmed) {
-      gs.colorBombArmed = false;
-      this._fireColorBomb(shooter.color);
-      gs.resetCombo();
-      this._onColorBomb?.(shooter.color);
+    // Rainbow color bomb (earned via correct-shot streak): destroy every car
+    // matching the TARGET lane's front-car colour, across all lanes. The player
+    // aims it by choosing which lane to drop it on. Does not affect the streak
+    // (already reset on earn) and does not advance the grid.
+    if (shooter.isColorBomb) {
+      const targetColor = frontCar.color;
+      const killed = this._fireColorBomb(targetColor);
+      this._onColorBomb?.(targetColor, killed);
       return;
     }
 
@@ -228,9 +233,20 @@ export class GameLoop {
 
     if (damageDealt === 0) {
       this._onMiss(laneIdx, carGameX);
+      // Wrong-colour shot breaks the color-bomb streak.
+      if (gs.correctShotStreak !== 0) { gs.correctShotStreak = 0; this._onStreak?.(0); }
       // Color mismatch: wasted bomb slot, grid does NOT advance.
       return;
     }
+
+    // Correct-colour shot landed — build the color-bomb streak. Reaching the
+    // threshold earns a rainbow bomb in the queue, then resets the streak.
+    gs.correctShotStreak++;
+    if (gs.correctShotStreak >= COLOR_BOMB_STREAK) {
+      this._earnColorBomb();
+      gs.correctShotStreak = 0;
+    }
+    this._onStreak?.(gs.correctShotStreak);
 
     if (isFreezeShot) {
       gs.comboFreezeShots = 1;
@@ -260,15 +276,38 @@ export class GameLoop {
     if (!gs.isOver) this._advanceGrid();
   }
 
+  // Earn a rainbow color bomb: replace the "next bomb" (top shooter) of the
+  // strategically least-costly column — the active column whose top bomb has the
+  // LOWEST damage — with a rainbow color-bomb powerball. Picking the lowest-damage
+  // top means the player sacrifices the least useful bomb to gain the reward.
+  _earnColorBomb() {
+    const gs = this._gs;
+    let bestCol = -1, lowestDmg = Infinity;
+    for (let c = 0; c < gs.activeColCount; c++) {
+      const top = gs.columns[c]?.top();
+      if (top && !top.isColorBomb && top.damage < lowestDmg) { lowestDmg = top.damage; bestCol = c; }
+    }
+    if (bestCol === -1) bestCol = 0;  // fallback: first column
+    const col     = gs.columns[bestCol];
+    const rainbow = new Shooter({ color: 'Rainbow', damage: 0, column: bestCol, isColorBomb: true });
+    if (col.shooters.length > 0) col.shooters[0] = rainbow;  // replace the next bomb
+    else                          col.shooters.unshift(rainbow);
+    this._onColorBombEarned?.(bestCol);
+  }
+
   // Color bomb power shot: instantly remove all cars matching `color` from every lane.
   // Kills are registered (combo, coins, bomb charge) but the grid does NOT advance.
+  // Returns the list of destroyed cars as { laneIdx, position } so the renderer
+  // can place explosions ONLY on cars actually killed (not on survivors).
   _fireColorBomb(color) {
     const gs = this._gs;
     const bs = this._boosterState;
+    const killed = [];
     for (let li = 0; li < gs.activeLaneCount; li++) {
       const lane = gs.lanes[li];
       for (let ci = lane.cars.length - 1; ci >= 0; ci--) {
         if (lane.cars[ci].color !== color) continue;
+        killed.push({ laneIdx: li, position: lane.cars[ci].position });  // capture before removal
         lane.cars.splice(ci, 1);
         const combo = gs.recordKill(false);
         this._onKill(combo);
@@ -278,6 +317,7 @@ export class GameLoop {
         }
       }
     }
+    return killed;
   }
 
   // Full level restart — resets state and reprimes cars/columns.
@@ -359,6 +399,7 @@ export class GameLoop {
           const idx = gs.lanes[li].cars.indexOf(car);
           if (idx >= 0) gs.lanes[li].cars.splice(idx, 1);
         }
+        gs.correctShotStreak = 0;   // a breach breaks the color-bomb streak
         gs.endGame(false);
         this._onEnd(false, li);
         return;

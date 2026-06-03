@@ -177,10 +177,15 @@ export const SDR_LEVELS = [
 
 // ─── Combo System ─────────────────────────────────────────────────────────────
 
-// Power-shot milestones.  Reaching threshold arms the next shot as that power.
-// Combo resets to 0 after the armed power shot fires.
-export const COLOR_BOMB_THRESHOLD = 4;  // kills → next shot destroys all same-color cars
+// Combo-freeze power shot: reaching this kill-combo arms the next shot as a
+// freeze.  Combo resets to 0 after the armed power shot fires.
 export const FREEZE_THRESHOLD     = 7;  // kills → next shot freezes all cars for 1 grid turn
+
+// Color bomb is a SKILL REWARD (not a combo/random drop): landing this many
+// consecutive correct-colour shots — with no wrong shot or breach in between —
+// earns one rainbow color-bomb inserted into the bomb queue.  Tuned via
+// tools/colorbomb-streak-sim.js (mid-game ≈ 1–2 earns/level at N=5).
+export const COLOR_BOMB_STREAK = 5;
 
 export const COMBO_WINDOW = 5;       // seconds between kills to maintain combo
 export const CARRYOVER_COIN_BONUS = 5; // coins for a carry-over kill

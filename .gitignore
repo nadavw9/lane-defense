@@ -38,3 +38,9 @@ AGENTS.md
 # Throwaway screenshot-review folders
 docs/task1-review/
 docs/task2-review/
+
+# One-off screenshot / inspection dev scripts (not part of the sprite pipeline)
+scripts/inspect-sprites.mjs
+scripts/screenshot-city-edges.mjs
+scripts/visual-review.mjs
+scripts/win-screen-shot.mjs

@@ -44,3 +44,9 @@ scripts/inspect-sprites.mjs
 scripts/screenshot-city-edges.mjs
 scripts/visual-review.mjs
 scripts/win-screen-shot.mjs
+
+# Environment variables — never commit secrets
+.env
+.env.*
+.env.local
+.env.*.local

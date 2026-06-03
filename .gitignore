@@ -29,3 +29,12 @@ va-*.png
 wfa-*.png
 *-audit.mjs
 post-fix-audit.mjs
+
+# Codex / agent artifacts (not part of this project)
+.agents/
+.codex/
+AGENTS.md
+
+# Throwaway screenshot-review folders
+docs/task1-review/
+docs/task2-review/

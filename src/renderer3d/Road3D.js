@@ -519,22 +519,43 @@ export class Road3D {
   _buildBreachLine() {
     const hw = roadHalfW(this._laneCount);
     const W  = hw * 2;
-    // Strip height: 0.80 world units, centered on Z=0 (ROAD_Z_NEAR).
-    // Sprite is 1774×887 (2:1 aspect) → tile horizontally so hazard stripes
-    // repeat at natural scale: each tile = 0.80 × 1.60 world units.
-    const H  = 0.80;
-    const tex = _getBreachTex();
-    const texCopy = tex.clone();
-    texCopy.repeat.set(W / (H * 2), 1);
-    texCopy.needsUpdate = true;
-
+    // ONE continuous bold hazard stripe across the full road width (no tiling).
+    // H ≈ 0.66 world units ≈ 14px on screen (top-down: ~21px per world unit).
+    const H   = 0.66;
+    const tex = this._makeHazardTexture(W / H);   // canvas aspect = plane aspect → ~45° bands
     const mat = new THREE.MeshBasicMaterial({
-      map: texCopy, transparent: true, alphaTest: 0.05, depthWrite: false,
+      map: tex, transparent: true, depthWrite: false,
     });
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(W, H), mat);
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.set(0, 0.02, ROAD_Z_NEAR);
     this._group.add(mesh);
+  }
+
+  // Single painted construction-tape stripe: diagonal yellow/black bands drawn
+  // once at the plane's aspect ratio (repeat 1,1 → no visible tiling/seams).
+  _makeHazardTexture(aspect) {
+    const ch = 48;
+    const cw = Math.max(64, Math.round(ch * Math.max(1, aspect)));
+    const cv = document.createElement('canvas');
+    cv.width = cw; cv.height = ch;
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = '#141414'; ctx.fillRect(0, 0, cw, ch);   // black base
+    ctx.fillStyle = '#F2C115';                                // hazard yellow
+    const band = 36;                                          // band width (px)
+    for (let x = -ch; x < cw + band; x += band * 2) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0); ctx.lineTo(x + band, 0);
+      ctx.lineTo(x + band - ch, ch); ctx.lineTo(x - ch, ch);  // 45° slant
+      ctx.closePath(); ctx.fill();
+    }
+    // Crisp dark edge top & bottom so the stripe reads as one painted band.
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(0, 0, cw, 3); ctx.fillRect(0, ch - 3, cw, 3);
+    const tex = new THREE.CanvasTexture(cv);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.minFilter = THREE.LinearFilter;
+    return tex;
   }
 
   _buildNoiseOverlay() {

@@ -87,10 +87,15 @@ const _BASE = import.meta.env.BASE_URL;
 // Sidewalk-grass strip — 64×256, tiles vertically behind city edge strips.
 const SWALK_GRASS_URL = `${_BASE}sprites/raw/split/sidewalk-grass-strip.png`;
 
+// Park-grass tile — seamless 512×512 park ground (grass + flowers + pebbles).
+// Tiled across the full bomb-zone side panels (theme-independent, all levels).
+const PARK_GRASS_URL = `${_BASE}sprites/designed/park-grass-tile.png`;
+const PARK_TILE_DISPLAY = 132;   // on-screen px per tile (tileScale = this/512)
+
 // Theme building sets, swapped by world. tutorial keeps the original 4-variant
 // scheme; industrial/night each have 5 variants (one per building slot).
 const BUILDING_SET_INFO = {
-  tutorial:   { prefix: 'building',            count: 4 },
+  tutorial:   { prefix: 'building-tutorial',   count: 5 },
   industrial: { prefix: 'building-industrial', count: 5 },
   night:      { prefix: 'building-night',      count: 5 },
 };
@@ -201,6 +206,23 @@ export class CityEdges {
 
     this._container.addChild(g);
 
+    // ── Park-grass over the FULL bomb-zone side panels (both sides, all themes) ─
+    // Seamless TilingSprite from road bottom to bomb-zone bottom, no flat gaps.
+    const parkTex = spriteFlags.loaded ? Assets.get(PARK_GRASS_URL) : null;
+    if (parkTex) {
+      const py = ROAD_BOTTOM_Y;
+      const ph = BOMB_ZONE_BOTTOM - ROAD_BOTTOM_Y;
+      const ts = PARK_TILE_DISPLAY / 512;
+      if (leftW > 0) {
+        const t = new TilingSprite({ texture: parkTex, width: leftW, height: ph });
+        t.tileScale.set(ts, ts); t.x = 0;            t.y = py; this._container.addChild(t);
+      }
+      if (rightW > 0) {
+        const t = new TilingSprite({ texture: parkTex, width: rightW, height: ph });
+        t.tileScale.set(ts, ts); t.x = appW - rightW; t.y = py; this._container.addChild(t);
+      }
+    }
+
     // PNG tree sprites on top of everything (replaces fallback circles when loaded)
     if (leftW  > 0) this._addTreeSprites(0,           leftW,  false);
     if (rightW > 0) this._addTreeSprites(appW - rightW, rightW, true);
@@ -291,10 +313,12 @@ export class CityEdges {
     g.rect(swalkX, ROAD_TOP_Y, swalkW, 1);
     g.fill({ color: 0xffffff, alpha: 0.10 });
 
-    const extH = BOMB_ZONE_BOTTOM - ROAD_BOTTOM_Y;
-    g.rect(bx,     ROAD_BOTTOM_Y, buildW, extH); g.fill(COL_GRASS);
-    g.rect(kerbX,  ROAD_BOTTOM_Y, kerbW,  extH); g.fill(COL_KERB);
-    g.rect(swalkX, ROAD_BOTTOM_Y, swalkW, extH); g.fill(COL_SWALK);
+    // Bomb-zone side panels are filled by a park-grass TilingSprite covering the
+    // FULL strip (added in _draw). Flat fallback only when the texture isn't loaded.
+    if (!spriteFlags.loaded) {
+      const extH = BOMB_ZONE_BOTTOM - ROAD_BOTTOM_Y;
+      g.rect(x0, ROAD_BOTTOM_Y, w, extH); g.fill(COL_GRASS);
+    }
   }
 
   _drawBuildings(g, bx, buildW, wins, trees) {
@@ -315,20 +339,26 @@ export class CityEdges {
       }
     }
 
-    // Windows always drawn (they overlay sprites or fallback rects)
-    for (const w of wins) {
-      const b    = BLDG_Y[w.b];
-      const by   = ROAD_TOP_Y + b.yFrac * ROAD_H;
-      const bh   = b.hFrac * ROAD_H;
-      const rows = 2;
-      const padX = Math.max(1, (buildW - cols * (ww + 1)) / 2);
-      const padY = Math.max(2, (bh - rows * (wh + 2)) / 2);
-      if (w.c >= cols) continue;
-      const wx  = bx + padX + w.c * (ww + 1);
-      const wy  = by + padY + w.r * (wh + 2);
-      const col = w.lit ? WIN_COLORS[(w.b * 3 + w.r * 2 + w.c) % WIN_COLORS.length] : WIN_DIM;
-      g.rect(wx, wy, ww, wh);
-      g.fill(col);
+    // Programmatic windows painted dark-navy (WIN_DIM) squares on top of the
+    // warm tutorial building sprites (which carry their own rooftop detail).
+    // Suppress them for the tutorial set when sprites are loaded. Industrial/
+    // night keep their existing overlay unchanged (left exactly as before).
+    const drawWindows = !spriteFlags.loaded || this._buildingSet !== 'tutorial';
+    if (drawWindows) {
+      for (const w of wins) {
+        const b    = BLDG_Y[w.b];
+        const by   = ROAD_TOP_Y + b.yFrac * ROAD_H;
+        const bh   = b.hFrac * ROAD_H;
+        const rows = 2;
+        const padX = Math.max(1, (buildW - cols * (ww + 1)) / 2);
+        const padY = Math.max(2, (bh - rows * (wh + 2)) / 2);
+        if (w.c >= cols) continue;
+        const wx  = bx + padX + w.c * (ww + 1);
+        const wy  = by + padY + w.r * (wh + 2);
+        const col = w.lit ? WIN_COLORS[(w.b * 3 + w.r * 2 + w.c) % WIN_COLORS.length] : WIN_DIM;
+        g.rect(wx, wy, ww, wh);
+        g.fill(col);
+      }
     }
 
     // Tree canopies — programmatic fallback when PNG sprites not loaded.

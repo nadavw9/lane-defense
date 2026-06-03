@@ -160,7 +160,7 @@ const SHOOTER_URLS = COLORS.flatMap(c => [
 ]);
 // Three theme building sets, swapped by world (see buildingSetForLevel).
 const BUILDING_SETS = {
-  tutorial:   [1, 2, 3, 4].map(i => `${_B}sprites/designed/building-${i}.png`),
+  tutorial:   [1, 2, 3, 4, 5].map(i => `${_B}sprites/designed/building-tutorial-${i}.png`),
   industrial: [1, 2, 3, 4, 5].map(i => `${_B}sprites/designed/building-industrial-${i}.png`),
   night:      [1, 2, 3, 4, 5].map(i => `${_B}sprites/designed/building-night-${i}.png`),
 };
@@ -178,6 +178,7 @@ const TREE_URLS     = ['oak', 'elm', 'pine'].map(t => `${_B}sprites/raw/split/tr
 const ENV_URLS      = [
   `${_B}sprites/raw/split/sidewalk-grass-strip.png`,
   `${_B}sprites/raw/split/panel-workshop-surface.png`,
+  `${_B}sprites/designed/park-grass-tile.png`,
 ];
 const BOOSTER_URLS  = ['swap', 'freeze', 'bomb'].map(b => `${_B}sprites/designed/booster-${b}.png`);
 const ALL_SPRITE_URLS = [...CAR_URLS, ...SHOOTER_URLS, ...BUILDING_URLS, ...TREE_URLS, ...ENV_URLS, ...BOOSTER_URLS];

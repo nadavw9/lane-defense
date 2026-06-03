@@ -1,122 +1,77 @@
 # Lane Defense — Session Handoff
 
-_Last updated: 2026-05-19 — play store standard, proportions pass required before Figma._
-
 ## Current State
+- Git tip: 3b37318 chore: remove dead bike pipeline scripts
+- Branch: master
+- Last deploy: today, green
+- Tests: 461 passing, 5 todo
+- Live URL: https://nadavw9.github.io/lane-defense/
 
-- **Last commit:** top-down structural baseline — flat billboards, 4-lane layout, aligned bomb columns
-- **478 tests passing** (`npm test`), 5 todo, 2 skipped — 17 test files
-- **Top-down orthographic camera:** working correctly. Camera at (0, 8, −7.8), lookAt (0, 0, −7.8), up = (0, 0, −1). Frustum sized to road width.
-- **Car rendering:** flat `PlaneGeometry` billboards with `CanvasTexture` + `MeshBasicMaterial`. Per-type dimensions in `Car3D.js → TYPE_DIMS`. GLB models fully removed.
-- **Road:** dark `0x1c1c1e` asphalt, white dashed dividers at 0.25 opacity. `MeshBasicMaterial` throughout. Water mesh removed.
-- **Bombs:** 4 columns × 4 slots, aligned to lanes via `laneToX(_activeLaneCount)`. Front bomb + damage badge sprites in place.
-- **Screenshot:** `docs/level-screenshots/current/L05_structural_review.png`
+## What Was Shipped This Session (most recent first)
+- 3b37318 — Removed obsolete bike-processing scripts that did not generate any live game sprites.
+- b4617f5 — Ignored one-off screenshot and inspection scripts so throwaway tooling stays out of commits.
+- 87afc96 — Preserved reusable sprite-processing scripts for live vehicle assets.
+- 786469f — Ignored Codex/agent local artifacts and review folders so assistant workspace files stay out of git.
+- a9670ee — Removed stale tracked level screenshots from the repository.
+- d41899f — Upgraded Tutorial City visuals with warm building sprites, cleaner building detail, and park-style grass beside the bomb zone.
+- 5953ac1 — Centered the road line correctly and made L1 trees fit better between tutorial buildings.
+- 76c3ba1 — Replaced the segmented breach marker with one bold hazard stripe.
+- c3242f5 — Added clearer onboarding modal cards and fixed input/z-order behavior.
+- d4748d3 — Fixed L1 car centering, made FREEZE turn-based (1 shot), fixed color-bomb explosion targeting, changed color bomb to 5-correct-shot streak reward.
+- 49e9799 — Ignored raw sprite sources and dev-server logs.
+- 62038ac — Rebalanced all 40 levels around discrete turn-based play (ltcc 1/boss-3/else-2, gridRows=11).
+- d64ec71 — Removed simulator free-kill shortcut that caused stalls.
+- 2fcec17 — Made balance simulator turn-based and speed-agnostic.
+- d0a2ac6 — Fixed simulator to respect each level's actual lane counts.
+- 1ca6d60 — Added full 40-level balance sweep tool.
+- 34a7de3 — Corrected simulation movement to advance per correct shot.
+- e059155 — Renamed player-facing "shooter" language to "bomb."
+- 53c28fd — Improved level select: title spacing, city buildings, map paths.
+- e478ec6 — Added real booster bar icons and readable labels.
+- 59b3df2 — Fixed win/lose screens: button overlap, background dimming, toast layering.
+- 923b811 — Added world-specific building sets for tutorial, industrial, and night themes.
+- 80049ce — Added per-color tank sprites for visual color matching.
+- e101c08 — Unified grid to 11 rows, 1-car opening, updated discrete sim model.
+- 4d26d8b — Fixed shared stash so any bomb can go in any stash slot, usable on any lane.
+- 168c5ca — First major visual/balance batch: city edges, bomb zone panel, car centering, color bomb visuals.
 
----
+## Active Backlog
+- Real-device playtest checklist: Tier 1 floor levels L8/L12/L16/L33/L37 and bosses L10/L20/L30/L40
+- Win/lose screen stats showing zeros (coins +0, combo x0) — scoring not hooked up
+- Rainbow bomb slightly larger than regular bombs — normalize size
+- AdMob integration — verify on real device
+- Signed APK / AAB release build
+- Play Store assets (5 screenshots, feature graphic, short + long descriptions)
+- Higgsfield gameplay trailer
+- feature/sprites remote branch can be deleted (same SHA as master, kept as safety bookmark)
+- Level select scaffolding buildings too visually busy at small size — simplify in-progress state
 
-## The Standard From Now On
+## Known Design Decisions (locked — do not change without Claude Chat)
+- No HP bars on cars (VISION.md)
+- Color bomb earned via 5 consecutive correct shots
+- laneTargetCarCount: 1 (L1) / 3 (bosses L10/20/30/40) / 2 (all others)
+- gridRows=11 unified across all 40 levels
+- Sim = competent tool-less floor; boosters lift real play above numbers
+- speed.base is vestigial (turn-based game, no clock)
+- Wrong shots are free (no penalty) — skill = planning, not accuracy
 
-**EVERY change — visual or otherwise — must meet Play Store quality before being approved.**
-
-The question before every commit:
-> "Would a player downloading this from the Play Store think this looks and feels like a professional game?"
-
-If no → not approved. Keep fixing.
-
----
-
-## What Needs Fixing Before Figma/Sprites
-
-Proportions and readability issues. Fix ALL of these before any art direction work:
-
-1. **Cars too small** — must fill 75% of lane width, not 50%
-2. **All cars identical shape** — bike must look clearly different from truck. Shape differentiation is the only car type signal right now.
-3. **Front bomb too small** — must be dramatically larger than queue bombs. The front bomb is the primary interactive element.
-4. **Damage number on bombs not visible** — must be readable at a glance
-5. **Breach line too subtle** — the red strip must feel like a real danger threshold, not a decorative line
-6. **Danger aura not visible** — red pulse on near-breach cars must be clearly visible
-7. **Road grid lines too subtle** — lanes must feel like distinct channels
-8. **Terminus bar too thick** — looks like a loading bar, should be a clean road cap
-
----
-
-## After Proportions Pass
-
-Move to Figma for art direction:
-- Design all 6 car sprites (top-down, per type)
-- Design bomb visual (top-down sphere or flat disc?)
-- Design road surface and lane styling
-- Design background (city from above? abstract? dark neutral?)
-
-**User approves Figma designs before any implementation.**
-
----
-
-## Session Rules (non-negotiable)
-
-- Every visual change: screenshot from L5 minimum
-- Standard: Play Store quality — not "it compiles", not "it looks ok"
-- Show screenshot to someone unfamiliar — can they understand the game in 5 seconds? If no → not ready
-- Never combine multiple system changes in one prompt
-- User approves before every commit
-- `npm test` must be green after every commit
-
----
+## Tool Workflow
+- Claude Chat: design judgment, visual approval, prompts, roadmap
+- Claude Code: implementation, screenshots, commits (approval required)
+- Codex: read-only audits, verification, SESSION_HANDOFF updates (approval required)
+- Rule: nothing commits without Claude Chat approval
+- Screenshots before every visual commit
 
 ## Key Files
-
-- `docs/VISION.md` — locked design contract
-- `docs/GAME_DESIGN.md` — level master table
-- `docs/balance-report-realistic.md` — difficulty ground truth
-- Structural fixes: `Car3D.js`, `Shooter3D.js`, `Road3D.js`, `Scene3D.js`
-
----
-
-## Architecture
-
-- **Director / Renderer separation** — `src/director/` is the headless brain; never imports pixi/three; never touched by renderers. Renderers read GameState, never mutate it.
-- **Dual canvas:** PixiJS canvas (z=1, screens/HUD/2D) overlays the Three.js canvas (z=0, gameplay viewport). Transparent PixiJS bg, no shared WebGL context.
-- **Two Three.js cameras:** top-down orthographic camera (road/cars, pos (0,8,−7.8)) and a second orthographic camera on layer 1 (shooter/bomb columns via `Shooter3D.js`).
-- **Car rendering:** `src/renderer3d/Car3D.js` — flat `PlaneGeometry` + `CanvasTexture` + `MeshBasicMaterial`. Type → shape: small=bike, big=sedan, jeep=van, truck=truck, bigrig=bigrig, tank=tank+turret. No GLB models.
-- **Shooter rendering:** `src/renderer3d/Shooter3D.js` (orthographic, layer 1). Road: `src/renderer3d/Road3D.js`.
-- `src/renderer/PositionRegistry.js` — single source of truth for lane/column screen positions. Must be called via `setActiveCounts()` before any hit-testing/overlay math.
-- `src/renderer/PopupQueue.js` — ALL popups/banners/toasts route here (priority: CRITICAL > TUTORIAL > CAR_TYPE > ACHIEVEMENT > COMBO > AMBIENT).
-
-## Gameplay Mechanics (all working, do NOT touch)
-
-- Turn-based grid: one row advances per correct (color-matched) shot; new cars spawn at row 0. Loss when a car passes MAX_ROW (breach).
-- Wrong color: no damage AND no advance (shipped — never revert).
-- Bomb booster: damages all cars within radius 22 position-units, triggers 2s concussion freeze. Earned every 10 kills, max 3 held.
-- Streak Shot: 3 consecutive correct hits → double-damage power shot.
-- Danger Aura: red pulse on cars within ~2 rows of the breach gate.
-- FREEZE booster: skips grid advance for the next 3 shots.
-- Win stars: 3★ no-rescue & maxCarPos<60; 2★ no-rescue & <80; else 1★.
-- Car type intro cards (once per type, localStorage-tracked):
-  **L1 small(bike) · L2 big(sedan) · L5 jeep(van) · L9 truck · L13 bigrig · L15 tank.**
-
-## What Is NOT Done (production gates)
-
-- Proportions pass (8 items listed above — required before Figma)
-- Figma art direction (after proportions pass, user approves before implementation)
-- AdMob real IDs — Google TEST IDs are live in `src/ads/AdManager.js`. Replace with production unit IDs before release.
-- Signed release APK. **Keystore exists and MUST NOT be lost:**
-  `C:\Users\dalit\lane-defense\android\lane-defense-release.keystore`
-  (gitignored; password `lanedefense2024`). Losing it = cannot ever update the app on Play Store.
-- Play Store listing (screenshots, feature graphic, privacy policy, Data Safety form, closed test ≥12 testers × 14 days).
-
-## Useful Commands
-
-```bash
-npm run dev            # Vite dev server (--host for LAN/phone)
-npm test               # full Vitest suite (must be green)
-npm run build          # production build → dist/
-npm run browser:kill   # clear stuck Playwright Chrome (BEFORE a session only)
-node tools/balance-sim.js   # regenerate difficulty report
-window._nav.startLevel(5)   # dev API — jump directly to L5 in browser
-```
-
-## Context Files
-
-- `CLAUDE.md` — full project context (auto-loaded each session).
-- This file — current-state handoff + what to fix next.
-- Repo: https://github.com/nadavw9/lane-defense · Live: https://nadavw9.github.io/lane-defense/
+- src/renderer/CityEdges.js — city edges, buildings, trees, park grass
+- src/renderer3d/Car3D.js — car sprites, lane centering, laneCount
+- src/renderer3d/Road3D.js — road geometry, breach line, center line
+- src/renderer3d/Shooter3D.js — bomb zone, stash slots, color bomb visuals
+- src/renderer/HUDRenderer.js — HUD elements
+- src/renderer/BoosterBar.js — booster icons, labels, counts
+- src/screens/WinScreen.js — win/lose modals
+- src/screens/LevelSelectScreen.js — level map
+- src/game/LevelManager.js — level configs, balance (40 levels)
+- src/director/CarTypes.js — car types, HP, weight bands
+- tools/balance-sweep.mjs — full 40-level balance sweep (reusable)
+- src/simulation/SimulationRunner.js — discrete per-shot sim, speed-agnostic

@@ -300,6 +300,10 @@ export class Road3D {
     // Main asphalt plane
     const texCopyMain = roadTex.clone();
     texCopyMain.repeat.set(W / 4.0, ROAD_LENGTH / 4.0);
+    // road-tile.jpg has a painted dash down its centre. Offset U so a dash lands
+    // exactly on the road centre (X=0) regardless of width: centre u=0.5 maps to
+    // U = offset + repeat/2, and we want that to be a dash (U = k+0.5).
+    texCopyMain.offset.x = 0.5 - (W / 4.0) / 2;
     texCopyMain.needsUpdate = true;
     const mat = new THREE.MeshBasicMaterial({ map: texCopyMain });
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(W, ROAD_LENGTH, 1, 1), mat);
@@ -325,6 +329,7 @@ export class Road3D {
 
     const texCopyVanish = roadTex.clone();
     texCopyVanish.repeat.set(W / 4.0, VANISH_LEN / 4.0);
+    texCopyVanish.offset.x = 0.5 - (W / 4.0) / 2;   // align dash to centre (matches main road)
     texCopyVanish.needsUpdate = true;
     const vanishMat = new THREE.MeshBasicMaterial({ map: texCopyVanish, color: 0x888888 });
     const vanishMesh = new THREE.Mesh(new THREE.PlaneGeometry(W, VANISH_LEN, 1, 1), vanishMat);

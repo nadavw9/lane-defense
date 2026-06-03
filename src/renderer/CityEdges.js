@@ -247,7 +247,10 @@ export class CityEdges {
     if (!spriteFlags.loaded) return;
     const { bx, buildW } = this._layout(x0, w, rightSide);
     const sideBase  = rightSide ? 1 : 0;
-    const treeSize  = Math.round(Math.max(24, Math.min(70, buildW * 0.85)));
+    // Cap tree size so canopies sit in the gaps between buildings rather than
+    // covering them — especially on wide strips (L1 single-lane) where buildW is
+    // large. Was 70 (Batch A); reduced so trees read as street trees.
+    const treeSize  = Math.round(Math.max(22, Math.min(42, buildW * 0.85)));
     const cx        = bx + buildW / 2;
     const jitterMax = Math.max(1, Math.min(4, buildW * 0.12));
 

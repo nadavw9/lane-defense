@@ -52,7 +52,7 @@ Hybrid-casual mobile puzzle-defense game. Cars in colored lanes advance toward t
 
 - **Live URL:** https://nadavw9.github.io/lane-defense/
 - **Repo:** https://github.com/nadavw9/lane-defense
-- **App ID:** `com.nadavw.lanedefense`
+- **App ID:** `com.nadavw.trafficbomb`
 
 ---
 

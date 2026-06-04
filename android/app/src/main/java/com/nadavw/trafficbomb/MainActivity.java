@@ -1,4 +1,4 @@
-package com.nadavw.lanedefense;
+package com.nadavw.trafficbomb;
 
 import com.getcapacitor.BridgeActivity;
 

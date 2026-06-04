@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">Traffic Bomb</string>
     <string name="title_activity_main">Traffic Bomb</string>
-    <string name="package_name">com.nadavw.lanedefense</string>
-    <string name="custom_url_scheme">com.nadavw.lanedefense</string>
+    <string name="package_name">com.nadavw.trafficbomb</string>
+    <string name="custom_url_scheme">com.nadavw.trafficbomb</string>
 </resources>

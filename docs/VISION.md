@@ -1,4 +1,4 @@
-# Lane Defense — Vision Contract
+# Traffic Bomb — Vision Contract
 
 ## Status: LOCKED. Do not modify without explicit user approval.
 

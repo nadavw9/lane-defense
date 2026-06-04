@@ -67,7 +67,7 @@ export class PauseScreen {
     // Share button — uses Web Share API on mobile, clipboard fallback on desktop.
     const shareBtn = this._btn('SHARE GAME', cx, y, 0x1a1a3a, 0xaaaaff, tap(async () => {
       if (navigator.share) {
-        try { await navigator.share({ title: 'Lane Defense', text: 'Can you beat my score?', url: GAME_URL }); } catch {}
+        try { await navigator.share({ title: 'Traffic Bomb', text: 'Can you beat my score?', url: GAME_URL }); } catch {}
       } else {
         try {
           await navigator.clipboard.writeText(GAME_URL);

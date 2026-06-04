@@ -21,11 +21,11 @@ const BUTTON_ENABLE_DELAY = 1.5;  // seconds before buttons become tappable
 async function _shareWin(levelId, stars, combo) {
   const starStr = '★'.repeat(stars) + '☆'.repeat(3 - stars);
   const text = levelId
-    ? `${starStr} Just cleared Level ${levelId} with a ×${combo} combo in Lane Defense! Can you beat it?`
-    : `${starStr} Lane Defense — ×${combo} combo!`;
+    ? `${starStr} Just cleared Level ${levelId} with a ×${combo} combo in Traffic Bomb! Can you beat it?`
+    : `${starStr} Traffic Bomb — ×${combo} combo!`;
   try {
     if (navigator.share) {
-      await navigator.share({ title: 'Lane Defense', text });
+      await navigator.share({ title: 'Traffic Bomb', text });
     } else if (navigator.clipboard) {
       await navigator.clipboard.writeText(text);
     }

@@ -1909,7 +1909,7 @@ main().catch(err => {
   console.error('[GameApp] Fatal startup error:', err);
   document.body.innerHTML = `
     <div style="color:#ff4466;font-family:monospace;padding:24px;background:#0a0a14;min-height:100vh">
-      <b>Lane Defense failed to start</b><br><br>
+      <b>Traffic Bomb failed to start</b><br><br>
       ${err?.message ?? String(err)}<br><br>
       <small>Check browser console for full stack trace.</small>
     </div>`;

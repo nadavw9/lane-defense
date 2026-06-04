@@ -1,4 +1,4 @@
-# Lane Defense — Project Context
+# Traffic Bomb — Project Context
 
 > **For Claude Code: auto-loaded on every session. Read in full before any task.**
 

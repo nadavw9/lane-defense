@@ -110,7 +110,7 @@ export class TitleScreen {
     // ── Title ──────────────────────────────────────────────────────────────
     // Shadow
     const shadow = new Text({
-      text: 'LANE\nDEFENSE',
+      text: 'TRAFFIC\nBOMB',
       style: {
         fontSize:    66,
         fontWeight:  'bold',
@@ -126,7 +126,7 @@ export class TitleScreen {
 
     // Main title
     const title = new Text({
-      text: 'LANE\nDEFENSE',
+      text: 'TRAFFIC\nBOMB',
       style: {
         fontSize:    66,
         fontWeight:  'bold',

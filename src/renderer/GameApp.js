@@ -183,6 +183,12 @@ const ENV_URLS      = [
 const BOOSTER_URLS  = ['swap', 'freeze', 'bomb'].map(b => `${_B}sprites/designed/booster-${b}.png`);
 const ALL_SPRITE_URLS = [...CAR_URLS, ...SHOOTER_URLS, ...BUILDING_URLS, ...TREE_URLS, ...ENV_URLS, ...BOOSTER_URLS];
 
+// Critical sprites gate spriteFlags.loaded — gameplay must have its car icons,
+// bomb/shooter sprites, and booster icons. Cosmetic sprites (buildings, trees,
+// grass) may fail to load and degrade to empty/programmatic edges instead of
+// blanking the whole scene. See the resilient loader in main().
+const CRITICAL_SPRITE_URLS = new Set([...CAR_URLS, ...SHOOTER_URLS, ...BOOSTER_URLS]);
+
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -228,14 +234,27 @@ async function main() {
   loadText.y = APP_H / 2;
   app.stage.addChild(loadText);
 
-  // Preload all sprite textures before any renderer is created.
-  // If loading fails (corrupt files, 404s, etc.) the game falls back to
-  // programmatic Graphics — spriteFlags.loaded stays false.
-  try {
-    await Assets.load(ALL_SPRITE_URLS);
-    spriteFlags.loaded = true;
-  } catch (e) {
-    console.warn('[GameApp] Sprite loading failed — using programmatic graphics fallback.', e);
+  // Preload sprite textures before any renderer is created. Load each one
+  // INDEPENDENTLY (Promise.allSettled) so a single 404 can't reject the whole
+  // batch — that was the production bug where one missing cosmetic sprite blanked
+  // the entire scene. spriteFlags.loaded gates the sprite render path; it stays
+  // true as long as the CRITICAL sprites (cars, bombs, boosters) load. A failed
+  // cosmetic sprite (building/tree/grass) just degrades at its use-site, which
+  // already guards a missing texture.
+  const _loadResults = await Promise.allSettled(
+    ALL_SPRITE_URLS.map(url => Assets.load(url).then(() => url, (e) => { throw { url, err: e }; })),
+  );
+  const _failedCritical = [];
+  for (const r of _loadResults) {
+    if (r.status === 'rejected') {
+      const url = r.reason?.url ?? '(unknown)';
+      console.warn(`[GameApp] Sprite failed to load (continuing): ${url}`, r.reason?.err);
+      if (CRITICAL_SPRITE_URLS.has(url)) _failedCritical.push(url);
+    }
+  }
+  spriteFlags.loaded = _failedCritical.length === 0;
+  if (!spriteFlags.loaded) {
+    console.warn(`[GameApp] ${_failedCritical.length} CRITICAL sprite(s) failed — using programmatic graphics fallback.`, _failedCritical);
   }
 
   try {

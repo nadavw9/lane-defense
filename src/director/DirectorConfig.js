@@ -189,6 +189,7 @@ export const COLOR_BOMB_STREAK = 5;
 
 export const COMBO_WINDOW = 5;       // seconds between kills to maintain combo
 export const CARRYOVER_COIN_BONUS = 5; // coins for a carry-over kill
+export const COINS_PER_CAR = 10;     // coins awarded per car destroyed (hybrid-casual rate)
 
 // ─── Deploy Time Dilation ─────────────────────────────────────────────────────
 

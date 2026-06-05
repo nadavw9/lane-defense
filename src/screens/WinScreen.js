@@ -304,7 +304,7 @@ export class WinScreen {
       this._buildCityAnim(px + panelW - 62, py + 12);
     }
     y += ROW_H + ROW_GAP;
-    this._statRow(px + 14, y, panelW - 28, ROW_H, '⚡  BEST COMBO', `×${gs.maxCombo}`, 0xff8844);
+    this._statRow(px + 14, y, panelW - 28, ROW_H, '⚡  BEST COMBO', `×${gs.maxCorrectStreak}`, 0xff8844);
     if (is3Star) {
       y += ROW_H + ROW_GAP;
       this._statRow(px + 14, y, panelW - 28, ROW_H, '★  PERFECT CLEAR', 'Flawless!', 0xffcc00);
@@ -330,7 +330,7 @@ export class WinScreen {
     const shareBtn = new Text({ text: '📤 SHARE', style: { fontSize: 14, fontWeight: 'bold', fill: 0x66aaff } });
     shareBtn.anchor.set(0.5, 0.5); shareBtn.x = cx; shareBtn.y = y;
     shareBtn.eventMode = 'static'; shareBtn.cursor = 'pointer';
-    shareBtn.on('pointerdown', () => _shareWin(levelId, stars, gs.maxCombo));
+    shareBtn.on('pointerdown', () => _shareWin(levelId, stars, gs.maxCorrectStreak));
     shareBtn.on('pointerover',  () => { shareBtn.alpha = 0.70; });
     shareBtn.on('pointerout',   () => { shareBtn.alpha = 1.00; });
     this._container.addChild(shareBtn);

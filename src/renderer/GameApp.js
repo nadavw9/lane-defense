@@ -1172,7 +1172,7 @@ async function main() {
         weeklyAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
       }
       // Update personal best and detect new records.
-      improved   = progress.updateBestStats(levelId, { combo: gs.maxCombo, time: gs.elapsed, stars });
+      improved   = progress.updateBestStats(levelId, { combo: gs.maxCorrectStreak, time: gs.elapsed, stars });
       winLevelId = levelId;
       onNext = () => {
         winScreen.destroy();

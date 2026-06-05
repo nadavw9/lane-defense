@@ -233,8 +233,9 @@ export class GameLoop {
 
     if (damageDealt === 0) {
       this._onMiss(laneIdx, carGameX);
-      // Wrong-colour shot breaks the color-bomb streak.
+      // Wrong-colour shot breaks both the color-bomb streak and the best-combo run.
       if (gs.correctShotStreak !== 0) { gs.correctShotStreak = 0; this._onStreak?.(0); }
+      gs.comboRun = 0;
       // Color mismatch: wasted bomb slot, grid does NOT advance.
       return;
     }
@@ -242,9 +243,11 @@ export class GameLoop {
     // Correct-colour shot landed — build the color-bomb streak. Reaching the
     // threshold earns a rainbow bomb in the queue, then resets the streak.
     gs.correctShotStreak++;
+    gs.comboRun++;   // uncapped best-combo run — NOT reset on color-bomb earn
+    if (gs.comboRun > gs.maxCorrectStreak) gs.maxCorrectStreak = gs.comboRun;  // win-screen "best combo"
     if (gs.correctShotStreak >= COLOR_BOMB_STREAK) {
       this._earnColorBomb();
-      gs.correctShotStreak = 0;
+      gs.correctShotStreak = 0;   // earn resets ONLY the color-bomb streak, not comboRun
     }
     this._onStreak?.(gs.correctShotStreak);
 
@@ -399,7 +402,8 @@ export class GameLoop {
           const idx = gs.lanes[li].cars.indexOf(car);
           if (idx >= 0) gs.lanes[li].cars.splice(idx, 1);
         }
-        gs.correctShotStreak = 0;   // a breach breaks the color-bomb streak
+        gs.correctShotStreak = 0;   // a breach breaks both streaks
+        gs.comboRun = 0;
         gs.endGame(false);
         this._onEnd(false, li);
         return;

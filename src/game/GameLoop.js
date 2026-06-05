@@ -212,12 +212,14 @@ export class GameLoop {
 
     // Rainbow color bomb (earned via correct-shot streak): destroy every car
     // matching the TARGET lane's front-car colour, across all lanes. The player
-    // aims it by choosing which lane to drop it on. Does not affect the streak
-    // (already reset on earn) and does not advance the grid.
+    // aims it by choosing which lane to drop it on. It does not affect the streak
+    // (already reset on earn), and it advances the grid EXACTLY ONCE — like any
+    // single shot: matching cars are destroyed, then all survivors step forward.
     if (shooter.isColorBomb) {
       const targetColor = frontCar.color;
       const killed = this._fireColorBomb(targetColor);
       this._onColorBomb?.(targetColor, killed);
+      if (!gs.isOver) this._advanceGrid();   // one advance total, not per kill
       return;
     }
 

@@ -147,12 +147,12 @@ const PROGRESSION = [
   // L6 Medium â€” "Bench unlocks": first time bench is available. R+B still.
   { id: 6, laneCount: 4, colCount: 4, colors: ['Red', 'Blue'],
     worldConfig: R_2C_MED_100, duration: 100, spawnBudget: 16, laneTargetCarCount: 2, gridRows: 11,
-    showArrow: false, hintText: 'NEW! Bench â€” store a bomb to use later' },
+    showArrow: false, hintText: 'NEW! Bench — store a bomb to use later' },
 
   // L7 Hard â€” "Green arrives": 3 colors for the first time. Pattern reset.
   { id: 7, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
     worldConfig: R_3C_HARD, duration: 100, spawnBudget: 11, laneTargetCarCount: 2, gridRows: 11,
-    showArrow: false, hintText: 'NEW! Green bombs â€” 3 colors to manage now' },
+    showArrow: false, hintText: 'NEW! Green bombs — 3 colors to manage now' },
 
   // L8 Boss-Hard â€” "Green boss": all 4 lanes, 3 colors, full density. Rescue moment.
   { id: 8, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
@@ -169,7 +169,7 @@ const PROGRESSION = [
   // L9 Easy (Relief) â€” "Recovery": R+B+G, gentle re-entry. SWAP booster unlocks.
   { id: 9, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
     worldConfig: B2_EASY, duration: 100, spawnBudget: 16, laneTargetCarCount: 2, gridRows: 11,
-    showArrow: false, hintText: 'NEW! SWAP booster â€” exchange two column colors' },
+    showArrow: false, hintText: 'NEW! SWAP booster — exchange two column colors' },
 
   // L10 Medium â€” BOSS "The Bench Test": R+B only (puzzle). Dense 3 cars/lane.
   // Design: column queue drifts heavily toward one color. Bench is the only escape.
@@ -197,7 +197,7 @@ const PROGRESSION = [
   // L14 Medium â€” "FREEZE intro": FREEZE booster unlocks. Level designed around it.
   { id: 14, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
     worldConfig: R_3C_MED, duration: 100, spawnBudget: 9, laneTargetCarCount: 2, gridRows: 11,
-    showArrow: false, hintText: 'NEW! FREEZE booster â€” your next shot is free, no cars advance! (2 free)' },
+    showArrow: false, hintText: 'NEW! FREEZE booster — your next shot is free, no cars advance! (2 free)' },
 
   // L15 Hard â€” BOSS "Meet the Tank": first tank spawn. hp is softer to let player
   // experience the tank without insta-losing. Speed slow = time to plan shots.
@@ -249,7 +249,7 @@ const PROGRESSION = [
   // L21 Easy (Relief) â€” "Yellow arrives": 4 colors. Light pressure after L20.
   { id: 21, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow'],
     worldConfig: R_4C_EASY, duration: 100, spawnBudget: 10, laneTargetCarCount: 2, gridRows: 11,
-    showArrow: false, hintText: 'NEW! Yellow bombs â€” 4 colors now' },
+    showArrow: false, hintText: 'NEW! Yellow bombs — 4 colors now' },
 
   // L22 Medium â€” "Four-color flow": Yellow integrated, building confidence.
   { id: 22, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow'],
@@ -278,7 +278,7 @@ const PROGRESSION = [
   { id: 25, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple'],
     worldConfig: R_5C_EASY,
     duration: 100, spawnBudget: 11, laneTargetCarCount: 2, gridRows: 11,
-    showArrow: false, hintText: 'NEW! Purple â€” 5 colors, 4 columns. Master SWAP.' },
+    showArrow: false, hintText: 'NEW! Purple — 5 colors, 4 columns. Master SWAP.' },
 
   // L26 Medium â€” "Purple integrated": 5 colors, building muscle memory.
   { id: 26, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple'],
@@ -311,7 +311,7 @@ const PROGRESSION = [
   // Hardest level with Orange introduction (never intro on an easy level).
   { id: 31, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'],
     worldConfig: R_6C_HARD, duration: 90, spawnBudget: 11, laneTargetCarCount: 2, gridRows: 11,
-    showArrow: false, hintText: 'NEW! Orange â€” all 6 colors, Night Highway begins' },
+    showArrow: false, hintText: 'NEW! Orange — all 6 colors, Night Highway begins' },
 
   // L32 Boss-Hard â€” "Highway storm": 6 colors, brutal. World 2 rescue moment.
   { id: 32, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'],

@@ -5,6 +5,7 @@
 //   • Near-miss detection: if timer was >80% used, show "SO CLOSE!"
 //   • Hearts display: shows remaining lives
 import { Container, Graphics, Text } from 'pixi.js';
+import { ROAD_BOTTOM_Y } from '../renderer/LaneRenderer.js';
 
 export class LoseScreen {
   // callbacks: { onRetry, onMenu }
@@ -53,6 +54,15 @@ export class LoseScreen {
     // Cracks render ON TOP of the dim (white lines read clearly on dark).
     this._crackGraphics = new Graphics();
     this._container.addChild(this._crackGraphics);
+
+    // Clip the shatter to the road area (above the breach line). Without this the
+    // cracks radiate past the panel and bleed over the bomb queue below; the mask
+    // keeps the effect within the gameplay road and never over the bomb zone.
+    const crackMask = new Graphics();
+    crackMask.rect(0, 0, w, ROAD_BOTTOM_Y);
+    crackMask.fill(0xffffff);
+    this._container.addChild(crackMask);
+    this._crackGraphics.mask = crackMask;
 
     this._generateCrackLines();
 
@@ -109,11 +119,12 @@ export class LoseScreen {
         '⏱  Time Survived', m > 0 ? `${m}m ${s}s` : `${s}s`, 0x66aaff);
       cy += rowH + 6;
 
+      // Guard the 0-shot case: 0/0 must not read as a misleading "100%".
       const tot = gs.totalDeploys ?? 0;
-      const acc = tot > 0 ? Math.round(((gs.correctDeploys ?? 0) / tot) * 100) : 100;
+      const acc = tot > 0 ? Math.round(((gs.correctDeploys ?? 0) / tot) * 100) : null;
       this._statRow(px + 14, cy, rowW, rowH,
-        '🎯  Accuracy', `${acc}%`,
-        acc >= 80 ? 0x44ff88 : acc >= 50 ? 0xffcc00 : 0xff6666);
+        '🎯  Accuracy', acc === null ? '—' : `${acc}%`,
+        acc === null ? 0x99aabb : acc >= 80 ? 0x44ff88 : acc >= 50 ? 0xffcc00 : 0xff6666);
       cy += rowH + 16;
     }
 

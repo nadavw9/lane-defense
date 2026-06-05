@@ -510,8 +510,13 @@ export class Shooter3D {
       depthWrite:  false,
       side:        THREE.DoubleSide,
     });
+    // Match the rainbow disc to the regular powerball ball EXACTLY. Measured:
+    // the powerball sprite's ball is ~50.2% of its 1254px canvas width, so the
+    // rendered ball ≈ 0.502 × BOMB_PLANE_SIZE. The conic gradient fills 62/64
+    // (0.969) of the overlay plane, so plane = 0.502 / 0.969 ≈ 0.518 × BOMB_PLANE_SIZE.
+    const cbDisc = BOMB_PLANE_SIZE * 0.518;
     const overlayMesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(BOMB_PLANE_SIZE, BOMB_PLANE_SIZE),
+      new THREE.PlaneGeometry(cbDisc, cbDisc),
       overlayMat,
     );
     overlayMesh.rotation.x = -Math.PI / 2;

@@ -284,8 +284,14 @@ export class WinScreen {
     const title      = is3Star ? 'PERFECT DEFENSE!' : 'LEVEL COMPLETE';
     const titleColor = is3Star ? 0xffcc00 : 0x44ff88;
     const titleSize  = is3Star ? 22 : 26;
-    this._text(title, cx, y, { fontSize: titleSize, fill: titleColor,
+    const titleTxt = this._text(title, cx, y, { fontSize: titleSize, fill: titleColor,
       dropShadow: is3Star ? { color: 0xff8800, blur: 18, distance: 0, alpha: 0.8 } : undefined });
+    // Clamp so the title keeps a clear gap from the top-right city-repair icon.
+    // Icon left edge sits at cx+98 (px+panelW-62); title is centred on cx, so the
+    // gap = 98 - titleWidth/2. For a ≥12px gap → titleWidth ≤ 172 = panelW-148.
+    // (Nudging the icon right instead would crowd it against the panel border.)
+    const titleMaxW = panelW - 148;   // ≈172px → ≥12px gap before the corner icon
+    if (titleTxt.width > titleMaxW) titleTxt.scale.set(titleMaxW / titleTxt.width);
     y += 48;
 
     // Stars

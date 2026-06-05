@@ -1,13 +1,22 @@
-# Lane Defense — Session Handoff
+# Traffic Bomb — Session Handoff
 
 ## Current State
-- Git tip: 3b37318 chore: remove dead bike pipeline scripts
+- Git tip: c73b384 test: level-by-level regression suite
 - Branch: master
 - Last deploy: today, green
-- Tests: 461 passing, 5 todo
+- Tests: 634 passing, 1 skip, 5 todo
 - Live URL: https://nadavw9.github.io/lane-defense/
 
 ## What Was Shipped This Session (most recent first)
+- c73b384 — Added 173-test regression suite covering level start contracts, shot resolution rules, and level goal reachability across all 40 levels.
+- c8319c3 — Compressed all 73 sprites from 46MB to 1.84MB, reducing mobile cold load from roughly 15s to 1-2s.
+- 3e48f52 — Made sprite loading resilient with `Assets.load` allSettled behavior, so one missing cosmetic sprite no longer blanks the whole game scene.
+- ef67720 — Fixed UI audit issues: LEVEL COMPLETE clipping, rainbow bomb size, color bomb single advance, em-dash banners, and lose screen polish.
+- c44d8b0 — Wired win screen stats so coins earned and best combo now show real level values.
+- 75aa10a — Added live privacy policy page at `/lane-defense/privacy.html`.
+- 6b3b734 — Fixed production placeholder bug by deploying tree, grass, and panel sprites that were previously gitignored and 404ing on the live site.
+- dd972d1 — Renamed Android package ID to `com.nadavw.trafficbomb`.
+- e769f66 — Changed app display name from Lane Defense to Traffic Bomb.
 - 3b37318 — Removed obsolete bike-processing scripts that did not generate any live game sprites.
 - b4617f5 — Ignored one-off screenshot and inspection scripts so throwaway tooling stays out of commits.
 - 87afc96 — Preserved reusable sprite-processing scripts for live vehicle assets.
@@ -37,14 +46,14 @@
 
 ## Active Backlog
 - Real-device playtest checklist: Tier 1 floor levels L8/L12/L16/L33/L37 and bosses L10/L20/L30/L40
-- Win/lose screen stats showing zeros (coins +0, combo x0) — scoring not hooked up
-- Rainbow bomb slightly larger than regular bombs — normalize size
 - AdMob integration — verify on real device
 - Signed APK / AAB release build
 - Play Store assets (5 screenshots, feature graphic, short + long descriptions)
 - Higgsfield gameplay trailer
 - feature/sprites remote branch can be deleted (same SHA as master, kept as safety bookmark)
 - Level select scaffolding buildings too visually busy at small size — simplify in-progress state
+- Sprite compression script (`scripts/compress-sprites.mjs`) — rerun if new sprites are added to `public/sprites/designed/`
+- Regression suite now at 634 tests — run before every APK build
 
 ## Known Design Decisions (locked — do not change without Claude Chat)
 - No HP bars on cars (VISION.md)
@@ -54,6 +63,8 @@
 - Sim = competent tool-less floor; boosters lift real play above numbers
 - speed.base is vestigial (turn-based game, no clock)
 - Wrong shots are free (no penalty) — skill = planning, not accuracy
+- `Assets.load` uses allSettled — cosmetic sprites degrade gracefully, critical sprites (cars/bombs/boosters) gate `spriteFlags.loaded`
+- Regression suite covers all 40 levels — do not change laneTargetCarCount, gridRows, car intro ordering, or color bomb behavior without updating regression tests
 
 ## Tool Workflow
 - Claude Chat: design judgment, visual approval, prompts, roadmap
@@ -75,3 +86,7 @@
 - src/director/CarTypes.js — car types, HP, weight bands
 - tools/balance-sweep.mjs — full 40-level balance sweep (reusable)
 - src/simulation/SimulationRunner.js — discrete per-shot sim, speed-agnostic
+- scripts/compress-sprites.mjs — rerun after adding new sprites
+- tests/regression-level-start.test.js — level config contracts
+- tests/regression-shot-contract.test.js — shot rule contracts
+- tests/regression-level-goals.test.js — goal reachability

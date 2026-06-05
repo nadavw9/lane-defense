@@ -85,7 +85,7 @@ const TREE_GAP_YFRACS = [
 const _BASE = import.meta.env.BASE_URL;
 
 // Sidewalk-grass strip — 64×256, tiles vertically behind city edge strips.
-const SWALK_GRASS_URL = `${_BASE}sprites/raw/split/sidewalk-grass-strip.png`;
+const SWALK_GRASS_URL = `${_BASE}sprites/designed/sidewalk-grass-strip.png`;
 
 // Park-grass tile — seamless 512×512 park ground (grass + flowers + pebbles).
 // Tiled across the full bomb-zone side panels (theme-independent, all levels).
@@ -102,9 +102,9 @@ const BUILDING_SET_INFO = {
 
 // Three top-down tree canopy sprites — oak, elm, pine.
 const TREE_URLS = [
-  `${_BASE}sprites/raw/split/tree-oak-topdown.png`,
-  `${_BASE}sprites/raw/split/tree-elm-topdown.png`,
-  `${_BASE}sprites/raw/split/tree-pine-topdown.png`,
+  `${_BASE}sprites/designed/tree-oak-topdown.png`,
+  `${_BASE}sprites/designed/tree-elm-topdown.png`,
+  `${_BASE}sprites/designed/tree-pine-topdown.png`,
 ];
 
 export class CityEdges {

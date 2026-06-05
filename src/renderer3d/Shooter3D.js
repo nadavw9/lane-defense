@@ -382,7 +382,7 @@ export class Shooter3D {
       side:  THREE.DoubleSide,
     });
     _texLoader.load(
-      `${import.meta.env.BASE_URL}sprites/raw/split/panel-workshop-surface.png`,
+      `${import.meta.env.BASE_URL}sprites/designed/panel-workshop-surface.png`,
       (tex) => {
         tex.wrapS      = THREE.RepeatWrapping;
         tex.wrapT      = THREE.RepeatWrapping;

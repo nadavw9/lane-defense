@@ -174,10 +174,10 @@ function buildingSetForLevel(levelId) {
   if (levelId <= 30) return 'industrial';
   return 'night';
 }
-const TREE_URLS     = ['oak', 'elm', 'pine'].map(t => `${_B}sprites/raw/split/tree-${t}-topdown.png`);
+const TREE_URLS     = ['oak', 'elm', 'pine'].map(t => `${_B}sprites/designed/tree-${t}-topdown.png`);
 const ENV_URLS      = [
-  `${_B}sprites/raw/split/sidewalk-grass-strip.png`,
-  `${_B}sprites/raw/split/panel-workshop-surface.png`,
+  `${_B}sprites/designed/sidewalk-grass-strip.png`,
+  `${_B}sprites/designed/panel-workshop-surface.png`,
   `${_B}sprites/designed/park-grass-tile.png`,
 ];
 const BOOSTER_URLS  = ['swap', 'freeze', 'bomb'].map(b => `${_B}sprites/designed/booster-${b}.png`);

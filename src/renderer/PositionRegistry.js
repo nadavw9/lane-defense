@@ -33,8 +33,13 @@ export function getLaneWorldX(laneIdx) {
 }
 
 // Screen X at the horizontal center of shooter column colIdx.
+// Columns sit directly under their lanes, so this MUST use the same 3D ortho
+// projection as getLaneScreenX — the bombs render in 3D via laneToX(). The old
+// naive even-spacing ((colIdx+0.5)*APP_W/_colCount) was off from the visual bomb
+// by up to ~57px on 2-lane levels and ±25px on 4-lane levels. (FIX 2)
 export function getColumnScreenX(colIdx) {
-  return (colIdx + 0.5) * (APP_W / _colCount);
+  const worldX = laneToX(colIdx, _colCount);
+  return (worldX + FRUSTUM_HALF_X) / FRUSTUM_DIAM * APP_W;
 }
 
 // Screen Y of the top shooter row (constant).

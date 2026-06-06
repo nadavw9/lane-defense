@@ -34,7 +34,6 @@ import { BenchRenderer }   from './BenchRenderer.js';
 
 import { GameState }       from '../game/GameState.js';
 import { GameLoop }        from '../game/GameLoop.js';
-import { COLOR_BOMB_STREAK } from '../director/DirectorConfig.js';
 import { CombatResolver }  from '../game/CombatResolver.js';
 import { LevelManager }    from '../game/LevelManager.js';
 import { BoosterState }    from '../game/BoosterState.js';
@@ -410,12 +409,35 @@ async function main() {
   // ── Onboarding hints — three lifetime one-time tutorial MODAL cards (HP/book,
   //    match-damage, cars-advance). Rendered on app.stage, above the HUD. ───────
   const onboardingHints = new OnboardingHints(app.stage, APP_W, APP_H);
-  // Show a modal hint card: pause the loop while it's up, resume on dismiss.
-  function _showHintCard(show) {
-    const wasPlaying = gameLoopStarted && !gameLoop.paused && !gs.isOver;
-    if (wasPlaying) gameLoop.pause();
-    show(() => { if (wasPlaying && !gs.isOver) gameLoop.resume(); });
+  // ── Unified modal-card queue (FIX 2) ──────────────────────────────────────
+  // ALL modal cards (onboarding hints, car-type intros, color-bomb intro) route
+  // through here so only one is ever visible at a time. The loop pauses while any
+  // card is up and resumes when the queue drains. `show` is (onDone) => void and
+  // MUST call onDone() when its card fully dismisses.
+  const _modalQueue = [];
+  let _modalActive  = false;
+  function _enqueueModal(show) {
+    _modalQueue.push(show);
+    if (!_modalActive) _runNextModal();
   }
+  function _runNextModal() {
+    if (_modalQueue.length === 0) {
+      if (_modalActive) {
+        _modalActive = false;
+        if (gameLoopStarted && !gs.isOver) gameLoop.resume();
+      }
+      return;
+    }
+    if (!_modalActive) {
+      _modalActive = true;
+      if (gameLoopStarted && !gameLoop.paused && !gs.isOver) gameLoop.pause();
+    }
+    const show = _modalQueue.shift();
+    show(() => _runNextModal());
+  }
+  function _clearModalQueue() { _modalQueue.length = 0; _modalActive = false; }
+  // Back-compat alias: onboarding hint call sites use _showHintCard(show).
+  const _showHintCard = _enqueueModal;
 
   // ── FTUE overlay ──────────────────────────────────────────────────────────
   let ftueOverlay = null;  // created in _startLevel
@@ -423,7 +445,6 @@ async function main() {
 
   // ── Car type intro card ───────────────────────────────────────────────────
   let carTypeIntroCard    = null;  // active intro card (only one at a time)
-  let carTypeIntroPending = null;  // type key queued while another card is active
   let carTypeIntroTimer   = null;  // setTimeout handle for level-start intro delay
 
   // First level that introduces each car type — intro fires here if type is unseen.
@@ -515,40 +536,8 @@ async function main() {
     return g;
   })();
 
-  // ── Color-bomb streak counter ───────────────────────────────────────────────
-  // Subtle row of pips in the gap between the breach line (y=510) and the bomb
-  // queue (y=544): fills as the player lands consecutive correct shots; at
-  // COLOR_BOMB_STREAK a rainbow bomb is earned. Hidden at streak 0 (unintrusive).
-  const streakUI = (() => {
-    const c   = new Container();
-    c.x = APP_W / 2; c.y = 527;
-    const PIPS = COLOR_BOMB_STREAK;
-    const SP = 15, R = 4.5;
-    const RAINBOW = [0xff4477, 0xffaa22, 0xffe14a, 0x44dd66, 0x4aa8ff, 0xb066ff];
-    const dots = [];
-    for (let i = 0; i < PIPS; i++) {
-      const d = new Graphics();
-      d.x = (i - (PIPS - 1) / 2) * SP;
-      c.addChild(d); dots.push(d);
-    }
-    c.visible = false;
-    layers.get('hudLayer').addChild(c);
-    return {
-      set(streak) {
-        c.visible = streak > 0;
-        for (let i = 0; i < PIPS; i++) {
-          const d = dots[i]; d.clear();
-          if (i < streak) {
-            d.circle(0, 0, R + 0.5).fill({ color: RAINBOW[i % RAINBOW.length] });
-            d.circle(0, 0, R + 0.5).stroke({ color: 0xffffff, width: 1, alpha: 0.5 });
-          } else {
-            d.circle(0, 0, R).fill({ color: 0x1a2738, alpha: 0.75 });
-            d.circle(0, 0, R).stroke({ color: 0x4a6788, width: 1, alpha: 0.6 });
-          }
-        }
-      },
-    };
-  })();
+  // (Color-bomb streak pip counter removed — color bombs are now earned by a
+  //  single-shot MULTI-KILL of 2+ cars, not by a consecutive-shot streak. FIX 4.)
 
   // ── Stage effects ─────────────────────────────────────────────────────────
   let shakeTime = 0;
@@ -593,7 +582,7 @@ async function main() {
     tutOrch?.dismiss();
     clearTimeout(carTypeIntroTimer); carTypeIntroTimer   = null;
     carTypeIntroCard?._destroy();   carTypeIntroCard    = null;
-    carTypeIntroPending = null;
+    _clearModalQueue();
 
     // Resolve config from either a number or a pre-built config object.
     let cfg;
@@ -659,9 +648,17 @@ async function main() {
     if ((cfg.laneCount ?? 4) >= 3) featureBanners.fire('multi_lane', 'New lane open! Each lane needs a matching-color bomb.');
     if (benchUnlocked && levelId === 6) featureBanners.fire('bench_appear', 'Bench unlocked — store a bomb here for later!');
     setActiveCounts({ laneCount: cfg.laneCount ?? 4, colCount: cfg.colCount ?? 4 });
+    // FIX 4: route the level's intro hint through the unified notification queue
+    // (safe gap, one-at-a-time) instead of FTUEOverlay's own bottom banner — except
+    // the L1 drag-arrow hint, which stays in the overlay because it points at the bomb.
+    let ftueCfg = cfg;
+    if (cfg.hintText && !cfg.showArrow && typeof levelId === 'number') {
+      featureBanners.fire(`hint_L${levelId}`, cfg.hintText);
+      ftueCfg = { ...cfg, hintText: null };
+    }
     // FTUEOverlay must be created AFTER setActiveCounts so that PositionRegistry
     // returns correct lane/column screen positions for the current level geometry.
-    ftueOverlay = _makeFTUEOverlay(app.stage, APP_W, APP_H, cfg);
+    ftueOverlay = _makeFTUEOverlay(app.stage, APP_W, APP_H, ftueCfg);
     carRenderer.clearAll();
     gameRenderer3D.resetLevel();
     gameRenderer3D.applyTheme(levelId);
@@ -672,7 +669,7 @@ async function main() {
     shooterRenderer.setLaneCount(cfg.laneCount ?? 4);
     gameRenderer3D.startLevelIntro();
     gameRenderer3D.setCombo(0);
-    streakUI.set(0);   // reset color-bomb streak pips on level (re)start
+    _clearModalQueue();   // drop any queued cards from a previous level
     shooterRenderer.enable3DMode(true);
     shooterRenderer.container.visible = false;
 
@@ -818,20 +815,14 @@ async function main() {
   }
 
   // ── Car type intro (Royal Match "Meet the new blocker!" moment) ──────────
+  // Routes through the unified modal queue so it never overlaps another card.
   function _triggerCarTypeIntro(typeKey) {
-    if (carTypeIntroCard) {
-      // Already showing one — queue this type, it will show after current finishes
-      if (!carTypeIntroPending) carTypeIntroPending = typeKey;
-      return;
-    }
-    gameLoop.pause();
-    carTypeIntroCard = new CarTypeIntroCard(
-      app.stage, APP_W, APP_H, typeKey,
-      () => {
-        carTypeIntroCard = null;
-        if (gameLoopStarted && !gs.isOver) gameLoop.resume();
-      },
-    );
+    _enqueueModal((done) => {
+      carTypeIntroCard = new CarTypeIntroCard(
+        app.stage, APP_W, APP_H, typeKey,
+        () => { carTypeIntroCard = null; done(); },
+      );
+    });
   }
 
   // ── Screen: Title ─────────────────────────────────────────────────────────
@@ -972,11 +963,8 @@ async function main() {
     layers.get('carLayer').visible        = false;
     livesManager.tick();   // credit any regenerated hearts before showing
     levelSelectScreen = new LevelSelectScreen(app.stage, APP_W, APP_H, progress, {
-      onSelectLevel: (levelId) => {        // ── Hearts gate ────────────────────────────────────────────────────
-        if (!livesManager.hasHearts()) {
-          _showNoHeartsPanel();
-          return;
-        }
+      onSelectLevel: (levelId) => {
+        // Hearts/energy gate removed (FIX 3) — levels are always startable.
         levelSelectScreen.destroy();
         levelSelectScreen = null;
         transition.fadeOut(0.25, () => {
@@ -1191,7 +1179,7 @@ async function main() {
         weeklyAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
       }
       // Update personal best and detect new records.
-      improved   = progress.updateBestStats(levelId, { combo: gs.maxCorrectStreak, time: gs.elapsed, stars });
+      improved   = progress.updateBestStats(levelId, { combo: gs.maxSingleShotKills, time: gs.elapsed, stars });
       winLevelId = levelId;
       onNext = () => {
         winScreen.destroy();
@@ -1264,7 +1252,7 @@ async function main() {
         audio,
       },
       gs,
-      livesManager.hearts,
+      null,   // FIX 3: no hearts/lives row on the final game-over screen
     );
 
     // Reuse rescueOverlay slot so _startLevel cleans up correctly.
@@ -1305,16 +1293,12 @@ async function main() {
         pauseBtn.visible = true;
       },
       onRetry: () => {
+        // "LEVEL SELECT" — declined the one-time rescue → level failed. (FIX 3)
         rescueOverlay.destroy();
         rescueOverlay = null;
-        gs.coins = progress.coins;
-        carRenderer.clearAll();
-        gameLoop.resume();
-        gameLoop.restart();
-        gs.coins = progress.coins;
-        audio.resetMusicPhase();
-        audio.playMusic('gameplay_calm');
-        pauseBtn.visible = true;
+        adManager.showInterstitial().then(() => {
+          transition.fadeOut(0.20, () => { showLevelSelect(); transition.fadeIn(0.20, null); });
+        });
       },
     });
   }
@@ -1356,7 +1340,9 @@ async function main() {
     },
 
     onChainHit: (laneIdx, position) => {
-      floatingTexts.push(spawnChainHit(layers.get('particleLayer'), laneIdx, position));
+      // No mid-road "CHAIN HIT!" floater — a 2+ kill is a multi-kill, already
+      // surfaced by the unified MULTI-KILL notification in the safe gap (FIX 4),
+      // so this no longer overlaps the cars.
       // chain_reaction achievement: 2+ kills from one shot.
       const chainAch = achievementManager.check('chain_kill');
       chainAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
@@ -1446,9 +1432,10 @@ async function main() {
         shakeTime = 0;
         gameRenderer3D.onBreach();
         haptics.heavy();
-        livesManager.loseHeart();
-        // noRescue levels (e.g. Sudden Death daily challenge) skip the rescue panel.
-        breachCam = { laneIdx: laneIdx ?? 0, t: 0, done: false, skipRescue: noRescueThisLevel };
+        // FIX 3: no hearts. One breach = game over with a one-time CONTINUE (ad)
+        // rescue. A second breach (rescue already used) → final game over.
+        breachCam = { laneIdx: laneIdx ?? 0, t: 0, done: false,
+                      skipRescue: noRescueThisLevel || gs.rescueUsed };
       }
     },
 
@@ -1505,24 +1492,36 @@ async function main() {
 
   // ── Combo power-shot callbacks ────────────────────────────────────────────
   gameLoop._onColorBomb = (color, killed) => {
-    comboFX.triggerColorBomb(color);
+    comboFX.triggerColorBomb(color);                 // edge vignette only
     gameRenderer3D.onColorBomb(color, killed);
+    popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildFlashText(w, 'COLOR BOMB!', 0xffcc44), 1.5);
     audio.play('color_bomb', { color });
     haptics.heavy();
   };
   gameLoop._onComboFreeze = () => {
     comboFX.triggerFreeze();
+    popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildFlashText(w, 'FROZEN!', 0x88ddff), 1.5);
     audio.play('freeze_activate');
     haptics.medium();
   };
-  // Color-bomb streak: update the pip counter every correct/wrong shot.
-  gameLoop._onStreak = (streak) => streakUI.set(streak);
-  // Color bomb EARNED (streak reached): brief flash + SFX; rainbow now in queue.
+  // Progress feedback per multi-kill (1/3, 2/3) — through the unified queue (FIX 4).
+  gameLoop._onMultiKill = (count, needed) => {
+    if (count < needed) {
+      popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildFlashText(w, `MULTI-KILL!  ${count}/${needed}`, 0xffcc44), 1.2);
+    }
+  };
+  // Color bomb EARNED after 3 multi-kills. Edge flash + queued "3 MULTI-KILLS!"
+  // notification + SFX; rainbow is now in the queue. The first time ever, show the
+  // one-time COLOR BOMB intro card (FIX 5), routed through the modal queue.
   gameLoop._onColorBombEarned = () => {
     comboFX.triggerColorBomb('Rainbow');
+    popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildFlashText(w, '3 MULTI-KILLS!', 0xffe14a), 1.6);
     audio.play('color_bomb', { color: 'Rainbow' });
     haptics.heavy();
-    streakUI.set(0);
+    if (!progress.hintColorBombShown) {
+      progress.markHintColorBomb();
+      _enqueueModal((done) => onboardingHints.showColorBomb(done));
+    }
   };
 
   // ── Tutorial orchestrator (needs gameLoop ref, created here) ─────────────
@@ -1658,21 +1657,17 @@ async function main() {
     boosterSpotlight?.update(dt);
     tutOrch?.update(dt);
 
-    // Onboarding modal hint cards: animate; block drag input while one is up.
+    // Modal cards (onboarding hints, car-type intro, color-bomb intro) all run
+    // through the unified queue; block drag input while ANY card is up (FIX 2).
     onboardingHints.update(dt);
-    dragDrop.inputBlocked = onboardingHints.active || !!carTypeIntroCard;
-
-    // ── Car type intro card ────────────────────────────────────────────────
+    // Drive the active car-type intro card's animation. Its onDismiss nulls the
+    // ref and advances the queue, so capture the ref to avoid nulling a NEW card
+    // that the queue may have started during this same update.
     if (carTypeIntroCard) {
-      if (!carTypeIntroCard.update(dt)) {
-        carTypeIntroCard = null;
-        if (carTypeIntroPending) {
-          const nextType = carTypeIntroPending;
-          carTypeIntroPending = null;
-          _triggerCarTypeIntro(nextType);
-        }
-      }
+      const _c = carTypeIntroCard;
+      if (!_c.update(dt) && carTypeIntroCard === _c) carTypeIntroCard = null;
     }
+    dragDrop.inputBlocked = _modalActive;
 
     // Juice updates
     laneFlash.update(dt);
@@ -1682,7 +1677,6 @@ async function main() {
 
     // Core renderer updates
     hudRenderer.update(dt);
-    hudRenderer.setHearts(livesManager.hearts);
     particles.update(dt);
     carRenderer.update(dt, boosterState.isFrozen());
     shooterRenderer.update(gs.elapsed, dt);
@@ -1825,6 +1819,20 @@ async function main() {
 function _makeFTUEOverlay(stage, w, h, cfg) {
   if (cfg.laneCount >= 4 && cfg.colCount >= 4 && !cfg.showArrow && !cfg.hintText && !cfg.showAreaLabels) return null;
   return new FTUEOverlay(stage, w, h, cfg);
+}
+
+// Single-line celebratory flash for the unified notification queue (FIX 4).
+// Sits at the PopupQueue safe-gap Y; top-anchored so it stays in the road↔bomb gap.
+function _buildFlashText(w, text, colorHex) {
+  const grp = new Container();
+  const t = new Text({
+    text,
+    style: { fontSize: 22, fontWeight: '900', fill: colorHex, align: 'center',
+      dropShadow: { color: 0x000000, blur: 8, distance: 0, alpha: 0.9 } },
+  });
+  t.anchor.set(0.5, 0); t.x = w / 2; t.y = 0;
+  grp.addChild(t);
+  return grp;
 }
 
 function _buildComboPopup(w) {

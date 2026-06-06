@@ -1,5 +1,5 @@
-// process-raw-bikes.mjs
-// Source: public/sprites/raw/split/{color}_bike.png or {color}-bike.png (white backgrounds)
+// process-raw-bikes.mjs  (one-off asset tool — not part of build/runtime)
+// Source: sprite-sources/raw/split/{color}_bike.png or {color}-bike.png (white backgrounds)
 // Output: public/sprites/designed/bike-{color}.png
 //
 // Processing: flood-fill white bg removal, 180° rotation (front wheel → faces player)
@@ -10,7 +10,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SRC_DIR = path.join(__dirname, '..', 'public', 'sprites', 'raw', 'split');
+const SRC_DIR = path.join(__dirname, '..', 'sprite-sources', 'raw', 'split');
 const OUT_DIR = path.join(__dirname, '..', 'public', 'sprites', 'designed');
 mkdirSync(OUT_DIR, { recursive: true });
 

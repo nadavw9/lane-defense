@@ -126,20 +126,8 @@ export class HUDRenderer {
     this._levelText.y = TEXT_MID;
     this._layer.addChild(this._levelText);
 
-    // ── Heart icons ──────────────────────────────────────────────────────
-    this._heartTexts = [];
-    for (let i = 0; i < 5; i++) {
-      const ht = new Text({ text: '♥', style: {
-        fontSize: 15,
-        fill:     0xff3355,
-        dropShadow: { color: 0x880022, blur: 3, distance: 1, alpha: 0.7 },
-      }});
-      ht.anchor.set(0.5, 0.5);
-      ht.x = 84 + i * 16;
-      ht.y = TEXT_MID;
-      this._layer.addChild(ht);
-      this._heartTexts.push(ht);
-    }
+    // Hearts removed (FIX 3) — one breach = game over with a one-time ad rescue,
+    // so there is no lives display. The freed header space stays clean.
 
     // ── Combo glow background (drawn behind combo text) ──────────────────
     this._comboGlowBg = new Graphics();
@@ -217,21 +205,8 @@ export class HUDRenderer {
     this._levelText.text = `L${n}`;
   }
 
-  setHearts(n) {
-    if (n === this._lastHearts) return;
-    this._lastHearts = n;
-    for (let i = 0; i < 5; i++) {
-      const ht = this._heartTexts[i];
-      if (i < n) {
-        ht.text  = '♥';
-        ht.style = { fontSize: 15, fill: 0xff3355,
-          dropShadow: { color: 0x880022, blur: 3, distance: 1, alpha: 0.7 } };
-      } else {
-        ht.text  = '♡';
-        ht.style = { fontSize: 15, fill: 0x445566 };
-      }
-    }
-  }
+  // Hearts removed (FIX 3): kept as a no-op so any stray caller is harmless.
+  setHearts() {}
 
   showObjective(text) {
     if (this._objText) { this._objText.destroy(); this._objText = null; }

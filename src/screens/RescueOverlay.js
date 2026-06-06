@@ -92,29 +92,19 @@ export class RescueOverlay {
     const cx = w / 2;
     let y = py + 44;
 
-    this._text(c, 'LANE BREACHED!', cx, y, { fontSize: 28, fill: 0xff4444 });
-    y += 44;
-    this._text(c, 'Continue playing?', cx, y, { fontSize: 16, fill: 0xbbbbbb, fontWeight: 'normal' });
-    y += 50;
+    this._text(c, 'GAME OVER', cx, y, { fontSize: 28, fill: 0xff4444 });
+    y += 40;
+    this._text(c, 'A car broke through!', cx, y, { fontSize: 14, fill: 0xbbbbbb, fontWeight: 'normal' });
+    y += 28;
+    this._text(c, 'Watch an ad to continue from here?', cx, y, { fontSize: 13, fill: 0x88bbdd, fontWeight: 'normal' });
+    y += 46;
 
-    // Watch Ad — always available
-    this._button(c, '▶  Watch Ad  +10s', cx, y, 0x0d2a5a, 0x66aaff, () => this._onRescueAd());
-    y += 62;
+    // CONTINUE — one-time rewarded-ad rescue; resumes from the breach moment. (FIX 3)
+    this._button(c, '▶  CONTINUE', cx, y, 0x0d3a1a, 0x66ff99, () => this._onRescueAd());
+    y += 64;
 
-    // 50 Coins — greyed when unaffordable
-    const canAfford = gs.coins >= 50;
-    this._button(
-      c,
-      `◆ 50 Coins  +10s`,
-      cx, y,
-      canAfford ? 0x3a2800 : 0x252525,
-      canAfford ? 0xf5c842 : 0x555555,
-      canAfford ? () => this._onRescueCoins() : null,
-    );
-    y += 68;
-
-    // Retry
-    this._button(c, 'RETRY', cx, y, 0x2a0000, 0xff7777, () => this._onRetry());
+    // Decline → back to level select (level failed).
+    this._button(c, 'LEVEL SELECT', cx, y, 0x1a2a3a, 0x88bbdd, () => this._onRetry());
   }
 
   _text(parent, str, x, y, style) {

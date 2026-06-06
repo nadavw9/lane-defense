@@ -627,7 +627,11 @@ async function main() {
     // Use levelNumber for normal levels; 'D' label for daily challenge.
     hudRenderer.setLevel(currentLevelIsDaily ? 'D' : levelManager.levelNumber);
     const objTotal = gs.spawnBudget !== null ? gs.spawnBudget : gs.targetKills;
-    hudRenderer.showObjective(`Defeat ${objTotal} cars`);
+    const _objectiveText = `Defeat ${objTotal} cars`;
+    // FIX 1: show the objective AFTER the "LEVEL X" splash so the banner never
+    // overlaps it. Numeric levels defer to the splash's completion (below);
+    // non-numeric levels (daily challenge — no splash) show it immediately.
+    if (typeof levelIdOrConfig !== 'number') hudRenderer.showObjective(_objectiveText);
 
     // Feature gating: daily challenge unlocks everything; normal levels gate by id.
     const benchUnlocked  = currentLevelIsDaily || levelId >= 6;
@@ -759,7 +763,7 @@ async function main() {
 
     // ── Level intro splash ("LEVEL X" bounce-in) ──────────────────────────
     if (typeof levelIdOrConfig === 'number') {
-      _showLevelIntroSplash(levelManager.levelNumber);
+      _showLevelIntroSplash(levelManager.levelNumber, () => hudRenderer.showObjective(_objectiveText));
     }
 
     // ── Switch to 3D renderer for gameplay ────────────────────────────────
@@ -772,7 +776,7 @@ async function main() {
   }
 
   // ── Level intro splash — compact top-center pill badge (1.2 s) ───────────
-  function _showLevelIntroSplash(levelNumber) {
+  function _showLevelIntroSplash(levelNumber, onComplete) {
     const c = new Container();
     c.y = 66;   // pill top = 66-22 = 44 → flush with road top, never covers road or cars
     app.stage.addChild(c);
@@ -810,6 +814,7 @@ async function main() {
       } else {
         app.ticker.remove(unsub);
         c.destroy({ children: true });
+        onComplete?.();   // FIX 1: reveal the objective only after the banner clears
       }
     });
   }
@@ -1265,6 +1270,10 @@ async function main() {
   // ── Screen: Rescue ────────────────────────────────────────────────────────
   function showRescue() {
     pauseBtn.visible = false;
+    // FIX 2: hide the booster bar + suppress toasts behind the game-over modal,
+    // exactly like the win/final-lose screens do.
+    boosterBar.setVisible(false);
+    popupQueue.setSuppressed(true);
     audio.play('rescue_offer');
     rescueOverlay = new RescueOverlay(app.stage, APP_W, APP_H, gs, {
       onRescueAd: () => {
@@ -1274,6 +1283,9 @@ async function main() {
             gameLoop.shuffleForRescue();
             rescueOverlay.destroy();
             rescueOverlay = null;
+            // Resuming play — restore the booster bar + toasts.
+            boosterBar.setVisible(true);
+            popupQueue.setSuppressed(false);
             audio.resetMusicPhase();
             audio.playMusic('gameplay_calm');
             pauseBtn.visible = true;

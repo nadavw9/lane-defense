@@ -67,6 +67,7 @@ function defaults() {
     hintHpMissShown:   false,  // car-survived-a-hit → "check the book" pointer
     hintDamageShown:   false,  // first bomb pickup on L1 → match-damage tooltip
     hintAdvanceShown:  false,  // first correct shot on L1 → "all cars advance" hint
+    hintColorBombShown: false, // first rainbow bomb earned → color-bomb intro card
   };
 }
     
@@ -90,6 +91,8 @@ export class ProgressManager {
   markHintDamage()       { this._data.hintDamageShown = true; this._save(); }
   get hintAdvanceShown() { return !!this._data.hintAdvanceShown; }
   markHintAdvance()      { this._data.hintAdvanceShown = true; this._save(); }
+  get hintColorBombShown() { return !!this._data.hintColorBombShown; }
+  markHintColorBomb()      { this._data.hintColorBombShown = true; this._save(); }
 
   hasSeenUnlock(levelId) {
     return !!(this._data.seenUnlocks ?? {})[String(levelId)];

@@ -5,10 +5,11 @@
 // Public API:
 //   deploy(colIdx, laneIdx) — called by DragDrop; resolves combat immediately
 //   restart()               — full level reset + reprime; called by screens
-import { PHASE_CONFIG, COLOR_BOMB_STREAK } from '../director/DirectorConfig.js';
+import { PHASE_CONFIG } from '../director/DirectorConfig.js';
 import { Shooter } from '../models/Shooter.js';
 
 const KILLS_PER_BOMB      = 10;    // kills needed to earn one bomb charge
+const MULTI_KILLS_PER_BOMB = 3;    // multi-kills (2+ cars/shot) banked to earn a color bomb
 const BOMB_MAX_CHARGES    = 3;     // max bombs a player can hold
 const BOMB_DAMAGE         = 8;     // HP damage dealt per car in blast zone
 const BOMB_POS_RADIUS     = 22;    // blast radius in road-position units (0-100 scale)
@@ -16,9 +17,11 @@ const BOMB_FREEZE_DURATION = 2.0;  // seconds all cars are frozen after bomb det
 
 const FIXED_DT = 1 / 60; // logic step in seconds
 
-// Time in seconds for the single projectile to reach the car before damage lands.
-// Short enough to feel instant; long enough for the visual to register.
-const SHOT_TRAVEL_TIME = 0.12;
+// Time in seconds for the bomb to visibly travel to the car before damage lands.
+// The 3D projectile (Projectile3D) eases across this whole window and lands exactly
+// when the shot resolves — the travel IS the anticipation (FIX 6). Kept in the
+// 150-200ms "satisfying throw" range (ref: Royal Match / Toon Blast).
+const SHOT_TRAVEL_TIME = 0.18;
 
 export class GameLoop {
   // opts:
@@ -58,8 +61,8 @@ export class GameLoop {
     this._onBombExplode  = null;  // set by GameApp after construction
     this._onColorBomb    = null;  // set by GameApp; (color, killed) → visual FX when a rainbow fires
     this._onComboFreeze  = null;  // set by GameApp; () → visual FX
-    this._onColorBombEarned = null;  // set by GameApp; (colIdx) → "COLOR BOMB!" flash + SFX
-    this._onStreak          = null;  // set by GameApp; (streak) → update streak counter UI
+    this._onColorBombEarned = null;  // set by GameApp; (colIdx) → color-bomb earned flash + intro card + SFX
+    this._onMultiKill       = null;  // set by GameApp; (count, needed) → "MULTI-KILL n/3" notification
     this.onNewCarType    = null;  // set by GameApp; fires with typeKey when a car is added to a lane
 
     // Base level duration — used to reset gs.duration on restart.
@@ -235,23 +238,9 @@ export class GameLoop {
 
     if (damageDealt === 0) {
       this._onMiss(laneIdx, carGameX);
-      // Wrong-colour shot breaks both the color-bomb streak and the best-combo run.
-      if (gs.correctShotStreak !== 0) { gs.correctShotStreak = 0; this._onStreak?.(0); }
-      gs.comboRun = 0;
       // Color mismatch: wasted bomb slot, grid does NOT advance.
       return;
     }
-
-    // Correct-colour shot landed — build the color-bomb streak. Reaching the
-    // threshold earns a rainbow bomb in the queue, then resets the streak.
-    gs.correctShotStreak++;
-    gs.comboRun++;   // uncapped best-combo run — NOT reset on color-bomb earn
-    if (gs.comboRun > gs.maxCorrectStreak) gs.maxCorrectStreak = gs.comboRun;  // win-screen "best combo"
-    if (gs.correctShotStreak >= COLOR_BOMB_STREAK) {
-      this._earnColorBomb();
-      gs.correctShotStreak = 0;   // earn resets ONLY the color-bomb streak, not comboRun
-    }
-    this._onStreak?.(gs.correctShotStreak);
 
     if (isFreezeShot) {
       gs.comboFreezeShots = 1;
@@ -262,6 +251,7 @@ export class GameLoop {
     this._onHit(laneIdx, carGameX, shooter.color, damageDealt, kills > 0);
 
     if (kills > 0) {
+      if (kills > gs.maxSingleShotKills) gs.maxSingleShotKills = kills;  // win-screen "best multi-kill"
       if (carryOverKills > 0) this._onChain(laneIdx, carGameX);
 
       for (let i = 0; i < kills; i++) {
@@ -274,6 +264,18 @@ export class GameLoop {
           bs.bombs++;
           this._onBombEarned?.();
         }
+      }
+    }
+
+    // Multi-kill reward: a shot that destroys 2+ cars (via carry-over) is a
+    // "multi-kill". Banking MULTI_KILLS_PER_BOMB of them in a level earns one
+    // rainbow color bomb (rarer + more earned than a per-shot reward).
+    if (kills >= 2) {
+      gs.multiKillCount++;
+      this._onMultiKill?.(gs.multiKillCount, MULTI_KILLS_PER_BOMB);
+      if (gs.multiKillCount >= MULTI_KILLS_PER_BOMB) {
+        gs.multiKillCount = 0;
+        this._earnColorBomb();   // fires _onColorBombEarned → flash + one-time intro card
       }
     }
 
@@ -404,8 +406,6 @@ export class GameLoop {
           const idx = gs.lanes[li].cars.indexOf(car);
           if (idx >= 0) gs.lanes[li].cars.splice(idx, 1);
         }
-        gs.correctShotStreak = 0;   // a breach breaks both streaks
-        gs.comboRun = 0;
         gs.endGame(false);
         this._onEnd(false, li);
         return;

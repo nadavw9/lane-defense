@@ -204,7 +204,9 @@ describe('regression: FR-1 viability holds across consecutive shots (L9)', () =>
       const color    = gs.activeCols[matchCol].top().color;
       const laneIdx  = gs.activeLanes.findIndex(l => l.frontCar()?.color === color);
       const shooter  = gs.columns[matchCol].top();
-      shooter.damage = gs.activeLanes[laneIdx].frontCar().hp + 5; // guarantee a kill (no pile-up → no breach)
+      // Kill the front car EXACTLY (no carry-over excess) so no multi-kill color
+      // bomb is earned — keeps column composition stable to isolate the FR-1 check.
+      shooter.damage = gs.activeLanes[laneIdx].frontCar().hp;
       gs.columns[matchCol].consume();   // mimic deploy() consuming the bomb
       loop._resolveShot(shooter, laneIdx);
       shots++;

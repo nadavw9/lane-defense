@@ -48,18 +48,12 @@ export class GameState {
     // Power-shot arm flags — set when combo crosses the threshold; cleared when shot fires.
     this.colorBombArmed  = false;   // legacy field, retained for save/serialise compat
     this.freezeArmed     = false;
-    // Color-bomb earn streak: consecutive correct-colour shots with no wrong
-    // shot or breach in between. Reaching COLOR_BOMB_STREAK earns a rainbow
-    // bomb in the queue; resets on a wrong shot, a breach, level start, or earn.
-    this.correctShotStreak = 0;
-    // comboRun: current run of consecutive correct-colour shots for the win-screen
-    // "best combo". UNLIKE correctShotStreak it does NOT reset when a color bomb
-    // is earned — only on a wrong shot, a breach, or level start — so a 12-in-a-row
-    // run shows ×12 even though it earned 2 color bombs along the way.
-    this.comboRun          = 0;
-    // Highest comboRun reached this level — the player-facing "best combo" on the
-    // win screen (the kill-time combo is meaningless in a clockless turn-based game).
-    this.maxCorrectStreak  = 0;
+    // Multi-kill color bomb: a single shot that destroys 2+ cars via carry-over
+    // damage is a "multi-kill". Accumulating MULTI_KILLS_PER_BOMB of them in a
+    // level earns one rainbow color bomb. maxSingleShotKills tracks the most cars
+    // killed by any single shot this level — the player-facing "best multi-kill".
+    this.multiKillCount     = 0;   // multi-kills banked toward the next color bomb
+    this.maxSingleShotKills = 0;
     // Combo freeze: how many grid advances to skip after a freeze power shot fires.
     this.comboFreezeShots = 0;
 
@@ -186,9 +180,8 @@ export class GameState {
     this.colorBombArmed  = false;
     this.freezeArmed     = false;
     this.comboFreezeShots = 0;
-    this.correctShotStreak = 0;
-    this.comboRun          = 0;
-    this.maxCorrectStreak  = 0;
+    this.multiKillCount     = 0;
+    this.maxSingleShotKills = 0;
     this.totalKills     = 0;
     this.carryOvers     = 0;
     this.totalDeploys   = 0;

@@ -181,11 +181,9 @@ export const SDR_LEVELS = [
 // freeze.  Combo resets to 0 after the armed power shot fires.
 export const FREEZE_THRESHOLD     = 7;  // kills → next shot freezes all cars for 1 grid turn
 
-// Color bomb is a SKILL REWARD (not a combo/random drop): landing this many
-// consecutive correct-colour shots — with no wrong shot or breach in between —
-// earns one rainbow color-bomb inserted into the bomb queue.  Tuned via
-// tools/colorbomb-streak-sim.js (mid-game ≈ 1–2 earns/level at N=5).
-export const COLOR_BOMB_STREAK = 5;
+// Color bomb is a SKILL REWARD earned by a MULTI-KILL: a single bomb that
+// destroys 2+ cars in one shot (via carry-over damage) inserts one rainbow
+// color-bomb into the bomb queue. See GameLoop._resolveShot multi-kill handling.
 
 export const COMBO_WINDOW = 5;       // seconds between kills to maintain combo
 export const CARRYOVER_COIN_BONUS = 5; // coins for a carry-over kill

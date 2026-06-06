@@ -20,7 +20,6 @@ import {
   COLUMN_DEPTH,
   CRISIS,
   SDR_LEVELS,
-  COLOR_BOMB_STREAK,
   FREEZE_THRESHOLD,
   COMBO_WINDOW,
   CARRYOVER_COIN_BONUS,
@@ -420,10 +419,6 @@ describe('Silent Difficulty Reduction', () => {
 // ─── Combo System ─────────────────────────────────────────────────────────────
 
 describe('Combo system', () => {
-  it('color bomb streak is 5 consecutive correct shots', () => {
-    expect(COLOR_BOMB_STREAK).toBe(5)
-  })
-
   it('freeze threshold is 7 kills', () => {
     expect(FREEZE_THRESHOLD).toBe(7)
   })

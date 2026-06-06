@@ -101,7 +101,9 @@ export class OnboardingHints {
     };
   }
 
-  // B) First bomb pickup on L1 → match the damage number. [bomb 8] ➜ [sedan]
+  // B) First bomb pickup on L1 → match the damage number. [bomb 8] ➜ [motorbike]
+  // L1 only ever shows motorbikes, so the card uses the motorbike the player is
+  // actually facing (not a sedan they haven't seen yet).
   showDamage(onDismiss) {
     const accent = 0xffcc44;
     const { panel, vx, vy } = this._buildShell(
@@ -122,8 +124,8 @@ export class OnboardingHints {
     const g = new Graphics(); panel.addChild(g);
     g.poly([vx - 16, vy - 9, vx + 6, vy - 9, vx + 6, vy - 17, vx + 22, vy, vx + 6, vy + 17, vx + 6, vy + 9, vx - 16, vy + 9]);
     g.fill({ color: 0xffe14a });
-    // Real sedan sprite (right).
-    this._addSprite(panel, SPR.sedan, vx + 64, vy, 60, 76);
+    // Real motorbike sprite (right) — the actual L1 vehicle.
+    this._addSprite(panel, SPR.bike, vx + 64, vy, 46, 60);
   }
 
   // C) First correct shot on L1 → all cars advance toward the breach.
@@ -142,6 +144,29 @@ export class OnboardingHints {
     g.poly([vx, vy + 22, vx - 12, vy + 6, vx + 12, vy + 6]).fill({ color: 0x8effa6 });
     // Real breach hazard stripe at the bottom of the visual zone.
     this._addSprite(panel, SPR.breach, vx, vy + 38, 152, 18);
+  }
+
+  // D) First time a rainbow color bomb is earned → explain what it is. (FIX 5)
+  showColorBomb(onDismiss) {
+    const accent = 0xb066ff;
+    const { panel, vx, vy } = this._buildShell(
+      accent, 'COLOR BOMB!',
+      'Destroy 2 cars in one shot to earn this.\nDrop it on any lane to clear ALL\ncars of that color!',
+      onDismiss,
+    );
+    // Rainbow disc (6 wedges) + white star — mirrors the in-game rainbow bomb.
+    const RB = [0xff4477, 0xffaa22, 0xffe14a, 0x44dd66, 0x4aa8ff, 0xb066ff];
+    const disc = new Graphics(); panel.addChild(disc);
+    const TAU = Math.PI * 2;
+    for (let i = 0; i < 6; i++) {
+      disc.moveTo(vx, vy);
+      disc.arc(vx, vy, 40, (i / 6) * TAU, ((i + 1) / 6) * TAU);
+      disc.fill({ color: RB[i], alpha: 0.95 });
+    }
+    disc.circle(vx, vy, 40).stroke({ color: 0xffffff, width: 2.5, alpha: 0.7 });
+    const star = new Text({ text: '★', style: { fontSize: 32, fill: 0xffffff,
+      dropShadow: { color: 0x000000, blur: 4, distance: 0, alpha: 0.9 } } });
+    star.anchor.set(0.5); star.x = vx; star.y = vy; panel.addChild(star);
   }
 
   // ── Shared shell ──────────────────────────────────────────────────────────────

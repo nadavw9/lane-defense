@@ -13,9 +13,9 @@ const BASE_URL = import.meta.env.BASE_URL ?? '';
 // ── Per-type display data ─────────────────────────────────────────────────────
 const TYPE_INFO = {
   small:  { name: 'MOTORBIKE', hp:  2, color: 0x44BB99, sprite: 'sprites/designed/bike-red.png'          },
-  big:    { name: 'SEDAN',     hp:  4, color: 0xDD8833, sprite: 'sprites/designed/car-red-processed.png' },
+  big:    { name: 'CAR',       hp:  4, color: 0xDD8833, sprite: 'sprites/designed/car-red-processed.png' },
   jeep:   { name: 'VAN',       hp:  5, color: 0x378ADD, sprite: 'sprites/designed/van-red.png'           },
-  truck:  { name: 'TRUCK',     hp:  6, color: 0x639922, sprite: 'sprites/designed/truck-red.png'         },
+  truck:  { name: 'TENDER',    hp:  6, color: 0x639922, sprite: 'sprites/designed/truck-red.png'         },
   bigrig: { name: 'BIG RIG',   hp: 10, color: 0xD85A30, sprite: 'sprites/designed/bigrig-red.png'        },
   tank:   { name: 'TANK',      hp: 20, color: 0x7F77DD, sprite: 'sprites/designed/tank.png'              },
 };

@@ -7,9 +7,9 @@
 
 export const CAR_TYPES = {
   small:  { hp:  2, label: 'Motorbike', minSpawnRow: 0 },
-  big:    { hp:  4, label: 'Sedan',     minSpawnRow: 0 },
+  big:    { hp:  4, label: 'Car',       minSpawnRow: 0 },
   jeep:   { hp:  5, label: 'Van',       minSpawnRow: 1 },
-  truck:  { hp:  6, label: 'Truck',     minSpawnRow: 2 },
+  truck:  { hp:  6, label: 'Tender',    minSpawnRow: 2 },
   bigrig: { hp: 10, label: 'Big Rig',   minSpawnRow: 3 },
   tank:   { hp: 20, label: 'Tank',      minSpawnRow: 4 },
 };

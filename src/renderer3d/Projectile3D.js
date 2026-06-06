@@ -13,10 +13,11 @@
 import * as THREE from 'three';
 import { posToZ, laneToX, ROAD_Z_FAR } from './Scene3D.js';
 
-const PROJ_LIFE  = 0.14;
-const PROJ_SPEED = 280;
-const PROJ_R     = 0.10;
+const PROJ_LIFE  = 0.18;   // travel duration — matches SHOT_TRAVEL_TIME so the bomb
+                           // lands exactly when the shot resolves (FIX 6)
+const PROJ_R     = 0.22;   // bigger so the in-flight bomb reads clearly as "the throw"
 const PROJ_Y     = 0.35;
+const PROJ_ARC   = 0.55;   // peak height of the throw arc (world units)
 
 // Trail settings
 const TRAIL_LEN   = 14;    // number of trail segments
@@ -89,11 +90,13 @@ export class Projectile3D {
         continue;
       }
 
-      // Move toward target.
-      const dir = Math.sign(p.tz - p.z);
-      p.z += dir * PROJ_SPEED * dt;
-      if (dir < 0 && p.z < p.tz) p.z = p.tz;
-      if (dir > 0 && p.z > p.tz) p.z = p.tz;
+      // Travel start→target across the WHOLE life with ease-in (accelerates
+      // toward the car — feels like a thrown bomb) plus a small arc. Reaches the
+      // car at life end, exactly when _resolveShot fires the explosion. (FIX 6)
+      const prog = Math.min(1, (PROJ_LIFE - p.life) / PROJ_LIFE);
+      const ease = prog * prog;                       // ease-in
+      p.z = p.sz + (p.tz - p.sz) * ease;
+      p.y = PROJ_Y + PROJ_ARC * Math.sin(prog * Math.PI);
 
       p.mesh.position.set(p.x, p.y, p.z);
       p.light.position.set(p.x, p.y + 0.2, p.z);
@@ -196,7 +199,7 @@ export class Projectile3D {
     const trail     = new THREE.Line(trailGeo, trailMat);
     this._scene.add(trail);
 
-    this._projectiles.push({ mesh, light, trail, color, x: sx, y: PROJ_Y, z: sz, tz, life: PROJ_LIFE });
+    this._projectiles.push({ mesh, light, trail, color, x: sx, y: PROJ_Y, z: sz, sz, tz, life: PROJ_LIFE });
   }
 
   _spawnMuzzleCone(laneIdx, slot) {

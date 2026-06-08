@@ -38,6 +38,7 @@ export class GameState {
     this._initialSpawnBudget = spawnBudget       ?? null;
     this.laneTargetCarCount = laneTargetCarCount ?? 2;
     this.initialCars        = null;
+    this.openingRows        = [0, 1, 2]; // opening cars per lane, rows from top (set per level)
 
     // ── Clock ─────────────────────────────────────────────────────────────
     this.elapsed = 0;

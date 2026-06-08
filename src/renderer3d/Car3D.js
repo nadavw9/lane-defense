@@ -30,6 +30,11 @@ const POWER_FLASH_DUR  = 0.25;
 const POWER_SQUASH_DUR = 0.18;
 const POWER_SCALE_PEAK = 1.12;
 
+// Global car render scale (<1 = a bit smaller). Combined with the lengthened road
+// span (ROAD_Z_FAR), this gives clear daylight between cars in adjacent rows so the
+// 3-car opening — and any back-to-back traffic — never visually overlaps.
+const SPRITE_SCALE     = 0.78;
+
 // ── Danger aura ───────────────────────────────────────────────────────────────
 const AURA_RATE = 1 / 0.3;
 const AURA_FREQ = 1.5;
@@ -477,7 +482,8 @@ export class Car3D {
       this._scene.add(bossRing);
     }
 
-    group.userData.baseScale = 1.0;
+    group.userData.baseScale = SPRITE_SCALE;
+    group.scale.setScalar(SPRITE_SCALE);
 
     // Spawn animation: start off-screen (further from breach)
     const targetZ  = posToZ(car.position);

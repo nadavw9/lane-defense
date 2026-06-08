@@ -35,7 +35,7 @@ import { BenchRenderer }   from './BenchRenderer.js';
 import { GameState }       from '../game/GameState.js';
 import { GameLoop }        from '../game/GameLoop.js';
 import { CombatResolver }  from '../game/CombatResolver.js';
-import { LevelManager }    from '../game/LevelManager.js';
+import { LevelManager, openingRowsForLevel } from '../game/LevelManager.js';
 import { BoosterState }    from '../game/BoosterState.js';
 import { ProgressManager } from '../game/ProgressManager.js';
 import { LivesManager }    from '../game/LivesManager.js';
@@ -562,6 +562,7 @@ async function main() {
     gs.targetKills = cfg.targetKills ?? Math.max(5, Math.round((cfg.duration ?? 60) * 0.12));
     gs.gridRows    = cfg.gridRows ?? 10;  // default 10 road slots
     gs.initialCars = cfg.initialCars ?? null;
+    gs.openingRows = openingRowsForLevel(cfg.id);   // uniform 3-car opening, rows [0,1,2]
     // Spawn budget & lane fill target (budget-based win replaces kill-count win).
     gs.spawnBudget         = cfg.spawnBudget        ?? null;
     gs._initialSpawnBudget = cfg.spawnBudget        ?? null;

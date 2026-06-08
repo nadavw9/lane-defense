@@ -619,14 +619,18 @@ export class GameLoop {
         spendBudget();
       }
     } else {
-      // Always open with exactly 1 car per active lane at row 0 (the back of the road).
-      // laneTargetCarCount controls ongoing refill during play, not the opening state.
+      // Open with the uniform 3-car/lane density at gs.openingRows (rows [0,1,2] —
+      // see openingRowsForLevel), so every level starts the same and cars enter from
+      // the top. laneTargetCarCount controls ongoing refill, not the opening.
+      const rows = (gs.openingRows && gs.openingRows.length) ? gs.openingRows : [0];
       for (let li = 0; li < gs.activeLaneCount; li++) {
-        const car    = this._carDir.generateCar(gs.lanes[li], 'CALM', gs.world, gs.colors, ROWS);
-        car.row      = 0;
-        car.position = this._rowToPosition(0, ROWS);
-        gs.lanes[li].addCar(car);
-        spendBudget();
+        for (const row of rows) {
+          const car    = this._carDir.generateCar(gs.lanes[li], 'CALM', gs.world, gs.colors, ROWS);
+          car.row      = row;
+          car.position = this._rowToPosition(row, ROWS);
+          gs.lanes[li].addCar(car);
+          spendBudget();
+        }
       }
     }
     this._enforceViableMove(gs);

@@ -7,7 +7,7 @@
 // CarTypes weight bands without modifying source: pickCarType() hands its weight
 // array to rng.weightedPick(), so a capturing fake rng recovers the exact band.
 import { describe, it, expect } from 'vitest';
-import { LevelManager }        from '../src/game/LevelManager.js';
+import { LevelManager, openingCarsForLevel, openingRowsForLevel } from '../src/game/LevelManager.js';
 import { pickCarType, CAR_TYPES } from '../src/director/CarTypes.js';
 
 const TOTAL_LEVELS = 40;
@@ -49,6 +49,17 @@ describe('regression: every level starts in a valid state', () => {
 
       // 8. At least one car per lane must exist to defeat.
       expect(cfg.spawnBudget).toBeGreaterThanOrEqual(cfg.laneCount);
+
+      // 9. Uniform opening: EVERY level opens with 3 cars per lane clustered at the
+      //    very top, at rows [0,1,2]. Difficulty is carried by bomb power + car count,
+      //    not the opening geometry — so the opening is the same on every level and
+      //    always sits in the top third, never near breach.
+      expect(openingCarsForLevel(cfg.id)).toBe(3);
+      expect(openingRowsForLevel(cfg.id)).toEqual([0, 1, 2]);
+      // Opening cars never start on or past the breach line (row gridRows-1).
+      for (const row of openingRowsForLevel(cfg.id)) {
+        expect(row).toBeLessThan(cfg.gridRows - 1);
+      }
     });
   }
 });

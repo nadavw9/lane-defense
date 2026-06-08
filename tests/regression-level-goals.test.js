@@ -11,7 +11,7 @@
 // For bosses we therefore assert meaningful progress (cars killed) rather than a win.
 import { describe, it, expect, vi } from 'vitest';
 import { SimulationRunner } from '../src/simulation/SimulationRunner.js';
-import { LevelManager }     from '../src/game/LevelManager.js';
+import { LevelManager, openingCarsForLevel } from '../src/game/LevelManager.js';
 import { GameLoop }         from '../src/game/GameLoop.js';
 import { GameState }        from '../src/game/GameState.js';
 import { CombatResolver }   from '../src/game/CombatResolver.js';
@@ -52,7 +52,13 @@ function runnerFor(cfg) {
 
 describe('regression: per-level goal reachability', () => {
   for (let n = 1; n <= TOTAL_LEVELS; n++) {
-    const isBoss = BOSS_LEVELS.includes(n);
+    // Every level now opens with 3 cars/lane (uniform opening, rows [1,2,3]). That
+    // is intentionally NOT winnable by the boosterless headless AI — clearing
+    // 3×laneCount opening cars at 1 kill/shot exceeds the ~10-advance runway, and
+    // the sim models no multi-kills / color-bombs / FREEZE. So, like bosses, every
+    // level asserts meaningful PROGRESS rather than a boosterless win; real play
+    // wins through bomb power + boosters, which is where difficulty now lives.
+    const boosterRequired = BOSS_LEVELS.includes(n) || openingCarsForLevel(n) >= 3;
 
     it(`L${n} sim completes deterministically with a finite, positive budget`, () => {
       const cfg = cfgFor(n);
@@ -66,12 +72,12 @@ describe('regression: per-level goal reachability', () => {
       expect(r.totalSpawns).toBeGreaterThanOrEqual(0);
     });
 
-    if (isBoss) {
-      it(`L${n} (boss) makes real progress in the headless sim (win needs in-game mechanics)`, () => {
+    if (boosterRequired) {
+      it(`L${n} makes real progress in the headless sim (win needs in-game boosters)`, () => {
         const cfg    = cfgFor(n);
         const runner = runnerFor(cfg);
-        // Naive sim AI can't beat a boss (no boosters/color-bombs), but it must at
-        // least engage and destroy cars — a stalled/instant-loss level would not.
+        // Boosterless sim can't clear a boss / a 3-car-opening board, but it must
+        // at least engage and destroy cars — a stalled/instant-loss would not.
         for (const seed of WIN_SEEDS) {
           const r = runner.runLevel(seed);
           expect(r.carsKilled).toBeGreaterThan(0);

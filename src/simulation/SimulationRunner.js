@@ -26,6 +26,7 @@ import {
   COMBO_WINDOW,
   DEPLOY_DILATION,
 } from '../director/DirectorConfig.js';
+import { openingRowsForLevel } from '../game/LevelManager.js';
 
 const DT = 1 / 60; // seconds per simulation tick (used for fire cooldowns only)
 
@@ -160,12 +161,18 @@ export class SimulationRunner {
     let maxAdvPerTick   = 0;   // most advances in a single turn (per-shot invariant check)
 
     // ── Initial state ──────────────────────────────────────────────────────
-    // Pre-spawn one car per lane at row 0 so the level starts with active threats.
+    // Open with the SAME uniform density as the shipped game (rows [0,1,2]), so the
+    // balance sim reflects reality. Push FRONT-FIRST (highest row first) so cars[0]
+    // stays the front car — the rest of the sim relies on that invariant (refills
+    // append row-0 cars at the back).
+    const _openRows = openingRowsForLevel(this._cfg.levelId);   // back→front, e.g. [0,1,2]
     for (const lane of discreteLanes) {
-      if (spawnBudgetRemaining > 0) {
+      // Push FRONT-FIRST (highest row first) so cars[0] stays the front car.
+      for (let k = _openRows.length - 1; k >= 0; k--) {
+        if (spawnBudgetRemaining <= 0) break;
         const car = carDir.generateCar({ id: lane.id }, 'CALM', worldConfig, colors, this._cfg.gridRows);
         const adjustedHp = Math.max(1, Math.round(car.hp * worldConfig.hpMultiplier));
-        lane.cars.push({ row: 0, hp: adjustedHp, type: car.type, color: car.color });
+        lane.cars.push({ row: _openRows[k], hp: adjustedHp, type: car.type, color: car.color });
         spawnBudgetRemaining--;
       }
     }

@@ -168,7 +168,7 @@ const PROGRESSION = [
 
   // L9 Easy (Relief) â€” "Recovery": R+B+G, gentle re-entry. SWAP booster unlocks.
   { id: 9, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
-    worldConfig: B2_EASY, duration: 100, spawnBudget: 16, laneTargetCarCount: 2, gridRows: 11,
+    worldConfig: B2_EASY, duration: 100, spawnBudget: 14, laneTargetCarCount: 2, gridRows: 11,
     showArrow: false, hintText: 'NEW! SWAP booster — exchange two column colors' },
 
   // L10 Medium â€” BOSS "The Bench Test": R+B only (puzzle). Dense 3 cars/lane.
@@ -371,6 +371,30 @@ const PROGRESSION = [
     duration: 120, spawnBudget: 24, laneTargetCarCount: 3, gridRows: 11,
     showArrow: false, hintText: null },
 ];
+
+// Opening cars per lane at level start, as rows (low row = top/back = far from
+// breach; breach at row gridRows-1=10). UNIFORM OPENING: every level starts the
+// same — 3 cars per lane clustered at the very top, at rows 0, 1, 2, so the board
+// reads as "cars entering from the top" and every level is the same distance from
+// the breach. Difficulty is NOT carried by the opening geometry; it scales through
+// bomb power and total car count (spawnBudget / laneTargetCarCount) instead.
+//   all levels    → 3 cars  rows [0, 1, 2]   steps-to-breach 11 / 10 / 9
+// 3/lane is boosterless-unwinnable in the headless sim (clearing 3×lanes opening
+// cars at 1 kill/shot exceeds the ~10-advance runway), so the sim is the floor —
+// real play relies on boosters + color bombs, by design.
+const OPENING_ROWS = [0, 1, 2];
+export function openingRowsForLevel(id) {
+  // Generic/world-based configs (no numeric level id) and the daily challenge use a
+  // light single-car opening — they probe the director engine, not a level's opening
+  // density. Every real numbered level uses the uniform 3-car opening.
+  if (typeof id !== 'number') return [2];
+  return OPENING_ROWS;
+}
+
+// Count of opening cars per lane (= openingRowsForLevel(id).length). For tests.
+export function openingCarsForLevel(id) {
+  return openingRowsForLevel(id).length;
+}
 
 export class LevelManager {
   constructor() {

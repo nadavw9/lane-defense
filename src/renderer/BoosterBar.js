@@ -24,6 +24,12 @@ const ICON_SIZE  = 32;   // sprite icon, centered in the upper card area
 const ICON_CY    = 22;   // icon center Y — above the bottom name label
 const LABEL_SIZE = 18;   // name label — meets the design-system UI floor
 
+// ── Press animation (SWAP / FREEZE only — BOMB has its own glow feedback) ───────
+// On tap: scale down to 0.88 over 60ms (ease-in), spring back to 1.0 over 80ms.
+const PRESS_DOWN_S  = 0.06;
+const PRESS_UP_S    = 0.08;
+const PRESS_MIN     = 0.88;
+
 const CARD_X = Array.from({ length: NUM_CARDS }, (_, i) => BAR_XOFF + i * (CARD_W + CARD_GAP));
 // Indices: 0=SWAP, 1=FREEZE, 2=BOMB
 
@@ -76,6 +82,10 @@ export class BoosterBar {
   update(dt = 0) {
     const s  = this._state;
     const gs = this._gs;
+
+    // Tap-press animation for SWAP and FREEZE (BOMB keeps its own glow feedback).
+    _animatePress(this._swapBtn,   dt);
+    _animatePress(this._freezeBtn, dt);
 
     // ── Count badge labels (short form — icon identifies the button) ──────────
     const swapLabel   = `×${s.swap}`;
@@ -239,10 +249,38 @@ function _makeCard(layer, x, accentColor, iconName, name, onClick) {
   const countTx = _addCountLabel(card, accentColor);
   card.label = countTx;
 
+  // Physical press feedback (advanced by BoosterBar.update via _animatePress).
+  card._baseX  = x;
+  card._pressT = -1;   // -1 = idle
+
   card.eventMode = 'static';
   card.cursor    = 'pointer';
+  card.on('pointerdown', () => { card._pressT = 0; });   // start press animation
   card.on('pointerdown', onClick);
   return card;
+}
+
+// Advance a card's tap-press animation, scaling about its centre so the card
+// presses in place. Idle when _pressT < 0.
+function _animatePress(card, dt) {
+  if (!card || card._pressT < 0) return;
+  card._pressT += dt;
+  let s;
+  if (card._pressT < PRESS_DOWN_S) {
+    const p = card._pressT / PRESS_DOWN_S;                 // ease-in (accelerate down)
+    s = 1 - (1 - PRESS_MIN) * (p * p);
+  } else if (card._pressT < PRESS_DOWN_S + PRESS_UP_S) {
+    const p     = (card._pressT - PRESS_DOWN_S) / PRESS_UP_S;
+    const eased = 1 - Math.pow(1 - p, 3);                  // ease-out
+    const spring = 1 + 0.06 * Math.sin(p * Math.PI);       // slight overshoot
+    s = (PRESS_MIN + (1 - PRESS_MIN) * eased) * spring;
+  } else {
+    s = 1;
+    card._pressT = -1;   // animation complete → idle
+  }
+  card.scale.set(s);
+  card.x = card._baseX + (CARD_W * (1 - s)) / 2;   // keep visual centre fixed
+  card.y = CARD_Y      + (CARD_H * (1 - s)) / 2;
 }
 
 function _makeBombCard(layer, x, onClick) {

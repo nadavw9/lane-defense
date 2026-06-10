@@ -164,6 +164,12 @@ export class GameRenderer3D {
       const cachedPos = this._laneCarPosCache[laneIdx] ?? 50;
       this._scorchMarks?.spawnScorch(laneIdx, cachedPos);
     } else {
+      // Non-killing hit: the bomb landed but the car survived. Squash the car AND
+      // pop a brief bright flash on it, so the player gets clear confirmation their
+      // bomb did damage (the white-phase tint alone is invisible on pre-coloured
+      // sprites, so the flash sprite carries the "flash" cue).
+      this._cars?.triggerPowerHit(laneIdx, false);
+      this._particles?.spawnFlash(laneIdx, color, null, 0.6);
       this._postFX?.triggerChroma(0.010, 0.18);
     }
   }
@@ -225,19 +231,48 @@ export class GameRenderer3D {
   }
 
   /**
-   * Color-bomb power shot fired — multi-lane explosion, massive bloom, screen flash.
+   * Color-bomb power shot fired — a 3-stage cascade rather than one simultaneous blast.
    * Called from GameApp._onColorBomb after _fireColorBomb removes cars.
+   *   Stage 1 (0ms):     every matching car flashes its colour at ~2x intensity (120ms)
+   *   Stage 2 (120ms+):  cars explode one-by-one, 50ms apart, FRONT-to-BACK
+   *                      (closest to breach first)
+   *   Stage 3 (after last): the full-clear bloom / chroma / shake fires once
+   * Positions are captured before removal, so explosions land where the cars were.
    */
   onColorBomb(color, killed = []) {
-    // Explode ONLY on the cars actually destroyed (positions captured before
-    // removal), not on surviving front cars. No kills → no explosions.
-    for (const k of killed) {
-      this._particles?.spawnExplosion(k.laneIdx, color, 2.2, k.position);
-    }
-    this._cameraFX?.shake(0.45, 0.65);
-    this._scene3d?.setBloomStrength(3.0);
-    this._postFX?.triggerChroma(0.09, 1.00);
-    this._postFX?.setFlash(0.55, 0.12);
+    if (!killed.length) return;
+
+    // Front-to-back: closest to the breach (highest position) detonates first.
+    const order = [...killed].sort((a, b) => b.position - a.position);
+
+    const FLASH_MS = 120;   // stage-1 highlight duration before detonations begin
+    const STEP_MS  = 50;    // gap between consecutive explosions
+
+    // ── Stage 1 — all matching cars flash simultaneously ──────────────────────
+    for (const k of order) this._particles?.spawnFlash(k.laneIdx, color, k.position);
+    this._postFX?.setFlash(0.28, 0.10);   // subtle global pre-flash
+
+    // ── Stage 2 — staggered detonations, front to back ────────────────────────
+    order.forEach((k, i) => {
+      setTimeout(() => {
+        this._particles?.spawnExplosion(k.laneIdx, color, 2.2, k.position);
+        this._cameraFX?.shake(0.10, 0.12);   // small kick per pop
+      }, FLASH_MS + i * STEP_MS);
+    });
+
+    // ── Stage 3 — full-clear punctuation, once, after the last explosion ───────
+    const lastMs = FLASH_MS + (order.length - 1) * STEP_MS;
+    setTimeout(() => {
+      this._cameraFX?.shake(0.45, 0.65);
+      this._scene3d?.setBloomStrength(3.0);
+      this._postFX?.triggerChroma(0.09, 1.00);
+      this._postFX?.setFlash(0.55, 0.12);
+    }, lastMs + 30);
+  }
+
+  /** Grid stepped one row — punctuate it with a light sweep across the road. */
+  onAdvance() {
+    this._road?.triggerAdvanceSweep();
   }
 
   /** Show a colored glow plane on the road lane during drag-hover. */

@@ -28,7 +28,7 @@ const MAX_TILT_X       = 0.20;
 const SPAWN_OFFSET     = 5.0;   // bigrig half-height=2.52 + frustum margin → fully off-screen
 const POWER_FLASH_DUR  = 0.25;
 const POWER_SQUASH_DUR = 0.18;
-const POWER_SCALE_PEAK = 1.12;
+const POWER_SCALE_PEAK = 1.18;   // squash pop on a non-killing hit — visible but brief
 
 // Global car render scale (<1 = a bit smaller). Combined with the lengthened road
 // span (ROAD_Z_FAR), this gives clear daylight between cars in adjacent rows so the

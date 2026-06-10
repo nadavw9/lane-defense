@@ -92,6 +92,7 @@ export class Particles3D {
     this._shockwaves        = [];
     this._dmgNums           = [];
     this._explosionSprites  = [];
+    this._flashes           = [];   // color-bomb pre-flash highlights
 
     // Exhaust smoke: persistent puffs emitted from cars each frame.
     // { mesh, mat, vx, vy, vz, life, maxLife }
@@ -235,6 +236,41 @@ export class Particles3D {
 
     // ── Dynamic light flash ──────────────────────────────────────────────────
     this._lighting?.explosionFlash(hex, pos.x, PARTICLE_Y, pos.z);
+  }
+
+  /**
+   * Bright pre-flash highlight on a car (color-bomb stage 1). The car's colour
+   * at ~2x intensity, additively blended, briefly (~0.13s) before it explodes.
+   * @param {number} laneIdx
+   * @param {string} color
+   * @param {number|null} posOverride  car position (0-100); null → front car
+   * @param {number} scale  size multiplier (1 = color-bomb size; ~0.6 for a hit pop)
+   */
+  spawnFlash(laneIdx, color, posOverride = null, scale = 1) {
+    if (this._disposed) return;
+    const pos = posOverride != null
+      ? { x: laneToX(laneIdx), z: posToZ(posOverride) }
+      : this._frontCarPos(laneIdx);
+    if (!pos) return;
+
+    const hex   = COLOR_HEX[color] ?? 0xffffff;
+    // Brighten toward white for a "2x intensity" pop.
+    const tint  = new THREE.Color(hex).lerp(new THREE.Color(0xffffff), 0.55);
+    const mat = new THREE.MeshBasicMaterial({
+      map:         _getExplosionTex(),
+      transparent: true,
+      opacity:     0.9,
+      color:       tint,
+      blending:    THREE.AdditiveBlending,
+      depthWrite:  false,
+      side:        THREE.DoubleSide,
+    });
+    const size = EXPL_PLANE_SIZE * 0.85 * scale;
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(pos.x, 0.16, pos.z);
+    this._scene.add(mesh);
+    this._flashes.push({ mesh, mat, life: 0.13, maxLife: 0.13 });
   }
 
   /**
@@ -466,6 +502,23 @@ export class Particles3D {
       e.mesh.scale.set(sc, 1, sc);
     }
 
+    // ── Color-bomb pre-flash highlights (pop in fast, fade out) ───────────────
+    for (let i = this._flashes.length - 1; i >= 0; i--) {
+      const f = this._flashes[i];
+      f.life -= dt;
+      if (f.life <= 0) {
+        f.mesh.geometry.dispose();
+        f.mat.dispose();
+        this._scene.remove(f.mesh);
+        this._flashes.splice(i, 1);
+        continue;
+      }
+      const frac = f.life / f.maxLife;
+      f.mat.opacity = 0.9 * frac;
+      const sc = 1.15 - 0.35 * frac;   // grows slightly as it fades
+      f.mesh.scale.set(sc, 1, sc);
+    }
+
     // ── Shockwave rings ──────────────────────────────────────────────────────
     for (let i = this._shockwaves.length - 1; i >= 0; i--) {
       const s = this._shockwaves[i];
@@ -580,6 +633,10 @@ export class Particles3D {
     for (const e of this._explosionSprites) {
       e.mesh.geometry.dispose(); e.mat.dispose(); this._scene.remove(e.mesh);
     }
+    for (const f of this._flashes) {
+      f.mesh.geometry.dispose(); f.mat.dispose(); this._scene.remove(f.mesh);
+    }
+    this._flashes.length           = 0;
     this._sparks.length            = 0;
     this._shockwaves.length        = 0;
     this._dmgNums.length           = 0;

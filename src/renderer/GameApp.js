@@ -1504,6 +1504,9 @@ async function main() {
   };
 
   // ── Combo power-shot callbacks ────────────────────────────────────────────
+  gameLoop._onAdvance = () => {
+    gameRenderer3D.onAdvance();
+  };
   gameLoop._onColorBomb = (color, killed) => {
     comboFX.triggerColorBomb(color);                 // edge vignette only
     gameRenderer3D.onColorBomb(color, killed);
@@ -1804,6 +1807,27 @@ async function main() {
       deploy: (colIdx, laneIdx) => gameLoop.deploy(colIdx, laneIdx),
       activateFreeze: () => boosterState.activateFreeze(),
       freezeState: () => ({ freeze: boosterState.freeze, freezeShots: boosterState.freezeShots, isFrozen: boosterState.isFrozen() }),
+      // Animation proof hooks — drive each render effect directly for capture/verification.
+      _fx: {
+        advance:  () => gameRenderer3D.onAdvance(),
+        hitFlash: (lane = 0) => gameRenderer3D.onHit(lane, gs.colors[0], 5, false),
+        colorBomb: (color) => {
+          const c = color ?? gs.colors[0];
+          const killed = [];
+          for (let li = 0; li < gs.activeLaneCount; li++)
+            for (const car of gs.lanes[li].cars)
+              if (car.color === c) killed.push({ laneIdx: li, position: car.position });
+          gameRenderer3D.onColorBomb(c, killed);
+          return killed.length;
+        },
+        pressSwap:   () => { if (boosterBar._swapBtn)   boosterBar._swapBtn._pressT   = 0; },
+        pressFreeze: () => { if (boosterBar._freezeBtn) boosterBar._freezeBtn._pressT = 0; },
+        btnScales:   () => ({
+          swap:   boosterBar._swapBtn?.scale?.x,
+          freeze: boosterBar._freezeBtn?.scale?.x,
+          bomb:   boosterBar._bombBtn?.scale?.x,
+        }),
+      },
     };
   }
 

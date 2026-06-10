@@ -81,6 +81,7 @@ export class Road3D {
     this._speedLines    = [];
     this._activeLaneGlow = null;
     this._bombRings      = [];
+    this._sweeps         = [];   // grid-advance light sweeps
     this._dividers       = [];
     this._noiseTex       = null;
     // Road surface materials — updated by setTheme() without rebuild.
@@ -174,6 +175,26 @@ export class Road3D {
     });
   }
 
+  // ── Grid-advance beat ──────────────────────────────────────────────────────────
+  // A thin bright bar sweeping the full road width from the far edge to the breach
+  // line over ~0.12s — a "scanner line" that punctuates the cars stepping forward.
+  triggerAdvanceSweep() {
+    const W   = roadHalfW(this._laneCount) * 2;
+    const mat = new THREE.MeshBasicMaterial({
+      color:       0xffffff,
+      transparent: true,
+      opacity:     0.0,
+      blending:    THREE.AdditiveBlending,
+      depthWrite:  false,
+      side:        THREE.DoubleSide,
+    });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(W, 1.7), mat);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(0, 0.06, ROAD_Z_FAR);
+    this._group.add(mesh);
+    this._sweeps.push({ mesh, mat, elapsed: 0, duration: 0.12 });
+  }
+
   // ── Per-frame update ─────────────────────────────────────────────────────────
   update(dt) {
     this._elapsed += dt;
@@ -227,6 +248,21 @@ export class Road3D {
         ring.mesh.geometry.dispose();
         ring.mat.dispose();
         this._bombRings.splice(i, 1);
+      }
+    }
+
+    // Grid-advance sweeps — travel far→near, brighten then fade (sine envelope)
+    for (let i = this._sweeps.length - 1; i >= 0; i--) {
+      const s = this._sweeps[i];
+      s.elapsed += dt;
+      const prog = Math.min(1, s.elapsed / s.duration);
+      s.mesh.position.z = ROAD_Z_FAR + prog * (ROAD_Z_NEAR - ROAD_Z_FAR);
+      s.mat.opacity     = 0.5 * Math.sin(Math.PI * prog);
+      if (prog >= 1) {
+        this._group.remove(s.mesh);
+        s.mesh.geometry.dispose();
+        s.mat.dispose();
+        this._sweeps.splice(i, 1);
       }
     }
   }

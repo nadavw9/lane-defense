@@ -397,6 +397,11 @@ export class GameLoop {
       }
     }
 
+    // Notify the renderer that the world just stepped (cars actually moved) so it
+    // can punctuate the advance with a visual beat. Frozen advances return earlier
+    // and never reach here, so no beat fires when nothing moved.
+    this._onAdvance?.();
+
     // 2. Check breach — any car that moved past the last row is a loss.
     for (let li = 0; li < gs.activeLaneCount; li++) {
       const breached = gs.lanes[li].cars.filter(c => c.row > MAX_ROW);

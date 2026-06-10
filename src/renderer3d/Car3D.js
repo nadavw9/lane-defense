@@ -27,8 +27,7 @@ const DEATH_VY         = 2.5;
 const MAX_TILT_X       = 0.20;
 const SPAWN_OFFSET     = 5.0;   // bigrig half-height=2.52 + frustum margin → fully off-screen
 const POWER_FLASH_DUR  = 0.25;
-const POWER_SQUASH_DUR = 0.18;
-const POWER_SCALE_PEAK = 1.18;   // squash pop on a non-killing hit — visible but brief
+const POWER_SQUASH_DUR = 0.16;   // total squash→stretch→settle duration
 
 // Global car render scale (<1 = a bit smaller). Combined with the lengthened road
 // span (ROAD_Z_FAR), this gives clear daylight between cars in adjacent rows so the
@@ -238,6 +237,14 @@ export class Car3D {
     this._dying.length = 0;
   }
 
+  // DEV proof helper: current {x,y} mesh scale of the front car in a lane (or null).
+  peekFrontScale(laneIdx) {
+    const lane = this._lanes[laneIdx];
+    const frontCar = lane?.cars.reduce((best, c) => (!best || c.row > best.row) ? c : best, null);
+    const entry = frontCar && this._live.get(frontCar);
+    return entry ? { x: entry.mesh.scale.x, y: entry.mesh.scale.y } : null;
+  }
+
   triggerPowerHit(laneIdx, isKill) {
     const lane = this._lanes[laneIdx];
     if (!lane) return;
@@ -394,17 +401,26 @@ export class Car3D {
         }
         g.rotation.z = tiltZ + wobbleRot;
 
-        // ── Power squash-and-stretch ──────────────────────────────────────────
+        // ── Power squash-and-stretch (true non-uniform) ───────────────────────
+        // Bombs arrive from below (south), so the car compresses vertically and
+        // bulges horizontally, then snaps tall+narrow, then settles. Applied to the
+        // MESH (local scale 1) so it composes with the group's SPRITE_SCALE.
         if (entry._powerSquashing) {
           entry._powerSquashT += dt;
-          const prog  = Math.min(1, entry._powerSquashT / POWER_SQUASH_DUR);
-          const spike = Math.sin(Math.PI * prog);
-          const s     = 1 + (POWER_SCALE_PEAK - 1) * spike;
-          g.scale.setScalar((g.userData.baseScale ?? 1.0) * s);
-          if (prog >= 1) {
+          const t = entry._powerSquashT;
+          let sx, sy;
+          if (t < 0.040)      { sx = 1.35; sy = 0.70; }   // squash: wider + shorter
+          else if (t < 0.100) { sx = 0.90; sy = 1.25; }   // stretch: snaps tall + narrow
+          else if (t < POWER_SQUASH_DUR) {                // ease back to rest
+            const p = (t - 0.100) / (POWER_SQUASH_DUR - 0.100);
+            const e = 1 - Math.pow(1 - p, 2);
+            sx = 0.90 + (1.0 - 0.90) * e;
+            sy = 1.25 + (1.0 - 1.25) * e;
+          } else {
+            sx = 1; sy = 1;
             entry._powerSquashing = false;
-            g.scale.setScalar(g.userData.baseScale ?? 1.0);
           }
+          entry.mesh.scale.set(sx, sy, 1);
         }
 
         if (car.hp !== entry.lastHp) entry.lastHp = car.hp;
@@ -495,7 +511,7 @@ export class Car3D {
     this._scene.add(group);
 
     return {
-      group, bodyMat,
+      group, mesh, bodyMat,
       baseHex: 0xffffff,  // always white — all sprites pre-colored, boss canvas bakes color
       lastHp: -1, _prevFrozen: false,
       bossRing, bossRingMat, bossAngle: 0,

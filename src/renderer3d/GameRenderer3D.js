@@ -154,22 +154,37 @@ export class GameRenderer3D {
   // ── Event API (called from GameApp callbacks) ──────────────────────────────
 
   /** Colored hit sparks + damage number + optional explosion. */
-  onHit(laneIdx, color, damage, isKill) {
+  /**
+   * Immediate impact reaction, fired the instant the projectile lands (before the
+   * hit-stop resolves combat). Squashes + flashes the still-present target car, so
+   * even a KILL shows the car react before it explodes.
+   */
+  onImpact(laneIdx, color) {
+    this._cars?.triggerPowerHit(laneIdx, false);
+    this._particles?.spawnFlash(laneIdx, color, null, 0.6);
+  }
+
+  /**
+   * Combat resolved. `killCount` = cars destroyed by this shot (0 = survived).
+   * Shake / chroma / explosion size escalate with the multi-kill count so a 4-car
+   * shot reacts proportionally bigger than a 1-car shot. The car squash/flash has
+   * already played via onImpact.
+   */
+  onHit(laneIdx, color, damage, killCount = 0) {
     this._particles?.spawnHit(laneIdx, color);
     this._particles?.spawnDamageNumber(laneIdx, damage);
-    if (isKill) {
-      this._particles?.spawnExplosion(laneIdx, color, 1.0);
-      this._cameraFX?.shake(0.12, 0.25);
-      this._postFX?.triggerChroma(0.022, 0.30);
+    if (killCount > 0) {
+      const k      = Math.min(4, killCount);
+      const shake  = { 1: 0.12, 2: 0.18, 3: 0.25, 4: 0.35 }[k];
+      const chroma = { 1: 0.022, 2: 0.035, 3: 0.050, 4: 0.070 }[k];
+      const escale = { 1: 1.0,  2: 1.3,  3: 1.6,  4: 2.0 }[k];
+      this._particles?.spawnExplosion(laneIdx, color, escale);
+      this._cameraFX?.shake(shake, 0.25 + 0.06 * (k - 1));
+      this._postFX?.triggerChroma(chroma, 0.30);
       const cachedPos = this._laneCarPosCache[laneIdx] ?? 50;
       this._scorchMarks?.spawnScorch(laneIdx, cachedPos);
     } else {
-      // Non-killing hit: the bomb landed but the car survived. Squash the car AND
-      // pop a brief bright flash on it, so the player gets clear confirmation their
-      // bomb did damage (the white-phase tint alone is invisible on pre-coloured
-      // sprites, so the flash sprite carries the "flash" cue).
-      this._cars?.triggerPowerHit(laneIdx, false);
-      this._particles?.spawnFlash(laneIdx, color, null, 0.6);
+      // Non-killing hit: car survived. The squash + flash already fired in onImpact.
       this._postFX?.triggerChroma(0.010, 0.18);
     }
   }
@@ -269,6 +284,9 @@ export class GameRenderer3D {
       this._postFX?.setFlash(0.55, 0.12);
     }, lastMs + 30);
   }
+
+  /** DEV proof helper: front car's current {x,y} mesh scale in a lane. */
+  peekCarScale(laneIdx) { return this._cars?.peekFrontScale(laneIdx) ?? null; }
 
   /** Grid stepped one row — punctuate it with a light sweep across the road. */
   onAdvance() {

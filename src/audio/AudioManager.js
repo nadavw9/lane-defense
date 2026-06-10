@@ -63,6 +63,7 @@ export class AudioManager {
 
     switch (name) {
       case 'shoot':            return this._shoot(opts.damage ?? 4);
+      case 'shot_whoosh':      return this._shotWhoosh();
       case 'hit_match':        return this._hitMatch();
       case 'hit_miss':         return this._hitMiss();
       case 'car_destroy':      return this._carDestroy();
@@ -524,6 +525,24 @@ export class AudioManager {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
     osc.connect(gain); gain.connect(this._master);
     osc.start(now); osc.stop(now + 0.10);
+  }
+
+  // Rising travel whoosh — plays for the bomb's 180ms flight arc (matches
+  // SHOT_TRAVEL_TIME). Sawtooth sweep 200→800Hz, 10ms attack / 20ms release,
+  // moderate volume so it sits under the impact sound.
+  _shotWhoosh() {
+    const ctx = this._ctx, now = ctx.currentTime;
+    const DUR = 0.18;
+    const osc = ctx.createOscillator(), g = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(200, now);
+    osc.frequency.exponentialRampToValueAtTime(800, now + DUR);
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(0.30, now + 0.010);      // 10ms attack
+    g.gain.setValueAtTime(0.30, now + DUR - 0.020);         // sustain
+    g.gain.linearRampToValueAtTime(0.0001, now + DUR);      // 20ms release
+    osc.connect(g); g.connect(this._master);
+    osc.start(now); osc.stop(now + DUR + 0.02);
   }
 
   // Satisfying thud — low sine sweep + noise click.

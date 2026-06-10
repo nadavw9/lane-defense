@@ -200,6 +200,34 @@ export class GameLoop {
     gs.triggerDilation();
   }
 
+  // Phase 1.5 — the projectile has arrived. Fire the immediate impact reaction
+  // (squash + flash on the still-present target car) and start a hit-stop sized
+  // by the predicted outcome. _step() resolves the shot once the freeze expires.
+  // A miss / empty lane has no impact, so it resolves straight away.
+  _beginHitStop(shooter, laneIdx) {
+    const gs       = this._gs;
+    const lane     = gs.lanes[laneIdx];
+    const frontCar = lane?.frontCar();
+    const colorBomb = !!shooter.isColorBomb;
+
+    let dur = 0;
+    if (colorBomb) {
+      dur = 0.080;
+    } else if (frontCar && shooter.color === frontCar.color) {
+      dur = frontCar.hp <= shooter.damage ? 0.050 : 0.030;   // kill : non-kill
+    }
+
+    if (dur > 0) {
+      // Impact reaction on the car that's still here (works for kills too — the
+      // squash plays during the freeze, then the explosion fires on resolve).
+      this._onImpact?.(laneIdx, shooter.color, colorBomb);
+      gs.hitStopRemaining = dur;
+      this._pendingShot   = { shooter, laneIdx };
+    } else {
+      this._resolveShot(shooter, laneIdx);   // miss / nothing to hit
+    }
+  }
+
   // Phase 2 — delayed combat resolution once the fire duration elapses.
   // Called from _step() when firingSlots[laneIdx].timeLeft reaches 0.
   _resolveShot(shooter, laneIdx) {
@@ -248,7 +276,15 @@ export class GameLoop {
       this._onComboFreeze?.();
     }
 
-    this._onHit(laneIdx, carGameX, shooter.color, damageDealt, kills > 0);
+    // Pass the kill COUNT (not just a boolean) so the renderer can escalate the
+    // shake / chroma / explosion size for multi-kills.
+    this._onHit(laneIdx, carGameX, shooter.color, damageDealt, kills);
+
+    // Bullet-time on a big play: a 3+ kill shot briefly drops the renderer to 0.3x.
+    if (kills >= 3) {
+      gs.timeScale       = 0.3;
+      gs.slowMoRemaining = 0.20;
+    }
 
     if (kills > 0) {
       if (kills > gs.maxSingleShotKills) gs.maxSingleShotKills = kills;  // win-screen "best multi-kill"
@@ -485,6 +521,28 @@ export class GameLoop {
 
   _step(dt) {
     const gs = this._gs;
+
+    // ── Hit-stop: freeze ALL game logic for a few ms after a bomb lands, so the
+    //    impact registers as having weight. The renderer keeps running (the impact
+    //    flash plays), only this logic step is paused. When it expires, the pending
+    //    shot finally resolves.
+    if (gs.hitStopRemaining > 0) {
+      gs.hitStopRemaining = Math.max(0, gs.hitStopRemaining - dt);
+      if (gs.hitStopRemaining === 0 && this._pendingShot) {
+        const { shooter, laneIdx } = this._pendingShot;
+        this._pendingShot = null;
+        this._resolveShot(shooter, laneIdx);
+      }
+      return;   // nothing else advances during a hit-stop
+    }
+
+    // ── Slow-mo (bullet-time) decay — set by a 3+ multi-kill. Visible via the
+    //    renderer dt being scaled by gs.timeScale in the GameApp render loop.
+    if (gs.slowMoRemaining > 0) {
+      gs.slowMoRemaining = Math.max(0, gs.slowMoRemaining - dt);
+      if (gs.slowMoRemaining === 0) gs.timeScale = 1;
+    }
+
     gs.elapsed += dt;
 
     gs.phaseMan.update(gs.elapsed);
@@ -527,8 +585,12 @@ export class GameLoop {
       if (slot.timeLeft <= 0) {
         const { shooter } = slot;
         gs.firingSlots[i] = null;
-        this._resolveShot(shooter, i);
+        this._beginHitStop(shooter, i);   // hit-stop, then _resolveShot
         if (gs.isOver) return;   // breach may occur during resolution
+        // One impact at a time: if a hit-stop just started, let remaining lanes'
+        // shots resolve on later steps (otherwise a second begin would clobber the
+        // pending shot). They keep their timeLeft until the freeze clears.
+        if (gs.hitStopRemaining > 0) break;
       }
     }
   }

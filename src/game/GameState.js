@@ -87,6 +87,15 @@ export class GameState {
     // Populated by GameLoop._startFiring(); cleared when timeLeft reaches 0.
     this.firingSlots = [null, null, null, null];
 
+    // ── Impact feel (hit-stop + slow-mo) ───────────────────────────────────
+    // hitStopRemaining: seconds of freeze after a bomb lands, before combat
+    //   resolves (30ms non-kill / 50ms kill / 80ms color bomb). GameLoop._step
+    //   skips all logic while > 0, so the impact "lands with weight".
+    // timeScale / slowMoRemaining: brief bullet-time on a 3+ multi-kill.
+    this.hitStopRemaining = 0;
+    this.timeScale        = 1;
+    this.slowMoRemaining  = 0;
+
     // ── Deploy time dilation ───────────────────────────────────────────────
     // All cars slow to DEPLOY_DILATION.speedMultiplier for .duration seconds
     // after every shooter deploy.  GameLoop reads this when advancing cars.
@@ -200,6 +209,9 @@ export class GameState {
     this.won           = false;
     this.dilationUntil = -Infinity;
     this.recoveryUntil = -Infinity;
+    this.hitStopRemaining = 0;
+    this.timeScale        = 1;
+    this.slowMoRemaining  = 0;
     for (let i = 0; i < this.firingSlots.length; i++) this.firingSlots[i] = null;
     // Restore original duration (rescues add to it; reset removes those additions).
     // Duration is re-supplied by GameLoop.restart() which knows the base value.

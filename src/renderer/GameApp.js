@@ -1364,6 +1364,7 @@ async function main() {
     onShoot: (damage, laneIdx, colIdx) => {
       tutOrch?.completeIfActive('first_car');
       audio.play('shoot', { damage });
+      audio.play('shot_whoosh');   // rising whoosh across the 180ms travel arc
       featureBanners.fire('first_shot', 'Direct hit! Color-matched shots deal damage to cars.');
 
       // On very first deploy: dismiss arrow hint and (for L1-L5) show damage tooltip.
@@ -1379,10 +1380,11 @@ async function main() {
       haptics.light();
     },
 
-    onHit: (laneIdx, gameX, color, damage, isKill) => {
+    onHit: (laneIdx, gameX, color, damage, killCount) => {
+      const isKill = killCount > 0;
       particles.spawnHit(laneIdx, gameX, color);
       particles.spawnDamageNumber(laneIdx, gameX, damage);
-      gameRenderer3D.onHit(laneIdx, color, damage, isKill);
+      gameRenderer3D.onHit(laneIdx, color, damage, killCount);
       if (isKill) {
         particles.spawnExplosion(laneIdx, gameX, color);
         audio.play('car_destroy');
@@ -1506,6 +1508,11 @@ async function main() {
   // ── Combo power-shot callbacks ────────────────────────────────────────────
   gameLoop._onAdvance = () => {
     gameRenderer3D.onAdvance();
+  };
+  // Immediate impact reaction (squash + flash) the moment a bomb lands, before the
+  // hit-stop resolves combat. Color bombs run their own cascade flash on resolve.
+  gameLoop._onImpact = (laneIdx, color, isColorBomb) => {
+    if (!isColorBomb) gameRenderer3D.onImpact(laneIdx, color);
   };
   gameLoop._onColorBomb = (color, killed) => {
     comboFX.triggerColorBomb(color);                 // edge vignette only
@@ -1657,9 +1664,11 @@ async function main() {
     const dt = Math.min(ticker.deltaMS / 1000, 0.05);
 
     // 3D scene update + render (runs when gameRenderer3D is visible/active).
+    // dt is scaled by gs.timeScale so a 3+ multi-kill plays back in brief bullet-time.
+    const fxDt = dt * (gs.timeScale ?? 1);
     gameRenderer3D.update({ lanes: gs.lanes, boosterState, isBreaching: gs.isOver && !gs.won,
                              comboFreezeShots: gs.comboFreezeShots,
-                             colorBombArmed: gs.colorBombArmed }, dt, gs.elapsed);
+                             colorBombArmed: gs.colorBombArmed }, fxDt, gs.elapsed);
     gameRenderer3D.render();
 
     // Combo power-shot FX (vignette + floating text).
@@ -1810,7 +1819,7 @@ async function main() {
       // Animation proof hooks — drive each render effect directly for capture/verification.
       _fx: {
         advance:  () => gameRenderer3D.onAdvance(),
-        hitFlash: (lane = 0) => gameRenderer3D.onHit(lane, gs.colors[0], 5, false),
+        hitFlash: (lane = 0) => gameRenderer3D.onImpact(lane, gs.colors[0]),
         colorBomb: (color) => {
           const c = color ?? gs.colors[0];
           const killed = [];
@@ -1822,6 +1831,8 @@ async function main() {
         },
         pressSwap:   () => { if (boosterBar._swapBtn)   boosterBar._swapBtn._pressT   = 0; },
         pressFreeze: () => { if (boosterBar._freezeBtn) boosterBar._freezeBtn._pressT = 0; },
+        kill:        (lane = 0, n = 1) => gameRenderer3D.onHit(lane, gs.colors[0], 5, n),
+        carScale:    (lane = 0) => gameRenderer3D.peekCarScale(lane),
         btnScales:   () => ({
           swap:   boosterBar._swapBtn?.scale?.x,
           freeze: boosterBar._freezeBtn?.scale?.x,

@@ -1475,10 +1475,10 @@ async function main() {
   gameLoop._onBombEarned = () => {
     audio.play('coin_collect');
     haptics.light();
-    // Floating text above bomb button area to celebrate earning.
+    // Centered notification flash (centered so the longer text doesn't clip).
     floatingTexts.push(spawnFloatingText(
-      layers.get('particleLayer'), APP_W * 0.88, 748,
-      '💣 +1 BOMB', 0xffaa00,
+      layers.get('particleLayer'), APP_W / 2, 748,
+      'BOMB READY! (10 kills)', 0xffaa00,
     ));
     tutOrch?.start({
       id:        'bomb',
@@ -1559,8 +1559,11 @@ async function main() {
       },
       onBombPlaced: (x, y) => {
         if (y < ROAD_TOP_Y || y > ROAD_BOTTOM_Y) return;
-        // Determine lane from X position (perspective: use bottom-of-road mapping).
-        const laneIdx = Math.max(0, Math.min(TOTAL_LANES - 1, Math.floor(x / (APP_W / TOTAL_LANES))));
+        // Route through the same lane-count-aware hit-test as drag deploys so the
+        // bomb lands on the correct lane for 1/2/3/4-lane levels (not a fixed
+        // 4-lane / full-width split, which mis-targeted on 3-lane boards).
+        const laneIdx = dragDrop._hitTestLane(x, y);
+        if (laneIdx < 0) return;
         gameLoop.placeBombOnLane(laneIdx);
       },
       onDeployFromBench: (shooter, laneIdx) => {

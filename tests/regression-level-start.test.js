@@ -50,10 +50,10 @@ describe('regression: every level starts in a valid state', () => {
       // 8. At least one car per lane must exist to defeat.
       expect(cfg.spawnBudget).toBeGreaterThanOrEqual(cfg.laneCount);
 
-      // 9. Uniform opening: EVERY level opens with 3 cars per lane clustered at the
-      //    very top, at rows [0,1,2]. Difficulty is carried by bomb power + car count,
-      //    not the opening geometry — so the opening is the same on every level and
-      //    always sits in the top third, never near breach.
+      // 9. Uniform opening: EVERY level opens with 3 cars per lane filling the top
+      //    rows [0,1,2]. The visual gap between them comes from car render size
+      //    (SPRITE_SCALE), not row spacing. Difficulty is carried by bomb power + car
+      //    count, not the opening geometry — same on every level, never near breach.
       expect(openingCarsForLevel(cfg.id)).toBe(3);
       expect(openingRowsForLevel(cfg.id)).toEqual([0, 1, 2]);
       // Opening cars never start on or past the breach line (row gridRows-1).

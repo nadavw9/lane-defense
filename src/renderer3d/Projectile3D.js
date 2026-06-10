@@ -13,11 +13,18 @@
 import * as THREE from 'three';
 import { posToZ, laneToX, ROAD_Z_FAR } from './Scene3D.js';
 
-const PROJ_LIFE  = 0.18;   // travel duration — matches SHOT_TRAVEL_TIME so the bomb
-                           // lands exactly when the shot resolves (FIX 6)
-const PROJ_R     = 0.22;   // bigger so the in-flight bomb reads clearly as "the throw"
+const PROJ_LIFE  = 0.18;   // fall duration — matches SHOT_TRAVEL_TIME so the bomb
+                           // lands exactly when the shot resolves
+const PROJ_R     = 0.22;   // bigger so the in-flight bomb reads clearly as "the drop"
 const PROJ_Y     = 0.35;
-const PROJ_ARC   = 0.55;   // peak height of the throw arc (world units)
+// Bomb DROPS from above the target car (top-down: "above" = up-screen, more negative
+// Z) and falls straight down onto it with gravity ease-in, instead of shooting up
+// from the bomb zone. On landing it splats flat for a beat, then the explosion fires.
+const DROP_DIST  = 6.0;    // start height above the car (≈2 car-lengths up-screen)
+const IMPACT_DUR = 0.03;   // 30ms flat-splat frame on landing
+const TOTAL_LIFE = PROJ_LIFE + IMPACT_DUR;
+const IMPACT_SX  = 1.5;    // splat: wider on the road…
+const IMPACT_SY  = 0.3;    // …and flattened (hit something solid)
 
 // Trail settings
 const TRAIL_LEN   = 14;    // number of trail segments
@@ -74,7 +81,7 @@ export class Projectile3D {
       const slot = this._firingSlots[i];
       if (slot && !this._slotWasActive[i]) {
         this._spawn(i, slot);
-        this._spawnMuzzleCone(i, slot);
+        // No muzzle cone: bombs drop from above now, they aren't fired from the turret.
       }
       this._slotWasActive[i] = !!slot;
     }
@@ -90,20 +97,31 @@ export class Projectile3D {
         continue;
       }
 
-      // Travel start→target across the WHOLE life with ease-in (accelerates
-      // toward the car — feels like a thrown bomb) plus a small arc. Reaches the
-      // car at life end, exactly when _resolveShot fires the explosion. (FIX 6)
-      const prog = Math.min(1, (PROJ_LIFE - p.life) / PROJ_LIFE);
-      const ease = prog * prog;                       // ease-in
-      p.z = p.sz + (p.tz - p.sz) * ease;
-      p.y = PROJ_Y + PROJ_ARC * Math.sin(prog * Math.PI);
+      const elapsed = TOTAL_LIFE - p.life;
+      let frac;
+      if (elapsed < PROJ_LIFE) {
+        // ── Fall: drop from above (p.sz) straight down onto the car (p.tz) with
+        //    gravity ease-in — slow at the top, fast at impact.
+        const prog = elapsed / PROJ_LIFE;
+        const ease = prog * prog;
+        p.z = p.sz + (p.tz - p.sz) * ease;
+        p.mesh.scale.set(1, 1, 1);
+        frac = 1;
+      } else {
+        // ── Splat: landed. Flatten wide+short for a beat, fade out as the
+        //    explosion takes over.
+        const ip = (elapsed - PROJ_LIFE) / IMPACT_DUR;   // 0→1
+        p.z = p.tz;
+        p.mesh.scale.set(IMPACT_SX, IMPACT_SY, IMPACT_SX);
+        frac = 1 - ip;
+      }
+      p.y = PROJ_Y;
 
       p.mesh.position.set(p.x, p.y, p.z);
       p.light.position.set(p.x, p.y + 0.2, p.z);
 
-      const frac = p.life / PROJ_LIFE;
       p.mesh.material.opacity           = frac * 0.92;
-      p.mesh.material.emissiveIntensity = frac * 1.8;
+      p.mesh.material.emissiveIntensity = 0.6 + frac * 1.2;
       p.light.intensity                 = frac * 1.5;
 
       // ── Update ribbon trail ─────────────────────────────────────────────
@@ -159,10 +177,10 @@ export class Projectile3D {
     const hex   = COLOR_HEX[slot.shooter.color] ?? 0xffffff;
     const color = new THREE.Color(hex);
     const sx    = laneToX(laneIdx);
-    const sz    = 0;
 
     const frontCar = this._lanes[laneIdx]?.cars[0];
     const tz = frontCar ? posToZ(frontCar.position) : ROAD_Z_FAR;
+    const sz = tz - DROP_DIST;   // start above the car (up-screen) and fall onto it
 
     // Sphere.
     const mat = new THREE.MeshStandardMaterial({
@@ -199,7 +217,7 @@ export class Projectile3D {
     const trail     = new THREE.Line(trailGeo, trailMat);
     this._scene.add(trail);
 
-    this._projectiles.push({ mesh, light, trail, color, x: sx, y: PROJ_Y, z: sz, sz, tz, life: PROJ_LIFE });
+    this._projectiles.push({ mesh, light, trail, color, x: sx, y: PROJ_Y, z: sz, sz, tz, life: TOTAL_LIFE });
   }
 
   _spawnMuzzleCone(laneIdx, slot) {

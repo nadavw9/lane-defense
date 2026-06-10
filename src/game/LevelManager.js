@@ -379,9 +379,11 @@ const PROGRESSION = [
 // the breach. Difficulty is NOT carried by the opening geometry; it scales through
 // bomb power and total car count (spawnBudget / laneTargetCarCount) instead.
 //   all levels    → 3 cars  rows [0, 1, 2]   steps-to-breach 11 / 10 / 9
-// 3/lane is boosterless-unwinnable in the headless sim (clearing 3×lanes opening
-// cars at 1 kill/shot exceeds the ~10-advance runway), so the sim is the floor —
-// real play relies on boosters + color bombs, by design.
+// Cars fill the top of the road in adjacent rows; the visual gap between them comes
+// from the car render size (SPRITE_SCALE in Car3D), not from skipping rows. 3/lane is
+// boosterless-unwinnable in the headless sim (clearing 3×lanes opening cars at 1
+// kill/shot exceeds the runway), so the sim is the floor — real play relies on
+// boosters + color bombs, by design.
 const OPENING_ROWS = [0, 1, 2];
 export function openingRowsForLevel(id) {
   // Generic/world-based configs (no numeric level id) and the daily challenge use a

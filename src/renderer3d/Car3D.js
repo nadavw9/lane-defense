@@ -29,10 +29,10 @@ const SPAWN_OFFSET     = 5.0;   // bigrig half-height=2.52 + frustum margin → 
 const POWER_FLASH_DUR  = 0.25;
 const POWER_SQUASH_DUR = 0.16;   // total squash→stretch→settle duration
 
-// Global car render scale (<1 = a bit smaller). Combined with the lengthened road
-// span (ROAD_Z_FAR), this gives clear daylight between cars in adjacent rows so the
-// 3-car opening — and any back-to-back traffic — never visually overlaps.
-const SPRITE_SCALE     = 0.78;
+// Global car render scale (<1 = smaller). Tuned so 3 cars in adjacent rows [0,1,2]
+// show a clear gap (≈half a car-length) of road between them — the breathing room
+// comes from car SIZE relative to the fixed on-screen row pitch, not row spacing.
+const SPRITE_SCALE     = 0.65;
 
 // ── Danger aura ───────────────────────────────────────────────────────────────
 const AURA_RATE = 1 / 0.3;

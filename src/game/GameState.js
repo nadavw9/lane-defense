@@ -216,7 +216,7 @@ export class GameState {
     // Restore original duration (rescues add to it; reset removes those additions).
     // Duration is re-supplied by GameLoop.restart() which knows the base value.
     for (const lane of this.lanes)   lane.cars.length = 0;
-    for (const col  of this.columns) col.shooters.length = 0;
+    for (const col  of this.columns) { col.shooters.length = 0; col.stash = null; }
   }
 
   // True when a combo was active but the window has since expired.

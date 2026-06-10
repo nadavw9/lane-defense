@@ -151,7 +151,7 @@ export class OnboardingHints {
     const accent = 0xb066ff;
     const { panel, vx, vy } = this._buildShell(
       accent, 'COLOR BOMB!',
-      'Destroy 2 cars in one shot to earn this.\nDrop it on any lane to clear ALL\ncars of that color!',
+      'Get 3 multi-kill shots to earn a Color Bomb!\nDestroy 2+ cars in one shot to score a multi-kill.',
       onDismiss,
     );
     // Rainbow disc (6 wedges) + white star — mirrors the in-game rainbow bomb.

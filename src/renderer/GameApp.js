@@ -1364,7 +1364,6 @@ async function main() {
     onShoot: (damage, laneIdx, colIdx) => {
       tutOrch?.completeIfActive('first_car');
       audio.play('shoot', { damage });
-      audio.play('shot_whoosh');   // rising whoosh across the 180ms travel arc
       featureBanners.fire('first_shot', 'Direct hit! Color-matched shots deal damage to cars.');
 
       // On very first deploy: dismiss arrow hint and (for L1-L5) show damage tooltip.

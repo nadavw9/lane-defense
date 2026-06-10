@@ -180,11 +180,11 @@ describe('regression: shot contracts (real GameLoop)', () => {
 });
 
 // ── CONTRACT F — FR-1 viability invariant on L9 across consecutive shots ────────
-// The uniform opening primes 3 cars/lane (rows [1,2,3]); a boosterless 1-kill/shot
+// The uniform opening primes 3 cars/lane (rows [0,1,2]); a boosterless 1-kill/shot
 // run cannot clear that before an unkilled front breaches (~shot 10), so the board
 // is MEANT to be lost without boosters. FR-1 is the thing under test: before every
 // shot taken, a viable matching move must exist. We assert that invariant on each
-// shot and require a solid consecutive run, not that the dense board survives forever.
+// shot across a solid consecutive run, not board survival.
 describe('regression: FR-1 viability holds across consecutive shots (L9)', () => {
   it('after every shot, at least one column top matches a front car colour', () => {
     const { gs, lanes, columns, loop } = buildLevel(9);

@@ -1481,12 +1481,15 @@ async function main() {
       layers.get('particleLayer'), APP_W / 2, 748,
       'BOMB READY! (10 kills)', 0xffaa00,
     ));
+    // Bounds/hand must match the BOMB booster card exactly (BoosterBar CARD_X[2]):
+    // x 237-301 (centre 269), y 754-818. The fixed 3-button bar is identical on
+    // every level, so these constants are correct for all 1/2/3/4-lane levels.
     tutOrch?.start({
       id:        'bomb',
       text:      '💣 BOMB earned — tap it, then tap a lane to blast every car on it!',
-      bounds:    { x: 289, y: 760, w: 52, h: 52 },
-      handStart: { x: 315, y: 728 },
-      handEnd:   { x: 315, y: 786 },
+      bounds:    { x: 237, y: 754, w: 64, h: 64 },
+      handStart: { x: 269, y: 726 },
+      handEnd:   { x: 269, y: 790 },
       pauseGame: true,
     });
   };
@@ -1853,6 +1856,7 @@ async function main() {
         pressFreeze: () => { if (boosterBar._freezeBtn) boosterBar._freezeBtn._pressT = 0; },
         kill:        (lane = 0, n = 1) => gameRenderer3D.onHit(lane, gs.colors[0], 5, n),
         carScale:    (lane = 0) => gameRenderer3D.peekCarScale(lane),
+        bombTutorial: () => gameLoop._onBombEarned?.(),   // show the BOMB-earned tutorial
         btnScales:   () => ({
           swap:   boosterBar._swapBtn?.scale?.x,
           freeze: boosterBar._freezeBtn?.scale?.x,

@@ -141,6 +141,9 @@ export class GameLoop {
     gs.bombFreezeUntil = gs.elapsed + BOMB_FREEZE_DURATION;
 
     this._onBombExplode?.(bombPos, killed.length);
+
+    // Re-run win/refill (see placeBombOnLane) so an emptied board doesn't soft-lock.
+    this._settleAfterClear();
   }
 
   // Called by GameApp when the player places a bomb — kills all cars in the
@@ -185,6 +188,11 @@ export class GameLoop {
 
     // Brief freeze on all remaining cars.
     gs.bombFreezeUntil = gs.elapsed + BOMB_FREEZE_DURATION;
+
+    // A booster bomb removes cars without a grid advance, so re-run the win/refill
+    // logic that normally lives in _advanceGrid — otherwise clearing the last cars
+    // leaves an empty board that never wins and never refills (soft-lock).
+    this._settleAfterClear();
   }
 
   // Place shooter in the firing slot for one short travel window, trigger
@@ -478,6 +486,24 @@ export class GameLoop {
 
     // 6. Viability guard.
     this._enforceViableMove(gs);
+  }
+
+  // Re-evaluate the WIN condition after a non-advancing car removal (booster bombs).
+  // _advanceGrid normally owns the win check, but booster bombs clear cars without
+  // advancing — so clearing the last cars once the spawn budget is spent would
+  // otherwise leave a finished board that never registers the win (soft-lock).
+  _settleAfterClear() {
+    const gs = this._gs;
+    if (gs.isOver) return;
+
+    const allEmpty = gs.activeLanes.every(l => l.cars.length === 0);
+
+    // Win check — mirrors _advanceGrid step 3 (budget-cleared, or legacy kill goal).
+    if (gs.spawnBudget !== null) {
+      if (gs.spawnBudget <= 0 && allEmpty) { gs.endGame(true); this._onEnd(true); }
+    } else if (gs.totalKills >= gs.targetKills) {
+      gs.endGame(true); this._onEnd(true);
+    }
   }
 
   // Refill each active lane up to laneTargetCarCount, consuming spawnBudget.

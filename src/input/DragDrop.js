@@ -27,7 +27,7 @@ import {
   STASH_Y,
 } from '../renderer/ShooterRenderer.js';
 import {
-  getLaneScreenX, getLaneScreenBounds, getTopLaneScreenBounds,
+  getLaneScreenX, getLaneFromScreenX, getLaneScreenBounds, getTopLaneScreenBounds,
   getColumnScreenX, getColumnScreenY, getColScreenW,
   getActiveLaneCount, getActiveColCount,
 } from '../renderer/PositionRegistry.js';
@@ -500,9 +500,10 @@ export class DragDrop {
 
   _hitTestLane(x, y) {
     if (y < ROAD_TOP_Y || y > ROAD_BOTTOM_Y) return -1;
-    const n       = getActiveLaneCount();
-    const laneIdx = Math.floor(x / (ROAD_BOTTOM_W / n));
-    return Math.max(0, Math.min(n - 1, laneIdx));
+    // Nearest lane by the SAME 3D projection the cars render with, so a tap on a
+    // car targets that car's lane on 1/2/3/4-lane levels (the old ROAD_BOTTOM_W/n
+    // split drifted from the rendered lanes and mis-targeted deploys + the bomb).
+    return getLaneFromScreenX(x);
   }
 
   _hitTestBenchArea(x, y) {

@@ -149,11 +149,9 @@ export class GameState {
 
     this.coins += COINS_PER_CAR;   // flat 10 coins per car destroyed
 
-    // Arm the combo-freeze power shot when the kill-combo crosses its milestone.
-    // (The color bomb is no longer combo-armed — it is earned via a separate
-    // correct-shot streak; see GameLoop streak handling.)
-    if (this.combo === FREEZE_THRESHOLD) this.freezeArmed = true;
-
+    // Freeze is NEVER auto-armed: it only activates when the player taps the FREEZE
+    // booster. (Previously a kill-combo milestone auto-armed a "combo-freeze" power
+    // shot, which read as the freeze booster self-activating — removed by request.)
     return this.combo;
   }
 

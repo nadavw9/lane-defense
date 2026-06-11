@@ -17,6 +17,10 @@ export class LoseScreen {
     this._appW = appW;
     this._appH = appH;
     this._crackAnim = { active: true, t: 0, lines: [] };
+    this._panelGroup = null;   // 5C: content slides up from the bottom
+    this._slideT     = 0;
+    this._flashG     = null;   // 5C: brief red "breach" flash
+    this._flashT     = 0;
     this._build(appW, appH, onRetry, onMenu, audio, gs, heartsRemaining);
   }
 
@@ -25,6 +29,22 @@ export class LoseScreen {
   }
 
   update(dt) {
+    // 5C: red breach flash fades over ~150ms.
+    if (this._flashG) {
+      this._flashT += dt;
+      this._flashG.alpha = 0.5 * Math.max(0, 1 - this._flashT / 0.15);
+      if (this._flashT >= 0.15) { this._container.removeChild(this._flashG); this._flashG.destroy(); this._flashG = null; }
+    }
+    // 5C: panel slides up from the bottom with an ease-out bounce over 300ms.
+    if (this._panelGroup && this._slideT < 0.3) {
+      this._slideT += dt;
+      const p = Math.min(1, this._slideT / 0.3);
+      const c1 = 1.70158, c3 = c1 + 1;
+      const e  = 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2);   // easeOutBack
+      this._panelGroup.y = this._appH * (1 - e);
+      if (p >= 1) this._panelGroup.y = 0;
+    }
+
     if (!this._crackAnim.active) return;
     this._crackAnim.t += dt;
 
@@ -79,12 +99,17 @@ export class LoseScreen {
     const py = (h - panelH) / 2 - 20;
     const cx = w / 2;
 
+    // 5C: all panel content lives in a group that slides up from the bottom.
+    this._panelGroup = new Container();
+    this._panelGroup.y = this._appH;   // start off the bottom edge
+    this._container.addChild(this._panelGroup);
+
     const panel = new Graphics();
     panel.roundRect(px, py, panelW, panelH, 18);
     panel.fill({ color: 0x1a0505, alpha: 0.97 });
     panel.roundRect(px, py, panelW, panelH, 18);
     panel.stroke({ color: 0xdd2222, width: 2, alpha: 0.60 });
-    this._container.addChild(panel);
+    this._panelGroup.addChild(panel);
 
     let cy = py + 44;
 
@@ -140,6 +165,14 @@ export class LoseScreen {
     this._button('RETRY', cx, cy, 0x3a1010, 0xff7777, onRetry, audio);
     cy += 58;
     this._button('LEVEL SELECT', cx, cy, 0x1a2a3a, 0x88bbdd, onMenu, audio);
+
+    // 5C: brief red "breach" flash over everything (fades in update).
+    this._flashG = new Graphics();
+    this._flashG.rect(0, 0, w, h);
+    this._flashG.fill(0xff0000);
+    this._flashG.alpha = 0.5;
+    this._container.addChild(this._flashG);
+    this._flashT = 0;
   }
 
   _drawHearts(cx, cy, count) {
@@ -150,7 +183,7 @@ export class LoseScreen {
       t.anchor.set(0.5, 0.5);
       t.x = x0 + i * (sz + gap) + sz / 2;
       t.y = cy;
-      this._container.addChild(t);
+      this._panelGroup.addChild(t);
     }
   }
 
@@ -158,24 +191,24 @@ export class LoseScreen {
     const bg = new Graphics();
     bg.roundRect(x, y, w, h, 7);
     bg.fill({ color: 0x0d0808, alpha: 0.85 });
-    this._container.addChild(bg);
+    this._panelGroup.addChild(bg);
 
     const lbl = new Text({ text: label, style: { fontSize: 12, fontWeight: 'bold', fill: 0xaabbcc } });
     lbl.anchor.set(0, 0.5);
     lbl.x = x + 10; lbl.y = y + h / 2;
-    this._container.addChild(lbl);
+    this._panelGroup.addChild(lbl);
 
     const val = new Text({ text: value, style: { fontSize: 16, fontWeight: 'bold', fill: color } });
     val.anchor.set(1, 0.5);
     val.x = x + w - 10; val.y = y + h / 2;
-    this._container.addChild(val);
+    this._panelGroup.addChild(val);
   }
 
   _text(str, x, y, style) {
     const t = new Text({ text: str, style: { fontWeight: 'bold', ...style } });
     t.anchor.set(0.5, 0.5);
     t.x = x; t.y = y;
-    this._container.addChild(t);
+    this._panelGroup.addChild(t);
     return t;
   }
 
@@ -193,7 +226,7 @@ export class LoseScreen {
     const t = new Text({ text: label, style: { fontSize: 20, fontWeight: 'bold', fill: lblCol } });
     t.anchor.set(0.5, 0.5);
     btn.addChild(t);
-    this._container.addChild(btn);
+    this._panelGroup.addChild(btn);
   }
 
   _generateCrackLines() {

@@ -113,6 +113,8 @@ export class WinScreen {
     this._confetti   = null;
     this._flashAlpha = 0;
     this._flashG     = null;
+    this._burstG     = null;   // 5B: radial celebration burst behind the panel
+    this._burstT     = 0;
 
     // Button interactivity lock (prevents accidental tap during outro anims)
     this._buttonsEnabled    = false;
@@ -142,6 +144,22 @@ export class WinScreen {
 
   update(dt) {
     this._confetti?.update(dt);
+
+    // 5B: radial color burst — concentric rings expand from centre and fade (400ms).
+    if (this._burstG && this._burstT < 0.4) {
+      this._burstT += dt;
+      const p   = Math.min(1, this._burstT / 0.4);
+      const cx  = this._appW / 2, cy = this._appH / 2 - 36;
+      const maxR = Math.max(this._appW, this._appH) * 0.7;
+      this._burstG.clear();
+      for (let i = 0; i < 3; i++) {
+        const rp = Math.min(1, p * 1.0 - i * 0.12);
+        if (rp <= 0) continue;
+        this._burstG.circle(cx, cy, maxR * rp);
+        this._burstG.fill({ color: [0xffd24a, 0xff8844, 0x44ff99][i], alpha: 0.22 * (1 - p) });
+      }
+      if (p >= 1) { this._burstG.clear(); }
+    }
 
     // Star pop-in animations
     for (const anim of this._starAnims) {
@@ -244,6 +262,12 @@ export class WinScreen {
     backdrop.fill({ color: 0x000011, alpha: 0.90 });
     backdrop.eventMode = 'static';
     this._container.addChild(backdrop);
+
+    // 5B: radial celebration burst — a bright disc expands from centre (400ms)
+    // behind the confetti/panel, like a "color burst" flash before the results.
+    this._burstG = new Graphics();
+    this._container.addChild(this._burstG);
+    this._burstT = 0;
 
     // Confetti behind panel
     this._container.addChild(this._confettiLayer);

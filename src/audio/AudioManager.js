@@ -65,7 +65,13 @@ export class AudioManager {
       case 'shoot':            return this._shoot(opts.damage ?? 4);
       case 'hit_match':        return this._hitMatch();
       case 'hit_miss':         return this._hitMiss();
-      case 'car_destroy':      return this._carDestroy();
+      case 'car_destroy':      return this._carDestroy(opts.kills ?? 1);   // 6B escalation
+      case 'wrong_bounce':     return this._wrongBounce();                 // 6A
+      case 'kill_ding':        return this._killDing();                    // 6A
+      case 'pip_fill':         return this._pipFill(opts.index ?? 0);      // 6A
+      case 'swap_whoosh':      return this._swapWhoosh();                  // 6A
+      case 'freeze_tinkle':    return this._freezeTinkle();                // 6A
+      case 'heartbeat':        return this._heartbeat();                   // 6A
       case 'combo_milestone':  return this._comboMilestone(opts.combo ?? 4);
       case 'button_tap':       return this._buttonTap();
       case 'star_earn':        return this._starEarn(opts.index ?? 0);
@@ -553,26 +559,133 @@ export class AudioManager {
     osc.start(now); osc.stop(now + 0.08);
   }
 
-  // Explosion burst — filtered noise + sawtooth drop.
-  _carDestroy() {
+  // Explosion burst — filtered noise + sawtooth drop. (6B) Scales with kill count:
+  // more kills → louder, deeper drop, longer tail, and a reverb thump on 4+.
+  _carDestroy(kills = 1) {
     const ctx = this._ctx, now = ctx.currentTime;
+    const k    = Math.min(4, Math.max(1, kills));
+    const vol  = [0.75, 0.85, 0.95, 1.05][k - 1];
+    const drop = [38, 30, 24, 18][k - 1];      // deeper bass for bigger multi-kills
+    const tail = [0.30, 0.36, 0.44, 0.55][k - 1];
     const src = ctx.createBufferSource(), filter = ctx.createBiquadFilter(), ng = ctx.createGain();
     src.buffer = this._noise; src.loop = true;
     filter.type = 'lowpass';
     filter.frequency.setValueAtTime(1400, now);
-    filter.frequency.exponentialRampToValueAtTime(160, now + 0.27);
-    ng.gain.setValueAtTime(0.75, now);
-    ng.gain.exponentialRampToValueAtTime(0.001, now + 0.30);
+    filter.frequency.exponentialRampToValueAtTime(160, now + tail * 0.9);
+    ng.gain.setValueAtTime(vol, now);
+    ng.gain.exponentialRampToValueAtTime(0.001, now + tail);
     src.connect(filter); filter.connect(ng); ng.connect(this._master);
-    src.start(now); src.stop(now + 0.32);
+    src.start(now); src.stop(now + tail + 0.02);
     const osc = ctx.createOscillator(), og = ctx.createGain();
     osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(240, now);
-    osc.frequency.exponentialRampToValueAtTime(38, now + 0.22);
-    og.gain.setValueAtTime(0.38, now);
-    og.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+    osc.frequency.setValueAtTime(240 - (k - 1) * 30, now);
+    osc.frequency.exponentialRampToValueAtTime(drop, now + 0.22 + (k - 1) * 0.04);
+    og.gain.setValueAtTime(0.38 + 0.06 * (k - 1), now);
+    og.gain.exponentialRampToValueAtTime(0.001, now + 0.24 + (k - 1) * 0.05);
     osc.connect(og); og.connect(this._master);
-    osc.start(now); osc.stop(now + 0.23);
+    osc.start(now); osc.stop(now + 0.3 + (k - 1) * 0.05);
+    // 4+ kills: a resonant low reverb thump for weight.
+    if (k >= 4) {
+      const r = ctx.createOscillator(), rg = ctx.createGain();
+      r.type = 'sine'; r.frequency.setValueAtTime(60, now + 0.05);
+      r.frequency.exponentialRampToValueAtTime(30, now + 0.55);
+      rg.gain.setValueAtTime(0, now + 0.05);
+      rg.gain.linearRampToValueAtTime(0.4, now + 0.12);
+      rg.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+      r.connect(rg); rg.connect(this._master);
+      r.start(now + 0.05); r.stop(now + 0.72);
+    }
+  }
+
+  // 6A: wrong-shot "boing" — descending pitch with a little wobble = rejected.
+  _wrongBounce() {
+    const ctx = this._ctx, now = ctx.currentTime;
+    const osc = ctx.createOscillator(), lfo = ctx.createOscillator(), lg = ctx.createGain(), g = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(540, now);
+    osc.frequency.exponentialRampToValueAtTime(150, now + 0.18);
+    lfo.type = 'sine'; lfo.frequency.value = 22; lg.gain.value = 30;
+    lfo.connect(lg); lg.connect(osc.frequency);
+    g.gain.setValueAtTime(0.30, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.20);
+    osc.connect(g); g.connect(this._master);
+    lfo.start(now); lfo.stop(now + 0.22);
+    osc.start(now); osc.stop(now + 0.22);
+  }
+
+  // 6A: kill "ding" — short, bright, high.
+  _killDing() {
+    const ctx = this._ctx, now = ctx.currentTime;
+    const osc = ctx.createOscillator(), g = ctx.createGain();
+    osc.type = 'sine'; osc.frequency.value = 1320;
+    g.gain.setValueAtTime(0.16, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+    osc.connect(g); g.connect(this._master);
+    osc.start(now); osc.stop(now + 0.13);
+  }
+
+  // 6A: color-bomb pip fill — ascending C/E/G; the 3rd (full) blooms into a chord.
+  _pipFill(index = 0) {
+    const ctx = this._ctx, now = ctx.currentTime;
+    const notes = [523.3, 659.3, 784.0];
+    const f = notes[Math.min(2, index)] ?? 523.3;
+    const osc = ctx.createOscillator(), g = ctx.createGain();
+    osc.type = 'sine'; osc.frequency.value = f;
+    g.gain.setValueAtTime(0.22, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.26);
+    osc.connect(g); g.connect(this._master);
+    osc.start(now); osc.stop(now + 0.28);
+    if (index >= 2) {
+      [659.3, 784.0, 1046.5].forEach((cf) => {
+        const o = ctx.createOscillator(), gg = ctx.createGain();
+        o.type = 'sine'; o.frequency.value = cf;
+        gg.gain.setValueAtTime(0.15, now); gg.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+        o.connect(gg); gg.connect(this._master);
+        o.start(now); o.stop(now + 0.47);
+      });
+    }
+  }
+
+  // 6A: swap "whoosh" — band-passed noise sweeping up while the arc animates.
+  _swapWhoosh() {
+    const ctx = this._ctx, now = ctx.currentTime;
+    const src = ctx.createBufferSource(), bpf = ctx.createBiquadFilter(), g = ctx.createGain();
+    src.buffer = this._noise; bpf.type = 'bandpass'; bpf.Q.value = 1.2;
+    bpf.frequency.setValueAtTime(500, now);
+    bpf.frequency.exponentialRampToValueAtTime(2600, now + 0.2);
+    g.gain.setValueAtTime(0.001, now);
+    g.gain.linearRampToValueAtTime(0.22, now + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+    src.connect(bpf); bpf.connect(g); g.connect(this._master);
+    src.start(now); src.stop(now + 0.24);
+  }
+
+  // 6A: freeze "tinkle" — three high sparkle notes for the ice crystals.
+  _freezeTinkle() {
+    const ctx = this._ctx, now = ctx.currentTime;
+    [2093, 2637, 3136].forEach((f, i) => {
+      const t = now + i * 0.045;
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.10, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+      o.connect(g); g.connect(this._master);
+      o.start(t); o.stop(t + 0.2);
+    });
+  }
+
+  // 6A: level-select idle "heartbeat" — a soft low double-thump.
+  _heartbeat() {
+    const ctx = this._ctx, now = ctx.currentTime;
+    for (const [d, vol] of [[0, 0.16], [0.16, 0.11]]) {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(72, now + d);
+      o.frequency.exponentialRampToValueAtTime(44, now + d + 0.12);
+      g.gain.setValueAtTime(vol, now + d);
+      g.gain.exponentialRampToValueAtTime(0.001, now + d + 0.14);
+      o.connect(g); g.connect(this._master);
+      o.start(now + d); o.stop(now + d + 0.16);
+    }
   }
 
   // 4-note ascending chime — pitch shifts with combo tier.

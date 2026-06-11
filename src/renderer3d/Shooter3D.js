@@ -183,6 +183,9 @@ export class Shooter3D {
     }
 
     this._activeColCount = LANE_COUNT;
+    this._shakeT = 0;   // bomb-zone shake timer (wrong-shot feedback, 1D)
+    this._selectedCol = -1;                              // 3B: grabbed-bomb column
+    this._stashPulse  = new Array(LANE_COUNT).fill(0);   // 3D: per-column stash pulse
   }
 
   // ── Public API ─────────────────────────────────────────────────────────────────
@@ -193,15 +196,28 @@ export class Shooter3D {
       for (let si = 0; si < this._slots[li].length; si++) {
         this._slots[li][si].group.position.x = x;
         this._slots[li][si].group.position.z = slotZ(si);
+        this._slots[li][si].group._baseX      = x;   // shake/bob offset from this
       }
       if (this._stashSlots[li]) {
         this._stashSlots[li].group.position.x = x;
         this._stashSlots[li].group.position.z = STASH_Z;
+        this._stashSlots[li].group._baseX     = x;
       }
     }
   }
 
   setActiveColCount(n) { this._activeColCount = n; }
+
+  // Brief horizontal jitter of the whole bomb queue — used on a wrong-colour shot
+  // so the rejection reads in the bomb zone without shaking the whole screen. (1D)
+  shakeZone(dur = 0.18) { this._shakeT = dur; }
+
+  // 3B: which column's bomb is currently grabbed (-1 = none). The front bomb of
+  // that column pops to 1.15x and the bombs behind it dim, for a focus effect.
+  setSelectedColumn(colIdx) { this._selectedCol = colIdx ?? -1; }
+
+  // 3D: pulse a column's stash slot (scale 1→1.2→1) to confirm a place/retrieve.
+  pulseStash(colIdx) { if (colIdx >= 0 && colIdx < this._stashPulse.length) this._stashPulse[colIdx] = 0.2; }
 
   triggerPunch(colIdx) {
     const slot = this._slots[colIdx]?.[0];
@@ -213,6 +229,27 @@ export class Shooter3D {
 
   update(dt, elapsed, colorBombArmed = false) {
     this._elapsed = elapsed;
+
+    // Bomb-zone shake (1D): decaying horizontal jitter on all slot groups. Applied
+    // every frame relative to each group's base X so it self-restores when idle.
+    let shakeX = 0;
+    if (this._shakeT > 0) {
+      this._shakeT = Math.max(0, this._shakeT - dt);
+      shakeX = Math.sin(this._shakeT * 80) * 0.22 * (this._shakeT / 0.18);
+    }
+    for (let li = 0; li < this._slots.length; li++) {
+      for (let si = 0; si < this._slots[li].length; si++) {
+        const g = this._slots[li][si].group;
+        if (g._baseX != null) g.position.x = g._baseX + shakeX;
+        // 3A: idle bob (top-down → Z is screen-vertical). Front bomb (si 0) bobs
+        // more — it reads as the "active" one. Phase-offset per column + slot.
+        if (g._baseZ == null) g._baseZ = g.position.z;
+        const amp = si === 0 ? 0.12 : 0.06;
+        g.position.z = g._baseZ + Math.sin(elapsed * 2.4 + li * 1.1 + si * 0.6) * amp;
+      }
+      const sg = this._stashSlots[li]?.group;
+      if (sg && sg._baseX != null) sg.position.x = sg._baseX + shakeX;
+    }
 
     for (let li = 0; li < LANE_COUNT; li++) {
       const col   = this._columns[li];
@@ -274,9 +311,21 @@ export class Shooter3D {
           }
         }
 
-        // Gentle Y-bob on front slot only
-        if (si === 0) {
-          slot.group.position.y = Math.sin(elapsed * 2.4) * 0.03;
+        // 3B: the grabbed column's front bomb pops to 1.15x (focus); others rest.
+        if (si === 0 && !slot._punching) {
+          const sel = (li === this._selectedCol) ? 1.15 : 1.0;
+          slot.group.scale.setScalar(sel * slot._baseScale);
+        }
+
+        // 3B: dim the bombs queued behind the grabbed one (0.7) for a focus effect.
+        if (si > 0) {
+          const dim = (li === this._selectedCol) ? 0.7 : 1.0;
+          slot.sphereMesh.material.transparent = true;
+          slot.sphereMesh.material.opacity     = dim;
+          if (slot.badgeMesh.material) {
+            slot.badgeMesh.material.transparent = true;
+            slot.badgeMesh.material.opacity     = dim;
+          }
         }
 
         // Color-bomb indicator — front slot only. Driven by the shooter itself
@@ -300,6 +349,15 @@ export class Shooter3D {
       const stash = this._stashSlots[li];
       if (!stash) continue;
       stash.group.visible = true;
+
+      // 3D: receipt pulse (scale 1→1.2→1) on place/retrieve.
+      if (stash._baseScale == null) stash._baseScale = stash.group.scale.x || 1;
+      if (this._stashPulse[li] > 0) {
+        this._stashPulse[li] = Math.max(0, this._stashPulse[li] - dt);
+        const p = 1 - this._stashPulse[li] / 0.2;
+        stash.group.scale.setScalar((1 + 0.2 * Math.sin(Math.PI * p)) * stash._baseScale);
+        if (this._stashPulse[li] === 0) stash.group.scale.setScalar(stash._baseScale);
+      }
 
       const stashedShooter = col.stash ?? null;
       if (!stashedShooter) {

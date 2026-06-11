@@ -21,9 +21,10 @@ const MARGIN = 8;
 // ── Timings ──────────────────────────────────────────────────────────────────
 const LERP_DURATION       = 0.25;
 const SPAWN_LERP_DURATION = 0.45;  // slower entry so cars glide in rather than snap
-const DEATH_DURATION   = 0.30;
-const DEATH_SCALE_MAX  = 1.40;
+const DEATH_DURATION   = 0.25;   // spin + scale-up + fade (1B)
+const DEATH_SCALE_MAX  = 1.30;
 const DEATH_VY         = 2.5;
+const DEATH_SPIN       = Math.PI; // 180° yaw spin, direction = away from centre lane
 const MAX_TILT_X       = 0.20;
 const SPAWN_OFFSET     = 5.0;   // bigrig half-height=2.52 + frustum margin → fully off-screen
 const POWER_FLASH_DUR  = 0.25;
@@ -34,9 +35,17 @@ const POWER_SQUASH_DUR = 0.16;   // total squash→stretch→settle duration
 // comes from car SIZE relative to the fixed on-screen row pitch, not row spacing.
 const SPRITE_SCALE     = 0.65;
 
-// ── Danger aura ───────────────────────────────────────────────────────────────
+// ── Idle bob (2A) — gentle continuous up/down so the road feels alive ──────────
+const BOB_AMP   = 0.05;                 // world units
+const BOB_FREQ  = (2 * Math.PI) / 1.2;  // 1.2s cycle
+const BOB_PHASE = 1.3;                  // per-lane phase offset (so they don't sync)
+
+// ── Danger aura (2C) — ramps with absolute proximity to the breach line ────────
+// gridRows is locked at 11 across all levels (SESSION_HANDOFF), so breach = row 11.
+const BREACH_ROW = 11;
+const DANGER_ROWS = 3;                  // aura starts 3 rows out and intensifies
 const AURA_RATE = 1 / 0.3;
-const AURA_FREQ = 1.5;
+const AURA_FREQ = 1.4;                  // base pulse; scales up nearer the breach
 const AURA_AMP  = 0.3;
 
 // ── Wobble ───────────────────────────────────────────────────────────────────
@@ -266,9 +275,12 @@ export class Car3D {
     for (const [car, entry] of this._live) {
       if (!liveCars.has(car)) {
         this._killSpeedLines(entry);
+        this._disposeGhosts(entry);   // clean up any in-flight spawn ghosts
         this._dying.push({
           group: entry.group, bossRing: entry.bossRing,
           bossRingMat: entry.bossRingMat, t: 0,
+          baseScale: entry.group.userData.baseScale ?? 1,
+          spinDir:   entry.group.position.x >= 0 ? 1 : -1,   // spin away from centre
         });
         this._live.delete(car);
       }
@@ -315,8 +327,14 @@ export class Car3D {
         // ── Wobble ────────────────────────────────────────────────────────────
         const wobbleX   = Math.sin(now * WOBBLE_X_FREQ   + laneIdx * 0.7) * WOBBLE_X_AMP;
         const wobbleRot = Math.sin(now * WOBBLE_ROT_FREQ + laneIdx * 1.3) * WOBBLE_ROT_AMP;
+        // 2A: continuous idle bob, phase-offset per lane so they don't bob in sync.
+        // Top-down ortho collapses the Y axis, so "up/down" reads on Z (screen-vertical).
+        const bobZ      = Math.sin(now * BOB_FREQ + laneIdx * BOB_PHASE) * BOB_AMP;
 
-        g.position.set(laneToX(laneIdx, this._laneCount) + wobbleX, 0, entry.renderZ);
+        g.position.set(laneToX(laneIdx, this._laneCount) + wobbleX, 0, entry.renderZ + bobZ);
+
+        // 2D: spawn motion-blur trail — fade the ghost frames in behind the car.
+        if (entry._ghosts) this._updateSpawnGhosts(entry, dt);
 
         // ── Boss ring ─────────────────────────────────────────────────────────
         if (entry.bossRing) {
@@ -361,17 +379,20 @@ export class Car3D {
             }
           }
 
-          // Danger aura — 2 frontmost cars per lane
-          const _isNearBreach = _maxRow >= 0 && car.row >= _maxRow - 1;
-          const auraTarget = _isNearBreach ? 1.0 : 0.0;
+          // Danger aura (2C) — intensity ramps with ABSOLUTE proximity to the
+          // breach row: 3 rows out = subtle, 2 = medium, 1 = strong.
+          const rowsOut    = BREACH_ROW - car.row;   // 1 = one step from breaching
+          const auraTarget = Math.max(0, Math.min(1, (DANGER_ROWS + 1 - rowsOut) / DANGER_ROWS));
           const blendStep  = AURA_RATE * dt;
           entry._auraBlend = auraTarget > entry._auraBlend
             ? Math.min(auraTarget, entry._auraBlend + blendStep)
             : Math.max(auraTarget, entry._auraBlend - blendStep);
 
           if (!colorSet && entry._auraBlend > 0.001) {
-            const pulse  = 0.7 + AURA_AMP * Math.sin(2 * Math.PI * AURA_FREQ * entry._auraT);
-            const t = entry._auraBlend * pulse * 0.55;
+            // Pulse rate accelerates as the car nears the breach (2C).
+            const auraFreq = AURA_FREQ * (1 + entry._auraBlend * 1.6);
+            const pulse  = 0.7 + AURA_AMP * Math.sin(2 * Math.PI * auraFreq * entry._auraT);
+            const t = entry._auraBlend * pulse * 0.6;
             // Boost red channel, dim others — preserves hue identity while signalling danger
             entry.bodyMat.color.setHex(entry.baseHex);
             const mc = entry.bodyMat.color;
@@ -433,8 +454,12 @@ export class Car3D {
       d.t += dt;
       if (d.t >= DEATH_DURATION) { this._disposeDying(d); this._dying.splice(i, 1); continue; }
       const prog  = d.t / DEATH_DURATION;
-      const scale = 1 + (DEATH_SCALE_MAX - 1) * prog;
+      // Spin (180° yaw, away from centre) + scale up + rise + fade → "launched by
+      // the blast" instead of just vanishing. Scale is relative to the car's base
+      // render scale so it doesn't pop bigger at the start. (1B)
+      const scale = (d.baseScale ?? 1) * (1 + (DEATH_SCALE_MAX - 1) * prog);
       d.group.scale.set(scale, scale, scale);
+      d.group.rotation.y = d.spinDir * DEATH_SPIN * prog;
       d.group.position.y += DEATH_VY * dt;
       d.group.traverse(child => {
         if (child.isMesh && child.material) child.material.opacity = 1 - prog;
@@ -510,6 +535,25 @@ export class Car3D {
 
     this._scene.add(group);
 
+    // 2D: spawn motion-blur trail — 3 faded ghost copies of the sprite that trail
+    // behind the car during its entrance glide, then fade out. Share the car's
+    // geometry + texture (disposed with the car, never by the ghost cleanup).
+    const ghosts = [];
+    if (bodyMat.map) {
+      for (let i = 0; i < 3; i++) {
+        const gm = new THREE.MeshBasicMaterial({
+          map: bodyMat.map, transparent: true, opacity: 0,
+          alphaTest: 0.05, depthWrite: false, side: THREE.DoubleSide,
+        });
+        const gMesh = new THREE.Mesh(mesh.geometry, gm);
+        gMesh.rotation.x = -Math.PI / 2;
+        gMesh.scale.setScalar(SPRITE_SCALE);
+        gMesh.position.set(worldX, 0.04, spawnZ);
+        this._scene.add(gMesh);
+        ghosts.push({ mesh: gMesh, mat: gm, lag: (i + 1) * 0.7 });
+      }
+    }
+
     return {
       group, mesh, bodyMat,
       baseHex: 0xffffff,  // always white — all sprites pre-colored, boss canvas bakes color
@@ -521,7 +565,36 @@ export class Car3D {
       _powerFlashing: false, _powerFlashT: 0,
       _powerSquashing: false, _powerSquashT: 0,
       _speedLines: [],
+      _ghosts: ghosts.length ? ghosts : null,
     };
+  }
+
+  // 2D: advance the spawn ghost trail. Ghosts trail behind the gliding car at a
+  // fixed lag with decreasing opacity, then fade + dispose once the car settles.
+  _updateSpawnGhosts(entry, dt) {
+    const g = entry.group;
+    let allGone = true;
+    for (let i = 0; i < entry._ghosts.length; i++) {
+      const gh = entry._ghosts[i];
+      if (entry._isSpawning) {
+        gh.mesh.position.set(g.position.x, 0.04, entry.renderZ - gh.lag);
+        gh.mat.opacity = 0.42 - i * 0.13;   // 0.42 / 0.29 / 0.16
+        allGone = false;
+      } else {
+        gh.mat.opacity = Math.max(0, gh.mat.opacity - dt * 3.5);
+        if (gh.mat.opacity > 0.01) allGone = false;
+      }
+    }
+    if (allGone) this._disposeGhosts(entry);
+  }
+
+  _disposeGhosts(entry) {
+    if (!entry._ghosts) return;
+    for (const gh of entry._ghosts) {
+      gh.mat.dispose();              // shared geo + texture are NOT disposed here
+      this._scene.remove(gh.mesh);
+    }
+    entry._ghosts = null;
   }
 
   // ── Speed lines ───────────────────────────────────────────────────────────
@@ -582,6 +655,7 @@ export class Car3D {
 
   _disposeEntry(entry) {
     this._killSpeedLines(entry);
+    this._disposeGhosts(entry);
     this._disposeGroup(entry.group);
     if (entry.bossRing) { entry.bossRingMat?.dispose(); this._scene.remove(entry.bossRing); }
   }

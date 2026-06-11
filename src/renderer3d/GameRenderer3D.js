@@ -162,6 +162,7 @@ export class GameRenderer3D {
   onImpact(laneIdx, color) {
     this._cars?.triggerPowerHit(laneIdx, false);
     this._particles?.spawnFlash(laneIdx, color, null, 0.6);
+    this._particles?.spawnShockwave(laneIdx, color);   // 1A: ground impact ring
   }
 
   /**
@@ -172,27 +173,32 @@ export class GameRenderer3D {
    */
   onHit(laneIdx, color, damage, killCount = 0) {
     this._particles?.spawnHit(laneIdx, color);
-    this._particles?.spawnDamageNumber(laneIdx, damage);
     if (killCount > 0) {
       const k      = Math.min(4, killCount);
       const shake  = { 1: 0.12, 2: 0.18, 3: 0.25, 4: 0.35 }[k];
       const chroma = { 1: 0.022, 2: 0.035, 3: 0.050, 4: 0.070 }[k];
       const escale = { 1: 1.0,  2: 1.3,  3: 1.6,  4: 2.0 }[k];
       this._particles?.spawnExplosion(laneIdx, color, escale);
+      this._particles?.spawnKillNumber(laneIdx, color, damage);   // 1C: +N kill popup
       this._cameraFX?.shake(shake, 0.25 + 0.06 * (k - 1));
       this._postFX?.triggerChroma(chroma, 0.30);
       const cachedPos = this._laneCarPosCache[laneIdx] ?? 50;
       this._scorchMarks?.spawnScorch(laneIdx, cachedPos);
     } else {
       // Non-killing hit: car survived. The squash + flash already fired in onImpact.
+      this._particles?.spawnDamageNumber(laneIdx, damage);
       this._postFX?.triggerChroma(0.010, 0.18);
     }
   }
 
-  /** Grey miss puffs (wrong-color shot). */
+  /** Wrong-color shot: grey puffs + a red "rejected" bounce-back, and a shake of
+   *  just the bomb zone (not the whole screen). (1D) */
   onMiss(laneIdx) {
     this._particles?.spawnMiss(laneIdx);
-    this._postFX?.triggerChroma(0.006, 0.15);   // tiny chroma on miss
+    this._particles?.spawnMissBounce(laneIdx);          // red blob kicks back to player
+    this._particles?.spawnFlash(laneIdx, 'Red', null, 0.5);  // brief red flash on the bomb
+    this._shooters?.shakeZone();                        // jitter the bomb queue only
+    this._postFX?.triggerChroma(0.006, 0.15);
   }
 
   onShoot(laneIdx) {
@@ -288,6 +294,12 @@ export class GameRenderer3D {
   /** DEV proof helper: front car's current {x,y} mesh scale in a lane. */
   peekCarScale(laneIdx) { return this._cars?.peekFrontScale(laneIdx) ?? null; }
 
+  /** 3B: highlight the grabbed column's bomb (-1 = none). */
+  setSelectedBomb(colIdx) { this._shooters?.setSelectedColumn(colIdx); }
+
+  /** 3D: pulse a column's stash slot on place/retrieve. */
+  pulseStash(colIdx) { this._shooters?.pulseStash(colIdx); }
+
   /** Grid stepped one row — punctuate it with a light sweep across the road. */
   onAdvance() {
     this._road?.triggerAdvanceSweep();
@@ -339,6 +351,17 @@ export class GameRenderer3D {
       }
     }
     this._prevFrozen = isFrozen;
+
+    // 4A: while frozen, keep emitting drifting ice crystals above each frozen car.
+    if (isFrozen && this._particles && this._lanes) {
+      this._freezeEmitT = (this._freezeEmitT ?? 0) + dt;
+      if (this._freezeEmitT >= 0.18) {
+        this._freezeEmitT = 0;
+        for (let i = 0; i < this._lanes.length; i++) {
+          if (this._lanes[i]?.cars.length > 0) this._particles.spawnIceSparkle(i);
+        }
+      }
+    }
 
     this._lighting.update(dt);
     this._skybox.update(dt);

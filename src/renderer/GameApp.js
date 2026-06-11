@@ -378,7 +378,7 @@ async function main() {
   const boosterBar    = new BoosterBar(
     layers, boosterState, gs, APP_W,
     () => { audio.play('booster_activate'); boosterState.activateSwap(); boostersUsedThisLevel.push('swap'); logEvent('booster_used', { booster: 'swap', levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber }); tutOrch?.completeIfActive('swap'); },
-    () => { audio.play('booster_activate'); boosterState.activateFreeze(); boostersUsedThisLevel.push('freeze'); logEvent('booster_used', { booster: 'freeze', levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber }); tutOrch?.completeIfActive('freeze'); },
+    () => { audio.play('booster_activate'); audio.play('freeze_tinkle'); boosterState.activateFreeze(); boostersUsedThisLevel.push('freeze'); logEvent('booster_used', { booster: 'freeze', levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber }); tutOrch?.completeIfActive('freeze'); },
     () => {
       // BOMB button — toggle placement mode on/off.
       if (boosterState.bombMode) {
@@ -1386,7 +1386,8 @@ async function main() {
       gameRenderer3D.onHit(laneIdx, color, damage, killCount);
       if (isKill) {
         particles.spawnExplosion(laneIdx, gameX, color);
-        audio.play('car_destroy');
+        audio.play('car_destroy', { kills: killCount });   // 6B: escalates with kills
+        audio.play('kill_ding');                            // 6A: bright kill ding
         haptics.killDouble();
       } else {
         audio.play('hit_match');
@@ -1412,7 +1413,7 @@ async function main() {
     onMiss: (laneIdx, gameX) => {
       particles.spawnMiss(laneIdx, gameX);
       gameRenderer3D.onMiss(laneIdx);
-      audio.play('hit_miss');
+      audio.play('wrong_bounce');   // 6A/1D: descending "rejected" boing
       featureBanners.fire('first_miss', 'No damage! Bomb color must match the car color.');
     },
 
@@ -1524,10 +1525,12 @@ async function main() {
     comboFX.triggerFreeze();
     popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildFlashText(w, 'FROZEN!', 0x88ddff), 1.5);
     audio.play('freeze_activate');
+    audio.play('freeze_tinkle');   // 6A: ice-crystal tinkle
     haptics.medium();
   };
   // Progress feedback per multi-kill (1/3, 2/3) — through the unified queue (FIX 4).
   gameLoop._onMultiKill = (count, needed) => {
+    audio.play('pip_fill', { index: count - 1 });   // 6A: ascending pip-fill note
     if (count < needed) {
       popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildFlashText(w, `MULTI-KILL!  ${count}/${needed}`, 0xffcc44), 1.2);
     }
@@ -1662,8 +1665,14 @@ async function main() {
   });
 
   // ── Render ticker (variable rate) ────────────────────────────────────────
+  const _prevStash = [false, false, false, false];   // 3D: per-column stash presence
+  let _prevSwap = boosterState.swap;                  // 6A: detect a completed swap
   app.ticker.add((ticker) => {
     const dt = Math.min(ticker.deltaMS / 1000, 0.05);
+
+    // 6A: a swap consumed a charge → whoosh (synced to the 4B arc).
+    if (boosterState.swap < _prevSwap) audio.play('swap_whoosh');
+    _prevSwap = boosterState.swap;
 
     // 3D scene update + render (runs when gameRenderer3D is visible/active).
     // dt is scaled by gs.timeScale so a 3+ multi-kill plays back in brief bullet-time.
@@ -1671,6 +1680,15 @@ async function main() {
     gameRenderer3D.update({ lanes: gs.lanes, boosterState, isBreaching: gs.isOver && !gs.won,
                              comboFreezeShots: gs.comboFreezeShots,
                              colorBombArmed: gs.colorBombArmed }, fxDt, gs.elapsed);
+
+    // 3B: reflect the grabbed bomb (tracked by the 2D drag layer) into the 3D bombs.
+    gameRenderer3D.setSelectedBomb(shooterRenderer.draggingColumn ?? -1);
+    // 3D: pulse a stash slot whenever its contents change (place or retrieve).
+    for (let c = 0; c < gs.activeColCount; c++) {
+      const has = gs.columns[c]?.stash != null;
+      if (has !== _prevStash[c]) { gameRenderer3D.pulseStash(c); _prevStash[c] = has; }
+    }
+
     gameRenderer3D.render();
 
     // Combo power-shot FX (vignette + floating text).

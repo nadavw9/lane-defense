@@ -93,6 +93,8 @@ export class Particles3D {
     this._dmgNums           = [];
     this._explosionSprites  = [];
     this._flashes           = [];   // color-bomb pre-flash highlights
+    this._killNums          = [];   // "+N" kill score popups (scale 0->1.5->1, rise, fade)
+    this._groundRings       = [];   // bomb-impact ground shockwave rings
 
     // Exhaust smoke: persistent puffs emitted from cars each frame.
     // { mesh, mat, vx, vy, vz, life, maxLife }
@@ -310,6 +312,99 @@ export class Particles3D {
   }
 
   /**
+   * Wrong-colour "rejected" bounce — a red blob kicks off the front car back toward
+   * the player (down-screen, +Z) in a short arc, then falls and fades. (1D)
+   */
+  spawnMissBounce(laneIdx) {
+    if (this._disposed) return;
+    const pos = this._frontCarPos(laneIdx);
+    if (!pos) return;
+    const mat  = new THREE.MeshBasicMaterial({ color: 0xE24B4A, transparent: true, opacity: 0.95 });
+    const mesh = new THREE.Mesh(_explGeoLg, mat);
+    mesh.position.set(pos.x, PARTICLE_Y + 0.4, pos.z);
+    this._scene.add(mesh);
+    // _sparks applies gravity + motion + fade; +Z heads toward the bomb zone.
+    this._sparks.push({ mesh, mat, vx: 0, vy: 1.4, vz: 3.6, life: 0.18, maxLife: 0.18 });
+  }
+
+  /**
+   * Ground shockwave ring at a bomb impact point — expands outward and fades over
+   * ~120ms. The "hit the ground" confirmation on every bomb landing. (1A)
+   */
+  spawnShockwave(laneIdx, color, posOverride = null) {
+    if (this._disposed) return;
+    const pos = posOverride != null
+      ? { x: laneToX(laneIdx), z: posToZ(posOverride) }
+      : this._frontCarPos(laneIdx);
+    if (!pos) return;
+    const hex = COLOR_HEX[color] ?? 0xffffff;
+    const mat = new THREE.MeshBasicMaterial({
+      color: hex, transparent: true, opacity: 0.75, side: THREE.DoubleSide, depthWrite: false,
+    });
+    const mesh = new THREE.Mesh(_ringGeo, mat);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(pos.x, 0.04, pos.z);
+    mesh.scale.set(1, 1, 1);
+    this._scene.add(mesh);
+    this._groundRings.push({ mesh, mat, life: 0.12, maxLife: 0.12 });
+  }
+
+  /**
+   * "+N" kill score popup in the car's colour — scales 0→1.5→1.0, rises, fades over
+   * 400ms. Standard satisfying kill feedback. (1C)
+   */
+  spawnKillNumber(laneIdx, color, value, posOverride = null) {
+    if (this._disposed) return;
+    const pos = posOverride != null
+      ? { x: laneToX(laneIdx), z: posToZ(posOverride) }
+      : this._frontCarPos(laneIdx);
+    if (!pos) return;
+    const hex = COLOR_HEX[color] ?? 0xffffff;
+    const ctx = this._dmgCtx;
+    ctx.clearRect(0, 0, DMG_CANVAS_W, DMG_CANVAS_H);
+    ctx.font = 'bold 24px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,0.9)';
+    ctx.strokeText(`+${value}`, DMG_CANVAS_W / 2, DMG_CANVAS_H / 2);
+    ctx.fillStyle = `#${hex.toString(16).padStart(6, '0')}`;
+    ctx.fillText(`+${value}`, DMG_CANVAS_W / 2, DMG_CANVAS_H / 2);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = DMG_CANVAS_W; canvas.height = DMG_CANVAS_H;
+    canvas.getContext('2d').drawImage(this._dmgCanvas, 0, 0);
+    const tex    = new THREE.CanvasTexture(canvas);
+    const mat    = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 1, depthTest: false });
+    const sprite = new THREE.Sprite(mat);
+    sprite.position.set(pos.x, PARTICLE_Y + 0.8, pos.z);
+    this._scene.add(sprite);
+    this._killNums.push({ sprite, mat, tex, t: 0, dur: 0.4, baseY: PARTICLE_Y + 0.8, x: pos.x, z: pos.z });
+  }
+
+  /**
+   * 4A: a couple of small ice crystals drifting slowly UP above the front car —
+   * emitted continuously while the lane is frozen (atop the one-shot freeze burst).
+   */
+  spawnIceSparkle(laneIdx) {
+    if (this._disposed) return;
+    const car = this._lanes[laneIdx]?.cars?.reduce((b, c) => (!b || c.row > b.row) ? c : b, null);
+    if (!car) return;
+    const x = laneToX(laneIdx), z = posToZ(car.position);
+    for (let i = 0; i < 2; i++) {
+      const hex = i % 2 ? 0xCCEEFF : 0xffffff;
+      const mat = new THREE.MeshStandardMaterial({
+        color: hex, emissive: hex, emissiveIntensity: 1.6, transparent: true, opacity: 0.9,
+      });
+      const mesh = new THREE.Mesh(_explGeoOct, mat);   // shared geo (not disposed per-spark)
+      mesh.scale.y = 0.18;
+      mesh.rotation.y = Math.random() * Math.PI;
+      mesh.position.set(x + (Math.random() - 0.5) * 1.1, PARTICLE_Y + 0.35 + Math.random() * 0.5,
+                        z + (Math.random() - 0.5) * 0.9);
+      this._scene.add(mesh);
+      this._sparks.push({ mesh, mat, vx: 0, vy: 0.7 + Math.random() * 0.4, vz: 0,
+                          life: 0.7, maxLife: 0.7, noGravity: true });
+    }
+  }
+
+  /**
    * Spawn ice burst + shockwave ring when freeze booster activates in laneIdx.
    * @param {number} laneIdx
    */
@@ -470,7 +565,7 @@ export class Particles3D {
         continue;
       }
 
-      p.vy += GRAVITY * dt;
+      if (!p.noGravity) p.vy += GRAVITY * dt;   // ice sparkles drift up, gravity-free
       if (p.dry) p.mesh.rotation.y += p.dry * dt;
       if (p.drx) p.mesh.rotation.x += p.drx * dt;
       p.mesh.position.x += p.vx * dt;
@@ -517,6 +612,39 @@ export class Particles3D {
       f.mat.opacity = 0.9 * frac;
       const sc = 1.15 - 0.35 * frac;   // grows slightly as it fades
       f.mesh.scale.set(sc, 1, sc);
+    }
+
+    // ── Bomb-impact ground rings (1A): expand 1x→5x, fade over 120ms ──────────
+    for (let i = this._groundRings.length - 1; i >= 0; i--) {
+      const r = this._groundRings[i];
+      r.life -= dt;
+      if (r.life <= 0) {
+        r.mat.dispose();
+        this._scene.remove(r.mesh);
+        this._groundRings.splice(i, 1);
+        continue;
+      }
+      const p = 1 - r.life / r.maxLife;
+      const s = 1 + p * 4;                 // 1x → 5x (ring outer 0.3 → 1.5 world)
+      r.mesh.scale.set(s, s, s);
+      r.mat.opacity = 0.75 * (1 - p);
+    }
+
+    // ── Kill score popups (1C): scale 0→1.5→1.0, rise, fade over 400ms ────────
+    for (let i = this._killNums.length - 1; i >= 0; i--) {
+      const k = this._killNums[i];
+      k.t += dt;
+      const p = k.t / k.dur;
+      if (p >= 1) {
+        this._scene.remove(k.sprite);
+        k.tex.dispose(); k.mat.dispose();
+        this._killNums.splice(i, 1);
+        continue;
+      }
+      const s = p < 0.4 ? (p / 0.4) * 1.5 : 1.5 + (1.0 - 1.5) * ((p - 0.4) / 0.6);
+      k.sprite.scale.set(0.9 * s, 0.45 * s, 1);
+      k.sprite.position.set(k.x, k.baseY + p * 1.6, k.z);   // rise ~1.6 world (≈30px)
+      k.mat.opacity = p < 0.7 ? 1 : 1 - (p - 0.7) / 0.3;     // fade last 30%
     }
 
     // ── Shockwave rings ──────────────────────────────────────────────────────
@@ -636,6 +764,10 @@ export class Particles3D {
     for (const f of this._flashes) {
       f.mesh.geometry.dispose(); f.mat.dispose(); this._scene.remove(f.mesh);
     }
+    for (const r of this._groundRings) { r.mat.dispose(); this._scene.remove(r.mesh); }
+    for (const k of this._killNums)    { k.tex.dispose(); k.mat.dispose(); this._scene.remove(k.sprite); }
+    this._groundRings.length       = 0;
+    this._killNums.length          = 0;
     this._flashes.length           = 0;
     this._sparks.length            = 0;
     this._shockwaves.length        = 0;

@@ -79,8 +79,13 @@ export function roadHalfW(n = _activeLaneCount) {
   return n * 2.0 + 0.4;
 }
 
+// Cars stop one row SHORT of the breach line (ROAD_Z_NEAR=0) so the front car
+// never renders down over the bomb queue. The bottom ~2.6 units of road is a dead
+// breach zone (the "last step", removed by request). The road geometry/frustum
+// still use ROAD_Z_NEAR; only car/projectile/effect positions map to here.
+const POS_NEAR_Z = -2.6;
 export function posToZ(position) {
-  return ROAD_Z_FAR + (position / 100) * (ROAD_Z_NEAR - ROAD_Z_FAR);
+  return ROAD_Z_FAR + (position / 100) * (POS_NEAR_Z - ROAD_Z_FAR);
 }
 export function posToWorld(laneIdx, position) {
   return new THREE.Vector3(laneToX(laneIdx), 0, posToZ(position));

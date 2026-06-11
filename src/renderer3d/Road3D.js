@@ -57,7 +57,7 @@ const REFL_STRIP_COLORS  = [0xfff5a0, 0xc8e8ff, 0xd4f0a0];   // sunny yellow / s
 const SPEED_LINE_COUNT      = 20;
 const SPEED_LINE_BASE_SPEED = 6.0;
 
-const LANE_GLOW_OPACITY = 0.18;
+const LANE_GLOW_OPACITY = 0.30;   // 3C aim-assist: clearer green/red drop indicator
 const LANE_GLOW_WIDTH   = 3.75;
 
 const ROAD_LENGTH   = ROAD_Z_NEAR - ROAD_Z_FAR;
@@ -127,7 +127,7 @@ export class Road3D {
   // ── Lane glow ─────────────────────────────────────────────────────────────────
   showLaneGlow(laneIdx, colorHex) {
     this.clearLaneGlow();
-    const x   = laneToX(laneIdx);
+    const x   = laneToX(laneIdx, this._laneCount);   // active-lane-aligned (3C)
     const mat = new THREE.MeshBasicMaterial({
       color:       new THREE.Color(colorHex),
       transparent: true,
@@ -264,6 +264,11 @@ export class Road3D {
         s.mat.dispose();
         this._sweeps.splice(i, 1);
       }
+    }
+
+    // Lane-glow aim-assist pulse (3C) — gentle breathing so it reads as "active".
+    if (this._activeLaneGlow) {
+      this._activeLaneGlow.mat.opacity = LANE_GLOW_OPACITY * (0.78 + 0.22 * Math.sin(t * 7));
     }
   }
 

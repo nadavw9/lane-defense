@@ -81,6 +81,17 @@ export class LevelSelectScreen {
       const sc = 1 + 0.18 * pulse;
       this._glowNode.scale.set(sc);
     }
+    // 5D: completed-level star ratings gently pulse so the map feels alive.
+    if (this._completedStars && this._completedStars.length) {
+      this._idleT = (this._idleT ?? 0) + dt;
+      const sp = 1 + 0.08 * Math.sin(this._idleT * 2.2);
+      for (const st of this._completedStars) st.scale.set(sp);
+    }
+    // 6A: subtle "heartbeat" low tone synced to the next-level "play me" pulse.
+    if (this._glowNode && this._callbacks?.audio) {
+      this._hbT = (this._hbT ?? 0) + dt;
+      if (this._hbT >= 1.6) { this._hbT = 0; this._callbacks.audio.play('heartbeat'); }
+    }
     for (let i = this._revealAnims.length - 1; i >= 0; i--) {
       const a  = this._revealAnims[i];
       a.t      = Math.min(a.t + dt / a.duration, 1);
@@ -560,6 +571,8 @@ export class LevelSelectScreen {
         const st = new Text({ text: starStr, style: { fontSize: 11, fill: 0xffee00 } });
         st.anchor.set(0.5, 0.5); st.y = 9;
         node.addChild(st);
+        (this._completedStars ??= []).push(st);   // 5D: gentle idle pulse
+
         const num = new Text({ text: String(levelId), style: { fontSize: 13, fontWeight: 'bold', fill: 0xffffff } });
         num.anchor.set(0.5, 0.5); num.y = -7;
         node.addChild(num);

@@ -59,6 +59,16 @@ export class BoosterBar {
     this._bombGlow = new Graphics();
     this._layer.addChild(this._bombGlow);
 
+    // 4D: idle "ready" glow for SWAP/FREEZE when they have charges available.
+    this._readyGlow  = new Graphics();
+    this._layer.addChild(this._readyGlow);
+    this._readyPulse = 0;
+
+    // 4C: color-bomb charge pips (3 multi-kills → a Color Bomb).
+    this._pips = new Graphics();
+    this._layer.addChild(this._pips);
+    this._prevPipFill = 0;
+
     this._readyText  = null;
     this._readyTextT = 0;
     this._prevBombs  = 0;
@@ -124,6 +134,35 @@ export class BoosterBar {
       this._spawnReadyText();
     }
     this._prevBombs = s.bombs;
+
+    // ── 4D: SWAP/FREEZE ready-glow — a soft pulse while a charge is available ──
+    this._readyPulse += dt * 3.0;
+    const rp = 0.28 + 0.32 * (0.5 + 0.5 * Math.sin(this._readyPulse));
+    this._readyGlow.clear();
+    if (this._swapBtn._unlocked && s.swap > 0 && !s.swapMode) {
+      this._readyGlow.roundRect(CARD_X[0] - 2, CARD_Y - 2, CARD_W + 4, CARD_H + 4, CARD_R + 2);
+      this._readyGlow.stroke({ color: 0x66aaff, width: 2, alpha: rp });
+    }
+    if (this._freezeBtn._unlocked && s.freeze > 0 && !s.isFrozen()) {
+      this._readyGlow.roundRect(CARD_X[1] - 2, CARD_Y - 2, CARD_W + 4, CARD_H + 4, CARD_R + 2);
+      this._readyGlow.stroke({ color: 0x44ccff, width: 2, alpha: rp });
+    }
+
+    // ── 4C: color-bomb charge pips (3 multi-kills earn a Color Bomb) ──────────
+    const NEED   = 3;
+    const filled = Math.min(NEED, this._gs?.multiKillCount ?? 0);
+    const PCX = 195, PY = BAR_Y - 9, PR = 4, PGAP = 13;
+    this._pips.clear();
+    for (let i = 0; i < NEED; i++) {
+      const x = PCX - ((NEED - 1) * PGAP) / 2 + i * PGAP;
+      const on = i < filled;
+      // last-filled pip pulses so progress is felt
+      const pulse = (on && i === filled - 1) ? 0.7 + 0.3 * Math.sin(this._readyPulse * 1.6) : 1;
+      this._pips.circle(x, PY, on ? PR + 0.5 : PR);
+      this._pips.fill({ color: on ? 0xffe14a : 0x33384a, alpha: (on ? 1 : 0.55) * pulse });
+      if (on) { this._pips.circle(x, PY, PR + 2.5); this._pips.stroke({ color: 0xff8844, width: 1, alpha: 0.5 * pulse }); }
+    }
+    this._prevPipFill = filled;
 
     // ── "BOMB READY!" floating text ───────────────────────────────────────────
     if (this._readyText) {

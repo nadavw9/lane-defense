@@ -138,7 +138,7 @@ Always `${import.meta.env.BASE_URL}sprites/...`. Hardcoded `/sprites/...` causes
 ## 6. Current State
 
 ### Tests
-**478 passing**, 5 todo — 18 test files. Run: `npm test`. All headless (no render tests).
+**633 passing**, 5 todo — 18 test files. Run: `npx vitest run`. All headless (no render tests).
 
 ### What is done
 - **40 levels** configured in `LevelManager.js` (L1–L40, three worlds)
@@ -187,7 +187,7 @@ Before committing any change to `LevelManager.js` or `CarTypes.js`:
 
 ## 8. What NOT to Touch
 
-- `src/director/` — 478 tests cover it; changes need matching test updates
+- `src/director/` — 633 tests cover it; changes need matching test updates
 - `src/models/` — data classes; shape changes cascade everywhere
 - Vite config base-path logic
 - `BASE_URL` sprite path patterns
@@ -304,7 +304,7 @@ Run `claude skill list` to see all. Key skills for this project:
 
 ```bash
 npm run dev            # Vite dev server (--host for LAN/phone)
-npm test               # full Vitest suite (must be green)
+npx vitest run         # full Vitest suite (must be green)
 npm run build          # production build → dist/
 npm run browser:kill   # clear stuck Playwright Chrome (BEFORE a session only)
 node tools/balance-sim.js --level=N --runs=500   # regenerate level difficulty

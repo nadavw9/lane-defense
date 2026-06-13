@@ -13,14 +13,14 @@
 import * as THREE from 'three';
 import { posToZ, laneToX, ROAD_Z_FAR } from './Scene3D.js';
 
-const PROJ_LIFE  = 0.18;   // fall duration — matches SHOT_TRAVEL_TIME so the bomb
+const PROJ_LIFE  = 0.18;   // travel duration — matches SHOT_TRAVEL_TIME so the bomb
                            // lands exactly when the shot resolves
-const PROJ_R     = 0.22;   // bigger so the in-flight bomb reads clearly as "the drop"
+const PROJ_R     = 0.22;   // bigger so the in-flight bomb reads clearly as "the throw"
 const PROJ_Y     = 0.35;
-// Bomb DROPS from above the target car (top-down: "above" = up-screen, more negative
-// Z) and falls straight down onto it with gravity ease-in, instead of shooting up
-// from the bomb zone. On landing it splats flat for a beat, then the explosion fires.
-const DROP_DIST  = 6.0;    // start height above the car (≈2 car-lengths up-screen)
+// The bomb travels FROM the player's release point TO the target car across the road
+// plane (X and Z), with an ease-in and a slight sine throw-arc in height, then splats
+// flat on landing before the explosion fires.
+const PROJ_ARC   = 0.6;    // throw-arc height (Y), peaks midway through the travel
 const IMPACT_DUR = 0.03;   // 30ms flat-splat frame on landing
 const TOTAL_LIFE = PROJ_LIFE + IMPACT_DUR;
 const IMPACT_SX  = 1.5;    // splat: wider on the road…
@@ -63,8 +63,15 @@ export class Projectile3D {
     this._slotWasActive = new Array(firingSlots.length).fill(false);
     this._projectiles   = [];
     this._cones         = [];  // { mesh, mat, life }
+    // Per-lane world {x,z} the next spawned bomb travels FROM (the release point).
+    this._nextStart     = new Array(firingSlots.length).fill(null);
 
     this._geo = new THREE.SphereGeometry(PROJ_R, 8, 6);
+  }
+
+  // Set where the next bomb in a lane should start its travel (player's release).
+  setNextStart(laneIdx, world) {
+    if (laneIdx >= 0 && laneIdx < this._nextStart.length) this._nextStart[laneIdx] = world ?? null;
   }
 
   reset() {
@@ -100,22 +107,25 @@ export class Projectile3D {
       const elapsed = TOTAL_LIFE - p.life;
       let frac;
       if (elapsed < PROJ_LIFE) {
-        // ── Fall: drop from above (p.sz) straight down onto the car (p.tz) with
-        //    gravity ease-in — slow at the top, fast at impact.
+        // ── Travel: from the release point (sx,sz) to the car (tx,tz) across the
+        //    road plane with ease-in, plus a slight sine throw-arc in height.
         const prog = elapsed / PROJ_LIFE;
         const ease = prog * prog;
+        p.x = p.sx + (p.tx - p.sx) * ease;
         p.z = p.sz + (p.tz - p.sz) * ease;
+        p.y = PROJ_Y + PROJ_ARC * Math.sin(prog * Math.PI);
         p.mesh.scale.set(1, 1, 1);
         frac = 1;
       } else {
-        // ── Splat: landed. Flatten wide+short for a beat, fade out as the
-        //    explosion takes over.
+        // ── Splat: landed on the car. Flatten wide+short for a beat, fade out as
+        //    the explosion takes over.
         const ip = (elapsed - PROJ_LIFE) / IMPACT_DUR;   // 0→1
+        p.x = p.tx;
         p.z = p.tz;
+        p.y = PROJ_Y;
         p.mesh.scale.set(IMPACT_SX, IMPACT_SY, IMPACT_SX);
         frac = 1 - ip;
       }
-      p.y = PROJ_Y;
 
       p.mesh.position.set(p.x, p.y, p.z);
       p.light.position.set(p.x, p.y + 0.2, p.z);
@@ -176,11 +186,16 @@ export class Projectile3D {
   _spawn(laneIdx, slot) {
     const hex   = COLOR_HEX[slot.shooter.color] ?? 0xffffff;
     const color = new THREE.Color(hex);
-    const sx    = laneToX(laneIdx);
 
+    // Target = the lane's front car. Start = the player's release point (set via
+    // setNextStart); falls back to just below the car (player side) if unknown.
+    const tx = laneToX(laneIdx);
     const frontCar = this._lanes[laneIdx]?.cars[0];
     const tz = frontCar ? posToZ(frontCar.position) : ROAD_Z_FAR;
-    const sz = tz - DROP_DIST;   // start above the car (up-screen) and fall onto it
+    const start = this._nextStart[laneIdx];
+    this._nextStart[laneIdx] = null;
+    const sx = start ? start.x : tx;
+    const sz = start ? start.z : tz + 2.0;
 
     // Sphere.
     const mat = new THREE.MeshStandardMaterial({
@@ -217,7 +232,7 @@ export class Projectile3D {
     const trail     = new THREE.Line(trailGeo, trailMat);
     this._scene.add(trail);
 
-    this._projectiles.push({ mesh, light, trail, color, x: sx, y: PROJ_Y, z: sz, sz, tz, life: TOTAL_LIFE });
+    this._projectiles.push({ mesh, light, trail, color, x: sx, y: PROJ_Y, z: sz, sx, sz, tx, tz, life: TOTAL_LIFE });
   }
 
   _spawnMuzzleCone(laneIdx, slot) {

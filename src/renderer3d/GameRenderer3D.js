@@ -300,6 +300,9 @@ export class GameRenderer3D {
   /** 3D: pulse a column's stash slot on place/retrieve. */
   pulseStash(colIdx) { this._shooters?.pulseStash(colIdx); }
 
+  /** Set the world {x,z} the next bomb in this lane should travel FROM (release point). */
+  setDropStart(laneIdx, world) { this._projectiles?.setNextStart(laneIdx, world); }
+
   /** Grid stepped one row — punctuate it with a light sweep across the road. */
   onAdvance() {
     this._road?.triggerAdvanceSweep();

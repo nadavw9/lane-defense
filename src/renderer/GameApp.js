@@ -1559,8 +1559,9 @@ async function main() {
   const dragDrop = new DragDrop(
     layers, columns, gs.lanes, benchStorage, shooterRenderer, benchRenderer,
     {
-      onDeploy: (colIdx, laneIdx) => {
+      onDeploy: (colIdx, laneIdx, release) => {
         if (colIdx >= gs.activeColCount || laneIdx >= gs.activeLaneCount) return;
+        gameRenderer3D.setDropStart(laneIdx, release);   // bomb travels FROM release
         gameLoop.deploy(colIdx, laneIdx);
       },
       onBombPlaced: (x, y) => {
@@ -1572,8 +1573,9 @@ async function main() {
         if (laneIdx < 0) return;
         gameLoop.placeBombOnLane(laneIdx);
       },
-      onDeployFromBench: (shooter, laneIdx) => {
+      onDeployFromBench: (shooter, laneIdx, release) => {
         if (laneIdx >= gs.activeLaneCount) return;
+        gameRenderer3D.setDropStart(laneIdx, release);   // bomb travels FROM release
         gameLoop.deployFromBench(shooter, laneIdx);
         // progress.incrementBenchUses() was called inside deployFromBench.
         const benchAch = achievementManager.check('bench_deploy');

@@ -1,8 +1,9 @@
 // PositionRegistry — single source of truth for lane and column screen positions.
 // Call setActiveCounts() at level start so all consumers use the correct geometry.
 
-import { laneToX } from '../renderer3d/Scene3D.js';
-import { ROAD_BOTTOM_W, ROAD_TOP_W, ROAD_TOP_X } from './LaneRenderer.js';
+import { laneToX, ROAD_Z_FAR, ROAD_Z_NEAR } from '../renderer3d/Scene3D.js';
+import { ROAD_BOTTOM_W, ROAD_TOP_W, ROAD_TOP_X,
+         ROAD_TOP_Y, ROAD_BOTTOM_Y } from './LaneRenderer.js';
 
 const APP_W = 390;
 
@@ -80,3 +81,14 @@ export function getTopLaneScreenBounds(laneIdx) {
 
 export function getActiveLaneCount() { return _laneCount; }
 export function getActiveColCount()  { return _colCount; }
+
+// Invert the ortho projection: a screen point (PixiJS px) → world {x, z} on the
+// road plane. Mirrors getLaneScreenX for X and the frustum's linear Z↔Y mapping
+// (z=ROAD_Z_FAR ↔ y=ROAD_TOP_Y, z=ROAD_Z_NEAR ↔ y=ROAD_BOTTOM_Y). Used to start a
+// bomb's travel at the player's actual release point.
+export function screenToWorldXZ(sx, sy) {
+  const x = (sx / APP_W) * FRUSTUM_DIAM - FRUSTUM_HALF_X;
+  const t = (sy - ROAD_TOP_Y) / (ROAD_BOTTOM_Y - ROAD_TOP_Y);
+  const z = ROAD_Z_FAR + t * (ROAD_Z_NEAR - ROAD_Z_FAR);
+  return { x, z };
+}

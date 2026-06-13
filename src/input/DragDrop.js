@@ -29,7 +29,7 @@ import {
 import {
   getLaneScreenX, getLaneFromScreenX, getLaneScreenBounds, getTopLaneScreenBounds,
   getColumnScreenX, getColumnScreenY, getColScreenW,
-  getActiveLaneCount, getActiveColCount,
+  getActiveLaneCount, getActiveColCount, screenToWorldXZ,
 } from '../renderer/PositionRegistry.js';
 import { BENCH_Y, BENCH_SLOT_H } from '../renderer/BenchRenderer.js';
 
@@ -385,13 +385,16 @@ export class DragDrop {
   }
 
   _handleLaneDrop(laneIdx) {
+    // The bomb's travel starts where the player released it — the ghost's current
+    // screen position, mapped to the road plane in world space.
+    const release = this._ghost ? screenToWorldXZ(this._ghost.x, this._ghost.y) : null;
     if (this._dragSource === 'column') {
-      this._onDeploy(this._dragSourceIdx, laneIdx);
+      this._onDeploy(this._dragSourceIdx, laneIdx, release);
       this._shooterRenderer.draggingColumn = -1;
     } else {
       const shooter = this._benchStorage.take(this._dragSourceIdx);
       if (this._benchRenderer) this._benchRenderer.draggingSlot = -1;
-      this._onDeployFromBench(shooter, laneIdx);
+      this._onDeployFromBench(shooter, laneIdx, release);
     }
     const targetX = getLaneScreenX(laneIdx);
     const targetY = ROAD_BOTTOM_Y;

@@ -58,14 +58,14 @@
 - 168c5ca — First major visual/balance batch: city edges, bomb zone panel, car centering, color bomb visuals.
 
 ## IMMEDIATE PRIORITIES (next session, in order)
-1. Pre-level "Power Up?" screen needs more visual excitement.
-2. Agent-team quality audit (Royal Match standard).
-3. Real-device playtest checklist: L8, L12, L16, L33, L37 + bosses L10/20/30/40.
-4. Signed AAB build.
-5. Play Store assets + submission.
+1. On-device smoke test: COLOR CHANGE consecutive combo earn, bench storage, multi-kill popup tiers, explosion centering.
+2. Pre-level "Power Up?" screen needs more visual excitement.
+3. Agent-team quality audit (Royal Match standard).
+4. Real-device playtest checklist: L8, L12, L16, L33, L37 + bosses L10/20/30/40.
+5. Signed AAB build.
+6. Play Store assets + submission.
 
 ## Active Backlog
-- On-device smoke test of all new features (RETRY, rescue restore, COLOR CHANGE flow, pre-level Power Up, per-level booster reset)
 - Replace COLOR CHANGE placeholder glyph with a real paintbrush sprite (drop `public/sprites/designed/booster-colorchange.png` — picked up automatically; also add it to BOOSTER_URLS preload in GameApp.js once it exists)
 - Real-device playtest: Tier 1 floor levels L8/L12/L16/L33/L37 and bosses L10/L20/L30/L40
 - Signed AAB build for Play Store

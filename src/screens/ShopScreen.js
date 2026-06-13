@@ -10,13 +10,13 @@ const CARD_RADIUS = 12;
 
 const BOOSTER_DEFS = [
   {
-    key:       'swap',
-    label:     'SWAP',
-    icon:      '⇄',
-    desc:      'Swap two bomb\ncolumn colors',
+    key:       'colorChange',
+    label:     'COLOR CHANGE',
+    icon:      '🎨',
+    desc:      'Recolor every car\nof one color',
     cost:      20,
-    border:    0x2255cc,
-    btnBg:     0x1a5cc8,
+    border:    0x9a55ee,
+    btnBg:     0x7a44cc,
   },
   {
     key:       'freeze',
@@ -176,6 +176,8 @@ export class ShopScreen {
     const countKey = def.key;
     const ownedCt  = countKey === 'shield'
       ? (p.streakShields ?? 0)
+      : countKey === 'colorChange'
+      ? (this._boosterState?.colorChange ?? 0)
       : (boosters[countKey] ?? 0);
     const countTxt = new Text({
       text: `×${ownedCt} owned`,
@@ -258,11 +260,12 @@ export class ShopScreen {
     this._audio?.play('coin_collect');
 
     const saved = p.getBoosters();
-    if (def.key === 'swap') {
-      p.setBoosters(saved.swap + 1, saved.freeze);
-      if (this._boosterState) this._boosterState.swap = saved.swap + 1;
+    if (def.key === 'colorChange') {
+      // Boosters reset to 0 each level, so the live BoosterState is the meaningful
+      // target (there is no persisted colorChange slot — and none is needed).
+      if (this._boosterState) this._boosterState.colorChange = (this._boosterState.colorChange ?? 0) + 1;
     } else if (def.key === 'freeze') {
-      p.setBoosters(saved.swap, saved.freeze + 1);
+      p.setBoosters(0, saved.freeze + 1);   // swap is retired — no longer preserved
       if (this._boosterState) this._boosterState.freeze = saved.freeze + 1;
     } else if (def.key === 'shield') {
       p.addStreakShield(1);

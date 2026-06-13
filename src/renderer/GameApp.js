@@ -595,7 +595,6 @@ async function main() {
     gs.spawnBudget         = cfg.spawnBudget        ?? null;
     gs._initialSpawnBudget = cfg.spawnBudget        ?? null;
     gs.laneTargetCarCount  = cfg.laneTargetCarCount ?? 2;
-    gs.colorChangeThreshold = cfg.colorChangeThreshold ?? Infinity;   // FIX 4B
     carDir.setLevel(typeof cfg.id === 'number' ? cfg.id : 1);
   }
 
@@ -1588,13 +1587,13 @@ async function main() {
       `${kills}-CAR CHAIN! Freeze earned!`, 0x88ddff,
     ));
   };
-  // FIX 4B: reaching the level's coin threshold earns a COLOR CHANGE charge.
+  // Earned by chaining two strictly-consecutive multi-kills (GameLoop._updateColorChangeCombo).
   gameLoop._onColorChangeEarned = () => {
     audio.play('coin_collect');
     haptics.light();
     floatingTexts.push(spawnFloatingText(
       layers.get('particleLayer'), APP_W / 2, 700,
-      'COLOR CHANGE READY!', 0xCC66FF,
+      '2× COMBO! Color Change ready!', 0xCC66FF,
     ));
   };
   gameLoop._onBombEarned = () => {

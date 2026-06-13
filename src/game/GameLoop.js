@@ -71,6 +71,10 @@ export class GameLoop {
     this._accumulator = 0;
     this._paused      = false;
     this._bound       = this._tick.bind(this);
+
+    // COLOR CHANGE earn: streak of strictly-consecutive multi-kills (2+ kills each
+    // shot). Reset to 0 here and at every level start (restart()).
+    this._consecutiveComboCount = 0;
   }
 
   start()  { this._app.ticker.add(this._bound); }
@@ -274,6 +278,7 @@ export class GameLoop {
 
     if (damageDealt === 0) {
       this._onMiss(laneIdx, carGameX);
+      this._updateColorChangeCombo(0);   // a wasted shot breaks the consecutive-combo streak
       // Color mismatch: wasted bomb slot, grid does NOT advance.
       return;
     }
@@ -312,8 +317,6 @@ export class GameLoop {
           this._onBombEarned?.();
         }
       }
-      // FIX 4B: earn one COLOR CHANGE the first time level coins cross the threshold.
-      this._checkColorChangeEarn();
     }
 
     // Multi-kill reward: a shot that destroys 2+ cars (via carry-over) is a
@@ -327,6 +330,9 @@ export class GameLoop {
         this._earnColorBomb();   // fires _onColorBombEarned → flash + one-time intro card
       }
     }
+
+    // COLOR CHANGE earn runs every resolved shot (kills 0/1/2+).
+    this._updateColorChangeCombo(kills);
 
     // Turn-based: advance the grid after every hit — damage-only AND kill shots.
     if (!gs.isOver) this._advanceGrid();
@@ -382,6 +388,7 @@ export class GameLoop {
   restart() {
     const gs = this._gs;
     gs.duration = this._baseDuration;   // undo any rescue-added time
+    this._consecutiveComboCount = 0;    // COLOR CHANGE combo streak resets each level
     gs.resetLevel();
     gs.phaseMan.update(0);
     this._accumulator = 0;
@@ -656,15 +663,20 @@ export class GameLoop {
     }
   }
 
-  // FIX 4B: earn a COLOR CHANGE charge the first time this level's coins reach the
-  // level's threshold. One per level; re-armed by GameState.resetLevel().
-  _checkColorChangeEarn() {
-    const gs = this._gs, bs = this._boosterState;
-    if (!bs || gs.colorChangeEarned) return;
-    if (gs.coins >= (gs.colorChangeThreshold ?? Infinity)) {
-      gs.colorChangeEarned = true;
-      bs.colorChange++;
-      this._onColorChangeEarned?.();
+  // COLOR CHANGE earn: two STRICTLY consecutive multi-kills (a shot that destroys
+  // 2+ cars, immediately followed by another 2+ kill on the very next shot) award
+  // one COLOR CHANGE charge. Any shot that kills fewer than 2 cars — including a
+  // wasted wrong-colour shot — resets the streak. Can earn multiple times per level.
+  _updateColorChangeCombo(kills) {
+    if (kills >= 2) {
+      this._consecutiveComboCount++;
+      if (this._consecutiveComboCount >= 2) {
+        this._consecutiveComboCount = 0;
+        const bs = this._boosterState;
+        if (bs) { bs.colorChange++; this._onColorChangeEarned?.(); }
+      }
+    } else {
+      this._consecutiveComboCount = 0;
     }
   }
 

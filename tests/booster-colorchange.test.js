@@ -1,8 +1,7 @@
 // Tests for the booster redesign (FIX 4):
 //   - BoosterState COLOR CHANGE lifecycle (activate / select car / consume / cancel)
-//   - colorChangeThresholdForLevel tier defaults
 //   - GameLoop.applyColorChange recolors matching on-screen cars + consumes a charge
-//   - GameLoop._checkColorChangeEarn earns once when level coins cross the threshold
+//   - GameLoop._updateColorChangeCombo earns on two strictly-consecutive multi-kills
 //   - GameLoop.prepareForRescue refills empty columns the breach skipped
 
 import { describe, it, expect, vi } from 'vitest';
@@ -18,7 +17,6 @@ import { SeededRandom }    from '../src/utils/SeededRandom.js';
 import { Lane }            from '../src/models/Lane.js';
 import { Column }          from '../src/models/Column.js';
 import { Car }             from '../src/models/Car.js';
-import { colorChangeThresholdForLevel } from '../src/game/LevelManager.js';
 
 const mockApp = { ticker: { add: vi.fn(), remove: vi.fn() } };
 
@@ -84,20 +82,6 @@ describe('BoosterState — COLOR CHANGE lifecycle', () => {
   });
 });
 
-describe('colorChangeThresholdForLevel — tier defaults', () => {
-  it('uses the per-tier defaults with boss premium', () => {
-    expect(colorChangeThresholdForLevel(1)).toBe(60);
-    expect(colorChangeThresholdForLevel(5)).toBe(60);
-    expect(colorChangeThresholdForLevel(6)).toBe(80);
-    expect(colorChangeThresholdForLevel(15)).toBe(80);
-    expect(colorChangeThresholdForLevel(16)).toBe(100);
-    expect(colorChangeThresholdForLevel(29)).toBe(100);
-    expect(colorChangeThresholdForLevel(31)).toBe(120);
-    // Bosses cost the most.
-    for (const boss of [10, 20, 30, 40]) expect(colorChangeThresholdForLevel(boss)).toBe(150);
-  });
-});
-
 describe('GameLoop.applyColorChange', () => {
   it('recolors every on-screen car of the source colour and consumes a charge', () => {
     const { gs, lanes } = makeState({ laneCount: 3 });
@@ -127,25 +111,45 @@ describe('GameLoop.applyColorChange', () => {
   });
 });
 
-describe('GameLoop._checkColorChangeEarn', () => {
-  it('earns exactly one COLOR CHANGE when coins first cross the threshold', () => {
+describe('GameLoop._updateColorChangeCombo — consecutive multi-kills', () => {
+  it('earns one charge on two strictly-consecutive multi-kills', () => {
     const { gs } = makeState();
     const bs = new BoosterState();
     const loop = makeLoop(gs, { boosterState: bs });
     loop._onColorChangeEarned = vi.fn();
-    gs.colorChangeThreshold = 30;
-    gs.colorChangeEarned    = false;
 
-    gs.coins = 20; loop._checkColorChangeEarn();
-    expect(bs.colorChange).toBe(0);                // below threshold
-
-    gs.coins = 30; loop._checkColorChangeEarn();
-    expect(bs.colorChange).toBe(1);                // crossed → earned
-    expect(gs.colorChangeEarned).toBe(true);
+    loop._updateColorChangeCombo(2);                 // first multi-kill
+    expect(bs.colorChange).toBe(0);
+    loop._updateColorChangeCombo(3);                 // second consecutive → earn
+    expect(bs.colorChange).toBe(1);
     expect(loop._onColorChangeEarned).toHaveBeenCalledTimes(1);
+  });
 
-    gs.coins = 90; loop._checkColorChangeEarn();
-    expect(bs.colorChange).toBe(1);                // never earns twice in a level
+  it('resets the streak on any shot that kills fewer than 2 cars', () => {
+    const { gs } = makeState();
+    const bs = new BoosterState();
+    const loop = makeLoop(gs, { boosterState: bs });
+
+    loop._updateColorChangeCombo(2);   // streak = 1
+    loop._updateColorChangeCombo(1);   // <2 → reset
+    loop._updateColorChangeCombo(2);   // streak = 1 again
+    loop._updateColorChangeCombo(0);   // miss/no-kill → reset
+    loop._updateColorChangeCombo(2);   // streak = 1 again
+    expect(bs.colorChange).toBe(0);    // never reached two-in-a-row
+    loop._updateColorChangeCombo(2);   // streak = 2 → earn
+    expect(bs.colorChange).toBe(1);
+  });
+
+  it('can earn multiple times per level (counter resets after each earn)', () => {
+    const { gs } = makeState();
+    const bs = new BoosterState();
+    const loop = makeLoop(gs, { boosterState: bs });
+
+    loop._updateColorChangeCombo(2);
+    loop._updateColorChangeCombo(2);   // earn #1
+    loop._updateColorChangeCombo(2);
+    loop._updateColorChangeCombo(2);   // earn #2
+    expect(bs.colorChange).toBe(2);
   });
 });
 

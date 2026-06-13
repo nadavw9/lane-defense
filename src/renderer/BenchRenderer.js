@@ -48,6 +48,11 @@ export class BenchRenderer {
     this._highlight = -1;   // slot to draw blue ring on (-1 = none)
     this._visible   = true; // hidden before bench unlocks (L6+)
 
+    // Solid tray panel behind all slots — added first so it renders BEHIND the
+    // slot circles. Makes the bench band visually distinct from the road.
+    this._trayG = new Graphics();
+    this._layer.addChild(this._trayG);
+
     this._graphics = [];
     this._sprites  = [];
     this._texts    = [];
@@ -74,6 +79,7 @@ export class BenchRenderer {
   setVisible(visible) {
     this._visible = visible;
     if (!visible) {
+      this._trayG.clear();
       for (const g  of this._graphics) g.clear();
       for (const sp of this._sprites)  sp.visible = false;
       for (const t  of this._texts)    t.visible  = false;
@@ -106,6 +112,12 @@ export class BenchRenderer {
     if (!this._visible) return;
     const cy = BENCH_Y + BENCH_SLOT_H / 2;
 
+    // Solid tray panel spanning the full bench band — drawn first, behind slots,
+    // so the storage area is always distinct from the road.
+    this._trayG.clear();
+    this._trayG.roundRect(2, BENCH_Y - 4, this._colW * 4 - 4, BENCH_SLOT_H + 8, 9);
+    this._trayG.fill({ color: 0x1a1a2e, alpha: 0.85 });
+
     for (let i = 0; i < 4; i++) {
       const g       = this._graphics[i];
       // Suppress display while this slot is being dragged.
@@ -116,10 +128,11 @@ export class BenchRenderer {
 
       g.clear();
 
-      // Empty slots show at 15% opacity to reduce visual clutter (Q7)
+      // Empty slots at 35% opacity so players can see there are slots to fill;
+      // filled slots stay bright. (Tray panel behind makes both legible.)
       const isEmpty    = !shooter;
-      const bgAlpha    = isEmpty ? 0.14 : 0.90;
-      const borderAlph = isEmpty ? 0.12 : 0.55;
+      const bgAlpha    = isEmpty ? 0.35 : 0.90;
+      const borderAlph = isEmpty ? 0.35 : 0.55;
 
       // Slot background
       g.roundRect(sx, BENCH_Y, sw, BENCH_SLOT_H, 7);

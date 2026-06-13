@@ -520,6 +520,10 @@ export class DragDrop {
   }
 
   _hitTestBenchArea(x, y) {
+    // Single source of truth: the bench only accepts drops when the renderer is
+    // showing it (same gate as benchRenderer.setVisible(benchUnlocked)). Without
+    // this, drops were consumed into an invisible bench on locked/hidden levels.
+    if (!this._benchRenderer?._visible) return false;
     return y >= BENCH_Y - 30 && y <= BENCH_Y + BENCH_SLOT_H + 10;
   }
 

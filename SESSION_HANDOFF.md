@@ -1,13 +1,20 @@
 # Traffic Bomb — Session Handoff
 
 ## Current State
-- Git tip: 67716ea feat: booster redesign — COLOR CHANGE replaces SWAP, RETRY button, rescue fix, car intro visibility, pre-level Power Up screen, per-level booster reset
+- Git tip: 50f205d fix: car sprite resyncs when COLOR CHANGE recolors a live car
 - Branch: master
 - Last deploy: today, green
 - Tests: 642 passing, 1 skip, 5 todo
 - Live URL: https://nadavw9.github.io/lane-defense/
 
 ## What Was Shipped This Session (most recent first)
+- 50f205d — COLOR CHANGE visual desync fixed: `Car3D` now resyncs a car's sprite when its colour is mutated in place. The booster recoloured cars in GameState (e.g. blue→red) but the sprite kept its old colour while combat already treated it as the new colour; the renderer now detects `car.color` changes per-frame and swaps the powerball/sprite texture.
+- 457113a — Retired the stash mechanic — the bench (`BenchRenderer`) is now the sole bomb-storage UI. Hid the empty stash rings (the "ghost slots" that rendered above the bench tray) in both `Shooter3D` (3D `ringMesh`) and `ShooterRenderer` (2D fallback), and disabled the stash drop path (`DragDrop._hitTestStashArea` returns false). `_handleStashDrop` left defined but unreachable for reference.
+- 2a95fa6 — Bench slots now render the powerball bomb sprite (same art as the live bomb queue) instead of the old shooter-idle robot; added `POWERBALL_URLS` to the Pixi preload manifest. Also removed the combo music speed-up: `AudioManager.updateMusicPhase` now plays one steady `gameplay_calm` track all level (no calm→pressure→climax escalation).
+- 45b2b8e — Multi-kill popup celebration: warm radial-gradient burst behind a large, tier-coloured kill count (2× gold `#FFD700`, 3× orange `#FF8C00`, 4×+ red/pink `#FF1744`) with a spring scale-pop entry (0.7→1.0, ~120ms). Fired from the existing multi-kill trigger through `PopupQueue`; `_fx.multiKill(n)` dev hook added for capture.
+- f47a988 — Bench Fix A+B. A: unified the bench gate so the input hit-test respects the renderer's visibility (`DragDrop._hitTestBenchArea` returns false when the bench is hidden — no more consuming bombs into an invisible bench). B: gave the empty bench tray a visible dark panel and raised empty-slot opacity (14%→35%) so it reads as a storage area.
+- 00486f8 — Impact explosion X now uses `PositionRegistry.getLaneScreenX` (active lane count) instead of the hardcoded 4-lane `laneCenterX`, fixing the 2D impact VFX landing left of the car on 1/2/3-lane levels (it was ~106px off at lane 0 on 2-lane levels).
+- 2baf790 — Bench now unlocks at L4 (was L6): moved the visibility gate (`benchUnlocked`), the "Bench unlocked" FTUE banner, and the bench tutorial (`UNLOCK_LEVELS`) all to L4.
 - 67716ea — Booster redesign: removed SWAP entirely and replaced it with a COLOR CHANGE booster (tap a car → pick a color → all on-screen cars of that color recolor; `ColorPicker.js`). Added a free RETRY to the rescue overlay (`RescueOverlay.js`). Fixed the rescue bug where the board resumed depleted — the breach skipped the lane/column refill — via `GameLoop.prepareForRescue()`. Car-type intro cards now only show when a car of that type is visible on the road, with a minimum of 3 grid advances between cards. Added a pre-level "Power Up?" ad screen (`PreLevelScreen.js`). Booster counts now reset to 0 each level. COLOR CHANGE is earned at a per-level coin threshold; FREEZE on a 3+ car chain kill. +9 regression tests (`tests/booster-colorchange.test.js`).
 - 4b21d69 — Bomb now travels from the player's release point to the target car (ease-in lerp across the road plane + sine throw-arc) instead of dropping from above.
 - e8a4470 — Updated CLAUDE.md test count (478 → 633) and test command (`npm test` → `npx vitest run`).
@@ -46,6 +53,16 @@
 - e101c08 — Unified grid to 11 rows, 1-car opening, updated discrete sim model.
 - 4d26d8b — Fixed shared stash so any bomb can go in any stash slot, usable on any lane.
 - 168c5ca — First major visual/balance batch: city edges, bomb zone panel, car centering, color bomb visuals.
+
+## IMMEDIATE PRIORITIES (next session, in order)
+1. On-device smoke test of the COLOR CHANGE mechanic (recolor visual now fixed in `Car3D` — confirm on a real device).
+2. ShopScreen still references the removed SWAP booster — fix (sells/sets `swap`; `ProgressManager` also still has a `swap` field).
+3. COLOR CHANGE tooltip text: "Tap a car, pick a color — ALL cars of that color transform!"
+4. Pre-level "Power Up?" screen needs more visual excitement.
+5. Agent-team quality audit (Royal Match standard).
+6. Real-device playtest checklist: L8, L12, L16, L33, L37 + bosses L10/20/30/40.
+7. Signed AAB build.
+8. Play Store assets + submission.
 
 ## Active Backlog
 - On-device smoke test of all new features (RETRY, rescue restore, COLOR CHANGE flow, pre-level Power Up, per-level booster reset)

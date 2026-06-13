@@ -3,7 +3,8 @@
 // All methods accept game-space coordinates (laneIdx + gameX) and convert to
 // screen pixels internally, so callers never need to know the pixel layout.
 import { Graphics, Text } from 'pixi.js';
-import { laneCenterX, posToScreenY } from './LaneRenderer.js';
+import { posToScreenY } from './LaneRenderer.js';
+import { getLaneScreenX } from './PositionRegistry.js';
 
 // Color palette — matches CLAUDE.md spec.
 const COLOR_MAP = {
@@ -16,9 +17,10 @@ const COLOR_MAP = {
 };
 
 function carCenter(laneIdx, gameX) {
-  const t = gameX / 100;
   return {
-    x: laneCenterX(laneIdx, t),
+    // Screen X from the PositionRegistry (active lane count) so impact VFX land on
+    // the car on 1/2/3-lane levels — laneCenterX hardcoded 4 lanes and drifted left.
+    x: getLaneScreenX(laneIdx),
     y: posToScreenY(gameX),
   };
 }

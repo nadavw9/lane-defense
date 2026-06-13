@@ -67,7 +67,6 @@
 ## Active Backlog
 - On-device smoke test of all new features (RETRY, rescue restore, COLOR CHANGE flow, pre-level Power Up, per-level booster reset)
 - Replace COLOR CHANGE placeholder glyph with a real paintbrush sprite (drop `public/sprites/designed/booster-colorchange.png` — picked up automatically; also add it to BOOSTER_URLS preload in GameApp.js once it exists)
-- Fix ShopScreen still referencing the removed SWAP booster (sells/sets `swap`; harmless but dead now that boosters reset per level). ProgressManager also still has a `swap` field.
 - Real-device playtest: Tier 1 floor levels L8/L12/L16/L33/L37 and bosses L10/L20/L30/L40
 - Signed AAB build for Play Store
 - Play Store assets (5 screenshots, feature graphic, short + long descriptions)

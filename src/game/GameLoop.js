@@ -292,6 +292,9 @@ export class GameLoop {
     if (kills >= 3) {
       gs.timeScale       = 0.3;
       gs.slowMoRemaining = 0.20;
+      // FIX 4C: a single bomb that chains 3+ kills earns one FREEZE charge.
+      const bs = this._boosterState;
+      if (bs) { bs.freeze++; this._onFreezeEarned?.(kills); }
     }
 
     if (kills > 0) {
@@ -309,6 +312,8 @@ export class GameLoop {
           this._onBombEarned?.();
         }
       }
+      // FIX 4B: earn one COLOR CHANGE the first time level coins cross the threshold.
+      this._checkColorChangeEarn();
     }
 
     // Multi-kill reward: a shot that destroys 2+ cars (via carry-over) is a
@@ -649,6 +654,53 @@ export class GameLoop {
       colorIdx++;
       matchesNeeded--;
     }
+  }
+
+  // FIX 4B: earn a COLOR CHANGE charge the first time this level's coins reach the
+  // level's threshold. One per level; re-armed by GameState.resetLevel().
+  _checkColorChangeEarn() {
+    const gs = this._gs, bs = this._boosterState;
+    if (!bs || gs.colorChangeEarned) return;
+    if (gs.coins >= (gs.colorChangeThreshold ?? Infinity)) {
+      gs.colorChangeEarned = true;
+      bs.colorChange++;
+      this._onColorChangeEarned?.();
+    }
+  }
+
+  // FIX 4B: recolour every on-screen car whose colour is `fromColor` to `toColor`,
+  // consume one COLOR CHANGE charge, and keep the board viable. Returns the count
+  // of cars changed (0 = nothing matched, charge not spent).
+  applyColorChange(fromColor, toColor) {
+    const gs = this._gs;
+    if (!fromColor || !toColor || fromColor === toColor) return 0;
+    let changed = 0;
+    for (const lane of gs.activeLanes) {
+      for (const car of lane.cars) {
+        if (car.color === fromColor) { car.color = toColor; changed++; }
+      }
+    }
+    if (changed > 0) {
+      this._boosterState?.consumeColorChange();
+      this._enforceViableMove(gs);
+    }
+    return changed;
+  }
+
+  // Restore a fully playable board after a rescue. The breach advance returns
+  // early (right after removing the breaching car) and SKIPS the normal post-advance
+  // lane refill + column refill. Without re-running them here the player resumes
+  // with a depleted board: the breached lane is short ("cars missing") and any
+  // column whose top was just consumed stays empty ("can't drop bombs"). Mirror the
+  // skipped steps, then recolor for a fair fighting chance and guarantee a move.
+  prepareForRescue() {
+    const gs = this._gs;
+    this._refillLanes();
+    const dirState    = gs.asDirectorState();
+    const phaseParams = gs.phaseMan.getParams();
+    this._sDir.fillColumns(gs.activeCols, dirState, phaseParams);
+    this.shuffleForRescue();
+    this._enforceViableMove(gs);
   }
 
   // Guarantee the player always has at least one viable move:

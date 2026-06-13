@@ -372,6 +372,23 @@ const PROGRESSION = [
     showArrow: false, hintText: null },
 ];
 
+// FIX 4B: the COLOR CHANGE booster is earned by reaching a per-level coin threshold.
+// Defaults scale by difficulty tier; boss levels (L10/20/30/40) demand the most.
+export function colorChangeThresholdForLevel(id) {
+  if (typeof id !== 'number') return 80;
+  if (id === 10 || id === 20 || id === 30 || id === 40) return 150;  // bosses
+  if (id <= 5)  return 60;
+  if (id <= 15) return 80;
+  if (id <= 29) return 100;
+  return 120;                                                        // L30–40 (non-boss)
+}
+
+// Stamp the threshold onto each level config once at load (preserves object identity
+// and avoids per-frame allocation). An explicit per-level value always wins.
+for (const _cfg of PROGRESSION) {
+  if (_cfg.colorChangeThreshold == null) _cfg.colorChangeThreshold = colorChangeThresholdForLevel(_cfg.id);
+}
+
 // Opening cars per lane at level start, as rows (low row = top/back = far from
 // breach; breach at row gridRows-1=10). UNIFORM OPENING: every level starts the
 // same — 3 cars per lane clustered at the very top, at rows 0, 1, 2, so the board

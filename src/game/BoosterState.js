@@ -3,10 +3,13 @@
 // No PixiJS dependencies — pure logic.
 export class BoosterState {
   constructor() {
-    this.swap   = 3;           // remaining swap charges
+    this.colorChange = 0;      // remaining COLOR CHANGE charges
     this.freeze = 0;           // remaining freeze charges
-    this.swapMode    = false;          // true while waiting for two column taps
-    this.swapFirst   = -1;             // first column selected in swap mode (-1 = none yet)
+    // COLOR CHANGE is a two-tap booster: tap the button → tap a car (records its
+    // colour) → tap a colour from the picker → all on-screen cars of the car's
+    // original colour become the chosen colour.
+    this.colorChangeMode      = false;  // true while waiting for a car / colour tap
+    this.colorChangeFromColor = null;   // the tapped car's colour, awaiting a target
     this.freezeShots  = 0;             // remaining shots that won't advance the grid
 
     // ── Bomb ─────────────────────────────────────────────────────────────────
@@ -15,51 +18,34 @@ export class BoosterState {
     this.bombMode = false;      // true while waiting for player to tap placement
   }
 
-  // Enter swap mode if charges remain.  Returns true on success.
-  activateSwap() {
-    if (this.swap <= 0) return false;
-    this.swapMode  = true;
-    this.swapFirst = -1;
+  // Enter COLOR CHANGE mode if charges remain (awaiting a car tap). Returns true on success.
+  activateColorChange() {
+    if (this.colorChange <= 0) return false;
+    this.colorChangeMode      = true;
+    this.colorChangeFromColor = null;
     return true;
   }
 
-  // Abort swap mode without consuming a charge (e.g. second tap on same column).
-  cancelSwap() {
-    this.swapMode  = false;
-    this.swapFirst = -1;
+  // Record the colour of the car the player tapped (step 1 → step 2: pick a colour).
+  setColorChangeCar(color) {
+    if (!this.colorChangeMode) return false;
+    this.colorChangeFromColor = color;
+    return true;
   }
 
-  // Called by DragDrop when the user taps column `colIdx` during swap mode.
-  // Mutates `columns` array to swap top shooters on the second tap.
-  // Returns: 'first' | 'swapped' | 'cancelled'
-  tapSwapColumn(colIdx, columns) {
-    if (!this.swapMode) return null;
+  // Abort COLOR CHANGE without consuming a charge.
+  cancelColorChange() {
+    this.colorChangeMode      = false;
+    this.colorChangeFromColor = null;
+  }
 
-    if (this.swapFirst === -1) {
-      // Need a non-empty column for the first selection.
-      if (!columns[colIdx]?.top()) return 'cancelled';
-      this.swapFirst = colIdx;
-      return 'first';
-    }
-
-    if (this.swapFirst === colIdx) {
-      // Tapped the same column twice — cancel without spending a charge.
-      this.cancelSwap();
-      return 'cancelled';
-    }
-
-    // Second tap on a different column — execute the swap.
-    const a = columns[this.swapFirst];
-    const b = columns[colIdx];
-    if (a.shooters.length > 0 && b.shooters.length > 0) {
-      const tmp    = a.shooters[0];
-      a.shooters[0] = b.shooters[0];
-      b.shooters[0] = tmp;
-    }
-    this.swap--;
-    this.swapMode  = false;
-    this.swapFirst = -1;
-    return 'swapped';
+  // Consume one COLOR CHANGE charge once a recolour has been applied.
+  consumeColorChange() {
+    if (this.colorChange <= 0) return false;
+    this.colorChange--;
+    this.colorChangeMode      = false;
+    this.colorChangeFromColor = null;
+    return true;
   }
 
   // Freeze the grid for exactly the next shot (turn-based: one protected shot,

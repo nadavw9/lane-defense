@@ -54,6 +54,8 @@ import { Column }          from '../models/Column.js';
 import { WinScreen, calcStars }       from '../screens/WinScreen.js';
 import { LoseScreen }                  from '../screens/LoseScreen.js';
 import { RescueOverlay }              from '../screens/RescueOverlay.js';
+import { ColorPicker }                from '../screens/ColorPicker.js';
+import { PreLevelScreen }             from '../screens/PreLevelScreen.js';
 import { BoosterUnlockScreen }        from '../screens/BoosterUnlockScreen.js';
 import { FTUEOverlay, FeatureBanners } from '../screens/FTUEOverlay.js';
 import { OnboardingHints }    from '../screens/OnboardingHints.js';
@@ -179,7 +181,9 @@ const ENV_URLS      = [
   `${_B}sprites/designed/panel-workshop-surface.png`,
   `${_B}sprites/designed/park-grass-tile.png`,
 ];
-const BOOSTER_URLS  = ['swap', 'freeze', 'bomb'].map(b => `${_B}sprites/designed/booster-${b}.png`);
+// COLOR CHANGE has no PNG yet (uses a programmatic placeholder glyph), so it is not
+// preloaded here — adding a missing file would block the critical-sprite load gate.
+const BOOSTER_URLS  = ['freeze', 'bomb'].map(b => `${_B}sprites/designed/booster-${b}.png`);
 const ALL_SPRITE_URLS = [...CAR_URLS, ...SHOOTER_URLS, ...BUILDING_URLS, ...TREE_URLS, ...ENV_URLS, ...BOOSTER_URLS];
 
 // Critical sprites gate spriteFlags.loaded — gameplay must have its car icons,
@@ -355,13 +359,14 @@ async function main() {
   // ── Audio ─────────────────────────────────────────────────────────────────
   const audio = new AudioManager();
 
-  // ── Boosters — init from saved inventory ──────────────────────────────────
+  // ── Boosters ──────────────────────────────────────────────────────────────
+  // FIX 4E: booster counts no longer persist between levels — each level is seeded
+  // fresh in _startLevel (0 + any pre-level "Power Up?" ad grant). They start empty.
   const boosterState = new BoosterState();
-  {
-    const saved = progress.getBoosters();
-    boosterState.swap   = saved.swap;
-    boosterState.freeze = saved.freeze ?? 0;
-  }
+  // Pending booster bundle from the pre-level "Power Up?" screen, consumed by _startLevel.
+  let _pendingBoosterGrant = null;
+  let preLevelScreen = null;   // active "Power Up?" screen
+  let colorPicker    = null;   // active COLOR CHANGE color picker
 
   // ── Bench storage + renderer ──────────────────────────────────────────────
   const benchStorage  = new BenchStorage();
@@ -377,7 +382,17 @@ async function main() {
   const comboGlow     = new ComboGlow(layers, APP_W, APP_H);
   const boosterBar    = new BoosterBar(
     layers, boosterState, gs, APP_W,
-    () => { audio.play('booster_activate'); boosterState.activateSwap(); boostersUsedThisLevel.push('swap'); logEvent('booster_used', { booster: 'swap', levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber }); tutOrch?.completeIfActive('swap'); },
+    () => {
+      // COLOR CHANGE button — toggle "tap a car" mode; cancel dismisses the picker too.
+      if (boosterState.colorChangeMode) { boosterState.cancelColorChange(); _dismissColorPicker(); return; }
+      if (boosterState.activateColorChange()) {
+        audio.play('booster_activate');
+        boostersUsedThisLevel.push('colorchange');
+        logEvent('booster_used', { booster: 'colorchange', levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber });
+        tutOrch?.completeIfActive('colorchange');
+        featureBanners.fire('colorchange_use', 'Tap a car, then pick its new color.');
+      }
+    },
     () => { audio.play('booster_activate'); audio.play('freeze_tinkle'); boosterState.activateFreeze(); boostersUsedThisLevel.push('freeze'); logEvent('booster_used', { booster: 'freeze', levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber }); tutOrch?.completeIfActive('freeze'); },
     () => {
       // BOMB button — toggle placement mode on/off.
@@ -446,6 +461,12 @@ async function main() {
   // ── Car type intro card ───────────────────────────────────────────────────
   let carTypeIntroCard    = null;  // active intro card (only one at a time)
   let carTypeIntroTimer   = null;  // setTimeout handle for level-start intro delay
+  // FIX 3: an intro only SHOWS when a car of that type is actually visible on the
+  // road, and ≥3 grid advances have passed since the last card. Requests that can't
+  // show yet wait in this queue and are retried on every advance.
+  let _introQueue         = [];        // pending intro type keys
+  let _advanceCount       = 0;         // grid advances elapsed this level
+  let _lastIntroAdvance   = -Infinity; // advance index when the last intro was shown
 
   // First level that introduces each car type — intro fires here if type is unseen.
   // delay: ms after level start before card shows. L1 uses 4500 to fire after
@@ -567,6 +588,7 @@ async function main() {
     gs.spawnBudget         = cfg.spawnBudget        ?? null;
     gs._initialSpawnBudget = cfg.spawnBudget        ?? null;
     gs.laneTargetCarCount  = cfg.laneTargetCarCount ?? 2;
+    gs.colorChangeThreshold = cfg.colorChangeThreshold ?? Infinity;   // FIX 4B
     carDir.setLevel(typeof cfg.id === 'number' ? cfg.id : 1);
   }
 
@@ -583,6 +605,9 @@ async function main() {
     tutOrch?.dismiss();
     clearTimeout(carTypeIntroTimer); carTypeIntroTimer   = null;
     carTypeIntroCard?._destroy();   carTypeIntroCard    = null;
+    _introQueue = []; _advanceCount = 0; _lastIntroAdvance = -Infinity;   // FIX 3
+    _dismissColorPicker();                 // FIX 4B: clear any open picker
+    preLevelScreen?.destroy(); preLevelScreen = null;   // FIX 4D
     _clearModalQueue();
 
     // Resolve config from either a number or a pre-built config object.
@@ -603,25 +628,16 @@ async function main() {
     noRescueThisLevel   = cfg.noRescue ?? false;
     dailyDateKey        = currentLevelIsDaily ? dailyChallengeManager.getTodayKey() : '';
 
-    // Restore persistent booster inventory for this level.
-    // L14 first-visit: grant 2 free freeze charges if player has none.
-    const savedBoosters = progress.getBoosters();
-    if (levelId === 14 && savedBoosters.freeze === 0) {
-      progress.setBoosters(savedBoosters.swap, 2);
-      savedBoosters.freeze = 2;
-    }
-    boosterState.swap        = savedBoosters.swap;
-    boosterState.freeze      = savedBoosters.freeze ?? 0;
-    boosterState.swapMode    = false;
-    boosterState.swapFirst   = -1;
+    // FIX 4E: booster counts reset every level — they do NOT carry over. The only
+    // starting boosters come from the pre-level "Power Up?" ad offer (_pendingBoosterGrant).
+    boosterState.cancelColorChange();
     boosterState.freezeShots = 0;
     boosterState.cancelBomb();
-
-    // Apply any ad-earned boosters from the pre-level popup BEFORE starting.
-    // resetForLevel() is called AFTER applying so progress isn't cleared first.
-    if (adManager.isUnlocked('swap'))   boosterState.swap   = Math.min(5, boosterState.swap   + 1);
-    if (adManager.isUnlocked('freeze')) boosterState.freeze = Math.min(5, boosterState.freeze + 1);
-    if (adManager.isUnlocked('bomb'))   boosterState.bombs  = Math.min(boosterState.bombsMax, boosterState.bombs + 1);
+    const grant = _pendingBoosterGrant ?? { colorChange: 0, freeze: 0, bombs: 0 };
+    _pendingBoosterGrant = null;
+    boosterState.colorChange = grant.colorChange ?? 0;
+    boosterState.freeze      = grant.freeze ?? 0;
+    boosterState.bombs       = Math.min(boosterState.bombsMax, grant.bombs ?? 0);
     adManager.resetForLevel();
 
     applyLevelConfig(cfg);
@@ -634,13 +650,13 @@ async function main() {
     // non-numeric levels (daily challenge — no splash) show it immediately.
     if (typeof levelIdOrConfig !== 'number') hudRenderer.showObjective(_objectiveText);
 
-    // Feature gating: daily challenge unlocks everything; normal levels gate by id.
+    // Feature gating: bench still unlocks at L6. COLOR CHANGE and FREEZE are now
+    // earned in-level (coin threshold / 3-car chain) or via the pre-level ad offer,
+    // so both booster buttons are visible from the start (FIX 4).
     const benchUnlocked  = currentLevelIsDaily || levelId >= 6;
-    const swapUnlocked   = currentLevelIsDaily || levelId >= 8;
-    const freezeUnlocked = currentLevelIsDaily || levelId >= 14;
     benchStorage.reset();
     benchRenderer.setVisible(benchUnlocked);
-    boosterBar.setButtonVisibility(swapUnlocked, freezeUnlocked);
+    boosterBar.setButtonVisibility(true, true);
 
     boostersUsedThisLevel       = [];
     firstDeployTooltipShown     = false;
@@ -685,12 +701,9 @@ async function main() {
     }
     gameLoop.resume();   // un-pause if coming from a Quit
     // Mid-game backup: trigger intro when a new type is first spawned via shot-refill.
-    gameLoop.onNewCarType = (typeKey) => {
-      if (shouldShowIntro(typeKey)) {
-        markCarTypeSeen(typeKey);
-        _triggerCarTypeIntro(typeKey);
-      }
-    };
+    // FIX 3: route through the request queue so it only shows when the car is on
+    // screen and ≥3 advances after the previous card.
+    gameLoop.onNewCarType = (typeKey) => { _requestCarTypeIntro(typeKey); };
     gameLoop.restart();
 
     // Level-start intro: fires after splash clears (standard 1.5 s) or after the
@@ -701,10 +714,9 @@ async function main() {
         const { type: introType, delay } = entry;
         carTypeIntroTimer = setTimeout(() => {
           carTypeIntroTimer = null;
-          if (!gs.isOver && shouldShowIntro(introType)) {
-            markCarTypeSeen(introType);
-            _triggerCarTypeIntro(introType);
-          }
+          // FIX 3: request (not force) — shows only when a car of this type is
+          // actually on the road; otherwise defers until one spawns.
+          if (!gs.isOver) _requestCarTypeIntro(introType);
         }, delay);
       }
     }
@@ -713,14 +725,12 @@ async function main() {
     bookBtn.visible  = true;
 
     // ── Booster unlock popup (once per feature, normal levels only) ───────────
-    const UNLOCK_LEVELS = [6, 8, 14];
-    // Maps level ID → booster bar key for the spotlight (level 6 = bench, no spotlight)
-    const SPOTLIGHT_BOOSTER = { 8: 'swap', 14: 'freeze' };
-    // Spotlight-to-tutorial configs for each booster (bounds match BoosterBar layout)
-    const TUTOR_BOOSTER = {
-      swap:   { id: 'swap',   text: 'SWAP — tap to swap two bombs instantly!',        bounds: { x: 109, y: 760, w: 52, h: 52 }, handStart: { x: 135, y: 728 }, handEnd: { x: 135, y: 786 } },
-      freeze: { id: 'freeze', text: 'FREEZE — tap for one free shot, no cars advance!', bounds: { x: 169, y: 760, w: 52, h: 52 }, handStart: { x: 195, y: 728 }, handEnd: { x: 195, y: 786 } },
-    };
+    // FIX 4: COLOR CHANGE and FREEZE are now available from L1 (earned in-level or via
+    // the pre-level ad offer), so the only remaining unlock is the L6 bench. COLOR
+    // CHANGE / FREEZE are introduced by their first-use banner and earn toasts.
+    const UNLOCK_LEVELS = [6];
+    const SPOTLIGHT_BOOSTER = {};   // no booster-bar spotlight; L6 → bench tutorial below
+    const TUTOR_BOOSTER = {};
 
     if (!currentLevelIsDaily && UNLOCK_LEVELS.includes(levelId) && !progress.hasSeenUnlock(levelId)) {
       gameLoop.pause();
@@ -828,6 +838,90 @@ async function main() {
         app.stage, APP_W, APP_H, typeKey,
         () => { carTypeIntroCard = null; done(); },
       );
+    });
+  }
+
+  // FIX 3: true only when a car of `typeKey` is currently on the road (any active lane).
+  function _carTypeVisible(typeKey) {
+    return gs.activeLanes.some((lane) => lane.cars.some((c) => c.type === typeKey));
+  }
+
+  // FIX 3: queue an intro request. It is only SHOWN once the car is visible on
+  // screen and spacing allows; otherwise it waits and is retried on each advance.
+  function _requestCarTypeIntro(typeKey) {
+    if (!shouldShowIntro(typeKey)) return;
+    if (!_introQueue.includes(typeKey)) _introQueue.push(typeKey);
+    _tryShowPendingIntro();
+  }
+
+  // FIX 3: show the first queued intro whose car is on screen, respecting a minimum
+  // of 3 grid advances between consecutive cards (so reveals don't bunch up).
+  function _tryShowPendingIntro() {
+    if (gs.isOver) return;
+    _introQueue = _introQueue.filter((t) => shouldShowIntro(t));   // drop already-seen
+    if (_introQueue.length === 0) return;
+    if (_advanceCount - _lastIntroAdvance < 3) return;             // too soon after last card
+    const next = _introQueue.find((t) => _carTypeVisible(t));
+    if (!next) return;                                             // none visible yet → keep waiting
+    _introQueue = _introQueue.filter((t) => t !== next);
+    _lastIntroAdvance = _advanceCount;
+    markCarTypeSeen(next);
+    _triggerCarTypeIntro(next);
+  }
+
+  // ── COLOR CHANGE picker (FIX 4B step 2) ──────────────────────────────────
+  function _dismissColorPicker() {
+    colorPicker?.destroy();
+    colorPicker = null;
+  }
+  function _showColorPicker(fromColor) {
+    _dismissColorPicker();
+    colorPicker = new ColorPicker(app.stage, APP_W, APP_H, gs.colors, fromColor, {
+      onPick: (toColor) => {
+        // Lanes with a matching car BEFORE the recolor — flash them on success.
+        const changedLanes = [];
+        gs.activeLanes.forEach((lane, i) => {
+          if (lane.cars.some((c) => c.color === fromColor)) changedLanes.push(i);
+        });
+        const n = gameLoop.applyColorChange(fromColor, toColor);
+        if (n > 0) {
+          changedLanes.forEach((i) => gameRenderer3D.onImpact(i, toColor));   // 200ms flash → new tint
+          audio.play('color_bomb', { color: toColor });
+          haptics.medium();
+          floatingTexts.push(spawnFloatingText(
+            layers.get('particleLayer'), APP_W / 2, 470, 'COLOR CHANGED!', 0xffe14a,
+          ));
+        } else {
+          boosterState.cancelColorChange();
+        }
+        _dismissColorPicker();
+      },
+      onCancel: () => { boosterState.cancelColorChange(); _dismissColorPicker(); },
+    });
+  }
+
+  // ── Pre-level "Power Up?" ad offer (FIX 4D) ──────────────────────────────
+  function _showPreLevel(levelId) {
+    const label = typeof levelId === 'number' ? `Level ${levelId}` : null;
+    const start = (bundle) => {
+      _pendingBoosterGrant = bundle;
+      preLevelScreen?.destroy();
+      preLevelScreen = null;
+      transition.fadeOut(0.25, () => { _startLevel(levelId); transition.fadeIn(0.25, null); });
+    };
+    preLevelScreen = new PreLevelScreen(app.stage, APP_W, APP_H, label, {
+      onSelect: (adCount, bundle) => {
+        if (adCount <= 0) { start(bundle); return; }
+        // Show `adCount` rewarded ads in sequence, then start with the bundle.
+        let remaining = adCount;
+        const showOne = () => {
+          if (remaining <= 0) { start(bundle); return; }
+          remaining--;
+          adManager.showRewarded(() => showOne(), () => start(bundle));
+        };
+        showOne();
+      },
+      audio,
     });
   }
 
@@ -973,10 +1067,8 @@ async function main() {
         // Hearts/energy gate removed (FIX 3) — levels are always startable.
         levelSelectScreen.destroy();
         levelSelectScreen = null;
-        transition.fadeOut(0.25, () => {
-          _startLevel(levelId);
-          transition.fadeIn(0.25, null);
-        });
+        // FIX 4D: offer the optional "Power Up?" ad screen before the level starts.
+        _showPreLevel(levelId);
       },
       onBack: () => {
         levelSelectScreen.destroy();
@@ -1137,9 +1229,8 @@ async function main() {
     // Delay fanfare slightly so the screen fade-in completes first.
     setTimeout(() => audio.play('win_fanfare'), 300);
 
-    // Persist coins and boosters.
+    // Persist coins. Boosters no longer carry over between levels (FIX 4E).
     progress.setCoins(gs.coins);
-    progress.setBoosters(boosterState.swap, boosterState.freeze);
 
     // Track coins earned this level for the Collector achievement.
     const coinsEarned = Math.max(0, gs.coins - coinsAtLevelStart);
@@ -1281,7 +1372,7 @@ async function main() {
         adManager.showRewarded(
           () => {
             gs.rescue(10);
-            gameLoop.shuffleForRescue();
+            gameLoop.prepareForRescue();   // FIX 2: refill lanes + columns the breach skipped
             rescueOverlay.destroy();
             rescueOverlay = null;
             // Resuming play — restore the booster bar + toasts.
@@ -1298,7 +1389,7 @@ async function main() {
         gs.coins -= 50;
         progress.setCoins(gs.coins);
         gs.rescue(10);
-        gameLoop.shuffleForRescue();
+        gameLoop.prepareForRescue();   // FIX 2: refill lanes + columns the breach skipped
         rescueOverlay.destroy();
         rescueOverlay = null;
         audio.resetMusicPhase();
@@ -1306,7 +1397,14 @@ async function main() {
         pauseBtn.visible = true;
       },
       onRetry: () => {
-        // "LEVEL SELECT" — declined the one-time rescue → level failed. (FIX 3)
+        // RETRY — free, immediate restart of the current level (no ad).
+        rescueOverlay.destroy();
+        rescueOverlay = null;
+        const cfg = currentLevelIsDaily ? dailyChallengeManager.getChallenge() : levelManager.levelNumber;
+        transition.fadeOut(0.20, () => { _startLevel(cfg); transition.fadeIn(0.20, null); });
+      },
+      onLevelSelect: () => {
+        // Declined the one-time rescue → level failed; back to the map.
         rescueOverlay.destroy();
         rescueOverlay = null;
         adManager.showInterstitial().then(() => {
@@ -1473,6 +1571,24 @@ async function main() {
   });
 
   // ── Bomb system callbacks ─────────────────────────────────────────────────
+  // FIX 4C: a 3+ car chain kill earns a FREEZE charge.
+  gameLoop._onFreezeEarned = (kills) => {
+    audio.play('freeze_tinkle');
+    haptics.light();
+    floatingTexts.push(spawnFloatingText(
+      layers.get('particleLayer'), APP_W / 2, 700,
+      `${kills}-CAR CHAIN! Freeze earned!`, 0x88ddff,
+    ));
+  };
+  // FIX 4B: reaching the level's coin threshold earns a COLOR CHANGE charge.
+  gameLoop._onColorChangeEarned = () => {
+    audio.play('coin_collect');
+    haptics.light();
+    floatingTexts.push(spawnFloatingText(
+      layers.get('particleLayer'), APP_W / 2, 700,
+      'COLOR CHANGE READY!', 0xCC66FF,
+    ));
+  };
   gameLoop._onBombEarned = () => {
     audio.play('coin_collect');
     haptics.light();
@@ -1511,6 +1627,8 @@ async function main() {
   // ── Combo power-shot callbacks ────────────────────────────────────────────
   gameLoop._onAdvance = () => {
     gameRenderer3D.onAdvance();
+    _advanceCount++;          // FIX 3: track grid advances for intro spacing
+    _tryShowPendingIntro();   // FIX 3: a deferred intro may now be visible
   };
   // Immediate impact reaction (squash + flash) the moment a bomb lands, before the
   // hit-stop resolves combat. Color bombs run their own cascade flash on resolve.
@@ -1572,6 +1690,15 @@ async function main() {
         const laneIdx = dragDrop._hitTestLane(x, y);
         if (laneIdx < 0) return;
         gameLoop.placeBombOnLane(laneIdx);
+      },
+      onColorChangeTap: (laneIdx) => {
+        // FIX 4B: player tapped a car (lane) during COLOR CHANGE mode → use that
+        // lane's front car as the source color, then show the color picker.
+        const lane = gs.activeLanes[laneIdx];
+        const car  = lane?.frontCar?.() ?? lane?.cars?.[0] ?? null;
+        if (!car) return;
+        boosterState.setColorChangeCar(car.color);
+        _showColorPicker(car.color);
       },
       onDeployFromBench: (shooter, laneIdx, release) => {
         if (laneIdx >= gs.activeLaneCount) return;
@@ -1671,13 +1798,8 @@ async function main() {
 
   // ── Render ticker (variable rate) ────────────────────────────────────────
   const _prevStash = [false, false, false, false];   // 3D: per-column stash presence
-  let _prevSwap = boosterState.swap;                  // 6A: detect a completed swap
   app.ticker.add((ticker) => {
     const dt = Math.min(ticker.deltaMS / 1000, 0.05);
-
-    // 6A: a swap consumed a charge → whoosh (synced to the 4B arc).
-    if (boosterState.swap < _prevSwap) audio.play('swap_whoosh');
-    _prevSwap = boosterState.swap;
 
     // 3D scene update + render (runs when gameRenderer3D is visible/active).
     // dt is scaled by gs.timeScale so a 3+ multi-kill plays back in brief bullet-time.
@@ -1717,7 +1839,7 @@ async function main() {
       const _c = carTypeIntroCard;
       if (!_c.update(dt) && carTypeIntroCard === _c) carTypeIntroCard = null;
     }
-    dragDrop.inputBlocked = _modalActive;
+    dragDrop.inputBlocked = _modalActive || !!colorPicker;   // FIX 4B: block road drags while the picker is up
 
     // Juice updates
     laneFlash.update(dt);
@@ -1786,6 +1908,7 @@ async function main() {
     }
 
     if (rescueOverlay)    rescueOverlay.update(dt);
+    if (preLevelScreen)   preLevelScreen.update?.(dt);
     if (ftueOverlay)      ftueOverlay.update(dt);
     if (titleScreen)      titleScreen.update?.(dt);
     if (winScreen)        winScreen.update?.(dt);
@@ -1813,6 +1936,8 @@ async function main() {
     rescueOverlay?.destroy();      rescueOverlay      = null;
     ftueOverlay?.destroy();        ftueOverlay        = null;
     carTypeIntroCard?._destroy();  carTypeIntroCard   = null;
+    preLevelScreen?.destroy();     preLevelScreen     = null;
+    _dismissColorPicker();
   };
   // ── Dev navigation API ────────────────────────────────────────────────────
   if (import.meta.env.DEV) {
@@ -1825,6 +1950,15 @@ async function main() {
       showWin: () => showWin(),
       showLose: () => _showNoRescueLose(),
       showLevelSelect: () => showLevelSelect(),
+      // FIX 4D/4B/1 dev hooks for screenshot verification.
+      showPreLevel: (n) => { _dbgCleanAll(); _showPreLevel(n); },
+      showRescue:   () => { showRescue(); },
+      openColorPicker: () => {
+        boosterState.colorChange = Math.max(1, boosterState.colorChange);
+        boosterState.activateColorChange();
+        boosterState.setColorChangeCar(gs.colors[0]);
+        _showColorPicker(gs.colors[0]);
+      },
       stashBomb: (colIdx = 0) => gs?.columns[colIdx]?.stashBomb() ?? false,
       getGs: () => gs,
       // Test hook: enqueue a sample achievement toast (verifies popup z-order /
@@ -1834,8 +1968,8 @@ async function main() {
         (w) => _buildAchievementPopup(w, { name: 'Sharp Shooter', desc: 'Test achievement toast' }),
         4.0,
       ),
-      setBoosters: (swap = 3, freeze = 3, bombs = 3) => {
-        boosterState.swap = swap; boosterState.freeze = freeze; boosterState.bombs = bombs;
+      setBoosters: (colorChange = 3, freeze = 3, bombs = 3) => {
+        boosterState.colorChange = colorChange; boosterState.freeze = freeze; boosterState.bombs = bombs;
       },
       // Manual shot + freeze drivers for automated playtest verification.
       deploy: (colIdx, laneIdx) => gameLoop.deploy(colIdx, laneIdx),
@@ -1854,15 +1988,15 @@ async function main() {
           gameRenderer3D.onColorBomb(c, killed);
           return killed.length;
         },
-        pressSwap:   () => { if (boosterBar._swapBtn)   boosterBar._swapBtn._pressT   = 0; },
+        pressColorChange: () => { if (boosterBar._colorChangeBtn) boosterBar._colorChangeBtn._pressT = 0; },
         pressFreeze: () => { if (boosterBar._freezeBtn) boosterBar._freezeBtn._pressT = 0; },
         kill:        (lane = 0, n = 1) => gameRenderer3D.onHit(lane, gs.colors[0], 5, n),
         carScale:    (lane = 0) => gameRenderer3D.peekCarScale(lane),
         bombTutorial: () => gameLoop._onBombEarned?.(),   // show the BOMB-earned tutorial
         btnScales:   () => ({
-          swap:   boosterBar._swapBtn?.scale?.x,
-          freeze: boosterBar._freezeBtn?.scale?.x,
-          bomb:   boosterBar._bombBtn?.scale?.x,
+          colorChange: boosterBar._colorChangeBtn?.scale?.x,
+          freeze:      boosterBar._freezeBtn?.scale?.x,
+          bomb:        boosterBar._bombBtn?.scale?.x,
         }),
       },
     };

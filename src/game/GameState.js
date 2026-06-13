@@ -71,6 +71,10 @@ export class GameState {
     // ── Economy ───────────────────────────────────────────────────────────
     this.coins = 0;
 
+    // ── COLOR CHANGE booster earn (per-level coin threshold) ────────────────
+    this.colorChangeThreshold = Infinity;  // coins needed to earn a COLOR CHANGE this level
+    this.colorChangeEarned    = false;     // true once earned this level (one per level)
+
     // ── Win-screen stats ──────────────────────────────────────────────────
     this.maxCombo       = 0;    // highest combo reached this level
     this.maxCarPosition = 0;    // highest position any car reached (0-100 units)
@@ -197,6 +201,7 @@ export class GameState {
     this.wrongDeploys   = 0;
     this.benchUsed      = 0;
     this.coins          = 0;
+    this.colorChangeEarned = false;   // re-arm the per-level COLOR CHANGE earn
     this.maxCombo      = 0;
     this.maxCarPosition = 0;
     this.killsTowardBomb  = 0;

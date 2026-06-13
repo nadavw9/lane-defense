@@ -1,5 +1,5 @@
-// BoosterBar — three 64×64 icon-card booster buttons (SWAP • FREEZE • BOMB).
-// Icons are PNG sprites (booster-{swap,freeze,bomb}.png); each card shows a
+// BoosterBar — three 64×64 icon-card booster buttons (COLOR • FREEZE • BOMB).
+// Icons are PNG sprites (booster-{colorchange,freeze,bomb}.png); each card shows a
 // ×N count badge and an 18px name label. Bomb glow pulses when bombs available.
 import { Graphics, Text, Sprite, Assets } from 'pixi.js';
 
@@ -31,11 +31,12 @@ const PRESS_UP_S    = 0.08;
 const PRESS_MIN     = 0.88;
 
 const CARD_X = Array.from({ length: NUM_CARDS }, (_, i) => BAR_XOFF + i * (CARD_W + CARD_GAP));
-// Indices: 0=SWAP, 1=FREEZE, 2=BOMB
+// Indices: 0=COLOR CHANGE, 1=FREEZE, 2=BOMB
+const COLOR_CHANGE_ACCENT = 0xCC66FF;   // rainbow/magenta hint for the COLOR CHANGE card
 
 
 export class BoosterBar {
-  constructor(layerManager, boosterState, gameState, appW, onSwap, onFreeze, onBomb) {
+  constructor(layerManager, boosterState, gameState, appW, onColorChange, onFreeze, onBomb) {
     this._state = boosterState;
     this._gs    = gameState;
     this._layer = layerManager.get('hudLayer');
@@ -49,12 +50,12 @@ export class BoosterBar {
     this._layer.addChild(bg);
     this._bg = bg;
 
-    this._swapBtn   = _makeCard(this._layer, CARD_X[0], 0x66aaff, 'swap',   'SWAP',   onSwap);
+    this._colorChangeBtn = _makeCard(this._layer, CARD_X[0], COLOR_CHANGE_ACCENT, 'colorchange', 'COLOR', onColorChange);
     this._freezeBtn = _makeCard(this._layer, CARD_X[1], 0x44ccff, 'freeze', 'FREEZE', onFreeze);
     this._bombBtn   = _makeBombCard(this._layer, CARD_X[2], onBomb);
 
-    this._swapBtn._unlocked   = false;
-    this._freezeBtn._unlocked = false;
+    this._colorChangeBtn._unlocked = false;
+    this._freezeBtn._unlocked      = false;
 
     this._bombGlow = new Graphics();
     this._layer.addChild(this._bombGlow);
@@ -76,15 +77,15 @@ export class BoosterBar {
     this._bombFlashT = 0;
   }
 
-  setButtonVisibility(swap, freeze) {
-    this._swapBtn._unlocked   = swap;
-    this._freezeBtn._unlocked = freeze;
+  setButtonVisibility(colorChange, freeze) {
+    this._colorChangeBtn._unlocked = colorChange;
+    this._freezeBtn._unlocked      = freeze;
   }
 
   // Show/hide the entire bar (used to clear it behind end-screen modals).
   // Visibility-only — does not restyle.
   setVisible(v) {
-    for (const obj of [this._bg, this._swapBtn, this._freezeBtn, this._bombBtn, this._bombGlow, this._readyText]) {
+    for (const obj of [this._bg, this._colorChangeBtn, this._freezeBtn, this._bombBtn, this._bombGlow, this._readyText]) {
       if (obj) obj.visible = v;
     }
   }
@@ -93,23 +94,23 @@ export class BoosterBar {
     const s  = this._state;
     const gs = this._gs;
 
-    // Tap-press animation for SWAP and FREEZE (BOMB keeps its own glow feedback).
-    _animatePress(this._swapBtn,   dt);
+    // Tap-press animation for COLOR CHANGE and FREEZE (BOMB keeps its own glow feedback).
+    _animatePress(this._colorChangeBtn, dt);
     _animatePress(this._freezeBtn, dt);
 
     // ── Count badge labels (short form — icon identifies the button) ──────────
-    const swapLabel   = `×${s.swap}`;
+    const colorLabel  = s.colorChangeMode ? 'CANCEL' : `×${s.colorChange}`;
     const freezeLabel = `×${s.freeze}`;
     const bombLabel   = s.bombMode  ? 'CANCEL' : `×${s.bombs}`;
 
-    if (this._swapBtn.label.text   !== swapLabel)   this._swapBtn.label.text   = swapLabel;
+    if (this._colorChangeBtn.label.text !== colorLabel) this._colorChangeBtn.label.text = colorLabel;
     if (this._freezeBtn.label.text !== freezeLabel) this._freezeBtn.label.text = freezeLabel;
     if (this._bombBtn.label.text   !== bombLabel) {
       this._bombBtn.label.text = bombLabel;
       if (this._bombBtn.bombIcon) this._bombBtn.bombIcon.visible = !s.bombMode;
     }
 
-    this._swapBtn.alpha   = !this._swapBtn._unlocked   ? 0.18 : s.swap   <= 0 ? 0.28 : s.swapMode ? 0.55 : 1.0;
+    this._colorChangeBtn.alpha = !this._colorChangeBtn._unlocked ? 0.18 : s.colorChange <= 0 ? 0.28 : s.colorChangeMode ? 0.70 : 1.0;
     this._freezeBtn.alpha = !this._freezeBtn._unlocked ? 0.18 : (s.freeze <= 0 || s.isFrozen())  ? 0.28 : 1.0;
     this._bombBtn.alpha   = (s.bombs <= 0 && !s.bombMode) ? 0.30 : s.bombMode ? 0.70 : 1.0;
 
@@ -139,9 +140,9 @@ export class BoosterBar {
     this._readyPulse += dt * 3.0;
     const rp = 0.28 + 0.32 * (0.5 + 0.5 * Math.sin(this._readyPulse));
     this._readyGlow.clear();
-    if (this._swapBtn._unlocked && s.swap > 0 && !s.swapMode) {
+    if (this._colorChangeBtn._unlocked && s.colorChange > 0 && !s.colorChangeMode) {
       this._readyGlow.roundRect(CARD_X[0] - 2, CARD_Y - 2, CARD_W + 4, CARD_H + 4, CARD_R + 2);
-      this._readyGlow.stroke({ color: 0x66aaff, width: 2, alpha: rp });
+      this._readyGlow.stroke({ color: COLOR_CHANGE_ACCENT, width: 2, alpha: rp });
     }
     if (this._freezeBtn._unlocked && s.freeze > 0 && !s.isFrozen()) {
       this._readyGlow.roundRect(CARD_X[1] - 2, CARD_Y - 2, CARD_W + 4, CARD_H + 4, CARD_R + 2);
@@ -273,7 +274,9 @@ function _addIconSprite(card, name, accentColor) {
     return sp;
   }
   const g  = new Graphics();
-  const fn = name === 'swap' ? _iconSwap : name === 'freeze' ? _iconFreeze : _iconBomb;
+  const fn = name === 'colorchange' ? _iconColorChange
+           : name === 'freeze'      ? _iconFreeze
+           : _iconBomb;
   fn(g, CARD_W / 2, ICON_CY, accentColor);
   card.addChild(g);
   return g;
@@ -343,16 +346,23 @@ function _makeBombCard(layer, x, onClick) {
 
 // ── Icon drawing functions ────────────────────────────────────────────────────
 
-function _iconSwap(g, cx, cy, c) {
-  // Two column bars with exchange arrows
-  g.rect(cx - 14, cy - 8, 5, 16); g.fill({ color: c, alpha: 0.70 });
-  g.rect(cx + 9,  cy - 8, 5, 16); g.fill({ color: c, alpha: 0.70 });
-  // Right-pointing arrow (top)
-  g.moveTo(cx - 6, cy - 4); g.lineTo(cx + 6, cy - 4); g.lineTo(cx + 3, cy - 8); g.closePath();
-  g.fill({ color: 0xffffff, alpha: 0.88 });
-  // Left-pointing arrow (bottom)
-  g.moveTo(cx + 6, cy + 4); g.lineTo(cx - 6, cy + 4); g.lineTo(cx - 3, cy + 8); g.closePath();
-  g.fill({ color: 0xffffff, alpha: 0.88 });
+// Placeholder COLOR CHANGE glyph: a 6-wedge rainbow wheel (the game palette) with a
+// white "paintbrush" stroke across it. Replaced later by booster-colorchange.png.
+function _iconColorChange(g, cx, cy, _c) {
+  const wedges = [0xE24B4A, 0xEF9F27, 0x639922, 0x378ADD, 0x7F77DD, 0xD85A30];
+  const R = 11;
+  for (let i = 0; i < 6; i++) {
+    const a0 = (i / 6) * Math.PI * 2 - Math.PI / 2;
+    const a1 = ((i + 1) / 6) * Math.PI * 2 - Math.PI / 2;
+    g.moveTo(cx, cy);
+    g.arc(cx, cy, R, a0, a1);
+    g.closePath();
+    g.fill({ color: wedges[i], alpha: 0.95 });
+  }
+  // Paintbrush stroke (diagonal handle + tip) over the wheel.
+  g.moveTo(cx - 9, cy + 9); g.lineTo(cx + 7, cy - 7);
+  g.stroke({ color: 0xffffff, width: 3, alpha: 0.95 });
+  g.circle(cx + 8, cy - 8, 3); g.fill({ color: 0xffffff, alpha: 0.95 });
 }
 
 function _iconFreeze(g, cx, cy, c) {

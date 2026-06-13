@@ -28,7 +28,7 @@ import {
 } from '../renderer/ShooterRenderer.js';
 import {
   getLaneScreenX, getLaneFromScreenX, getLaneScreenBounds, getTopLaneScreenBounds,
-  getColumnScreenX, getColumnScreenY, getColScreenW,
+  getColumnScreenX, getColScreenW,
   getActiveLaneCount, getActiveColCount, screenToWorldXZ,
 } from '../renderer/PositionRegistry.js';
 import { BENCH_Y, BENCH_SLOT_H } from '../renderer/BenchRenderer.js';
@@ -130,7 +130,7 @@ export class DragDrop {
     shooterRenderer,
     benchRenderer,
     { onDeploy, onDeployFromBench, onBenchStore, onColorMismatch, onBenchFull, onBombPlaced,
-      onLaneHover, onLaneClear, getColorBombArmed, onColumnPickup } = {},
+      onLaneHover, onLaneClear, getColorBombArmed, onColumnPickup, onColorChangeTap } = {},
     boosterState = null,
     _unused = null,
     firingSlots = null,
@@ -150,6 +150,7 @@ export class DragDrop {
     this._onColorMismatch   = onColorMismatch    ?? (() => {});
     this._onBenchFull       = onBenchFull        ?? (() => {});
     this._onBombPlaced      = onBombPlaced       ?? (() => {});
+    this._onColorChangeTap  = onColorChangeTap   ?? (() => {});
     this._onLaneHover       = onLaneHover        ?? (() => {});
     this._onLaneClear       = onLaneClear        ?? (() => {});
     this._getColorBombArmed = getColorBombArmed  ?? null;
@@ -191,7 +192,6 @@ export class DragDrop {
       this._highlights.push(g);
     }
 
-    this._swapArc = null;   // 4B: animated arc drawn between two swapped columns
     this.uiOverlayActive = false;
     // When true, all pointer input is ignored (a modal card — e.g. an onboarding
     // hint or the car-intro card — is up). The card dismisses via its own Pixi
@@ -212,13 +212,17 @@ export class DragDrop {
       return;
     }
 
-    const col = this._hitTestColumn(x, y);
-    if (col !== -1 && this._boosterState?.swapMode) {
-      const first = this._boosterState.swapFirst;
-      const res   = this._boosterState.tapSwapColumn(col, this._columns);
-      if (res === 'swapped' && first >= 0) this._startSwapArc(first, col);   // 4B
+    // COLOR CHANGE (FIX 4B): first tap selects a car by lane; GameApp resolves the
+    // car's colour and shows the colour picker for the second tap.
+    if (this._boosterState?.colorChangeMode && this._boosterState.colorChangeFromColor == null) {
+      if (y >= ROAD_TOP_Y && y <= ROAD_BOTTOM_Y) {
+        const lane = this._hitTestLane(x, y);
+        if (lane >= 0) this._onColorChangeTap(lane, x, y);
+      }
       return;
     }
+
+    const col = this._hitTestColumn(x, y);
 
     if (col !== -1 && this._columns[col].top()) {
       const shooter = this._columns[col].top();
@@ -309,33 +313,6 @@ export class DragDrop {
   }
 
   update(dt) {
-    // 4B: animate the swap arc — a dotted bezier "draws" from one column to the
-    // other over 200ms, then fades, showing the player what was swapped.
-    if (this._swapArc) {
-      const sa = this._swapArc;
-      sa.t += dt;
-      const draw  = Math.min(1, sa.t / sa.dur);
-      const fade  = sa.t > sa.dur ? Math.min(1, (sa.t - sa.dur) / 0.14) : 0;
-      const midX  = (sa.ax + sa.bx) / 2;
-      const peakY = sa.y - 64;
-      sa.g.clear();
-      const N = 16;
-      for (let i = 0; i <= N; i++) {
-        const u = i / N;
-        if (u > draw) break;
-        if (i % 2 !== 0) continue;                       // dotted
-        const omt = 1 - u;
-        const px = omt * omt * sa.ax + 2 * omt * u * midX + u * u * sa.bx;
-        const py = omt * omt * sa.y  + 2 * omt * u * peakY + u * u * sa.y;
-        sa.g.circle(px, py, 3.5);
-        sa.g.fill({ color: 0x66ccff, alpha: 0.9 * (1 - fade) });
-      }
-      if (sa.t >= sa.dur + 0.14) {
-        this._laneLayer.removeChild(sa.g);
-        sa.g.destroy();
-        this._swapArc = null;
-      }
-    }
 
     // Wobble ghost during active drag
     if (this._ghost && this._state === 'dragging') {
@@ -514,14 +491,6 @@ export class DragDrop {
     g.poly([topLx, ROAD_TOP_Y, topRx, ROAD_TOP_Y, botRx, ROAD_BOTTOM_Y, botLx, ROAD_BOTTOM_Y]);
     g.fill({ color, alpha: HIGHLIGHT_ALPHA });
     g.visible = true;
-  }
-
-  // 4B: begin a swap-arc animation between two columns (screen-space bezier).
-  _startSwapArc(a, b) {
-    if (this._swapArc) { this._laneLayer.removeChild(this._swapArc.g); this._swapArc.g.destroy(); }
-    const g = new Graphics();
-    this._laneLayer.addChild(g);
-    this._swapArc = { g, t: 0, dur: 0.2, ax: getColumnScreenX(a), bx: getColumnScreenX(b), y: getColumnScreenY() };
   }
 
   _checkColorMatch(laneIdx) {

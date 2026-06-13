@@ -3,9 +3,9 @@
 // Sequence:
 //   1. Instant red flash (0.45 s) covering the whole screen — breach impact feel.
 //   2. Dark rescue panel fades in with three options:
-//        "Watch Ad  +10s"  — always available
-//        "◆ 50 Coins +10s" — disabled (greyed) if player can't afford it
-//        "RETRY"           — full level restart
+//        "▶ CONTINUE"   — watch a rewarded ad, resume from the breach moment
+//        "RETRY"        — free full level restart (no ad)
+//        "LEVEL SELECT" — decline; level failed, back to the map
 //
 // The caller is responsible for calling update(dt) every render frame until
 // the overlay is no longer needed.
@@ -15,10 +15,11 @@ const FLASH_DURATION = 0.45;   // seconds for the red screen flash
 
 export class RescueOverlay {
   // Callbacks:
-  //   onRescueAd()    — "Watch Ad" accepted; caller should call gs.rescue() then destroy
-  //   onRescueCoins() — "50 Coins" accepted; caller handles coin deduction + gs.rescue()
-  //   onRetry()       — full restart; caller destroys overlay and calls gameLoop.restart()
-  constructor(stage, appW, appH, gs, { onRescueAd, onRescueCoins, onRetry }) {
+  //   onRescueAd()     — "CONTINUE" accepted; caller shows the rewarded ad then gs.rescue()
+  //   onRescueCoins()  — coin rescue (kept for compatibility; no button rendered)
+  //   onRetry()        — free full restart; caller destroys overlay and restarts the level
+  //   onLevelSelect()  — decline; caller destroys overlay and returns to level select
+  constructor(stage, appW, appH, gs, { onRescueAd, onRescueCoins, onRetry, onLevelSelect }) {
     this._container = new Container();
     stage.addChild(this._container);
 
@@ -32,6 +33,7 @@ export class RescueOverlay {
     this._onRescueAd    = onRescueAd;
     this._onRescueCoins = onRescueCoins;
     this._onRetry       = onRetry;
+    this._onLevelSelect = onLevelSelect;
 
     // The flash graphic is built immediately; the panel is built after the flash.
     this._flash = this._buildFlash();
@@ -77,8 +79,8 @@ export class RescueOverlay {
     bg.eventMode = 'static';
     c.addChild(bg);
 
-    // Panel border
-    const panelW = 310, panelH = 330;
+    // Panel border — sized for three stacked options.
+    const panelW = 310, panelH = 398;
     const px = (w - panelW) / 2;
     const py = (h - panelH) / 2 - 10;
 
@@ -99,12 +101,16 @@ export class RescueOverlay {
     this._text(c, 'Watch an ad to continue from here?', cx, y, { fontSize: 13, fill: 0x88bbdd, fontWeight: 'normal' });
     y += 46;
 
-    // CONTINUE — one-time rewarded-ad rescue; resumes from the breach moment. (FIX 3)
+    // CONTINUE — one-time rewarded-ad rescue; resumes from the breach moment.
     this._button(c, '▶  CONTINUE', cx, y, 0x0d3a1a, 0x66ff99, () => this._onRescueAd());
-    y += 64;
+    y += 60;
+
+    // RETRY — free, immediate full restart of the current level (no ad).
+    this._button(c, 'RETRY', cx, y, 0x3a1010, 0xff7777, () => this._onRetry?.());
+    y += 60;
 
     // Decline → back to level select (level failed).
-    this._button(c, 'LEVEL SELECT', cx, y, 0x1a2a3a, 0x88bbdd, () => this._onRetry());
+    this._button(c, 'LEVEL SELECT', cx, y, 0x1a2a3a, 0x88bbdd, () => this._onLevelSelect?.());
   }
 
   _text(parent, str, x, y, style) {

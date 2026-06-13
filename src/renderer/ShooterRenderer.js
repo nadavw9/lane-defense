@@ -362,11 +362,10 @@ export class ShooterRenderer {
 
       stashG.clear();
 
-      // Separator line between queue and stash slot
+      // Stash RETIRED (bench is the sole storage). The 2D fallback no longer draws
+      // the separator or the empty dashed ring. sepCX kept for the (now-inert)
+      // occupied branch below.
       const sepCX = cx;
-      stashG.moveTo(sepCX - colW * 0.30, STASH_Y - stashR - 6);
-      stashG.lineTo(sepCX + colW * 0.30, STASH_Y - stashR - 6);
-      stashG.stroke({ color: 0x445566, width: 1, alpha: 0.60 });
 
       if (stashed) {
         // Occupied: solid border circle tinted with shooter color
@@ -398,14 +397,7 @@ export class ShooterRenderer {
           stashT.visible  = false;
         }
       } else {
-        // Empty: dashed-style ring (simulated by alternating arcs)
-        const DASH_COUNT = 8;
-        for (let d = 0; d < DASH_COUNT; d++) {
-          const a0 = (d / DASH_COUNT) * Math.PI * 2;
-          const a1 = ((d + 0.55) / DASH_COUNT) * Math.PI * 2;
-          stashG.arc(sepCX, STASH_Y, stashR + 1, a0, a1);
-          stashG.stroke({ color: 0x556677, width: 2, alpha: 0.50 });
-        }
+        // Stash RETIRED: empty dashed ring no longer drawn (bench is the sole storage).
         stashSp.visible = false;
         stashT.visible  = false;
       }

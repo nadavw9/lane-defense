@@ -363,7 +363,7 @@ export class Shooter3D {
       if (!stashedShooter) {
         stash.sphereMesh.visible = false;
         stash.badgeMesh.visible  = false;
-        stash.ringMesh.visible   = true;
+        stash.ringMesh.visible   = false;   // RETIRED: stash drawing removed (bench is the sole storage)
       } else {
         stash.sphereMesh.visible = true;
         stash.badgeMesh.visible  = true;

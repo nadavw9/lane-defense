@@ -528,7 +528,14 @@ export class DragDrop {
   }
 
   _hitTestStashArea(x, y) {
-    return y >= STASH_Y - TOP_RADIUS - 12 && y <= STASH_Y + TOP_RADIUS + 12;
+    // Stash RETIRED — the bench (BenchRenderer) is the sole bomb-storage mechanic.
+    // Returning false here neutralises the whole stash path in one place: the
+    // column→stash drop (onPointerUp), stash-slot retrieval, and stash drag-start.
+    // _handleStashDrop is intentionally left defined (now unreachable) for reference
+    // in case the stash mechanic is ever revived.
+    return false;
+    // Original hit-test (kept for reference):
+    // return y >= STASH_Y - TOP_RADIUS - 12 && y <= STASH_Y + TOP_RADIUS + 12;
   }
 
   _hitTestStashSlot(x, y) {

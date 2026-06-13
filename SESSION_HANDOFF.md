@@ -1,13 +1,16 @@
 # Traffic Bomb — Session Handoff
 
 ## Current State
-- Git tip: 50f205d fix: car sprite resyncs when COLOR CHANGE recolors a live car
+- Git tip: be61ddd feat: clearer COLOR CHANGE booster tooltip
 - Branch: master
 - Last deploy: today, green
-- Tests: 642 passing, 1 skip, 5 todo
+- Tests: 643 passing, 1 skip, 5 todo
 - Live URL: https://nadavw9.github.io/lane-defense/
 
 ## What Was Shipped This Session (most recent first)
+- be61ddd — COLOR CHANGE booster tooltip reworded to "Tap a car, pick a color — ALL cars of that color transform!" (the `colorchange_use` feature banner fired when the button is tapped). Style/positioning/timing unchanged.
+- a220495 — ShopScreen now sells COLOR CHANGE instead of the removed SWAP: replaced the booster def (key/label/icon/desc + purple identity, same 20-coin price), the owned-count badge (reads live `boosterState.colorChange`), and the purchase branch. Also cleaned the dead `swap` token out of the FREEZE purchase (`setBoosters(0, …)`). ProgressManager's `swap` field left as a separate cleanup.
+- 4a707ce — COLOR CHANGE earn condition reworked: removed the per-level coin threshold entirely (`colorChangeThreshold`/`colorChangeEarned`, `colorChangeThresholdForLevel` deleted). Now earns on TWO strictly-consecutive multi-kills (2+ kills, then another 2+ on the very next shot) via `GameLoop._updateColorChangeCombo` — resets on any shot killing <2 (including a wrong-colour miss), can earn multiple times per level, resets at level start. Notification: "2× COMBO! Color Change ready!". Tests updated (replaced 2 threshold tests with 3 combo tests → 643).
 - 50f205d — COLOR CHANGE visual desync fixed: `Car3D` now resyncs a car's sprite when its colour is mutated in place. The booster recoloured cars in GameState (e.g. blue→red) but the sprite kept its old colour while combat already treated it as the new colour; the renderer now detects `car.color` changes per-frame and swaps the powerball/sprite texture.
 - 457113a — Retired the stash mechanic — the bench (`BenchRenderer`) is now the sole bomb-storage UI. Hid the empty stash rings (the "ghost slots" that rendered above the bench tray) in both `Shooter3D` (3D `ringMesh`) and `ShooterRenderer` (2D fallback), and disabled the stash drop path (`DragDrop._hitTestStashArea` returns false). `_handleStashDrop` left defined but unreachable for reference.
 - 2a95fa6 — Bench slots now render the powerball bomb sprite (same art as the live bomb queue) instead of the old shooter-idle robot; added `POWERBALL_URLS` to the Pixi preload manifest. Also removed the combo music speed-up: `AudioManager.updateMusicPhase` now plays one steady `gameplay_calm` track all level (no calm→pressure→climax escalation).
@@ -55,14 +58,11 @@
 - 168c5ca — First major visual/balance batch: city edges, bomb zone panel, car centering, color bomb visuals.
 
 ## IMMEDIATE PRIORITIES (next session, in order)
-1. On-device smoke test of the COLOR CHANGE mechanic (recolor visual now fixed in `Car3D` — confirm on a real device).
-2. ShopScreen still references the removed SWAP booster — fix (sells/sets `swap`; `ProgressManager` also still has a `swap` field).
-3. COLOR CHANGE tooltip text: "Tap a car, pick a color — ALL cars of that color transform!"
-4. Pre-level "Power Up?" screen needs more visual excitement.
-5. Agent-team quality audit (Royal Match standard).
-6. Real-device playtest checklist: L8, L12, L16, L33, L37 + bosses L10/20/30/40.
-7. Signed AAB build.
-8. Play Store assets + submission.
+1. Pre-level "Power Up?" screen needs more visual excitement.
+2. Agent-team quality audit (Royal Match standard).
+3. Real-device playtest checklist: L8, L12, L16, L33, L37 + bosses L10/20/30/40.
+4. Signed AAB build.
+5. Play Store assets + submission.
 
 ## Active Backlog
 - On-device smoke test of all new features (RETRY, rescue restore, COLOR CHANGE flow, pre-level Power Up, per-level booster reset)

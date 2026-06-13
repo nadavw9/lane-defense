@@ -650,10 +650,10 @@ async function main() {
     // non-numeric levels (daily challenge — no splash) show it immediately.
     if (typeof levelIdOrConfig !== 'number') hudRenderer.showObjective(_objectiveText);
 
-    // Feature gating: bench still unlocks at L6. COLOR CHANGE and FREEZE are now
-    // earned in-level (coin threshold / 3-car chain) or via the pre-level ad offer,
-    // so both booster buttons are visible from the start (FIX 4).
-    const benchUnlocked  = currentLevelIsDaily || levelId >= 6;
+    // Feature gating: bench unlocks at L4 (hidden for L1-3). COLOR CHANGE and FREEZE
+    // are now earned in-level (coin threshold / 3-car chain) or via the pre-level ad
+    // offer, so both booster buttons are visible from the start (FIX 4).
+    const benchUnlocked  = currentLevelIsDaily || levelId >= 4;
     benchStorage.reset();
     benchRenderer.setVisible(benchUnlocked);
     boosterBar.setButtonVisibility(true, true);
@@ -667,7 +667,7 @@ async function main() {
 
     // FTUE feature banners fired at level start when a feature first appears.
     if ((cfg.laneCount ?? 4) >= 3) featureBanners.fire('multi_lane', 'New lane open! Each lane needs a matching-color bomb.');
-    if (benchUnlocked && levelId === 6) featureBanners.fire('bench_appear', 'Bench unlocked — store a bomb here for later!');
+    if (benchUnlocked && levelId === 4) featureBanners.fire('bench_appear', 'Bench unlocked — store a bomb here for later!');
     setActiveCounts({ laneCount: cfg.laneCount ?? 4, colCount: cfg.colCount ?? 4 });
     // FIX 4: route the level's intro hint through the unified notification queue
     // (safe gap, one-at-a-time) instead of FTUEOverlay's own bottom banner — except
@@ -726,10 +726,10 @@ async function main() {
 
     // ── Booster unlock popup (once per feature, normal levels only) ───────────
     // FIX 4: COLOR CHANGE and FREEZE are now available from L1 (earned in-level or via
-    // the pre-level ad offer), so the only remaining unlock is the L6 bench. COLOR
+    // the pre-level ad offer), so the only remaining unlock is the L4 bench. COLOR
     // CHANGE / FREEZE are introduced by their first-use banner and earn toasts.
-    const UNLOCK_LEVELS = [6];
-    const SPOTLIGHT_BOOSTER = {};   // no booster-bar spotlight; L6 → bench tutorial below
+    const UNLOCK_LEVELS = [4];
+    const SPOTLIGHT_BOOSTER = {};   // no booster-bar spotlight; L4 → bench tutorial below
     const TUTOR_BOOSTER = {};
 
     if (!currentLevelIsDaily && UNLOCK_LEVELS.includes(levelId) && !progress.hasSeenUnlock(levelId)) {
@@ -749,7 +749,7 @@ async function main() {
             });
           } else {
             gameLoop.resume();
-            // L6 bench tutorial
+            // L4 bench tutorial
             tutOrch?.start({
               id:        'bench',
               text:      'New BENCH — drag a bomb here to store it for later!',

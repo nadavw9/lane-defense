@@ -299,6 +299,18 @@ export class Car3D {
         const entry = this._live.get(car);
         const g     = entry.group;
 
+        // COLOR CHANGE booster recolors a live car in GameState (car.color mutates
+        // in place). Swap its sprite to the new color so the visual matches the
+        // logic — without this the car kept its old (e.g. blue) sprite while combat
+        // already treated it as the new color.
+        if (entry.color !== car.color) {
+          entry.color = car.color;
+          if (SPRITE_MAP[car.type] != null && car.type !== 'boss') {
+            entry.bodyMat.map = _getSpriteTex(car.type, car.color, import.meta.env.BASE_URL);
+            entry.bodyMat.needsUpdate = true;
+          }
+        }
+
         // ── Smooth advance lerp ───────────────────────────────────────────────
         const newTargetZ = posToZ(car.position);
         if (Math.abs(newTargetZ - entry.targetZ) > 0.001) {
@@ -556,6 +568,7 @@ export class Car3D {
 
     return {
       group, mesh, bodyMat,
+      color: car.color,   // sprite was built for this color; resynced if COLOR CHANGE recolors the car
       baseHex: 0xffffff,  // always white — all sprites pre-colored, boss canvas bakes color
       lastHp: -1, _prevFrozen: false,
       bossRing, bossRingMat, bossAngle: 0,

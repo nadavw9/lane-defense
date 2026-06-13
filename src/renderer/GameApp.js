@@ -415,6 +415,10 @@ async function main() {
   let firstDeployTooltipShown = false;
   let firstKillDoneThisLevel  = false;
 
+  // Cars destroyed by the most recent shot — set in onHit, read by the multi-kill
+  // popup (onHit runs just before _onMultiKill, so this is the current shot's count).
+  let _lastShotKills = 0;
+
   // ── Popup queue — single source of truth for all banner popups ────────────
   const popupQueue = new PopupQueue(layers.get('hudLayer'), APP_W);
 
@@ -1479,6 +1483,7 @@ async function main() {
 
     onHit: (laneIdx, gameX, color, damage, killCount) => {
       const isKill = killCount > 0;
+      _lastShotKills = killCount;   // for the multi-kill popup (fired next via _onMultiKill)
       particles.spawnHit(laneIdx, gameX, color);
       particles.spawnDamageNumber(laneIdx, gameX, damage);
       gameRenderer3D.onHit(laneIdx, color, damage, killCount);
@@ -1653,7 +1658,7 @@ async function main() {
   gameLoop._onMultiKill = (count, needed) => {
     audio.play('pip_fill', { index: count - 1 });   // 6A: ascending pip-fill note
     if (count < needed) {
-      popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildFlashText(w, `MULTI-KILL!  ${count}/${needed}`, 0xffcc44), 1.2);
+      popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildMultiKillPopup(w, _lastShotKills), 1.4);
     }
   };
   // Color bomb EARNED after 3 multi-kills. Edge flash + queued "3 MULTI-KILLS!"
@@ -1991,6 +1996,7 @@ async function main() {
         pressColorChange: () => { if (boosterBar._colorChangeBtn) boosterBar._colorChangeBtn._pressT = 0; },
         pressFreeze: () => { if (boosterBar._freezeBtn) boosterBar._freezeBtn._pressT = 0; },
         kill:        (lane = 0, n = 1) => gameRenderer3D.onHit(lane, gs.colors[0], 5, n),
+        multiKill:   (n = 3) => popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildMultiKillPopup(w, n), 1.6),
         carScale:    (lane = 0) => gameRenderer3D.peekCarScale(lane),
         bombTutorial: () => gameLoop._onBombEarned?.(),   // show the BOMB-earned tutorial
         btnScales:   () => ({
@@ -2075,6 +2081,92 @@ function _buildComboPopup(w) {
   body.x = w / 2;
   body.y = 32;
   grp.addChild(body);
+
+  return grp;
+}
+
+// Linear interpolate between two 0xRRGGBB colors. t=0 → a, t=1 → b.
+function _lerpHex(a, b, t) {
+  const ar = (a >> 16) & 255, ag = (a >> 8) & 255, ab = a & 255;
+  const br = (b >> 16) & 255, bg = (b >> 8) & 255, bb = b & 255;
+  const r = Math.round(ar + (br - ar) * t);
+  const g = Math.round(ag + (bg - ag) * t);
+  const bl = Math.round(ab + (bb - ab) * t);
+  return (r << 16) | (g << 8) | bl;
+}
+
+// Celebration popup for a multi-kill (2/3/4+ cars in one shot). Warm radial burst
+// behind a large, tier-colored kill count, with a spring scale-pop on entry.
+// PopupQueue anchors the returned container at y=505 and owns its fade-out, so the
+// entry animation only touches scale (Ticker-driven, matching _buildAchievementPopup).
+function _buildMultiKillPopup(w, killCount) {
+  const n = Math.max(2, killCount);
+  const grp   = new Container();
+  const inner = new Container();
+  grp.addChild(inner);
+
+  const cx = w / 2;
+  const cy = -45;   // lift the burst up from the y=505 anchor into the lower-board area
+
+  // ── Radial gradient burst: warm pale-gold center fading to deep orange edge ──
+  const burst = new Graphics();
+  const R = 138, RINGS = 18;
+  for (let i = RINGS; i >= 1; i--) {
+    const f = i / RINGS;                       // 1 at outer edge … →0 at center
+    const col = _lerpHex(0xFFF2B0, 0xE0531A, f);
+    const a   = 0.12 + (1 - f) * 0.62;         // brighter / more opaque toward center
+    burst.circle(cx, cy, R * f);
+    burst.fill({ color: col, alpha: a });
+  }
+  inner.addChild(burst);
+
+  // Tier color for the number: 2 = gold, 3 = orange, 4+ = red/pink.
+  const tierCol = n >= 4 ? 0xFF1744 : n === 3 ? 0xFF8C00 : 0xFFD700;
+
+  // Bright ring in the tier color to frame the burst.
+  const ring = new Graphics();
+  ring.circle(cx, cy, R * 0.66);
+  ring.stroke({ color: tierCol, width: 3, alpha: 0.85 });
+  inner.addChild(ring);
+
+  // ── Big tier-colored kill count (the hero) ──
+  const num = new Text({
+    text: `${n}×`,
+    style: { fontSize: 78, fontWeight: '900', fill: tierCol, align: 'center',
+      stroke: { color: 0x3a1400, width: 7 },
+      dropShadow: { color: 0x000000, blur: 12, distance: 0, alpha: 0.9 } },
+  });
+  num.anchor.set(0.5, 0.5);
+  num.x = cx; num.y = cy + 8;
+  inner.addChild(num);
+
+  // ── Label above the number ──
+  const label = new Text({
+    text: 'MULTI-KILL!',
+    style: { fontSize: 23, fontWeight: '900', fill: 0xffffff, letterSpacing: 2,
+      stroke: { color: tierCol, width: 4 },
+      dropShadow: { color: 0x000000, blur: 6, distance: 0, alpha: 0.9 } },
+  });
+  label.anchor.set(0.5, 1);
+  label.x = cx; label.y = cy - 36;
+  inner.addChild(label);
+
+  // ── Scale-pop entry: 0.7 → 1.0 with a spring overshoot over ~120ms ──
+  inner.pivot.set(cx, cy);
+  inner.position.set(cx, cy);
+  inner.scale.set(0.7);
+  const c1 = 1.70158, c3 = c1 + 1;
+  const easeOutBack = (x) => 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
+  let t = 0;
+  const DUR = 0.12;
+  const pop = (ticker) => {
+    if (grp.destroyed) { Ticker.shared.remove(pop); return; }
+    t += ticker.deltaTime / 60;
+    const p = Math.min(1, t / DUR);
+    inner.scale.set(0.7 + 0.3 * easeOutBack(p));
+    if (p >= 1) { inner.scale.set(1); Ticker.shared.remove(pop); }
+  };
+  Ticker.shared.add(pop);
 
   return grp;
 }

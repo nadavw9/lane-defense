@@ -393,7 +393,7 @@ async function main() {
         boostersUsedThisLevel.push('colorchange');
         logEvent('booster_used', { booster: 'colorchange', levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber });
         tutOrch?.completeIfActive('colorchange');
-        featureBanners.fire('colorchange_use', 'Tap a car, then pick its new color.');
+        featureBanners.fire('colorchange_use', 'Tap a car, pick a color — ALL cars of that color transform!');
       }
     },
     () => { audio.play('booster_activate'); audio.play('freeze_tinkle'); boosterState.activateFreeze(); boostersUsedThisLevel.push('freeze'); logEvent('booster_used', { booster: 'freeze', levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber }); tutOrch?.completeIfActive('freeze'); },

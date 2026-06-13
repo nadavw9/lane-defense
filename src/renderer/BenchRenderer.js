@@ -17,7 +17,9 @@ export const BENCH_SLOT_H = 50;
 // Target size for bench shooter sprites — fits within the slot.
 const BENCH_SPRITE_SIZE = 32;
 
-function idleUrl(color) { return `${import.meta.env.BASE_URL}sprites/shooters/shooter-${color.toLowerCase()}-idle.png`; }
+// Stored bombs use the powerball sprite (same art as the live bomb queue) so the
+// bench matches the game — was the old shooter-idle sprite.
+function bombUrl(color) { return `${import.meta.env.BASE_URL}sprites/designed/powerball-${color.toLowerCase()}.png`; }
 const SLOT_BG    = 0x0d0d1a;
 const SLOT_EDGE  = 0x223344;
 const HI_COLOR   = 0x44aaff;
@@ -159,7 +161,7 @@ export class BenchRenderer {
 
         // Idle sprite left-of-center, damage number right-of-center.
         const sp  = this._sprites[i];
-        const tex = Assets.get(idleUrl(shooter.color));
+        const tex = Assets.get(bombUrl(shooter.color));
         if (tex) {
           if (sp.texture !== tex) {
             sp.texture = tex;

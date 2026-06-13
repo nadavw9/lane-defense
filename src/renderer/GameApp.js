@@ -184,7 +184,10 @@ const ENV_URLS      = [
 // COLOR CHANGE has no PNG yet (uses a programmatic placeholder glyph), so it is not
 // preloaded here — adding a missing file would block the critical-sprite load gate.
 const BOOSTER_URLS  = ['freeze', 'bomb'].map(b => `${_B}sprites/designed/booster-${b}.png`);
-const ALL_SPRITE_URLS = [...CAR_URLS, ...SHOOTER_URLS, ...BUILDING_URLS, ...TREE_URLS, ...ENV_URLS, ...BOOSTER_URLS];
+// Powerball bomb sprites — the bench tray uses these (same art as the 3D queue)
+// so stored bombs match the live game instead of the old shooter-idle sprites.
+const POWERBALL_URLS = COLORS.map(c => `${_B}sprites/designed/powerball-${c}.png`);
+const ALL_SPRITE_URLS = [...CAR_URLS, ...SHOOTER_URLS, ...POWERBALL_URLS, ...BUILDING_URLS, ...TREE_URLS, ...ENV_URLS, ...BOOSTER_URLS];
 
 // Critical sprites gate spriteFlags.loaded — gameplay must have its car icons,
 // bomb/shooter sprites, and booster icons. Cosmetic sprites (buildings, trees,

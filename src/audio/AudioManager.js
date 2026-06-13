@@ -159,12 +159,12 @@ export class AudioManager {
   // Call from GameApp render ticker during gameplay.
   // Switches music track when the Director phase changes.
   updateMusicPhase(phase) {
-    if (phase === this._lastPhase) return;
-    this._lastPhase = phase;
-    const track = phase === 'CLIMAX'   ? 'gameplay_climax'
-                : phase === 'PRESSURE' ? 'gameplay_pressure'
-                :                        'gameplay_calm';
-    this.playMusic(track);
+    // Music no longer escalates with the Director phase — the old "music speeds up"
+    // behavior (calm → pressure → climax) was removed. One steady gameplay track
+    // plays throughout, regardless of phase.
+    if (this._lastPhase === 'gameplay') return;
+    this._lastPhase = 'gameplay';
+    this.playMusic('gameplay_calm');
   }
 
   // Reset stored phase so the next updateMusicPhase call always fires.

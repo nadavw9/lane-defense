@@ -1,13 +1,16 @@
 # Traffic Bomb — Session Handoff
 
 ## Current State
-- Git tip: c73b384 test: level-by-level regression suite
+- Git tip: 67716ea feat: booster redesign — COLOR CHANGE replaces SWAP, RETRY button, rescue fix, car intro visibility, pre-level Power Up screen, per-level booster reset
 - Branch: master
 - Last deploy: today, green
-- Tests: 634 passing, 1 skip, 5 todo
+- Tests: 642 passing, 1 skip, 5 todo
 - Live URL: https://nadavw9.github.io/lane-defense/
 
 ## What Was Shipped This Session (most recent first)
+- 67716ea — Booster redesign: removed SWAP entirely and replaced it with a COLOR CHANGE booster (tap a car → pick a color → all on-screen cars of that color recolor; `ColorPicker.js`). Added a free RETRY to the rescue overlay (`RescueOverlay.js`). Fixed the rescue bug where the board resumed depleted — the breach skipped the lane/column refill — via `GameLoop.prepareForRescue()`. Car-type intro cards now only show when a car of that type is visible on the road, with a minimum of 3 grid advances between cards. Added a pre-level "Power Up?" ad screen (`PreLevelScreen.js`). Booster counts now reset to 0 each level. COLOR CHANGE is earned at a per-level coin threshold; FREEZE on a 3+ car chain kill. +9 regression tests (`tests/booster-colorchange.test.js`).
+- 4b21d69 — Bomb now travels from the player's release point to the target car (ease-in lerp across the road plane + sine throw-arc) instead of dropping from above.
+- e8a4470 — Updated CLAUDE.md test count (478 → 633) and test command (`npm test` → `npx vitest run`).
 - c73b384 — Added 173-test regression suite covering level start contracts, shot resolution rules, and level goal reachability across all 40 levels.
 - c8319c3 — Compressed all 73 sprites from 46MB to 1.84MB, reducing mobile cold load from roughly 15s to 1-2s.
 - 3e48f52 — Made sprite loading resilient with `Assets.load` allSettled behavior, so one missing cosmetic sprite no longer blanks the whole game scene.
@@ -45,15 +48,19 @@
 - 168c5ca — First major visual/balance batch: city edges, bomb zone panel, car centering, color bomb visuals.
 
 ## Active Backlog
-- Real-device playtest checklist: Tier 1 floor levels L8/L12/L16/L33/L37 and bosses L10/L20/L30/L40
-- AdMob integration — verify on real device
-- Signed APK / AAB release build
+- On-device smoke test of all new features (RETRY, rescue restore, COLOR CHANGE flow, pre-level Power Up, per-level booster reset)
+- Replace COLOR CHANGE placeholder glyph with a real paintbrush sprite (drop `public/sprites/designed/booster-colorchange.png` — picked up automatically; also add it to BOOSTER_URLS preload in GameApp.js once it exists)
+- Fix ShopScreen still referencing the removed SWAP booster (sells/sets `swap`; harmless but dead now that boosters reset per level). ProgressManager also still has a `swap` field.
+- Real-device playtest: Tier 1 floor levels L8/L12/L16/L33/L37 and bosses L10/L20/L30/L40
+- Signed AAB build for Play Store
 - Play Store assets (5 screenshots, feature graphic, short + long descriptions)
+- Agent team quality audit (next session)
+- AdMob integration — verify on real device
 - Higgsfield gameplay trailer
 - feature/sprites remote branch can be deleted (same SHA as master, kept as safety bookmark)
 - Level select scaffolding buildings too visually busy at small size — simplify in-progress state
 - Sprite compression script (`scripts/compress-sprites.mjs`) — rerun if new sprites are added to `public/sprites/designed/`
-- Regression suite now at 634 tests — run before every APK build
+- Regression suite now at 642 tests — run before every APK build
 
 ## Known Design Decisions (locked — do not change without Claude Chat)
 - No HP bars on cars (VISION.md)
@@ -65,6 +72,11 @@
 - Wrong shots are free (no penalty) — skill = planning, not accuracy
 - `Assets.load` uses allSettled — cosmetic sprites degrade gracefully, critical sprites (cars/bombs/boosters) gate `spriteFlags.loaded`
 - Regression suite covers all 40 levels — do not change laneTargetCarCount, gridRows, car intro ordering, or color bomb behavior without updating regression tests
+- SWAP booster removed — replaced by the COLOR CHANGE booster (tap a car, then pick a color; all on-screen cars of that color recolor)
+- Boosters reset to 0 at the start of every level — they do NOT carry over. Starting boosters come only from in-game earns or the pre-level "Power Up?" ad screen
+- COLOR CHANGE is earned at `colorChangeThreshold` coins per level (tier defaults: L1-5 60, L6-15 80, L16-29 100, L30-40 120, bosses L10/20/30/40 150) — once per level
+- FREEZE is earned on a 3-car chain kill (a single shot that destroys 3+ cars via carry-over)
+- BOMB is earned after 3 multi-kills (a multi-kill = 2+ cars destroyed in one shot)
 
 ## Tool Workflow
 - Claude Chat: design judgment, visual approval, prompts, roadmap

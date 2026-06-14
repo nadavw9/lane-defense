@@ -1,13 +1,14 @@
 # Traffic Bomb — Session Handoff
 
 ## Current State
-- Git tip: 0e61c7b fix: empty-lane bomb drop bounces back instead of being consumed
+- Git tip: c5fdee9 test: add 62 headless tests (advance, damage-chain, booster-earn, bench, rescue, win, color-change)
 - Branch: master
 - Last deploy: today, green
-- Tests: 647 passing, 1 skip, 5 todo
+- Tests: 709 passing, 1 skip, 5 todo
 - Live URL: https://nadavw9.github.io/lane-defense/
 
 ## What Was Shipped This Session (most recent first)
+- c5fdee9 — Added 62 headless tests across 7 new files (suite now 709): `car-advance` (grid advance, breach, spawn vs spawnBudget, 3-car opening density), `damage-chain` (carry-over, multi-kills, exact-HP edge, color-bomb clear-through), `booster-earn` (COLOR CHANGE consecutive combo, FREEZE 3-kill, rainbow color bomb), `bench` (4 slots, store/retrieve vs queue, reset, unlock-gate contract), `rescue` (breach→over, rescue restore, second-breach final, RETRY), `win-condition` (budget-clear + legacy kill-goal + boss config), `color-change-booster` (activation lifecycle + recolor + new-colour combat). Real GameLoop/GameState/CombatResolver/models — no Pixi/Three/DOM. No existing tests modified.
 - 0e61c7b — Empty-lane bomb drop now bounces back instead of being silently consumed. Fix in `DragDrop._checkColorMatch`: a lane with no front car now returns false (was true), so the drop routes through the existing wrong-colour bounce-back (`onColorMismatch` + `_snapBack`, no `col.consume()`) — the queue no longer advances on a wasted drop. The empty-lane check now runs before the color-bomb short-circuit, so a color bomb on an empty lane is fixed the same way (a rainbow on a lane WITH a car is unchanged). +4 tests (`tests/dragdrop-empty-lane.test.js`). No change to GameLoop resolution or the bounce animation.
 - be61ddd — COLOR CHANGE booster tooltip reworded to "Tap a car, pick a color — ALL cars of that color transform!" (the `colorchange_use` feature banner fired when the button is tapped). Style/positioning/timing unchanged.
 - a220495 — ShopScreen now sells COLOR CHANGE instead of the removed SWAP: replaced the booster def (key/label/icon/desc + purple identity, same 20-coin price), the owned-count badge (reads live `boosterState.colorChange`), and the purchase branch. Also cleaned the dead `swap` token out of the FREEZE purchase (`setBoosters(0, …)`). ProgressManager's `swap` field left as a separate cleanup.
@@ -91,9 +92,11 @@
 - Regression suite covers all 40 levels — do not change laneTargetCarCount, gridRows, car intro ordering, or color bomb behavior without updating regression tests
 - SWAP booster removed — replaced by the COLOR CHANGE booster (tap a car, then pick a color; all on-screen cars of that color recolor)
 - Boosters reset to 0 at the start of every level — they do NOT carry over. Starting boosters come only from in-game earns or the pre-level "Power Up?" ad screen
-- COLOR CHANGE is earned at `colorChangeThreshold` coins per level (tier defaults: L1-5 60, L6-15 80, L16-29 100, L30-40 120, bosses L10/20/30/40 150) — once per level
+- COLOR CHANGE is earned by chaining TWO strictly-consecutive multi-kills (2+ cars each, on back-to-back shots) via `GameLoop._updateColorChangeCombo`. No coin threshold; can be earned multiple times per level. (Replaced the old per-level coin threshold this session — 4a707ce.)
 - FREEZE is earned on a 3-car chain kill (a single shot that destroys 3+ cars via carry-over)
-- BOMB is earned after 3 multi-kills (a multi-kill = 2+ cars destroyed in one shot)
+- BOMB booster and rainbow COLOR BOMB are TWO DISTINCT SYSTEMS — do not conflate:
+  - **BOMB booster** — earned at **10 total kills** this level (`gs.killsTowardBomb` counter; +1 per kill, charge every 10). Activates to clear a lane (AOE).
+  - **Rainbow COLOR BOMB** (a queue item, not a booster) — earned after **3 banked multi-kills** (`gs.multiKillCount`; a multi-kill = 2+ cars destroyed in one shot). When fired it clears every car of one colour (hits any colour car).
 
 ## Tool Workflow
 - Claude Chat: design judgment, visual approval, prompts, roadmap

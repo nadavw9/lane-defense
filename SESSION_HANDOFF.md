@@ -1,13 +1,14 @@
 # Traffic Bomb — Session Handoff
 
 ## Current State
-- Git tip: be61ddd feat: clearer COLOR CHANGE booster tooltip
+- Git tip: 0e61c7b fix: empty-lane bomb drop bounces back instead of being consumed
 - Branch: master
 - Last deploy: today, green
-- Tests: 643 passing, 1 skip, 5 todo
+- Tests: 647 passing, 1 skip, 5 todo
 - Live URL: https://nadavw9.github.io/lane-defense/
 
 ## What Was Shipped This Session (most recent first)
+- 0e61c7b — Empty-lane bomb drop now bounces back instead of being silently consumed. Fix in `DragDrop._checkColorMatch`: a lane with no front car now returns false (was true), so the drop routes through the existing wrong-colour bounce-back (`onColorMismatch` + `_snapBack`, no `col.consume()`) — the queue no longer advances on a wasted drop. The empty-lane check now runs before the color-bomb short-circuit, so a color bomb on an empty lane is fixed the same way (a rainbow on a lane WITH a car is unchanged). +4 tests (`tests/dragdrop-empty-lane.test.js`). No change to GameLoop resolution or the bounce animation.
 - be61ddd — COLOR CHANGE booster tooltip reworded to "Tap a car, pick a color — ALL cars of that color transform!" (the `colorchange_use` feature banner fired when the button is tapped). Style/positioning/timing unchanged.
 - a220495 — ShopScreen now sells COLOR CHANGE instead of the removed SWAP: replaced the booster def (key/label/icon/desc + purple identity, same 20-coin price), the owned-count badge (reads live `boosterState.colorChange`), and the purchase branch. Also cleaned the dead `swap` token out of the FREEZE purchase (`setBoosters(0, …)`). ProgressManager's `swap` field left as a separate cleanup.
 - 4a707ce — COLOR CHANGE earn condition reworked: removed the per-level coin threshold entirely (`colorChangeThreshold`/`colorChangeEarned`, `colorChangeThresholdForLevel` deleted). Now earns on TWO strictly-consecutive multi-kills (2+ kills, then another 2+ on the very next shot) via `GameLoop._updateColorChangeCombo` — resets on any shot killing <2 (including a wrong-colour miss), can earn multiple times per level, resets at level start. Notification: "2× COMBO! Color Change ready!". Tests updated (replaced 2 threshold tests with 3 combo tests → 643).

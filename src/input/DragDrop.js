@@ -7,11 +7,12 @@
 //   • Bench slot  — drag UP to a lane (deploy from bench)
 //
 // Color-match enforcement:
-//   • Dropping a shooter on a lane with a mismatched front car is REJECTED
+//   • Dropping a shooter on a lane with a mismatched front car — or no car at
+//     all — is REJECTED (the bomb bounces back, the queue does not advance)
 //
 // Lane highlights during drag:
-//   • GREEN  — color matches the front car (or lane is empty)
-//   • RED    — color mismatch (drop will be rejected)
+//   • GREEN  — color matches the front car (valid drop)
+//   • RED    — color mismatch OR empty lane (drop will be rejected)
 //
 // Bench highlights during drag from column:
 //   • BLUE ring on the hovered empty bench slot
@@ -495,10 +496,12 @@ export class DragDrop {
 
   _checkColorMatch(laneIdx) {
     if (!this._lanes || !this._dragShooter) return true;
-    // Rainbow color bomb matches any lane — it clears the target lane's colour.
-    if (this._dragShooter.isColorBomb) return true;
     const frontCar = this._lanes[laneIdx]?.frontCar?.();
-    if (!frontCar) return true;
+    // Empty lane — no car to hit. Reject the drop so the bomb bounces back to the
+    // queue (same path as a wrong-colour drop) instead of being silently consumed.
+    if (!frontCar) return false;
+    // Rainbow color bomb matches any lane that HAS a car.
+    if (this._dragShooter.isColorBomb) return true;
     return this._dragShooter.color === frontCar.color;
   }
 

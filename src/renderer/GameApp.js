@@ -1695,7 +1695,16 @@ async function main() {
         // 4-lane / full-width split, which mis-targeted on 3-lane boards).
         const laneIdx = dragDrop._hitTestLane(x, y);
         if (laneIdx < 0) return;
-        gameLoop.placeBombOnLane(laneIdx);
+        // Target the car the player tapped: the car in this lane whose on-road
+        // screen Y (posToScreenY — the canonical road↔Y mapping) is closest to the
+        // release Y. Previously the row was ignored and the bomb always hit the
+        // front car's row, mis-firing when tapping the upper road.
+        let target = null, bestD = Infinity;
+        for (const c of gs.lanes[laneIdx].cars) {
+          const d = Math.abs(y - posToScreenY(c.position));
+          if (d < bestD) { bestD = d; target = c; }
+        }
+        gameLoop.placeBombOnLane(laneIdx, target);
       },
       onColorChangeTap: (laneIdx) => {
         // FIX 4B: player tapped a car (lane) during COLOR CHANGE mode → use that

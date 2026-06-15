@@ -153,7 +153,7 @@ export class GameLoop {
   // Called by GameApp when the player places a bomb — kills all cars in the
   // same row as the front car of the target lane (row = grid depth, highest
   // value = closest to the breach line).
-  placeBombOnLane(laneIdx) {
+  placeBombOnLane(laneIdx, targetCar = null) {
     const gs = this._gs;
     const bs = this._boosterState;
     if (!bs?.consumeBomb()) return;
@@ -161,18 +161,21 @@ export class GameLoop {
     const lane = gs.lanes[laneIdx];
     if (!lane) return;
 
-    // Front car = highest row (closest to breach).
-    const frontCar = lane.cars.reduce((best, c) => (!best || c.row > best.row) ? c : best, null);
-    if (!frontCar) {
-      // No car in target lane — refund the bomb so the player isn't penalized.
+    // Target the car the player tapped (its row/colour); the caller resolves which
+    // car from the release Y. Fall back to the front car (highest row) when none is
+    // supplied so legacy/defensive callers still work.
+    const target = targetCar
+      ?? lane.cars.reduce((best, c) => (!best || c.row > best.row) ? c : best, null);
+    if (!target) {
+      // No car to hit — refund the bomb so the player isn't penalized.
       bs.bombs = Math.min(bs.bombsMax ?? 3, bs.bombs + 1);
       return;
     }
 
-    // Find and kill every car at the same row across all lanes that matches the front car's color.
+    // Find and kill every car at the same row across all lanes that matches the target color.
     // Strategic: player waits for same-color cars to align in a row before firing.
-    const targetRow   = frontCar.row;
-    const targetColor = frontCar.color;
+    const targetRow   = target.row;
+    const targetColor = target.color;
     for (let li = 0; li < gs.lanes.length; li++) {
       const l = gs.lanes[li];
       for (let ci = l.cars.length - 1; ci >= 0; ci--) {

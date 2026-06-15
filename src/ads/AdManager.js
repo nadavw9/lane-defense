@@ -14,9 +14,9 @@ const INTERSTITIAL_AD_ID = 'ca-app-pub-3492310681731275/5734968591';
 const INTERSTITIAL_MIN_MS = 30_000;   // minimum gap between interstitials
 // ── Booster costs (ads required to unlock) ─────────────────────────────────
 export const AD_COSTS = {
-  swap:   1,   // 1 ad → Swap booster for this level
-  freeze: 1,   // 1 ad → Freeze booster
-  bomb:   3,   // 3 ads → Bomb booster (best power-up)
+  colorchange: 1,   // 1 ad → Color Change booster for this level
+  freeze:      1,   // 1 ad → Freeze booster
+  bomb:        3,   // 3 ads → Bomb booster (best power-up)
 };
 
 // localStorage key prefix for per-level ad progress.

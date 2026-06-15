@@ -1288,10 +1288,9 @@ async function main() {
         winScreen.destroy();
         winScreen = null;
         const nextId = Math.min(40, levelId + 1);
-        transition.fadeOut(0.30, () => {
-          _startLevel(nextId);
-          transition.fadeIn(0.30, null);
-        });
+        // Offer the pre-level "Power Up?" screen before the next level — same as
+        // starting a level fresh from the map (onSelectLevel → _showPreLevel).
+        _showPreLevel(nextId);
       };
 
       // Rating prompt: show after first ever 3-star win (native integration TBD in Phase 4).

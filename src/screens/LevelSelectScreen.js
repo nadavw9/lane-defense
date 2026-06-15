@@ -260,9 +260,9 @@ export class LevelSelectScreen {
 
     // Ad booster buttons — driven by AdManager
     const boosterDefs = [
-      { key: 'swap',   label: '🔄 SWAP',  color: 0x1a4a8a, glow: 0x66aaff },
-      { key: 'freeze', label: '❄ FREEZE', color: 0x0a3a5a, glow: 0x44ccff },
-      { key: 'bomb',   label: '💣 BOMB',  color: 0x3a1a00, glow: 0xffaa00 },
+      { key: 'colorchange', label: '🎨 BRUSH',  color: 0x7a44cc, glow: 0x9a55ee },
+      { key: 'freeze',      label: '❄ FREEZE', color: 0x0a3a5a, glow: 0x44ccff },
+      { key: 'bomb',        label: '💣 BOMB',   color: 0x3a1a00, glow: 0xffaa00 },
     ];
     boosterDefs.forEach((b, idx) => {
       const bx = CX + 16 + idx * 92, by = CY + 204;

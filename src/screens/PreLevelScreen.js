@@ -12,6 +12,16 @@
 // the bundle. One tap on SKIP (or the choice button) dismisses it.
 import { Container, Graphics, Text } from 'pixi.js';
 
+// Linear interpolate between two 0xRRGGBB colors. t=0 → a, t=1 → b.
+function _lerpHex(a, b, t) {
+  const ar = (a >> 16) & 255, ag = (a >> 8) & 255, ab = a & 255;
+  const br = (b >> 16) & 255, bg = (b >> 8) & 255, bb = b & 255;
+  const r = Math.round(ar + (br - ar) * t);
+  const g = Math.round(ag + (bg - ag) * t);
+  const bl = Math.round(ab + (bb - ab) * t);
+  return (r << 16) | (g << 8) | bl;
+}
+
 export class PreLevelScreen {
   // callbacks: { onSelect(adCount, bundle), audio }
   //   bundle = { colorChange, freeze, bombs }
@@ -21,11 +31,26 @@ export class PreLevelScreen {
     this._onSelect = onSelect;
     this._audio    = audio;
     this._done     = false;
+    this._t        = 0;
+    this._jackpot  = null;   // tier-3 row container (animated shimmer)
+    this._glow     = null;   // header radial glow (animated pulse)
     this._build(appW, appH, levelLabel);
   }
 
   destroy() { this._container.destroy({ children: true }); }
-  update()  { /* static screen — no animation loop needed */ }
+
+  // Driven by GameApp's render ticker. Gentle jackpot shimmer + header-glow pulse.
+  update(dt = 1 / 60) {
+    this._t += dt;
+    if (this._jackpot) {
+      // scale 1.0 → 1.02 → 1.0 over ~1.5s
+      const s = 1.0 + 0.01 * (1 + Math.sin(this._t * (Math.PI * 2 / 1.5)));
+      this._jackpot.scale.set(s);
+    }
+    if (this._glow) {
+      this._glow.alpha = 0.55 + 0.20 * Math.sin(this._t * 2.2);
+    }
+  }
 
   _choose(adCount, bundle) {
     if (this._done) return;
@@ -41,71 +66,149 @@ export class PreLevelScreen {
     bg.eventMode = 'static';
     this._container.addChild(bg);
 
-    const panelW = 320, panelH = 420;
+    const panelW = 340, panelH = 436;
     const px = (w - panelW) / 2;
     const py = (h - panelH) / 2;
     const cx = w / 2;
 
-    const panel = new Graphics();
-    panel.roundRect(px, py, panelW, panelH, 20);
-    panel.fill({ color: 0x141430, alpha: 0.98 });
-    panel.roundRect(px, py, panelW, panelH, 20);
-    panel.stroke({ color: 0xCC66FF, width: 2, alpha: 0.6 });
-    this._container.addChild(panel);
+    // ── Panel with a vertical dark gradient (top darker → bottom lighter) ──────
+    const mask = new Graphics();
+    mask.roundRect(px, py, panelW, panelH, 20);
+    mask.fill(0xffffff);
+    this._container.addChild(mask);
 
-    let y = py + 40;
-    this._text('POWER UP?', cx, y, { fontSize: 30, fill: 0xffd54a });
-    y += 34;
-    this._text(levelLabel != null ? `Before ${levelLabel}` : 'Before you start', cx, y,
-      { fontSize: 14, fill: 0xaab4cc, fontWeight: 'normal' });
-    y += 40;
+    const grad = new Graphics();
+    const BANDS = 24;
+    for (let i = 0; i < BANDS; i++) {
+      const t = i / (BANDS - 1);
+      grad.rect(px, py + (panelH * i) / BANDS, panelW, panelH / BANDS + 1);
+      grad.fill({ color: _lerpHex(0x0d0d22, 0x1d1d44, t) });
+    }
+    grad.mask = mask;
+    this._container.addChild(grad);
 
-    // Three ad-for-boosters offers + a free skip.
-    this._offer(px + 20, y, panelW - 40, '🎨  Watch 1 Ad', '1 Color Change', 0xCC66FF,
-      () => this._choose(1, { colorChange: 1, freeze: 0, bombs: 0 }));
-    y += 70;
-    this._offer(px + 20, y, panelW - 40, '🎨❄  Watch 2 Ads', 'Color Change + Freeze', 0x44ccff,
-      () => this._choose(2, { colorChange: 1, freeze: 1, bombs: 0 }));
-    y += 70;
-    this._offer(px + 20, y, panelW - 40, '🎨❄💣  Watch 3 Ads', 'All 3 Boosters', 0xffaa00,
-      () => this._choose(3, { colorChange: 1, freeze: 1, bombs: 1 }));
-    y += 84;
+    const border = new Graphics();
+    border.roundRect(px, py, panelW, panelH, 20);
+    border.stroke({ color: 0x9a55ee, width: 2, alpha: 0.55 });
+    this._container.addChild(border);
 
-    this._button('SKIP — START NOW', cx, y, panelW - 40, 0x1a2a3a, 0x88bbdd,
+    // ── Header: warm radial glow behind a big gold "POWER UP?" ────────────────
+    const headY = py + 50;
+    this._glow = this._headerGlow(cx, headY);
+    this._text('POWER UP?', cx, headY, {
+      fontSize: 36, fill: 0xFFD700,
+      dropShadow: { color: 0x6a3000, blur: 10, distance: 0, alpha: 0.9 },
+    });
+    this._text(levelLabel != null ? `Before ${levelLabel}` : 'Before you start', cx, py + 84,
+      { fontSize: 13, fill: 0xaab4cc, fontWeight: 'normal' });
+
+    const RECOLOR = { emoji: '🎨', desc: 'Recolor' };
+    const FREEZE  = { emoji: '❄️', desc: 'Freeze' };
+    const BOMB    = { emoji: '💣', desc: 'Bomb' };
+
+    // ── Tier rows — escalating visual weight ──────────────────────────────────
+    // Tier 1: standard, blue/purple border.
+    this._tierRow(cx, py + 112, 300, 62, {
+      ads: 1, boosters: [RECOLOR], accent: 0x8a7bff, bgColor: 0x12122a, shadow: 4,
+      onClick: () => this._choose(1, { colorChange: 1, freeze: 0, bombs: 0 }),
+    });
+    // Tier 2: slightly larger, cyan border, more elevated.
+    this._tierRow(cx, py + 190, 308, 68, {
+      ads: 2, boosters: [RECOLOR, FREEZE], accent: 0x44ccff, bgColor: 0x101a2a, shadow: 5,
+      onClick: () => this._choose(2, { colorChange: 1, freeze: 1, bombs: 0 }),
+    });
+    // Tier 3: jackpot — gold border, warmer bg, BEST VALUE badge, animated shimmer.
+    this._jackpot = this._tierRow(cx, py + 274, 316, 76, {
+      ads: 3, boosters: [RECOLOR, FREEZE, BOMB], accent: 0xFFD700, bgColor: 0x241a08,
+      shadow: 7, best: true,
+      onClick: () => this._choose(3, { colorChange: 1, freeze: 1, bombs: 1 }),
+    });
+
+    // ── Skip — secondary, muted ───────────────────────────────────────────────
+    this._skip('SKIP — START NOW', cx, py + 372, 200,
       () => this._choose(0, { colorChange: 0, freeze: 0, bombs: 0 }));
   }
 
-  _offer(x, y, wdt, label, sub, accent, onClick) {
-    const h = 58;
+  // Warm radial burst (same palette as the multi-kill popup) behind the header.
+  _headerGlow(cx, cy) {
+    const g = new Graphics();
+    const R = 80, RINGS = 14;
+    for (let i = RINGS; i >= 1; i--) {
+      const f = i / RINGS;                       // 1 outer … →0 center
+      const col = _lerpHex(0xFFF2B0, 0xE0531A, f);
+      const a   = 0.05 + (1 - f) * 0.30;
+      g.circle(cx, cy, R * f);
+      g.fill({ color: col, alpha: a });
+    }
+    this._container.addChild(g);
+    return g;
+  }
+
+  // One offer row, drawn in a self-contained Container pivoted at its centre so
+  // the tier-3 jackpot can shimmer (scale) about its centre.
+  _tierRow(cx, top, rw, rh, { ads, boosters, accent, bgColor, shadow, best = false, onClick }) {
+    const row = new Container();
+    row.x = cx; row.y = top + rh / 2;
+    row.pivot.set(rw / 2, rh / 2);   // local (0..rw, 0..rh); scale about centre
+
     const card = new Graphics();
-    card.roundRect(x, y, wdt, h, 12);
-    card.fill({ color: 0x0c0c1e });
-    card.roundRect(x, y, wdt, h, 12);
-    card.stroke({ color: accent, width: 1.5, alpha: 0.6 });
-    // 4px solid bottom shadow — the design-system "press" stack.
-    card.roundRect(x, y + h - 4, wdt, 4, 12);
-    card.fill({ color: accent, alpha: 0.35 });
+    card.roundRect(0, 0, rw, rh, 12);
+    card.fill({ color: bgColor });
+    card.roundRect(0, 0, rw, rh, 12);
+    card.stroke({ color: accent, width: best ? 2.5 : 1.5, alpha: best ? 0.95 : 0.6 });
+    card.roundRect(0, rh - shadow, rw, shadow, 12);     // solid bottom = "elevation"
+    card.fill({ color: accent, alpha: best ? 0.5 : 0.35 });
     card.eventMode = 'static';
     card.cursor = 'pointer';
     card.on('pointerdown', onClick);
-    card.on('pointerover', () => { card.alpha = 0.82; });
-    card.on('pointerout',  () => { card.alpha = 1.0; });
-    this._container.addChild(card);
+    card.on('pointerover', () => { row.alpha = 0.85; });
+    card.on('pointerout',  () => { row.alpha = 1.0; });
+    row.addChild(card);
 
-    const lbl = new Text({ text: label, style: { fontSize: 17, fontWeight: 'bold', fill: 0xffffff } });
-    lbl.anchor.set(0, 0.5); lbl.x = x + 14; lbl.y = y + 20;
-    this._container.addChild(lbl);
+    const lbl = new Text({ text: `WATCH ${ads} AD${ads > 1 ? 'S' : ''}`,
+      style: { fontSize: 15, fontWeight: '900', fill: 0xffffff, letterSpacing: 0.5 } });
+    lbl.anchor.set(0, 0.5); lbl.x = 14; lbl.y = rh / 2;
+    row.addChild(lbl);
 
-    const s = new Text({ text: sub, style: { fontSize: 12, fontWeight: 'normal', fill: accent } });
-    s.anchor.set(0, 0.5); s.x = x + 14; s.y = y + 40;
-    this._container.addChild(s);
+    // Booster icons (large emoji + small description). Multi-icon groups stay
+    // right-aligned; a single icon is centred in the right portion (matching where
+    // the Tier 2/3 groups sit) instead of being pinned to the edge.
+    const itemW = 50;
+    const startX = boosters.length === 1
+      ? rw - 12 - 2 * itemW                     // centre the lone icon in the right region
+      : rw - 12 - boosters.length * itemW;      // right-aligned for 2+ icons
+    boosters.forEach((bk, i) => {
+      const icx = startX + i * itemW + itemW / 2;
+      const em = new Text({ text: bk.emoji, style: { fontSize: best ? 24 : 21 } });
+      em.anchor.set(0.5); em.x = icx; em.y = rh * 0.36;
+      row.addChild(em);
+      const d = new Text({ text: bk.desc, style: { fontSize: 9, fontWeight: 'bold', fill: accent } });
+      d.anchor.set(0.5); d.x = icx; d.y = rh * 0.74;
+      row.addChild(d);
+    });
+
+    // BEST VALUE gold pill in the top-right corner.
+    if (best) {
+      const bw = 72, bh = 17, bx = rw - bw - 4, by = -9;
+      const badge = new Graphics();
+      badge.roundRect(bx, by, bw, bh, 8);
+      badge.fill({ color: 0xFFD700 });
+      row.addChild(badge);
+      const bt = new Text({ text: 'BEST VALUE',
+        style: { fontSize: 9, fontWeight: '900', fill: 0x3a2a00, letterSpacing: 0.5 } });
+      bt.anchor.set(0.5); bt.x = bx + bw / 2; bt.y = by + bh / 2;
+      row.addChild(bt);
+    }
+
+    this._container.addChild(row);
+    return row;
   }
 
-  _button(label, cx, y, wdt, bgCol, lblCol, onClick) {
-    const h = 48;
+  _skip(label, cx, y, wdt, onClick) {
+    const hh = 38;
     const btn = new Graphics();
-    btn.roundRect(cx - wdt / 2, y, wdt, h, 12);
-    btn.fill(bgCol);
+    btn.roundRect(cx - wdt / 2, y, wdt, hh, 10);
+    btn.fill({ color: 0x14141f, alpha: 0.9 });   // muted, no bright border
     btn.eventMode = 'static';
     btn.cursor = 'pointer';
     btn.on('pointerdown', onClick);
@@ -113,8 +216,8 @@ export class PreLevelScreen {
     btn.on('pointerout',  () => { btn.alpha = 1.0; });
     this._container.addChild(btn);
 
-    const t = new Text({ text: label, style: { fontSize: 18, fontWeight: 'bold', fill: lblCol } });
-    t.anchor.set(0.5, 0.5); t.x = cx; t.y = y + h / 2;
+    const t = new Text({ text: label, style: { fontSize: 14, fontWeight: 'bold', fill: 0x7d8699 } });
+    t.anchor.set(0.5, 0.5); t.x = cx; t.y = y + hh / 2;
     this._container.addChild(t);
   }
 

@@ -1,13 +1,16 @@
 # Traffic Bomb — Session Handoff
 
 ## Current State
-- Git tip: c5fdee9 test: add 62 headless tests (advance, damage-chain, booster-earn, bench, rescue, win, color-change)
+- Git tip: 1651000 feat: polish Power Up screen (gold header, tiered rows, BEST VALUE jackpot); fix Tier 1 icon centering
 - Branch: master
 - Last deploy: today, green
 - Tests: 709 passing, 1 skip, 5 todo
 - Live URL: https://nadavw9.github.io/lane-defense/
 
 ## What Was Shipped This Session (most recent first)
+- 1651000 — Power Up (pre-level) screen visual polish: big gold "POWER UP?" header over a warm radial glow, dark gradient panel, three escalating tier rows (purple → cyan → gold), a "BEST VALUE" gold pill + gentle shimmer on the Tier 3 jackpot, large booster emoji (🎨 ❄️ 💣) each with a Recolor/Freeze/Bomb label, and a muted secondary SKIP. Tier 1's lone icon is centred in the right portion (not edge-pinned). Animation via the screen's existing `update(dt)`; trigger/dismiss flow unchanged.
+- d182d6e — Level-select popup booster SWAP → 🎨 BRUSH (`colorchange` key, purple identity, ad-count parity via `AD_COSTS`). Also: the pre-level "Power Up?" screen now appears on level-to-level progression — the win screen's NEXT LEVEL routes through `_showPreLevel` (was jumping straight to `_startLevel`), mirroring the map-tap flow.
+- cee6f15 — CANCEL label centred in the booster bar: when a booster is active, its badge text ("×N" → "CANCEL") is now centred on the card with the corner badge hidden, instead of overflowing the top-right corner.
 - c5fdee9 — Added 62 headless tests across 7 new files (suite now 709): `car-advance` (grid advance, breach, spawn vs spawnBudget, 3-car opening density), `damage-chain` (carry-over, multi-kills, exact-HP edge, color-bomb clear-through), `booster-earn` (COLOR CHANGE consecutive combo, FREEZE 3-kill, rainbow color bomb), `bench` (4 slots, store/retrieve vs queue, reset, unlock-gate contract), `rescue` (breach→over, rescue restore, second-breach final, RETRY), `win-condition` (budget-clear + legacy kill-goal + boss config), `color-change-booster` (activation lifecycle + recolor + new-colour combat). Real GameLoop/GameState/CombatResolver/models — no Pixi/Three/DOM. No existing tests modified.
 - 0e61c7b — Empty-lane bomb drop now bounces back instead of being silently consumed. Fix in `DragDrop._checkColorMatch`: a lane with no front car now returns false (was true), so the drop routes through the existing wrong-colour bounce-back (`onColorMismatch` + `_snapBack`, no `col.consume()`) — the queue no longer advances on a wasted drop. The empty-lane check now runs before the color-bomb short-circuit, so a color bomb on an empty lane is fixed the same way (a rainbow on a lane WITH a car is unchanged). +4 tests (`tests/dragdrop-empty-lane.test.js`). No change to GameLoop resolution or the bounce animation.
 - be61ddd — COLOR CHANGE booster tooltip reworded to "Tap a car, pick a color — ALL cars of that color transform!" (the `colorchange_use` feature banner fired when the button is tapped). Style/positioning/timing unchanged.
@@ -60,8 +63,8 @@
 - 168c5ca — First major visual/balance batch: city edges, bomb zone panel, car centering, color bomb visuals.
 
 ## IMMEDIATE PRIORITIES (next session, in order)
-1. On-device smoke test: COLOR CHANGE consecutive combo earn, bench storage, multi-kill popup tiers, explosion centering.
-2. Pre-level "Power Up?" screen needs more visual excitement.
+1. On-device smoke test: COLOR CHANGE consecutive-combo earn, bench storage, multi-kill popup tiers, explosion centering, Power Up screen.
+2. Lane drop hit-test investigation — bomb reported landing in the wrong lane (upper portion of lane). Static review found the column→lane path coordinate-correct (InputManager maps client→stage correctly, offset 0, lane via PositionRegistry); needs device data to confirm/repro.
 3. Agent-team quality audit (Royal Match standard).
 4. Real-device playtest checklist: L8, L12, L16, L33, L37 + bosses L10/20/30/40.
 5. Signed AAB build.

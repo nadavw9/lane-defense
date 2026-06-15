@@ -103,10 +103,14 @@ export class BoosterBar {
     const freezeLabel = `×${s.freeze}`;
     const bombLabel   = s.bombMode  ? 'CANCEL' : `×${s.bombs}`;
 
-    if (this._colorChangeBtn.label.text !== colorLabel) this._colorChangeBtn.label.text = colorLabel;
+    if (this._colorChangeBtn.label.text !== colorLabel) {
+      this._colorChangeBtn.label.text = colorLabel;
+      _positionLabel(this._colorChangeBtn, colorLabel);
+    }
     if (this._freezeBtn.label.text !== freezeLabel) this._freezeBtn.label.text = freezeLabel;
     if (this._bombBtn.label.text   !== bombLabel) {
       this._bombBtn.label.text = bombLabel;
+      _positionLabel(this._bombBtn, bombLabel);
       if (this._bombBtn.bombIcon) this._bombBtn.bombIcon.visible = !s.bombMode;
     }
 
@@ -235,6 +239,7 @@ function _addCountLabel(card, accentColor) {
   badge.x = CARD_W - 18;
   badge.y = 13;
   card.addChild(badge);
+  card.labelBadge = badge;   // hidden when the label shows the centered CANCEL action
 
   const tx = new Text({
     text: '×0',
@@ -246,6 +251,14 @@ function _addCountLabel(card, accentColor) {
   tx.y = 13;
   card.addChild(tx);
   return tx;
+}
+
+// The count badge ("×N") sits in the top-right corner; the CANCEL action label is
+// centered on the card (matching the bottom name label) with no corner badge.
+function _positionLabel(card, text) {
+  const isCancel = text === 'CANCEL';
+  card.label.x = isCancel ? CARD_W / 2 : CARD_W - 18;
+  if (card.labelBadge) card.labelBadge.visible = !isCancel;
 }
 
 function _addNameLabel(card, name, accentColor) {

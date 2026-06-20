@@ -1,13 +1,14 @@
 # Traffic Bomb — Session Handoff
 
 ## Current State
-- Git tip: 1651000 feat: polish Power Up screen (gold header, tiered rows, BEST VALUE jackpot); fix Tier 1 icon centering
+- Git tip: db10eab fix: BOMB booster targets tapped row not front car; add test
 - Branch: master
 - Last deploy: today, green
-- Tests: 709 passing, 1 skip, 5 todo
+- Tests: 710 passing, 1 skip, 5 todo
 - Live URL: https://nadavw9.github.io/lane-defense/
 
 ## What Was Shipped This Session (most recent first)
+- db10eab — BOMB booster row targeting fixed. It was always blasting the front car's row regardless of where the player tapped (worst on upper-road taps). `onBombPlaced` now picks the car nearest the release Y via `posToScreenY(car.position)` (same road↔Y coordinate system as regular drops) and passes it to `placeBombOnLane(laneIdx, targetCar)`, which uses that car's row + colour (front-car fallback when none supplied). Destroy-all-cars-in-row logic and regular drops unchanged. +1 test (`tests/bomb-booster-target.test.js`).
 - 1651000 — Power Up (pre-level) screen visual polish: big gold "POWER UP?" header over a warm radial glow, dark gradient panel, three escalating tier rows (purple → cyan → gold), a "BEST VALUE" gold pill + gentle shimmer on the Tier 3 jackpot, large booster emoji (🎨 ❄️ 💣) each with a Recolor/Freeze/Bomb label, and a muted secondary SKIP. Tier 1's lone icon is centred in the right portion (not edge-pinned). Animation via the screen's existing `update(dt)`; trigger/dismiss flow unchanged.
 - d182d6e — Level-select popup booster SWAP → 🎨 BRUSH (`colorchange` key, purple identity, ad-count parity via `AD_COSTS`). Also: the pre-level "Power Up?" screen now appears on level-to-level progression — the win screen's NEXT LEVEL routes through `_showPreLevel` (was jumping straight to `_startLevel`), mirroring the map-tap flow.
 - cee6f15 — CANCEL label centred in the booster bar: when a booster is active, its badge text ("×N" → "CANCEL") is now centred on the card with the corner badge hidden, instead of overflowing the top-right corner.
@@ -63,12 +64,12 @@
 - 168c5ca — First major visual/balance batch: city edges, bomb zone panel, car centering, color bomb visuals.
 
 ## IMMEDIATE PRIORITIES (next session, in order)
-1. On-device smoke test: COLOR CHANGE consecutive-combo earn, bench storage, multi-kill popup tiers, explosion centering, Power Up screen.
-2. Lane drop hit-test investigation — bomb reported landing in the wrong lane (upper portion of lane). Static review found the column→lane path coordinate-correct (InputManager maps client→stage correctly, offset 0, lane via PositionRegistry); needs device data to confirm/repro.
-3. Agent-team quality audit (Royal Match standard).
-4. Real-device playtest checklist: L8, L12, L16, L33, L37 + bosses L10/20/30/40.
-5. Signed AAB build.
-6. Play Store assets + submission.
+1. On-device smoke test: BOMB booster row fix, COLOR CHANGE consecutive-combo earn, bench storage, multi-kill popup tiers, explosion centering, Power Up screen.
+2. Agent-team quality audit (Royal Match standard).
+3. Real-device playtest checklist: L8, L12, L16, L33, L37 + bosses L10/20/30/40.
+4. Signed AAB build.
+5. Play Store assets + submission.
+(Resolved: the earlier "lane drop hit-test investigation" was actually the BOMB booster row bug — fixed in db10eab, matching the device reports of front-row taps hitting the row behind.)
 
 ## Active Backlog
 - Replace COLOR CHANGE placeholder glyph with a real paintbrush sprite (drop `public/sprites/designed/booster-colorchange.png` — picked up automatically; also add it to BOOSTER_URLS preload in GameApp.js once it exists)

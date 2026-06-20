@@ -1690,21 +1690,13 @@ async function main() {
       },
       onBombPlaced: (x, y) => {
         if (y < ROAD_TOP_Y || y > ROAD_BOTTOM_Y) return;
-        // Route through the same lane-count-aware hit-test as drag deploys so the
-        // bomb lands on the correct lane for 1/2/3/4-lane levels (not a fixed
-        // 4-lane / full-width split, which mis-targeted on 3-lane boards).
-        const laneIdx = dragDrop._hitTestLane(x, y);
-        if (laneIdx < 0) return;
-        // Target the car the player tapped: the car in this lane whose on-road
-        // screen Y (posToScreenY — the canonical road↔Y mapping) is closest to the
-        // release Y. Previously the row was ignored and the bomb always hit the
-        // front car's row, mis-firing when tapping the upper road.
-        let target = null, bestD = Infinity;
-        for (const c of gs.lanes[laneIdx].cars) {
-          const d = Math.abs(y - posToScreenY(c.position));
-          if (d < bestD) { bestD = d; target = c; }
-        }
-        gameLoop.placeBombOnLane(laneIdx, target);
+        // BOMB booster clears an entire ROW — every car in it, any colour, any lane.
+        // Map the tap Y → row index across the whole board using the canonical
+        // road↔Y span (inverse of posToScreenY); GameLoop validates and clears it.
+        const rows = gs.gridRows ?? 10;
+        const t    = (y - ROAD_TOP_Y) / (ROAD_BOTTOM_Y - ROAD_TOP_Y);   // 0 far … 1 breach
+        const targetRow = Math.round(t * (rows - 1));
+        gameLoop.placeBombOnRow(targetRow);
       },
       onColorChangeTap: (laneIdx) => {
         // FIX 4B: player tapped a car (lane) during COLOR CHANGE mode → use that

@@ -70,7 +70,7 @@ These cannot be changed to fit existing code. If code needs changing, change the
 5. Boss levels MUST have designed challenges, not just hpMultiplier bumps
 6. The balance simulator MUST pass for every level before it ships
 7. Wrong-color shots do NOT advance cars (already shipped — never revert)
-8. Row bomb only hits color-matching cars in the row (already shipped — never revert)
+8. BOMB booster destroys ALL cars in the targeted row, regardless of color (corrects the earlier "color-matching only" note, which was wrong)
 
 ## How To Use This Document
 Before making ANY change to:

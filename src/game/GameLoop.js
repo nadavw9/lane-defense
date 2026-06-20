@@ -11,8 +11,6 @@ import { Shooter } from '../models/Shooter.js';
 const KILLS_PER_BOMB      = 10;    // kills needed to earn one bomb charge
 const MULTI_KILLS_PER_BOMB = 3;    // multi-kills (2+ cars/shot) banked to earn a color bomb
 const BOMB_MAX_CHARGES    = 3;     // max bombs a player can hold
-const BOMB_DAMAGE         = 8;     // HP damage dealt per car in blast zone
-const BOMB_POS_RADIUS     = 22;    // blast radius in road-position units (0-100 scale)
 const BOMB_FREEZE_DURATION = 2.0;  // seconds all cars are frozen after bomb detonation
 
 const FIXED_DT = 1 / 60; // logic step in seconds
@@ -110,78 +108,28 @@ export class GameLoop {
     this._startFiring(shooter, laneIdx, -1);
   }
 
-  // Called by GameApp when the player taps the road during bomb placement mode.
-  // bombPos: 0-100 road-position units (0 = far end, 100 = breach line).
-  placeBomb(bombPos) {
+  // Called by GameApp when the player places a BOMB booster on the road. Destroys
+  // EVERY car in `targetRow` across all lanes, regardless of colour (the caller maps
+  // the tap Y → row). Refunds the charge if no car occupies that row.
+  placeBombOnRow(targetRow) {
     const gs = this._gs;
     const bs = this._boosterState;
     if (!bs?.consumeBomb()) return;
 
-    // Damage all cars within BOMB_POS_RADIUS position units of the tap.
-    const killed = [];
-    for (let li = 0; li < gs.activeLaneCount; li++) {
-      for (const car of gs.lanes[li].cars) {
-        if (Math.abs(car.position - bombPos) <= BOMB_POS_RADIUS) {
-          car.hp -= BOMB_DAMAGE;
-          if (car.hp <= 0) killed.push({ car, lane: gs.lanes[li] });
-        }
-      }
-    }
-
-    // Register kills (in order, no carry-over between bomb kills).
-    for (const { car, lane } of killed) {
-      const idx = lane.cars.indexOf(car);
-      if (idx >= 0) lane.cars.splice(idx, 1);
-      const combo = gs.recordKill(false);
-      this._onKill(combo);
-      // Bomb kills also contribute toward the next bomb charge.
-      if (bs && gs.killsTowardBomb % KILLS_PER_BOMB === 0 && bs.bombs < BOMB_MAX_CHARGES) {
-        bs.bombs++;
-        this._onBombEarned?.();
-      }
-    }
-
-    // Concussion freeze: briefly stop all cars (separate from FREEZE booster).
-    gs.bombFreezeUntil = gs.elapsed + BOMB_FREEZE_DURATION;
-
-    this._onBombExplode?.(bombPos, killed.length);
-
-    // Re-run win/refill (see placeBombOnLane) so an emptied board doesn't soft-lock.
-    this._settleAfterClear();
-  }
-
-  // Called by GameApp when the player places a bomb — kills all cars in the
-  // same row as the front car of the target lane (row = grid depth, highest
-  // value = closest to the breach line).
-  placeBombOnLane(laneIdx, targetCar = null) {
-    const gs = this._gs;
-    const bs = this._boosterState;
-    if (!bs?.consumeBomb()) return;
-
-    const lane = gs.lanes[laneIdx];
-    if (!lane) return;
-
-    // Target the car the player tapped (its row/colour); the caller resolves which
-    // car from the release Y. Fall back to the front car (highest row) when none is
-    // supplied so legacy/defensive callers still work.
-    const target = targetCar
-      ?? lane.cars.reduce((best, c) => (!best || c.row > best.row) ? c : best, null);
-    if (!target) {
-      // No car to hit — refund the bomb so the player isn't penalized.
+    // Valid only if at least one car occupies this row somewhere on the board.
+    const hasCar = gs.activeLanes.some(l => l.cars.some(c => c.row === targetRow));
+    if (!hasCar) {
+      // Nothing to hit — refund the bomb so the player isn't penalized.
       bs.bombs = Math.min(bs.bombsMax ?? 3, bs.bombs + 1);
       return;
     }
 
-    // Find and kill every car at the same row across all lanes that matches the target color.
-    // Strategic: player waits for same-color cars to align in a row before firing.
-    const targetRow   = target.row;
-    const targetColor = target.color;
+    // Destroy every car in the row, regardless of colour.
     for (let li = 0; li < gs.lanes.length; li++) {
       const l = gs.lanes[li];
       for (let ci = l.cars.length - 1; ci >= 0; ci--) {
         const car = l.cars[ci];
         if (car.row !== targetRow) continue;
-        if (car.color !== targetColor) continue;
         l.cars.splice(ci, 1);
         const combo = gs.recordKill(false);
         this._onKill(combo);

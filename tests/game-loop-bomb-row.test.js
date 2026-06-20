@@ -1,9 +1,12 @@
-// Tests for placeBombOnLane() row-bomb behaviour:
-//   - Bomb kills all cars at the same row across all lanes
-//   - Bomb on a lane with no front car refunds the bomb
-//   - Cars at different rows in other lanes are NOT killed
+// Tests for placeBombOnRow() — the BOMB booster row clear:
+//   - Destroys EVERY car in the targeted row across all lanes, regardless of colour
+//   - Cars at other rows are untouched
+//   - Clears the row even when some lanes are empty at that row
+//   - Refunds the bomb when no car occupies the target row
+//   - One onBombExplode per killed car; bomb freeze applied after the clear
+// (BOMB booster is row-clear, colour-agnostic — see VISION.md item 8.)
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { GameLoop }        from '../src/game/GameLoop.js';
 import { GameState }       from '../src/game/GameState.js';
 import { CombatResolver }  from '../src/game/CombatResolver.js';
@@ -21,126 +24,102 @@ const mockApp = { ticker: { add: vi.fn(), remove: vi.fn() } };
 function makeState({ laneCount = 4 } = {}) {
   const lanes   = Array.from({ length: laneCount }, (_, id) => new Lane({ id }));
   const columns = Array.from({ length: 4 }, (_, id) => new Column({ id }));
-  const phaseMan = new IntensityPhase(90);
   const gs = new GameState({
     lanes, columns,
     colors:    ['Red', 'Blue', 'Green', 'Yellow'],
     world:     { hpMultiplier: 1, speed: { base: 5, variance: 0.5 } },
-    duration:  90,
-    phaseMan,
-    laneCount,
-    colCount:  4,
+    duration:  90, phaseMan: new IntensityPhase(90),
+    laneCount, colCount: 4, gridRows: 11,
   });
   return { gs, lanes, columns };
 }
 
 function makeLoop(gs, overrides = {}) {
-  const rng        = new SeededRandom(1);
-  const arbiter    = new FairnessArbiter();
-  const carDir     = new CarDirector({}, rng);
-  const shooterDir = new ShooterDirector({}, rng, arbiter);
-  const loop = new GameLoop({
-    app:           mockApp,
-    gameState:     gs,
-    carDir,
-    shooterDir,
-    combatResolver: new CombatResolver(),
-    rng,
-    ...overrides,
+  const rng = new SeededRandom(1);
+  return new GameLoop({
+    app: mockApp, gameState: gs,
+    carDir:     new CarDirector({}, rng),
+    shooterDir: new ShooterDirector({}, rng, new FairnessArbiter()),
+    combatResolver: new CombatResolver(), rng, ...overrides,
   });
-  return loop;
 }
 
 function makeBombState(bombs = 1) {
   return {
-    bombs,
-    bombsMax: 3,
-    consumeBomb() {
-      if (this.bombs <= 0) return false;
-      this.bombs--;
-      return true;
-    },
+    bombs, bombsMax: 3,
+    consumeBomb() { if (this.bombs <= 0) return false; this.bombs--; return true; },
   };
 }
 
-// ── Row bomb: kills same-row cars matching the front car's color ──────────────
+function addCar(lane, color, row, hp = 5) {
+  const c = new Car({ color, hp, speed: 5 });
+  c.row = row; c.position = row * 10;
+  lane.addCar(c);
+  return c;
+}
 
-describe('placeBombOnLane() — row bomb', () => {
-  it('kills the front car in the target lane plus same-row same-color cars in other lanes', () => {
-    const { gs, lanes } = makeState({ laneCount: 3 });
+describe('placeBombOnRow() — BOMB booster row clear', () => {
+  it('destroys every car in the target row regardless of colour', () => {
+    const { gs, lanes } = makeState({ laneCount: 4 });
     const bs = makeBombState(1);
     const loop = makeLoop(gs, { boosterState: bs });
     loop._onBombExplode = vi.fn();
+    addCar(lanes[0], 'Red',  4);
+    addCar(lanes[1], 'Red',  4);
+    addCar(lanes[2], 'Blue', 4);   // different colour — STILL destroyed
+    addCar(lanes[3], 'Red',  4);
 
-    // Lane 0: front car at row 5 (Red — sets the bomb color)
-    const car0 = new Car({ color: 'Red', hp: 5, speed: 5 });
-    car0.row = 5; car0.position = 55;
-    lanes[0].addCar(car0);
-
-    // Lane 1: also Red at row 5 — color matches, should be killed
-    const car1 = new Car({ color: 'Red', hp: 5, speed: 5 });
-    car1.row = 5; car1.position = 55;
-    lanes[1].addCar(car1);
-
-    // Lane 2: also Red at row 5 — color matches, should be killed
-    const car2 = new Car({ color: 'Red', hp: 5, speed: 5 });
-    car2.row = 5; car2.position = 55;
-    lanes[2].addCar(car2);
-
-    loop.placeBombOnLane(0);
+    loop.placeBombOnRow(4);
 
     expect(lanes[0].cars).toHaveLength(0);
     expect(lanes[1].cars).toHaveLength(0);
-    expect(lanes[2].cars).toHaveLength(0);
-    expect(gs.totalKills).toBe(3);
+    expect(lanes[2].cars).toHaveLength(0);   // Blue destroyed too — no colour filter
+    expect(lanes[3].cars).toHaveLength(0);
+    expect(gs.totalKills).toBe(4);
   });
 
-  it('does NOT kill cars at different rows in other lanes', () => {
+  it('does NOT kill cars at other rows', () => {
     const { gs, lanes } = makeState({ laneCount: 3 });
     const bs = makeBombState(1);
     const loop = makeLoop(gs, { boosterState: bs });
     loop._onBombExplode = vi.fn();
+    addCar(lanes[0], 'Red',   7);
+    addCar(lanes[1], 'Blue',  3);
+    addCar(lanes[2], 'Green', 1);
 
-    // Lane 0: front car at row 7
-    const car0 = new Car({ color: 'Red', hp: 5, speed: 5 });
-    car0.row = 7; car0.position = 77;
-    lanes[0].addCar(car0);
+    loop.placeBombOnRow(7);
 
-    // Lane 1: car at row 3 — different row, should survive
-    const car1 = new Car({ color: 'Blue', hp: 5, speed: 5 });
-    car1.row = 3; car1.position = 33;
-    lanes[1].addCar(car1);
-
-    // Lane 2: car at row 1 — different row, should survive
-    const car2 = new Car({ color: 'Green', hp: 5, speed: 5 });
-    car2.row = 1; car2.position = 11;
-    lanes[2].addCar(car2);
-
-    loop.placeBombOnLane(0);
-
-    expect(lanes[0].cars).toHaveLength(0);  // front car killed
-    expect(lanes[1].cars).toHaveLength(1);  // survived (different row)
-    expect(lanes[2].cars).toHaveLength(1);  // survived (different row)
+    expect(lanes[0].cars).toHaveLength(0);   // row 7 cleared
+    expect(lanes[1].cars).toHaveLength(1);   // row 3 survives
+    expect(lanes[2].cars).toHaveLength(1);   // row 1 survives
     expect(gs.totalKills).toBe(1);
   });
 
-  it('refunds the bomb when the target lane has no car', () => {
+  it('clears the entire row even when some lanes are empty at that row', () => {
+    const { gs, lanes } = makeState({ laneCount: 4 });
+    const bs = makeBombState(1);
+    const loop = makeLoop(gs, { boosterState: bs });
+    loop._onBombExplode = vi.fn();
+    addCar(lanes[1], 'Red',  4);   // lanes 0 and 2 are empty at row 4
+    addCar(lanes[3], 'Blue', 4);
+
+    loop.placeBombOnRow(4);
+
+    expect(lanes[1].cars).toHaveLength(0);
+    expect(lanes[3].cars).toHaveLength(0);
+    expect(gs.totalKills).toBe(2);
+  });
+
+  it('refunds the bomb when no car occupies the target row', () => {
     const { gs, lanes } = makeState({ laneCount: 3 });
     const bs = makeBombState(1);
     const loop = makeLoop(gs, { boosterState: bs });
+    addCar(lanes[0], 'Red', 2);    // only row 2 has a car
 
-    // Lane 0 is empty — no front car
-    // Lane 1 has a car at row 5 — should NOT be killed (no front car in target lane)
-    const car1 = new Car({ color: 'Blue', hp: 5, speed: 5 });
-    car1.row = 5; car1.position = 55;
-    lanes[1].addCar(car1);
+    loop.placeBombOnRow(7);        // row 7 is empty
 
-    loop.placeBombOnLane(0);
-
-    // Bomb should have been refunded
-    expect(bs.bombs).toBe(1);
-    // Car in lane 1 untouched
-    expect(lanes[1].cars).toHaveLength(1);
+    expect(bs.bombs).toBe(1);              // consumed then refunded → net unchanged
+    expect(lanes[0].cars).toHaveLength(1); // nothing destroyed
     expect(gs.totalKills).toBe(0);
   });
 
@@ -150,101 +129,50 @@ describe('placeBombOnLane() — row bomb', () => {
     const onBombExplode = vi.fn();
     const loop = makeLoop(gs, { boosterState: bs });
     loop._onBombExplode = onBombExplode;
+    addCar(lanes[0], 'Red',  4);
+    addCar(lanes[1], 'Blue', 4);
 
-    const car0 = new Car({ color: 'Red', hp: 5, speed: 5 });
-    car0.row = 4; car0.position = 44;
-    lanes[0].addCar(car0);
-
-    // Same color as car0 so it matches the bomb color and gets killed
-    const car1 = new Car({ color: 'Red', hp: 5, speed: 5 });
-    car1.row = 4; car1.position = 44;
-    lanes[1].addCar(car1);
-
-    loop.placeBombOnLane(0);
+    loop.placeBombOnRow(4);
 
     expect(onBombExplode).toHaveBeenCalledTimes(2);
   });
 
-  it('bomb freeze is applied after row kill', () => {
+  it('applies the bomb freeze after the row kill', () => {
     const { gs, lanes } = makeState({ laneCount: 1 });
     const bs = makeBombState(1);
     const loop = makeLoop(gs, { boosterState: bs });
     loop._onBombExplode = vi.fn();
-
-    const car = new Car({ color: 'Red', hp: 5, speed: 5 });
-    car.row = 3; car.position = 33;
-    lanes[0].addCar(car);
-
+    addCar(lanes[0], 'Red', 3);
     gs.elapsed = 10;
-    loop.placeBombOnLane(0);
 
-    // bombFreezeUntil should be set to elapsed + BOMB_FREEZE_DURATION (2.0)
+    loop.placeBombOnRow(3);
+
     expect(gs.bombFreezeUntil).toBeGreaterThan(10);
   });
 
-  it('row bomb hits 3 red cars in same row, ignores blue car in same row', () => {
-    const { gs, lanes } = makeState({ laneCount: 4 });
-    const bs = makeBombState(1);
-    const loop = makeLoop(gs, { boosterState: bs });
-    loop._onBombExplode = vi.fn();
-
-    // Lane 0: Red front car — sets the bomb color
-    const car0 = new Car({ color: 'Red', hp: 5, speed: 5 });
-    car0.row = 4; car0.position = 44;
-    lanes[0].addCar(car0);
-
-    // Lane 1: Red same row — matches, killed
-    const car1 = new Car({ color: 'Red', hp: 5, speed: 5 });
-    car1.row = 4; car1.position = 44;
-    lanes[1].addCar(car1);
-
-    // Lane 2: Blue same row — mismatch, survives
-    const car2 = new Car({ color: 'Blue', hp: 5, speed: 5 });
-    car2.row = 4; car2.position = 44;
-    lanes[2].addCar(car2);
-
-    // Lane 3: Red same row — matches, killed
-    const car3 = new Car({ color: 'Red', hp: 5, speed: 5 });
-    car3.row = 4; car3.position = 44;
-    lanes[3].addCar(car3);
-
-    loop.placeBombOnLane(0);
-
-    expect(lanes[0].cars).toHaveLength(0);   // Red killed
-    expect(lanes[1].cars).toHaveLength(0);   // Red killed
-    expect(lanes[2].cars).toHaveLength(1);   // Blue survived
-    expect(lanes[3].cars).toHaveLength(0);   // Red killed
-    expect(gs.totalKills).toBe(3);
-  });
-
-  it('row bomb kills only the front car when no other lane has matching color in that row', () => {
+  it('registers each destroyed car toward totalKills', () => {
     const { gs, lanes } = makeState({ laneCount: 3 });
     const bs = makeBombState(1);
     const loop = makeLoop(gs, { boosterState: bs });
     loop._onBombExplode = vi.fn();
+    addCar(lanes[0], 'Red',   5);
+    addCar(lanes[1], 'Blue',  5);
+    addCar(lanes[2], 'Green', 5);
 
-    // Lane 0: Red front car — sets the bomb color
-    const car0 = new Car({ color: 'Red', hp: 5, speed: 5 });
-    car0.row = 4; car0.position = 44;
-    lanes[0].addCar(car0);
+    loop.placeBombOnRow(5);
 
-    // Lane 1: Blue same row — mismatch, survives
-    const car1 = new Car({ color: 'Blue', hp: 5, speed: 5 });
-    car1.row = 4; car1.position = 44;
-    lanes[1].addCar(car1);
+    expect(gs.totalKills).toBe(3);
+  });
 
-    // Lane 2: Green same row — mismatch, survives
-    const car2 = new Car({ color: 'Green', hp: 5, speed: 5 });
-    car2.row = 4; car2.position = 44;
-    lanes[2].addCar(car2);
+  it('consumes one bomb charge on a valid clear', () => {
+    const { gs, lanes } = makeState({ laneCount: 1 });
+    const bs = makeBombState(2);
+    const loop = makeLoop(gs, { boosterState: bs });
+    loop._onBombExplode = vi.fn();
+    addCar(lanes[0], 'Red', 4);
 
-    loop.placeBombOnLane(0);
+    loop.placeBombOnRow(4);
 
-    // Only the Red front car is killed; no refund since front car was valid
-    expect(lanes[0].cars).toHaveLength(0);
-    expect(lanes[1].cars).toHaveLength(1);
-    expect(lanes[2].cars).toHaveLength(1);
-    expect(gs.totalKills).toBe(1);
-    expect(bs.bombs).toBe(0);   // bomb was spent (1 kill still warrants the cost)
+    expect(bs.bombs).toBe(1);   // 2 → 1
   });
 });

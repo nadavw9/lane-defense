@@ -99,7 +99,7 @@
 - COLOR CHANGE is earned by chaining TWO strictly-consecutive multi-kills (2+ cars each, on back-to-back shots) via `GameLoop._updateColorChangeCombo`. No coin threshold; can be earned multiple times per level. (Replaced the old per-level coin threshold this session — 4a707ce.)
 - FREEZE is earned on a 3-car chain kill (a single shot that destroys 3+ cars via carry-over)
 - BOMB booster and rainbow COLOR BOMB are TWO DISTINCT SYSTEMS — do not conflate:
-  - **BOMB booster** — earned at **10 total kills** this level (`gs.killsTowardBomb` counter; +1 per kill, charge every 10). Activates to clear a lane (AOE).
+  - **BOMB booster** — earned at **10 total kills** this level (`gs.killsTowardBomb` counter; +1 per kill, charge every 10). Tap a road row to destroy **every car in that row, regardless of colour** (`placeBombOnRow`; refunds if the row is empty).
   - **Rainbow COLOR BOMB** (a queue item, not a booster) — earned after **3 banked multi-kills** (`gs.multiKillCount`; a multi-kill = 2+ cars destroyed in one shot). When fired it clears every car of one colour (hits any colour car).
 
 ## Tool Workflow

@@ -1,13 +1,14 @@
 # Traffic Bomb — Session Handoff
 
 ## Current State
-- Git tip: 20593cd fix: BOMB booster clears entire row (any colour) via tap Y→row; correct VISION.md
+- Git tip: e5e9710 fix: BOMB booster registers taps on frontmost row (was clamped out at breach line)
 - Branch: master
 - Last deploy: today, green
-- Tests: 710 passing, 1 skip, 5 todo (unchanged count — net swap of bomb test files)
+- Tests: 715 passing, 1 skip, 5 todo (+5 from `tests/screen-y-to-row.test.js`)
 - Live URL: https://nadavw9.github.io/lane-defense/
 
 ## What Was Shipped This Session (most recent first)
+- e5e9710 — BOMB booster Y-boundary fix: taps on the frontmost row (closest to the breach line) were being clamped out of bounds and silently dropped. The frontmost row's car centre sits ON `ROAD_BOTTOM_Y` (510), so the `y > ROAD_BOTTOM_Y` gate in both `DragDrop` (bomb mode) and `GameApp.onBombPlaced` rejected taps on its lower half. Now: the accepted Y band extends half a row past the breach line (`FRONT_ROW_TAP_MARGIN ≈ 23px`) and the new pure, headless-testable `screenYToRow(y, gridRows)` clamps the result to `[0, gridRows-1]`, so those taps map to the last row instead of overflowing. Extracted the vertical road geometry (`ROAD_TOP_Y/BOTTOM_Y/HEIGHT`, `posToScreenY`, `screenYToRow`, `FRONT_ROW_TAP_MARGIN`) into new `src/renderer/roadGeometry.js` (no Pixi import) re-exported by `LaneRenderer.js` — every existing import path unchanged. Row-clear logic, regular bomb drops, rainbow color bomb, and BRUSH all untouched. +5 tests (`tests/screen-y-to-row.test.js`).
 - 20593cd — BOMB booster redesigned: now destroys ALL cars in the targeted row regardless of colour (was incorrectly colour-filtered before). The tap Y maps to a row index across the whole board (`placeBombOnRow` + inverse-of-`posToScreenY`), so it works even when tapping empty space in a row that has cars in other lanes; an empty row refunds the charge. Deleted the dead `placeBomb(bombPos)` method. VISION.md item 8 corrected to match the intended design ("destroys ALL cars in the targeted row, regardless of color"). Rewrote `tests/game-loop-bomb-row.test.js` (8 tests) for the new behaviour and removed the now-redundant `tests/bomb-booster-target.test.js` (net test count unchanged at 710).
 - db10eab — BOMB booster row targeting fixed. It was always blasting the front car's row regardless of where the player tapped (worst on upper-road taps). `onBombPlaced` now picks the car nearest the release Y via `posToScreenY(car.position)` (same road↔Y coordinate system as regular drops) and passes it to `placeBombOnLane(laneIdx, targetCar)`, which uses that car's row + colour (front-car fallback when none supplied). Destroy-all-cars-in-row logic and regular drops unchanged. +1 test (`tests/bomb-booster-target.test.js`).
 - 1651000 — Power Up (pre-level) screen visual polish: big gold "POWER UP?" header over a warm radial glow, dark gradient panel, three escalating tier rows (purple → cyan → gold), a "BEST VALUE" gold pill + gentle shimmer on the Tier 3 jackpot, large booster emoji (🎨 ❄️ 💣) each with a Recolor/Freeze/Bomb label, and a muted secondary SKIP. Tier 1's lone icon is centred in the right portion (not edge-pinned). Animation via the screen's existing `update(dt)`; trigger/dismiss flow unchanged.
@@ -65,11 +66,12 @@
 - 168c5ca — First major visual/balance batch: city edges, bomb zone panel, car centering, color bomb visuals.
 
 ## IMMEDIATE PRIORITIES (next session, in order)
-1. On-device smoke test: BOMB booster row fix, COLOR CHANGE consecutive-combo earn, bench storage, multi-kill popup tiers, explosion centering, Power Up screen.
-2. Agent-team quality audit (Royal Match standard).
-3. Real-device playtest checklist: L8, L12, L16, L33, L37 + bosses L10/20/30/40.
-4. Signed AAB build.
-5. Play Store assets + submission.
+1. On-device smoke test: BOMB booster Y-fix (frontmost-row taps now register) + the previous fixes — BOMB booster row clear, COLOR CHANGE consecutive-combo earn, bench storage, multi-kill popup tiers, explosion centering, Power Up screen.
+2. Difficulty redesign (research phase): player reports the game doesn't feel appropriately difficult. Study reference games, build a phased plan, get approval before implementing.
+3. Agent-team quality audit (Royal Match standard).
+4. Real-device playtest checklist: L8, L12, L16, L33, L37 + bosses L10/20/30/40.
+5. Signed AAB build.
+6. Play Store assets + submission.
 (Resolved: the earlier "lane drop hit-test investigation" was actually the BOMB booster row bug — fixed in db10eab, matching the device reports of front-row taps hitting the row behind.)
 
 ## Active Backlog

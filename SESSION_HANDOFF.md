@@ -1,13 +1,14 @@
 # Traffic Bomb — Session Handoff
 
 ## Current State
-- Git tip: db10eab fix: BOMB booster targets tapped row not front car; add test
+- Git tip: 20593cd fix: BOMB booster clears entire row (any colour) via tap Y→row; correct VISION.md
 - Branch: master
 - Last deploy: today, green
-- Tests: 710 passing, 1 skip, 5 todo
+- Tests: 710 passing, 1 skip, 5 todo (unchanged count — net swap of bomb test files)
 - Live URL: https://nadavw9.github.io/lane-defense/
 
 ## What Was Shipped This Session (most recent first)
+- 20593cd — BOMB booster redesigned: now destroys ALL cars in the targeted row regardless of colour (was incorrectly colour-filtered before). The tap Y maps to a row index across the whole board (`placeBombOnRow` + inverse-of-`posToScreenY`), so it works even when tapping empty space in a row that has cars in other lanes; an empty row refunds the charge. Deleted the dead `placeBomb(bombPos)` method. VISION.md item 8 corrected to match the intended design ("destroys ALL cars in the targeted row, regardless of color"). Rewrote `tests/game-loop-bomb-row.test.js` (8 tests) for the new behaviour and removed the now-redundant `tests/bomb-booster-target.test.js` (net test count unchanged at 710).
 - db10eab — BOMB booster row targeting fixed. It was always blasting the front car's row regardless of where the player tapped (worst on upper-road taps). `onBombPlaced` now picks the car nearest the release Y via `posToScreenY(car.position)` (same road↔Y coordinate system as regular drops) and passes it to `placeBombOnLane(laneIdx, targetCar)`, which uses that car's row + colour (front-car fallback when none supplied). Destroy-all-cars-in-row logic and regular drops unchanged. +1 test (`tests/bomb-booster-target.test.js`).
 - 1651000 — Power Up (pre-level) screen visual polish: big gold "POWER UP?" header over a warm radial glow, dark gradient panel, three escalating tier rows (purple → cyan → gold), a "BEST VALUE" gold pill + gentle shimmer on the Tier 3 jackpot, large booster emoji (🎨 ❄️ 💣) each with a Recolor/Freeze/Bomb label, and a muted secondary SKIP. Tier 1's lone icon is centred in the right portion (not edge-pinned). Animation via the screen's existing `update(dt)`; trigger/dismiss flow unchanged.
 - d182d6e — Level-select popup booster SWAP → 🎨 BRUSH (`colorchange` key, purple identity, ad-count parity via `AD_COSTS`). Also: the pre-level "Power Up?" screen now appears on level-to-level progression — the win screen's NEXT LEVEL routes through `_showPreLevel` (was jumping straight to `_startLevel`), mirroring the map-tap flow.

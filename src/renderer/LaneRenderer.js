@@ -13,12 +13,19 @@
 //   posToScreenY(position)   — screen Y for game position [0-100]
 //   posToScale(position)     — visual scale factor [0.4 - 1.0]
 import { Graphics } from 'pixi.js';
+// Pure vertical road geometry lives in roadGeometry.js (no Pixi import) so it is
+// headless-testable; re-exported here to preserve existing import paths.
+import {
+  ROAD_TOP_Y, ROAD_BOTTOM_Y, ROAD_HEIGHT,
+  posToScreenY, screenYToRow, FRONT_ROW_TAP_MARGIN,
+} from './roadGeometry.js';
 
 // ── Layout constants ───────────────────────────────────────────────────────────
 
-export const ROAD_TOP_Y    = 44;   // px — HUD bottom / road top
-export const ROAD_BOTTOM_Y = 510;  // px — road bottom / shooter area boundary
-export const ROAD_HEIGHT   = ROAD_BOTTOM_Y - ROAD_TOP_Y;  // 466 px
+export {
+  ROAD_TOP_Y, ROAD_BOTTOM_Y, ROAD_HEIGHT,
+  posToScreenY, screenYToRow, FRONT_ROW_TAP_MARGIN,
+};
 
 export const ROAD_TOP_X    = 115;  // px — left edge of road at top
 export const ROAD_TOP_W    = 160;  // px — road width at top
@@ -42,10 +49,7 @@ export function laneCenterX(laneIdx, t) {  // eslint-disable-line no-unused-vars
   return (laneIdx + 0.5) * (ROAD_BOTTOM_W / LANE_COUNT);   // = 48.75 * (laneIdx + 0.5) * 2
 }
 
-// Screen Y for game-unit position [0-100].
-export function posToScreenY(position) {
-  return ROAD_TOP_Y + (position / 100) * ROAD_HEIGHT;
-}
+// posToScreenY / screenYToRow live in roadGeometry.js (re-exported above).
 
 // Car scale factor for game-unit position [0-100].
 export function posToScale(position) {

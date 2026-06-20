@@ -16,7 +16,7 @@ import { Application, Assets, Container, Graphics, Text, Ticker } from 'pixi.js'
 import { GameRenderer3D }  from '../renderer3d/GameRenderer3D.js';
 import { assetLoader }     from '../renderer3d/AssetLoader.js';
 import { LayerManager }    from './LayerManager.js';
-import { LaneRenderer, laneCenterX, posToScreenY, ROAD_TOP_Y, ROAD_BOTTOM_Y } from './LaneRenderer.js';
+import { LaneRenderer, laneCenterX, posToScreenY, ROAD_TOP_Y, ROAD_BOTTOM_Y, screenYToRow, FRONT_ROW_TAP_MARGIN } from './LaneRenderer.js';
 import { spriteFlags }     from './SpriteFlags.js';
 import { CityBackground }  from './CityBackground.js';
 import { CityEdges }       from './CityEdges.js';
@@ -1689,14 +1689,13 @@ async function main() {
         gameLoop.deploy(colIdx, laneIdx);
       },
       onBombPlaced: (x, y) => {
-        if (y < ROAD_TOP_Y || y > ROAD_BOTTOM_Y) return;
         // BOMB booster clears an entire ROW — every car in it, any colour, any lane.
-        // Map the tap Y → row index across the whole board using the canonical
-        // road↔Y span (inverse of posToScreenY); GameLoop validates and clears it.
+        // The frontmost row's car centre sits ON ROAD_BOTTOM_Y, so accept taps up
+        // to half a row below the breach line; screenYToRow clamps to the last row
+        // so those taps map to gridRows-1 rather than overflowing out of bounds.
+        if (y < ROAD_TOP_Y || y > ROAD_BOTTOM_Y + FRONT_ROW_TAP_MARGIN) return;
         const rows = gs.gridRows ?? 10;
-        const t    = (y - ROAD_TOP_Y) / (ROAD_BOTTOM_Y - ROAD_TOP_Y);   // 0 far … 1 breach
-        const targetRow = Math.round(t * (rows - 1));
-        gameLoop.placeBombOnRow(targetRow);
+        gameLoop.placeBombOnRow(screenYToRow(y, rows));
       },
       onColorChangeTap: (laneIdx) => {
         // FIX 4B: player tapped a car (lane) during COLOR CHANGE mode → use that

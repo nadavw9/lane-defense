@@ -18,7 +18,7 @@
 //   • BLUE ring on the hovered empty bench slot
 import { Graphics, Container, Text, Sprite, Texture } from 'pixi.js';
 import {
-  ROAD_TOP_Y, ROAD_BOTTOM_Y,
+  ROAD_TOP_Y, ROAD_BOTTOM_Y, FRONT_ROW_TAP_MARGIN,
   ROAD_TOP_X, ROAD_TOP_W, ROAD_BOTTOM_W,
   LANE_COUNT,
 } from '../renderer/LaneRenderer.js';
@@ -207,7 +207,9 @@ export class DragDrop {
     if (this._state !== 'idle') return;
 
     if (this._boosterState?.bombMode) {
-      if (y >= ROAD_TOP_Y && y <= ROAD_BOTTOM_Y) {
+      // Extend the lower bound half a row past the breach line so the frontmost
+      // row (its cars sit ON ROAD_BOTTOM_Y) is fully tappable; onBombPlaced clamps.
+      if (y >= ROAD_TOP_Y && y <= ROAD_BOTTOM_Y + FRONT_ROW_TAP_MARGIN) {
         this._onBombPlaced(x, y);
       }
       return;

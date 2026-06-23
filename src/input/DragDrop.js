@@ -445,6 +445,12 @@ export class DragDrop {
   }
 
   _handleBenchDrop() {
+    // Queue action: bench store (column→bench). Gate by free action flag.
+    if (this._boosterState?.queueActionUsed) {
+      this._snapBack();
+      return;
+    }
+
     if (!this._benchStorage || !this._benchRenderer) {
       this._snapBack();
       return;
@@ -466,9 +472,17 @@ export class DragDrop {
       FLY_DURATION, () => this._destroyGhost(),
     );
     this._state = 'flying';
+    // Consume the free queue action.
+    if (this._boosterState) this._boosterState.queueActionUsed = true;
   }
 
   _handleQueueReorder(srcCol, srcRow, tgtCol, tgtRow) {
+    // Queue action: reorder/swap. Gate by free action flag.
+    if (this._boosterState?.queueActionUsed) {
+      this._snapBack();
+      return;
+    }
+
     const srcColumn = this._columns[srcCol];
     const tgtColumn = this._columns[tgtCol];
 
@@ -500,9 +514,17 @@ export class DragDrop {
       SNAP_DURATION, () => this._destroyGhost(),
     );
     this._state = 'snapping';
+    // Consume the free queue action.
+    if (this._boosterState) this._boosterState.queueActionUsed = true;
   }
 
   _handleBenchToQueueReturn(benchSlotIdx, targetColIdx) {
+    // Queue action: bench→queue return. Gate by free action flag.
+    if (this._boosterState?.queueActionUsed) {
+      this._snapBack();
+      return;
+    }
+
     const targetColumn = this._columns[targetColIdx];
 
     // Check if target column is full (3 bombs max)
@@ -533,6 +555,8 @@ export class DragDrop {
       FLY_DURATION, () => this._destroyGhost(),
     );
     this._state = 'flying';
+    // Consume the free queue action.
+    if (this._boosterState) this._boosterState.queueActionUsed = true;
   }
 
   _snapBack() {

@@ -41,8 +41,8 @@ const BOB_FREQ  = (2 * Math.PI) / 1.2;  // 1.2s cycle
 const BOB_PHASE = 1.3;                  // per-lane phase offset (so they don't sync)
 
 // ── Danger aura (2C) — ramps with absolute proximity to the breach line ────────
-// gridRows is locked at 11 across all levels (SESSION_HANDOFF), so breach = row 11.
-const BREACH_ROW = 11;
+// gridRows is now configurable (was 11, now 16), so breach = gridRows - 1.
+// BREACH_ROW is now set per-instance via setGridRows().
 const DANGER_ROWS = 3;                  // aura starts 3 rows out and intensifies
 const AURA_RATE = 1 / 0.3;
 const AURA_FREQ = 1.4;                  // base pulse; scales up nearer the breach
@@ -229,11 +229,17 @@ export class Car3D {
     // setLaneCount() (mirrors Shooter3D). Without this, L1 cars rendered at the
     // 4-lane X (≈ -6) and sat off the narrow 1-lane road → invisible.
     this._laneCount = lanes.length;
+    // Breach row (gridRows - 1) for danger aura proximity calculation.
+    // Defaults to 15 (gridRows=16); set per level via setGridRows().
+    this._breachRow = 15;
     if (!_bossTorusGeo) _bossTorusGeo = new THREE.TorusGeometry(1.4, 0.06, 8, 28);
   }
 
   // Match the active lane count so laneToX centers cars on the current road.
   setLaneCount(n) { this._laneCount = n; }
+
+  // Set gridRows so breach row (gridRows-1) is correct for danger aura.
+  setGridRows(gridRows) { this._breachRow = gridRows - 1; }
 
   setTheme(theme) {
     this._emissiveBoost = theme?.emissiveBoost ?? 0;
@@ -393,7 +399,7 @@ export class Car3D {
 
           // Danger aura (2C) — intensity ramps with ABSOLUTE proximity to the
           // breach row: 3 rows out = subtle, 2 = medium, 1 = strong.
-          const rowsOut    = BREACH_ROW - car.row;   // 1 = one step from breaching
+          const rowsOut    = this._breachRow - car.row;   // 1 = one step from breaching
           const auraTarget = Math.max(0, Math.min(1, (DANGER_ROWS + 1 - rowsOut) / DANGER_ROWS));
           const blendStep  = AURA_RATE * dt;
           entry._auraBlend = auraTarget > entry._auraBlend

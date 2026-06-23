@@ -16,6 +16,12 @@ export class BoosterState {
     this.bombs    = 0;          // stored bomb charges
     this.bombsMax = 3;          // max storable bombs
     this.bombMode = false;      // true while waiting for player to tap placement
+
+    // ── Free queue action per shot ────────────────────────────────────────────
+    // When false (available): one queue-management action (reorder/bench-store/bench-return)
+    // can be used. When true (locked): all queue actions are rejected with snap-back.
+    // Reset to false on any lane fire (deploy or deployFromBench).
+    this.queueActionUsed = false;
   }
 
   // Enter COLOR CHANGE mode if charges remain (awaiting a car tap). Returns true on success.

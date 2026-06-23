@@ -24,8 +24,9 @@ export function screenYToRow(y, gridRows) {
   return Math.max(0, Math.min(gridRows - 1, row));
 }
 
-// Half a grid-row in px (standard 11-row grid → 10 intervals). A BOMB tap up to
+// Half a grid-row in px (now 16-row grid → 15 intervals). A BOMB tap up to
 // this far below the breach line still belongs to the frontmost row, whose car
 // centre sits ON ROAD_BOTTOM_Y. 23px lands at ~533, above the first bomb-queue
 // slot (ShooterRenderer TOP_Y = 544), so it never steals queue taps.
-export const FRONT_ROW_TAP_MARGIN = Math.round(ROAD_HEIGHT / 10 / 2);  // ≈ 23 px
+// Computed dynamically per gridRows; typical 16-row value ≈ 23 px.
+export const FRONT_ROW_TAP_MARGIN = Math.round(ROAD_HEIGHT / 15 / 2);  // ≈ 15 px (was 23 px @ 11 rows)

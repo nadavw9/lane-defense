@@ -343,6 +343,11 @@ export class GameRenderer3D {
     if (!this._mounted) return;
     if (this._canvas?.style.display === 'none') return;
 
+    // Sync gridRows to Car3D for danger aura proximity calculation.
+    if (gameState?.gridRows && this._cars) {
+      this._cars.setGridRows(gameState.gridRows);
+    }
+
     const isFrozen = (gameState?.boosterState?.isFrozen?.() ?? false)
       || (gameState?.lanes && elapsed < (gameState.bombFreezeUntil ?? -Infinity))
       || (gameState?.comboFreezeShots ?? 0) > 0;

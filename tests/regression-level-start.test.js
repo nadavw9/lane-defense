@@ -40,8 +40,8 @@ describe('regression: every level starts in a valid state', () => {
       expect(cfg.colors.length).toBeGreaterThanOrEqual(1);
       if (cfg.id > 3) expect(cfg.colors.length).toBeGreaterThanOrEqual(2);
 
-      // 6. Grid-rows invariant (post-rebalance).
-      expect(cfg.gridRows).toBe(11);
+      // 6. Grid-rows invariant (post-rebalance, now 16).
+      expect(cfg.gridRows).toBe(16);
 
       // 7. Lane target car count: L1 eases in with 1, bosses crowd to 3, rest 2.
       const expectedTarget = cfg.id === 1 ? 1 : BOSS_LEVELS.includes(cfg.id) ? 3 : 2;

@@ -305,7 +305,8 @@ export class ShooterRenderer {
 
   // Soft color-matched halos around merged bombs + the reorder/bench drop-target
   // highlight. Halos are stroked rings (no centre fill) so they ring the 3D bomb
-  // without occluding it. Called once per frame by GameApp after update().
+  // without occluding it. Also draws a dim overlay when queue actions are locked.
+  // Called once per frame by GameApp after update().
   drawMergeOverlay(elapsed) {
     const g = this._overlayG;
     g.clear();
@@ -326,6 +327,13 @@ export class ShooterRenderer {
         g.circle(x, y, R * 1.40); g.stroke({ color, width: 9, alpha: a * 0.45 });
         g.circle(x, y, R * 1.22); g.stroke({ color, width: 8, alpha: a * 0.75 });
         g.circle(x, y, R * 1.08); g.stroke({ color, width: 6, alpha: a });
+
+        // Merge color bomb: a small color-matched ★ micro-label above the damage
+        // number so players read it as a special "powerful same-colour" bomb.
+        if (s.mergeColorBomb) {
+          g.star(x, y - R * 1.18, 5, 5, 2.2);   // ~10px tall, subtle
+          g.fill({ color, alpha: 0.90 });
+        }
       }
     }
 
@@ -340,6 +348,13 @@ export class ShooterRenderer {
       g.circle(x, y, R * 1.12); g.fill({ color, alpha: 0.16 * tp });   // soft outer glow
       g.circle(x, y, R);        g.fill({ color, alpha: 0.20 * tp });
       g.circle(x, y, R);        g.stroke({ color, width: 4, alpha: 0.95 });
+    }
+
+    // Queue action locked visual: subtle dim overlay when free action has been used.
+    // Spans the entire queue zone (SHOOTER_AREA_Y to SHOOTER_AREA_Y + SHOOTER_AREA_H).
+    if (this._boosterState?.queueActionUsed) {
+      g.roundRect(0, SHOOTER_AREA_Y, 390, SHOOTER_AREA_H, 8);
+      g.fill({ color: 0x000000, alpha: 0.25 });
     }
   }
 

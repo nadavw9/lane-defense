@@ -302,7 +302,7 @@ export class Shooter3D {
         const damage = shooter.damage ?? 1;
 
         // Sync sprite texture + badge on color/damage change
-        const isCB = shooter.isColorBomb === true;
+        const isCB = shooter.isColorBomb === true && !shooter.mergeColorBomb;
         const isMerged = shooter.isMerged === true;
         if (slot.lastColor !== shooter.color || slot.lastDamage !== damage || slot.lastMerged !== isMerged) {
           slot.lastColor  = shooter.color;
@@ -359,8 +359,10 @@ export class Shooter3D {
 
         // Color-bomb indicator — front slot only. Driven by the shooter itself
         // now (the rainbow is a real queue item), not a global armed flag.
+        // Rainbow swirl overlay and gold-star badge apply only to earned rainbow bombs,
+        // not merge color bombs (which render as solid colour + damage number).
         if (si === 0 && slot.cbOverlayMesh) {
-          const armed = shooter.isColorBomb === true;
+          const armed = shooter.isColorBomb === true && !shooter.mergeColorBomb;
           slot.cbOverlayMesh.visible = armed;
           slot.cbSparkMesh.visible   = armed;
           if (armed) {

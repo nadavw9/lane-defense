@@ -162,6 +162,8 @@ export class GameLoop {
     gs.firingSlots[laneIdx] = { shooter, colIdx, timeLeft: SHOT_TRAVEL_TIME };
     this._onShoot(shooter.damage, laneIdx, colIdx);
     gs.triggerDilation();
+    // Reset the free queue action on any lane fire.
+    if (this._boosterState) this._boosterState.queueActionUsed = false;
   }
 
   // Phase 1.5 — the projectile has arrived. Fire the immediate impact reaction
@@ -172,7 +174,7 @@ export class GameLoop {
     const gs       = this._gs;
     const lane     = gs.lanes[laneIdx];
     const frontCar = lane?.frontCar();
-    const colorBomb = !!shooter.isColorBomb;
+    const colorBomb = !!shooter.isColorBomb && !shooter.mergeColorBomb;
 
     let dur = 0;
     if (colorBomb) {
@@ -199,12 +201,11 @@ export class GameLoop {
     const lane     = gs.lanes[laneIdx];
     const frontCar = lane.frontCar();
 
-    // Color bombs (merged or earned) can fire even if the target lane is empty,
-    // since they clear by color across all lanes (not by front car).
-    // Regular bombs need a target to resolve.
-    if (shooter.isColorBomb) {
-      const targetColor = shooter.isMerged ? shooter.color : frontCar?.color;
-      // Merged color bombs fire even without a frontCar; earned rainbows need a color.
+    // Rainbow color bombs (AoE): clear all cars of a colour across all lanes.
+    // Merge color bombs are single-target and fall through to regular resolution.
+    if (shooter.isColorBomb && !shooter.mergeColorBomb) {
+      const targetColor = frontCar?.color;
+      // Earned rainbows need a frontCar to determine target color.
       if (!targetColor) return;
       const killed = this._fireColorBomb(targetColor);
       this._onColorBomb?.(targetColor, killed);
@@ -405,6 +406,7 @@ export class GameLoop {
         column: merge.col,
         isColorBomb: true,
         isMerged: true,
+        mergeColorBomb: true,
       });
       col.shooters = [merged];
 
@@ -539,7 +541,7 @@ export class GameLoop {
   // checks for breach/win, then spawns new cars at row 0.
   _advanceGrid() {
     const gs       = this._gs;
-    const ROWS     = gs.gridRows ?? 6;
+    const ROWS     = gs.gridRows ?? 16;
     const MAX_ROW  = ROWS - 1;
 
     // FREEZE (booster or combo power shot): skip grid advance, cars don't move.
@@ -865,7 +867,7 @@ export class GameLoop {
   // Each placed car is charged against spawnBudget (if set).
   _primeInitialCars() {
     const gs   = this._gs;
-    const ROWS = gs.gridRows ?? 10;
+    const ROWS = gs.gridRows ?? 16;
 
     const spendBudget = () => {
       if (gs.spawnBudget !== null && gs.spawnBudget > 0) gs.spawnBudget--;

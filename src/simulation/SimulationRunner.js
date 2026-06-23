@@ -87,7 +87,7 @@ export class SimulationRunner {
       colCount:           levelConfig.colCount           ?? levelConfig.laneCount ?? 4,
       laneTargetCarCount: levelConfig.laneTargetCarCount ?? 1,
       spawnBudget:        levelConfig.spawnBudget        ?? Infinity,
-      gridRows:           levelConfig.gridRows           ?? 11,
+      gridRows:           levelConfig.gridRows           ?? 16,
       // Optional per-shot observer for tuning tools. Called once per fired bomb
       // with the shot's correctness (true = correct-colour, false = wrong).
       // Default null → zero behaviour change for balance runs and tests.

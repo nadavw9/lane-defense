@@ -33,7 +33,7 @@ export class GameState {
     // targetKills: kills needed to win (legacy; used when spawnBudget is null).
     // spawnBudget: total cars this level spawns; null = unlimited / legacy mode.
     // laneTargetCarCount: lanes refill up to this many cars at row 0.
-    this.gridRows           = gridRows           ?? 10;
+    this.gridRows           = gridRows           ?? 16;
     this.targetKills        = targetKills        ?? 10;
     this.spawnBudget        = spawnBudget        ?? null;
     this._initialSpawnBudget = spawnBudget       ?? null;
@@ -171,7 +171,7 @@ export class GameState {
     this.duration     += extraSeconds;
     this.recoveryUntil = this.elapsed + 5;
 
-    const ROWS = this.gridRows ?? 10;
+    const ROWS = this.gridRows ?? 16;
     const ROWS_BACK = Math.floor(ROWS * 0.4);
     for (const lane of this.lanes) {
       for (const car of lane.cars) {

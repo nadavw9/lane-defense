@@ -380,37 +380,58 @@ describe('merge-engine — level gate (unlock at L5)', () => {
   });
 });
 
-describe('merge-engine — merged color bomb fires own color', () => {
-  it('fires a merged color bomb targeting its own color (not front car color)', () => {
-    const { gs, lanes, columns } = makeState({ levelId: 5, laneCount: 1 });
+describe('merge-engine — merged color bomb is single-target', () => {
+  it('fires a merged color bomb as single-target with colour matching', () => {
+    const { gs, lanes, columns } = makeState({ levelId: 5, laneCount: 2 });
     const loop = makeLoop(gs);
     loop._onMerge = vi.fn();
     loop._onKill = vi.fn();
+    loop._onHit = vi.fn();
 
-    // Create a merged color bomb in column 0
+    // Create a merged Red color bomb with damage=7 in column 0
     columns[0].shooters = [
-      new Shooter({ color: 'Red', damage: 2, column: 0, isColorBomb: true, isMerged: true }),
+      new Shooter({ color: 'Red', damage: 7, column: 0, isColorBomb: true, isMerged: true, mergeColorBomb: true }),
     ];
 
-    // Place Blue cars in lane 0 (front car is Blue)
-    addCar(lanes[0], 'Blue', 5, 50);
-    addCar(lanes[0], 'Blue', 5, 40);
-    // Also add some Red cars that should be cleared
-    addCar(lanes[0], 'Red', 5, 30);
-    addCar(lanes[0], 'Red', 5, 20);
+    // Lane 0: front car is Red (colour match)
+    addCar(lanes[0], 'Red', 5, 5);
+    // Lane 1: front car is Blue (colour mismatch)
+    addCar(lanes[1], 'Blue', 5, 5);
 
-    // Fire the merged color bomb
+    // Fire the merged color bomb on lane 0 (colour match)
     const shooter = columns[0].shooters[0];
     loop._resolveShot(shooter, 0);
 
-    // The merged color bomb should clear RED (its own color), not Blue (front car color)
-    // Expected: 2 Red cars cleared, 2 Blue cars remain
-    const redRemaining = lanes[0].cars.filter(c => c.color === 'Red').length;
-    const blueRemaining = lanes[0].cars.filter(c => c.color === 'Blue').length;
+    // Expected: lane 0 Red car is damaged/killed, lane 1 Blue car is untouched
+    // The merged bomb is single-target, so it only affects the shot lane, not AoE
+    expect(lanes[0].cars.length).toBe(0);  // Red car killed
+    expect(lanes[1].cars.length).toBe(1);  // Blue car untouched
+    expect(gs.totalKills).toBe(1);  // 1 kill
+    expect(loop._onHit).toHaveBeenCalled();
+  });
 
-    expect(redRemaining).toBe(0);  // both Reds cleared
-    expect(blueRemaining).toBe(2);  // both Blues remain
-    expect(gs.totalKills).toBe(2);  // 2 kills (the 2 Reds)
+  it('bounces a merged color bomb on colour mismatch with no damage', () => {
+    const { gs, lanes, columns } = makeState({ levelId: 5, laneCount: 1 });
+    const loop = makeLoop(gs);
+    loop._onMiss = vi.fn();
+    loop._onKill = vi.fn();
+
+    // Create a merged Red color bomb in column 0
+    columns[0].shooters = [
+      new Shooter({ color: 'Red', damage: 7, column: 0, isColorBomb: true, isMerged: true, mergeColorBomb: true }),
+    ];
+
+    // Place a Blue car (mismatch)
+    addCar(lanes[0], 'Blue', 5, 5);
+
+    // Fire the merged color bomb on lane 0 (colour mismatch)
+    const shooter = columns[0].shooters[0];
+    loop._resolveShot(shooter, 0);
+
+    // Expected: Blue car untouched, miss callback fired, no advance
+    expect(lanes[0].cars.length).toBe(1);  // Blue car untouched
+    expect(gs.totalKills).toBe(0);  // no kills
+    expect(loop._onMiss).toHaveBeenCalled();
   });
 
   it('fires a regular (non-merged) color bomb targeting front car color', () => {

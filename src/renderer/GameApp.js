@@ -639,6 +639,7 @@ async function main() {
     boosterState.cancelColorChange();
     boosterState.freezeShots = 0;
     boosterState.cancelBomb();
+    boosterState.queueActionUsed = false;  // free queue action available at level start
     const grant = _pendingBoosterGrant ?? { colorChange: 0, freeze: 0, bombs: 0 };
     _pendingBoosterGrant = null;
     boosterState.colorChange = grant.colorChange ?? 0;

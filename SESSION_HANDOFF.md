@@ -1,13 +1,22 @@
 # Traffic Bomb — Session Handoff
 
 ## Current State
-- Git tip: e5e9710 fix: BOMB booster registers taps on frontmost row (was clamped out at breach line)
+- Git tip: e2c4eee feat: bomb merge mechanic (L5+) - vertical to color bomb, horizontal to strong bomb
 - Branch: master
 - Last deploy: today, green
-- Tests: 715 passing, 1 skip, 5 todo (+5 from `tests/screen-y-to-row.test.js`)
+- Tests: 742 passing, 1 skip, 5 todo
 - Live URL: https://nadavw9.github.io/lane-defense/
 
 ## What Was Shipped This Session (most recent first)
+- e2c4eee — Bomb merge mechanic (Phase 2 complete):
+  * Vertical merge (3 same-colour in a column) → COLOR bomb that clears that specific colour (`isColorBomb:true, isMerged:true`, damage = sum stored).
+  * Horizontal merge (3 same-colour across adjacent columns in one row; triples [0,1,2] and [1,2,3] on the 4-wide grid) → STRONG single-target bomb (`isColorBomb:false, isMerged:true`, damage = sum of 3) at the middle column front.
+  * Queue drag-to-reorder — ANY slot draggable (L5+), swap occupied / move to empty; fire stays top-only.
+  * Bench→queue return (L5+) — insert at column bottom; rejected (snap back) if the column is full.
+  * Merges are PLAYER-INITIATED only (evaluate after a reorder or bench→queue drop), NOT on director fills/fire; chain merges allowed, capped at 2 passes; vertical resolves before horizontal (horizontal re-checks `isMerged` so it can't consume a just-merged cell).
+  * Visuals: 2D color-matched halo ring behind merged bombs, 1.3× scale, particle burst + SFX on merge, merge-ready pulse (a column one swap from a vertical merge pulses 0.7→1.0). Merged bombs don't bob so the halo stays concentric. Reorder/bench drop-target shows a slot-centred green (valid) / red (full) highlight.
+  * Gated at L5 (`gs.levelId >= 5`, 1-indexed; daily = 99). L1–L4 entirely unchanged.
+  * +27 tests (`merge-engine` 14, `dragdrop-reorder` 7, `bench` +6) → 742 total. New `roadGeometry`-style pure logic kept in GameLoop; `Shooter.isMerged` + `GameState.levelId` added.
 - e5e9710 — BOMB booster Y-boundary fix: taps on the frontmost row (closest to the breach line) were being clamped out of bounds and silently dropped. The frontmost row's car centre sits ON `ROAD_BOTTOM_Y` (510), so the `y > ROAD_BOTTOM_Y` gate in both `DragDrop` (bomb mode) and `GameApp.onBombPlaced` rejected taps on its lower half. Now: the accepted Y band extends half a row past the breach line (`FRONT_ROW_TAP_MARGIN ≈ 23px`) and the new pure, headless-testable `screenYToRow(y, gridRows)` clamps the result to `[0, gridRows-1]`, so those taps map to the last row instead of overflowing. Extracted the vertical road geometry (`ROAD_TOP_Y/BOTTOM_Y/HEIGHT`, `posToScreenY`, `screenYToRow`, `FRONT_ROW_TAP_MARGIN`) into new `src/renderer/roadGeometry.js` (no Pixi import) re-exported by `LaneRenderer.js` — every existing import path unchanged. Row-clear logic, regular bomb drops, rainbow color bomb, and BRUSH all untouched. +5 tests (`tests/screen-y-to-row.test.js`).
 - 20593cd — BOMB booster redesigned: now destroys ALL cars in the targeted row regardless of colour (was incorrectly colour-filtered before). The tap Y maps to a row index across the whole board (`placeBombOnRow` + inverse-of-`posToScreenY`), so it works even when tapping empty space in a row that has cars in other lanes; an empty row refunds the charge. Deleted the dead `placeBomb(bombPos)` method. VISION.md item 8 corrected to match the intended design ("destroys ALL cars in the targeted row, regardless of color"). Rewrote `tests/game-loop-bomb-row.test.js` (8 tests) for the new behaviour and removed the now-redundant `tests/bomb-booster-target.test.js` (net test count unchanged at 710).
 - db10eab — BOMB booster row targeting fixed. It was always blasting the front car's row regardless of where the player tapped (worst on upper-road taps). `onBombPlaced` now picks the car nearest the release Y via `posToScreenY(car.position)` (same road↔Y coordinate system as regular drops) and passes it to `placeBombOnLane(laneIdx, targetCar)`, which uses that car's row + colour (front-car fallback when none supplied). Destroy-all-cars-in-row logic and regular drops unchanged. +1 test (`tests/bomb-booster-target.test.js`).
@@ -66,13 +75,13 @@
 - 168c5ca — First major visual/balance batch: city edges, bomb zone panel, car centering, color bomb visuals.
 
 ## IMMEDIATE PRIORITIES (next session, in order)
-1. On-device smoke test: BOMB booster Y-fix (frontmost-row taps now register) + the previous fixes — BOMB booster row clear, COLOR CHANGE consecutive-combo earn, bench storage, multi-kill popup tiers, explosion centering, Power Up screen.
-2. Difficulty redesign (research phase): player reports the game doesn't feel appropriately difficult. Study reference games, build a phased plan, get approval before implementing.
-3. Agent-team quality audit (Royal Match standard).
-4. Real-device playtest checklist: L8, L12, L16, L33, L37 + bosses L10/20/30/40.
-5. Signed AAB build.
-6. Play Store assets + submission.
-(Resolved: the earlier "lane drop hit-test investigation" was actually the BOMB booster row bug — fixed in db10eab, matching the device reports of front-row taps hitting the row behind.)
+1. On-device smoke test of the merge mechanic — does it feel tactical? too frequent (especially at 2-colour L5)? rewarding?
+2. Sprite upgrade: the STRONG merged bomb needs a distinct sprite (generate via ChatGPT, same powerball style) — currently it reuses the regular powerball + a number badge.
+3. Difficulty rebalance — run the sim with merge MODELLED, then tune per-level HP/budget. (Phase-1.5 found HP cuts alone don't fix the 0%-win levels; merge is the intended lever, so it must be in the sim first.)
+4. Agent team quality audit (Royal Match standard).
+5. Real-device playtest checklist: L8, L12, L16, L33, L37 + bosses L10/20/30/40.
+6. Signed AAB build.
+7. Play Store assets + submission.
 
 ## Active Backlog
 - Replace COLOR CHANGE placeholder glyph with a real paintbrush sprite (drop `public/sprites/designed/booster-colorchange.png` — picked up automatically; also add it to BOOSTER_URLS preload in GameApp.js once it exists)
@@ -88,6 +97,7 @@
 - Regression suite now at 642 tests — run before every APK build
 
 ## Known Design Decisions (locked — do not change without Claude Chat)
+- Bomb merge: 3 same-colour VERTICAL (a full column) → a COLOR bomb that clears that specific colour; 3 same-colour HORIZONTAL (adjacent columns, one row) → a STRONG single-target bomb with damage = sum of the 3. Unlocks at L5 (L1–L4 unchanged). Bench bombs are EXCLUDED from detection. Merges are player-initiated (reorder / bench→queue), never on director fills. Chain merges allowed, max 2 passes; vertical resolves before horizontal. "+" shape deferred to v1.1.
 - No HP bars on cars (VISION.md)
 - Color bomb earned via 5 consecutive correct shots
 - laneTargetCarCount: 1 (L1) / 3 (bosses L10/20/30/40) / 2 (all others)

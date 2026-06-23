@@ -149,6 +149,14 @@ export class ShooterRenderer {
     this._columnsGroup = new Container();
     this._layer.addChild(this._columnsGroup);
 
+    // Merge overlays (2D), drawn each frame ON the layer (NOT inside _columnsGroup,
+    // which GameApp hides during 3D gameplay — container.visible = false):
+    //   • merged-bomb halos — soft color-matched rings around merged bombs
+    //   • reorder / bench-return target highlight — bright green/red on the column
+    this._overlayG = new Graphics();
+    this._layer.addChild(this._overlayG);   // added after _columnsGroup → renders on top
+    this._reorderTarget = null;   // { col, row, valid } during a reorder/bench drag
+
     // Per-column objects
     this._bgGraphics    = [];   // panel bg + swap highlight
     this._topContainers = [];   // Container at (cx, topY) — scale-animated
@@ -278,8 +286,61 @@ export class ShooterRenderer {
     return { x: getColumnScreenX(colIdx), y: getColumnScreenY() };
   }
 
+  // Get the screen center of a queue slot at (colIdx, rowIdx)
+  // rowIdx: 0=top (TOP_Y), 1=second (SECOND_Y), 2=third (THIRD_Y)
+  getQueueSlotCenter(colIdx, rowIdx) {
+    const x = getColumnScreenX(colIdx);
+    const yOffsets = [TOP_Y, SECOND_Y, THIRD_Y];
+    const y = yOffsets[rowIdx] ?? TOP_Y;
+    return { x, y };
+  }
+
   getStashCenter(colIdx) {
     return { x: getColumnScreenX(colIdx), y: STASH_Y };
+  }
+
+  // Reorder / bench-return drop-target highlight, set by DragDrop during a drag.
+  setReorderTarget(col, row, valid) { this._reorderTarget = { col, row, valid }; }
+  clearReorderTarget() { this._reorderTarget = null; }
+
+  // Soft color-matched halos around merged bombs + the reorder/bench drop-target
+  // highlight. Halos are stroked rings (no centre fill) so they ring the 3D bomb
+  // without occluding it. Called once per frame by GameApp after update().
+  drawMergeOverlay(elapsed) {
+    const g = this._overlayG;
+    g.clear();
+
+    const slotR = [TOP_RADIUS, SECOND_RADIUS, THIRD_RADIUS];
+    const pulse = 0.5 + 0.5 * Math.sin(elapsed * 3);   // 0..1
+
+    for (let c = 0; c < COL_COUNT; c++) {
+      const col = this._columns[c];
+      if (!col?.shooters) continue;
+      for (let r = 0; r < col.shooters.length && r < 3; r++) {
+        const s = col.shooters[r];
+        if (!s?.isMerged) continue;
+        const { x, y } = this.getQueueSlotCenter(c, r);
+        const R     = slotR[r] ?? TOP_RADIUS;
+        const color = COLOR_MAP[s.color] ?? 0xffffff;
+        const a     = 0.30 + 0.14 * pulse;             // ~0.30..0.44
+        g.circle(x, y, R * 1.40); g.stroke({ color, width: 9, alpha: a * 0.45 });
+        g.circle(x, y, R * 1.22); g.stroke({ color, width: 8, alpha: a * 0.75 });
+        g.circle(x, y, R * 1.08); g.stroke({ color, width: 6, alpha: a });
+      }
+    }
+
+    const t = this._reorderTarget;
+    if (t) {
+      // Highlight centred ON THE SLOT (concentric circles at the slot centre), not
+      // the whole column. Sized so the ring reads clearly around the lifted ghost.
+      const { x, y } = this.getQueueSlotCenter(t.col, t.row);
+      const R     = (slotR[t.row] ?? TOP_RADIUS) * 1.45;
+      const color = t.valid ? 0x44ff88 : 0xff4444;
+      const tp    = 0.55 + 0.45 * pulse;
+      g.circle(x, y, R * 1.12); g.fill({ color, alpha: 0.16 * tp });   // soft outer glow
+      g.circle(x, y, R);        g.fill({ color, alpha: 0.20 * tp });
+      g.circle(x, y, R);        g.stroke({ color, width: 4, alpha: 0.95 });
+    }
   }
 
   // Call with true during gameplay so Shooter3D handles the visuals.

@@ -11,7 +11,7 @@ const FIRE_DURATION_BY_DAMAGE = {
 };
 
 export class Shooter {
-  constructor({ color, damage, column, isColorBomb = false }) {
+  constructor({ color, damage, column, isColorBomb = false, isMerged = false }) {
     this.color = color;
     this.damage = damage;
     this.column = column;
@@ -20,5 +20,8 @@ export class Shooter {
     // like a normal bomb but clears every car matching the target lane's front
     // car colour. Carries no damage number (badge shows a star instead).
     this.isColorBomb = isColorBomb;
+    // isMerged: true when this shooter is the result of a vertical or horizontal merge.
+    // Merged color bombs target their own color instead of the front car's color.
+    this.isMerged = isMerged;
   }
 }

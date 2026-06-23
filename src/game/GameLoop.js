@@ -61,6 +61,7 @@ export class GameLoop {
     this._onComboFreeze  = null;  // set by GameApp; () → visual FX
     this._onColorBombEarned = null;  // set by GameApp; (colIdx) → color-bomb earned flash + intro card + SFX
     this._onMultiKill       = null;  // set by GameApp; (count, needed) → "MULTI-KILL n/3" notification
+    this._onMerge        = null;  // set by GameApp; (descriptor) → merge animation/SFX
     this.onNewCarType    = null;  // set by GameApp; fires with typeKey when a car is added to a lane
 
     // Base level duration — used to reset gs.duration on restart.
@@ -198,24 +199,24 @@ export class GameLoop {
     const lane     = gs.lanes[laneIdx];
     const frontCar = lane.frontCar();
 
-    // Nothing to shoot at — slot clears silently.
-    if (!frontCar) return;
-
-    const carGameX       = frontCar.position;
-    const isCorrectColor = shooter.color === frontCar.color;
-
-    // Rainbow color bomb (earned via correct-shot streak): destroy every car
-    // matching the TARGET lane's front-car colour, across all lanes. The player
-    // aims it by choosing which lane to drop it on. It does not affect the streak
-    // (already reset on earn), and it advances the grid EXACTLY ONCE — like any
-    // single shot: matching cars are destroyed, then all survivors step forward.
+    // Color bombs (merged or earned) can fire even if the target lane is empty,
+    // since they clear by color across all lanes (not by front car).
+    // Regular bombs need a target to resolve.
     if (shooter.isColorBomb) {
-      const targetColor = frontCar.color;
+      const targetColor = shooter.isMerged ? shooter.color : frontCar?.color;
+      // Merged color bombs fire even without a frontCar; earned rainbows need a color.
+      if (!targetColor) return;
       const killed = this._fireColorBomb(targetColor);
       this._onColorBomb?.(targetColor, killed);
       if (!gs.isOver) this._advanceGrid();   // one advance total, not per kill
       return;
     }
+
+    // Nothing to shoot at — slot clears silently.
+    if (!frontCar) return;
+
+    const carGameX       = frontCar.position;
+    const isCorrectColor = shooter.color === frontCar.color;
 
     // Freeze power shot: normal hit resolves, then all cars skip the next grid advance.
     const isFreezeShot = gs.freezeArmed;
@@ -308,6 +309,165 @@ export class GameLoop {
     this._onColorBombEarned?.(bestCol);
   }
 
+  // Evaluate and apply bomb merges. Unlocked at level 5 (levels 0-4 are gates).
+  // Merge rules:
+  //   VERTICAL: 3 shooters of the same color in one column → single color bomb (isMerged)
+  //   HORIZONTAL: 3 adjacent columns at the same row with same color → strong bomb at middle column
+  // Applies up to 2 passes (to allow chain merges but cap cascades).
+  // Returns array of applied merge descriptors for renderer animation.
+  evaluateMerges() {
+    const gs = this._gs;
+    // Gate: merges unlock at level 5 (levelId is 1-indexed; daily uses a high id).
+    if (gs.levelId < 5) return [];
+    return this._evaluateMerges();
+  }
+
+  _evaluateMerges() {
+    const gs = this._gs;
+    const activeColCount = gs.activeColCount;
+    const applied = [];
+    let passes = 0;
+
+    while (passes < 2) {
+      const merges = this._findMerges(activeColCount);
+      if (merges.length === 0) break;
+
+      for (const merge of merges) {
+        const descriptor = this._applyMerge(merge);
+        if (descriptor) applied.push(descriptor);
+      }
+
+      passes++;
+    }
+
+    // Fire callback for each merge so renderer can animate.
+    for (const desc of applied) {
+      this._onMerge?.(desc);
+    }
+
+    return applied;
+  }
+
+  // Find all eligible merges: VERTICAL first, then HORIZONTAL.
+  _findMerges(activeColCount) {
+    const gs = this._gs;
+    const merges = [];
+
+    // VERTICAL: each column with 3 same-color shooters (none already merged)
+    for (let c = 0; c < activeColCount; c++) {
+      const col = gs.columns[c];
+      if (col.shooters.length === 3 &&
+          col.shooters[0].color === col.shooters[1].color &&
+          col.shooters[1].color === col.shooters[2].color &&
+          !col.shooters[0].isMerged &&
+          !col.shooters[1].isMerged &&
+          !col.shooters[2].isMerged) {
+        merges.push({ type: 'vertical', col: c });
+      }
+    }
+
+    // HORIZONTAL: for each row (0-2), check runs of 3 adjacent columns
+    for (let row = 0; row <= 2; row++) {
+      for (let startCol = 0; startCol <= activeColCount - 3; startCol++) {
+        const cols = [gs.columns[startCol], gs.columns[startCol + 1], gs.columns[startCol + 2]];
+        // Check if all 3 columns have a shooter at this row index
+        const shooters = [cols[0].shooters[row], cols[1].shooters[row], cols[2].shooters[row]];
+        // All 3 must exist (not undefined/null)
+        if (shooters[0] && shooters[1] && shooters[2]) {
+          // Check if same color and none are already merged
+          if (shooters[0].color === shooters[1].color &&
+              shooters[1].color === shooters[2].color &&
+              !shooters[0].isMerged &&
+              !shooters[1].isMerged &&
+              !shooters[2].isMerged) {
+            merges.push({ type: 'horizontal', row, startCol });
+          }
+        }
+      }
+    }
+
+    return merges;
+  }
+
+  // Apply a single merge and return a descriptor for animation.
+  _applyMerge(merge) {
+    const gs = this._gs;
+
+    if (merge.type === 'vertical') {
+      const col = gs.columns[merge.col];
+      const shooters = col.shooters;
+      const color = shooters[0].color;
+      const damage = shooters[0].damage + shooters[1].damage + shooters[2].damage;
+
+      // Replace the entire column with one merged color bomb
+      const merged = new Shooter({
+        color, damage,
+        column: merge.col,
+        isColorBomb: true,
+        isMerged: true,
+      });
+      col.shooters = [merged];
+
+      const descriptor = {
+        type: 'vertical',
+        column: merge.col,
+        color,
+        damage,
+        position: 0,  // front of column
+      };
+      return descriptor;
+    }
+
+    if (merge.type === 'horizontal') {
+      const { row, startCol } = merge;
+      // Guard: verify all 3 shooters still exist (merges can modify column contents)
+      const s0 = gs.columns[startCol].shooters[row];
+      const s1 = gs.columns[startCol + 1].shooters[row];
+      const s2 = gs.columns[startCol + 2].shooters[row];
+      if (!s0 || !s1 || !s2) return null;  // merge is no longer valid
+      // A vertical merge applied earlier in this same pass may have replaced one of
+      // these cells with a merged bomb; never consume an already-merged bomb (it
+      // would double-merge and exceed the 3-bomb damage cap).
+      if (s0.isMerged || s1.isMerged || s2.isMerged) return null;
+
+      const color = s0.color;
+      const damage = s0.damage + s1.damage + s2.damage;
+      const midCol = startCol + 1;
+
+      // Remove the bomb at row from each of the 3 columns (splice backward to preserve indices)
+      for (let i = 2; i >= 0; i--) {
+        gs.columns[startCol + i].shooters.splice(row, 1);
+      }
+
+      // Insert merged bomb at the front of the middle column
+      const merged = new Shooter({
+        color, damage,
+        column: midCol,
+        isColorBomb: false,  // strong single-target, not a color bomb
+        isMerged: true,
+      });
+      gs.columns[midCol].shooters.unshift(merged);
+
+      // Ensure middle column doesn't exceed capacity (should be ≤3 after one removed + one added)
+      if (gs.columns[midCol].shooters.length > 3) {
+        gs.columns[midCol].shooters.length = 3;
+      }
+
+      const descriptor = {
+        type: 'horizontal',
+        row,
+        startCol,
+        midCol,
+        color,
+        damage,
+        position: 0,  // front of middle column
+      };
+      return descriptor;
+    }
+
+    return null;
+  }
+
   // Color bomb power shot: instantly remove all cars matching `color` from every lane.
   // Kills are registered (combo, coins, bomb charge) but the grid does NOT advance.
   // Returns the list of destroyed cars as { laneIdx, position } so the renderer
@@ -330,6 +490,7 @@ export class GameLoop {
         }
       }
     }
+    // console.log('[_fireColorBomb] killed:', killed.length);
     return killed;
   }
 

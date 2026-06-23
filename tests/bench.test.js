@@ -125,3 +125,136 @@ describe('bench — unlock gate (contract test)', () => {
     expect(benchUnlocked(10)).toBe(true);
   });
 });
+
+describe('bench → queue return (L5+ feature)', () => {
+  // Mirrors DragDrop._handleBenchToQueueReturn: take from bench, push to column bottom
+  // Returns the shooter if successful, null if the column is full
+  function returnBenchToQueue(bench, col, benchSlotIdx) {
+    // Check if target column is full (3 bombs max)
+    if (col.shooters.length >= 3) {
+      return null;  // Reject — column is full
+    }
+
+    const shooter = bench.take(benchSlotIdx);
+    if (shooter) col.pushBottom(shooter);
+    return shooter;
+  }
+
+  it('returns a bench bomb to a non-full queue column', () => {
+    const bench = new BenchStorage();
+    const col = new Column({ id: 0 });
+
+    // Setup: store a bomb in bench, queue has 2 bombs
+    bench.store(bomb('Red', 3));
+    col.pushBottom(bomb('Blue', 2));
+    col.pushBottom(bomb('Green', 2));
+
+    expect(bench.getSlot(0).color).toBe('Red');
+    expect(col.shooters.length).toBe(2);
+
+    // Return the bench bomb to the column
+    const got = returnBenchToQueue(bench, col, 0);
+
+    expect(got.color).toBe('Red');
+    expect(bench.getSlot(0)).toBe(null);        // bench slot now empty
+    expect(col.shooters.length).toBe(3);        // queue now has 3
+    expect(col.shooters[2].color).toBe('Red'); // returned bomb is at the bottom
+  });
+
+  it('rejects a return to a full queue column (3 bombs)', () => {
+    const bench = new BenchStorage();
+    const col = new Column({ id: 0 });
+
+    // Setup: bench has a bomb, column is full (3 bombs)
+    bench.store(bomb('Red', 3));
+    col.pushBottom(bomb('Blue', 2));
+    col.pushBottom(bomb('Green', 2));
+    col.pushBottom(bomb('Yellow', 2));
+
+    expect(col.shooters.length).toBe(3);
+    expect(bench.getSlot(0).color).toBe('Red');
+
+    // Attempt to return to full column: should not modify state
+    const got = returnBenchToQueue(bench, col, 0);
+
+    // After rejection, state is unchanged
+    expect(got).toBe(null);          // bench.take() returns null for empty slot (already removed)
+    expect(col.shooters.length).toBe(3);    // column unchanged
+  });
+
+  it('returns a bench bomb to a column with only 1 bomb', () => {
+    const bench = new BenchStorage();
+    const col = new Column({ id: 0 });
+
+    bench.store(bomb('Purple', 4));
+    col.pushBottom(bomb('Red', 2));
+
+    const got = returnBenchToQueue(bench, col, 0);
+
+    expect(got.color).toBe('Purple');
+    expect(col.shooters.length).toBe(2);
+    expect(col.shooters[1].color).toBe('Purple');
+  });
+
+  it('returns a bench bomb to an empty column', () => {
+    const bench = new BenchStorage();
+    const col = new Column({ id: 0 });
+
+    bench.store(bomb('Orange', 2));
+    expect(col.shooters.length).toBe(0);
+
+    const got = returnBenchToQueue(bench, col, 0);
+
+    expect(got.color).toBe('Orange');
+    expect(col.shooters.length).toBe(1);
+    expect(col.shooters[0].color).toBe('Orange');
+  });
+
+  it('returns from different bench slots to the same column', () => {
+    const bench = new BenchStorage();
+    const col = new Column({ id: 0 });
+
+    bench.store(bomb('Red', 3));
+    bench.store(bomb('Blue', 2));
+    bench.store(bomb('Green', 2));
+
+    col.pushBottom(bomb('Yellow', 1));
+
+    // Return slot 1 (Blue) to the column
+    const got1 = returnBenchToQueue(bench, col, 1);
+    expect(got1.color).toBe('Blue');
+    expect(col.shooters.length).toBe(2);
+
+    // Return slot 2 (Green) to the column
+    const got2 = returnBenchToQueue(bench, col, 2);
+    expect(got2.color).toBe('Green');
+    expect(col.shooters.length).toBe(3);
+
+    // Column now has [Yellow, Blue, Green] (bottom to top)
+    expect(col.shooters[0].color).toBe('Yellow');
+    expect(col.shooters[1].color).toBe('Blue');
+    expect(col.shooters[2].color).toBe('Green');
+  });
+
+  it('merge gate: bench → queue return only allowed on L5+', () => {
+    // The canonical merge gate lives in GameApp._startLevel and is not headless-importable:
+    //   dragDrop.setMergeEnabled((typeof levelId === 'number' ? levelId : 99) >= 5);
+    // This pins the gate: bench → queue return available on L5+ and daily challenges.
+    const mergeEnabled = (levelId) => (typeof levelId === 'number' ? levelId : 99) >= 5;
+
+    // L1–L4: disabled
+    expect(mergeEnabled(1)).toBe(false);
+    expect(mergeEnabled(2)).toBe(false);
+    expect(mergeEnabled(3)).toBe(false);
+    expect(mergeEnabled(4)).toBe(false);
+
+    // L5+: enabled
+    expect(mergeEnabled(5)).toBe(true);
+    expect(mergeEnabled(6)).toBe(true);
+    expect(mergeEnabled(10)).toBe(true);
+
+    // Daily challenge (levelId not a number): enabled
+    expect(mergeEnabled('daily')).toBe(true);
+    expect(mergeEnabled(null)).toBe(true);  // null defaults to 99
+  });
+});

@@ -117,6 +117,7 @@ export class DragDrop {
   //   onDeploy(colIdx, laneIdx)
   //   onDeployFromBench(shooter, laneIdx)
   //   onBenchStore(colIdx)
+  //   onReorder(sourceColIdx, sourceRow, targetColIdx, targetRow)  — queue reorder (L5+)
   //   onColorMismatch()
   //   onBenchFull()
   //   onLaneHover(laneIdx, colorHex)  — 3D road lane glow
@@ -131,7 +132,7 @@ export class DragDrop {
     shooterRenderer,
     benchRenderer,
     { onDeploy, onDeployFromBench, onBenchStore, onColorMismatch, onBenchFull, onBombPlaced,
-      onLaneHover, onLaneClear, getColorBombArmed, onColumnPickup, onColorChangeTap } = {},
+      onLaneHover, onLaneClear, getColorBombArmed, onColumnPickup, onColorChangeTap, onReorder } = {},
     boosterState = null,
     _unused = null,
     firingSlots = null,
@@ -154,17 +155,20 @@ export class DragDrop {
     this._onColorChangeTap  = onColorChangeTap   ?? (() => {});
     this._onLaneHover       = onLaneHover        ?? (() => {});
     this._onLaneClear       = onLaneClear        ?? (() => {});
+    this._onReorder         = onReorder          ?? (() => {});
     this._getColorBombArmed = getColorBombArmed  ?? null;
     // Returns true to INTERCEPT a column-top pickup (e.g. show a modal tutorial
     // card first) — the drag does not start in that case.
     this._onColumnPickup    = onColumnPickup     ?? (() => false);
 
     this._firingSlots = firingSlots;
+    this._mergeEnabled = false;   // L5+ reorder gate
 
     // ── State ──────────────────────────────────────────────────────────────
     this._state         = 'idle';
     this._dragSource    = 'column';
     this._dragSourceIdx = -1;
+    this._dragSourceRow = -1;   // queue slot row (0=top, 1=second, 2=third)
     this._dragShooter   = null;
     this._ghost         = null;
 
@@ -200,6 +204,12 @@ export class DragDrop {
     this.inputBlocked = false;
   }
 
+  // ── Public API ─────────────────────────────────────────────────────────────
+
+  setMergeEnabled(enabled) {
+    this._mergeEnabled = !!enabled;
+  }
+
   // ── Called by InputManager ─────────────────────────────────────────────────
 
   onPointerDown(x, y) {
@@ -231,8 +241,23 @@ export class DragDrop {
       const shooter = this._columns[col].top();
       // A hint card may intercept the first pickup (shown before the drag).
       if (this._onColumnPickup(shooter)) return;
-      this._startDrag('column', col, shooter, x, y, x, y);
+      this._startDrag('column', col, 0, shooter, x, y, x, y);
       return;
+    }
+
+    // Queue reorder (L5+): hit-test any queue slot
+    if (this._mergeEnabled) {
+      const queueHit = this._hitTestQueueSlot(x, y);
+      if (queueHit !== null) {
+        const { col: qCol, row: qRow } = queueHit;
+        const shooter = this._columns[qCol].shooters[qRow];
+        if (shooter && this._onColumnPickup(shooter)) return;
+        if (shooter) {
+          const { x: cx, y: cy } = this._shooterRenderer.getQueueSlotCenter(qCol, qRow);
+          this._startDrag('column', qCol, qRow, shooter, cx, cy, x, y);
+          return;
+        }
+      }
     }
 
     // Stash slot hit test — drag the stashed bomb back toward the queue or to a lane
@@ -240,7 +265,7 @@ export class DragDrop {
     if (stashCol !== -1 && this._columns[stashCol].stash !== null) {
       const shooter = this._columns[stashCol].stash;
       const { x: scx, y: scy } = this._shooterRenderer.getStashCenter(stashCol);
-      this._startDrag('stash', stashCol, shooter, scx, scy, x, y);
+      this._startDrag('stash', stashCol, -1, shooter, scx, scy, x, y);
       return;
     }
 
@@ -248,7 +273,7 @@ export class DragDrop {
     if (slot !== -1 && this._benchStorage?.getSlot(slot)) {
       const shooter = this._benchStorage.getSlot(slot);
       const { x: cx, y: cy } = this._benchRenderer.getSlotCenter(slot);
-      this._startDrag('bench', slot, shooter, cx, cy, x, y);
+      this._startDrag('bench', slot, -1, shooter, cx, cy, x, y);
     }
   }
 
@@ -293,13 +318,45 @@ export class DragDrop {
       return;
     }
 
-    if (this._dragSource === 'column' && this._hitTestBenchArea(x, y)) {
+    // ── Reorder (L5+): drag queue slot to another queue slot ────────────────
+    if (this._dragSource === 'column' && this._mergeEnabled && this._dragSourceRow >= 0) {
+      const targetQueue = this._hitTestQueueSlot(x, y);
+      if (targetQueue !== null) {
+        const { col: tCol, row: tRow } = targetQueue;
+        // Check if source == target (no-op snap back)
+        if (this._dragSourceIdx === tCol && this._dragSourceRow === tRow) {
+          this._snapBack();
+          return;
+        }
+        // Valid reorder drop
+        this._handleQueueReorder(this._dragSourceIdx, this._dragSourceRow, tCol, tRow);
+        return;
+      }
+    }
+
+    // ── Top bomb only: drag top to bench ────────────────────────────────────
+    if (this._dragSource === 'column' && this._dragSourceRow === 0 && this._hitTestBenchArea(x, y)) {
       this._handleBenchDrop();
       return;
     }
 
+    // ── Bench → Queue return (L5+): drag bench bomb to a queue column ────────
+    if (this._dragSource === 'bench' && this._mergeEnabled) {
+      const queueHit = this._hitTestQueueSlot(x, y);
+      if (queueHit !== null) {
+        const { col: tCol } = queueHit;
+        this._handleBenchToQueueReturn(this._dragSourceIdx, tCol);
+        return;
+      }
+    }
+
     const laneIdx = this._hitTestLane(x, y);
     if (laneIdx !== -1) {
+      // Only the top bomb (row 0) can fire to a lane
+      if (this._dragSource === 'column' && this._dragSourceRow !== 0) {
+        this._snapBack();
+        return;
+      }
       if (!this._checkColorMatch(laneIdx)) {
         this._onColorMismatch();
         this._snapBack();
@@ -341,9 +398,10 @@ export class DragDrop {
 
   // ── Private ────────────────────────────────────────────────────────────────
 
-  _startDrag(source, sourceIdx, shooter, cx, cy, px, py) {
+  _startDrag(source, sourceIdx, sourceRow, shooter, cx, cy, px, py) {
     this._dragSource    = source;
     this._dragSourceIdx = sourceIdx;
+    this._dragSourceRow = sourceRow;
     this._dragShooter   = shooter;
     this._offsetX       = cx - px;
     this._offsetY       = cy - py;
@@ -410,10 +468,77 @@ export class DragDrop {
     this._state = 'flying';
   }
 
+  _handleQueueReorder(srcCol, srcRow, tgtCol, tgtRow) {
+    const srcColumn = this._columns[srcCol];
+    const tgtColumn = this._columns[tgtCol];
+
+    const draggedShooter = srcColumn.shooters[srcRow];
+    if (!draggedShooter) {
+      this._snapBack();
+      return;
+    }
+
+    // If target is occupied, SWAP
+    if (tgtColumn.shooters[tgtRow]) {
+      const targetShooter = tgtColumn.shooters[tgtRow];
+      srcColumn.shooters[srcRow] = targetShooter;
+      tgtColumn.shooters[tgtRow] = draggedShooter;
+    } else {
+      // Target slot is empty — move bomb from src to tgt (append at bottom of target column)
+      srcColumn.shooters.splice(srcRow, 1);
+      tgtColumn.shooters.push(draggedShooter);
+    }
+
+    this._shooterRenderer.draggingColumn = -1;
+    this._onReorder(srcCol, srcRow, tgtCol, tgtRow);
+
+    // Snap the ghost back to the source position to show the swap visually
+    const { x: cx, y: cy } = this._shooterRenderer.getQueueSlotCenter(srcCol, srcRow);
+    if (this._ghost) this._ghost.scale.set(1.0);
+    this._startAnim(
+      this._ghost.x, this._ghost.y, cx, cy,
+      SNAP_DURATION, () => this._destroyGhost(),
+    );
+    this._state = 'snapping';
+  }
+
+  _handleBenchToQueueReturn(benchSlotIdx, targetColIdx) {
+    const targetColumn = this._columns[targetColIdx];
+
+    // Check if target column is full (3 bombs max)
+    if (targetColumn.shooters.length >= 3) {
+      // Column is full — reject the drop, snap back
+      this._snapBack();
+      return;
+    }
+
+    // Valid drop: take from bench and push to the bottom of the target column
+    const shooter = this._benchStorage.take(benchSlotIdx);
+    if (!shooter) {
+      this._snapBack();
+      return;
+    }
+
+    targetColumn.pushBottom(shooter);
+    if (this._benchRenderer) this._benchRenderer.draggingSlot = -1;
+
+    // Trigger merges by invoking the onReorder callback (same as queue reorder merge trigger)
+    this._onReorder(-1, -1, targetColIdx, -1);
+
+    // Fly the ghost to the bottom of the target column
+    const { x: tx, y: ty } = this._shooterRenderer.getQueueSlotCenter(targetColIdx, targetColumn.shooters.length - 1);
+    if (this._ghost) this._ghost.scale.set(1.0);
+    this._startAnim(
+      this._ghost.x, this._ghost.y, tx, ty,
+      FLY_DURATION, () => this._destroyGhost(),
+    );
+    this._state = 'flying';
+  }
+
   _snapBack() {
     let cx, cy;
     if (this._dragSource === 'column') {
-      ({ x: cx, y: cy } = this._shooterRenderer.getTopShooterCenter(this._dragSourceIdx));
+      ({ x: cx, y: cy } = this._shooterRenderer.getQueueSlotCenter(this._dragSourceIdx, this._dragSourceRow));
       this._shooterRenderer.draggingColumn = -1;
     } else if (this._dragSource === 'stash') {
       ({ x: cx, y: cy } = this._shooterRenderer.getStashCenter(this._dragSourceIdx));
@@ -442,7 +567,22 @@ export class DragDrop {
 
     const colorHex = COLOR_MAP[this._dragShooter?.color] ?? 0x888888;
 
-    if (this._dragSource === 'bench' || this._dragSource === 'stash') {
+    if (this._dragSource === 'bench') {
+      // Bench→Queue return (L5+): highlight valid queue columns with green, full ones with red
+      if (this._mergeEnabled) {
+        const queueHit = this._hitTestQueueSlot(x, y);
+        if (queueHit !== null) {
+          const { col: tCol } = queueHit;
+          const tgtColumn = this._columns[tCol];
+          const isFull = tgtColumn.shooters.length >= 3;
+          // A bench bomb inserts at the bottom of the target column — highlight
+          // that slot green (valid) or red (column full).
+          const insertRow = Math.min(2, tgtColumn.shooters.length);
+          this._shooterRenderer.setReorderTarget(tCol, insertRow, !isFull);
+          return;
+        }
+      }
+      // Bench→Lane fire: existing path
       const laneIdx = this._hitTestLane(x, y);
       if (laneIdx !== -1) {
         const isOccupied = this._firingSlots?.[laneIdx] != null;
@@ -452,6 +592,30 @@ export class DragDrop {
         this._onLaneHover(laneIdx, _glow);   // 3C: green = valid drop, red = invalid
       }
       return;
+    }
+
+    if (this._dragSource === 'stash') {
+      const laneIdx = this._hitTestLane(x, y);
+      if (laneIdx !== -1) {
+        const isOccupied = this._firingSlots?.[laneIdx] != null;
+        const isMatch    = this._checkColorMatch(laneIdx);
+        const _glow = (isMatch && !isOccupied) ? HIGHLIGHT_GREEN : HIGHLIGHT_RED;
+        this._showLaneHighlight(laneIdx, _glow);
+        this._onLaneHover(laneIdx, _glow);   // 3C: green = valid drop, red = invalid
+      }
+      return;
+    }
+
+    // Column drag from a queue slot (reorder)
+    if (this._dragSource === 'column' && this._mergeEnabled && this._dragSourceRow >= 0) {
+      const queueTarget = this._hitTestQueueSlot(x, y);
+      if (queueTarget !== null) {
+        const { col: tCol, row: tRow } = queueTarget;
+        const isSameSlot = (this._dragSourceIdx === tCol && this._dragSourceRow === tRow);
+        // Highlight the target slot green for a valid reorder (different slot).
+        if (!isSameSlot) this._shooterRenderer.setReorderTarget(tCol, tRow, true);
+        return;
+      }
     }
 
     // Column drag: highlight stash slot if hovering over stash area
@@ -474,6 +638,14 @@ export class DragDrop {
 
     const laneIdx = this._hitTestLane(x, y);
     if (laneIdx !== -1) {
+      // Only the top bomb (row 0) can fire to a lane
+      if (this._dragSource === 'column' && this._dragSourceRow !== 0) {
+        // Non-top bomb over a lane — highlight invalid (red)
+        const _glow = HIGHLIGHT_RED;
+        this._showLaneHighlight(laneIdx, _glow);
+        this._onLaneHover(laneIdx, _glow);
+        return;
+      }
       const isOccupied = this._firingSlots?.[laneIdx] != null;
       const isMatch    = this._checkColorMatch(laneIdx);
       const _glow = (isMatch && !isOccupied) ? HIGHLIGHT_GREEN : HIGHLIGHT_RED;
@@ -496,6 +668,23 @@ export class DragDrop {
     g.visible = true;
   }
 
+  _showQueueColumnHighlight(colIdx, color) {
+    // Draw a highlight around the target queue column area
+    // Use a lane highlight as a visual cue (reuse the lane highlight infrastructure)
+    // For now, use lane 0 highlight as a placeholder for queue column highlighting
+    // (minimal visual feedback as per spec)
+    const g = this._highlights[0];
+    const cx = getColumnScreenX(colIdx);
+    const cw = getColScreenW();
+    const topY = TOP_Y;
+    const botY = SHOOTER_AREA_Y + SHOOTER_AREA_H;
+
+    g.clear();
+    g.rect(cx - cw / 2, topY - 10, cw, botY - topY + 20);
+    g.fill({ color, alpha: HIGHLIGHT_ALPHA });
+    g.visible = true;
+  }
+
   _checkColorMatch(laneIdx) {
     if (!this._lanes || !this._dragShooter) return true;
     const frontCar = this._lanes[laneIdx]?.frontCar?.();
@@ -514,6 +703,23 @@ export class DragDrop {
       if (dx * dx + dy * dy <= HIT_RADIUS * HIT_RADIUS) return i;
     }
     return -1;
+  }
+
+  // Hit-test any queue slot (col, row) — returns { col, row } or null
+  _hitTestQueueSlot(x, y) {
+    // Test all 3 slot rows (not just occupied ones) so EMPTY slots/columns are
+    // valid drop targets for reorder + bench-return. The drag-source path in
+    // onPointerDown guards with `if (shooter)`, so this never grabs an empty slot.
+    for (let col = 0; col < getActiveColCount(); col++) {
+      for (let row = 0; row < 3; row++) {   // 3 = COLUMN_CAPACITY
+        const { x: cx, y: cy } = this._shooterRenderer.getQueueSlotCenter(col, row);
+        const dx = x - cx, dy = y - cy;
+        if (dx * dx + dy * dy <= HIT_RADIUS * HIT_RADIUS) {
+          return { col, row };
+        }
+      }
+    }
+    return null;
   }
 
   _hitTestLane(x, y) {
@@ -790,6 +996,7 @@ export class DragDrop {
 
   _clearHighlights() {
     for (const h of this._highlights) h.visible = false;
+    this._shooterRenderer?.clearReorderTarget?.();
     this._onLaneClear();
   }
 

@@ -647,6 +647,10 @@ async function main() {
     adManager.resetForLevel();
 
     applyLevelConfig(cfg);
+    // Merge unlock gate (L5+): set the 1-indexed level on GameState. Daily uses a
+    // high id so the advanced daily challenge always has merges enabled.
+    gs.levelId = (typeof levelId === 'number') ? levelId : 99;
+    dragDrop.setMergeEnabled((typeof levelId === 'number' ? levelId : 99) >= 5);
     // Use levelNumber for normal levels; 'D' label for daily challenge.
     hudRenderer.setLevel(currentLevelIsDaily ? 'D' : levelManager.levelNumber);
     const objTotal = gs.spawnBudget !== null ? gs.spawnBudget : gs.targetKills;
@@ -1665,6 +1669,19 @@ async function main() {
   // Color bomb EARNED after 3 multi-kills. Edge flash + queued "3 MULTI-KILLS!"
   // notification + SFX; rainbow is now in the queue. The first time ever, show the
   // one-time COLOR BOMB intro card (FIX 5), routed through the modal queue.
+  gameLoop._onMerge = (descriptor) => {
+    // Merge animation: particles + SFX + scale pop at the merged bomb's slot position
+    const col = descriptor.column ?? descriptor.midCol ?? 0;
+    const { x, y } = shooterRenderer.getQueueSlotCenter(col, 0);
+
+    // Particle burst in the bomb's color
+    const colorName = descriptor.color;
+    particles.spawnHit(col, 50, colorName);  // particle color from shooter color
+
+    // SFX: use combo_milestone which has an ascending chime effect (celebratory)
+    audio.play('combo_milestone', { combo: 4 });
+    haptics.medium();
+  };
   gameLoop._onColorBombEarned = () => {
     comboFX.triggerColorBomb('Rainbow');
     popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildFlashText(w, '3 MULTI-KILLS!', 0xffe14a), 1.6);
@@ -1717,6 +1734,11 @@ async function main() {
       onBenchStore: (_colIdx) => {
         tutOrch?.completeIfActive('bench');
         // Column refills automatically via ShooterDirector next tick.
+      },
+      onReorder: (_srcCol, _srcRow, _tgtCol, _tgtRow) => {
+        // After reorder, evaluate merges and play SFX
+        gameLoop.evaluateMerges();
+        audio.play('tap_generic');
       },
       onColorMismatch: () => {
         audio.play('hit_miss');
@@ -1858,6 +1880,7 @@ async function main() {
     particles.update(dt);
     carRenderer.update(dt, boosterState.isFrozen());
     shooterRenderer.update(gs.elapsed, dt);
+    shooterRenderer.drawMergeOverlay(gs.elapsed);   // merged-bomb halos + reorder target highlight
     benchRenderer.update();
 
     // Disable lane hover tints while any tutorial / combo / achievement overlay
@@ -2005,6 +2028,37 @@ async function main() {
           freeze:      boosterBar._freezeBtn?.scale?.x,
           bomb:        boosterBar._bombBtn?.scale?.x,
         }),
+        // ── Merge visual setup hooks (L5+ only) ───────────────────────────────
+        // Each setup PAUSES the loop (so the director can't refill the columns we
+        // clear) and zeroes ALL columns before staging only the intended pattern,
+        // so before/after captures show exactly one merge with no contamination.
+        mergeSetupVertical: () => {
+          if (!gameLoopStarted || gs.levelId < 5) return 'Not in a level >= L5';
+          gameLoop.pause();
+          gs.columns.forEach(c => { c.shooters = []; });
+          gs.columns[0].shooters = [
+            { color: 'Red', damage: 2, isMerged: false, isColorBomb: false },
+            { color: 'Red', damage: 2, isMerged: false, isColorBomb: false },
+            { color: 'Red', damage: 2, isMerged: false, isColorBomb: false },
+          ];
+          return 'Vertical staged: col0=[R,R,R], cols 1-3 empty (loop paused)';
+        },
+        mergeSetupHorizontal: () => {
+          if (!gameLoopStarted || gs.levelId < 5) return 'Not in a level >= L5';
+          gameLoop.pause();
+          gs.columns.forEach(c => { c.shooters = []; });
+          // Row 0 of cols 0,1,2 = Red (the triple); col 3 = a different color so no
+          // col1-2-3 triple forms; each column has 1 bomb so no vertical fires.
+          for (let i = 0; i < 3; i++) gs.columns[i].shooters = [{ color: 'Red', damage: 2, isMerged: false, isColorBomb: false }];
+          gs.columns[3].shooters = [{ color: 'Blue', damage: 2, isMerged: false, isColorBomb: false }];
+          return 'Horizontal staged: row0 col0-2=R, col3=B, rows 1-2 empty (loop paused)';
+        },
+        mergeFire: () => {
+          if (!gameLoopStarted || gs.levelId < 5) return 'Not in a level >= L5';
+          const applied = gameLoop.evaluateMerges();
+          return `Merges applied: ${applied.length} (${applied.map(m => m.type).join(', ')})`;
+        },
+        mergeResume: () => { gameLoop.resume(); return 'resumed'; },
       },
     };
   }

@@ -208,6 +208,14 @@ export class Shooter3D {
 
   setActiveColCount(n) { this._activeColCount = n; }
 
+  // Get the world position of a queue slot (for DragDrop hit-test coordination)
+  // Not used for rendering (3D doesn't do 2D hit-tests), but called by DragDrop for symmetry
+  getQueueSlotCenter(colIdx, rowIdx) {
+    const x = laneToX(colIdx);
+    const z = slotZ(rowIdx ?? 0);
+    return { x, z };  // 3D uses x,z not x,y
+  }
+
   // Brief horizontal jitter of the whole bomb queue — used on a wrong-colour shot
   // so the rejection reads in the bomb zone without shaking the whole screen. (1D)
   shakeZone(dur = 0.18) { this._shakeT = dur; }
@@ -244,7 +252,8 @@ export class Shooter3D {
         // 3A: idle bob (top-down → Z is screen-vertical). Front bomb (si 0) bobs
         // more — it reads as the "active" one. Phase-offset per column + slot.
         if (g._baseZ == null) g._baseZ = g.position.z;
-        const amp = si === 0 ? 0.12 : 0.06;
+        // Merged bombs sit still (amp 0) so their static 2D halo stays concentric.
+        const amp = (this._columns[li]?.shooters?.[si]?.isMerged) ? 0 : (si === 0 ? 0.12 : 0.06);
         g.position.z = g._baseZ + Math.sin(elapsed * 2.4 + li * 1.1 + si * 0.6) * amp;
       }
       const sg = this._stashSlots[li]?.group;
@@ -260,6 +269,17 @@ export class Shooter3D {
         if (this._stashSlots[li]) this._stashSlots[li].group.visible = false;
         continue;
       }
+
+      // Merge-ready preview: a column exactly one swap from a vertical merge —
+      // i.e. exactly 2 non-merged bombs share a colour — pulses those bombs so the
+      // player can spot the play. 600ms opacity cycle, 0.7→1.0.
+      const previewRows = new Set();
+      if (col.shooters?.length) {
+        const byColor = {};
+        col.shooters.forEach((s, idx) => { if (s && !s.isMerged) (byColor[s.color] ??= []).push(idx); });
+        for (const idxs of Object.values(byColor)) if (idxs.length === 2) idxs.forEach(idx => previewRows.add(idx));
+      }
+      const previewPulse = 0.7 + 0.3 * (0.5 + 0.5 * Math.sin(elapsed * (2 * Math.PI / 0.6)));
 
       for (let si = 0; si < SLOT_COUNT; si++) {
         const slot    = slots[si];
@@ -283,9 +303,11 @@ export class Shooter3D {
 
         // Sync sprite texture + badge on color/damage change
         const isCB = shooter.isColorBomb === true;
-        if (slot.lastColor !== shooter.color || slot.lastDamage !== damage) {
+        const isMerged = shooter.isMerged === true;
+        if (slot.lastColor !== shooter.color || slot.lastDamage !== damage || slot.lastMerged !== isMerged) {
           slot.lastColor  = shooter.color;
           slot.lastDamage = damage;
+          slot.lastMerged = isMerged;
           if (isCB) {
             // Rainbow: keep the prior powerball as a base; the rainbow swirl
             // overlay (below) dominates. Badge shows a gold star, not a number.
@@ -311,21 +333,28 @@ export class Shooter3D {
           }
         }
 
-        // 3B: the grabbed column's front bomb pops to 1.15x (focus); others rest.
-        if (si === 0 && !slot._punching) {
+        // Merged bomb visual: scale up to 1.3x with a subtle pulse. These bombs use
+        // MeshBasicMaterial (no emissive channel), so the "glow" reads via scale; a
+        // vertical merge additionally shows the color-bomb shimmer below.
+        if (si === 0 && !slot._punching && isMerged) {
+          const pulseScale = 1.0 + 0.15 * Math.sin(elapsed * 2.5);
+          slot.group.scale.setScalar((1.30 * pulseScale) * slot._baseScale);
+        } else if (si === 0 && !slot._punching) {
+          // 3B: the grabbed column's front bomb pops to 1.15x (focus); others rest.
           const sel = (li === this._selectedCol) ? 1.15 : 1.0;
           slot.group.scale.setScalar(sel * slot._baseScale);
         }
 
-        // 3B: dim the bombs queued behind the grabbed one (0.7) for a focus effect.
-        if (si > 0) {
-          const dim = (li === this._selectedCol) ? 0.7 : 1.0;
-          slot.sphereMesh.material.transparent = true;
-          slot.sphereMesh.material.opacity     = dim;
-          if (slot.badgeMesh.material) {
-            slot.badgeMesh.material.transparent = true;
-            slot.badgeMesh.material.opacity     = dim;
-          }
+        // Opacity: dim bombs queued behind the grabbed column (0.7); pulse bombs
+        // one swap from a vertical merge (merge-ready preview, 0.7→1.0, 600ms).
+        let opacity = 1.0;
+        if (si > 0 && li === this._selectedCol) opacity = 0.7;
+        else if (previewRows.has(si) && li !== this._selectedCol) opacity = previewPulse;
+        slot.sphereMesh.material.transparent = opacity < 1.0;
+        slot.sphereMesh.material.opacity     = opacity;
+        if (slot.badgeMesh.material) {
+          slot.badgeMesh.material.transparent = opacity < 1.0;
+          slot.badgeMesh.material.opacity     = opacity;
         }
 
         // Color-bomb indicator — front slot only. Driven by the shooter itself
@@ -526,6 +555,7 @@ export class Shooter3D {
       badgeCanvas, badgeCtx, badgeTex, badgeMesh, badgeMat,
       lastColor:  '',
       lastDamage: -1,
+      lastMerged: false,
       _punching: false, _punchT: 0,
       _baseScale: 1.0,
     };

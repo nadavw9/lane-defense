@@ -11,7 +11,7 @@ export class GameState {
   // The renderers always see all 4; inactive ones just have no cars/shooters.
   constructor({ lanes, columns, colors, world, duration, phaseMan,
                 laneCount, colCount, targetKills, gridRows,
-                spawnBudget, laneTargetCarCount }) {
+                spawnBudget, laneTargetCarCount, levelId }) {
     // ── Core collections ───────────────────────────────────────────────────
     this.lanes   = lanes;
     this.columns = columns;
@@ -22,6 +22,7 @@ export class GameState {
     this.activeColCount  = colCount  ?? columns.length;
 
     // ── Level config ───────────────────────────────────────────────────────
+    this.levelId  = levelId ?? 0;     // 1-based level number (daily uses a high id); gates merge unlock at L5
     this.colors   = colors;
     this.world    = world;
     this.duration = duration;

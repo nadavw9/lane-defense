@@ -1,13 +1,19 @@
 # Traffic Bomb — Session Handoff
 
 ## Current State
-- Git tip: e2c4eee feat: bomb merge mechanic (L5+) - vertical to color bomb, horizontal to strong bomb
+- Git tip: 52b6769 feat: turn-economy redesign, gridRows 16, merge color-bomb single-target
 - Branch: master
 - Last deploy: today, green
-- Tests: 742 passing, 1 skip, 5 todo
+- Tests: 751 passing, 1 skip, 5 todo
 - Live URL: https://nadavw9.github.io/lane-defense/
 
 ## What Was Shipped This Session (most recent first)
+- 52b6769 — Turn-economy + gridRows + merge fixes:
+  * Turn economy redesign: 1 FREE queue action per shot (swap / bench-store / bench-retrieve). The queue LOCKS after the free action is used and RESETS on the next lane fire (`BoosterState.queueActionUsed`, reset in `GameLoop._startFiring`). A dim overlay (alpha 0.25) covers the queue zone while locked. Wrong-colour bounce does NOT advance cars (confirmed); queue actions / auto-merge never advance.
+  * gridRows increased 11 → 16 on all 40 levels (smaller steps per advance, more planning time). Road VISUAL length unchanged (position→screen mapping is gridRows-agnostic). Defaults updated (GameState/GameLoop/SimulationRunner); `Car3D` danger-aura breach row made dynamic.
+  * L5 and L6 colour count 2 → 3 (Red/Blue/Green) to reduce accidental merges at the merge-unlock levels; L10 stays 2 (boss design).
+  * Merge color bomb fixed: now SINGLE-TARGET, own-colour only, high damage (sum of 3) — NOT rainbow/AoE. New `mergeColorBomb` flag routes it through the regular damage path (colour match → sum damage; mismatch → bounce). No rainbow swirl; solid colour halo + small ★ micro-label above the damage number.
+  * +9 tests (`free-queue-action` 8; `merge-engine` rewritten for single-target) → 751.
 - e2c4eee — Bomb merge mechanic (Phase 2 complete):
   * Vertical merge (3 same-colour in a column) → COLOR bomb that clears that specific colour (`isColorBomb:true, isMerged:true`, damage = sum stored).
   * Horizontal merge (3 same-colour across adjacent columns in one row; triples [0,1,2] and [1,2,3] on the 4-wide grid) → STRONG single-target bomb (`isColorBomb:false, isMerged:true`, damage = sum of 3) at the middle column front.
@@ -75,9 +81,9 @@
 - 168c5ca — First major visual/balance batch: city edges, bomb zone panel, car centering, color bomb visuals.
 
 ## IMMEDIATE PRIORITIES (next session, in order)
-1. On-device smoke test of the merge mechanic — does it feel tactical? too frequent (especially at 2-colour L5)? rewarding?
-2. Sprite upgrade: the STRONG merged bomb needs a distinct sprite (generate via ChatGPT, same powerball style) — currently it reuses the regular powerball + a number badge.
-3. Difficulty rebalance — run the sim with merge MODELLED, then tune per-level HP/budget. (Phase-1.5 found HP cuts alone don't fix the 0%-win levels; merge is the intended lever, so it must be in the sim first.)
+1. On-device smoke test — merge mechanic, turn economy (free-action lock), gridRows-16 feel, and the single-target color-bomb behaviour.
+2. Difficulty rebalance — run the sim with merge + gridRows 16 MODELLED, then tune per-level HP/spawnBudget. (Phase-1.5 found HP cuts alone don't fix the 0%-win levels; merge + the bigger grid are the intended levers, so they must be in the sim first. spawnBudgets were NOT touched in 52b6769.)
+3. Strong merged bomb sprite (generate via ChatGPT, same powerball style) — currently reuses the regular powerball + number badge.
 4. Agent team quality audit (Royal Match standard).
 5. Real-device playtest checklist: L8, L12, L16, L33, L37 + bosses L10/20/30/40.
 6. Signed AAB build.
@@ -97,11 +103,14 @@
 - Regression suite now at 642 tests — run before every APK build
 
 ## Known Design Decisions (locked — do not change without Claude Chat)
-- Bomb merge: 3 same-colour VERTICAL (a full column) → a COLOR bomb that clears that specific colour; 3 same-colour HORIZONTAL (adjacent columns, one row) → a STRONG single-target bomb with damage = sum of the 3. Unlocks at L5 (L1–L4 unchanged). Bench bombs are EXCLUDED from detection. Merges are player-initiated (reorder / bench→queue), never on director fills. Chain merges allowed, max 2 passes; vertical resolves before horizontal. "+" shape deferred to v1.1.
+- Bomb merge: 3 same-colour VERTICAL (a full column) → a SINGLE-TARGET, own-colour, high-damage bomb (`mergeColorBomb`; damage = sum; NOT rainbow/AoE — see the dedicated decision below); 3 same-colour HORIZONTAL (adjacent columns, one row) → a STRONG single-target bomb with damage = sum of the 3. Unlocks at L5 (L1–L4 unchanged). Bench bombs are EXCLUDED from detection. Merges are player-initiated (reorder / bench→queue), never on director fills. Chain merges allowed, max 2 passes; vertical resolves before horizontal. "+" shape deferred to v1.1.
 - No HP bars on cars (VISION.md)
 - Color bomb earned via 5 consecutive correct shots
 - laneTargetCarCount: 1 (L1) / 3 (bosses L10/20/30/40) / 2 (all others)
-- gridRows=11 unified across all 40 levels
+- gridRows = 16 unified across all 40 levels (was 11; raised for smaller steps / more planning time)
+- Wrong-colour bounce = NO car advance (cars only advance on a correct lane shot)
+- 1 free queue action per shot (swap / bench-store / bench-retrieve). A second queue action is BLOCKED until the next lane fire resets it; lane fires are not queue actions and always work
+- Merge color bomb = single-target, own-colour only, high damage (sum of 3). NOT rainbow/AoE. The earned RAINBOW color bomb (3 multi-kills) is the only any-colour clear
 - Sim = competent tool-less floor; boosters lift real play above numbers
 - speed.base is vestigial (turn-based game, no clock)
 - Wrong shots are free (no penalty) — skill = planning, not accuracy

@@ -342,6 +342,46 @@ describe('merge-engine — overlap safety (vertical + horizontal same pass)', ()
   });
 });
 
+describe('merge-engine — starting-queue settle (Candy-Crush start)', () => {
+  it('merges a pre-made 3-same-colour column on level start (L5+), before any player move', () => {
+    const { gs, columns } = makeState({ levelId: 5 });
+    const loop = makeLoop(gs);
+    loop._onMerge = vi.fn();   // should NOT be called — settle is silent
+    columns[0].shooters = [
+      new Shooter({ color: 'Red', damage: 2, column: 0 }),
+      new Shooter({ color: 'Red', damage: 3, column: 0 }),
+      new Shooter({ color: 'Red', damage: 4, column: 0 }),
+    ];
+
+    loop._settleStartingMerges();
+
+    // The pre-made 3-in-a-column became a single merged colour bomb at the front.
+    expect(columns[0].shooters[0].isMerged).toBe(true);
+    expect(columns[0].shooters[0].isColorBomb).toBe(true);   // vertical → colour bomb
+    expect(columns[0].shooters[0].damage).toBe(9);           // 2+3+4
+    // No raw same-colour triple remains in column 0.
+    const c0 = columns[0].shooters;
+    const rawTriple = c0.length === 3 && c0.every(s => s.color === 'Red' && !s.isMerged);
+    expect(rawTriple).toBe(false);
+    expect(loop._onMerge).not.toHaveBeenCalled();            // settled silently
+  });
+
+  it('does NOT settle on level 4 (below the merge gate)', () => {
+    const { gs, columns } = makeState({ levelId: 4 });
+    const loop = makeLoop(gs);
+    columns[0].shooters = [
+      new Shooter({ color: 'Red', damage: 2, column: 0 }),
+      new Shooter({ color: 'Red', damage: 2, column: 0 }),
+      new Shooter({ color: 'Red', damage: 2, column: 0 }),
+    ];
+
+    loop._settleStartingMerges();
+
+    expect(columns[0].shooters).toHaveLength(3);
+    expect(columns[0].shooters.every(s => !s.isMerged)).toBe(true);
+  });
+});
+
 describe('merge-engine — level gate (unlock at L5)', () => {
   it('does nothing on level 4 (below the L5 unlock)', () => {
     const { gs, columns } = makeState({ levelId: 4 });  // Level 4 (1-indexed) — merges locked

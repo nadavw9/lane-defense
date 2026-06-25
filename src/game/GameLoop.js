@@ -508,6 +508,24 @@ export class GameLoop {
     this._accumulator = 0;
     this._primeInitialCars();
     this._sDir.fillColumns(gs.activeCols, gs.asDirectorState(), gs.phaseMan.getParams());
+    this._settleStartingMerges();
+  }
+
+  // Candy-Crush start: settle the freshly-primed queue so the player never starts
+  // with a pre-made, unmerged match. Each merge leaves gaps; refill them and
+  // re-evaluate until none remain (guarded against loops). Settles SILENTLY —
+  // _onMerge bursts/SFX are suppressed before the first move; the merged bombs
+  // still render via the per-frame queue draw. evaluateMerges() is L5-gated, so on
+  // L1-L4 the first call returns [] and this is a no-op (queue fills do NOT auto-
+  // merge during play — this exception is only the initial board settle).
+  _settleStartingMerges() {
+    const gs = this._gs;
+    const onMerge = this._onMerge;
+    this._onMerge = null;
+    for (let guard = 0; guard < 12 && this.evaluateMerges().length > 0; guard++) {
+      this._sDir.fillColumns(gs.activeCols, gs.asDirectorState(), gs.phaseMan.getParams());
+    }
+    this._onMerge = onMerge;
   }
 
   // ── Private ────────────────────────────────────────────────────────────────

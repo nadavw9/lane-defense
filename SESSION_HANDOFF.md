@@ -1,13 +1,14 @@
 # Traffic Bomb — Session Handoff
 
 ## Current State
-- Git tip: 65f28e9 fix: bug-fix batch - car spacing, halo concentricity, badge bleed, merge colour-match
+- Git tip: 18b14ba fix: queue settles pre-existing merges at level start (Candy Crush standard)
 - Branch: master
 - Last deploy: today, green
-- Tests: 751 passing, 1 skip, 5 todo
+- Tests: 753 passing, 1 skip, 5 todo
 - Live URL: https://nadavw9.github.io/lane-defense/
 
 ## What Was Shipped This Session (most recent first)
+- 18b14ba — Starting queue settles pre-existing merges (Candy Crush standard). `GameLoop.restart()` now calls `_settleStartingMerges()` right after the initial `fillColumns`: if the director deals a valid merge pattern (e.g. 3-same-colour in a column) at level start, the merge fires BEFORE the player's first move. It SILENTLY (no `_onMerge` burst/SFX) loops fill→`evaluateMerges()`→refill until the board has no merges left, so consumed bombs are replaced and the board is clean. Reuses the existing L5-gated `evaluateMerges()` (merge detection untouched; `fillColumns` untouched), so L1–L4 are a no-op and ongoing in-play fills still do NOT auto-merge — this exception is only the initial board settle. +2 tests (753).
 - 65f28e9 — Bug fixes batch (visual + merge-bomb behaviour):
   * Car overlap at gridRows 16 — `Car3D.SPRITE_SCALE` 0.65 → 0.43 (the on-screen row pitch shrank ~10/15, so cars sized for 11 rows were overlapping).
   * Merge bomb halo now CONCENTRIC — the halo centre is derived from the bomb's 3D world position projected through `Scene3D.camera` (`Shooter3D.getSlotWorldPosition` → `GameRenderer3D.getBombSlotScreenXY`), not a linear ortho approximation (which drifted past the breach line).

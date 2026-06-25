@@ -416,8 +416,10 @@ export class DragDrop {
     // 'stash' source: no dragging marker needed — ShooterRenderer reads col.stash directly
 
     // Rainbow ghost is driven by the dragged shooter itself now (the color bomb
-    // is a real queue item, not a global armed state).
-    const isCB = shooter?.isColorBomb === true;
+    // is a real queue item, not a global armed state). A merge color bomb
+    // (mergeColorBomb) is single-target — it renders as a normal coloured bomb,
+    // NOT the rainbow "★ALL" ghost.
+    const isCB = shooter?.isColorBomb === true && !shooter?.mergeColorBomb;
     this._ghost = this._createGhost(shooter, px + this._offsetX, py + this._offsetY, isCB);
     this._ghost.scale.set(1.12);  // lifted-off feel during drag
   }
@@ -715,8 +717,10 @@ export class DragDrop {
     // Empty lane — no car to hit. Reject the drop so the bomb bounces back to the
     // queue (same path as a wrong-colour drop) instead of being silently consumed.
     if (!frontCar) return false;
-    // Rainbow color bomb matches any lane that HAS a car.
-    if (this._dragShooter.isColorBomb) return true;
+    // Only the earned RAINBOW color bomb matches any lane that HAS a car. A merge
+    // color bomb (mergeColorBomb) is single-target → it must colour-match like a
+    // regular bomb and bounces on mismatch.
+    if (this._dragShooter.isColorBomb && !this._dragShooter.mergeColorBomb) return true;
     return this._dragShooter.color === frontCar.color;
   }
 

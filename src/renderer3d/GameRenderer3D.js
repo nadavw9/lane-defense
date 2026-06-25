@@ -300,6 +300,20 @@ export class GameRenderer3D {
   /** 3D: pulse a column's stash slot on place/retrieve. */
   pulseStash(colIdx) { this._shooters?.pulseStash(colIdx); }
 
+  // Project a queue slot's bomb (3D) to 2D screen pixels (stage coords) by running
+  // its world position through the actual camera — the ground-truth on-screen
+  // centre. Used by 2D overlays (the merge halo) so they land exactly on the bomb.
+  getBombSlotScreenXY(col, row) {
+    const world = this._shooters?.getSlotWorldPosition(col, row);
+    const cam   = this._scene3d?.camera;
+    if (!world || !cam) return null;
+    world.project(cam);   // world → NDC [-1,1]
+    return {
+      x: (world.x * 0.5 + 0.5) * this._width,
+      y: (-world.y * 0.5 + 0.5) * this._height,
+    };
+  }
+
   /** Set the world {x,z} the next bomb in this lane should travel FROM (release point). */
   setDropStart(laneIdx, world) { this._projectiles?.setNextStart(laneIdx, world); }
 

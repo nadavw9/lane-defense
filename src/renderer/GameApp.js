@@ -1881,7 +1881,8 @@ async function main() {
     particles.update(dt);
     carRenderer.update(dt, boosterState.isFrozen());
     shooterRenderer.update(gs.elapsed, dt);
-    shooterRenderer.drawMergeOverlay(gs.elapsed);   // merged-bomb halos + reorder target highlight
+    // Project bomb slots through the 3D camera so the halo lands exactly on the bomb.
+    shooterRenderer.drawMergeOverlay(gs.elapsed, (c, r) => gameRenderer3D.getBombSlotScreenXY(c, r));
     benchRenderer.update();
 
     // Disable lane hover tints while any tutorial / combo / achievement overlay

@@ -1,7 +1,7 @@
 // PositionRegistry — single source of truth for lane and column screen positions.
 // Call setActiveCounts() at level start so all consumers use the correct geometry.
 
-import { laneToX, ROAD_Z_FAR, ROAD_Z_NEAR } from '../renderer3d/Scene3D.js';
+import { laneToX, CELL, ROAD_Z_FAR, ROAD_Z_NEAR } from '../renderer3d/Scene3D.js';
 import { ROAD_BOTTOM_W, ROAD_TOP_W, ROAD_TOP_X,
          ROAD_TOP_Y, ROAD_BOTTOM_Y } from './LaneRenderer.js';
 
@@ -45,6 +45,18 @@ export function getColumnScreenX(colIdx) {
 
 // Screen Y of the top shooter row (constant).
 export function getColumnScreenY() { return COLUMN_TOP_Y; }
+
+// Exact on-screen centre Y of bomb-queue slot rowIdx (0,1,2) — the SAME point the
+// 3D bomb projects to. Bombs render in 3D at world Z = slotZ = (rowIdx+0.5)·CELL·0.70
+// (mirrors Shooter3D.slotZ); project that Z to screen Y with the identical linear
+// ortho mapping the road uses (ROAD_Z_FAR↔ROAD_TOP_Y, ROAD_Z_NEAR↔ROAD_BOTTOM_Y),
+// extended past the breach line (z>0). Derived from the bomb's own coordinates — no
+// fixed offset — so overlays land exactly concentric with the bomb.
+export function getColumnSlotScreenY(rowIdx) {
+  const slotZ = (rowIdx + 0.5) * CELL * 0.70;
+  const t     = (slotZ - ROAD_Z_FAR) / (ROAD_Z_NEAR - ROAD_Z_FAR);
+  return ROAD_TOP_Y + t * (ROAD_BOTTOM_Y - ROAD_TOP_Y);
+}
 
 // Width of one shooter column in screen pixels.
 export function getColScreenW() { return APP_W / _colCount; }

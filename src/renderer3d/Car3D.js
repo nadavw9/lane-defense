@@ -30,10 +30,11 @@ const SPAWN_OFFSET     = 5.0;   // bigrig half-height=2.52 + frustum margin → 
 const POWER_FLASH_DUR  = 0.25;
 const POWER_SQUASH_DUR = 0.16;   // total squash→stretch→settle duration
 
-// Global car render scale (<1 = smaller). Tuned so 3 cars in adjacent rows [0,1,2]
-// show a clear gap (≈half a car-length) of road between them — the breathing room
-// comes from car SIZE relative to the fixed on-screen row pitch, not row spacing.
-const SPRITE_SCALE     = 0.65;
+// Global car render scale (<1 = smaller). The gap between cars comes from car SIZE
+// relative to the on-screen row pitch. gridRows went 11 → 16, so the pitch shrank
+// by 10/15; the scale is reduced proportionally (0.65 × 10/15 ≈ 0.43) so adjacent
+// rows keep a clear gap instead of overlapping.
+const SPRITE_SCALE     = 0.43;
 
 // ── Idle bob (2A) — gentle continuous up/down so the road feels alive ──────────
 const BOB_AMP   = 0.05;                 // world units

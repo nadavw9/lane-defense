@@ -47,8 +47,10 @@ const BOMB_PLANE_SIZE = BOMB_R * 2.8;
 // BADGE_WORLD_H = 1.10 world units ≈ 22 px on screen (readable from across a room)
 const BADGE_CVS_W   = 192;
 const BADGE_CVS_H   = 112;
-const BADGE_WORLD_W = 1.70;
-const BADGE_WORLD_H = 1.00;
+// World size kept inside the visible bomb ball (≈1.50 dia) so the dark pill behind
+// the number doesn't bleed past the bomb edge.
+const BADGE_WORLD_W = 1.34;
+const BADGE_WORLD_H = 0.80;
 
 // ── Color palette ──────────────────────────────────────────────────────────────
 const COLOR_HEX = {
@@ -75,50 +77,30 @@ function _roundRect(ctx, x, y, w, h, r) {
   }
 }
 
-// ── Badge drawing — colored pill + bold white number ───────────────────────────
-function drawDamageBadge(ctx, W, H, damage, colorHex) {
-  const cr = (colorHex >> 16) & 0xff;
-  const cg = (colorHex >>  8) & 0xff;
-  const cb =  colorHex        & 0xff;
-  // Badge background: same color family as bomb, but darker (×0.7) so it reads
-  // as part of the bomb rather than a foreign white element floating on top.
-  const dr = Math.round(cr * 0.7);
-  const dg = Math.round(cg * 0.7);
-  const db = Math.round(cb * 0.7);
-
+// ── Badge drawing — NO background, just a bold white number with a heavy dark
+// stroke + drop-shadow so it reads on any bomb colour and never bleeds a dark
+// rectangle outside the round bomb sprite.
+function drawDamageBadge(ctx, W, H, damage) {
   ctx.clearRect(0, 0, W, H);
 
-  const pw = W * 0.90, ph = H * 0.78;
-  const px = (W - pw) / 2, py = (H - ph) / 2;
-  const r  = ph / 2;
-
-  ctx.shadowColor   = 'rgba(0,0,0,0.80)';
-  ctx.shadowBlur    = Math.max(4, H * 0.10);
-  ctx.shadowOffsetX = 0;
-  ctx.shadowOffsetY = Math.max(2, H * 0.05);
-
-  _roundRect(ctx, px, py, pw, ph, r);
-  ctx.fillStyle = `rgb(${dr},${dg},${db})`;
-  ctx.fill();
-
-  ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
-
-  _roundRect(ctx, px + 2, py + 2, pw - 4, ph * 0.40, r);
-  ctx.fillStyle = 'rgba(255,255,255,0.22)';
-  ctx.fill();
-
-  _roundRect(ctx, px, py, pw, ph, r);
-  ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-  ctx.lineWidth   = 2.0;
-  ctx.stroke();
-
-  const fontSize = Math.round(ph * 0.90);
+  const ph       = H * 0.78;
+  const fontSize = Math.round(ph * 0.92);
   ctx.font         = `900 ${fontSize}px Arial`;
   ctx.textAlign    = 'center';
   ctx.textBaseline = 'middle';
-  ctx.lineWidth    = Math.max(5, fontSize * 0.18);
-  ctx.strokeStyle  = 'rgba(0,0,0,0.90)';
+
+  // Thin crisp outline + a small soft shadow — readable on any bomb colour
+  // without forming a dark blob/background around the digit.
+  ctx.shadowColor   = 'rgba(0,0,0,0.55)';
+  ctx.shadowBlur    = Math.max(2, H * 0.05);
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = Math.max(1, H * 0.02);
+
+  ctx.lineWidth   = Math.max(2.5, fontSize * 0.07);
+  ctx.strokeStyle = 'rgba(0,0,0,0.92)';
   ctx.strokeText(String(damage), W / 2, H / 2 + 1);
+
+  ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
   ctx.fillStyle = '#ffffff';
   ctx.fillText(String(damage), W / 2, H / 2 + 1);
 }
@@ -233,6 +215,15 @@ export class Shooter3D {
     slot.group.scale.setScalar(1.40 * slot._baseScale);
     slot._punchT   = 0;
     slot._punching = true;
+  }
+
+  // World position of a queue slot's bomb. The bomb plane sits at the group origin
+  // in X/Z, so the group's world position is the bomb's on-screen centre once
+  // projected. GameRenderer3D projects this so 2D overlays (the merge halo) land
+  // exactly on the 3D bomb.
+  getSlotWorldPosition(col, row) {
+    const slot = this._slots[col]?.[row];
+    return slot ? slot.group.getWorldPosition(new THREE.Vector3()) : null;
   }
 
   update(dt, elapsed, colorBombArmed = false) {
@@ -519,6 +510,9 @@ export class Shooter3D {
     const badgeTex = new THREE.CanvasTexture(badgeCanvas);
     const badgeMat = new THREE.SpriteMaterial({
       map: badgeTex, transparent: true, depthTest: false,
+      // Discard fully-transparent texels so the cleared canvas doesn't render as a
+      // dark rectangle behind the number (only the digit's pixels draw).
+      alphaTest: 0.04,
     });
     const badgeMesh = new THREE.Sprite(badgeMat);
     badgeMesh.scale.set(BADGE_WORLD_W, BADGE_WORLD_H, 1);

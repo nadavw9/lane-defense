@@ -9,7 +9,7 @@
 import { Sprite, Graphics, Container, Text, Assets } from 'pixi.js';
 import { spriteFlags } from './SpriteFlags.js';
 import { isColorblind, SHAPES } from '../game/ColorblindMode.js';
-import { getColumnScreenX, getColumnScreenY, getColScreenW } from './PositionRegistry.js';
+import { getColumnScreenX, getColumnScreenY, getColumnSlotScreenY, getColScreenW } from './PositionRegistry.js';
 import { BAR_Y as BOOSTER_BAR_Y } from './BoosterBar.js';
 
 // Road geometry — mirrors CityEdges / Scene3D constants
@@ -307,7 +307,9 @@ export class ShooterRenderer {
   // highlight. Halos are stroked rings (no centre fill) so they ring the 3D bomb
   // without occluding it. Also draws a dim overlay when queue actions are locked.
   // Called once per frame by GameApp after update().
-  drawMergeOverlay(elapsed) {
+  // projectSlot(col,row) → {x,y} screen px of the 3D bomb (camera projection), so
+  // the halo lands exactly concentric on it; falls back to slot constants if absent.
+  drawMergeOverlay(elapsed, projectSlot = null) {
     const g = this._overlayG;
     g.clear();
 
@@ -320,18 +322,25 @@ export class ShooterRenderer {
       for (let r = 0; r < col.shooters.length && r < 3; r++) {
         const s = col.shooters[r];
         if (!s?.isMerged) continue;
-        const { x, y } = this.getQueueSlotCenter(c, r);
+        // Centre on the bomb's ACTUAL projected screen position (the 3D bomb run
+        // through the camera) so the halo is exactly concentric with it; fall back
+        // to the slot projection only if the 3D projector isn't available.
+        const proj = projectSlot?.(c, r);
+        const x = proj ? proj.x : getColumnScreenX(c);
+        const y = proj ? proj.y : getColumnSlotScreenY(r);
         const R     = slotR[r] ?? TOP_RADIUS;
         const color = COLOR_MAP[s.color] ?? 0xffffff;
         const a     = 0.30 + 0.14 * pulse;             // ~0.30..0.44
-        g.circle(x, y, R * 1.40); g.stroke({ color, width: 9, alpha: a * 0.45 });
-        g.circle(x, y, R * 1.22); g.stroke({ color, width: 8, alpha: a * 0.75 });
-        g.circle(x, y, R * 1.08); g.stroke({ color, width: 6, alpha: a });
+        // Tight rings that hug the bomb so the halo stays concentric with the
+        // number and doesn't bleed up into the breach stripe on the front slot.
+        g.circle(x, y, R * 1.18); g.stroke({ color, width: 7, alpha: a * 0.45 });
+        g.circle(x, y, R * 1.08); g.stroke({ color, width: 6, alpha: a * 0.78 });
+        g.circle(x, y, R * 1.00); g.stroke({ color, width: 5, alpha: a });
 
         // Merge color bomb: a small color-matched ★ micro-label above the damage
         // number so players read it as a special "powerful same-colour" bomb.
         if (s.mergeColorBomb) {
-          g.star(x, y - R * 1.18, 5, 5, 2.2);   // ~10px tall, subtle
+          g.star(x, y - R * 0.92, 5, 5, 2.2);   // ~10px tall, subtle, just above the bomb
           g.fill({ color, alpha: 0.90 });
         }
       }

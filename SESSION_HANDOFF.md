@@ -1,13 +1,18 @@
 # Traffic Bomb — Session Handoff
 
 ## Current State
-- Git tip: 52b6769 feat: turn-economy redesign, gridRows 16, merge color-bomb single-target
+- Git tip: 65f28e9 fix: bug-fix batch - car spacing, halo concentricity, badge bleed, merge colour-match
 - Branch: master
 - Last deploy: today, green
 - Tests: 751 passing, 1 skip, 5 todo
 - Live URL: https://nadavw9.github.io/lane-defense/
 
 ## What Was Shipped This Session (most recent first)
+- 65f28e9 — Bug fixes batch (visual + merge-bomb behaviour):
+  * Car overlap at gridRows 16 — `Car3D.SPRITE_SCALE` 0.65 → 0.43 (the on-screen row pitch shrank ~10/15, so cars sized for 11 rows were overlapping).
+  * Merge bomb halo now CONCENTRIC — the halo centre is derived from the bomb's 3D world position projected through `Scene3D.camera` (`Shooter3D.getSlotWorldPosition` → `GameRenderer3D.getBombSlotScreenXY`), not a linear ortho approximation (which drifted past the breach line).
+  * Damage badge black-rectangle bleed fixed — removed the pill background in `drawDamageBadge` (now just a stroked white number) AND added `alphaTest: 0.04` to the badge `SpriteMaterial` so the cleared/transparent canvas texels no longer render as a dark rect.
+  * Strong/merge color bomb correctly colour-matches (not rainbow) — `DragDrop._checkColorMatch` and the drag ghost now exclude `mergeColorBomb`, so a vertical merge bomb drops only on a matching lane and renders as a normal coloured bomb (single-target, bounces on mismatch). The earned RAINBOW bomb is unchanged.
 - 52b6769 — Turn-economy + gridRows + merge fixes:
   * Turn economy redesign: 1 FREE queue action per shot (swap / bench-store / bench-retrieve). The queue LOCKS after the free action is used and RESETS on the next lane fire (`BoosterState.queueActionUsed`, reset in `GameLoop._startFiring`). A dim overlay (alpha 0.25) covers the queue zone while locked. Wrong-colour bounce does NOT advance cars (confirmed); queue actions / auto-merge never advance.
   * gridRows increased 11 → 16 on all 40 levels (smaller steps per advance, more planning time). Road VISUAL length unchanged (position→screen mapping is gridRows-agnostic). Defaults updated (GameState/GameLoop/SimulationRunner); `Car3D` danger-aura breach row made dynamic.
@@ -81,13 +86,14 @@
 - 168c5ca — First major visual/balance batch: city edges, bomb zone panel, car centering, color bomb visuals.
 
 ## IMMEDIATE PRIORITIES (next session, in order)
-1. On-device smoke test — merge mechanic, turn economy (free-action lock), gridRows-16 feel, and the single-target color-bomb behaviour.
-2. Difficulty rebalance — run the sim with merge + gridRows 16 MODELLED, then tune per-level HP/spawnBudget. (Phase-1.5 found HP cuts alone don't fix the 0%-win levels; merge + the bigger grid are the intended levers, so they must be in the sim first. spawnBudgets were NOT touched in 52b6769.)
-3. Strong merged bomb sprite (generate via ChatGPT, same powerball style) — currently reuses the regular powerball + number badge.
-4. Agent team quality audit (Royal Match standard).
-5. Real-device playtest checklist: L8, L12, L16, L33, L37 + bosses L10/20/30/40.
-6. Signed AAB build.
-7. Play Store assets + submission.
+1. On-device smoke test — merge feel, halo fix, car spacing, and the turn economy (free-action lock).
+2. Merge shape redesign (NEW shapes): 4-in-a-row → deal 2 damage to ALL same-colour cars on the road; L/T shape → an area bomb that hits 3 adjacent lanes. (Designs only so far — needs detection + resolution + visuals; "+" shape is still deferred.)
+3. Difficulty rebalance — run the sim with merge + gridRows 16 MODELLED, then tune per-level HP/spawnBudget. (Phase-1.5 found HP cuts alone don't fix the 0%-win levels; merge + the bigger grid are the intended levers, so they must be in the sim first. spawnBudgets were NOT touched yet.)
+4. Strong merged bomb sprite (generate via ChatGPT, same powerball style) — currently reuses the regular powerball + number badge.
+5. Agent team quality audit (Royal Match standard).
+6. Real-device playtest checklist: L8, L12, L16, L33, L37 + bosses L10/20/30/40.
+7. Signed AAB build.
+8. Play Store assets + submission.
 
 ## Active Backlog
 - Replace COLOR CHANGE placeholder glyph with a real paintbrush sprite (drop `public/sprites/designed/booster-colorchange.png` — picked up automatically; also add it to BOOSTER_URLS preload in GameApp.js once it exists)

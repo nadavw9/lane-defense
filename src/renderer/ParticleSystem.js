@@ -58,6 +58,31 @@ export class ParticleSystem {
     }
   }
 
+  // Generic burst at an explicit SCREEN position (px) — used by the merge sequence,
+  // whose bombs live in the queue zone (not on the road, so laneIdx+gameX can't place it).
+  spawnBurstAt(x, y, color, count = 7) {
+    const c = COLOR_MAP[color] ?? 0xffffff;
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.6;
+      const speed = 55 + Math.random() * 75;
+      const r     = 2.5 + Math.random() * 2;
+      const g = new Graphics();
+      g.circle(0, 0, r);
+      g.fill(c);
+      g.x = x + (Math.random() - 0.5) * 10;
+      g.y = y + (Math.random() - 0.5) * 10;
+      this._layer.addChild(g);
+      this._particles.push({
+        gfx: g,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        gravity: 80,
+        life: 0.34,
+        maxLife: 0.34,
+      });
+    }
+  }
+
   // Color mismatch: small grey puff — 4 dull circles drifting slowly outward.
   spawnMiss(laneIdx, gameX) {
     const { x, y } = carCenter(laneIdx, gameX);

@@ -573,6 +573,7 @@ async function main() {
 
   // ── Game-loop flag — start() called only once ─────────────────────────────
   let gameLoopStarted = false;
+  let _startSettleToken = 0;   // invalidates a pending level-start merge settle if the level changes
 
   // ── Renderers ────────────────────────────────────────────────────────────
   const carRenderer     = new CarRenderer(layers, lanes);
@@ -716,6 +717,15 @@ async function main() {
     // screen and ≥3 advances after the previous card.
     gameLoop.onNewCarType = (typeKey) => { _requestCarTypeIntro(typeKey); };
     gameLoop.restart();
+
+    // Animated level-start settle (Candy-Crush "board settles before first move"):
+    // the board renders fully first, then the merge sequence plays on any pre-made
+    // merges. Deferred so all 12 bombs are visible before anything animates; gated to
+    // L5+ via peekMerges() (no-op otherwise), and skipped if the level changed.
+    const _settleToken = ++_startSettleToken;
+    setTimeout(() => {
+      if (_settleToken === _startSettleToken && gameLoopStarted && !gs.isOver) mergeSequencer.start();
+    }, 1000);
 
     // Level-start intro: fires after splash clears (standard 1.5 s) or after the
     // FTUE drag-arrow window (L1: 4.5 s — splash 1.35 s + 3 s FTUE buffer).
@@ -1671,17 +1681,78 @@ async function main() {
   // notification + SFX; rainbow is now in the queue. The first time ever, show the
   // one-time COLOR BOMB intro card (FIX 5), routed through the modal queue.
   gameLoop._onMerge = (descriptor) => {
-    // Merge animation: particles + SFX + scale pop at the merged bomb's slot position
-    const col = descriptor.column ?? descriptor.midCol ?? 0;
-    const { x, y } = shooterRenderer.getQueueSlotCenter(col, 0);
-
-    // Particle burst in the bomb's color
-    const colorName = descriptor.color;
-    particles.spawnHit(col, 50, colorName);  // particle color from shooter color
-
-    // SFX: use combo_milestone which has an ascending chime effect (celebratory)
+    // Burst at the merged bomb's ACTUAL screen position (camera-projected), + SFX.
+    // Fired from evaluateMerges(), which the sequencer calls at the burst+pop step.
+    const col = descriptor.midCol ?? descriptor.column ?? 0;
+    const screen = gameRenderer3D.getBombSlotScreenXY(col, 0);
+    if (screen) particles.spawnBurstAt(screen.x, screen.y, descriptor.color, 8);
     audio.play('combo_milestone', { combo: 4 });
     haptics.medium();
+  };
+
+  // ── Merge animation sequencer ─────────────────────────────────────────────────
+  // Plays the visible merge sequence (Candy-Crush style): HIGHLIGHT → TRAVEL →
+  // BURST+POP. Merge DATA stays synchronous (evaluateMerges, applied at the burst
+  // step, keeps tests/economy intact) — this only animates the 3D bombs around it
+  // and pauses the game for the ~300ms duration. (Gap-fill drop-in + chain = polish.)
+  const mergeSequencer = {
+    active: false, phase: null, t: 0, plan: null,
+    start() {
+      if (this.active) return;
+      const plan = gameLoop.peekMerges();
+      if (!plan.length) return;                 // nothing to merge — don't pause
+      this.active = true; this.plan = plan; this.phase = 'highlight'; this.t = 0;
+      gameLoop.pause();
+      this._prevBlocked = dragDrop.inputBlocked;   // no queue input mid-sequence
+      dragDrop.inputBlocked = true;
+      for (const m of plan) {
+        for (const sl of [m.dest, ...m.travelers]) gameRenderer3D.lockBombSlot(sl.col, sl.row, true);
+        m._destW = gameRenderer3D.getBombSlotWorld(m.dest.col, m.dest.row);
+        for (const tr of m.travelers) tr._w = gameRenderer3D.getBombSlotWorld(tr.col, tr.row);
+      }
+    },
+    update(dt) {
+      if (!this.active) return;
+      this.t += dt;
+      if (this.phase === 'highlight') {                       // 100ms — pulse the 3 sources
+        const s = 1.0 + 0.15 * Math.min(1, this.t / 0.10);
+        for (const m of this.plan) for (const sl of [m.dest, ...m.travelers]) gameRenderer3D.setBombSlotScale(sl.col, sl.row, s);
+        if (this.t >= 0.10) { this.phase = 'travel'; this.t = 0; }
+      } else if (this.phase === 'travel') {                   // 150ms — 2 outers fly to dest, shrink
+        const p = Math.min(1, this.t / 0.15);
+        for (const m of this.plan) for (const tr of m.travelers) {
+          if (!tr._w || !m._destW) continue;
+          gameRenderer3D.setBombSlotWorld(tr.col, tr.row,
+            tr._w.x + (m._destW.x - tr._w.x) * p,
+            tr._w.y + (m._destW.y - tr._w.y) * p,
+            tr._w.z + (m._destW.z - tr._w.z) * p);
+          gameRenderer3D.setBombSlotScale(tr.col, tr.row, 1.15 * (1 - p));
+        }
+        if (this.t >= 0.15) {
+          gameLoop.evaluateMerges();                          // APPLY data + fire _onMerge (burst + SFX)
+          for (const m of this.plan) {
+            for (const tr of m.travelers) gameRenderer3D.setBombSlotScale(tr.col, tr.row, 0);
+            gameRenderer3D.setBombSlotScale(m.dest.col, m.dest.row, 0);   // pop from 0
+          }
+          this.phase = 'pop'; this.t = 0;
+        }
+      } else if (this.phase === 'pop') {                      // 120ms — merged bomb springs in
+        const p = Math.min(1, this.t / 0.12);
+        const c1 = 1.70158, c3 = c1 + 1;                      // easeOutBack: 0 → overshoot → 1
+        const back = 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2);
+        for (const m of this.plan) gameRenderer3D.setBombSlotScale(m.dest.col, m.dest.row, 1.30 * back);
+        if (this.t >= 0.12) this._finish();
+      }
+    },
+    _finish() {
+      for (const m of this.plan) for (const sl of [m.dest, ...m.travelers]) {
+        gameRenderer3D.resetBombSlot(sl.col, sl.row);
+        gameRenderer3D.lockBombSlot(sl.col, sl.row, false);
+      }
+      this.active = false; this.phase = null; this.plan = null;
+      dragDrop.inputBlocked = this._prevBlocked ?? false;
+      gameLoop.resume();
+    },
   };
   gameLoop._onColorBombEarned = () => {
     comboFX.triggerColorBomb('Rainbow');
@@ -1737,9 +1808,10 @@ async function main() {
         // Column refills automatically via ShooterDirector next tick.
       },
       onReorder: (_srcCol, _srcRow, _tgtCol, _tgtRow) => {
-        // After reorder, evaluate merges and play SFX
-        gameLoop.evaluateMerges();
+        // After a reorder/bench-return, play the animated merge sequence (which
+        // applies the merge at its burst step). No merge → no pause, just the SFX.
         audio.play('tap_generic');
+        mergeSequencer.start();
       },
       onColorMismatch: () => {
         audio.play('hit_miss');
@@ -1836,6 +1908,10 @@ async function main() {
     gameRenderer3D.update({ lanes: gs.lanes, boosterState, isBreaching: gs.isOver && !gs.won,
                              comboFreezeShots: gs.comboFreezeShots,
                              colorBombArmed: gs.colorBombArmed }, fxDt, gs.elapsed);
+
+    // Merge sequence drives locked 3D bomb slots (after Shooter3D.update skipped them,
+    // before render). Real-time dt so the animation isn't slowed by bullet-time.
+    mergeSequencer.update(dt);
 
     // 3B: reflect the grabbed bomb (tracked by the 2D drag layer) into the 3D bombs.
     gameRenderer3D.setSelectedBomb(shooterRenderer.draggingColumn ?? -1);
@@ -2045,6 +2121,18 @@ async function main() {
           ];
           return 'Vertical staged: col0=[R,R,R], cols 1-3 empty (loop paused)';
         },
+        // Stage col0=[R,R,R] over the FULL board (cols 1-3 keep their bombs) — to
+        // verify the merge animation leaves non-merge bombs fully visible.
+        mergeSetupVerticalKeep: () => {
+          if (!gameLoopStarted || gs.levelId < 5) return 'Not in a level >= L5';
+          gameLoop.pause();
+          gs.columns[0].shooters = [
+            { color: 'Red', damage: 5, isMerged: false, isColorBomb: false },
+            { color: 'Red', damage: 6, isMerged: false, isColorBomb: false },
+            { color: 'Red', damage: 7, isMerged: false, isColorBomb: false },
+          ];
+          return 'col0=[R,R,R] over full board (loop paused)';
+        },
         mergeSetupHorizontal: () => {
           if (!gameLoopStarted || gs.levelId < 5) return 'Not in a level >= L5';
           gameLoop.pause();
@@ -2059,6 +2147,14 @@ async function main() {
           if (!gameLoopStarted || gs.levelId < 5) return 'Not in a level >= L5';
           const applied = gameLoop.evaluateMerges();
           return `Merges applied: ${applied.length} (${applied.map(m => m.type).join(', ')})`;
+        },
+        // Play the ANIMATED merge sequence (highlight→travel→burst+pop) for whatever
+        // is currently staged — used to capture the sequence frames.
+        mergeAnimate: () => {
+          if (!gameLoopStarted || gs.levelId < 5) return 'Not in a level >= L5';
+          gameLoop.resume();             // undo the setup-hook pause so the merge applies cleanly
+          mergeSequencer.start();
+          return mergeSequencer.active ? 'animating' : 'no merges';
         },
         mergeResume: () => { gameLoop.resume(); return 'resumed'; },
       },

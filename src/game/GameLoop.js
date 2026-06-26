@@ -323,6 +323,30 @@ export class GameLoop {
     return this._evaluateMerges();
   }
 
+  // Read-only merge PREVIEW for the animation sequencer. Returns the merges that
+  // WOULD fire (same L5 gate, same detection), each enriched with: `dest` (the slot
+  // the merged bomb actually lands in — column top for vertical, mid-column front
+  // for horizontal) and `travelers` (the two source slots that animate into it).
+  // Does NOT mutate the queue — the sequencer animates, then calls evaluateMerges().
+  peekMerges() {
+    const gs = this._gs;
+    if (gs.levelId < 5) return [];
+    return this._findMerges(gs.activeColCount).map(m => {
+      if (m.type === 'vertical') {
+        return { type: 'vertical', color: gs.columns[m.col].shooters[0].color,
+                 dest: { col: m.col, row: 0 },
+                 travelers: [{ col: m.col, row: 1 }, { col: m.col, row: 2 }] };
+      }
+      const mid = m.startCol + 1;
+      // Animate the THREE actual source bombs only: the mid source is the convergence
+      // point (dest), the outer two travel into it. (For the common front-row merge
+      // m.row===0 this is also exactly where the merged bomb lands.)
+      return { type: 'horizontal', color: gs.columns[m.startCol].shooters[m.row].color,
+               dest: { col: mid, row: m.row },
+               travelers: [{ col: m.startCol, row: m.row }, { col: m.startCol + 2, row: m.row }] };
+    });
+  }
+
   _evaluateMerges() {
     const gs = this._gs;
     const activeColCount = gs.activeColCount;
@@ -508,7 +532,10 @@ export class GameLoop {
     this._accumulator = 0;
     this._primeInitialCars();
     this._sDir.fillColumns(gs.activeCols, gs.asDirectorState(), gs.phaseMan.getParams());
-    this._settleStartingMerges();
+    // NOTE: pre-made merges are NOT settled here — GameApp plays the ANIMATED merge
+    // sequence on them shortly after the board renders (so all 12 bombs are visible
+    // first, then only the merging bombs animate). _settleStartingMerges() remains
+    // for the headless/sync path used by tests.
   }
 
   // Candy-Crush start: settle the freshly-primed queue so the player never starts

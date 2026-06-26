@@ -314,6 +314,13 @@ export class GameRenderer3D {
     };
   }
 
+  // ── Merge-sequence passthroughs to Shooter3D (3D bomb-group control) ──────────
+  lockBombSlot(col, row, locked)      { this._shooters?.setSlotAnimLock(col, row, locked); }
+  setBombSlotScale(col, row, s)       { this._shooters?.setSlotScale(col, row, s); }
+  setBombSlotWorld(col, row, x, y, z) { this._shooters?.setSlotWorldXYZ(col, row, x, y, z); }
+  getBombSlotWorld(col, row)          { return this._shooters?.getSlotWorldPosition(col, row) ?? null; }
+  resetBombSlot(col, row)             { this._shooters?.resetSlotTransform(col, row); }
+
   /** Set the world {x,z} the next bomb in this lane should travel FROM (release point). */
   setDropStart(laneIdx, world) { this._projectiles?.setNextStart(laneIdx, world); }
 

@@ -226,6 +226,26 @@ export class Shooter3D {
     return slot ? slot.group.getWorldPosition(new THREE.Vector3()) : null;
   }
 
+  // ── Merge-animation hooks (driven by the GameApp merge sequencer) ─────────────
+  // While a slot is anim-locked, update() leaves its position/scale/opacity alone
+  // so the sequencer can drive them; texture/visibility still sync from data.
+  setSlotAnimLock(col, row, locked) {
+    const slot = this._slots[col]?.[row];
+    if (slot) slot._animLock = !!locked;
+  }
+  setSlotScale(col, row, s) {
+    const slot = this._slots[col]?.[row];
+    if (slot) slot.group.scale.setScalar(s * (slot._baseScale ?? 1));
+  }
+  setSlotWorldXYZ(col, row, x, y, z) {
+    const slot = this._slots[col]?.[row];
+    if (slot) slot.group.position.set(x, y, z);
+  }
+  resetSlotTransform(col, row) {
+    const slot = this._slots[col]?.[row];
+    if (slot) slot.group.scale.setScalar(slot._baseScale ?? 1);  // position restored by idle bob once unlocked
+  }
+
   update(dt, elapsed, colorBombArmed = false) {
     this._elapsed = elapsed;
 
@@ -238,6 +258,7 @@ export class Shooter3D {
     }
     for (let li = 0; li < this._slots.length; li++) {
       for (let si = 0; si < this._slots[li].length; si++) {
+        if (this._slots[li][si]._animLock) continue;   // merge sequencer drives this slot
         const g = this._slots[li][si].group;
         if (g._baseX != null) g.position.x = g._baseX + shakeX;
         // 3A: idle bob (top-down → Z is screen-vertical). Front bomb (si 0) bobs
@@ -310,6 +331,9 @@ export class Shooter3D {
           }
           slot.badgeTex.needsUpdate = true;
         }
+
+        // Merge sequencer owns this slot's scale/opacity while locked.
+        if (slot._animLock) continue;
 
         // Punch scale spring (front slot only)
         if (si === 0 && slot._punching) {

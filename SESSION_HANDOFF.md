@@ -1,13 +1,18 @@
 # Traffic Bomb — Session Handoff
 
 ## Current State
-- Git tip: 0a55ad8 feat: merge animation polish (staggered drop-in, cascade chaining, animated level-start settle)
+- Git tip: 1c6856b fix: reorder highlight centered via camera projection; yellow powerball URL lowercase; +1 test
 - Branch: master
 - Last deploy: today, green
-- Tests: 753 passing, 1 skip, 5 todo
+- Tests: 754 passing, 1 skip, 5 todo
 - Live URL: https://nadavw9.github.io/lane-defense/
 
 ## What Was Shipped This Session (most recent first)
+- 1c6856b — Reorder highlight + yellow powerball fixes:
+  * Reorder/bench drop-target highlight now centred via the CAMERA PROJECTION (`projectSlot` → `getBombSlotScreenXY`), the same fix already used for the merge halo — it was using the 2D slot constant (`getQueueSlotCenter`) and drifting off the 3D bomb. `ShooterRenderer.drawMergeOverlay` falls back to the constant only if no projector is passed.
+  * Yellow (and all) powerball PRELOAD URLs lowercased — `POWERBALL_URLS` built `powerball-${c}.png` (capitalised, e.g. `powerball-Yellow.png`) but the files on disk and the 3D runtime loader are lowercase, so the preload 404'd on case-sensitive hosts (GitHub Pages). Runtime rendering was already lowercase (degraded gracefully), so this was a latent preload-only bug; NOT a merge bug. Investigation confirmed the merge ENGINE is fully colour-agnostic — yellow merges identically to red/blue/green (verified by unit test + live vertical L21 and vertical+horizontal L22).
+  * +1 test: 3 Yellow bombs in a column → vertical merge fires (`merge-engine`, suite now 754).
+- 556ff79 — Screenshot workflow standardised (CLAUDE.md §13): all review/verification captures now go to a single always-fresh folder `docs/review/` — wiped before each batch, numbered `01.png`/`02.png`/…, with a `00-labels.txt` index (`NN=description` per line). Applies to every future task.
 - 0a55ad8 / a8e15ae — Full merge animation sequence complete (Candy Crush standard):
   * Highlight (100ms) → travel (150ms) → burst+pop (120ms) → staggered drop-in (150ms per bomb, 50ms stagger) → cascade chain (up to 5).
   * Level start: all bombs appear first, then pre-existing merges animate visibly before the first player move.

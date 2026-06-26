@@ -81,6 +81,31 @@ describe('merge-engine — vertical merge (3 same-color → color bomb)', () => 
     expect(loop._onMerge).toHaveBeenCalledTimes(1);
   });
 
+  it('merges 3 Yellow shooters in a column identically to Red/Blue/Green', () => {
+    const { gs, columns } = makeState({ levelId: 21 });   // Yellow unlocks at L21
+    const loop = makeLoop(gs);
+    loop._onMerge = vi.fn();
+
+    columns[0].shooters = [
+      new Shooter({ color: 'Yellow', damage: 2, column: 0 }),
+      new Shooter({ color: 'Yellow', damage: 3, column: 0 }),
+      new Shooter({ color: 'Yellow', damage: 4, column: 0 }),
+    ];
+
+    const merges = loop.evaluateMerges();
+
+    expect(merges).toHaveLength(1);
+    expect(merges[0].type).toBe('vertical');
+    expect(merges[0].color).toBe('Yellow');
+    expect(merges[0].damage).toBe(9);  // 2 + 3 + 4
+
+    expect(columns[0].shooters).toHaveLength(1);
+    expect(columns[0].shooters[0].isColorBomb).toBe(true);
+    expect(columns[0].shooters[0].isMerged).toBe(true);
+    expect(columns[0].shooters[0].color).toBe('Yellow');
+    expect(loop._onMerge).toHaveBeenCalledTimes(1);
+  });
+
   it('does not merge 3 same-color if any is already merged', () => {
     const { gs, columns } = makeState({ levelId: 5 });
     const loop = makeLoop(gs);

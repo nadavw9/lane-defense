@@ -349,8 +349,11 @@ export class ShooterRenderer {
     const t = this._reorderTarget;
     if (t) {
       // Highlight centred ON THE SLOT (concentric circles at the slot centre), not
-      // the whole column. Sized so the ring reads clearly around the lifted ghost.
-      const { x, y } = this.getQueueSlotCenter(t.col, t.row);
+      // the whole column. Centre on the bomb's ACTUAL projected screen position (the
+      // 3D bomb run through the camera) — same projection as the merge halo — so the
+      // ring is exactly concentric; fall back to slot constants if no projector.
+      const proj = projectSlot?.(t.col, t.row);
+      const { x, y } = proj ?? this.getQueueSlotCenter(t.col, t.row);
       const R     = (slotR[t.row] ?? TOP_RADIUS) * 1.45;
       const color = t.valid ? 0x44ff88 : 0xff4444;
       const tp    = 0.55 + 0.45 * pulse;

@@ -319,7 +319,9 @@ export class GameRenderer3D {
   setBombSlotScale(col, row, s)       { this._shooters?.setSlotScale(col, row, s); }
   setBombSlotWorld(col, row, x, y, z) { this._shooters?.setSlotWorldXYZ(col, row, x, y, z); }
   getBombSlotWorld(col, row)          { return this._shooters?.getSlotWorldPosition(col, row) ?? null; }
+  getBombSlotBaseWorld(col, row)      { return this._shooters?.getSlotBaseWorld(col, row) ?? null; }
   resetBombSlot(col, row)             { this._shooters?.resetSlotTransform(col, row); }
+  clearBombAnimLocks()                { this._shooters?.clearAllAnimLocks(); }
 
   /** Set the world {x,z} the next bomb in this lane should travel FROM (release point). */
   setDropStart(laneIdx, world) { this._projectiles?.setNextStart(laneIdx, world); }

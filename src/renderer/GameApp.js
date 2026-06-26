@@ -1691,20 +1691,28 @@ async function main() {
   };
 
   // ── Merge animation sequencer ─────────────────────────────────────────────────
-  // Plays the visible merge sequence (Candy-Crush style): HIGHLIGHT → TRAVEL →
-  // BURST+POP. Merge DATA stays synchronous (evaluateMerges, applied at the burst
-  // step, keeps tests/economy intact) — this only animates the 3D bombs around it
-  // and pauses the game for the ~300ms duration. (Gap-fill drop-in + chain = polish.)
+  // Full Candy-Crush sequence: HIGHLIGHT → TRAVEL → BURST+POP → DROP-IN, then
+  // re-peek and CHAIN (up to 5×) before resuming. Merge DATA stays synchronous
+  // (evaluateMerges at the burst step, refillQueue at the drop-in step — tests and
+  // economy unchanged); this only animates the 3D bombs around it. Game is paused
+  // and queue input blocked for the whole sequence. Only the merging/new bombs are
+  // ever locked — every other queue bomb renders normally throughout.
+  const EB1 = 1.70158, EB3 = EB1 + 1;
+  const easeOutBack = (p) => 1 + EB3 * Math.pow(p - 1, 3) + EB1 * Math.pow(p - 1, 2);  // 0 → overshoot → 1
   const mergeSequencer = {
-    active: false, phase: null, t: 0, plan: null,
+    active: false, phase: null, t: 0, plan: null, drops: null, chain: 0, _prevBlocked: false,
     start() {
       if (this.active) return;
       const plan = gameLoop.peekMerges();
       if (!plan.length) return;                 // nothing to merge — don't pause
-      this.active = true; this.plan = plan; this.phase = 'highlight'; this.t = 0;
+      this.active = true; this.chain = 0;
       gameLoop.pause();
       this._prevBlocked = dragDrop.inputBlocked;   // no queue input mid-sequence
       dragDrop.inputBlocked = true;
+      this._beginBatch(plan);
+    },
+    _beginBatch(plan) {
+      this.plan = plan; this.phase = 'highlight'; this.t = 0;
       for (const m of plan) {
         for (const sl of [m.dest, ...m.travelers]) gameRenderer3D.lockBombSlot(sl.col, sl.row, true);
         m._destW = gameRenderer3D.getBombSlotWorld(m.dest.col, m.dest.row);
@@ -1738,18 +1746,64 @@ async function main() {
         }
       } else if (this.phase === 'pop') {                      // 120ms — merged bomb springs in
         const p = Math.min(1, this.t / 0.12);
-        const c1 = 1.70158, c3 = c1 + 1;                      // easeOutBack: 0 → overshoot → 1
-        const back = 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2);
-        for (const m of this.plan) gameRenderer3D.setBombSlotScale(m.dest.col, m.dest.row, 1.30 * back);
-        if (this.t >= 0.12) this._finish();
+        for (const m of this.plan) gameRenderer3D.setBombSlotScale(m.dest.col, m.dest.row, 1.30 * easeOutBack(p));
+        if (this.t >= 0.12) this._beginFill();
+      } else if (this.phase === 'fill') {                     // new bombs fall in from above, overshoot
+        const DROP_START_Z = -1.0;                            // above the queue's front row
+        let done = true;
+        for (const d of this.drops) {
+          const lt = this.t - d.delay;
+          let z = DROP_START_Z;
+          if (lt < 0) { done = false; }
+          else {
+            const p = Math.min(1, lt / 0.15);
+            if (p < 1) done = false;
+            z = DROP_START_Z + (d.target.z - DROP_START_Z) * easeOutBack(p);   // overshoot past slot, settle
+          }
+          gameRenderer3D.setBombSlotWorld(d.c, d.row, d.target.x, d.target.y, z);
+          gameRenderer3D.setBombSlotScale(d.c, d.row, 1);
+        }
+        if (done) {
+          for (const d of this.drops) { gameRenderer3D.resetBombSlot(d.c, d.row); gameRenderer3D.lockBombSlot(d.c, d.row, false); }
+          this._afterFill();
+        }
       }
     },
-    _finish() {
+    _beginFill() {
+      // Unlock the merge slots so the merged bomb (+ any data-compacted bombs) render.
       for (const m of this.plan) for (const sl of [m.dest, ...m.travelers]) {
         gameRenderer3D.resetBombSlot(sl.col, sl.row);
         gameRenderer3D.lockBombSlot(sl.col, sl.row, false);
       }
-      this.active = false; this.phase = null; this.plan = null;
+      // Refill the gaps; the newly appended bombs (rows >= old length) drop in.
+      const preLen = [];
+      for (let c = 0; c < gs.activeColCount; c++) preLen[c] = gs.columns[c].shooters.length;
+      gameLoop.refillQueue();
+      this.drops = [];
+      for (let c = 0; c < gs.activeColCount; c++) {
+        const len = gs.columns[c].shooters.length;
+        for (let row = preLen[c]; row < len && row < 3; row++) {
+          gameRenderer3D.lockBombSlot(c, row, true);
+          const target = gameRenderer3D.getBombSlotBaseWorld(c, row);
+          if (target) this.drops.push({ c, row, target, delay: (row - preLen[c]) * 0.05 });   // 50ms stagger per column
+          else gameRenderer3D.lockBombSlot(c, row, false);
+        }
+      }
+      this.t = 0;
+      if (this.drops.length) this.phase = 'fill';
+      else this._afterFill();
+    },
+    _afterFill() {
+      this.chain++;
+      if (this.chain < 5) {                       // cap cascades
+        const next = gameLoop.peekMerges();
+        if (next.length) { this._beginBatch(next); return; }
+      }
+      this._finish();
+    },
+    _finish() {
+      gameRenderer3D.clearBombAnimLocks();         // safety: release any remaining locks
+      this.active = false; this.phase = null; this.plan = null; this.drops = null;
       dragDrop.inputBlocked = this._prevBlocked ?? false;
       gameLoop.resume();
     },

@@ -347,6 +347,13 @@ export class GameLoop {
     });
   }
 
+  // Refill any short columns from the director — used by the merge sequencer to fill
+  // the gaps a merge leaves so it can animate the new bombs dropping in.
+  refillQueue() {
+    const gs = this._gs;
+    this._sDir.fillColumns(gs.activeCols, gs.asDirectorState(), gs.phaseMan.getParams());
+  }
+
   _evaluateMerges() {
     const gs = this._gs;
     const activeColCount = gs.activeColCount;

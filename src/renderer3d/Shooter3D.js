@@ -245,6 +245,17 @@ export class Shooter3D {
     const slot = this._slots[col]?.[row];
     if (slot) slot.group.scale.setScalar(slot._baseScale ?? 1);  // position restored by idle bob once unlocked
   }
+  // CANONICAL resting world position of a slot (NOT the live group, which may be
+  // mid-animation) — the drop-in target for a freshly spawned bomb.
+  getSlotBaseWorld(col, row) {
+    const slot = this._slots[col]?.[row];
+    if (!slot) return null;
+    const x = slot.group._baseX ?? slot.group.position.x;
+    return new THREE.Vector3(x, 0, slotZ(row));
+  }
+  clearAllAnimLocks() {
+    for (const col of this._slots) for (const slot of col) slot._animLock = false;
+  }
 
   update(dt, elapsed, colorBombArmed = false) {
     this._elapsed = elapsed;

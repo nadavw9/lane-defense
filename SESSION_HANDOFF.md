@@ -1,13 +1,18 @@
 # Traffic Bomb — Session Handoff
 
 ## Current State
-- Git tip: 18b14ba fix: queue settles pre-existing merges at level start (Candy Crush standard)
+- Git tip: 0a55ad8 feat: merge animation polish (staggered drop-in, cascade chaining, animated level-start settle)
 - Branch: master
 - Last deploy: today, green
 - Tests: 753 passing, 1 skip, 5 todo
 - Live URL: https://nadavw9.github.io/lane-defense/
 
 ## What Was Shipped This Session (most recent first)
+- 0a55ad8 / a8e15ae — Full merge animation sequence complete (Candy Crush standard):
+  * Highlight (100ms) → travel (150ms) → burst+pop (120ms) → staggered drop-in (150ms per bomb, 50ms stagger) → cascade chain (up to 5).
+  * Level start: all bombs appear first, then pre-existing merges animate visibly before the first player move.
+  * Only merging bombs are affected — all other queue bombs stay fully visible throughout (per-slot `_animLock`).
+  * Implementation: a headless-safe peek→animate→apply pipeline keeps merge DATA synchronous (`GameLoop.peekMerges()` reads merges; `evaluateMerges()` applies at the burst step; `refillQueue()` fills gaps at the drop-in step) so the 753-test suite and economy are untouched. The 3D bombs are driven by the `mergeSequencer` in `GameApp.js`; new accessors `getSlotBaseWorld`/`clearAllAnimLocks` (Shooter3D) + passthroughs (GameRenderer3D). Drop-in uses easeOutBack overshoot; chain re-peeks after each settle, capped at 5.
 - 18b14ba — Starting queue settles pre-existing merges (Candy Crush standard). `GameLoop.restart()` now calls `_settleStartingMerges()` right after the initial `fillColumns`: if the director deals a valid merge pattern (e.g. 3-same-colour in a column) at level start, the merge fires BEFORE the player's first move. It SILENTLY (no `_onMerge` burst/SFX) loops fill→`evaluateMerges()`→refill until the board has no merges left, so consumed bombs are replaced and the board is clean. Reuses the existing L5-gated `evaluateMerges()` (merge detection untouched; `fillColumns` untouched), so L1–L4 are a no-op and ongoing in-play fills still do NOT auto-merge — this exception is only the initial board settle. +2 tests (753).
 - 65f28e9 — Bug fixes batch (visual + merge-bomb behaviour):
   * Car overlap at gridRows 16 — `Car3D.SPRITE_SCALE` 0.65 → 0.43 (the on-screen row pitch shrank ~10/15, so cars sized for 11 rows were overlapping).
@@ -87,14 +92,15 @@
 - 168c5ca — First major visual/balance batch: city edges, bomb zone panel, car centering, color bomb visuals.
 
 ## IMMEDIATE PRIORITIES (next session, in order)
-1. On-device smoke test — merge feel, halo fix, car spacing, and the turn economy (free-action lock).
-2. Merge shape redesign (NEW shapes): 4-in-a-row → deal 2 damage to ALL same-colour cars on the road; L/T shape → an area bomb that hits 3 adjacent lanes. (Designs only so far — needs detection + resolution + visuals; "+" shape is still deferred.)
-3. Difficulty rebalance — run the sim with merge + gridRows 16 MODELLED, then tune per-level HP/spawnBudget. (Phase-1.5 found HP cuts alone don't fix the 0%-win levels; merge + the bigger grid are the intended levers, so they must be in the sim first. spawnBudgets were NOT touched yet.)
-4. Strong merged bomb sprite (generate via ChatGPT, same powerball style) — currently reuses the regular powerball + number badge.
-5. Agent team quality audit (Royal Match standard).
-6. Real-device playtest checklist: L8, L12, L16, L33, L37 + bosses L10/20/30/40.
-7. Signed AAB build.
-8. Play Store assets + submission.
+1. On-device test: does the merge animation feel satisfying? Is the timing right?
+2. Car lane alignment fix (backlog item — cars offset in some lanes, seen at L21).
+3. Merge shape redesign: 4-in-a-row → 2 damage to ALL same-colour cars; L/T shape → area bomb. ("+" shape still deferred.)
+4. Difficulty rebalance (sim with merge + gridRows 16 modelled).
+5. Strong merged bomb sprite (generate via ChatGPT, same powerball style).
+6. Agent team quality audit (Royal Match standard).
+7. Real-device playtest checklist: L8, L12, L16, L33, L37 + bosses L10/20/30/40.
+8. Signed AAB build.
+9. Play Store assets + submission.
 
 ## Active Backlog
 - Replace COLOR CHANGE placeholder glyph with a real paintbrush sprite (drop `public/sprites/designed/booster-colorchange.png` — picked up automatically; also add it to BOOSTER_URLS preload in GameApp.js once it exists)

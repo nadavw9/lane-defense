@@ -275,6 +275,17 @@ const filepath = await takeScreenshot(page, 'L5-gameplay');
 // then: Read tool on filepath
 ```
 
+### Screenshot Workflow (review captures — ALWAYS follow)
+All review/verification screenshots (the ones shown to the user at the end of a task) go to a single, always-fresh folder:
+
+1. **Location:** `C:\Users\dalit\lane-defense\docs\review\` (`docs/review/`).
+2. **Always fresh:** DELETE every existing file in `docs/review/` BEFORE saving a new batch, so the folder only ever holds the current review set.
+3. **Names:** short numbered files — `01.png`, `02.png`, `03.png`, …
+4. **Labels:** add `00-labels.txt` describing each number, one per line — e.g. `01=reorder highlight, 02=yellow merge pop`.
+5. Applies to ALL future screenshot captures in this project, every task — not a one-off.
+
+End the response with the full absolute path(s) under `docs/review/`.
+
 ### Playwright PixiJS Clicks
 Use `scripts/pixi-coords.mjs` for all game canvas interactions.
 Stage dimensions: **390 × 844**.

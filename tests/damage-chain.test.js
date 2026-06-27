@@ -28,7 +28,8 @@ function makeState(opts = {}) {
     lanes, columns,
     colors:   ['Red', 'Blue', 'Green', 'Yellow'],
     world:    { hpMultiplier: 1, speed: { base: 5, variance: 0.5 } },
-    duration: 90, phaseMan, laneCount, colCount: 4, gridRows: 11, spawnBudget: 0,
+    duration: 90, phaseMan, laneCount, colCount: 4, gridRows: 11,
+    spawnBudget: 0, laneTargetCarCount: 0,  // disable refills for headless tests
     ...rest,
   });
   return { gs, lanes, columns };

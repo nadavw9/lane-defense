@@ -40,6 +40,7 @@ function buildLevel(levelId) {
     gridRows:           cfg.gridRows,
     spawnBudget:        cfg.spawnBudget,
     laneTargetCarCount: cfg.laneTargetCarCount,
+    goals:              cfg.goals,  // pass goals from level config
   });
 
   const rng        = new SeededRandom(42);
@@ -78,13 +79,12 @@ describe('regression: shot contracts (real GameLoop)', () => {
 
         expect(lanes[0].cars.includes(target)).toBe(false);   // killed + removed
         if (survivor) expect(survivor.row).toBe(4);            // exactly one advance, cross-lane
-        // Budget tracks SPAWNS (not kills): a kill empties the lane, so refill spawns
-        // a fresh car at row 0 when budget remains. (Spec's "budget tracks kills" is
-        // inaccurate — it tracks spawns; verified here.)
-        if (budgetBefore > 0) {
-          expect(lanes[0].cars.some(c => c.row === 0)).toBe(true);
-          expect(gs.spawnBudget).toBeLessThan(budgetBefore);
-        }
+        // Lane refill: after advancing the grid, a kill empties the lane, so refill spawns
+        // a fresh car at row 0. With infinite spawn (spawnBudget now a density knob, not
+        // a depletion pool), a new car always spawns when the lane is under-stocked.
+        expect(lanes[0].cars.some(c => c.row === 0)).toBe(true);
+        // spawnBudget no longer decrements — it's a density knob, not a depletion pool.
+        expect(gs.spawnBudget).toBe(budgetBefore);
       });
 
       // ── CONTRACT B — wrong colour: no damage, no advance, bomb still consumed ──
@@ -148,13 +148,17 @@ describe('regression: shot contracts (real GameLoop)', () => {
         );
       }
 
-      // ── CONTRACT D — win when the last car dies and budget is spent ───────────
-      // Budget = cars still to spawn; 0 means "this is the last car". Killing it
-      // empties every lane with no budget left → win.
-      it('D: killing the final car with budget exhausted wins the level', () => {
+      // ── CONTRACT D — win when all goal progress reaches zero ─────────────────
+      // Goal-based levels win when all goal progress is zero (from applying kills).
+      // Set up goals with minimal counts so a single kill meets them.
+      it('D: killing cars matching goals wins the level', () => {
         const { cfg, gs, lanes, loop } = buildLevel(levelId);
         const C = cfg.colors[0];
-        gs.spawnBudget = 0;
+
+        // Set minimal goals for this test (1 car of the first color)
+        gs.goals = [{ type: 'destroyColor', color: C, count: 1 }];
+        gs.goalProgress = [1];
+
         placeCar(loop, lanes[0], { color: C, hp: 3, row: 5, gridRows: cfg.gridRows });
 
         loop._resolveShot(new Shooter({ color: C, damage: 5, column: 0 }), 0);

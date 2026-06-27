@@ -11,7 +11,7 @@ export class GameState {
   // The renderers always see all 4; inactive ones just have no cars/shooters.
   constructor({ lanes, columns, colors, world, duration, phaseMan,
                 laneCount, colCount, targetKills, gridRows,
-                spawnBudget, laneTargetCarCount, levelId }) {
+                spawnBudget, laneTargetCarCount, levelId, goals }) {
     // ── Core collections ───────────────────────────────────────────────────
     this.lanes   = lanes;
     this.columns = columns;
@@ -40,6 +40,13 @@ export class GameState {
     this.laneTargetCarCount = laneTargetCarCount ?? 2;
     this.initialCars        = null;
     this.openingRows        = [0, 1, 2]; // opening cars per lane, rows from top (set per level)
+
+    // ── Level Goals (Level Goal System) ────────────────────────────────────
+    // goals: array of goal objects { type, color?, carType?, count }
+    // goalProgress: array of remaining counts (parallel to goals; 0 = complete)
+    this.goals           = goals ?? [];
+    this._initialGoals   = goals ? JSON.parse(JSON.stringify(goals)) : [];
+    this.goalProgress    = this.goals.map(g => g.count);
 
     // ── Clock ─────────────────────────────────────────────────────────────
     this.elapsed = 0;
@@ -211,6 +218,8 @@ export class GameState {
     this.hitStopRemaining = 0;
     this.timeScale        = 1;
     this.slowMoRemaining  = 0;
+    this.goals           = this._initialGoals.length > 0 ? JSON.parse(JSON.stringify(this._initialGoals)) : [];
+    this.goalProgress    = this.goals.map(g => g.count);
     for (let i = 0; i < this.firingSlots.length; i++) this.firingSlots[i] = null;
     // Restore original duration (rescues add to it; reset removes those additions).
     // Duration is re-supplied by GameLoop.restart() which knows the base value.
@@ -239,6 +248,37 @@ export class GameState {
     this.totalDeploys++;
     if (isCorrect) this.correctDeploys++;
     else           this.wrongDeploys++;
+  }
+
+  // ── Goal system helpers ────────────────────────────────────────────────────
+
+  // Check if all goal progress is at 0 (all goals met).
+  // Returns false if no goals exist.
+  isGoalMet() {
+    return this.goals.length > 0 && this.goalProgress.every(r => r === 0);
+  }
+
+  // Apply a kill to all matching goals.
+  // destroyType car types: small, big, jeep, truck, bigrig, tank.
+  // destroyColor goals check carColor.
+  // destroyTotal goals always count down.
+  applyKillToGoals(carColor, carType) {
+    for (let i = 0; i < this.goals.length; i++) {
+      const goal = this.goals[i];
+      let matches = false;
+
+      if (goal.type === 'destroyTotal') {
+        matches = true;
+      } else if (goal.type === 'destroyColor') {
+        matches = (carColor === goal.color);
+      } else if (goal.type === 'destroyType') {
+        matches = (carType === goal.carType);
+      }
+
+      if (matches) {
+        this.goalProgress[i] = Math.max(0, this.goalProgress[i] - 1);
+      }
+    }
   }
 
   // ── Director API ─────────────────────────────────────────────────────────

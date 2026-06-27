@@ -7,17 +7,18 @@ export class CombatResolver {
   // Attempt to fire `shooter` at the front car of `lane`.
   //
   // World 1-2 rule: wrong color = 0 damage (no interference yet).
-  // Returns { kills, carryOverKills, damageDealt }.
+  // Returns { kills, carryOverKills, damageDealt, destroyed }.
   //   kills          — total cars destroyed by this shot
   //   carryOverKills — kills beyond the first (each = one carry-over)
   //   damageDealt    — total HP removed (useful for partial-damage feedback)
+  //   destroyed      — array of { color, type } for each destroyed car
   resolve(shooter, lane) {
     const frontCar = lane.frontCar();
-    if (!frontCar) return { kills: 0, carryOverKills: 0, damageDealt: 0 };
+    if (!frontCar) return { kills: 0, carryOverKills: 0, damageDealt: 0, destroyed: [] };
 
     // Color mismatch → no damage in World 1-2.
     if (shooter.color !== frontCar.color) {
-      return { kills: 0, carryOverKills: 0, damageDealt: 0 };
+      return { kills: 0, carryOverKills: 0, damageDealt: 0, destroyed: [] };
     }
 
     return this._applyDamage(shooter.damage, shooter.color, lane);
@@ -34,6 +35,7 @@ export class CombatResolver {
     let kills          = 0;
     let carryOverKills = 0;
     let damageDealt    = 0;
+    const destroyed    = [];
 
     while (remaining > 0 && lane.frontCar()) {
       const car = lane.frontCar();
@@ -46,6 +48,8 @@ export class CombatResolver {
       damageDealt += Math.min(remaining, hp);
 
       if (car.isDead()) {
+        // Capture destroyed car's color and type for goal progress.
+        destroyed.push({ color: car.color, type: car.type });
         // First kill is a normal kill; every subsequent kill is a carry-over.
         if (kills > 0) carryOverKills++;
         kills++;
@@ -56,6 +60,6 @@ export class CombatResolver {
       }
     }
 
-    return { kills, carryOverKills, damageDealt };
+    return { kills, carryOverKills, damageDealt, destroyed };
   }
 }

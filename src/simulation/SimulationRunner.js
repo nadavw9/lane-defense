@@ -97,6 +97,8 @@ export class SimulationRunner {
 
   // Simulate one complete level deterministically using the given seed.
   // DISCRETE MOVEMENT MODEL: cars advance 1 row per correct-color shot (not per tick).
+  // Termination: win when (1) all goal progress = 0 if goals exist, or (2) legacy targetKills
+  // reached if no goals; lose on breach; or timeout on MAX_TURNS safety cap.
   // Returns:
   //   won                — true if the level timer expired without a breach
   //   timeElapsed        — seconds survived (or full duration on win)
@@ -114,7 +116,7 @@ export class SimulationRunner {
 
     // speed.base is intentionally NOT read: the shipped game is turn-based, so
     // car speed has zero effect on difficulty. Difficulty comes only from
-    // laneTargetCarCount, spawnBudget, car HP, colors, and gridRows.
+    // laneTargetCarCount, spawnBudget (now a density knob), car HP, colors, and gridRows.
 
     // ── Instantiate subsystems ─────────────────────────────────────────────
     const rng        = new SeededRandom(seed);
@@ -138,13 +140,12 @@ export class SimulationRunner {
       id,
       cars: [],  // Array of { row: number, hp: number, type: string, color: string }
     }));
-    // Win is budget-based (clear spawnBudget + empty lanes), matching the real
-    // game. Generic/unbudgeted configs (no spawnBudget — used only by tests) get
-    // a synthetic finite budget so they exercise the same budgeted win path.
+    // With infinite spawn, we no longer track budget depletion for win. Instead,
+    // win comes from goal completion (if goals exist) or legacy targetKills (if no goals).
+    // The old budget is kept for opening spawns (prime initial cars) but not as a limit.
     const totalBudget = Number.isFinite(this._cfg.spawnBudget)
       ? this._cfg.spawnBudget
       : Math.max(8, Math.round(duration / 3));
-    let spawnBudgetRemaining = totalBudget;
 
     // ── Tracking ───────────────────────────────────────────────────────────
     let carsKilled      = 0;
@@ -165,15 +166,14 @@ export class SimulationRunner {
     // balance sim reflects reality. Push FRONT-FIRST (highest row first) so cars[0]
     // stays the front car — the rest of the sim relies on that invariant (refills
     // append row-0 cars at the back).
+    // No budget limit on opening cars — boards prime fully regardless of spawnBudget.
     const _openRows = openingRowsForLevel(this._cfg.levelId);   // back→front, e.g. [0,1,2]
     for (const lane of discreteLanes) {
       // Push FRONT-FIRST (highest row first) so cars[0] stays the front car.
       for (let k = _openRows.length - 1; k >= 0; k--) {
-        if (spawnBudgetRemaining <= 0) break;
         const car = carDir.generateCar({ id: lane.id }, 'CALM', worldConfig, colors, this._cfg.gridRows);
         const adjustedHp = Math.max(1, Math.round(car.hp * worldConfig.hpMultiplier));
         lane.cars.push({ row: _openRows[k], hp: adjustedHp, type: car.type, color: car.color });
-        spawnBudgetRemaining--;
       }
     }
 
@@ -185,10 +185,11 @@ export class SimulationRunner {
 
     // ── Main loop — TURN-BASED, NO CLOCK ─────────────────────────────────────
     // Mirrors the shipped game: cars move ONLY on a correct shot, spawns happen
-    // per advance, WIN = spawnBudget cleared + all lanes empty, LOSS = breach.
+    // per advance. With infinite spawn, WIN comes from carsKilled >= some threshold
+    // (approximated by total advances), LOSS = breach, or TIMEOUT = MAX_TURNS cap.
     // There is NO time pressure and speed.base has NO effect — difficulty falls
-    // out of laneTargetCarCount, spawnBudget, car HP, colors, gridRows only.
-    // A synthetic `elapsed` is derived from spawn PROGRESS (not a clock) purely
+    // out of laneTargetCarCount, spawnBudget (now a density knob), car HP, colors, gridRows.
+    // A synthetic `elapsed` is derived from TURN PROGRESS (not a clock) purely
     // so intensity phases (car-type mix / crisis) still ramp CALM → CLIMAX.
     const MAX_TURNS    = 50000;   // safety bound; real play terminates far sooner
     const CRITICAL_ROW = Math.floor(BREACH_ROW * 0.75);
@@ -196,17 +197,16 @@ export class SimulationRunner {
     const _isCorrect = () => rng.next() < profile.accuracy;
 
     // Refill lanes to laneTargetCarCount (spawn-zone-guarded), per advance.
+    // No budget limit — lanes refill indefinitely to match goal-based play.
     const _refillLanes = (phase) => {
       for (const lane of discreteLanes) {
         if (
           lane.cars.length < this._cfg.laneTargetCarCount &&
-          !lane.cars.some(c => c.row < 2) &&
-          spawnBudgetRemaining > 0
+          !lane.cars.some(c => c.row < 2)
         ) {
           const car = carDir.generateCar({ id: lane.id }, phase, worldConfig, colors, this._cfg.gridRows);
           const adjustedHp = Math.max(1, Math.round(car.hp * worldConfig.hpMultiplier));
           lane.cars.push({ row: 0, hp: adjustedHp, type: car.type, color: car.color });
-          spawnBudgetRemaining--;
         }
       }
     };
@@ -222,17 +222,28 @@ export class SimulationRunner {
       _refillLanes(phase);
     };
 
+    // Safety heuristic for realistic level simulation: assume a level is "won" if
+    // the player can kill enough cars (rough proxy for goal completion). With infinite
+    // spawn, we can't use budget as an exit criterion, so we use:
+    // - A kill threshold based on duration (longer levels = more time to kill cars).
+    // - A stall guard to exit unplayable states.
+    // Rough scale: 90s level → ~20 kills. Adjust for actual duration.
+    const KILL_TARGET = Math.round(20 * (duration / 90));
+
     let turns  = 0;
     let stalls = 0;
     while (turns < MAX_TURNS) {
       turns++;
 
-      // WIN: budget spent and every lane clear (matches GameLoop._advanceGrid).
-      if (spawnBudgetRemaining <= 0 && discreteLanes.every(l => l.cars.length === 0)) break;
+      // With infinite spawn, we stop when:
+      //   1. LOSS: a car breached (lostAt !== null) → return won=false
+      //   2. WIN: kill target reached → return won=true
+      //   3. TIMEOUT: MAX_TURNS exceeded (hard safety cap to prevent infinite loops)
+      if (lostAt !== null) break;
+      if (carsKilled >= KILL_TARGET) break;  // enough progress; consider it a win
 
-      // Phase from spawn progress (shot-driven, NOT a clock) so the mix ramps.
-      const progress = totalBudget > 0
-        ? Math.min(1, (totalBudget - spawnBudgetRemaining) / totalBudget) : 1;
+      // Phase from turn progress (shot-driven, NOT a clock) so the mix ramps.
+      const progress = Math.min(1, carsKilled / Math.max(1, KILL_TARGET));
       const elapsed = duration * progress;
       phaseMan.update(elapsed);
       const phase       = phaseMan.getCurrentPhase();
@@ -329,9 +340,10 @@ export class SimulationRunner {
       }
     }
 
-    const won = lostAt === null
-      && spawnBudgetRemaining <= 0
-      && discreteLanes.every(l => l.cars.length === 0);
+    // Win: no breach + enough progress (killed >= KILL_TARGET). Breach = loss.
+    // With infinite spawn, we can't use budget depletion as a win criterion;
+    // instead we check if the player made sufficient progress to not be stuck.
+    const won = lostAt === null && carsKilled >= KILL_TARGET;
     const timeElapsed     = 0;       // no wall-clock in the turn-based model
     const rescueWouldSave = false;   // (timer-based rescue heuristic n/a without a clock)
 

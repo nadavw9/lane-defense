@@ -108,7 +108,9 @@ describe('car-advance — empty lanes', () => {
   });
 
   it('after the last car in a lane is destroyed, no further advances occur there', () => {
-    const { gs, lanes } = makeState({ laneCount: 4, spawnBudget: 0 });
+    // With infinite spawn, disable refill by setting laneTargetCarCount: 0.
+    // This test checks the edge case: firing at an empty lane is safe and doesn't advance.
+    const { gs, lanes } = makeState({ laneCount: 4, spawnBudget: 0, laneTargetCarCount: 0 });
     const loop = makeLoop(gs);
     lanes[0].addCar(car('Red', 2, 5));
     lanes[1].addCar(car('Blue', 5, 5)); // keeps the board non-empty (no win)
@@ -122,22 +124,48 @@ describe('car-advance — empty lanes', () => {
 });
 
 describe('car-advance — spawning', () => {
-  it('spawns a new car after advance when spawnBudget > 0', () => {
+  it('spawns a new car after advance to keep lanes at target count', () => {
+    // With infinite spawn (spawnBudget now a density knob), refill always happens
+    // to maintain laneTargetCarCount (as long as there's no car in spawn zone).
     const { gs, lanes } = makeState({ laneCount: 1, spawnBudget: 5, laneTargetCarCount: 2 });
     const loop = makeLoop(gs);
     lanes[0].addCar(car('Red', 5, 5));   // 1 car, room for a refill
     loop._advanceGrid();
-    expect(lanes[0].cars.length).toBe(2);
-    expect(gs.spawnBudget).toBe(4);
+    expect(lanes[0].cars.length).toBe(2);  // spawned to reach target of 2
+    expect(gs.spawnBudget).toBe(5);  // budget no longer decrements
   });
 
-  it('does not spawn a new car when spawnBudget = 0', () => {
+  it('spawns a new car even when spawnBudget was previously 0', () => {
+    // Infinite spawn: every lane refills to laneTargetCarCount, budget is not a limit.
     const { gs, lanes } = makeState({ laneCount: 1, spawnBudget: 0, laneTargetCarCount: 2 });
     const loop = makeLoop(gs);
     lanes[0].addCar(car('Red', 5, 5));
     loop._advanceGrid();
-    expect(lanes[0].cars.length).toBe(1);
-    expect(gs.spawnBudget).toBe(0);
+    expect(lanes[0].cars.length).toBe(2);  // spawned despite budget = 0
+    expect(gs.spawnBudget).toBe(0);  // budget unchanged
+  });
+
+  it('infinite spawn: destroy more cars than the old spawnBudget would have allowed', () => {
+    // With the old spawnBudget-as-depletion-pool model, a budget of 5 would allow
+    // exactly 5 cars to spawn total (opening + refills). Now with infinite spawn,
+    // we should be able to destroy FAR more cars by repeatedly killing and refilling.
+    // This test proves the spawn mechanism now works indefinitely.
+    const { gs, lanes } = makeState({ laneCount: 1, spawnBudget: 5, laneTargetCarCount: 1 });
+    const loop = makeLoop(gs);
+    // Add one car to start; with old budget, only 4 more could spawn (5-1=4 remaining).
+    lanes[0].addCar(car('Red', 1, 5));
+
+    // Kill and refill 10 times — far beyond the old budget of 5.
+    let killed = 0;
+    for (let i = 0; i < 10; i++) {
+      expect(lanes[0].cars.length).toBeGreaterThan(0);  // car exists to kill
+      loop._resolveShot(shot('Red', 10), 0);  // kill the front car
+      killed++;
+      // Simulate refill (normally happens in _advanceGrid after shot)
+      loop._advanceGrid();
+    }
+    expect(killed).toBe(10);  // proved we killed 10 cars despite budget=5
+    expect(gs.spawnBudget).toBe(5);  // budget unchanged throughout
   });
 });
 

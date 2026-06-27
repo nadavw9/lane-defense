@@ -227,7 +227,7 @@ export class GameLoop {
 
     gs.recordDeploy(isCorrectColor);
 
-    const { kills, carryOverKills, damageDealt } = this._combat.resolve(shooter, lane);
+    const { kills, carryOverKills, damageDealt, destroyed: destroyedFromCombat } = this._combat.resolve(shooter, lane);
 
     if (damageDealt === 0) {
       this._onMiss(laneIdx, carGameX);
@@ -259,6 +259,11 @@ export class GameLoop {
       if (kills > gs.maxSingleShotKills) gs.maxSingleShotKills = kills;  // win-screen "best multi-kill"
       if (carryOverKills > 0) this._onChain(laneIdx, carGameX);
 
+      // Apply goal progress for each destroyed car
+      for (const destroyed of destroyedFromCombat) {
+        gs.applyKillToGoals(destroyed.color, destroyed.type);
+      }
+
       for (let i = 0; i < kills; i++) {
         const isCarryOver = i > 0;
         const combo = gs.recordKill(isCarryOver);
@@ -269,6 +274,13 @@ export class GameLoop {
           bs.bombs++;
           this._onBombEarned?.();
         }
+      }
+
+      // Check goal-based win condition after applying goal progress
+      if (gs.goals.length > 0 && gs.isGoalMet() && !gs.isOver) {
+        gs.endGame(true);
+        this._onEnd(true);
+        return;
       }
     }
 
@@ -513,7 +525,10 @@ export class GameLoop {
       const lane = gs.lanes[li];
       for (let ci = lane.cars.length - 1; ci >= 0; ci--) {
         if (lane.cars[ci].color !== color) continue;
-        killed.push({ laneIdx: li, position: lane.cars[ci].position });  // capture before removal
+        const car = lane.cars[ci];
+        killed.push({ laneIdx: li, position: car.position });  // capture before removal
+        // Apply goal progress before removing the car
+        gs.applyKillToGoals(car.color, car.type);
         lane.cars.splice(ci, 1);
         const combo = gs.recordKill(false);
         this._onKill(combo);
@@ -640,10 +655,10 @@ export class GameLoop {
     }
 
     // 3. Win check.
-    // Budget-based (preferred): all budget spent AND all lanes empty.
-    // Legacy kill-based: totalKills reaches targetKills (tests / levels without budget).
-    if (gs.spawnBudget !== null) {
-      if (gs.spawnBudget <= 0 && gs.activeLanes.every(l => l.cars.length === 0)) {
+    // Goal-based (preferred when goals exist): all goals met (goalProgress all zero).
+    // Legacy kill-based (fallback): totalKills reaches targetKills (tests / levels without goals).
+    if (gs.goals.length > 0) {
+      if (gs.isGoalMet()) {
         gs.endGame(true);
         this._onEnd(true);
         return;
@@ -668,39 +683,39 @@ export class GameLoop {
 
   // Re-evaluate the WIN condition after a non-advancing car removal (booster bombs).
   // _advanceGrid normally owns the win check, but booster bombs clear cars without
-  // advancing — so clearing the last cars once the spawn budget is spent would
-  // otherwise leave a finished board that never registers the win (soft-lock).
+  // advancing — so clearing the last cars would otherwise leave a finished board that
+  // never registers the win (soft-lock).
   _settleAfterClear() {
     const gs = this._gs;
     if (gs.isOver) return;
 
-    const allEmpty = gs.activeLanes.every(l => l.cars.length === 0);
-
-    // Win check — mirrors _advanceGrid step 3 (budget-cleared, or legacy kill goal).
-    if (gs.spawnBudget !== null) {
-      if (gs.spawnBudget <= 0 && allEmpty) { gs.endGame(true); this._onEnd(true); }
+    // Win check — mirrors _advanceGrid step 3 (goal-based or legacy kill goal).
+    if (gs.goals.length > 0) {
+      if (gs.isGoalMet()) { gs.endGame(true); this._onEnd(true); }
     } else if (gs.totalKills >= gs.targetKills) {
       gs.endGame(true); this._onEnd(true);
     }
   }
 
-  // Refill each active lane up to laneTargetCarCount, consuming spawnBudget.
+  // Refill each active lane up to laneTargetCarCount. Spawns infinitely to support
+  // goal-based levels that require more cars than spawnBudget; spawnBudget is now
+  // a density knob only, not a depletion pool. The level ends only on goal completion
+  // (win) or breach (lose).
   // In legacy mode (spawnBudget === null), falls back to spawning 1-2 per advance.
   _refillLanes() {
     const gs     = this._gs;
     const target = gs.laneTargetCarCount ?? 2;
 
     if (gs.spawnBudget !== null) {
-      // Budget mode: refill every under-stocked lane as long as budget remains.
+      // Budget mode: refill every under-stocked lane. Never stop for budget — spawn
+      // indefinitely to meet goal requirements. spawnBudget is a density knob only.
       for (let li = 0; li < gs.activeLaneCount; li++) {
-        if (gs.spawnBudget <= 0) break;
         const lane = gs.lanes[li];
         if (lane.cars.length < target && !lane.cars.some(c => c.row < 2)) {
           const car = this._carDir.generateCar(lane, 'CALM', gs.world, gs.colors, gs.gridRows);
           car.row = 0; car.position = 0;
           lane.addCar(car);
           this.onNewCarType?.(car.type);
-          gs.spawnBudget--;
         }
       }
     } else {
@@ -916,14 +931,11 @@ export class GameLoop {
 
   // Start each active lane with one car at row 0 (the far end), or place
   // pre-defined cars if the level config supplies an initialCars array.
-  // Each placed car is charged against spawnBudget (if set).
+  // No budget decrement — opening board always primes fully. spawnBudget is a
+  // density knob, not a depletion pool.
   _primeInitialCars() {
     const gs   = this._gs;
     const ROWS = gs.gridRows ?? 16;
-
-    const spendBudget = () => {
-      if (gs.spawnBudget !== null && gs.spawnBudget > 0) gs.spawnBudget--;
-    };
 
     if (gs.initialCars && gs.initialCars.length > 0 && gs.activeLaneCount > 0) {
       for (const def of gs.initialCars) {
@@ -932,14 +944,12 @@ export class GameLoop {
         car.type     = def.type ?? car.type;
         car.position = this._rowToPosition(car.row, ROWS);
         gs.lanes[0].addCar(car);
-        spendBudget();
       }
       for (let li = 1; li < gs.activeLaneCount; li++) {
         const car    = this._carDir.generateCar(gs.lanes[li], 'CALM', gs.world, gs.colors, ROWS);
         car.row      = 0;
         car.position = this._rowToPosition(0, ROWS);
         gs.lanes[li].addCar(car);
-        spendBudget();
       }
     } else {
       // Open with the uniform 3-car/lane density at gs.openingRows (rows [0,1,2] —
@@ -952,7 +962,6 @@ export class GameLoop {
           car.row      = row;
           car.position = this._rowToPosition(row, ROWS);
           gs.lanes[li].addCar(car);
-          spendBudget();
         }
       }
     }

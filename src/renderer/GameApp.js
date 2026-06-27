@@ -73,6 +73,7 @@ import { AchievementsScreen }     from '../screens/AchievementsScreen.js';
 import { StatsScreen }            from '../screens/StatsScreen.js';
 import { AudioManager }           from '../audio/AudioManager.js';
 import { BoosterBar }             from './BoosterBar.js';
+import { GoalCounterUI }          from './GoalCounterUI.js';
 import { adManager }            from '../ads/AdManager.js';
 import { PopupQueue, PRIORITY }  from './PopupQueue.js';
 import { Analytics, logEvent }    from '../analytics/Analytics.js';
@@ -385,6 +386,7 @@ async function main() {
   const floatingTexts = [];
   const laneFlash     = new LaneFlash(layers);
   const comboGlow     = new ComboGlow(layers, APP_W, APP_H);
+  const goalCounterUI = new GoalCounterUI(layers.get('hudLayer'), APP_W);
   const boosterBar    = new BoosterBar(
     layers, boosterState, gs, APP_W,
     () => {
@@ -598,6 +600,11 @@ async function main() {
     gs.spawnBudget         = cfg.spawnBudget        ?? null;
     gs._initialSpawnBudget = cfg.spawnBudget        ?? null;
     gs.laneTargetCarCount  = cfg.laneTargetCarCount ?? 2;
+    // Level Goal System: propagate this level's goals into GameState (restart() →
+    // resetLevel() re-derives goalProgress from _initialGoals each play).
+    gs.goals          = cfg.goals ?? [];
+    gs._initialGoals  = cfg.goals ? JSON.parse(JSON.stringify(cfg.goals)) : [];
+    gs.goalProgress   = gs.goals.map(g => g.count);
     carDir.setLevel(typeof cfg.id === 'number' ? cfg.id : 1);
   }
 
@@ -657,12 +664,10 @@ async function main() {
     dragDrop.setMergeEnabled((typeof levelId === 'number' ? levelId : 99) >= 5);
     // Use levelNumber for normal levels; 'D' label for daily challenge.
     hudRenderer.setLevel(currentLevelIsDaily ? 'D' : levelManager.levelNumber);
-    const objTotal = gs.spawnBudget !== null ? gs.spawnBudget : gs.targetKills;
-    const _objectiveText = `Defeat ${objTotal} cars`;
-    // FIX 1: show the objective AFTER the "LEVEL X" splash so the banner never
-    // overlaps it. Numeric levels defer to the splash's completion (below);
-    // non-numeric levels (daily challenge — no splash) show it immediately.
-    if (typeof levelIdOrConfig !== 'number') hudRenderer.showObjective(_objectiveText);
+
+    // Set goals for the level (if any). gs.goals is set by the level config.
+    // If empty, goalCounterUI hides itself automatically.
+    goalCounterUI.setGoals(gs.goals ?? []);
 
     // Feature gating: bench unlocks at L4 (hidden for L1-3). COLOR CHANGE and FREEZE
     // are now earned in-level (coin threshold / 3-car chain) or via the pre-level ad
@@ -808,7 +813,7 @@ async function main() {
 
     // ── Level intro splash ("LEVEL X" bounce-in) ──────────────────────────
     if (typeof levelIdOrConfig === 'number') {
-      _showLevelIntroSplash(levelManager.levelNumber, () => hudRenderer.showObjective(_objectiveText));
+      _showLevelIntroSplash(levelManager.levelNumber, () => {});
     }
 
     // ── Switch to 3D renderer for gameplay ────────────────────────────────
@@ -1091,6 +1096,7 @@ async function main() {
 
   function showLevelSelect() {
     pauseBtn.visible = false;
+    goalCounterUI.setVisible(false);
     audio.playMusic('title');
     layers.get('backgroundLayer').visible = false;  // hide CityBackground behind LevelSelect (F-07)
     layers.get('laneLayer').visible       = false;
@@ -2029,6 +2035,7 @@ async function main() {
     laneFlash.update(dt);
     comboGlow.update(dt, gs.combo);
     boosterBar.update(dt);
+    if (gs.goalProgress) goalCounterUI.update(gs.goalProgress);
     transition.update(dt);
 
     // Core renderer updates

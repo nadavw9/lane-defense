@@ -30,7 +30,7 @@ function makeState({ laneCount = 4, levelId = 5 } = {}) {
     colors:    ['Red', 'Blue', 'Green', 'Yellow'],
     world:     { hpMultiplier: 1, speed: { base: 5, variance: 0.5 } },
     duration:  90, phaseMan: new IntensityPhase(90),
-    laneCount, colCount: 4, gridRows: 11, spawnBudget: 0, levelId,
+    laneCount, colCount: 4, gridRows: 11, spawnBudget: 0, laneTargetCarCount: 0, levelId,
   });
   return { gs, lanes, columns };
 }

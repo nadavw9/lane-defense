@@ -4,18 +4,22 @@
 //
 // Keep the HP numbers in sync with src/director/CarTypes.js base values.
 
-import { Container, Graphics, Text } from 'pixi.js';
+import { Container, Graphics, Text, Sprite, Assets } from 'pixi.js';
 
+const BASE_URL = import.meta.env.BASE_URL ?? '';
+
+// Sprite paths match CarManualScreen / the live car art. HP = CarTypes.js base HP.
 const CAR_HP = [
-  { name: 'Motorbike', hp: 3,  color: 0xE24B4A },
-  { name: 'Car',       hp: 6,  color: 0xEF9F27 },
-  { name: 'Van',       hp: 8,  color: 0x378ADD },
-  { name: 'Tender',    hp: 10, color: 0x639922 },
-  { name: 'Big Rig',   hp: 15, color: 0xD85A30 },
-  { name: 'Tank',      hp: 30, color: 0x7F77DD },
+  { name: 'Motorbike', hp: 3,  color: 0xE24B4A, sprite: 'sprites/designed/bike-red.png'          },
+  { name: 'Car',       hp: 6,  color: 0xEF9F27, sprite: 'sprites/designed/car-red-processed.png' },
+  { name: 'Van',       hp: 8,  color: 0x378ADD, sprite: 'sprites/designed/van-red.png'           },
+  { name: 'Tender',    hp: 10, color: 0x639922, sprite: 'sprites/designed/truck-red.png'         },
+  { name: 'Big Rig',   hp: 15, color: 0xD85A30, sprite: 'sprites/designed/bigrig-red.png'        },
+  { name: 'Tank',      hp: 30, color: 0x7F77DD, sprite: 'sprites/designed/tank.png'              },
 ];
 
-const ROW_H = 46;
+const ROW_H   = 46;
+const SPR_BOX = 40;   // sprite fits within a 40×40 box
 
 export class HpGuideOverlay {
   constructor(stage, appW, appH, { onClose }) {
@@ -58,21 +62,34 @@ export class HpGuideOverlay {
 
     // Rows: colour dot + name (left) … HP value (right)
     const rowsTop = PY + 56;
+    const sprCX = PX + 32;   // sprite-zone centre
     CAR_HP.forEach((c, i) => {
       const cy = rowsTop + i * ROW_H + ROW_H / 2;
 
-      const dot = new Graphics();
-      dot.circle(PX + 28, cy, 9);
-      dot.fill(c.color);
-      dot.stroke({ color: 0xffffff, width: 1, alpha: 0.4 });
-      this._container.addChild(dot);
+      // Car sprite (replaces the old colour dot). Coloured placeholder while it loads.
+      const plh = new Graphics();
+      plh.roundRect(sprCX - SPR_BOX / 2, cy - SPR_BOX / 2, SPR_BOX, SPR_BOX, 6);
+      plh.fill({ color: c.color, alpha: 0.14 });
+      this._container.addChild(plh);
+
+      Assets.load(`${BASE_URL}${c.sprite}`).then(tex => {
+        if (this._container?.destroyed) return;
+        const spr = new Sprite(tex);
+        const scale = Math.min(SPR_BOX / spr.width, SPR_BOX / spr.height);
+        spr.scale.set(scale);
+        spr.anchor.set(0.5, 0.5);
+        spr.x = sprCX; spr.y = cy;
+        this._container.removeChild(plh);
+        plh.destroy();
+        this._container.addChild(spr);
+      }).catch(() => {});
 
       const name = new Text({
         text: c.name,
         style: { fontSize: 16, fontWeight: 'bold', fill: 0xe8ecf4 },
       });
       name.anchor.set(0, 0.5);
-      name.x = PX + 46; name.y = cy;
+      name.x = PX + 60; name.y = cy;
       this._container.addChild(name);
 
       const hp = new Text({

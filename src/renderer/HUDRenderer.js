@@ -251,6 +251,11 @@ export class HUDRenderer {
     if (coins !== this._lastCoins) {
       this._coinsText.text = String(coins);
       this._lastCoins      = coins;
+      // Re-place the coin ICON just LEFT of the number's actual left edge. The number
+      // is right-anchored and can be 4–5 digits (total coins), so a fixed icon would
+      // end up BEHIND a wide number; tracking the left edge keeps it always beside it.
+      const leftEdge = this._coinsText.x - this._coinsText.width;
+      this._drawCoinDisc(leftEdge - 11, ROW_MID);
     }
   }
 

@@ -524,18 +524,19 @@ async function main() {
 
   // ── Pause button (|| icon, top-right of HUD, shown during gameplay) ──────
   const pauseBtn = (() => {
-    const HIT = 40;           // tap-target size
+    const HIT = 44;           // tap-target size (min 44px)
     const g   = new Graphics();
     // Background pill
     g.roundRect(0, 0, HIT, HIT, 8);
     g.fill({ color: 0x000000, alpha: 0.40 });
-    // Two vertical bars of the || symbol
-    g.rect(10, 10, 6, 20);
+    // Two vertical bars of the || symbol (centred in the 44px pill)
+    g.rect(14, 12, 6, 20);
     g.fill({ color: 0xffffff, alpha: 0.90 });
-    g.rect(24, 10, 6, 20);
+    g.rect(26, 12, 6, 20);
     g.fill({ color: 0xffffff, alpha: 0.90 });
+    // Bottom info bar, far right (info bar spans y=688–736).
     g.x       = APP_W - HIT - 4;
-    g.y       = 2;
+    g.y       = 690;
     g.eventMode = 'static';
     g.cursor    = 'pointer';
     g.visible   = false;
@@ -548,12 +549,13 @@ async function main() {
 
   // ── Book icon — opens car encyclopedia (top-left of HUD, shown during gameplay) ─
   const bookBtn = (() => {
-    const HIT = 40;
+    const HIT = 44;
     const g   = new Graphics();
     g.roundRect(0, 0, HIT, HIT, 8);
     g.fill({ color: 0x000000, alpha: 0.40 });
-    g.x       = 4;
-    g.y       = 2;
+    // Bottom info bar, left-of-centre (top zone is goals-only now).
+    g.x       = 116;
+    g.y       = 702;
     g.eventMode = 'static';
     g.cursor    = 'pointer';
     g.visible   = false;
@@ -761,7 +763,7 @@ async function main() {
     }
 
     pauseBtn.visible = true;
-    bookBtn.visible  = true;
+    bookBtn.visible  = false;  // in-game manual button hidden; reachable via pause screen
 
     // ── Booster unlock popup (once per feature, normal levels only) ───────────
     // FIX 4: COLOR CHANGE and FREEZE are now available from L1 (earned in-level or via
@@ -1208,7 +1210,7 @@ async function main() {
         if (fromPause) {
           showPause();
         } else {
-          bookBtn.visible  = true;
+          bookBtn.visible  = false;  // in-game manual button hidden; reachable via pause screen
           pauseBtn.visible = true;
           if (wasPlaying) gameLoop.resume();
         }
@@ -1226,7 +1228,7 @@ async function main() {
         pauseScreen.destroy();
         pauseScreen      = null;
         pauseBtn.visible = true;
-        bookBtn.visible  = true;
+        bookBtn.visible  = false;  // in-game manual button hidden; reachable via pause screen
         gameLoop.resume();
       },
       onCarManual: () => {

@@ -20,16 +20,19 @@ const COLOR_PALETTE = {
   Orange: 0xD85A30,
 };
 
-// Card styling
-const CARD_W = 60;
-const CARD_H = 60;
-const CARD_GAP = 8;
-const CARD_R = 12;
-const CARD_BG_COLOR = 0x1a1d26;
-const CARD_BG_ALPHA = 0.75;
+// Card styling — larger pills with breathing room (HUD redesign: goals own the top).
+const CARD_W = 70;
+const CARD_H = 70;
+const CARD_GAP = 12;
+const CARD_R = 14;
+const CARD_BG_COLOR = 0x2a2f3e;
+const CARD_BG_ALPHA = 0.95;
 
-// Position below HUD (HUD is 70px tall) with some spacing
-const PANEL_TOP_Y = 80;
+// The goals own the TOP zone: a full-width opaque band at the very top of the
+// screen, above the road. Cards are centred inside it; the band's solid fill keeps
+// the road/cars (which start ~44px) from showing through or overlapping.
+const PANEL_TOP_Y   = 12;   // first card row top
+const BAND_BG_COLOR = 0x0a0a1e;
 const MAX_CARDS_PER_ROW = 3;
 
 export class GoalCounterUI {
@@ -38,6 +41,10 @@ export class GoalCounterUI {
     this._stageWidth = stageWidth;
     this._container = new Container();
     this._layer.addChild(this._container);
+
+    // Full-width opaque band behind the cards (first child → drawn behind them).
+    this._band = new Graphics();
+    this._container.addChild(this._band);
 
     this._goals = [];
     this._goalProgress = [];
@@ -139,7 +146,7 @@ export class GoalCounterUI {
 
     if (icon) {
       icon.x = CARD_W / 2;
-      icon.y = 20;
+      icon.y = 24;
       card.addChild(icon);
     }
 
@@ -147,7 +154,7 @@ export class GoalCounterUI {
     const countText = new Text({
       text: String(goal.count),
       style: {
-        fontSize:   18,
+        fontSize:   22,
         fontWeight: 'bold',
         fill:       0xffffff,
         dropShadow: { color: 0x000000, blur: 3, distance: 0, alpha: 0.6 },
@@ -155,7 +162,7 @@ export class GoalCounterUI {
     });
     countText.anchor.set(0.5, 0.5);
     countText.x = CARD_W / 2;
-    countText.y = 44;
+    countText.y = 50;
     card.addChild(countText);
     card._countText = countText;
     card._checkmark = false;
@@ -167,7 +174,7 @@ export class GoalCounterUI {
     // Explosion glyph using Text emoji
     const txt = new Text({
       text: '💥',
-      style: { fontSize: 24 },
+      style: { fontSize: 30 },
     });
     txt.anchor.set(0.5, 0.5);
     return txt;
@@ -178,9 +185,9 @@ export class GoalCounterUI {
     if (!hexColor) return null;
 
     const circle = new Graphics();
-    circle.circle(0, 0, 10);
+    circle.circle(0, 0, 13);
     circle.fill(hexColor);
-    circle.stroke({ color: 0xffffff, width: 1, alpha: 0.4 });
+    circle.stroke({ color: 0xffffff, width: 1.5, alpha: 0.5 });
     return circle;
   }
 
@@ -201,7 +208,7 @@ export class GoalCounterUI {
       // Fallback to text glyph
       const txt = new Text({
         text: carType === 'truck' || carType === 'bigrig' ? '🚚' : '🚗',
-        style: { fontSize: 20 },
+        style: { fontSize: 26 },
       });
       txt.anchor.set(0.5, 0.5);
       return txt;
@@ -211,8 +218,8 @@ export class GoalCounterUI {
     const spriteUrl = `${_B}sprites/designed/${spriteKey}-red.png`;
     const sprite = Sprite.from(spriteUrl);
     sprite.anchor.set(0.5, 0.5);
-    // Scale to fit card (max 20px width)
-    const maxDim = 20;
+    // Scale to fit card
+    const maxDim = 28;
     const scale = Math.min(1, maxDim / Math.max(sprite.width, sprite.height));
     sprite.scale.set(scale);
     return sprite;
@@ -227,6 +234,14 @@ export class GoalCounterUI {
     // Total width of all cards in a row + gaps
     const rowWidth = cardsPerRow * CARD_W + (cardsPerRow - 1) * CARD_GAP;
     const panelStartX = (this._stageWidth - rowWidth) / 2;
+
+    // Opaque full-width band sized to enclose all rows (occludes road behind it).
+    const bandH = PANEL_TOP_Y * 2 + totalRowsNeeded * CARD_H + (totalRowsNeeded - 1) * CARD_GAP;
+    this._band.clear();
+    this._band.rect(0, 0, this._stageWidth, bandH);
+    this._band.fill(BAND_BG_COLOR);
+    this._band.rect(0, bandH - 1, this._stageWidth, 1);
+    this._band.fill({ color: 0xffffff, alpha: 0.07 });
 
     let cardIndex = 0;
     for (let row = 0; row < totalRowsNeeded; row++) {

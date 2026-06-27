@@ -1,25 +1,35 @@
-﻿// HUDRenderer — 70px HUD bar at the top of the screen.
+// HUDRenderer — chrome around the play field.
 //
-//   • Pill progress bar with green gradient fill + animated sheen + "kills/target"
-//   • Purple gradient level badge (L7 pill)
-//   • Heart icons × 5
-//   • Combo text (spring bounce) + right-edge vertical gauge
-//   • 3D gold coin disc + coins counter
-//   • Lane color dots just above shooter area
-//   • Objective banner (3 s auto-fade)
-//   • Milestone confetti burst at 25 / 50 / 75 / 100 % completion
-//   • Gold flash when kill target is reached
+// As of the Level Goal System + HUD redesign, the TOP zone belongs entirely to
+// GoalCounterUI. This renderer now owns the BOTTOM INFO BAR — a compact strip in
+// the gap between the bomb queue (~700px) and the booster bar (752px) — holding:
+//   • Volume (mute) button        — bottom-left
+//   • Level badge (purple pill)    — bottom-left, next to volume
+//   • Coin disc + score           — bottom-right
+// (Pause + car-manual buttons are positioned into this same strip from GameApp.)
+//
+// It also still draws the transient COMBO text/glow (now over the upper road) and
+// the FROZEN indicator. The old top kill-progress bar / "N/M" counter is gone —
+// win is goal-driven now (see GoalCounterUI).
 
 import { Graphics, Text } from 'pixi.js';
 
-const HUD_H    = 70;
-const BAR_H    = 18;
-const BAR_Y    = 2;
-const BAR_X    = 8;
-// Vertical centre of the row below the progress bar
-const TEXT_MID = Math.round(BAR_Y + BAR_H + (HUD_H - BAR_Y - BAR_H) / 2);  // 44
+// ── Bottom info bar geometry ────────────────────────────────────────────────────
+// Sits in the gap between the bomb queue (SHOOTER_AREA ends ~700) and the booster
+// bar (BAR_Y = 752). 48px tall → 44px+ touch targets centred on INFO_MID. Top set
+// so the bar BOTTOM (736) clears the bomb-shots pips at y≈743 — they sit cleanly in
+// the gap between this bar and the booster bar.
+const INFO_BAR_Y = 688;
+const INFO_BAR_H = 48;
+const INFO_MID   = INFO_BAR_Y + Math.round(INFO_BAR_H / 2);   // 724
+const INFO_BG    = 0x0a0a1e;
 
-const HUD_BG = 0x08081a;
+// Combo celebration sits over the upper road (transient; goals own the very top).
+const COMBO_Y        = 150;
+const COMBO_PILL_H   = 32;
+
+const SPRING_K       = 380;
+const SPRING_D       = 18;
 
 const COMBO_TIERS = [
   { min: 2,  color: 0xffee44, size: 26, glowColor: 0xFFCC00, glowAlpha: 0.30 },
@@ -28,28 +38,9 @@ const COMBO_TIERS = [
   { min: 11, color: 0xff3333, size: 26, glowColor: 0xFF2200, glowAlpha: 0.50 },
 ];
 
-const CAR_COLOR_MAP = {
-  Red:    0xE24B4A, Blue:   0x378ADD, Green:  0x639922,
-  Yellow: 0xEF9F27, Purple: 0x7F77DD, Orange: 0xD85A30,
-};
-
-// Combo pill sits flush with the HUD bottom edge — above the visible road
-// where cars appear. During combo (≥2 kills = ≥2 grid advances) the nearest
-// car is at road position 22% = screen Y≈147px, leaving ≥45px clearance.
-const COMBO_Y        = HUD_H + 16;   // 86px — pill top = HUD_H = 70px
-const COMBO_PILL_H   = 32;
-
-const LANE_DOT_Y     = 513;
-const SPRING_K       = 380;
-const SPRING_D       = 18;
-const SHEEN_CYCLE    = 2.8;   // seconds per sweep
-const SHEEN_W_FRAC   = 0.28;  // sheen strip width as fraction of bar
-
-const CONFETTI_COLS = [0xff4466, 0x44aaff, 0xffcc22, 0x44ee88, 0xcc88ff, 0xff8844];
-const MILESTONES    = [0.25, 0.50, 0.75, 1.00];
-
-// Badge geometry (reused in _drawBg and setLevel)
-const BADGE_X = 34, BADGE_W = 40, BADGE_H = 24, BADGE_R = 8;
+// Level badge geometry (drawn in _drawBg, within the info bar).
+const BADGE_X = 46, BADGE_W = 46, BADGE_H = 26, BADGE_R = 8;
+const BADGE_Y = INFO_MID - Math.round(BADGE_H / 2);
 
 export class HUDRenderer {
   constructor(layerManager, gameState, appWidth, audioManager = null) {
@@ -61,45 +52,24 @@ export class HUDRenderer {
     this._elapsed       = 0;
     this._lastCoins     = -1;
     this._lastCombo     = 0;
-    this._lastHearts    = -1;
-    this._lastRatio     = 0;
-    this._bounceT       = 0;   // countdown for 1.0→1.25→1.0 scale over 0.2s
-    this._flashGold     = 0;
-    this._prevAtTarget  = false;
-    this._objTimer      = 0;
-    this._objText       = null;
-    this._confetti      = [];
+    this._bounceT       = 0;
     this._prevComboTier  = -1;
     this._tierFlashT     = 0;
     this._curTierColor   = 0xffee44;
     this._curTierGlowAlpha = 0.30;
 
-    // ── Background + progress bar (redrawn every frame) ─────────────────
+    // ── Info-bar background + level badge (redrawn every frame) ──────────────
     this._bg = new Graphics();
     this._layer.addChild(this._bg);
 
-    // Progress fraction text ("3/10") centred over bar
-    this._progressText = new Text({
-      text: '',
-      style: {
-        fontSize:   9,
-        fontWeight: 'bold',
-        fill:       0xffffff,
-        dropShadow: { color: 0x000000, blur: 2, distance: 0, alpha: 0.70 },
-      },
-    });
-    this._progressText.anchor.set(0.5, 0.5);
-    this._progressText.x = appWidth / 2;
-    this._progressText.y = BAR_Y + BAR_H / 2;
-    this._layer.addChild(this._progressText);
-
-    // ── Mute button ──────────────────────────────────────────────────────
+    // ── Mute button (bottom-left of the info bar) ───────────────────────────
     this._muteBtn = new Graphics();
     this._muteBtn.x = 8;
-    this._muteBtn.y = TEXT_MID - 10;
+    this._muteBtn.y = INFO_MID - 10;
     if (audioManager) {
+      // ≥44px tap target centred on the speaker glyph.
       this._muteBtn.hitArea = {
-        contains: (x, y) => x >= -6 && x <= 30 && y >= -6 && y <= 26,
+        contains: (x, y) => x >= -10 && x <= 34 && y >= -18 && y <= 26,
       };
       this._muteBtn.eventMode = 'static';
       this._muteBtn.cursor    = 'pointer';
@@ -111,11 +81,11 @@ export class HUDRenderer {
     this._layer.addChild(this._muteBtn);
     this._drawSpeaker(false);
 
-    // Level text sits on top of the badge drawn in _bg each frame
+    // ── Level text (over the badge drawn in _bg) ────────────────────────────
     this._levelText = new Text({
       text: 'L1',
       style: {
-        fontSize:   13,
+        fontSize:   14,
         fontWeight: 'bold',
         fill:       0xffffff,
         dropShadow: { color: 0x220055, blur: 3, distance: 1, alpha: 0.9 },
@@ -123,17 +93,12 @@ export class HUDRenderer {
     });
     this._levelText.anchor.set(0.5, 0.5);
     this._levelText.x = BADGE_X + BADGE_W / 2;
-    this._levelText.y = TEXT_MID;
+    this._levelText.y = INFO_MID;
     this._layer.addChild(this._levelText);
 
-    // Hearts removed (FIX 3) — one breach = game over with a one-time ad rescue,
-    // so there is no lives display. The freed header space stays clean.
-
-    // ── Combo glow background (drawn behind combo text) ──────────────────
+    // ── Combo glow + text (transient, over upper road) ──────────────────────
     this._comboGlowBg = new Graphics();
     this._layer.addChild(this._comboGlowBg);
-
-    // ── Combo text ───────────────────────────────────────────────────────
     this._comboText = new Text({
       text: '',
       style: {
@@ -149,12 +114,11 @@ export class HUDRenderer {
     this._comboText.y = COMBO_Y;
     this._layer.addChild(this._comboText);
 
-    // ── 3D coin disc (drawn once, static) ────────────────────────────────
+    // ── Coin disc + score (bottom-right of the info bar) ────────────────────
     this._coinDisc = new Graphics();
     this._layer.addChild(this._coinDisc);
-    this._drawCoinDisc(appWidth - 84, TEXT_MID);
+    this._drawCoinDisc(appWidth - 98, INFO_MID);
 
-    // ── Coins text ───────────────────────────────────────────────────────
     this._coinsText = new Text({
       text: '0',
       style: {
@@ -165,37 +129,25 @@ export class HUDRenderer {
       },
     });
     this._coinsText.anchor.set(1, 0.5);
-    this._coinsText.x = appWidth - 10;
-    this._coinsText.y = TEXT_MID;
+    this._coinsText.x = appWidth - 56;   // right edge sits left of the pause button
+    this._coinsText.y = INFO_MID;
     this._layer.addChild(this._coinsText);
 
-    // ── Lane color dots ──────────────────────────────────────────────────
-    this._laneDots = [];
-    for (let i = 0; i < 4; i++) {
-      const dot = new Graphics();
-      this._layer.addChild(dot);
-      this._laneDots.push(dot);
-    }
-
-    // ── Confetti (always on top) ─────────────────────────────────────────
-    this._confettiGfx = new Graphics();
-    this._layer.addChild(this._confettiGfx);
-
-    // ── Frozen badge (overlaid on progress bar when freeze active) ────────
+    // ── Frozen indicator (centred pill over upper road when freeze active) ──
     this._frozenBadgeGfx = new Graphics();
     this._layer.addChild(this._frozenBadgeGfx);
     this._frozenBadgeText = new Text({
       text: '',
       style: {
-        fontSize:   11,
+        fontSize:   13,
         fontWeight: 'bold',
-        fill:       0x44ccff,
+        fill:       0x9fe6ff,
         dropShadow: { color: 0x000000, blur: 3, distance: 0, alpha: 0.85 },
       },
     });
     this._frozenBadgeText.anchor.set(0.5, 0.5);
     this._frozenBadgeText.x = appWidth / 2;
-    this._frozenBadgeText.y = BAR_Y + BAR_H / 2;
+    this._frozenBadgeText.y = COMBO_Y - 36;   // just above the combo line
     this._layer.addChild(this._frozenBadgeText);
   }
 
@@ -205,28 +157,9 @@ export class HUDRenderer {
     this._levelText.text = `L${n}`;
   }
 
-  // Hearts removed (FIX 3): kept as a no-op so any stray caller is harmless.
-  setHearts() {}
+  setHearts() {}        // hearts removed; harmless no-op for stray callers
 
-  showObjective(text) {
-    if (this._objText) { this._objText.destroy(); this._objText = null; }
-    const t = new Text({
-      text,
-      style: {
-        fontSize:   15,
-        fontWeight: 'bold',
-        fill:       0xeeddaa,
-        align:      'center',
-        dropShadow: { color: 0x000000, blur: 4, distance: 1, alpha: 0.8 },
-      },
-    });
-    t.anchor.set(0.5, 0.5);
-    t.x = this._appW / 2;
-    t.y = TEXT_MID;
-    this._layer.addChild(t);
-    this._objText  = t;
-    this._objTimer = 3.0;
-  }
+  showObjective() {}    // kill objective removed; goals own the objective now
 
   bumpCombo(combo) {
     this._bounceT = 0.2;
@@ -235,136 +168,38 @@ export class HUDRenderer {
 
   update(dt) {
     this._elapsed += dt;
-
-    const kills  = this._gs.totalKills  ?? 0;
-    const target = this._gs.spawnBudget !== null
-      ? this._gs._initialSpawnBudget ?? this._gs.targetKills ?? 10
-      : (this._gs.targetKills ?? 10);
-    const ratio  = target > 0 ? kills / target : 0;
-
-    // Gold flash when target reached
-    const atTarget = target > 0 && kills >= target;
-    if (atTarget && !this._prevAtTarget) this._flashGold = 0.4;
-    this._prevAtTarget = atTarget;
-    if (this._flashGold > 0) this._flashGold = Math.max(0, this._flashGold - dt);
-
-    // Confetti at milestones
-    for (const m of MILESTONES) {
-      if (this._lastRatio < m && ratio >= m) {
-        const barFW = this._appW - BAR_X * 2;
-        this._spawnConfetti(BAR_X + barFW * m, BAR_Y + BAR_H / 2);
-      }
-    }
-    this._lastRatio = ratio;
-
     if (this._tierFlashT > 0) this._tierFlashT = Math.max(0, this._tierFlashT - dt);
-    this._drawBg(kills, target, ratio);
+
+    this._drawBg();
     this._stepSpring(dt);
     this._refreshComboGlow();
     this._refreshComboText();
     this._refreshFrozenBadge();
     this._refreshCoinsText();
-    this._refreshLaneDots();
-    this._updateConfetti(dt);
-
-    if (this._objText) {
-      this._objTimer -= dt;
-      this._objText.alpha = this._objTimer > 0.5 ? 1 : Math.max(0, this._objTimer / 0.5);
-      if (this._objTimer <= 0) { this._objText.destroy(); this._objText = null; }
-    }
   }
 
   // ── Private ─────────────────────────────────────────────────────────────────
 
-  _drawBg(kills, target, ratio) {
-    const g     = this._bg;
-    const appW  = this._appW;
-    const barFW = appW - BAR_X * 2;
-    const fillW = Math.max(0, Math.round(barFW * Math.min(1, ratio)));
-    const barR  = BAR_H / 2;
-    const col   = ratio >= 1 ? 0x22dd66
-                : ratio >= 0.6 ? 0x33cc55
-                : ratio >= 0.3 ? 0x44bb44
-                :                0x2299ee;
-
+  _drawBg() {
+    const g    = this._bg;
+    const appW = this._appW;
     g.clear();
 
-    // HUD background
-    g.rect(0, 0, appW, HUD_H);
-    g.fill(HUD_BG);
-
-    // Bottom separator
-    g.rect(0, HUD_H - 1, appW, 1);
-    g.fill({ color: 0xffffff, alpha: 0.06 });
-
-    // Bar track (pill) — slightly lighter so the track reads against the HUD
-    g.roundRect(BAR_X, BAR_Y, barFW, BAR_H, barR);
-    g.fill({ color: 0x000000, alpha: 0.60 });
-    g.roundRect(BAR_X, BAR_Y, barFW, BAR_H, barR);
-    g.fill({ color: 0x243060, alpha: 0.90 });
-
-    // Progress fill
-    if (fillW >= BAR_H) {
-      // Glow halo: wider, taller, low-alpha rect behind the fill
-      g.roundRect(BAR_X - 2, BAR_Y - 3, fillW + 4, BAR_H + 6, barR + 2);
-      g.fill({ color: col, alpha: 0.22 });
-
-      g.roundRect(BAR_X, BAR_Y, fillW, BAR_H, barR);
-      g.fill(col);
-      // Lighter top strip — simulates gradient
-      if (fillW > barR * 2) {
-        g.rect(BAR_X + barR * 0.6, BAR_Y + 1, fillW - barR * 1.2, BAR_H * 0.45);
-        g.fill({ color: 0xffffff, alpha: 0.20 });
-      }
-    } else if (fillW > 0) {
-      // Glow halo for small fill
-      g.roundRect(BAR_X - 1, BAR_Y - 2, fillW + 2, BAR_H + 4, barR + 1);
-      g.fill({ color: col, alpha: 0.20 });
-      g.roundRect(BAR_X, BAR_Y, fillW, BAR_H, barR);
-      g.fill(col);
-    }
-
-    // Animated sheen sweep
-    if (fillW > BAR_H) {
-      const t      = (this._elapsed % SHEEN_CYCLE) / SHEEN_CYCLE;
-      const sheenW = barFW * SHEEN_W_FRAC;
-      const sheenX = BAR_X - sheenW + (fillW + sheenW) * t;
-      const cx0    = Math.max(sheenX, BAR_X);
-      const cx1    = Math.min(sheenX + sheenW, BAR_X + fillW);
-      if (cx1 > cx0) {
-        g.rect(cx0, BAR_Y + 2, cx1 - cx0, BAR_H - 4);
-        g.fill({ color: 0xffffff, alpha: 0.22 });
-      }
-    }
-
-    // Bar border
-    g.roundRect(BAR_X, BAR_Y, barFW, BAR_H, barR);
-    g.stroke({ color: 0xffffff, width: 0.8, alpha: 0.12 });
-
-    // Gold flash overlay
-    if (this._flashGold > 0) {
-      g.rect(0, 0, appW, HUD_H);
-      g.fill({ color: 0xffcc00, alpha: (this._flashGold / 0.4) * 0.40 });
-    }
-
-    // Progress fraction text
-    const frac = `${kills}/${target}`;
-    if (this._progressText.text !== frac) this._progressText.text = frac;
-    this._progressText.alpha = fillW > 24 ? 1 : fillW > 0 ? fillW / 24 : 0;
+    // Info bar background strip
+    g.rect(0, INFO_BAR_Y, appW, INFO_BAR_H);
+    g.fill(INFO_BG);
+    // Top separator
+    g.rect(0, INFO_BAR_Y, appW, 1);
+    g.fill({ color: 0xffffff, alpha: 0.07 });
 
     // Level badge (purple gradient pill)
-    const by = TEXT_MID - BADGE_H / 2;
-    // Drop shadow
-    g.roundRect(BADGE_X + 1, by + 2, BADGE_W, BADGE_H, BADGE_R);
+    g.roundRect(BADGE_X + 1, BADGE_Y + 2, BADGE_W, BADGE_H, BADGE_R);
     g.fill({ color: 0x000000, alpha: 0.38 });
-    // Dark purple base
-    g.roundRect(BADGE_X, by, BADGE_W, BADGE_H, BADGE_R);
+    g.roundRect(BADGE_X, BADGE_Y, BADGE_W, BADGE_H, BADGE_R);
     g.fill(0x4a1088);
-    // Top highlight (gradient sim)
-    g.rect(BADGE_X + BADGE_R * 0.6, by + 1, BADGE_W - BADGE_R * 1.2, BADGE_H * 0.46);
+    g.rect(BADGE_X + BADGE_R * 0.6, BADGE_Y + 1, BADGE_W - BADGE_R * 1.2, BADGE_H * 0.46);
     g.fill({ color: 0xaa55ff, alpha: 0.50 });
-    // Gold border
-    g.roundRect(BADGE_X, by, BADGE_W, BADGE_H, BADGE_R);
+    g.roundRect(BADGE_X, BADGE_Y, BADGE_W, BADGE_H, BADGE_R);
     g.stroke({ color: 0xddaa22, width: 1.2, alpha: 0.70 });
   }
 
@@ -372,65 +207,25 @@ export class HUDRenderer {
     const g = this._coinDisc;
     const r = 11;
     g.clear();
-    // Shadow
     g.circle(cx + 1, cy + 2, r);
     g.fill({ color: 0x000000, alpha: 0.30 });
-    // Gold outer ring
     g.circle(cx, cy, r);
     g.fill(0xc08010);
-    // Inner face
     g.circle(cx, cy, r * 0.80);
     g.fill(0xf0c030);
-    // Bright center
     g.circle(cx, cy, r * 0.52);
     g.fill({ color: 0xfff080, alpha: 0.60 });
-    // Shine spot
     g.circle(cx - r * 0.30, cy - r * 0.30, r * 0.22);
     g.fill({ color: 0xffffff, alpha: 0.65 });
-    // Rim
     g.circle(cx, cy, r);
     g.stroke({ color: 0xb87800, width: 1.2 });
   }
 
-  _spawnConfetti(x, y) {
-    for (let i = 0; i < 14; i++) {
-      const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.9;
-      const speed = 80 + Math.random() * 100;
-      const life  = 0.7 + Math.random() * 0.5;
-      this._confetti.push({
-        x, y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        r:  2 + Math.random() * 2,
-        color: CONFETTI_COLS[i % CONFETTI_COLS.length],
-        life, maxLife: life,
-      });
-    }
-  }
-
-  _updateConfetti(dt) {
-    const g = this._confettiGfx;
-    g.clear();
-    for (let i = this._confetti.length - 1; i >= 0; i--) {
-      const p = this._confetti[i];
-      p.life -= dt;
-      if (p.life <= 0) { this._confetti.splice(i, 1); continue; }
-      p.x  += p.vx * dt;
-      p.y  += p.vy * dt;
-      p.vy += 220 * dt;
-      g.circle(p.x, p.y, p.r);
-      g.fill({ color: p.color, alpha: p.life / p.maxLife });
-    }
-  }
-
   _stepSpring(dt) {
-    if (this._bounceT <= 0) {
-      this._comboText.scale.set(1);
-      return;
-    }
+    if (this._bounceT <= 0) { this._comboText.scale.set(1); return; }
     this._bounceT = Math.max(0, this._bounceT - dt);
-    const frac  = 1 - this._bounceT / 0.2;   // 0→1 over 0.2s
-    const scale = 1 + 0.25 * Math.sin(Math.PI * frac);  // 1.0→1.25→1.0
+    const frac  = 1 - this._bounceT / 0.2;
+    const scale = 1 + 0.25 * Math.sin(Math.PI * frac);
     this._comboText.scale.set(scale);
   }
 
@@ -456,10 +251,6 @@ export class HUDRenderer {
       this._coinsText.text = String(coins);
       this._lastCoins      = coins;
     }
-  }
-
-  _refreshLaneDots() {
-    for (const dot of this._laneDots) dot.clear();
   }
 
   _refreshComboGlow() {
@@ -508,20 +299,22 @@ export class HUDRenderer {
     const g = this._frozenBadgeGfx;
     g.clear();
     this._frozenBadgeText.text = '';
-
     if (!frozen) return;
-
-    // Pulsing ice-blue overlay on the kill-progress bar
-    const pulse  = 0.20 + 0.12 * Math.sin(this._elapsed * 6);
-    const barFW  = this._appW - BAR_X * 2;
-    g.roundRect(BAR_X, BAR_Y, barFW, BAR_H, BAR_H / 2);
-    g.fill({ color: 0x44aaff, alpha: pulse });
 
     const label = comboFrozen
       ? '❄ FROZEN  1 free turn'
       : `❄ FROZEN  ${boosterState.freezeShots ?? 0} shot${(boosterState.freezeShots ?? 0) !== 1 ? 's' : ''}`;
     this._frozenBadgeText.text = label;
-    this._progressText.alpha   = 0;   // hide kill fraction while frozen
+
+    // Pulsing ice-blue pill behind the label.
+    const pulse = 0.22 + 0.12 * Math.sin(this._elapsed * 6);
+    const w = this._frozenBadgeText.width + 24;
+    const h = 24;
+    const cx = this._appW / 2, cy = this._frozenBadgeText.y;
+    g.roundRect(cx - w / 2, cy - h / 2, w, h, h / 2);
+    g.fill({ color: 0x1a4a7a, alpha: 0.85 });
+    g.roundRect(cx - w / 2, cy - h / 2, w, h, h / 2);
+    g.fill({ color: 0x44aaff, alpha: pulse });
   }
 
   _drawSpeaker(muted) {
@@ -531,7 +324,6 @@ export class HUDRenderer {
 
     g.rect(0, 6, 5, 8);
     g.fill(col);
-
     g.poly([5, 4, 5, 16, 13, 20, 13, 0]);
     g.fill(col);
 

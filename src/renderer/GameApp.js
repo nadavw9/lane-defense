@@ -68,6 +68,8 @@ import { DailyRewardScreen }      from '../screens/DailyRewardScreen.js';
 import { SettingsScreen }         from '../screens/SettingsScreen.js';
 import { PauseScreen }            from '../screens/PauseScreen.js';
 import { CarManualScreen }        from '../screens/CarManualScreen.js';
+import { HpGuideOverlay }         from '../screens/HpGuideOverlay.js';
+import { HowToPlayOverlay }       from '../screens/HowToPlayOverlay.js';
 import { TutorialOrchestrator }   from '../screens/TutorialOrchestrator.js';
 import { AchievementsScreen }     from '../screens/AchievementsScreen.js';
 import { StatsScreen }            from '../screens/StatsScreen.js';
@@ -413,6 +415,9 @@ async function main() {
       }
     },
   );
+  // BoosterBar draws a full-width bg on hudLayer; lift the HUD flank elements
+  // (volume / level / coins) back above it so they render on the booster row.
+  hudRenderer.bringToFront();
 
 
   // ── Per-level booster tracking (for analytics) ───────────────────────────
@@ -505,6 +510,8 @@ async function main() {
   let settingsScreen     = null;
   let pauseScreen        = null;
   let carManualScreen    = null;
+  let hpGuideOverlay     = null;
+  let howToPlayOverlay   = null;
   let achievementsScreen = null;
   let statsScreen        = null;
 
@@ -534,9 +541,9 @@ async function main() {
     g.fill({ color: 0xffffff, alpha: 0.90 });
     g.rect(26, 12, 6, 20);
     g.fill({ color: 0xffffff, alpha: 0.90 });
-    // Bottom info bar, far right (info bar spans y=688–736).
-    g.x       = APP_W - HIT - 4;
-    g.y       = 690;
+    // Right gutter of the booster row, centred on the booster card centre (y=786).
+    g.x       = APP_W - HIT;
+    g.y       = 764;
     g.eventMode = 'static';
     g.cursor    = 'pointer';
     g.visible   = false;
@@ -569,6 +576,32 @@ async function main() {
     layers.get('hudLayer').addChild(g);
     return g;
   })();
+
+  // ── Goal-bar flank buttons — HP guide (🚗 left) + how-to-play (❓ right) ────────
+  // On the goal pill row (~y=47). Shown during gameplay; open a paused overlay.
+  function _makeGoalBarBtn(glyph, x, onTap) {
+    const HIT = 38;
+    const g   = new Graphics();
+    g.roundRect(0, 0, HIT, HIT, 9);
+    g.fill({ color: 0x000000, alpha: 0.45 });
+    g.roundRect(0, 0, HIT, HIT, 9);
+    g.stroke({ color: 0xffffff, width: 1, alpha: 0.18 });
+    g.x = x; g.y = 28;
+    g.eventMode = 'static';
+    g.cursor    = 'pointer';
+    g.visible   = false;
+    g.on('pointerdown', onTap);
+    g.on('pointerover', () => { g.alpha = 0.75; });
+    g.on('pointerout',  () => { g.alpha = 1.00; });
+    const icon = new Text({ text: glyph, style: { fontSize: 20 } });
+    icon.anchor.set(0.5, 0.5);
+    icon.x = HIT / 2; icon.y = HIT / 2;
+    g.addChild(icon);
+    layers.get('hudLayer').addChild(g);
+    return g;
+  }
+  const hpGuideBtn   = _makeGoalBarBtn('🚗', 6,           () => showHpGuide());
+  const howToPlayBtn = _makeGoalBarBtn('❓', APP_W - 44,  () => showHowToPlay());
 
   // (Color-bomb streak pip counter removed — color bombs are now earned by a
   //  single-shot MULTI-KILL of 2+ cars, not by a consecutive-shot streak. FIX 4.)
@@ -1215,6 +1248,35 @@ async function main() {
           if (wasPlaying) gameLoop.resume();
         }
       },
+    });
+  }
+
+  // ── Goal-bar overlays: HP guide + how-to-play (pause while open) ───────────
+  function _openGoalOverlay(make) {
+    const wasPlaying = gameLoopStarted && !gameLoop.paused && !gs.isOver;
+    if (wasPlaying) gameLoop.pause();
+    const prev = { hp: hpGuideBtn.visible, htp: howToPlayBtn.visible, pause: pauseBtn.visible };
+    hpGuideBtn.visible = false; howToPlayBtn.visible = false; pauseBtn.visible = false;
+    const restore = () => {
+      hpGuideBtn.visible = prev.hp; howToPlayBtn.visible = prev.htp; pauseBtn.visible = prev.pause;
+      if (wasPlaying) gameLoop.resume();
+    };
+    return { restore };
+  }
+
+  function showHpGuide() {
+    if (hpGuideOverlay) return;
+    const { restore } = _openGoalOverlay();
+    hpGuideOverlay = new HpGuideOverlay(app.stage, APP_W, APP_H, {
+      onClose: () => { hpGuideOverlay?.destroy(); hpGuideOverlay = null; restore(); },
+    });
+  }
+
+  function showHowToPlay() {
+    if (howToPlayOverlay) return;
+    const { restore } = _openGoalOverlay();
+    howToPlayOverlay = new HowToPlayOverlay(app.stage, APP_W, APP_H, {
+      onClose: () => { howToPlayOverlay?.destroy(); howToPlayOverlay = null; restore(); },
     });
   }
 
@@ -2038,6 +2100,9 @@ async function main() {
     comboGlow.update(dt, gs.combo);
     boosterBar.update(dt);
     if (gs.goalProgress) goalCounterUI.update(gs.goalProgress);
+    // Goal-bar help buttons share the pause button's gameplay visibility (overlays
+    // hide pauseBtn while open, so these follow suit).
+    hpGuideBtn.visible = howToPlayBtn.visible = pauseBtn.visible;
     transition.update(dt);
 
     // Core renderer updates

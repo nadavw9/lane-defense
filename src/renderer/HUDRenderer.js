@@ -14,15 +14,12 @@
 
 import { Graphics, Text } from 'pixi.js';
 
-// ── Bottom info bar geometry ────────────────────────────────────────────────────
-// Sits in the gap between the bomb queue (SHOOTER_AREA ends ~700) and the booster
-// bar (BAR_Y = 752). 48px tall → 44px+ touch targets centred on INFO_MID. Top set
-// so the bar BOTTOM (736) clears the bomb-shots pips at y≈743 — they sit cleanly in
-// the gap between this bar and the booster bar.
-const INFO_BAR_Y = 688;
-const INFO_BAR_H = 48;
-const INFO_MID   = INFO_BAR_Y + Math.round(INFO_BAR_H / 2);   // 724
-const INFO_BG    = 0x0a0a1e;
+// ── Booster-row flank geometry ──────────────────────────────────────────────────
+// Everything lives on ONE row with the booster buttons (BoosterBar draws a
+// full-width bg at BAR_Y=752..820; its three 64px cards are centred at x=89..301).
+// We flank that: volume + level badge in the LEFT gutter (x<89), coin score + pause
+// in the RIGHT gutter (x>301). All vertically centred on the booster card centre.
+const ROW_MID = 786;   // booster card centre Y (CARD_Y 754 + CARD_H/2 32)
 
 // Combo celebration sits over the upper road (transient; goals own the very top).
 const COMBO_Y        = 150;
@@ -38,9 +35,9 @@ const COMBO_TIERS = [
   { min: 11, color: 0xff3333, size: 26, glowColor: 0xFF2200, glowAlpha: 0.50 },
 ];
 
-// Level badge geometry (drawn in _drawBg, within the info bar).
-const BADGE_X = 46, BADGE_W = 46, BADGE_H = 26, BADGE_R = 8;
-const BADGE_Y = INFO_MID - Math.round(BADGE_H / 2);
+// Level badge geometry (left gutter, drawn in _drawBg).
+const BADGE_X = 30, BADGE_W = 44, BADGE_H = 26, BADGE_R = 8;
+const BADGE_Y = ROW_MID - Math.round(BADGE_H / 2);
 
 export class HUDRenderer {
   constructor(layerManager, gameState, appWidth, audioManager = null) {
@@ -58,14 +55,14 @@ export class HUDRenderer {
     this._curTierColor   = 0xffee44;
     this._curTierGlowAlpha = 0.30;
 
-    // ── Info-bar background + level badge (redrawn every frame) ──────────────
+    // ── Level badge (redrawn every frame; sits on the booster bar's bg) ──────
     this._bg = new Graphics();
     this._layer.addChild(this._bg);
 
-    // ── Mute button (bottom-left of the info bar) ───────────────────────────
+    // ── Mute button (left gutter, on the booster row) ───────────────────────
     this._muteBtn = new Graphics();
-    this._muteBtn.x = 8;
-    this._muteBtn.y = INFO_MID - 10;
+    this._muteBtn.x = 6;
+    this._muteBtn.y = ROW_MID - 10;
     if (audioManager) {
       // ≥44px tap target centred on the speaker glyph.
       this._muteBtn.hitArea = {
@@ -93,7 +90,7 @@ export class HUDRenderer {
     });
     this._levelText.anchor.set(0.5, 0.5);
     this._levelText.x = BADGE_X + BADGE_W / 2;
-    this._levelText.y = INFO_MID;
+    this._levelText.y = ROW_MID;
     this._layer.addChild(this._levelText);
 
     // ── Combo glow + text (transient, over upper road) ──────────────────────
@@ -114,23 +111,23 @@ export class HUDRenderer {
     this._comboText.y = COMBO_Y;
     this._layer.addChild(this._comboText);
 
-    // ── Coin disc + score (bottom-right of the info bar) ────────────────────
+    // ── Coin icon + score (right gutter; gold coin icon, WHITE number, no bg) ─
     this._coinDisc = new Graphics();
     this._layer.addChild(this._coinDisc);
-    this._drawCoinDisc(appWidth - 98, INFO_MID);
+    this._drawCoinDisc(appWidth - 82, ROW_MID);   // x=308
 
     this._coinsText = new Text({
       text: '0',
       style: {
-        fontSize:   18,
+        fontSize:   15,
         fontWeight: 'bold',
-        fill:       0xf5c842,
-        dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 0.7 },
+        fill:       0xffffff,   // white number (was gold — read as "circle behind score")
+        dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 0.8 },
       },
     });
     this._coinsText.anchor.set(1, 0.5);
-    this._coinsText.x = appWidth - 56;   // right edge sits left of the pause button
-    this._coinsText.y = INFO_MID;
+    this._coinsText.x = appWidth - 46;   // right edge sits left of the pause button (x=344)
+    this._coinsText.y = ROW_MID;
     this._layer.addChild(this._coinsText);
 
     // ── Frozen indicator (centred pill over upper road when freeze active) ──
@@ -161,6 +158,17 @@ export class HUDRenderer {
 
   showObjective() {}    // kill objective removed; goals own the objective now
 
+  // Re-stack the HUD elements above anything added to the layer after construction
+  // (e.g. the BoosterBar's full-width background, which would otherwise occlude the
+  // flank elements sharing the booster row).
+  bringToFront() {
+    for (const o of [this._bg, this._muteBtn, this._levelText, this._comboGlowBg,
+                     this._comboText, this._coinDisc, this._coinsText,
+                     this._frozenBadgeGfx, this._frozenBadgeText]) {
+      if (o) this._layer.addChild(o);
+    }
+  }
+
   bumpCombo(combo) {
     this._bounceT = 0.2;
     this._updateComboStyle(combo);
@@ -182,17 +190,10 @@ export class HUDRenderer {
 
   _drawBg() {
     const g    = this._bg;
-    const appW = this._appW;
     g.clear();
 
-    // Info bar background strip
-    g.rect(0, INFO_BAR_Y, appW, INFO_BAR_H);
-    g.fill(INFO_BG);
-    // Top separator
-    g.rect(0, INFO_BAR_Y, appW, 1);
-    g.fill({ color: 0xffffff, alpha: 0.07 });
-
-    // Level badge (purple gradient pill)
+    // No separate info bar — these elements sit on the booster bar's own full-width
+    // background. Draw just the level badge (purple gradient pill) in the left gutter.
     g.roundRect(BADGE_X + 1, BADGE_Y + 2, BADGE_W, BADGE_H, BADGE_R);
     g.fill({ color: 0x000000, alpha: 0.38 });
     g.roundRect(BADGE_X, BADGE_Y, BADGE_W, BADGE_H, BADGE_R);
@@ -205,7 +206,7 @@ export class HUDRenderer {
 
   _drawCoinDisc(cx, cy) {
     const g = this._coinDisc;
-    const r = 11;
+    const r = 9;
     g.clear();
     g.circle(cx + 1, cy + 2, r);
     g.fill({ color: 0x000000, alpha: 0.30 });

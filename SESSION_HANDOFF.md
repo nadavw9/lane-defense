@@ -114,6 +114,7 @@
 11. Play Store assets + submission.
 
 ## Active Backlog
+- Car lane alignment audit — tender (truck type) confirmed misaligned in right lane. Other car types appear OK. Check laneToX() for truck/tender specifically. May be SPRITE_SCALE or model offset issue. Fix before Play Store.
 - Replace COLOR CHANGE placeholder glyph with a real paintbrush sprite (drop `public/sprites/designed/booster-colorchange.png` — picked up automatically; also add it to BOOSTER_URLS preload in GameApp.js once it exists)
 - Real-device playtest: Tier 1 floor levels L8/L12/L16/L33/L37 and bosses L10/L20/L30/L40
 - Signed AAB build for Play Store

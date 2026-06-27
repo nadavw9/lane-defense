@@ -1,13 +1,14 @@
 # Traffic Bomb — Session Handoff
 
 ## Current State
-- Git tip: 1ba5e2a feat: HUD redesign — goals own top band, level/score/volume/pause moved to bottom bar
+- Git tip: 89e7c67 fix: apply hpMultiplier in live gameplay + raise base HP for gridRows 16 (CarTypes, CarDirector, DirectorConfig, L16 balance)
 - Branch: master
 - Last deploy: today, green
 - Tests: 773 passing, 1 skip, 5 todo
 - Live URL: https://nadavw9.github.io/lane-defense/
 
 ## What Was Shipped This Session (most recent first)
+- 89e7c67 — HP system fixed + rebalanced for the gridRows-16 grid. (1) `hpMultiplier` is now applied in LIVE gameplay: `CarDirector._buildCar` scales each car's HP by `worldConfig.hpMultiplier` (`Math.max(HP_MINIMUM, Math.round(base × mult))`). Previously this was SIM-ONLY — the live game always spawned raw base HP regardless of level, so difficulty never scaled by level (confirmed live: L1 small=2 @ ×0.5, L20 small/big/jeep/truck = 4/8/10/13 @ ×1.3). (2) Base HP raised for the bigger grid: motorbike 2→3, car 4→6, van 5→8, truck 6→10, bigrig 10→15, tank 20→30; `HP_BASE.max` 20→30 (`HP_MINIMUM` stays 2). (3) Bait/carry-over cars are deliberately LEFT unscaled (they rely on 1–2 HP for the chain-kill mechanic). (4) L16 `hpMultiplier` lowered 1.62→1.20 — it was the outlier and overcorrected once base HP rose (boosterless sim scored 0 kills on one seed at 1.62; clean at 1.20). Tests: director-config max-HP test updated 20→30; all 773 pass. NOTE: these base-HP values are starting points — the per-level goal-count + balance-sim pass still needs to run against the new HP.
 - 1ba5e2a — HUD redesign: the goals now own the FULL top band (larger pills, more breathing room, an opaque full-width band so they never overlap the road/cars below). The level badge, coin score, volume (mute), and pause button all moved OUT of the top and into a compact BOTTOM INFO BAR in the gap between the bomb queue and the booster bar (HUDRenderer owns it; pause repositioned from GameApp). The old top kill-progress "N/M" bar + 70px top strip are fully removed (win is goal-driven now). The in-game car-manual (📖) button is hidden during gameplay — still reachable from the pause screen. Bottom bar elements are ≥44px touch targets; the bomb-shots pips sit cleanly in the gap below the bar. Render-only — 773 tests unchanged.
 - d88a990 — Level Goal System (infrastructure phase). All 40 levels now carry a `goals` array of mixable goal objects { type, color?, carType?, count }: `destroyTotal` (any car), `destroyColor` (a specific colour), `destroyType` (a specific car type). WIN = every goal's remaining count hits 0 (`GameState.isGoalMet()`); LOSE = breach (unchanged). `GameState` gains goals/goalProgress/isGoalMet()/applyKillToGoals(); `CombatResolver.resolve()` now returns the destroyed cars' colour+type so `GameLoop` credits the right goals on every kill (combat, rainbow color-bomb, BOMB-booster row clear). The old spawnBudget-exhaustion win path was removed (legacy `targetKills` retained only for goal-less levels). New `GoalCounterUI` (top-centre, dark pills) replaces the "Defeat N cars" bar — one card per goal with a type icon (💥 / colour circle / car sprite) + remaining count, switching to a green ✓ and dimming when complete; wraps to a 2nd row past 3 goals. **Infinite car spawn**: `spawnBudget` is now a DENSITY knob only (never depletes); lanes refill to `laneTargetCarCount` forever, so cars stream until goals are met or a breach occurs (NOT endless mode — levels still terminate on goals). `SimulationRunner` terminates on goal/breach/cap instead of budget. +19 tests (new `tests/goal-system.test.js`) → 773. NOTE — still required before ship: (a) balance sim does NOT yet model the real per-level goals/HP (VISION rule 6); (b) goal counts are a mechanical ~2.5× of old spawnBudget and need a per-level tuning pass.
 - 3f32b32 — Level-start merge settle no longer dropped when the merge sequencer is still busy from the PREVIOUS level. The animated settle's single fire-once timer would silently no-op if `mergeSequencer.start()` early-returned on an active sequence (and a stale sequence could even apply a merge to the fresh board), so 3-in-a-line at level start only merged after the player's first swap. Fix: added `mergeSequencer.abort()` (drops a stale sequence's state without applying its merge), called at each level start; replaced the fire-once timer with a retry that WAITS for the sequencer to be free instead of dropping. Timing/trigger only — merge detection and the animation sequence are untouched.
@@ -100,16 +101,17 @@
 - 168c5ca — First major visual/balance batch: city edges, bomb zone panel, car centering, color bomb visuals.
 
 ## IMMEDIATE PRIORITIES (next session, in order)
-1. On-device smoke test (goal UI, HUD layout, infinite-spawn feel, merge animation).
-2. Goal count balance pass (current counts are a mechanical ~2.5× of old spawnBudget — need per-level tuning).
-3. Balance sim update (model the real goals + infinite spawn, then re-run all 40 levels — VISION rule 6).
-4. Car lane alignment fix (backlog — cars offset in some lanes, seen at L21).
-5. Merge shape redesign: 4-in-a-row → 2 damage to ALL same-colour cars; L/T shape → area bomb. ("+" shape still deferred.)
-6. Difficulty rebalance (sim with merge + gridRows 16 + goals modelled).
-7. Agent team quality audit (Royal Match standard).
-8. Real-device playtest checklist: L8, L12, L16, L33, L37 + bosses L10/20/30/40.
-9. Signed AAB build.
-10. Play Store assets + submission.
+1. On-device smoke test (goal UI, HUD layout, HP difficulty feel, merge animation).
+2. HUD polish: volume+level to the LEFT of the boosters, score+pause to the RIGHT of the boosters (same Y). Remove the yellow circle behind the score. Add an HP guide button top-left of the goal bar; add a how-to-play button top-right of the goal bar.
+3. Goal count balance pass (current counts are a mechanical ~2.5× of old spawnBudget — need per-level tuning).
+4. Balance sim update (model the real goals + new HP, then re-run all 40 levels — VISION rule 6).
+5. Car lane alignment fix (backlog — cars offset in some lanes, seen at L21).
+6. Merge shape redesign: 4-in-a-row → 2 damage to ALL same-colour cars; L/T shape → area bomb. ("+" shape still deferred.)
+7. Difficulty rebalance (sim with merge + gridRows 16 + goals + new HP modelled).
+8. Agent team quality audit (Royal Match standard).
+9. Real-device playtest checklist: L8, L12, L16, L33, L37 + bosses L10/20/30/40.
+10. Signed AAB build.
+11. Play Store assets + submission.
 
 ## Active Backlog
 - Replace COLOR CHANGE placeholder glyph with a real paintbrush sprite (drop `public/sprites/designed/booster-colorchange.png` — picked up automatically; also add it to BOOSTER_URLS preload in GameApp.js once it exists)
@@ -130,6 +132,7 @@
 - Color bomb earned via 5 consecutive correct shots
 - laneTargetCarCount: 1 (L1) / 3 (bosses L10/20/30/40) / 2 (all others)
 - gridRows = 16 unified across all 40 levels (was 11; raised for smaller steps / more planning time)
+- HP scaling: car HP = base HP (CarTypes.js) × `worldConfig.hpMultiplier`, applied at spawn in `CarDirector._buildCar` (`Math.max(HP_MINIMUM, Math.round(base × mult))`). This is the SAME value the balance sim uses — so live difficulty now scales by level (was a live no-op before 89e7c67). Bait/carry-over cars are deliberately UNSCALED (1–2 HP) to preserve the chain-kill mechanic. Base HP (post-gridRows-16): small 3 / big 6 / jeep 8 / truck 10 / bigrig 15 / tank 30; HP_BASE.max 30, HP_MINIMUM 2
 - Wrong-colour bounce = NO car advance (cars only advance on a correct lane shot)
 - 1 free queue action per shot (swap / bench-store / bench-retrieve). A second queue action is BLOCKED until the next lane fire resets it; lane fires are not queue actions and always work
 - Merge color bomb = single-target, own-colour only, high damage (sum of 3). NOT rainbow/AoE. The earned RAINBOW color bomb (3 multi-kills) is the only any-colour clear

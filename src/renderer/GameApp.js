@@ -720,14 +720,25 @@ async function main() {
     gameLoop.onNewCarType = (typeKey) => { _requestCarTypeIntro(typeKey); };
     gameLoop.restart();
 
+    // Drop any merge sequence left running by the PREVIOUS level so it can't (a) make
+    // this level's start() early-return — silently dropping the settle until the
+    // first swap — or (b) apply a stale merge to the freshly-filled board.
+    mergeSequencer.abort();
+
     // Animated level-start settle (Candy-Crush "board settles before first move"):
     // the board renders fully first, then the merge sequence plays on any pre-made
-    // merges. Deferred so all 12 bombs are visible before anything animates; gated to
-    // L5+ via peekMerges() (no-op otherwise), and skipped if the level changed.
+    // merges. The queue is filled SYNCHRONOUSLY in restart() above, so it is ready
+    // immediately; we still defer ~1s so all bombs are visibly on the board before
+    // anything animates. Gated to L5+ via peekMerges() (no-op otherwise). Retries on a
+    // short interval if the sequencer is momentarily busy, so the settle is never
+    // dropped; token-guarded so a level change cancels it.
     const _settleToken = ++_startSettleToken;
-    setTimeout(() => {
-      if (_settleToken === _startSettleToken && gameLoopStarted && !gs.isOver) mergeSequencer.start();
-    }, 1000);
+    const _trySettle = () => {
+      if (_settleToken !== _startSettleToken || !gameLoopStarted || gs.isOver) return;  // superseded / over
+      if (mergeSequencer.active) { setTimeout(_trySettle, 150); return; }                // busy — wait, don't drop
+      mergeSequencer.start();   // no-op if there are no pre-made merges
+    };
+    setTimeout(_trySettle, 1000);
 
     // Level-start intro: fires after splash clears (standard 1.5 s) or after the
     // FTUE drag-arrow window (L1: 4.5 s — splash 1.35 s + 3 s FTUE buffer).
@@ -1808,6 +1819,18 @@ async function main() {
       this.active = false; this.phase = null; this.plan = null; this.drops = null;
       dragDrop.inputBlocked = this._prevBlocked ?? false;
       gameLoop.resume();
+    },
+    // Hard-stop a sequence at a LEVEL CHANGE: drop all animation state WITHOUT
+    // applying any pending merge (the board it was animating is gone). Without this
+    // a sequence left active from the previous level (a) makes the new level's
+    // start() early-return — silently dropping its settle until the first swap — and
+    // (b) would call evaluateMerges() on the NEW board at its burst step. Cheap no-op
+    // when idle.
+    abort() {
+      if (!this.active) return;
+      gameRenderer3D.clearBombAnimLocks();
+      this.active = false; this.phase = null; this.plan = null; this.drops = null;
+      dragDrop.inputBlocked = false;
     },
   };
   gameLoop._onColorBombEarned = () => {

@@ -1,13 +1,14 @@
 # Traffic Bomb — Session Handoff
 
 ## Current State
-- Git tip: d88a990 feat: level goal system (destroyTotal/Color/Type, GoalCounterUI, infinite spawn, 773 tests)
+- Git tip: 1ba5e2a feat: HUD redesign — goals own top band, level/score/volume/pause moved to bottom bar
 - Branch: master
 - Last deploy: today, green
 - Tests: 773 passing, 1 skip, 5 todo
 - Live URL: https://nadavw9.github.io/lane-defense/
 
 ## What Was Shipped This Session (most recent first)
+- 1ba5e2a — HUD redesign: the goals now own the FULL top band (larger pills, more breathing room, an opaque full-width band so they never overlap the road/cars below). The level badge, coin score, volume (mute), and pause button all moved OUT of the top and into a compact BOTTOM INFO BAR in the gap between the bomb queue and the booster bar (HUDRenderer owns it; pause repositioned from GameApp). The old top kill-progress "N/M" bar + 70px top strip are fully removed (win is goal-driven now). The in-game car-manual (📖) button is hidden during gameplay — still reachable from the pause screen. Bottom bar elements are ≥44px touch targets; the bomb-shots pips sit cleanly in the gap below the bar. Render-only — 773 tests unchanged.
 - d88a990 — Level Goal System (infrastructure phase). All 40 levels now carry a `goals` array of mixable goal objects { type, color?, carType?, count }: `destroyTotal` (any car), `destroyColor` (a specific colour), `destroyType` (a specific car type). WIN = every goal's remaining count hits 0 (`GameState.isGoalMet()`); LOSE = breach (unchanged). `GameState` gains goals/goalProgress/isGoalMet()/applyKillToGoals(); `CombatResolver.resolve()` now returns the destroyed cars' colour+type so `GameLoop` credits the right goals on every kill (combat, rainbow color-bomb, BOMB-booster row clear). The old spawnBudget-exhaustion win path was removed (legacy `targetKills` retained only for goal-less levels). New `GoalCounterUI` (top-centre, dark pills) replaces the "Defeat N cars" bar — one card per goal with a type icon (💥 / colour circle / car sprite) + remaining count, switching to a green ✓ and dimming when complete; wraps to a 2nd row past 3 goals. **Infinite car spawn**: `spawnBudget` is now a DENSITY knob only (never depletes); lanes refill to `laneTargetCarCount` forever, so cars stream until goals are met or a breach occurs (NOT endless mode — levels still terminate on goals). `SimulationRunner` terminates on goal/breach/cap instead of budget. +19 tests (new `tests/goal-system.test.js`) → 773. NOTE — still required before ship: (a) balance sim does NOT yet model the real per-level goals/HP (VISION rule 6); (b) goal counts are a mechanical ~2.5× of old spawnBudget and need a per-level tuning pass.
 - 3f32b32 — Level-start merge settle no longer dropped when the merge sequencer is still busy from the PREVIOUS level. The animated settle's single fire-once timer would silently no-op if `mergeSequencer.start()` early-returned on an active sequence (and a stale sequence could even apply a merge to the fresh board), so 3-in-a-line at level start only merged after the player's first swap. Fix: added `mergeSequencer.abort()` (drops a stale sequence's state without applying its merge), called at each level start; replaced the fire-once timer with a retry that WAITS for the sequencer to be free instead of dropping. Timing/trigger only — merge detection and the animation sequence are untouched.
 - 1c6856b — Reorder highlight + yellow powerball fixes:
@@ -99,7 +100,7 @@
 - 168c5ca — First major visual/balance batch: city edges, bomb zone panel, car centering, color bomb visuals.
 
 ## IMMEDIATE PRIORITIES (next session, in order)
-1. On-device smoke test (goal UI readability, infinite-spawn feel).
+1. On-device smoke test (goal UI, HUD layout, infinite-spawn feel, merge animation).
 2. Goal count balance pass (current counts are a mechanical ~2.5× of old spawnBudget — need per-level tuning).
 3. Balance sim update (model the real goals + infinite spawn, then re-run all 40 levels — VISION rule 6).
 4. Car lane alignment fix (backlog — cars offset in some lanes, seen at L21).

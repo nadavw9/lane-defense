@@ -1,13 +1,15 @@
 # Traffic Bomb — Session Handoff
 
 ## Current State
-- Git tip: 1c6856b fix: reorder highlight centered via camera projection; yellow powerball URL lowercase; +1 test
+- Git tip: d88a990 feat: level goal system (destroyTotal/Color/Type, GoalCounterUI, infinite spawn, 773 tests)
 - Branch: master
 - Last deploy: today, green
-- Tests: 754 passing, 1 skip, 5 todo
+- Tests: 773 passing, 1 skip, 5 todo
 - Live URL: https://nadavw9.github.io/lane-defense/
 
 ## What Was Shipped This Session (most recent first)
+- d88a990 — Level Goal System (infrastructure phase). All 40 levels now carry a `goals` array of mixable goal objects { type, color?, carType?, count }: `destroyTotal` (any car), `destroyColor` (a specific colour), `destroyType` (a specific car type). WIN = every goal's remaining count hits 0 (`GameState.isGoalMet()`); LOSE = breach (unchanged). `GameState` gains goals/goalProgress/isGoalMet()/applyKillToGoals(); `CombatResolver.resolve()` now returns the destroyed cars' colour+type so `GameLoop` credits the right goals on every kill (combat, rainbow color-bomb, BOMB-booster row clear). The old spawnBudget-exhaustion win path was removed (legacy `targetKills` retained only for goal-less levels). New `GoalCounterUI` (top-centre, dark pills) replaces the "Defeat N cars" bar — one card per goal with a type icon (💥 / colour circle / car sprite) + remaining count, switching to a green ✓ and dimming when complete; wraps to a 2nd row past 3 goals. **Infinite car spawn**: `spawnBudget` is now a DENSITY knob only (never depletes); lanes refill to `laneTargetCarCount` forever, so cars stream until goals are met or a breach occurs (NOT endless mode — levels still terminate on goals). `SimulationRunner` terminates on goal/breach/cap instead of budget. +19 tests (new `tests/goal-system.test.js`) → 773. NOTE — still required before ship: (a) balance sim does NOT yet model the real per-level goals/HP (VISION rule 6); (b) goal counts are a mechanical ~2.5× of old spawnBudget and need a per-level tuning pass.
+- 3f32b32 — Level-start merge settle no longer dropped when the merge sequencer is still busy from the PREVIOUS level. The animated settle's single fire-once timer would silently no-op if `mergeSequencer.start()` early-returned on an active sequence (and a stale sequence could even apply a merge to the fresh board), so 3-in-a-line at level start only merged after the player's first swap. Fix: added `mergeSequencer.abort()` (drops a stale sequence's state without applying its merge), called at each level start; replaced the fire-once timer with a retry that WAITS for the sequencer to be free instead of dropping. Timing/trigger only — merge detection and the animation sequence are untouched.
 - 1c6856b — Reorder highlight + yellow powerball fixes:
   * Reorder/bench drop-target highlight now centred via the CAMERA PROJECTION (`projectSlot` → `getBombSlotScreenXY`), the same fix already used for the merge halo — it was using the 2D slot constant (`getQueueSlotCenter`) and drifting off the 3D bomb. `ShooterRenderer.drawMergeOverlay` falls back to the constant only if no projector is passed.
   * Yellow (and all) powerball PRELOAD URLs lowercased — `POWERBALL_URLS` built `powerball-${c}.png` (capitalised, e.g. `powerball-Yellow.png`) but the files on disk and the 3D runtime loader are lowercase, so the preload 404'd on case-sensitive hosts (GitHub Pages). Runtime rendering was already lowercase (degraded gracefully), so this was a latent preload-only bug; NOT a merge bug. Investigation confirmed the merge ENGINE is fully colour-agnostic — yellow merges identically to red/blue/green (verified by unit test + live vertical L21 and vertical+horizontal L22).
@@ -97,15 +99,16 @@
 - 168c5ca — First major visual/balance batch: city edges, bomb zone panel, car centering, color bomb visuals.
 
 ## IMMEDIATE PRIORITIES (next session, in order)
-1. On-device test: does the merge animation feel satisfying? Is the timing right?
-2. Car lane alignment fix (backlog item — cars offset in some lanes, seen at L21).
-3. Merge shape redesign: 4-in-a-row → 2 damage to ALL same-colour cars; L/T shape → area bomb. ("+" shape still deferred.)
-4. Difficulty rebalance (sim with merge + gridRows 16 modelled).
-5. Strong merged bomb sprite (generate via ChatGPT, same powerball style).
-6. Agent team quality audit (Royal Match standard).
-7. Real-device playtest checklist: L8, L12, L16, L33, L37 + bosses L10/20/30/40.
-8. Signed AAB build.
-9. Play Store assets + submission.
+1. On-device smoke test (goal UI readability, infinite-spawn feel).
+2. Goal count balance pass (current counts are a mechanical ~2.5× of old spawnBudget — need per-level tuning).
+3. Balance sim update (model the real goals + infinite spawn, then re-run all 40 levels — VISION rule 6).
+4. Car lane alignment fix (backlog — cars offset in some lanes, seen at L21).
+5. Merge shape redesign: 4-in-a-row → 2 damage to ALL same-colour cars; L/T shape → area bomb. ("+" shape still deferred.)
+6. Difficulty rebalance (sim with merge + gridRows 16 + goals modelled).
+7. Agent team quality audit (Royal Match standard).
+8. Real-device playtest checklist: L8, L12, L16, L33, L37 + bosses L10/20/30/40.
+9. Signed AAB build.
+10. Play Store assets + submission.
 
 ## Active Backlog
 - Replace COLOR CHANGE placeholder glyph with a real paintbrush sprite (drop `public/sprites/designed/booster-colorchange.png` — picked up automatically; also add it to BOOSTER_URLS preload in GameApp.js once it exists)

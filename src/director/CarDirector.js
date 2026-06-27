@@ -140,7 +140,10 @@ export class CarDirector {
 
   _buildCar(color, phase, worldConfig, availableRows) {
     const type = pickCarType(this._rng, this._level, phase, availableRows);
-    const hp   = Math.max(HP_MINIMUM, CAR_TYPES[type].hp);
+    // Apply the level's hpMultiplier (carried on worldConfig, same value the
+    // balance sim uses) so difficulty actually scales by level in live play.
+    const multiplier = worldConfig?.hpMultiplier ?? 1.0;
+    const hp   = Math.max(HP_MINIMUM, Math.round(CAR_TYPES[type].hp * multiplier));
 
     const speed = worldConfig.speed.base +
       this._rng.nextFloat(-worldConfig.speed.variance, worldConfig.speed.variance);

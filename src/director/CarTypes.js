@@ -5,13 +5,14 @@
 //   small → bike.glb, big → sedan.glb, jeep → van.glb,
 //   truck → truck.glb, bigrig → bigrig.glb, tank → procedural (no GLB)
 
+// Base HP raised for the gridRows-16 grid (starting points — tune after the sim).
 export const CAR_TYPES = {
-  small:  { hp:  2, label: 'Motorbike', minSpawnRow: 0 },
-  big:    { hp:  4, label: 'Car',       minSpawnRow: 0 },
-  jeep:   { hp:  5, label: 'Van',       minSpawnRow: 1 },
-  truck:  { hp:  6, label: 'Tender',    minSpawnRow: 2 },
-  bigrig: { hp: 10, label: 'Big Rig',   minSpawnRow: 3 },
-  tank:   { hp: 20, label: 'Tank',      minSpawnRow: 4 },
+  small:  { hp:  3, label: 'Motorbike', minSpawnRow: 0 },
+  big:    { hp:  6, label: 'Car',       minSpawnRow: 0 },
+  jeep:   { hp:  8, label: 'Van',       minSpawnRow: 1 },
+  truck:  { hp: 10, label: 'Tender',    minSpawnRow: 2 },
+  bigrig: { hp: 15, label: 'Big Rig',   minSpawnRow: 3 },
+  tank:   { hp: 30, label: 'Tank',      minSpawnRow: 4 },
 };
 
 // ── Level-band weight tables ───────────────────────────────────────────────────

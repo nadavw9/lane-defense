@@ -303,8 +303,8 @@ describe('HP generation constants', () => {
     expect(HP_BASE.min).toBe(2)
   })
 
-  it('maximum HP is 20', () => {
-    expect(HP_BASE.max).toBe(20)
+  it('maximum HP is 30', () => {
+    expect(HP_BASE.max).toBe(30)
   })
 
   it('variance range is 0.85–1.15', () => {

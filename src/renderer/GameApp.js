@@ -392,7 +392,9 @@ async function main() {
   const floatingTexts = [];
   const laneFlash     = new LaneFlash(layers);
   const comboGlow     = new ComboGlow(layers, APP_W, APP_H);
-  const goalCounterUI = new GoalCounterUI(layers.get('hudLayer'), APP_W);
+  const goalCounterUI = new GoalCounterUI(layers.get('hudLayer'), APP_W, {
+    onComplete: () => audio.play('coin_collect'),   // booster-earned SFX on goal complete
+  });
   const boosterBar    = new BoosterBar(
     layers, boosterState, gs, APP_W,
     () => {
@@ -1280,6 +1282,7 @@ async function main() {
     if (howToPlayOverlay) return;
     const { restore } = _openGoalOverlay();
     howToPlayOverlay = new HowToPlayOverlay(app.stage, APP_W, APP_H, {
+      ticker: app.ticker,
       onClose: () => { howToPlayOverlay?.destroy(); howToPlayOverlay = null; restore(); },
     });
   }
@@ -2115,7 +2118,7 @@ async function main() {
     laneFlash.update(dt);
     comboGlow.update(dt, gs.combo);
     boosterBar.update(dt);
-    if (gs.goalProgress) goalCounterUI.update(gs.goalProgress);
+    if (gs.goalProgress) goalCounterUI.update(gs.goalProgress, dt);
     // Goal-bar help buttons share the pause button's gameplay visibility (overlays
     // hide pauseBtn while open, so these follow suit).
     hpGuideBtn.visible = howToPlayBtn.visible = pauseBtn.visible;

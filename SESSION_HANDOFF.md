@@ -1,13 +1,15 @@
 # Traffic Bomb — Session Handoff
 
 ## Current State
-- Git tip: 0f5962c feat: new bomb sprites — 6 glossy regular + 6 lightning-crack merged (ChatGPT generated, 256px, transparent)
+- Git tip: 2f56073 feat: tutorial slide animations (PixiJS loops) + goal completion burst
 - Branch: master
 - Last deploy: today, green
 - Tests: 773 passing, 1 skip, 5 todo
 - Live URL: https://nadavw9.github.io/lane-defense/
 
 ## What Was Shipped This Session (most recent first)
+- 2f56073 — Tutorial slide animations + goal completion burst. (1) Each how-to-play slide (`HowToPlayOverlay`) now has a looping PixiJS demo above the text, driven by the app ticker (works while the game is paused; removed on destroy): GOAL = 2 cars descending toward a breach line with a counter ticking to WIN; HOW TO PLAY = a matching-colour bomb drags to a car → explosion → car vanishes; MERGE = 3 same-colour bombs glow, converge, flash → merged lightning bomb (⚡); BOOSTERS = COLOR/FREEZE/BOMB icons pop in one at a time. Geometric shapes + glyphs only, no new assets. (2) `GoalCounterUI` goal-completion burst: the moment `goalProgress[i]` hits 0 the pill does a scale pop (1.0→~1.4→1.0, 300ms), an 8-particle burst in the goal colour (400ms), a white flash → settles to a green completed tint + border + checkmark, and plays the booster-earned SFX (`onComplete` callback wired in GameApp; `update(goalProgress, dt)` now takes dt). 773 tests unchanged.
+- 9e878b1 — Car lane alignment fixed: removed the stale `SPRITE_X_OFFSET` table from `Car3D.js` (it used old image widths 512/448/299 vs the current 280/187/125px sprites, and was wrong-signed). All car types now centre purely on `laneToX()` (`mesh.position.x = 0`). The tender (truck) sat right-of-centre — worst in the right lane; bigrig and bike offsets were also stale. Removing them is strictly better/equal for every type (verified: same-lane stacks of tenders + mixed sizes all share one centre X). Residual is now only each sprite's own tiny art asymmetry.
 - 0f5962c — New bomb sprites. 6 glossy regular powerballs (ChatGPT/DALL-E generated, 256×256 transparent PNG) replace the old programmatic spheres at `public/sprites/designed/powerball-{color}.png`. 6 NEW lightning-crack merged variants (`powerball-merged-{color}.png`) — `Shooter3D._getPowerballTex(color, merged)` now loads the merged sprite when `isMerged` (both vertical merge-colour-bombs and horizontal strong-merge bombs), with the existing 2D halo ring still layered on top. All 12 preloaded via `POWERBALL_URLS`. Processed with a new `scripts/process-powerball-sprites.mjs` (reuses the proven flood-fill white-bg removal from `process-sprites-sharp.mjs`, then resizes to 256). NOTE: the source files in `sprite-sources/raw/split/` arrived with 3 typo'd names (pwerball-red, owerball-green, owerball-yellow) + old correctly-named leftovers — the script picks the newest by mtime; worth renaming the sources. Minor: the red regular bomb has a faint saturated reflection blob the white-bg flood-fill left (negligible in-game). 773 tests unchanged.
 - acfd731 — Haptic feedback: 9 gameplay events wired via the EXISTING `HapticsManager` (Capacitor `@capacitor/haptics`, Android-only, silent no-op on web; respects the `hapticsEnabled` settings toggle). Extended the manager with `success`/`error`/`warning` (NotificationType); wired through GameApp's callback layer (GameLoop/DragDrop stay pure). Events: bomb drag start → light; car kill → medium; multi-kill (2+) → heavy; wrong-colour bounce → error; breach → heavy ×2 (200ms apart); win → success; booster earned (FREEZE/COLOR CHANGE/BOMB) → medium; danger pulse (car in last 2 rows, once per advance) → warning; merge fires → medium. (Deliberately NOT created the spec's separate `src/audio/HapticsManager.js` — it would have duplicated the manager and ignored the settings toggle.) Haptics only fire on a real Android build — on-device verification still pending. 773 tests unchanged.
 - 9b66cb9 — HUD fixes: HP-guide overlay now shows the actual car SPRITES (bike/car/van/tender/bigrig/tank) instead of colour dots; coin score icon repositioned dynamically to sit just left of the number's real left edge, so the gold coin never renders BEHIND a wide (4–5 digit) coin total — fixes the "yellow circle behind the score" seen on device.
@@ -105,21 +107,17 @@
 - 168c5ca — First major visual/balance batch: city edges, bomb zone panel, car centering, color bomb visuals.
 
 ## IMMEDIATE PRIORITIES (next session, in order)
-1. Car lane alignment fix (tender misaligned in right lane — see Active Backlog note).
-2. Tutorial slide mini-animations (PixiJS loops in HowToPlayOverlay, Option A).
-3. Goal completion burst animation.
-4. Win screen upgrade.
-5. Booster icon sprites (generate via ChatGPT).
-6. Colorblind mode.
-7. Goal count balance pass (current counts are a mechanical ~2.5× of old spawnBudget — need per-level tuning).
-8. Balance sim update (model goals + new HP + gridRows 16, then re-run all 40 levels — VISION rule 6).
-9. Agent team quality audit (Royal Match standard).
-10. Real-device playtest checklist: L8, L12, L16, L33, L37 + bosses L10/20/30/40.
-11. Signed AAB build.
-12. Play Store assets + submission.
+1. Win screen upgrade (more celebration energy).
+2. Booster icon sprites (generate via ChatGPT).
+3. Colorblind mode.
+4. Goal count balance pass (current counts are a mechanical ~2.5× of old spawnBudget — need per-level tuning).
+5. Balance sim update (model goals + new HP + gridRows 16, then re-run all 40 levels — VISION rule 6).
+6. Agent team quality audit (Royal Match standard).
+7. Real-device playtest checklist: L8, L12, L16, L33, L37 + bosses L10/20/30/40.
+8. Signed AAB build.
+9. Play Store assets + submission.
 
 ## Active Backlog
-- Car lane alignment audit — tender (truck type) confirmed misaligned in right lane. Other car types appear OK. Check laneToX() for truck/tender specifically. May be SPRITE_SCALE or model offset issue. Fix before Play Store.
 - Replace COLOR CHANGE placeholder glyph with a real paintbrush sprite (drop `public/sprites/designed/booster-colorchange.png` — picked up automatically; also add it to BOOSTER_URLS preload in GameApp.js once it exists)
 - Real-device playtest: Tier 1 floor levels L8/L12/L16/L33/L37 and bosses L10/L20/L30/L40
 - Signed AAB build for Play Store

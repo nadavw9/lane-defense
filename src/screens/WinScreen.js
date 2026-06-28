@@ -15,6 +15,25 @@ const STAR_COLOR_EMPTY = 0x3a3a3a;
 
 const CONFETTI_COLORS = [0xff4466, 0x44ff88, 0xffcc00, 0x44aaff, 0xff88ff, 0xff8844, 0x88ffff];
 
+// Goal/car palette (matches CLAUDE.md) — used to tint the win confetti by the
+// level's goals.
+const GOAL_PALETTE = {
+  Red: 0xE24B4A, Blue: 0x378ADD, Green: 0x639922,
+  Yellow: 0xEF9F27, Purple: 0x7F77DD, Orange: 0xD85A30,
+};
+
+// Colours of the level's destroyColor goals (falls back to the festive set).
+function goalConfettiColors(gs) {
+  const cols = (gs?.goals ?? [])
+    .filter(g => g.type === 'destroyColor' && GOAL_PALETTE[g.color])
+    .map(g => GOAL_PALETTE[g.color]);
+  return cols.length ? cols : CONFETTI_COLORS;
+}
+
+// easeOutBack — overshoots past 1 then settles (used for star fly-in + header pop).
+const EOB_C1 = 1.70158, EOB_C3 = EOB_C1 + 1;
+const easeOutBack = (p) => 1 + EOB_C3 * Math.pow(p - 1, 3) + EOB_C1 * Math.pow(p - 1, 2);
+
 const BUTTON_ENABLE_DELAY = 1.5;  // seconds before buttons become tappable
 
 // ── Web Share helper ──────────────────────────────────────────────────────────
@@ -65,6 +84,28 @@ class ConfettiSystem {
         vy: 60 + Math.random() * 100,
         vr: (Math.random() - 0.5) * 5,
         life: 3.5 + Math.random() * 1.5,
+      });
+    }
+  }
+
+  // One-shot upward burst from the bottom: particles shoot up, arc under gravity,
+  // and fade over ~1.5s. Tinted by the level's goal colours.
+  burstUp(count = 26, colors = CONFETTI_COLORS) {
+    for (let i = 0; i < count; i++) {
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      const g     = new Graphics();
+      if (Math.random() < 0.5) { g.rect(-5, -3, 10, 6); } else { g.circle(0, 0, 4); }
+      g.fill(color);
+      g.x        = this._w * (0.15 + Math.random() * 0.70);   // spread across the width
+      g.y        = this._h + 12;                              // just below the bottom edge
+      g.rotation = Math.random() * Math.PI * 2;
+      this._c.addChild(g);
+      this._particles.push({
+        g,
+        vx: (Math.random() - 0.5) * 260,
+        vy: -(360 + Math.random() * 240),   // upward
+        vr: (Math.random() - 0.5) * 8,
+        life: 1.5,
       });
     }
   }
@@ -121,6 +162,7 @@ export class WinScreen {
     this._buttonEnableTimer = 0;
     this._pendingButtons    = [];  // { btn, onClick } — enabled after delay
     this._nextBtn           = null;
+    this._nextGlow          = null;
     this._pulseT            = 0;
 
     // Coin count-up
@@ -161,19 +203,28 @@ export class WinScreen {
       if (p >= 1) { this._burstG.clear(); }
     }
 
-    // Star pop-in animations
+    // Star fly-in: each flies up from below to its slot with an easeOutBack bounce,
+    // 120ms each, staggered 150ms. A "ding" + sparkles fire on landing.
     for (const anim of this._starAnims) {
       anim.t += dt;
-      if (anim.t < anim.delay) continue;
-      const elapsed  = (anim.t - anim.delay) * 1000;
-      const progress = Math.min(elapsed / 450, 1);
-      const eased    = 1 - Math.pow(1 - progress, 3);
-      const overshoot = progress < 0.5 ? (0.5 - progress) * 0.5 : 0;
-      anim.star.scale.set(eased * (1 + overshoot) * 0.2 + eased * 0.8);
-      if (progress >= 0.48 && progress < 0.52 && !anim.sparkled) {
-        anim.sparkled = true;
+      if (anim.t < anim.delay) { anim.star.y = anim.startY; continue; }
+      const p = Math.min(1, (anim.t - anim.delay) / 0.12);
+      anim.star.y = anim.startY + (anim.targetY - anim.startY) * easeOutBack(p);
+      if (p >= 1 && !anim.landed) {
+        anim.landed   = true;
+        anim.star.y   = anim.targetY;
+        this._audio?.play('star_earn', { index: anim.idx });
         this._spawnStarSparkles(anim.star.x, anim.star.y);
       }
+    }
+
+    // Header pop-in (0.5 → ~1.1 → 1.0, 200ms easeOutBack) then a gentle 1.5s pulse.
+    if (this._title) {
+      this._titleT += dt;
+      const f = this._titleT < 0.20
+        ? 0.5 + 0.5 * easeOutBack(this._titleT / 0.20)
+        : 1.0 + 0.05 * Math.sin((this._titleT - 0.20) * (2 * Math.PI / 1.5));
+      this._title.scale.set(this._titleBaseScale * f);
     }
 
     // Screen flash fade
@@ -208,16 +259,20 @@ export class WinScreen {
       }
     }
 
-    // NEXT LEVEL gentle pulse to invite the tap
-    if (this._buttonsEnabled && this._nextBtn) {
+    // NEXT LEVEL ready-glow: a pulsing halo behind the button (booster-glow pattern),
+    // starting 0.5s after the buttons settle to draw the eye.
+    if (this._buttonsEnabled && this._nextGlow) {
       this._pulseT += dt;
-      const pulse = 0.88 + 0.12 * Math.sin(this._pulseT * 4.0);
-      this._nextBtn.alpha = pulse;
+      if (this._pulseT > 0.5) {
+        const ph = 0.5 + 0.5 * Math.sin((this._pulseT - 0.5) * 4.5);
+        this._nextGlow.alpha = 0.12 + 0.48 * ph;
+        this._nextGlow.scale.set(1 + 0.07 * ph);
+      }
     }
 
-    // Coin count-up animation (completes over 1.2s)
+    // Coin count-up animation (completes over 0.8s)
     if (this._coinCountCurrent < this._coinCountTarget) {
-      const rate = Math.max(1, this._coinCountTarget / 1.2);
+      const rate = Math.max(1, this._coinCountTarget / 0.8);
       this._coinCountCurrent = Math.min(
         this._coinCountTarget,
         this._coinCountCurrent + rate * dt,
@@ -247,13 +302,14 @@ export class WinScreen {
       btn.alpha     = 1;
       btn.on('pointerdown', onClick);
       btn.on('pointerover',  () => { if (this._buttonsEnabled) btn.alpha = 0.75; });
-      btn.on('pointerout',   () => { if (this._buttonsEnabled && btn !== this._nextBtn) btn.alpha = 1; });
+      btn.on('pointerout',   () => { if (this._buttonsEnabled) btn.alpha = 1; });
     }
   }
 
   _build(w, h, gs, onNext, onMenu, audio, improved = [], levelId = null) {
     const stars    = calcStars(gs);
     const is3Star  = stars === 3;
+    this._audio    = audio;
 
     // Backdrop — catches all touches so gameplay beneath isn't accessible.
     // Strong dim (0.90) so the road / cars / booster bar do not bleed through.
@@ -269,12 +325,10 @@ export class WinScreen {
     this._container.addChild(this._burstG);
     this._burstT = 0;
 
-    // Confetti behind panel
+    // Confetti — one-shot upward burst from the bottom, tinted by the level's goals.
     this._container.addChild(this._confettiLayer);
-    if (stars >= 2) {
-      this._confetti = new ConfettiSystem(this._confettiLayer, w, h);
-      this._confetti.spawn(is3Star ? 50 : 25);
-    }
+    this._confetti = new ConfettiSystem(this._confettiLayer, w, h);
+    this._confetti.burstUp(is3Star ? 30 : 22, goalConfettiColors(gs));
 
     // White flash on 3-star
     if (is3Star) {
@@ -315,7 +369,10 @@ export class WinScreen {
     // gap = 98 - titleWidth/2. For a ≥12px gap → titleWidth ≤ 172 = panelW-148.
     // (Nudging the icon right instead would crowd it against the panel border.)
     const titleMaxW = panelW - 148;   // ≈172px → ≥12px gap before the corner icon
-    if (titleTxt.width > titleMaxW) titleTxt.scale.set(titleMaxW / titleTxt.width);
+    this._titleBaseScale = (titleTxt.width > titleMaxW) ? (titleMaxW / titleTxt.width) : 1;
+    this._title  = titleTxt;
+    this._titleT = 0;
+    titleTxt.scale.set(this._titleBaseScale * 0.5);   // starts small → pops in (see update)
     y += 48;
 
     // Stars
@@ -382,9 +439,10 @@ export class WinScreen {
       g.y = cy;
       this._container.addChild(g);
       if (filled) {
-        g.scale.set(0);
-        this._starAnims.push({ star: g, t: 0, delay: i * 0.30, sparkled: false });
-        setTimeout(() => audio?.play('star_earn', { index: i }), i * 300 + 100);
+        // Fly in from below with an easeOutBack bounce, 120ms each, 150ms stagger.
+        const targetY = g.y;
+        g.y = this._appH + 80;
+        this._starAnims.push({ star: g, idx: i, targetY, startY: g.y, t: 0, delay: i * 0.15, landed: false });
       }
     }
   }
@@ -510,6 +568,15 @@ export class WinScreen {
 
   _button(label, cx, y, bgColor, labelColor, onClick, isNext = false) {
     const btnW = 220, btnH = 54;
+    if (isNext) {
+      // Ready-glow halo behind the NEXT button (added first → renders behind it).
+      const glow = new Graphics();
+      glow.roundRect(-btnW / 2 - 10, -btnH / 2 - 10, btnW + 20, btnH + 20, 18);
+      glow.fill({ color: labelColor, alpha: 0.40 });
+      glow.x = cx; glow.y = y; glow.alpha = 0;
+      this._container.addChild(glow);
+      this._nextGlow = glow;
+    }
     const btn  = new Graphics();
     btn.roundRect(-btnW / 2, -btnH / 2, btnW, btnH, 14);
     btn.fill(bgColor);

@@ -1424,7 +1424,7 @@ async function main() {
       improved,
       winLevelId,
     );
-  } 
+  }
   function _showNoRescueLose() {
     pauseBtn.visible = false;
     bookBtn.visible  = false;

@@ -191,7 +191,11 @@ const BOOSTER_URLS  = ['freeze', 'bomb'].map(b => `${_B}sprites/designed/booster
 // so stored bombs match the live game instead of the old shooter-idle sprites.
 // Filenames are lowercase on disk (powerball-yellow.png) and the 3D loader requests
 // them lowercase too — preload must match or it 404s on case-sensitive hosts (Pages).
-const POWERBALL_URLS = COLORS.map(c => `${_B}sprites/designed/powerball-${c.toLowerCase()}.png`);
+// Includes the merged-bomb sprites (powerball-merged-{color}.png) used when isMerged.
+const POWERBALL_URLS = [
+  ...COLORS.map(c => `${_B}sprites/designed/powerball-${c.toLowerCase()}.png`),
+  ...COLORS.map(c => `${_B}sprites/designed/powerball-merged-${c.toLowerCase()}.png`),
+];
 const ALL_SPRITE_URLS = [...CAR_URLS, ...SHOOTER_URLS, ...POWERBALL_URLS, ...BUILDING_URLS, ...TREE_URLS, ...ENV_URLS, ...BOOSTER_URLS];
 
 // Critical sprites gate spriteFlags.loaded — gameplay must have its car icons,

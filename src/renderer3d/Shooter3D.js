@@ -12,12 +12,13 @@ import { laneToX, CELL } from './Scene3D.js';
 // ── Powerball texture cache (one loader shared across all slots) ───────────────
 const _texLoader  = new THREE.TextureLoader();
 const _texCache   = {};
-function _getPowerballTex(colorName) {
-  const key = colorName.toLowerCase();
+// merged=true → the special lightning-crack merged-bomb sprite for that colour.
+function _getPowerballTex(colorName, merged = false) {
+  const color = colorName.toLowerCase();
+  const key   = merged ? `merged-${color}` : color;
   if (!_texCache[key]) {
-    const tex = _texLoader.load(
-      `${import.meta.env.BASE_URL}sprites/designed/powerball-${key}.png`,
-    );
+    const file = merged ? `powerball-merged-${color}.png` : `powerball-${color}.png`;
+    const tex  = _texLoader.load(`${import.meta.env.BASE_URL}sprites/designed/${file}`);
     tex.colorSpace = THREE.SRGBColorSpace;
     _texCache[key] = tex;
   }
@@ -336,7 +337,9 @@ export class Shooter3D {
             // overlay (below) dominates. Badge shows a gold star, not a number.
             drawColorBombBadge(slot.badgeCtx, BADGE_CVS_W, BADGE_CVS_H);
           } else {
-            slot.sphereMesh.material.map = _getPowerballTex(shooter.color);
+            // Merged bombs use the dedicated lightning-crack sprite; the 2D halo
+            // ring (ShooterRenderer.drawMergeOverlay) still layers on top.
+            slot.sphereMesh.material.map = _getPowerballTex(shooter.color, isMerged);
             slot.sphereMesh.material.needsUpdate = true;
             drawDamageBadge(slot.badgeCtx, BADGE_CVS_W, BADGE_CVS_H, damage, hex);
           }

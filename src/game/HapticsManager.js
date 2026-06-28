@@ -6,6 +6,7 @@
 
 let _Haptics      = null;
 let _ImpactStyle  = null;
+let _NotifType    = null;
 let _available    = null;   // null = untested, true/false = cached result
 
 async function _init() {
@@ -14,6 +15,7 @@ async function _init() {
     const mod    = await import('@capacitor/haptics');
     _Haptics     = mod.Haptics;
     _ImpactStyle = mod.ImpactStyle;
+    _NotifType   = mod.NotificationType;
     // Try one silent call to confirm the plugin is wired on this platform.
     await _Haptics.selectionStart();
     await _Haptics.selectionEnd();
@@ -50,6 +52,24 @@ export class HapticsManager {
   async heavy() {
     if (!this._enabled || !(await _init())) return;
     try { await _Haptics.impact({ style: _ImpactStyle.Heavy }); } catch {}
+  }
+
+  /** Success notification pattern — level win. */
+  async success() {
+    if (!this._enabled || !(await _init())) return;
+    try { await _Haptics.notification({ type: _NotifType.Success }); } catch {}
+  }
+
+  /** Error notification pattern — wrong-colour bounce. */
+  async error() {
+    if (!this._enabled || !(await _init())) return;
+    try { await _Haptics.notification({ type: _NotifType.Error }); } catch {}
+  }
+
+  /** Warning notification pattern — car near the breach line (danger). */
+  async warning() {
+    if (!this._enabled || !(await _init())) return;
+    try { await _Haptics.notification({ type: _NotifType.Warning }); } catch {}
   }
 
   /** Gentle selection tick — drag hover, slider nudge. */

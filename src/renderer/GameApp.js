@@ -1590,10 +1590,17 @@ async function main() {
         particles.spawnExplosion(laneIdx, gameX, color);
         audio.play('car_destroy', { kills: killCount });   // 6B: escalates with kills
         audio.play('kill_ding');                            // 6A: bright kill ding
-        haptics.killDouble();
+        if (killCount === 1) haptics.medium();   // single kill; multi-kill (2+) → heavy via _onMultiKill
       } else {
         audio.play('hit_match');
         haptics.medium();
+      }
+
+      // Danger pulse — once per advance (onHit fires per advancing shot) when any
+      // active car has reached the last 2 rows of the grid (row 14-15 of 16).
+      const _dangerRow = gs.gridRows - 2;
+      if (gs.lanes.slice(0, gs.activeLaneCount).some(l => l.cars.some(c => c.row >= _dangerRow))) {
+        haptics.warning();
       }
 
       // ── One-time onboarding modal cards (lifetime, localStorage-flagged) ────
@@ -1641,6 +1648,7 @@ async function main() {
       const _evtLevelId = currentLevelIsDaily ? 'daily' : levelManager.levelNumber;
       if (won) {
         logEvent('level_completed', { levelId: _evtLevelId });
+        haptics.success();
         showWin();
       } else {
         logEvent('level_failed', { levelId: _evtLevelId });
@@ -1648,7 +1656,8 @@ async function main() {
         audio.play('lose_tone');
         shakeTime = 0;
         gameRenderer3D.onBreach();
-        haptics.heavy();
+        haptics.heavy();                                   // breach double-pulse
+        setTimeout(() => haptics.heavy(), 200);
         // FIX 3: no hearts. One breach = game over with a one-time CONTINUE (ad)
         // rescue. A second breach (rescue already used) → final game over.
         breachCam = { laneIdx: laneIdx ?? 0, t: 0, done: false,
@@ -1678,7 +1687,7 @@ async function main() {
   // FIX 4C: a 3+ car chain kill earns a FREEZE charge.
   gameLoop._onFreezeEarned = (kills) => {
     audio.play('freeze_tinkle');
-    haptics.light();
+    haptics.medium();   // booster earned
     floatingTexts.push(spawnFloatingText(
       layers.get('particleLayer'), APP_W / 2, 700,
       `${kills}-CAR CHAIN! Freeze earned!`, 0x88ddff,
@@ -1687,7 +1696,7 @@ async function main() {
   // Earned by chaining two strictly-consecutive multi-kills (GameLoop._updateColorChangeCombo).
   gameLoop._onColorChangeEarned = () => {
     audio.play('coin_collect');
-    haptics.light();
+    haptics.medium();   // booster earned
     floatingTexts.push(spawnFloatingText(
       layers.get('particleLayer'), APP_W / 2, 700,
       '2× COMBO! Color Change ready!', 0xCC66FF,
@@ -1695,7 +1704,7 @@ async function main() {
   };
   gameLoop._onBombEarned = () => {
     audio.play('coin_collect');
-    haptics.light();
+    haptics.medium();   // booster earned
     // Centered notification flash (centered so the longer text doesn't clip).
     floatingTexts.push(spawnFloatingText(
       layers.get('particleLayer'), APP_W / 2, 748,
@@ -1756,6 +1765,7 @@ async function main() {
   // Progress feedback per multi-kill (1/3, 2/3) — through the unified queue (FIX 4).
   gameLoop._onMultiKill = (count, needed) => {
     audio.play('pip_fill', { index: count - 1 });   // 6A: ascending pip-fill note
+    haptics.heavy();                                 // multi-kill (2+ cars)
     if (count < needed) {
       popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildMultiKillPopup(w, _lastShotKills), 1.4);
     }
@@ -1964,6 +1974,7 @@ async function main() {
       },
       onColorMismatch: () => {
         audio.play('hit_miss');
+        haptics.error();   // wrong-colour bounce
       },
       onBenchFull: () => {
         audio.play('hit_miss');
@@ -1983,6 +1994,7 @@ async function main() {
       // Hint B — first bomb pickup on L1: intercept the pickup, show the
       // match-damage modal card, and let the player drag once it's dismissed.
       onColumnPickup: () => {
+        haptics.light();   // bomb pickup / drag start
         if (levelManager.levelNumber === 1 && !progress.hintDamageShown) {
           progress.markHintDamage();
           _showHintCard((done) => onboardingHints.showDamage(done));

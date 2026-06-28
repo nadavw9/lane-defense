@@ -1,13 +1,15 @@
 # Traffic Bomb — Session Handoff
 
 ## Current State
-- Git tip: 0f4b7fa feat: HUD polish — booster-row flanks, white score, HP guide + how-to-play overlays
+- Git tip: acfd731 feat: haptic feedback — 9 events wired (drag, kill, multi-kill, bounce, breach, win, booster, danger, merge)
 - Branch: master
 - Last deploy: today, green
 - Tests: 773 passing, 1 skip, 5 todo
 - Live URL: https://nadavw9.github.io/lane-defense/
 
 ## What Was Shipped This Session (most recent first)
+- acfd731 — Haptic feedback: 9 gameplay events wired via the EXISTING `HapticsManager` (Capacitor `@capacitor/haptics`, Android-only, silent no-op on web; respects the `hapticsEnabled` settings toggle). Extended the manager with `success`/`error`/`warning` (NotificationType); wired through GameApp's callback layer (GameLoop/DragDrop stay pure). Events: bomb drag start → light; car kill → medium; multi-kill (2+) → heavy; wrong-colour bounce → error; breach → heavy ×2 (200ms apart); win → success; booster earned (FREEZE/COLOR CHANGE/BOMB) → medium; danger pulse (car in last 2 rows, once per advance) → warning; merge fires → medium. (Deliberately NOT created the spec's separate `src/audio/HapticsManager.js` — it would have duplicated the manager and ignored the settings toggle.) Haptics only fire on a real Android build — on-device verification still pending. 773 tests unchanged.
+- 9b66cb9 — HUD fixes: HP-guide overlay now shows the actual car SPRITES (bike/car/van/tender/bigrig/tank) instead of colour dots; coin score icon repositioned dynamically to sit just left of the number's real left edge, so the gold coin never renders BEHIND a wide (4–5 digit) coin total — fixes the "yellow circle behind the score" seen on device.
 - 0f4b7fa — HUD polish + in-game guides. (1) The bottom info bar was removed; volume + level badge now flank the LEFT of the COLOR/FREEZE/BOMB booster buttons and coin score + pause flank the RIGHT — all on a single row sharing the booster bar's full-width bg, vertically centred on the booster cards (HUDRenderer `bringToFront()` lifts the flank elements above the booster bg). (2) The coin score is now a WHITE number beside the gold coin icon (was a gold number that read as a yellow circle behind itself). (3) New 🚗 HP-guide button on the LEFT of the goal bar opens `HpGuideOverlay` — every car type + base HP (Motorbike 3 / Car 6 / Van 8 / Tender 10 / Big Rig 15 / Tank 30) with a "scales by level" note. (4) New ❓ how-to-play button on the RIGHT of the goal bar opens `HowToPlayOverlay` — a 4-slide slideshow (Goal → How to Play → Merge Combos → Boosters) with step dots, → next, ✕ quit. Both buttons follow the pause button's gameplay visibility and pause the game while open. (5) `CarManualScreen` (pause-menu encyclopedia) HP values updated to the new base HP (3/6/8/10/15/30). UI-only — 773 tests unchanged.
 - 89e7c67 — HP system fixed + rebalanced for the gridRows-16 grid. (1) `hpMultiplier` is now applied in LIVE gameplay: `CarDirector._buildCar` scales each car's HP by `worldConfig.hpMultiplier` (`Math.max(HP_MINIMUM, Math.round(base × mult))`). Previously this was SIM-ONLY — the live game always spawned raw base HP regardless of level, so difficulty never scaled by level (confirmed live: L1 small=2 @ ×0.5, L20 small/big/jeep/truck = 4/8/10/13 @ ×1.3). (2) Base HP raised for the bigger grid: motorbike 2→3, car 4→6, van 5→8, truck 6→10, bigrig 10→15, tank 20→30; `HP_BASE.max` 20→30 (`HP_MINIMUM` stays 2). (3) Bait/carry-over cars are deliberately LEFT unscaled (they rely on 1–2 HP for the chain-kill mechanic). (4) L16 `hpMultiplier` lowered 1.62→1.20 — it was the outlier and overcorrected once base HP rose (boosterless sim scored 0 kills on one seed at 1.62; clean at 1.20). Tests: director-config max-HP test updated 20→30; all 773 pass. NOTE: these base-HP values are starting points — the per-level goal-count + balance-sim pass still needs to run against the new HP.
 - 1ba5e2a — HUD redesign: the goals now own the FULL top band (larger pills, more breathing room, an opaque full-width band so they never overlap the road/cars below). The level badge, coin score, volume (mute), and pause button all moved OUT of the top and into a compact BOTTOM INFO BAR in the gap between the bomb queue and the booster bar (HUDRenderer owns it; pause repositioned from GameApp). The old top kill-progress "N/M" bar + 70px top strip are fully removed (win is goal-driven now). The in-game car-manual (📖) button is hidden during gameplay — still reachable from the pause screen. Bottom bar elements are ≥44px touch targets; the bomb-shots pips sit cleanly in the gap below the bar. Render-only — 773 tests unchanged.
@@ -102,17 +104,19 @@
 - 168c5ca — First major visual/balance batch: city edges, bomb zone panel, car centering, color bomb visuals.
 
 ## IMMEDIATE PRIORITIES (next session, in order)
-1. On-device smoke test (goal UI, HUD layout, HP difficulty feel, merge animation).
-2. HUD polish: volume+level to the LEFT of the boosters, score+pause to the RIGHT of the boosters (same Y). Remove the yellow circle behind the score. Add an HP guide button top-left of the goal bar; add a how-to-play button top-right of the goal bar.
-3. Goal count balance pass (current counts are a mechanical ~2.5× of old spawnBudget — need per-level tuning).
-4. Balance sim update (model the real goals + new HP, then re-run all 40 levels — VISION rule 6).
-5. Car lane alignment fix (backlog — cars offset in some lanes, seen at L21).
-6. Merge shape redesign: 4-in-a-row → 2 damage to ALL same-colour cars; L/T shape → area bomb. ("+" shape still deferred.)
-7. Difficulty rebalance (sim with merge + gridRows 16 + goals + new HP modelled).
-8. Agent team quality audit (Royal Match standard).
-9. Real-device playtest checklist: L8, L12, L16, L33, L37 + bosses L10/20/30/40.
-10. Signed AAB build.
-11. Play Store assets + submission.
+1. Sprite integration — 6 regular bomb sprites + 6 merged bomb sprites (ChatGPT generated, pending upload).
+2. Car lane alignment fix (tender misaligned — see Active Backlog note).
+3. Tutorial slide animations (PixiJS mini-loops in HowToPlayOverlay).
+4. Goal completion burst animation.
+5. Win screen upgrade.
+6. Booster icon sprites.
+7. Colorblind mode.
+8. Goal count balance pass (current counts are a mechanical ~2.5× of old spawnBudget — need per-level tuning).
+9. Balance sim update (model the real goals + new HP, then re-run all 40 levels — VISION rule 6).
+10. Agent team quality audit (Royal Match standard).
+11. Real-device playtest checklist: L8, L12, L16, L33, L37 + bosses L10/20/30/40.
+12. Signed AAB build.
+13. Play Store assets + submission.
 
 ## Active Backlog
 - Car lane alignment audit — tender (truck type) confirmed misaligned in right lane. Other car types appear OK. Check laneToX() for truck/tender specifically. May be SPRITE_SCALE or model offset issue. Fix before Play Store.

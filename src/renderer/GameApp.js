@@ -184,9 +184,9 @@ const ENV_URLS      = [
   `${_B}sprites/designed/panel-workshop-surface.png`,
   `${_B}sprites/designed/park-grass-tile.png`,
 ];
-// COLOR CHANGE has no PNG yet (uses a programmatic placeholder glyph), so it is not
-// preloaded here — adding a missing file would block the critical-sprite load gate.
-const BOOSTER_URLS  = ['freeze', 'bomb'].map(b => `${_B}sprites/designed/booster-${b}.png`);
+// Booster icons — all three now have real PNGs (colorchange = rainbow paintbrush);
+// preloaded so BoosterBar's _addIconSprite uses the sprite, not the glyph fallback.
+const BOOSTER_URLS  = ['colorchange', 'freeze', 'bomb'].map(b => `${_B}sprites/designed/booster-${b}.png`);
 // Powerball bomb sprites — the bench tray uses these (same art as the 3D queue)
 // so stored bombs match the live game instead of the old shooter-idle sprites.
 // Filenames are lowercase on disk (powerball-yellow.png) and the 3D loader requests

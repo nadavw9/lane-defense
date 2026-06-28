@@ -1,13 +1,14 @@
 # Traffic Bomb — Session Handoff
 
 ## Current State
-- Git tip: acfd731 feat: haptic feedback — 9 events wired (drag, kill, multi-kill, bounce, breach, win, booster, danger, merge)
+- Git tip: 0f5962c feat: new bomb sprites — 6 glossy regular + 6 lightning-crack merged (ChatGPT generated, 256px, transparent)
 - Branch: master
 - Last deploy: today, green
 - Tests: 773 passing, 1 skip, 5 todo
 - Live URL: https://nadavw9.github.io/lane-defense/
 
 ## What Was Shipped This Session (most recent first)
+- 0f5962c — New bomb sprites. 6 glossy regular powerballs (ChatGPT/DALL-E generated, 256×256 transparent PNG) replace the old programmatic spheres at `public/sprites/designed/powerball-{color}.png`. 6 NEW lightning-crack merged variants (`powerball-merged-{color}.png`) — `Shooter3D._getPowerballTex(color, merged)` now loads the merged sprite when `isMerged` (both vertical merge-colour-bombs and horizontal strong-merge bombs), with the existing 2D halo ring still layered on top. All 12 preloaded via `POWERBALL_URLS`. Processed with a new `scripts/process-powerball-sprites.mjs` (reuses the proven flood-fill white-bg removal from `process-sprites-sharp.mjs`, then resizes to 256). NOTE: the source files in `sprite-sources/raw/split/` arrived with 3 typo'd names (pwerball-red, owerball-green, owerball-yellow) + old correctly-named leftovers — the script picks the newest by mtime; worth renaming the sources. Minor: the red regular bomb has a faint saturated reflection blob the white-bg flood-fill left (negligible in-game). 773 tests unchanged.
 - acfd731 — Haptic feedback: 9 gameplay events wired via the EXISTING `HapticsManager` (Capacitor `@capacitor/haptics`, Android-only, silent no-op on web; respects the `hapticsEnabled` settings toggle). Extended the manager with `success`/`error`/`warning` (NotificationType); wired through GameApp's callback layer (GameLoop/DragDrop stay pure). Events: bomb drag start → light; car kill → medium; multi-kill (2+) → heavy; wrong-colour bounce → error; breach → heavy ×2 (200ms apart); win → success; booster earned (FREEZE/COLOR CHANGE/BOMB) → medium; danger pulse (car in last 2 rows, once per advance) → warning; merge fires → medium. (Deliberately NOT created the spec's separate `src/audio/HapticsManager.js` — it would have duplicated the manager and ignored the settings toggle.) Haptics only fire on a real Android build — on-device verification still pending. 773 tests unchanged.
 - 9b66cb9 — HUD fixes: HP-guide overlay now shows the actual car SPRITES (bike/car/van/tender/bigrig/tank) instead of colour dots; coin score icon repositioned dynamically to sit just left of the number's real left edge, so the gold coin never renders BEHIND a wide (4–5 digit) coin total — fixes the "yellow circle behind the score" seen on device.
 - 0f4b7fa — HUD polish + in-game guides. (1) The bottom info bar was removed; volume + level badge now flank the LEFT of the COLOR/FREEZE/BOMB booster buttons and coin score + pause flank the RIGHT — all on a single row sharing the booster bar's full-width bg, vertically centred on the booster cards (HUDRenderer `bringToFront()` lifts the flank elements above the booster bg). (2) The coin score is now a WHITE number beside the gold coin icon (was a gold number that read as a yellow circle behind itself). (3) New 🚗 HP-guide button on the LEFT of the goal bar opens `HpGuideOverlay` — every car type + base HP (Motorbike 3 / Car 6 / Van 8 / Tender 10 / Big Rig 15 / Tank 30) with a "scales by level" note. (4) New ❓ how-to-play button on the RIGHT of the goal bar opens `HowToPlayOverlay` — a 4-slide slideshow (Goal → How to Play → Merge Combos → Boosters) with step dots, → next, ✕ quit. Both buttons follow the pause button's gameplay visibility and pause the game while open. (5) `CarManualScreen` (pause-menu encyclopedia) HP values updated to the new base HP (3/6/8/10/15/30). UI-only — 773 tests unchanged.
@@ -104,19 +105,18 @@
 - 168c5ca — First major visual/balance batch: city edges, bomb zone panel, car centering, color bomb visuals.
 
 ## IMMEDIATE PRIORITIES (next session, in order)
-1. Sprite integration — 6 regular bomb sprites + 6 merged bomb sprites (ChatGPT generated, pending upload).
-2. Car lane alignment fix (tender misaligned — see Active Backlog note).
-3. Tutorial slide animations (PixiJS mini-loops in HowToPlayOverlay).
-4. Goal completion burst animation.
-5. Win screen upgrade.
-6. Booster icon sprites.
-7. Colorblind mode.
-8. Goal count balance pass (current counts are a mechanical ~2.5× of old spawnBudget — need per-level tuning).
-9. Balance sim update (model the real goals + new HP, then re-run all 40 levels — VISION rule 6).
-10. Agent team quality audit (Royal Match standard).
-11. Real-device playtest checklist: L8, L12, L16, L33, L37 + bosses L10/20/30/40.
-12. Signed AAB build.
-13. Play Store assets + submission.
+1. Car lane alignment fix (tender misaligned in right lane — see Active Backlog note).
+2. Tutorial slide mini-animations (PixiJS loops in HowToPlayOverlay, Option A).
+3. Goal completion burst animation.
+4. Win screen upgrade.
+5. Booster icon sprites (generate via ChatGPT).
+6. Colorblind mode.
+7. Goal count balance pass (current counts are a mechanical ~2.5× of old spawnBudget — need per-level tuning).
+8. Balance sim update (model goals + new HP + gridRows 16, then re-run all 40 levels — VISION rule 6).
+9. Agent team quality audit (Royal Match standard).
+10. Real-device playtest checklist: L8, L12, L16, L33, L37 + bosses L10/20/30/40.
+11. Signed AAB build.
+12. Play Store assets + submission.
 
 ## Active Backlog
 - Car lane alignment audit — tender (truck type) confirmed misaligned in right lane. Other car types appear OK. Check laneToX() for truck/tender specifically. May be SPRITE_SCALE or model offset issue. Fix before Play Store.

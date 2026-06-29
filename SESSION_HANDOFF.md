@@ -1,13 +1,18 @@
 # Traffic Bomb — Session Handoff
 
 ## Current State
-- Git tip: aa816b9 balance: goal counts + HP rebalance — mean 62% tool-less win rate across 40 levels (bosses 20-30%, mid/late 41-58%)
+- Git tip: dbd7917 fix: spawn fills all active lanes to target each advance; re-tune L30/L40 boss goals (778 tests)
 - Branch: master
 - Last deploy: today, green
-- Tests: 773 passing, 1 skip, 5 todo
+- Tests: 778 passing, 1 skip, 5 todo
 - Live URL: https://nadavw9.github.io/lane-defense/
 
 ## What Was Shipped This Session (most recent first)
+- dbd7917 — Spawn refill fix + boss re-tune:
+  * **Spawn refill fix** — every active lane now fills to `laneTargetCarCount` each advance. The old `_refillLanes` added at most one car per lane per advance and the `row < 2` spawn-zone throttle could leave a drained lane below target (often at 1, briefly 0) for several advances — most visible on 2–3 lane levels (L2/L3), which is what the "some lanes stay empty" report was. NOTE: the refill already iterated `gs.activeLaneCount` (never hardcoded 4) and was identical on 2- and 4-lane boards — the defect was the per-advance cadence/throttle, not lane iteration. Each new car is placed at the lowest unoccupied spawn row (0,1,…) so multiple fills don't stack; `Lane.addCar` re-sorts by position so the front-car invariant holds. `GameLoop._refillLanes` and `SimulationRunner._refillLanes` kept **byte-aligned** (sim sorts its plain-object lanes descending by row so `cars[0]` stays the front car) — so the sim remains the difficulty ground truth.
+  * **L30/L40 boss re-tune** — the denser refill added breach pressure and pushed both bosses just out of the 20–30% band (L30 21.2→19.0, L40 21.0→16.0). Re-tuned: **L30 `Purple:5, bigrig:1` (25.6%)**, **L40 `Red:4, bigrig:1, truck:1` (22.4%)** — both back in band (L40 flagged OK).
+  * **Mean win rate stable at ~61%** across 40 levels (was 62.0% pre-fix; within run-to-run noise, still in the 40–65% band). Mid/late levels unchanged (41–58%); FTUE untouched.
+  * **+5 spawn-refill tests** (`tests/spawn-refill-active-lanes.test.js`): both active lanes refill to target; inactive lanes 2–3 untouched (no hardcoded 4); all 3 lanes of a 3-lane level get cars (not a random subset); a drained lane is topped up in one advance with the front-car invariant intact; new spawns occupy distinct rows. Suite 773 → **778**.
 - aa816b9 — Full balance pass (VISION.md non-negotiable — rule 6 balance sim must pass before Play Store):
   * `SimulationRunner` now models the real per-level goals — wins when every `goalProgress` entry hits 0 (mirrors `GameState.applyKillToGoals`/`isGoalMet`), loses on breach, never on budget exhaustion; cars spawn infinitely (density-only `spawnBudget`). MAX_TURNS safety cap 3000.
   * Base HP reverted to sensible values (small 2 / big 4 / jeep 5 / truck 7 / bigrig 11 / tank 20) after the ×1.5 gridRows-16 bump overshot (tool-less win ~6%); `HP_BASE.max` 30→20.
@@ -117,12 +122,13 @@
 - 168c5ca — First major visual/balance batch: city edges, bomb zone panel, car centering, color bomb visuals.
 
 ## IMMEDIATE PRIORITIES (next session, in order)
-1. Opening screen (animated splash, Traffic Bomb branding, first impression).
-2. Colorblind mode.
-3. Agent team quality audit.
-4. Real-device playtest checklist: L8/12/16/33/37 + bosses L10/20/30/40.
-5. Signed AAB build.
-6. Play Store assets + submission.
+1. Tutorial slides — replace animations with real gameplay screenshots.
+2. Opening screen (animated splash, Traffic Bomb branding).
+3. Colorblind mode.
+4. Agent team quality audit.
+5. Real-device playtest checklist: L8/12/16/33/37 + bosses L10/20/30/40.
+6. Signed AAB build.
+7. Play Store assets + submission.
 
 ## Active Backlog
 - Replace COLOR CHANGE placeholder glyph with a real paintbrush sprite (drop `public/sprites/designed/booster-colorchange.png` — picked up automatically; also add it to BOOSTER_URLS preload in GameApp.js once it exists)

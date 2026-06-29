@@ -196,7 +196,11 @@ const POWERBALL_URLS = [
   ...COLORS.map(c => `${_B}sprites/designed/powerball-${c.toLowerCase()}.png`),
   ...COLORS.map(c => `${_B}sprites/designed/powerball-merged-${c.toLowerCase()}.png`),
 ];
-const ALL_SPRITE_URLS = [...CAR_URLS, ...SHOOTER_URLS, ...POWERBALL_URLS, ...BUILDING_URLS, ...TREE_URLS, ...ENV_URLS, ...BOOSTER_URLS];
+// Tutorial screenshots shown in HowToPlayOverlay (real-gameplay captures from L22).
+// Cosmetic — the overlay degrades to a blank frame if one fails to load.
+const TUTORIAL_URLS = ['01-goal', '02-shot', '03-merge', '04-boosters']
+  .map(n => `${_B}sprites/tutorial/${n}.png`);
+const ALL_SPRITE_URLS = [...CAR_URLS, ...SHOOTER_URLS, ...POWERBALL_URLS, ...BUILDING_URLS, ...TREE_URLS, ...ENV_URLS, ...BOOSTER_URLS, ...TUTORIAL_URLS];
 
 // Critical sprites gate spriteFlags.loaded — gameplay must have its car icons,
 // bomb/shooter sprites, and booster icons. Cosmetic sprites (buildings, trees,

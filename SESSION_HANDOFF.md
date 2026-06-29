@@ -1,13 +1,14 @@
 # Traffic Bomb — Session Handoff
 
 ## Current State
-- Git tip: dbd7917 fix: spawn fills all active lanes to target each advance; re-tune L30/L40 boss goals (778 tests)
+- Git tip: 7e385f3 feat: tutorial slides now show real gameplay screenshots (goal, shot, merge, boosters)
 - Branch: master
 - Last deploy: today, green
 - Tests: 778 passing, 1 skip, 5 todo
 - Live URL: https://nadavw9.github.io/lane-defense/
 
 ## What Was Shipped This Session (most recent first)
+- 7e385f3 — Tutorial how-to-play slides now show real gameplay screenshots instead of the inaccurate looping PixiJS demo animations. 4 captures from L22 (`public/sprites/tutorial/`): `01-goal` (goal counters + cars + queue), `02-shot` (a bomb mid-drag up a colour-matched lane — bomb below, cars above), `03-merge` (3 same-colour bombs stacked in a queue column, pre-merge), `04-boosters` (booster bar with COLOR/FREEZE/BOMB charged). Auto-captured via dev hooks (`startLevel(22)`, a real held pointer-drag, `_fx.mergeSetupVerticalKeep()`, `setBoosters`). `HowToPlayOverlay.js` now loads a static `Sprite` per slide (same pattern as HpGuideOverlay) — removed the dead `ANIMS`/ticker animation loop; dots/title/body/✕/→ unchanged. Images added to the `GameApp` preload manifest (`TUTORIAL_URLS`, cosmetic tier — overlay degrades to a blank frame if one fails). 778 tests unchanged.
 - dbd7917 — Spawn refill fix + boss re-tune:
   * **Spawn refill fix** — every active lane now fills to `laneTargetCarCount` each advance. The old `_refillLanes` added at most one car per lane per advance and the `row < 2` spawn-zone throttle could leave a drained lane below target (often at 1, briefly 0) for several advances — most visible on 2–3 lane levels (L2/L3), which is what the "some lanes stay empty" report was. NOTE: the refill already iterated `gs.activeLaneCount` (never hardcoded 4) and was identical on 2- and 4-lane boards — the defect was the per-advance cadence/throttle, not lane iteration. Each new car is placed at the lowest unoccupied spawn row (0,1,…) so multiple fills don't stack; `Lane.addCar` re-sorts by position so the front-car invariant holds. `GameLoop._refillLanes` and `SimulationRunner._refillLanes` kept **byte-aligned** (sim sorts its plain-object lanes descending by row so `cars[0]` stays the front car) — so the sim remains the difficulty ground truth.
   * **L30/L40 boss re-tune** — the denser refill added breach pressure and pushed both bosses just out of the 20–30% band (L30 21.2→19.0, L40 21.0→16.0). Re-tuned: **L30 `Purple:5, bigrig:1` (25.6%)**, **L40 `Red:4, bigrig:1, truck:1` (22.4%)** — both back in band (L40 flagged OK).
@@ -122,13 +123,12 @@
 - 168c5ca — First major visual/balance batch: city edges, bomb zone panel, car centering, color bomb visuals.
 
 ## IMMEDIATE PRIORITIES (next session, in order)
-1. Tutorial slides — replace animations with real gameplay screenshots.
-2. Opening screen (animated splash, Traffic Bomb branding).
-3. Colorblind mode.
-4. Agent team quality audit.
-5. Real-device playtest checklist: L8/12/16/33/37 + bosses L10/20/30/40.
-6. Signed AAB build.
-7. Play Store assets + submission.
+1. Opening screen (animated splash, Traffic Bomb branding, first impression).
+2. Colorblind mode.
+3. Agent team quality audit.
+4. Real-device playtest checklist: L8/12/16/33/37 + bosses L10/20/30/40.
+5. Signed AAB build.
+6. Play Store assets + submission.
 
 ## Active Backlog
 - Replace COLOR CHANGE placeholder glyph with a real paintbrush sprite (drop `public/sprites/designed/booster-colorchange.png` — picked up automatically; also add it to BOOSTER_URLS preload in GameApp.js once it exists)

@@ -1,13 +1,23 @@
 # Traffic Bomb — Session Handoff
 
 ## Current State
-- Git tip: 2f56073 feat: tutorial slide animations (PixiJS loops) + goal completion burst
+- Git tip: aa816b9 balance: goal counts + HP rebalance — mean 62% tool-less win rate across 40 levels (bosses 20-30%, mid/late 41-58%)
 - Branch: master
 - Last deploy: today, green
 - Tests: 773 passing, 1 skip, 5 todo
 - Live URL: https://nadavw9.github.io/lane-defense/
 
 ## What Was Shipped This Session (most recent first)
+- aa816b9 — Full balance pass (VISION.md non-negotiable — rule 6 balance sim must pass before Play Store):
+  * `SimulationRunner` now models the real per-level goals — wins when every `goalProgress` entry hits 0 (mirrors `GameState.applyKillToGoals`/`isGoalMet`), loses on breach, never on budget exhaustion; cars spawn infinitely (density-only `spawnBudget`). MAX_TURNS safety cap 3000.
+  * Base HP reverted to sensible values (small 2 / big 4 / jeep 5 / truck 7 / bigrig 11 / tank 20) after the ×1.5 gridRows-16 bump overshot (tool-less win ~6%); `HP_BASE.max` 30→20.
+  * Global `hpMultiplier` ×0.6 applied to ALL `worldConfig` presets in LevelManager.
+  * L15 inline `hpMultiplier` fixed 1.30→0.78.
+  * L4 `hpMultiplier` fixed 1.80→0.90 (outlier).
+  * L19 config bug fixed — goal colour Yellow→Blue (Yellow was not in L19's palette, making the level unwinnable at any count).
+  * Per-level goal counts tuned for 24 levels (L8, L10, L15, L16, L18, L20, L22–L29, L31–L39) into the 41–58% band.
+  * Boss goals redesigned: L30 → [Purple:6, bigrig:1], L40 → [Red:5, bigrig:1, truck:2] — the old tank goals were unreliable (tank too rare to kill 3 of before a breach; both bosses sat <1%). Now 21.2% / 21.0%.
+  * Result: mean 62.0% tool-less win rate across 40 levels — bosses 20–30% (L10 23.4 / L20 25.2 / L30 21.2 / L40 21.0), mid/late 41–58%. New `tools/goal-search.mjs` + goal-aware `tools/balance-sim.js`. 773 tests unchanged.
 - 2f56073 — Tutorial slide animations + goal completion burst. (1) Each how-to-play slide (`HowToPlayOverlay`) now has a looping PixiJS demo above the text, driven by the app ticker (works while the game is paused; removed on destroy): GOAL = 2 cars descending toward a breach line with a counter ticking to WIN; HOW TO PLAY = a matching-colour bomb drags to a car → explosion → car vanishes; MERGE = 3 same-colour bombs glow, converge, flash → merged lightning bomb (⚡); BOOSTERS = COLOR/FREEZE/BOMB icons pop in one at a time. Geometric shapes + glyphs only, no new assets. (2) `GoalCounterUI` goal-completion burst: the moment `goalProgress[i]` hits 0 the pill does a scale pop (1.0→~1.4→1.0, 300ms), an 8-particle burst in the goal colour (400ms), a white flash → settles to a green completed tint + border + checkmark, and plays the booster-earned SFX (`onComplete` callback wired in GameApp; `update(goalProgress, dt)` now takes dt). 773 tests unchanged.
 - 9e878b1 — Car lane alignment fixed: removed the stale `SPRITE_X_OFFSET` table from `Car3D.js` (it used old image widths 512/448/299 vs the current 280/187/125px sprites, and was wrong-signed). All car types now centre purely on `laneToX()` (`mesh.position.x = 0`). The tender (truck) sat right-of-centre — worst in the right lane; bigrig and bike offsets were also stale. Removing them is strictly better/equal for every type (verified: same-lane stacks of tenders + mixed sizes all share one centre X). Residual is now only each sprite's own tiny art asymmetry.
 - 0f5962c — New bomb sprites. 6 glossy regular powerballs (ChatGPT/DALL-E generated, 256×256 transparent PNG) replace the old programmatic spheres at `public/sprites/designed/powerball-{color}.png`. 6 NEW lightning-crack merged variants (`powerball-merged-{color}.png`) — `Shooter3D._getPowerballTex(color, merged)` now loads the merged sprite when `isMerged` (both vertical merge-colour-bombs and horizontal strong-merge bombs), with the existing 2D halo ring still layered on top. All 12 preloaded via `POWERBALL_URLS`. Processed with a new `scripts/process-powerball-sprites.mjs` (reuses the proven flood-fill white-bg removal from `process-sprites-sharp.mjs`, then resizes to 256). NOTE: the source files in `sprite-sources/raw/split/` arrived with 3 typo'd names (pwerball-red, owerball-green, owerball-yellow) + old correctly-named leftovers — the script picks the newest by mtime; worth renaming the sources. Minor: the red regular bomb has a faint saturated reflection blob the white-bg flood-fill left (negligible in-game). 773 tests unchanged.
@@ -107,15 +117,12 @@
 - 168c5ca — First major visual/balance batch: city edges, bomb zone panel, car centering, color bomb visuals.
 
 ## IMMEDIATE PRIORITIES (next session, in order)
-1. Win screen upgrade (more celebration energy).
-2. Booster icon sprites (generate via ChatGPT).
-3. Colorblind mode.
-4. Goal count balance pass (current counts are a mechanical ~2.5× of old spawnBudget — need per-level tuning).
-5. Balance sim update (model goals + new HP + gridRows 16, then re-run all 40 levels — VISION rule 6).
-6. Agent team quality audit (Royal Match standard).
-7. Real-device playtest checklist: L8, L12, L16, L33, L37 + bosses L10/20/30/40.
-8. Signed AAB build.
-9. Play Store assets + submission.
+1. Opening screen (animated splash, Traffic Bomb branding, first impression).
+2. Colorblind mode.
+3. Agent team quality audit.
+4. Real-device playtest checklist: L8/12/16/33/37 + bosses L10/20/30/40.
+5. Signed AAB build.
+6. Play Store assets + submission.
 
 ## Active Backlog
 - Replace COLOR CHANGE placeholder glyph with a real paintbrush sprite (drop `public/sprites/designed/booster-colorchange.png` — picked up automatically; also add it to BOOSTER_URLS preload in GameApp.js once it exists)

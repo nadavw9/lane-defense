@@ -88,6 +88,10 @@ export class SimulationRunner {
       laneTargetCarCount: levelConfig.laneTargetCarCount ?? 1,
       spawnBudget:        levelConfig.spawnBudget        ?? Infinity,
       gridRows:           levelConfig.gridRows           ?? 16,
+      // Level Goal System: array of { type, color?, carType?, count }. When present,
+      // the sim WINS by completing every goal (matching the live game), not by a
+      // generic kill target. Empty/omitted → legacy kill-target behaviour.
+      goals:              levelConfig.goals              ?? [],
       // Optional per-shot observer for tuning tools. Called once per fired bomb
       // with the shot's correctness (true = correct-colour, false = wrong).
       // Default null → zero behaviour change for balance runs and tests.
@@ -156,6 +160,22 @@ export class SimulationRunner {
     let lastKillTime    = -Infinity;
     let lostAt          = null;
 
+    // ── Level goals (mirrors GameState.applyKillToGoals / isGoalMet) ──────────
+    const goals        = this._cfg.goals ?? [];
+    const hasGoals     = goals.length > 0;
+    const goalProgress = goals.map(g => g.count);
+    const totalGoalCount = goals.reduce((s, g) => s + g.count, 0);
+    const applyKillToGoals = (color, type) => {
+      for (let i = 0; i < goals.length; i++) {
+        const g = goals[i];
+        const match = g.type === 'destroyTotal'
+          || (g.type === 'destroyColor' && color === g.color)
+          || (g.type === 'destroyType'  && type  === g.carType);
+        if (match) goalProgress[i] = Math.max(0, goalProgress[i] - 1);
+      }
+    };
+    const goalsMet = () => hasGoals && goalProgress.every(r => r === 0);
+
     // Fidelity instrumentation (per-shot advance invariant). Not used for balance.
     let correctShots    = 0;   // correct-color shots fired
     let totalAdvances   = 0;   // times the grid advanced 1 row
@@ -191,7 +211,8 @@ export class SimulationRunner {
     // out of laneTargetCarCount, spawnBudget (now a density knob), car HP, colors, gridRows.
     // A synthetic `elapsed` is derived from TURN PROGRESS (not a clock) purely
     // so intensity phases (car-type mix / crisis) still ramp CALM → CLIMAX.
-    const MAX_TURNS    = 50000;   // safety bound; real play terminates far sooner
+    const MAX_TURNS    = 3000;   // safety bound; a real level completes in < 100 turns,
+                                 // so hitting this means the goal is effectively unreachable → loss
     const CRITICAL_ROW = Math.floor(BREACH_ROW * 0.75);
 
     const _isCorrect = () => rng.next() < profile.accuracy;
@@ -228,22 +249,25 @@ export class SimulationRunner {
     // - A kill threshold based on duration (longer levels = more time to kill cars).
     // - A stall guard to exit unplayable states.
     // Rough scale: 90s level → ~20 kills. Adjust for actual duration.
-    const KILL_TARGET = Math.round(20 * (duration / 90));
+    const KILL_TARGET = Math.round(20 * (duration / 90));   // legacy fallback (no goals)
 
     let turns  = 0;
     let stalls = 0;
     while (turns < MAX_TURNS) {
       turns++;
 
-      // With infinite spawn, we stop when:
-      //   1. LOSS: a car breached (lostAt !== null) → return won=false
-      //   2. WIN: kill target reached → return won=true
-      //   3. TIMEOUT: MAX_TURNS exceeded (hard safety cap to prevent infinite loops)
+      // Stop when:
+      //   1. LOSS: a car breached (lostAt !== null) → won=false
+      //   2. WIN: all goals complete (goal mode) / kill target reached (legacy)
+      //   3. TIMEOUT: MAX_TURNS safety cap
       if (lostAt !== null) break;
-      if (carsKilled >= KILL_TARGET) break;  // enough progress; consider it a win
+      if (hasGoals ? goalsMet() : carsKilled >= KILL_TARGET) break;
 
-      // Phase from turn progress (shot-driven, NOT a clock) so the mix ramps.
-      const progress = Math.min(1, carsKilled / Math.max(1, KILL_TARGET));
+      // Phase from progress (goal completion in goal mode, else kills/target) so the
+      // car-type mix still ramps CALM → CLIMAX. Shot-driven, NOT a clock.
+      const progress = hasGoals
+        ? 1 - goalProgress.reduce((s, r) => s + r, 0) / Math.max(1, totalGoalCount)
+        : Math.min(1, carsKilled / Math.max(1, KILL_TARGET));
       const elapsed = duration * progress;
       phaseMan.update(elapsed);
       const phase       = phaseMan.getCurrentPhase();
@@ -278,6 +302,7 @@ export class SimulationRunner {
           if (car.hp <= 0) {
             lane.cars.shift();
             carsKilled++;
+            applyKillToGoals(car.color, car.type);   // credit the level's goals
             currentCombo = (totalAdvances - lastKillTime <= COMBO_WINDOW) ? currentCombo + 1 : 1;
             lastKillTime = totalAdvances;
             if (currentCombo > maxCombo) maxCombo = currentCombo;
@@ -340,10 +365,9 @@ export class SimulationRunner {
       }
     }
 
-    // Win: no breach + enough progress (killed >= KILL_TARGET). Breach = loss.
-    // With infinite spawn, we can't use budget depletion as a win criterion;
-    // instead we check if the player made sufficient progress to not be stuck.
-    const won = lostAt === null && carsKilled >= KILL_TARGET;
+    // Win: no breach + goals complete (goal mode) / kill target met (legacy).
+    // Never wins on budget exhaustion (infinite spawn). Breach (or MAX_TURNS) = loss.
+    const won = lostAt === null && (hasGoals ? goalsMet() : carsKilled >= KILL_TARGET);
     const timeElapsed     = 0;       // no wall-clock in the turn-based model
     const rescueWouldSave = false;   // (timer-based rescue heuristic n/a without a clock)
 

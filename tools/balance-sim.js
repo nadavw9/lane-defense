@@ -1,114 +1,100 @@
-// Headless balance simulator — runs N games of a level, reports difficulty stats.
+// Headless balance simulator — runs N games per level, reports goal-based difficulty.
 //
 // Usage:
-//   node tools/balance-sim.js --level=5 --runs=500 --skill=average
-//   node tools/balance-sim.js --level=17 --runs=200 --skill=beginner
+//   node tools/balance-sim.js --level=5   --runs=500 --skill=average
+//   node tools/balance-sim.js --level=all --runs=500
 //
 // Skills: optimal | beginner | average (default) | skilled
 //
-// Movement model: discrete row-based (gridRows=11, rows 0–10, breach at row >= 11)
-// - Each correct-color shot: ALL cars in ALL active lanes advance 1 row
-// - Each wrong-color shot: no advance
-// - Fresh spawn: row 0
-// - Breach: row >= 11 (i.e., row > gridRows-1)
-// - Refill: when a lane has fewer than laneTargetCarCount cars, spawn 1 car per advance step
+// Win = complete every level goal (destroyTotal / destroyColor / destroyType) with no
+// breach. Cars spawn infinitely (no budget win). Reports per level: win rate, avg
+// turns-to-win (grid advances), avg kills/shot, the goal summary, and a flag.
 //
-// Targets vs AVERAGE player (from Phase 3 rebalance):
-//   Easy:       75-92% win rate
-//   Medium:     50-72%
-//   Hard:       28-50%
-//   Boss-Hard:  15-32%
+// Flags (per task): win<20% too hard · win>80% too easy · turns>25 too long · turns<5 too short.
 
-import { LevelManager }    from '../src/game/LevelManager.js';
+import { LevelManager } from '../src/game/LevelManager.js';
 import { SimulationRunner } from '../src/simulation/SimulationRunner.js';
 
-const args    = process.argv.slice(2);
-const levelId = parseInt(args.find(a => a.startsWith('--level='))?.split('=')[1] ?? '1');
-const runs    = parseInt(args.find(a => a.startsWith('--runs='))?.split('=')[1]  ?? '500');
-const skill   = args.find(a => a.startsWith('--skill='))?.split('=')[1] ?? 'average';
+const args  = process.argv.slice(2);
+const levelArg = args.find(a => a.startsWith('--level='))?.split('=')[1] ?? '1';
+const runs  = parseInt(args.find(a => a.startsWith('--runs='))?.split('=')[1] ?? '500');
+const skill = args.find(a => a.startsWith('--skill='))?.split('=')[1] ?? 'average';
 
 const VALID_SKILLS = new Set(['optimal', 'beginner', 'average', 'skilled']);
-if (isNaN(levelId) || levelId < 1) {
-  console.error('Usage: node tools/balance-sim.js --level=N [--runs=500] [--skill=average]');
-  process.exit(1);
-}
 if (!VALID_SKILLS.has(skill)) {
   console.error(`Unknown skill: ${skill}. Valid: optimal | beginner | average | skilled`);
   process.exit(1);
 }
 
-const lm = new LevelManager();
-lm.goToLevel(levelId);
-const cfg = lm.current;
+const TOTAL_LEVELS = 40;
+const levelIds = levelArg === 'all'
+  ? Array.from({ length: TOTAL_LEVELS }, (_, i) => i + 1)
+  : levelArg.split(',').map(s => parseInt(s.replace(/^L/i, ''), 10)).filter(n => !Number.isNaN(n));
 
-if (!cfg) {
-  console.error(`Unknown level: ${levelId}`);
-  process.exit(1);
+function goalSummary(goals) {
+  if (!goals?.length) return '(none)';
+  return goals.map(g =>
+    g.type === 'destroyTotal' ? `Total:${g.count}`
+    : g.type === 'destroyColor' ? `${g.color}:${g.count}`
+    : `${g.carType}:${g.count}`
+  ).join(', ');
 }
 
-const runner = new SimulationRunner({
-  duration:         cfg.duration,
-  colors:           cfg.colors,
-  worldConfig:      cfg.worldConfig,
-  levelId:          levelId,
-  skill,
-  laneCount:        cfg.laneCount,
-  laneTargetCarCount: cfg.laneTargetCarCount,
-  spawnBudget:      cfg.spawnBudget,
-  gridRows:         cfg.gridRows,
-});
+function flagFor(winPct, avgTurns) {
+  const f = [];
+  if (winPct < 20) f.push('TOO HARD');
+  else if (winPct > 80) f.push('TOO EASY');
+  if (avgTurns != null && avgTurns > 25) f.push('TOO LONG');
+  else if (avgTurns != null && avgTurns < 5) f.push('TOO SHORT');
+  return f.length ? f.join(' + ') : 'OK';
+}
 
-const stats  = runner.runBatch(runs, 1);
-const winPct = (stats.winRate * 100).toFixed(1);
-const killPct = stats.avgCarsKilled.toFixed(1);
+function runOne(levelId) {
+  const lm = new LevelManager();
+  lm.goToLevel(levelId);
+  const cfg = lm.current;
+  const runner = new SimulationRunner({
+    duration: cfg.duration, colors: cfg.colors, worldConfig: cfg.worldConfig,
+    levelId, skill, laneCount: cfg.laneCount, colCount: cfg.colCount,
+    laneTargetCarCount: cfg.laneTargetCarCount, spawnBudget: cfg.spawnBudget,
+    gridRows: cfg.gridRows, goals: cfg.goals ?? [],
+  });
 
-// Derive expected tier from level id for PASS/FAIL assessment.
-// Tiers follow the 8-level block pattern; within each block:
-//   slot 0 (N)   = Easy      slot 4 (N+4) = Easy (relief)
-//   slot 1 (N+1) = Medium    slot 5 (N+5) = Medium
-//   slot 2 (N+2) = Medium    slot 6 (N+6) = Hard
-//   slot 3 (N+3) = Hard      slot 7 (N+7) = Boss-Hard
-//
-// Bands are calibrated for the AVERAGE skill profile.  Other skills have no
-// target bands — just report raw numbers.
-const TIER_BANDS_AVERAGE = {
-  'Easy':       [75, 92],
-  'Medium':     [50, 72],
-  'Hard':       [28, 50],
-  'Boss-Hard':  [15, 32],
-};
-const TIER_BANDS_OPTIMAL = {
-  'Easy':       [85, 95],
-  'Medium':     [60, 75],
-  'Hard':       [35, 50],
-  'Boss-Hard':  [20, 35],
-};
-const SLOT_TIER = ['Easy', 'Medium', 'Medium', 'Hard', 'Easy', 'Medium', 'Hard', 'Boss-Hard'];
-const slot      = (levelId - 1) % 8;
-const tier      = SLOT_TIER[slot];
-const pct       = parseFloat(winPct);
-
-let status;
-if (skill === 'average' || skill === 'optimal') {
-  const bands    = skill === 'average' ? TIER_BANDS_AVERAGE : TIER_BANDS_OPTIMAL;
-  const [lo, hi] = bands[tier];
-  if (pct < lo) {
-    status = `❌ FAIL (too hard for ${skill} — ${pct}% < ${lo}%)`;
-  } else if (pct > hi) {
-    status = `⚠️  WARN (too easy for ${skill} — ${pct}% > ${hi}%)`;
-  } else {
-    status = '✅ PASS';
+  let wins = 0, winTurns = 0, totalKills = 0, totalShots = 0;
+  for (let s = 0; s < runs; s++) {
+    const r = runner.runLevel(1 + s);
+    totalKills += r.carsKilled;
+    totalShots += r.correctShots;
+    if (r.won) { wins++; winTurns += r.totalAdvances; }
   }
-} else {
-  status = '— (no target band for this skill profile)';
+  const winPct   = (wins / runs) * 100;
+  const avgTurns = wins > 0 ? winTurns / wins : null;
+  const killsPerShot = totalShots > 0 ? totalKills / totalShots : 0;
+  return { levelId, cfg, winPct, avgTurns, killsPerShot, wins };
 }
-const bandInfo = (skill === 'average' || skill === 'optimal')
-  ? (() => { const bands = skill === 'average' ? TIER_BANDS_AVERAGE : TIER_BANDS_OPTIMAL; const [lo, hi] = bands[tier]; return `${lo}–${hi}%`; })()
-  : 'n/a';
 
-console.log(`\nLevel ${levelId} (${cfg.colors.join('+')} | ${cfg.duration}s | budget=${cfg.spawnBudget ?? 'unlimited'}) — ${runs} runs  [skill: ${skill}]`);
-console.log(`Win rate:        ${winPct}%  [target ${bandInfo} for ${tier}]`);
-console.log(`Avg cars killed: ${killPct}`);
-console.log(`Crisis/level:    ${stats.avgCrisisPerLevel.toFixed(2)}`);
-console.log(`Fairness fixes:  ${(stats.fairnessOverrideRate * 100).toFixed(1)}%`);
-console.log(status);
+// ── Run + table ────────────────────────────────────────────────────────────────
+console.log(`\nBalance sim — ${levelIds.length} level(s) × ${runs} runs  [skill: ${skill}]  (win = all goals met, no breach)\n`);
+console.log('Lvl │ Goals                              │ Win%  │ AvgTurns │ Kills/Shot │ Flag');
+console.log('────┼────────────────────────────────────┼───────┼──────────┼────────────┼──────────────────');
+
+const results = [];
+for (const id of levelIds) {
+  const r = runOne(id);
+  results.push(r);
+  const goalsStr = goalSummary(r.cfg.goals).padEnd(34).slice(0, 34);
+  const turnsStr = r.avgTurns != null ? r.avgTurns.toFixed(1).padStart(8) : '     —  ';
+  const flag = flagFor(r.winPct, r.avgTurns);
+  console.log(
+    `${String(id).padStart(3)} │ ${goalsStr} │ ${r.winPct.toFixed(1).padStart(5)} │ ${turnsStr} │ ${r.killsPerShot.toFixed(2).padStart(10)} │ ${flag}`
+  );
+}
+
+// ── Summary of flagged levels ────────────────────────────────────────────────────
+const flagged = results.filter(r => flagFor(r.winPct, r.avgTurns) !== 'OK');
+console.log(`\n${flagged.length} / ${results.length} levels flagged.`);
+if (flagged.length) {
+  console.log('Flagged:', flagged.map(r => `L${r.levelId}(${flagFor(r.winPct, r.avgTurns)})`).join('  '));
+}
+const avgWin = results.reduce((s, r) => s + r.winPct, 0) / results.length;
+console.log(`Mean win rate across levels: ${avgWin.toFixed(1)}%  (target band 40–65% tool-less)`);

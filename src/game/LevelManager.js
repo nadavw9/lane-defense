@@ -335,7 +335,7 @@ const PROGRESSION = [
     worldConfig: R_5C_MED,
     duration: 100, spawnBudget: 20, laneTargetCarCount: 3, gridRows: 16,
     showArrow: false, hintText: null ,
-    goals: [{"type":"destroyColor","color":"Purple","count":6},{"type":"destroyType","carType":"bigrig","count":1}]},
+    goals: [{"type":"destroyColor","color":"Purple","count":5},{"type":"destroyType","carType":"bigrig","count":1}]},
 
   // L31 Hard â€” "Night Highway opens": all 6 colors. Orange arrives with W3 theme.
   // Hardest level with Orange introduction (never intro on an easy level).
@@ -409,7 +409,7 @@ const PROGRESSION = [
     worldConfig: R_6C_BH_LONG,
     duration: 120, spawnBudget: 24, laneTargetCarCount: 3, gridRows: 16,
     showArrow: false, hintText: null ,
-    goals: [{"type":"destroyColor","color":"Red","count":5},{"type":"destroyType","carType":"bigrig","count":1},{"type":"destroyType","carType":"truck","count":2}]},
+    goals: [{"type":"destroyColor","color":"Red","count":4},{"type":"destroyType","carType":"bigrig","count":1},{"type":"destroyType","carType":"truck","count":1}]},
 ];
 
 // COLOR CHANGE is now earned by chaining two strictly-consecutive multi-kills

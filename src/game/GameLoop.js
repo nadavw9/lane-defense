@@ -707,13 +707,22 @@ export class GameLoop {
     const target = gs.laneTargetCarCount ?? 2;
 
     if (gs.spawnBudget !== null) {
-      // Budget mode: refill every under-stocked lane. Never stop for budget — spawn
-      // indefinitely to meet goal requirements. spawnBudget is a density knob only.
+      // Budget mode: top EVERY active lane up to laneTargetCarCount each advance.
+      // Never stop for budget — spawn indefinitely to meet goal requirements;
+      // spawnBudget is a density knob only. Each new car is placed at the lowest
+      // unoccupied spawn row (0,1,…) so multiple fills in one advance don't stack
+      // at a single position (mirrors the opening prime). `Lane.addCar` re-sorts by
+      // position, so the front-car invariant is preserved regardless of fill order.
+      const ROWS = gs.gridRows ?? 16;
       for (let li = 0; li < gs.activeLaneCount; li++) {
         const lane = gs.lanes[li];
-        if (lane.cars.length < target && !lane.cars.some(c => c.row < 2)) {
+        while (lane.cars.length < target) {
+          let row = 0;
+          while (lane.cars.some(c => c.row === row)) row++;
+          if (row >= ROWS) break;   // lane physically full — nothing more to add
           const car = this._carDir.generateCar(lane, 'CALM', gs.world, gs.colors, gs.gridRows);
-          car.row = 0; car.position = 0;
+          car.row = row;
+          car.position = this._rowToPosition(row, ROWS);
           lane.addCar(car);
           this.onNewCarType?.(car.type);
         }

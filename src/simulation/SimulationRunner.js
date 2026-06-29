@@ -217,18 +217,25 @@ export class SimulationRunner {
 
     const _isCorrect = () => rng.next() < profile.accuracy;
 
-    // Refill lanes to laneTargetCarCount (spawn-zone-guarded), per advance.
-    // No budget limit — lanes refill indefinitely to match goal-based play.
+    // Top EVERY active lane up to laneTargetCarCount each advance (mirrors
+    // GameLoop._refillLanes). No budget limit — lanes refill indefinitely to match
+    // goal-based play. Each new car goes at the lowest unoccupied spawn row (0,1,…)
+    // so fills don't stack; then re-sort descending by row so cars[0] stays the
+    // front car (discreteLanes are plain objects, so unlike Lane this won't auto-sort).
     const _refillLanes = (phase) => {
+      const target = this._cfg.laneTargetCarCount;
       for (const lane of discreteLanes) {
-        if (
-          lane.cars.length < this._cfg.laneTargetCarCount &&
-          !lane.cars.some(c => c.row < 2)
-        ) {
+        let added = false;
+        while (lane.cars.length < target) {
+          let row = 0;
+          while (lane.cars.some(c => c.row === row)) row++;
+          if (row >= this._cfg.gridRows) break;   // lane physically full
           const car = carDir.generateCar({ id: lane.id }, phase, worldConfig, colors, this._cfg.gridRows);
           const adjustedHp = Math.max(1, Math.round(car.hp * worldConfig.hpMultiplier));
-          lane.cars.push({ row: 0, hp: adjustedHp, type: car.type, color: car.color });
+          lane.cars.push({ row, hp: adjustedHp, type: car.type, color: car.color });
+          added = true;
         }
+        if (added) lane.cars.sort((a, b) => b.row - a.row);   // cars[0] = front (highest row)
       }
     };
 

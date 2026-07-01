@@ -178,6 +178,15 @@ function buildingSetForLevel(levelId) {
   if (levelId <= 30) return 'industrial';
   return 'night';
 }
+
+// AI world side-panel image, selected by level range (VISION worlds):
+//   World 1 (city)       L1–13, World 2 (industrial) L14–26, World 3 (night) L27–40.
+function worldPanelForLevel(levelId) {
+  if (typeof levelId !== 'number') return 'world1';
+  if (levelId <= 13) return 'world1';
+  if (levelId <= 26) return 'world2';
+  return 'world3';
+}
 const TREE_URLS     = ['oak', 'elm', 'pine'].map(t => `${_B}sprites/designed/tree-${t}-topdown.png`);
 const ENV_URLS      = [
   `${_B}sprites/designed/sidewalk-grass-strip.png`,
@@ -200,7 +209,17 @@ const POWERBALL_URLS = [
 // Cosmetic — the overlay degrades to a blank frame if one fails to load.
 const TUTORIAL_URLS = ['01-goal', '02-shot', '03-merge', '04-boosters']
   .map(n => `${_B}sprites/tutorial/${n}.png`);
-const ALL_SPRITE_URLS = [...CAR_URLS, ...SHOOTER_URLS, ...POWERBALL_URLS, ...BUILDING_URLS, ...TREE_URLS, ...ENV_URLS, ...BOOSTER_URLS, ...TUTORIAL_URLS];
+// AI-generated background art: full-screen title background + logo, and the three
+// world side-panel image pairs (city / industrial / night).
+const TITLE_ART_URLS = [
+  `${_B}sprites/designed/title-background.png`,
+  `${_B}sprites/designed/title-logo.png`,
+];
+const WORLD_PANEL_URLS = [1, 2, 3].flatMap(w => [
+  `${_B}sprites/designed/world${w}-left.png`,
+  `${_B}sprites/designed/world${w}-right.png`,
+]);
+const ALL_SPRITE_URLS = [...CAR_URLS, ...SHOOTER_URLS, ...POWERBALL_URLS, ...BUILDING_URLS, ...TREE_URLS, ...ENV_URLS, ...BOOSTER_URLS, ...TUTORIAL_URLS, ...TITLE_ART_URLS, ...WORLD_PANEL_URLS];
 
 // Critical sprites gate spriteFlags.loaded — gameplay must have its car icons,
 // bomb/shooter sprites, and booster icons. Cosmetic sprites (buildings, trees,
@@ -238,20 +257,51 @@ async function main() {
   window.addEventListener('resize', _fitCanvas);
 
   // ── Loading screen ────────────────────────────────────────────────────────
-  const loadBg = new Graphics();
-  loadBg.rect(0, 0, APP_W, APP_H);
-  loadBg.fill(0x060610);
-  app.stage.addChild(loadBg);
+  // Branded loading screen: dark gradient backdrop, the TRAFFIC BOMB title in the
+  // same yellow→orange gradient as TitleScreen, and a progress bar that fills as
+  // assets load (no spinner, no plain "Loading..." text).
+  const loadScreen = new Container();
+  app.stage.addChild(loadScreen);
 
-  const loadText = new Text({
-    text: 'Loading...',
-    style: { fontSize: 28, fontWeight: 'bold', fill: 0x44ff88,
-      dropShadow: { color: 0x00cc44, blur: 16, distance: 0, alpha: 0.7 } },
+  const loadBg = new Graphics();
+  loadBg.rect(0, 0, APP_W, APP_H);                   loadBg.fill(0x0b1226);
+  loadBg.rect(0, APP_H * 0.45, APP_W, APP_H * 0.55); loadBg.fill(0x060912);
+  loadScreen.addChild(loadBg);
+
+  const loadTitle = new Text({
+    text: 'TRAFFIC\nBOMB',
+    style: {
+      fontSize: 56, fontWeight: 'bold', align: 'center', letterSpacing: 3,
+      fill: [0xFFD600, 0xFF6F00], fillGradientStops: [0, 1], fillGradientType: 0,
+      stroke: { color: 0x4A1A00, width: 5 },
+      dropShadow: { color: 0xFF6F00, blur: 18, distance: 0, alpha: 0.5 },
+    },
   });
-  loadText.anchor.set(0.5);
-  loadText.x = APP_W / 2;
-  loadText.y = APP_H / 2;
-  app.stage.addChild(loadText);
+  loadTitle.anchor.set(0.5);
+  loadTitle.x = APP_W / 2; loadTitle.y = APP_H * 0.40;
+  loadScreen.addChild(loadTitle);
+
+  // Progress bar (track + fill), centred below the title.
+  const BAR_W = 260, BAR_H = 16, BAR_X = (APP_W - BAR_W) / 2, BAR_Y = APP_H * 0.56;
+  const barTrack = new Graphics();
+  barTrack.roundRect(BAR_X, BAR_Y, BAR_W, BAR_H, BAR_H / 2);
+  barTrack.fill({ color: 0x1a2238, alpha: 0.95 });
+  barTrack.roundRect(BAR_X, BAR_Y, BAR_W, BAR_H, BAR_H / 2);
+  barTrack.stroke({ color: 0xFFB300, width: 2, alpha: 0.35 });
+  loadScreen.addChild(barTrack);
+
+  const barFill = new Graphics();
+  loadScreen.addChild(barFill);
+  const drawBar = (frac) => {
+    const f = Math.max(0, Math.min(1, frac));
+    barFill.clear();
+    const fw = Math.max(BAR_H, BAR_W * f);   // keep the rounded cap visible from 0
+    barFill.roundRect(BAR_X, BAR_Y, fw, BAR_H, BAR_H / 2);
+    barFill.fill(0xFFA000);
+    barFill.roundRect(BAR_X + 3, BAR_Y + 3, Math.max(2, fw - 6), BAR_H / 2 - 2, BAR_H / 4);
+    barFill.fill({ color: 0xFFFFFF, alpha: 0.22 });
+  };
+  drawBar(0);
 
   // Preload sprite textures before any renderer is created. Load each one
   // INDEPENDENTLY (Promise.allSettled) so a single 404 can't reject the whole
@@ -259,9 +309,12 @@ async function main() {
   // the entire scene. spriteFlags.loaded gates the sprite render path; it stays
   // true as long as the CRITICAL sprites (cars, bombs, boosters) load. A failed
   // cosmetic sprite (building/tree/grass) just degrades at its use-site, which
-  // already guards a missing texture.
+  // already guards a missing texture. The bar reserves the last 10% for GLB loading.
+  let _loadedCount = 0;
+  const _loadTotal = ALL_SPRITE_URLS.length;
   const _loadResults = await Promise.allSettled(
-    ALL_SPRITE_URLS.map(url => Assets.load(url).then(() => url, (e) => { throw { url, err: e }; })),
+    ALL_SPRITE_URLS.map(url => Assets.load(url).then(() => url, (e) => { throw { url, err: e }; })
+      .finally(() => { _loadedCount++; drawBar(0.9 * (_loadedCount / _loadTotal)); })),
   );
   const _failedCritical = [];
   for (const r of _loadResults) {
@@ -276,14 +329,17 @@ async function main() {
     console.warn(`[GameApp] ${_failedCritical.length} CRITICAL sprite(s) failed — using programmatic graphics fallback.`, _failedCritical);
   }
 
+  drawBar(0.9);
   try {
     await assetLoader.loadAll();
   } catch (e) {
     console.warn('[GameApp] GLB loading failed — 3D models will use box fallback.', e);
   }
 
-  loadBg.destroy();
-  loadText.destroy();
+  // Fill the bar to 100% and hold briefly so the completion reads, then remove.
+  drawBar(1);
+  await new Promise(r => setTimeout(r, 280));
+  loadScreen.destroy({ children: true });
 
   // ── Analytics (fire-and-forget, anonymous) ────────────────────────────────
   const analytics = new Analytics();
@@ -749,7 +805,8 @@ async function main() {
     gameRenderer3D.applyTheme(levelId);
     gameRenderer3D.setActiveLaneCount(cfg.laneCount ?? 4);
     gameRenderer3D.setActiveColCount(cfg.colCount ?? 4);
-    cityEdges.setBuildingSet(buildingSetForLevel(levelId));
+    cityEdges.setBuildingSet(buildingSetForLevel(levelId));   // programmatic fallback
+    cityEdges.setWorldPanel(worldPanelForLevel(levelId));     // primary AI city panel
     cityEdges.setLaneCount(cfg.laneCount ?? 4);
     shooterRenderer.setLaneCount(cfg.laneCount ?? 4);
     gameRenderer3D.startLevelIntro();

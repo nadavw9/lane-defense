@@ -117,6 +117,7 @@ export class CityEdges {
 
     this._laneCount   = 4;
     this._buildingSet = 'tutorial';
+    this._worldPanel  = 'world1';   // AI city panel per world (world1|world2|world3)
 
     this._draw(this._laneCount);
   }
@@ -128,8 +129,15 @@ export class CityEdges {
 
   // Swap the theme building set (tutorial | industrial | night).
   // Stores the set; the subsequent setLaneCount() call in _startLevel redraws.
+  // Used only by the programmatic fallback path (when sprites aren't loaded).
   setBuildingSet(set) {
     this._buildingSet = BUILDING_SET_INFO[set] ? set : 'tutorial';
+  }
+
+  // Swap the AI-generated world side-panel image (world1 | world2 | world3).
+  // Stores it; the subsequent setLaneCount() call in _startLevel redraws.
+  setWorldPanel(world) {
+    if (world === 'world1' || world === 'world2' || world === 'world3') this._worldPanel = world;
   }
 
   _redraw() {
@@ -151,6 +159,17 @@ export class CityEdges {
   _draw(laneCount) {
     const { leftW, rightW } = _stripWidths(laneCount);
     const appW = this._appW;
+
+    // ── World-panel mode (primary) ───────────────────────────────────────────
+    // One full-height AI city image per side replaces the tiled building /
+    // sidewalk / tree / park system. Falls back to the programmatic system below
+    // if sprites aren't loaded or a panel texture is missing.
+    if (spriteFlags.loaded && this._worldPanel) {
+      const okL = leftW  <= 0 || this._addWorldPanel(0, leftW, 'left');
+      const okR = rightW <= 0 || this._addWorldPanel(appW - rightW, rightW, 'right');
+      if (okL && okR) return;
+      this._container.removeChildren();   // a panel texture was missing → fall through
+    }
 
     const extH = BOMB_ZONE_BOTTOM - ROAD_BOTTOM_Y;
     const tsH  = ROAD_H + extH;
@@ -226,6 +245,33 @@ export class CityEdges {
     // PNG tree sprites on top of everything (replaces fallback circles when loaded)
     if (leftW  > 0) this._addTreeSprites(0,           leftW,  false);
     if (rightW > 0) this._addTreeSprites(appW - rightW, rightW, true);
+  }
+
+  // Render one full-height world panel image over the whole side strip
+  // (screen edge → road edge, road top → bomb-zone bottom). Uses COVER-CROP: the
+  // image is scaled to fill the strip at its natural proportions (no horizontal
+  // squish on narrow 4-lane strips), anchored to the outer screen edge (where the
+  // buildings sit) and masked to the strip so the overflow is cropped away.
+  // Returns false if the texture isn't available so the caller can fall back.
+  _addWorldPanel(x0, stripW, side) {
+    const tex = Assets.get(`${_BASE}sprites/designed/${this._worldPanel}-${side}.png`);
+    if (!tex) return false;
+    const top    = ROAD_TOP_Y;
+    const panelH = BOMB_ZONE_BOTTOM - ROAD_TOP_Y;
+    const scale  = Math.max(stripW / tex.width, panelH / tex.height);   // cover
+
+    const spr = new Sprite(tex);
+    spr.scale.set(scale);
+    spr.y = top;
+    if (side === 'right') { spr.anchor.set(1, 0); spr.x = x0 + stripW; }  // buildings hug screen-right
+    else                  { spr.anchor.set(0, 0); spr.x = x0; }           // buildings hug screen-left
+
+    const mask = new Graphics();
+    mask.rect(x0, top, stripW, panelH).fill(0xffffff);
+    spr.mask = mask;
+    this._container.addChild(mask);
+    this._container.addChild(spr);
+    return true;
   }
 
   // Compute strip layout from x0 + width (shared between sprite and graphics paths)

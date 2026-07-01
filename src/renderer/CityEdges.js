@@ -162,9 +162,11 @@ export class CityEdges {
 
     // ── World-panel mode (primary) ───────────────────────────────────────────
     // One full-height AI city image per side replaces the tiled building /
-    // sidewalk / tree / park system. Falls back to the programmatic system below
-    // if sprites aren't loaded or a panel texture is missing.
-    if (spriteFlags.loaded && this._worldPanel) {
+    // sidewalk / tree / park system. Gated ONLY on the panel textures themselves
+    // (checked inside _addWorldPanel), NOT on the global spriteFlags.loaded — so a
+    // failure of some unrelated critical sprite can never blank the panels. Falls
+    // back to the programmatic system below only if a panel texture is missing.
+    if (this._worldPanel) {
       const okL = leftW  <= 0 || this._addWorldPanel(0, leftW, 'left');
       const okR = rightW <= 0 || this._addWorldPanel(appW - rightW, rightW, 'right');
       if (okL && okR) return;

@@ -115,10 +115,23 @@ export class TitleScreen {
     // ── Logo (AI-generated) — replaces the programmatic gradient title text ──
     const logoTex = Assets.get(`${BASE_URL}sprites/designed/title-logo.png`);
     if (logoTex) {
+      const scale = Math.min(1, 350 / logoTex.width);   // cap to ~350px wide
+      const dispW = logoTex.width * scale;
+      const dispH = logoTex.height * scale;
+      const cx = w / 2, cy = h * 0.24;                  // upper third, centred
+
+      // Dark rounded backdrop behind the logo ONLY (~20px larger on all sides), so
+      // the logo stays readable over any part of the busy AI city background.
+      const pad = 30, bw = dispW + pad * 2, bh = dispH + pad * 2;
+      const backdrop = new Graphics();
+      backdrop.roundRect(cx - bw / 2, cy - bh / 2, bw, bh, 24);
+      backdrop.fill({ color: 0x000000, alpha: 0.65 });
+      this._container.addChild(backdrop);
+
       const logo = new Sprite(logoTex);
       logo.anchor.set(0.5, 0.5);
-      logo.scale.set(Math.min(1, 350 / logoTex.width));   // cap to ~350px wide
-      logo.x = w / 2; logo.y = h * 0.24;                  // upper third, centred
+      logo.scale.set(scale);
+      logo.x = cx; logo.y = cy;
       this._container.addChild(logo);
       this._titleRef = logo;
     } else {
@@ -133,14 +146,6 @@ export class TitleScreen {
       this._titleRef = title;
     }
     this._shimG = null;   // no shimmer sweep over the image logo
-
-    // Subtitle
-    const sub = new Text({
-      text: '🚗  Stop the cars!  🚗',
-      style: { fontSize: 22, fill: 0x1A237E, fontWeight: 'bold', align: 'center' },
-    });
-    sub.anchor.set(0.5, 0.5); sub.x = w / 2; sub.y = h * 0.28 + 110;
-    this._container.addChild(sub);
 
     // ── PLAY button (revealed after the intro bomb-drop) ─────────────────────
     const btnW = 308, btnH = 88;        // +10% larger (was 280×80)

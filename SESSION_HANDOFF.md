@@ -1,13 +1,15 @@
 # Traffic Bomb — Session Handoff
 
 ## Current State
-- Git tip: 7e385f3 feat: tutorial slides now show real gameplay screenshots (goal, shot, merge, boosters)
+- Git tip: 0a33599 feat: AI-generated world side panels (city/industrial/night) with cover-crop + asset preload
 - Branch: master
 - Last deploy: today, green
 - Tests: 778 passing, 1 skip, 5 todo
 - Live URL: https://nadavw9.github.io/lane-defense/
 
 ## What Was Shipped This Session (most recent first)
+- 92bc6a1 — AI-generated title screen: ChatGPT/DALL-E city background replaces the sky gradient. Canva-generated Traffic Bomb logo replaces the programmatic gradient text. Road band removed (redundant with the background). Logo + PLAY button + all secondary buttons remain. (Also carried the prior title polish: real-sprite intro bomb-drop that reveals PLAY, PLAY golden glow ring, and the styled loading screen — the latter in GameApp under 0a33599's preload wiring.)
+- 0a33599 — AI-generated world side panels: 3 worlds (city L1-13, industrial L14-26, night L27-40) each have left/right panel sprites generated via ChatGPT/DALL-E (`public/sprites/designed/world{1,2,3}-{left,right}.png`). `CityEdges._addWorldPanel` uses cover-crop (scale to fill the strip at natural aspect, anchored to the outer edge, masked to the strip) so building proportions stay natural on narrow 4-lane strips instead of squishing. `worldPanelForLevel(levelId)` selects the world; assets added to the GameApp preload manifest (`TITLE_ART_URLS` + `WORLD_PANEL_URLS`). Reusable `scripts/process-ai-backgrounds.mjs` processes the raw art (bg cover→390×844, logo dark-bg flood-fill→≤350×200, panels→95×844). 778 tests unchanged.
 - 7e385f3 — Tutorial how-to-play slides now show real gameplay screenshots instead of the inaccurate looping PixiJS demo animations. 4 captures from L22 (`public/sprites/tutorial/`): `01-goal` (goal counters + cars + queue), `02-shot` (a bomb mid-drag up a colour-matched lane — bomb below, cars above), `03-merge` (3 same-colour bombs stacked in a queue column, pre-merge), `04-boosters` (booster bar with COLOR/FREEZE/BOMB charged). Auto-captured via dev hooks (`startLevel(22)`, a real held pointer-drag, `_fx.mergeSetupVerticalKeep()`, `setBoosters`). `HowToPlayOverlay.js` now loads a static `Sprite` per slide (same pattern as HpGuideOverlay) — removed the dead `ANIMS`/ticker animation loop; dots/title/body/✕/→ unchanged. Images added to the `GameApp` preload manifest (`TUTORIAL_URLS`, cosmetic tier — overlay degrades to a blank frame if one fails). 778 tests unchanged.
 - dbd7917 — Spawn refill fix + boss re-tune:
   * **Spawn refill fix** — every active lane now fills to `laneTargetCarCount` each advance. The old `_refillLanes` added at most one car per lane per advance and the `row < 2` spawn-zone throttle could leave a drained lane below target (often at 1, briefly 0) for several advances — most visible on 2–3 lane levels (L2/L3), which is what the "some lanes stay empty" report was. NOTE: the refill already iterated `gs.activeLaneCount` (never hardcoded 4) and was identical on 2- and 4-lane boards — the defect was the per-advance cadence/throttle, not lane iteration. Each new car is placed at the lowest unoccupied spawn row (0,1,…) so multiple fills don't stack; `Lane.addCar` re-sorts by position so the front-car invariant holds. `GameLoop._refillLanes` and `SimulationRunner._refillLanes` kept **byte-aligned** (sim sorts its plain-object lanes descending by row so `cars[0]` stays the front car) — so the sim remains the difficulty ground truth.
@@ -123,7 +125,7 @@
 - 168c5ca — First major visual/balance batch: city edges, bomb zone panel, car centering, color bomb visuals.
 
 ## IMMEDIATE PRIORITIES (next session, in order)
-1. Opening screen (animated splash, Traffic Bomb branding, first impression).
+1. On-device review (title screen + world panels).
 2. Colorblind mode.
 3. Agent team quality audit.
 4. Real-device playtest checklist: L8/12/16/33/37 + bosses L10/20/30/40.

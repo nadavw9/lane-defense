@@ -42,14 +42,20 @@ console.log('title-background.png → 390×844 (cover)');
   console.log(`title-logo.png → dark-bg removed (${cleared} px), trimmed, fit 350×200`);
 }
 
-// ── world side panels → 95×844 ──────────────────────────────────────────────
+// ── world side panels → aspect-preserving (NO stretch) ──────────────────────
+// Do NOT squash the panel into a thin 95px sliver (that was the ~9x horizontal
+// squish). Keep the source's natural proportions — just downscale to a sane
+// height — and let CityEdges._addWorldPanel cover-crop it to the on-screen strip
+// width. Cover-crop is uniform-scale, so building proportions stay correct on
+// both wide (1-lane) and narrow (4-lane) strips.
 for (const w of [1, 2, 3]) {
   for (const side of ['left', 'right']) {
     const name = `world${w}-${side}.png`;
+    const meta = await sharp(path.join(SRC, name)).metadata();
     await sharp(path.join(SRC, name))
-      .resize(95, 844, { fit: 'fill' })
+      .resize({ height: 900 })            // preserve aspect (width auto)
       .png().toFile(path.join(OUT, name));
-    console.log(`${name} → 95×844`);
+    console.log(`${name} → aspect-preserved (src ${meta.width}x${meta.height} → h900)`);
   }
 }
 console.log('done');

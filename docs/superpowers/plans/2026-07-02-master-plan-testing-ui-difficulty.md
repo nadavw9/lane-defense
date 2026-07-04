@@ -6,6 +6,10 @@
 > plan (commits included — use descriptive conventional messages, `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>` trailer,
 > push after each coherent unit). Checkpoints marked [USER] still require showing results before proceeding.
 
+> **HOW to implement each remaining step → `IMPLEMENTATION_PLAYBOOK.md`** (same folder):
+> per-task specs, work guidelines, model-routing policy (route mechanical work to Sonnet/Haiku,
+> reserve Fable/Opus for design judgment), and ready-to-paste art prompts (§6).
+
 ## EXECUTION STATUS (update after every completed step)
 
 - [x] Step 0 — baseline commit `05e146e` (thin-ribbon panels + aspect-preserving processing), pushed

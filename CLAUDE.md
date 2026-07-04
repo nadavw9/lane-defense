@@ -2,6 +2,15 @@
 
 > **For Claude Code: auto-loaded on every session. Read in full before any task.**
 
+## 0. ACTIVE WORK — continue from here (any model)
+
+An approved 3-workstream master plan is in progress (WS1 testing DONE → WS2 UI → WS3 difficulty):
+1. **Status/tracker:** `docs/superpowers/plans/2026-07-02-master-plan-testing-ui-difficulty.md`
+2. **Per-task HOW + work guidelines + model routing + art prompts:** `docs/superpowers/plans/IMPLEMENTATION_PLAYBOOK.md`
+
+Route mechanical spec-execution to cheaper models; reserve Fable/Opus for design judgment
+(playbook §2). Every task: vitest green (1062+) + `npm run test:visual` green (17+) before commit.
+
 ---
 
 ## 1. THE STANDARD

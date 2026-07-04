@@ -51,3 +51,4 @@ scripts/win-screen-shot.mjs
 .env.*
 .env.local
 .env.*.local
+tests-visual/failures/

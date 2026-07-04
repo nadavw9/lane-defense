@@ -1,0 +1,33 @@
+name: Nightly full sweep
+
+on:
+  schedule:
+    - cron: '0 2 * * *'   # 02:00 UTC daily
+  workflow_dispatch:
+
+jobs:
+  full-visual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx vitest run
+
+      - run: npx playwright install chromium --with-deps
+
+      # Smoke + the parameterized all-40-level sweep.
+      - run: npx playwright test
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: nightly-visual-failures
+          path: tests-visual/failures/
+          retention-days: 14

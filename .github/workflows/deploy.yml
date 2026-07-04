@@ -32,6 +32,31 @@ jobs:
 
       - run: npx vitest run
 
+  # Visual smoke (Playwright, ~4 min). Non-blocking for now — observing flake
+  # rate; flip deploy to `needs: [test, visual-smoke]` once proven stable.
+  visual-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx playwright install chromium --with-deps
+
+      - run: npx playwright test tests-visual/smoke
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: visual-failures
+          path: tests-visual/failures/
+          retention-days: 7
+
   deploy:
     needs: test
     environment:

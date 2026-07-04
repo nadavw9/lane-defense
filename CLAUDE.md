@@ -89,24 +89,21 @@ PixiJS canvas (z-front) overlays the Three.js canvas (z-behind). They share no W
 
 ### Camera — single top-down orthographic
 
-One `OrthographicCamera` in `Scene3D.js` renders everything. No perspective camera, no CameraFX.js, no dual-camera setup.
+One `OrthographicCamera` in `Scene3D.js` renders everything. No perspective camera, no dual-camera setup. `CameraFX.js` wraps the camera for transient juice only (shake, breach zoom pulse, combo zoom-out, level-intro zoom) — steady-state zoom is 1.
 
-- Position: `(0, 8, zCtr)` where `zCtr = (ROAD_Z_FAR + queueZ(3)) / 2 ≈ -7.8`
-- `lookAt(0, 0, zCtr)`, `up = (0, 0, -1)` — true top-down
-- `camera.layers.enableAll()` — one pass covers road, cars, and bomb columns
-
-### 3D Scene Coordinate System
+### 3D Scene Coordinate System — SINGLE SOURCE: `src/renderer3d/projection.js`
 
 ```
-Z = -22  ROAD_Z_FAR   — car spawn line (far/top of screen)
-Z =   0  ROAD_Z_NEAR  — breach line (near/bottom of gameplay area)
-Z = +1.6 to +6.4      — bomb queue slots (below road, above HUD)
+Z = -26  ROAD_Z_FAR   — car spawn line (far/top of screen)
+Z = -2.6 POS_NEAR_Z   — position-100 car stop line (front car anchor)
+Z =   0  ROAD_Z_NEAR  — breach line (3D stripe anchor)
+Z = +1.4 to +7.0      — bomb queue slots (Shooter3D slotZ = (s+0.5)·CELL·0.70)
 Z = -65  ROAD_Z_VANISHING — visual road extension (no gameplay)
 ```
 
 Lane width = `CELL = 4.0` world units. For 4 lanes: X = −6, −2, +2, +6.
 
-`laneToX(idx, n)` and `posToZ(position)` are the only correct way to compute positions. Never hardcode X/Z values.
+**All world↔screen math lives in `src/renderer3d/projection.js`** (pure, no Three/Pixi — safe for tests and input code). The camera, PositionRegistry, roadGeometry, CityEdges, and ShooterRenderer all derive from it. **NEVER hardcode a projected value** (a stale `FRUSTUM_HALF_X = 9.650` mirror once shifted every 2D overlay/tap anchor ~17px; the visual harness caught it). `laneToX(idx, n)` / `posToZ(position)` (Scene3D) and `worldXToScreenX` / `zToScreenY` / `posToScreenYProjected` (projection.js) are the only correct ways to compute positions.
 
 ### Position Registry (CRITICAL — never bypass)
 

@@ -9,11 +9,11 @@
 ## EXECUTION STATUS (update after every completed step)
 
 - [x] Step 0 — baseline commit `05e146e` (thin-ribbon panels + aspect-preserving processing), pushed
-- [ ] WS1-1a — CI gate: tests block deploy in `.github/workflows/deploy.yml`
-- [ ] WS1-1b — audit tests: `src/renderer/assetManifest.js` refactor + `tests/audit-assets.test.js` + `tests/audit-level-config.test.js` + `tests/audit-balance-smoke.test.js`
-- [ ] WS1-1c — Playwright harness: `playwright.config.js`, `tests-visual/` (tripwire fixture → layout specs → state-reset specs → HUD specs), new `_nav.getHudBounds()` + `_nav.winLevel()` hooks
-- [ ] WS1-1d — CI visual smoke job (non-blocking week 1) + nightly full sweep
-- [ ] WS1 exit — break-it demo: broken lane formula / renamed sprite / removed goal color each trips a test [USER]
+- [x] WS1-1a — CI gate: tests block deploy (`4d0bfe9`)
+- [x] WS1-1b — audit tests: assetManifest.js refactor + 3 audit files, suite 778→1062 (`e178aaa`)
+- [x] WS1-1c — Playwright harness DONE (`9ab1fb7`): 17 smoke specs green, tripwire fixture, hooks `getPositions/getHudBounds/winLevel/getFrustum`. **Found+fixed a REAL live bug on first run** (`6e78a2b`): stale `FRUSTUM_HALF_X 9.650` (ROAD_Z_FAR=-22 era) vs true `11.237` — all 2D mirrors now derive from new `src/renderer3d/projection.js` (single source). Side strips corrected 35→49px (bonus: panels show whole buildings now), breach stripe aligned to 3D breach line, tap-row mapping matches real car positions.
+- [x] WS1-1d — CI visual-smoke job (non-blocking wk 1) + nightly full sweep (`88dcd76`); flip deploy to `needs: [test, visual-smoke]` after a stable week
+- [x] WS1 exit — break-it demos verified: case-mismatched sprite → audit-assets FAILS; off-palette goal color → audit-level-config FAILS naming L+color; drifted registry constant → layout spec FAILS. Screenshots in docs/review (01-L5/02-L20/03-L2)
 - [ ] WS2-2a — fix 3 BROKEN items (black void below road, ComboGlow, shop lower half)
 - [ ] WS2-2b — widen side strips ~35→60-70px (CityEdges `_roadHW`/`MIN_STRIP_PX` + consumers), verify via harness [USER]
 - [ ] WS2-2c — icon set Batch 1: provide prompts to user → process → `UIIcon` helper → swap ~120 emoji [USER generates art]

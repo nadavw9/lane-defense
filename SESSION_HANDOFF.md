@@ -1,7 +1,10 @@
 # Traffic Bomb — Session Handoff
 
+## ⚡ ACTIVE MASTER PLAN
+**`docs/superpowers/plans/2026-07-02-master-plan-testing-ui-difficulty.md`** — three approved workstreams (Testing harness → UI overhaul → Difficulty redesign + City Repair meta). It contains an EXECUTION STATUS checklist that is updated after every step; any fresh session resumes from there. User pre-approved the work incl. commits.
+
 ## Current State
-- Git tip: 3f58354 fix: title screen logo backdrop stronger (α0.65, 30px pad), subtitle removed, world panels decoupled from global sprite flag
+- Git tip: 05e146e feat: thin-ribbon world side panels (aspect-preserving processing)
 - Branch: master
 - Last deploy: today, green
 - Tests: 778 passing, 1 skip, 5 todo

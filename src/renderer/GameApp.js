@@ -151,81 +151,14 @@ function spawnFloatingText(parent, x, y, text, color = 0xffffff) {
 }
 
 // ── Sprite manifest ───────────────────────────────────────────────────────────
+// All sprite URL arrays + level→theme helpers live in assetManifest.js so the
+// headless audit tests can verify every URL against the files on disk
+// (exact-case + not-gitignored). Add new sprite families THERE, not here.
 
-const COLORS   = ['red', 'blue', 'green', 'yellow', 'purple', 'orange'];
-const _B       = import.meta.env.BASE_URL;   // '' in dev, '/lane-defense/' on GH Pages
-const CAR_URLS = [
-  ...COLORS.map(c => `${_B}sprites/cars/car-${c}.png`),
-  `${_B}sprites/cars/car-boss.png`,
-];
-const SHOOTER_URLS = COLORS.flatMap(c => [
-  `${_B}sprites/shooters/shooter-${c}-idle.png`,
-  `${_B}sprites/shooters/shooter-${c}-fire.png`,
-]);
-// Three theme building sets, swapped by world (see buildingSetForLevel).
-const BUILDING_SETS = {
-  tutorial:   [1, 2, 3, 4, 5].map(i => `${_B}sprites/designed/building-tutorial-${i}.png`),
-  industrial: [1, 2, 3, 4, 5].map(i => `${_B}sprites/designed/building-industrial-${i}.png`),
-  night:      [1, 2, 3, 4, 5].map(i => `${_B}sprites/designed/building-night-${i}.png`),
-};
-const BUILDING_URLS = [...BUILDING_SETS.tutorial, ...BUILDING_SETS.industrial, ...BUILDING_SETS.night];
-
-// World → building set. Tutorial City L1–15, Industrial Zone L16–30, Night Highway L31–40.
-// Daily challenge (non-numeric levelId) uses the tutorial set.
-function buildingSetForLevel(levelId) {
-  if (typeof levelId !== 'number') return 'tutorial';
-  if (levelId <= 15) return 'tutorial';
-  if (levelId <= 30) return 'industrial';
-  return 'night';
-}
-
-// AI world side-panel image, selected by level range (VISION worlds):
-//   World 1 (city)       L1–13, World 2 (industrial) L14–26, World 3 (night) L27–40.
-function worldPanelForLevel(levelId) {
-  if (typeof levelId !== 'number') return 'world1';
-  if (levelId <= 13) return 'world1';
-  if (levelId <= 26) return 'world2';
-  return 'world3';
-}
-const TREE_URLS     = ['oak', 'elm', 'pine'].map(t => `${_B}sprites/designed/tree-${t}-topdown.png`);
-const ENV_URLS      = [
-  `${_B}sprites/designed/sidewalk-grass-strip.png`,
-  `${_B}sprites/designed/panel-workshop-surface.png`,
-  `${_B}sprites/designed/park-grass-tile.png`,
-];
-// Booster icons — all three now have real PNGs (colorchange = rainbow paintbrush);
-// preloaded so BoosterBar's _addIconSprite uses the sprite, not the glyph fallback.
-const BOOSTER_URLS  = ['colorchange', 'freeze', 'bomb'].map(b => `${_B}sprites/designed/booster-${b}.png`);
-// Powerball bomb sprites — the bench tray uses these (same art as the 3D queue)
-// so stored bombs match the live game instead of the old shooter-idle sprites.
-// Filenames are lowercase on disk (powerball-yellow.png) and the 3D loader requests
-// them lowercase too — preload must match or it 404s on case-sensitive hosts (Pages).
-// Includes the merged-bomb sprites (powerball-merged-{color}.png) used when isMerged.
-const POWERBALL_URLS = [
-  ...COLORS.map(c => `${_B}sprites/designed/powerball-${c.toLowerCase()}.png`),
-  ...COLORS.map(c => `${_B}sprites/designed/powerball-merged-${c.toLowerCase()}.png`),
-];
-// Tutorial screenshots shown in HowToPlayOverlay (real-gameplay captures from L22).
-// Cosmetic — the overlay degrades to a blank frame if one fails to load.
-const TUTORIAL_URLS = ['01-goal', '02-shot', '03-merge', '04-boosters']
-  .map(n => `${_B}sprites/tutorial/${n}.png`);
-// AI-generated background art: full-screen title background + logo, and the three
-// world side-panel image pairs (city / industrial / night).
-const TITLE_ART_URLS = [
-  `${_B}sprites/designed/title-background.png`,
-  `${_B}sprites/designed/title-logo.png`,
-];
-const WORLD_PANEL_URLS = [1, 2, 3].flatMap(w => [
-  `${_B}sprites/designed/world${w}-left.png`,
-  `${_B}sprites/designed/world${w}-right.png`,
-]);
-const ALL_SPRITE_URLS = [...CAR_URLS, ...SHOOTER_URLS, ...POWERBALL_URLS, ...BUILDING_URLS, ...TREE_URLS, ...ENV_URLS, ...BOOSTER_URLS, ...TUTORIAL_URLS, ...TITLE_ART_URLS, ...WORLD_PANEL_URLS];
-
-// Critical sprites gate spriteFlags.loaded — gameplay must have its car icons,
-// bomb/shooter sprites, and booster icons. Cosmetic sprites (buildings, trees,
-// grass) may fail to load and degrade to empty/programmatic edges instead of
-// blanking the whole scene. See the resilient loader in main().
-const CRITICAL_SPRITE_URLS = new Set([...CAR_URLS, ...SHOOTER_URLS, ...BOOSTER_URLS]);
+import {
+  ALL_SPRITE_URLS, CRITICAL_SPRITE_URLS,
+  buildingSetForLevel, worldPanelForLevel,
+} from './assetManifest.js';
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 

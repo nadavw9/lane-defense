@@ -84,7 +84,9 @@ const WEIGHTS_FULL = {
   RELIEF:   [{ value: 'small', weight: 30 }, { value: 'big', weight: 40 }, { value: 'jeep', weight: 20 }, { value: 'truck', weight: 10 }],
 };
 
-function bandWeights(level) {
+// Exported for the level-config audit (tests/audit-level-config.test.js), which
+// verifies every destroyType goal targets a car type actually spawnable at that level.
+export function bandWeights(level) {
   if (level === 1)  return WEIGHTS_L1;
   if (level <= 4)   return WEIGHTS_FTUE;
   if (level <= 8)   return WEIGHTS_MID;

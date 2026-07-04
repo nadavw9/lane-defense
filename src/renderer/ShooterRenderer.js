@@ -11,11 +11,10 @@ import { spriteFlags } from './SpriteFlags.js';
 import { isColorblind, SHAPES } from '../game/ColorblindMode.js';
 import { getColumnScreenX, getColumnScreenY, getColumnSlotScreenY, getColScreenW } from './PositionRegistry.js';
 import { BAR_Y as BOOSTER_BAR_Y } from './BoosterBar.js';
+import { worldXToScreenX, roadHalfWPure } from '../renderer3d/projection.js';
 
-// Road geometry — mirrors CityEdges / Scene3D constants
-const APP_W          = 390;
-const FRUSTUM_HALF_X = 9.650;
-function _roadHW(n) { return n * 2.0 + 0.4; }
+// Road geometry — derived from the live projection (never hardcode a mirror).
+const APP_W = 390;
 
 // ── Layout ────────────────────────────────────────────────────────────────────
 export const SHOOTER_AREA_Y  = 520;
@@ -567,7 +566,7 @@ export class ShooterRenderer {
   setLaneCount(n) { this._drawTray(n); }
 
   _drawTray(n) {
-    const hw_px = (_roadHW(n) / (2 * FRUSTUM_HALF_X)) * APP_W;
+    const hw_px = worldXToScreenX(roadHalfWPure(n)) - worldXToScreenX(0);
     const trayX = APP_W / 2 - hw_px - 16;
     const trayW = hw_px * 2 + 32;
     this._tray.clear();

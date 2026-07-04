@@ -16,7 +16,11 @@ import { RenderPass }      from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass }      from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { ROAD_TOP_Y, ROAD_BOTTOM_Y } from '../renderer/LaneRenderer.js';
+import {
+  ROAD_Z_FAR as P_ROAD_Z_FAR, ROAD_Z_NEAR as P_ROAD_Z_NEAR,
+  ROAD_Z_VANISHING as P_ROAD_Z_VANISHING,
+  CELL as P_CELL, POS_NEAR_Z as P_POS_NEAR_Z, computeFrustum,
+} from './projection.js';
 
 // ── Tweakable design constants ─────────────────────────────────────────────────
 const FOG_COLOR = 0xffd0a8;   // morning default — themes override on level start
@@ -29,17 +33,16 @@ const DIV_OPACITY_HI = 0.75;       // opacity at top (near road boundary)
 const DIV_OPACITY_LO = 0.10;       // opacity at bottom
 
 // ── Layout constants ───────────────────────────────────────────────────────────
-export const ROAD_Z_FAR       = -26;   // gameplay zone far edge (cars spawn here)
-export const ROAD_Z_NEAR      =   0;   // gameplay zone near edge (breach line)
-export const ROAD_Z_SPAWN     = -26;   // semantic alias: where cars enter the road
-export const ROAD_Z_VANISHING = -65;   // road surface extends here visually (no gameplay)
+// Values live in projection.js (THE single source of truth for the coordinate
+// system, shared with the 2D layer); re-exported here for the existing renderer
+// import sites.
+export const ROAD_Z_FAR       = P_ROAD_Z_FAR;
+export const ROAD_Z_NEAR      = P_ROAD_Z_NEAR;
+export const ROAD_Z_SPAWN     = P_ROAD_Z_FAR;   // semantic alias: where cars enter
+export const ROAD_Z_VANISHING = P_ROAD_Z_VANISHING;
 
-// Extra world units revealed above ROAD_Z_FAR so a bigrig body (half-depth ≈2.52)
-// is fully visible before it crosses the spawn line.
-const SPAWN_VIEWPORT_EXTRA = 4.0;
-
-// ── Unified grid constants (single source of truth) ───────────────────────────
-export const CELL       = 4.0;            // == lane width (laneToX pitch)
+// ── Unified grid constants ─────────────────────────────────────────────────────
+export const CELL       = P_CELL;         // == lane width (laneToX pitch)
 export const SLOT_COUNT = 4;              // bomb queue depth (== Shooter3D SLOT_Z length)
 
 /** World Z of bomb-queue slot s (0 = front/active, nearest the breach line).
@@ -83,7 +86,7 @@ export function roadHalfW(n = _activeLaneCount) {
 // never renders down over the bomb queue. The bottom ~2.6 units of road is a dead
 // breach zone (the "last step", removed by request). The road geometry/frustum
 // still use ROAD_Z_NEAR; only car/projectile/effect positions map to here.
-const POS_NEAR_Z = -2.6;
+const POS_NEAR_Z = P_POS_NEAR_Z;
 export function posToZ(position) {
   return ROAD_Z_FAR + (position / 100) * (POS_NEAR_Z - ROAD_Z_FAR);
 }
@@ -213,24 +216,16 @@ export class Scene3D {
    *  z=ROAD_Z_NEAR projects to y=ROAD_BOTTOM_Y in PixiJS screen coordinates.
    *  The top is extended by SPAWN_VIEWPORT_EXTRA so the full car body is visible
    *  before it crosses the spawn line. The bottom is preserved (bomb zone unchanged). */
-  _computeFrustum(n) {
-    const roadZSpan  = ROAD_Z_NEAR - ROAD_Z_FAR;                       // 22
-    const pixiRoadH  = ROAD_BOTTOM_Y - ROAD_TOP_Y;                     // 466
-    const fHalfZ     = roadZSpan * this.height / (2 * pixiRoadH);      // 19.922
-    const topFrac    = ROAD_TOP_Y / this.height;                       // 44/844
-    const baseCenter = ROAD_Z_FAR + fHalfZ * (1 - 2 * topFrac);       // -4.156
-
-    // Keep frustum bottom fixed; extend top only.
-    const bottomZ  = baseCenter + fHalfZ;                              // +15.768
-    const topZ     = ROAD_Z_FAR - SPAWN_VIEWPORT_EXTRA;               // -26
-    const fHalfZe  = (bottomZ - topZ) / 2;                            // 20.884
-    const zCenter  = (bottomZ + topZ) / 2;                            // -5.116
-    const fHalfX   = fHalfZe * (this.width / this.height);
+  _computeFrustum(_n) {
+    // Formula lives in projection.js so the 2D layer (PositionRegistry,
+    // roadGeometry, CityEdges) derives from the IDENTICAL math and can never
+    // drift from the live camera again.
+    const { halfX, halfZe, zCenter } = computeFrustum(this.width, this.height);
 
     const cam  = this.camera;
     const camY = 8;
-    cam.left   = -fHalfX; cam.right  =  fHalfX;
-    cam.top    =  fHalfZe; cam.bottom = -fHalfZe;
+    cam.left   = -halfX;  cam.right  =  halfX;
+    cam.top    =  halfZe; cam.bottom = -halfZe;
     cam.position.set(0, camY, zCenter);
     cam.lookAt(0, 0, zCenter);
     cam.up.set(0, 0, -1);

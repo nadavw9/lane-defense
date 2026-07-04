@@ -3,30 +3,48 @@
 // NO Pixi/Three/DOM imports, so it is safe to import from headless tests and
 // from director/input code. LaneRenderer re-exports these so existing
 // `import { ROAD_TOP_Y, posToScreenY } from './LaneRenderer.js'` callers keep
-// working unchanged; the values live here as the single source of truth.
+// working unchanged.
+//
+// TWO distinct kinds of Y values live here — do not mix them up:
+//  - LAYOUT anchors (ROAD_TOP_Y / ROAD_BOTTOM_Y): where 2D chrome sits — the
+//    band below the HUD and the visual breach line the stripe is drawn at.
+//  - PROJECTED mapping (posToScreenY / screenYToRow): where a car at game
+//    position [0-100] ACTUALLY renders, derived from the live 3D camera math in
+//    renderer3d/projection.js. These used to be a hardcoded 44..510 linear map
+//    from the ROAD_Z_FAR=-22 era and were ~25px off after the road extension —
+//    caught by the visual harness (bug class C).
 
-export const ROAD_TOP_Y    = 44;   // px — HUD bottom / road top
-export const ROAD_BOTTOM_Y = 510;  // px — road bottom / shooter area boundary
-export const ROAD_HEIGHT   = ROAD_BOTTOM_Y - ROAD_TOP_Y;  // 466 px
+import {
+  posToScreenYProjected, PROJ_ROAD_TOP_Y, PROJ_ROAD_BOTTOM_Y,
+  BREACH_LINE_Y, HUD_BOTTOM_Y,
+} from '../renderer3d/projection.js';
 
-// Screen Y for game-unit position [0-100].
+// ── Layout anchors (2D chrome) ────────────────────────────────────────────────
+export const ROAD_TOP_Y    = HUD_BOTTOM_Y;              // 44 — HUD bottom / side-strip top
+export const ROAD_BOTTOM_Y = Math.round(BREACH_LINE_Y); // ≈ 521 — 3D breach line (stripe anchor)
+export const ROAD_HEIGHT   = ROAD_BOTTOM_Y - ROAD_TOP_Y;
+
+// ── Projected car-position band ───────────────────────────────────────────────
+const POS_TOP_Y    = PROJ_ROAD_TOP_Y;                    // ≈ 69.4 — position-0 car centre
+const POS_BOTTOM_Y = PROJ_ROAD_BOTTOM_Y;                 // ≈ 475.4 — position-100 car centre
+const POS_HEIGHT   = POS_BOTTOM_Y - POS_TOP_Y;
+
+// Screen Y for game-unit position [0-100] — where the car at that position
+// actually renders (same projection as the 3D camera).
 export function posToScreenY(position) {
-  return ROAD_TOP_Y + (position / 100) * ROAD_HEIGHT;
+  return posToScreenYProjected(position);
 }
 
 // Inverse of posToScreenY for the BOMB booster: tap Y → grid row index.
-// The frontmost row (gridRows-1) renders AT ROAD_BOTTOM_Y, so its lower half
-// sits below the breach line; clamp to [0, gridRows-1] so those taps map to the
-// last row instead of overflowing past the grid.
+// Rows are clamped to [0, gridRows-1] so taps above the far row / below the
+// front row map to the nearest real row instead of overflowing the grid.
 export function screenYToRow(y, gridRows) {
-  const t   = (y - ROAD_TOP_Y) / ROAD_HEIGHT;   // 0 far … 1 breach
+  const t   = (y - POS_TOP_Y) / POS_HEIGHT;   // 0 far … 1 front
   const row = Math.round(t * (gridRows - 1));
   return Math.max(0, Math.min(gridRows - 1, row));
 }
 
-// Half a grid-row in px (now 16-row grid → 15 intervals). A BOMB tap up to
-// this far below the breach line still belongs to the frontmost row, whose car
-// centre sits ON ROAD_BOTTOM_Y. 23px lands at ~533, above the first bomb-queue
-// slot (ShooterRenderer TOP_Y = 544), so it never steals queue taps.
-// Computed dynamically per gridRows; typical 16-row value ≈ 23 px.
-export const FRONT_ROW_TAP_MARGIN = Math.round(ROAD_HEIGHT / 15 / 2);  // ≈ 15 px (was 23 px @ 11 rows)
+// Half a grid-row in px (16-row grid → 15 intervals) in the PROJECTED band.
+// A BOMB tap up to this far below the front car still belongs to the frontmost
+// row. Stays well above the first bomb-queue slot (ShooterRenderer TOP_Y = 544).
+export const FRONT_ROW_TAP_MARGIN = Math.round(POS_HEIGHT / 15 / 2);   // ≈ 14 px

@@ -42,7 +42,10 @@ import { LivesManager }    from '../game/LivesManager.js';
 import { HapticsManager }  from '../game/HapticsManager.js';
 import { setColorblindMode } from '../game/ColorblindMode.js';
 
-import { setActiveCounts } from './PositionRegistry.js';
+import {
+  setActiveCounts, getLaneScreenX, getColumnScreenX, getColumnSlotScreenY,
+  getLaneScreenBounds, getActiveLaneCount, getActiveColCount,
+} from './PositionRegistry.js';
 import { CarDirector }     from '../director/CarDirector.js';
 import { ShooterDirector } from '../director/ShooterDirector.js';
 import { FairnessArbiter } from '../director/FairnessArbiter.js';
@@ -2248,6 +2251,54 @@ async function main() {
       deploy: (colIdx, laneIdx) => gameLoop.deploy(colIdx, laneIdx),
       activateFreeze: () => boosterState.activateFreeze(),
       freezeState: () => ({ freeze: boosterState.freeze, freezeShots: boosterState.freezeShots, isFrozen: boosterState.isFrozen() }),
+      // ── Visual-harness hooks (tests-visual/) ─────────────────────────────────
+      // The game's OWN source of truth for where things render — tests assert
+      // pixels/taps against these instead of re-deriving frustum math (which
+      // would just duplicate-and-drift, the exact bug class being tested).
+      getPositions: () => ({
+        laneCount: getActiveLaneCount(),
+        colCount:  getActiveColCount(),
+        laneX:     Array.from({ length: getActiveLaneCount() }, (_, i) => getLaneScreenX(i)),
+        laneBounds: Array.from({ length: getActiveLaneCount() }, (_, i) => getLaneScreenBounds(i)),
+        colX:      Array.from({ length: getActiveColCount() },  (_, i) => getColumnScreenX(i)),
+        slotY:     [0, 1, 2].map(r => getColumnSlotScreenY(r)),
+      }),
+      // Named HUD rects (stage coords) for overlap/containment assertions.
+      getHudBounds: () => {
+        const grab = (o) => {
+          if (!o || o.destroyed || !o.visible) return null;
+          const b = o.getBounds();
+          return { x: b.x, y: b.y, w: b.width, h: b.height };
+        };
+        return {
+          pauseBtn:     grab(pauseBtn),
+          bookBtn:      grab(bookBtn),
+          hpGuideBtn:   grab(hpGuideBtn),
+          howToPlayBtn: grab(howToPlayBtn),
+          goalCounter:  grab(goalCounterUI?._container),
+          boosterColor:  grab(boosterBar?._colorChangeBtn),
+          boosterFreeze: grab(boosterBar?._freezeBtn),
+          boosterBomb:   grab(boosterBar?._bombBtn),
+        };
+      },
+      // Force goal completion → normal win path (for level-transition tests).
+      winLevel: () => {
+        if (!gs || gs.isOver) return false;
+        gs.goalProgress = gs.goalProgress.map(() => 0);
+        gameLoop._settleAfterClear();
+        return gs.isOver;
+      },
+      // Live 3D camera frustum — lets the harness assert PositionRegistry's 2D
+      // math against what the ortho camera ACTUALLY projects (bug class C).
+      getFrustum: () => {
+        const cam = gameRenderer3D?._scene3d?.camera;
+        if (!cam) return null;
+        return {
+          left: cam.left, right: cam.right, top: cam.top, bottom: cam.bottom,
+          zoom: cam.zoom, pos: { x: cam.position.x, y: cam.position.y, z: cam.position.z },
+          effectiveHalfX: (cam.right - cam.left) / 2 / cam.zoom,
+        };
+      },
       // Animation proof hooks — drive each render effect directly for capture/verification.
       _fx: {
         advance:  () => gameRenderer3D.onAdvance(),

@@ -16,6 +16,7 @@
 import { Graphics, Container, Sprite, TilingSprite, Assets } from 'pixi.js';
 import { spriteFlags } from './SpriteFlags.js';
 import { ROAD_TOP_Y, ROAD_BOTTOM_Y } from './LaneRenderer.js';
+import { worldXToScreenX, roadHalfWPure } from '../renderer3d/projection.js';
 
 const APP_W  = 390;
 const ROAD_H = ROAD_BOTTOM_Y - ROAD_TOP_Y;
@@ -25,13 +26,13 @@ const BOMB_ZONE_BOTTOM = 752;
 // even on 4-lane levels where the road nearly fills the screen.
 const MIN_STRIP_PX = 35;   // ≈ 9% of 390px screen width
 
-const FRUSTUM_HALF_X = 9.650;   // derived from Scene3D._computeFrustum at 390×844
-function _roadHW(n) { return n * 2.0 + 0.4; }
-
+// Strip widths derive from the SAME projection the 3D road renders with
+// (renderer3d/projection.js) — never hardcode a frustum mirror here (a stale
+// 9.650 copy once shifted the strips ~15px onto/off the road).
 function _stripWidths(laneCount) {
-  const hw      = _roadHW(laneCount);
-  const rawLeft  = Math.round((-hw / (2 * FRUSTUM_HALF_X) + 0.5) * APP_W);
-  const rawRight = APP_W - Math.round(Math.min(APP_W, (hw / (2 * FRUSTUM_HALF_X) + 0.5) * APP_W));
+  const hw       = roadHalfWPure(laneCount);
+  const rawLeft  = Math.round(worldXToScreenX(-hw));
+  const rawRight = APP_W - Math.round(Math.min(APP_W, worldXToScreenX(hw)));
   const leftW  = Math.max(MIN_STRIP_PX, rawLeft);
   const rightW = Math.max(MIN_STRIP_PX, rawRight);
   return { leftW, rightW };

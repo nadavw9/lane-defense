@@ -18,7 +18,7 @@
 - [x] WS1-1c — Playwright harness DONE (`9ab1fb7`): 17 smoke specs green, tripwire fixture, hooks `getPositions/getHudBounds/winLevel/getFrustum`. **Found+fixed a REAL live bug on first run** (`6e78a2b`): stale `FRUSTUM_HALF_X 9.650` (ROAD_Z_FAR=-22 era) vs true `11.237` — all 2D mirrors now derive from new `src/renderer3d/projection.js` (single source). Side strips corrected 35→49px (bonus: panels show whole buildings now), breach stripe aligned to 3D breach line, tap-row mapping matches real car positions.
 - [x] WS1-1d — CI visual-smoke job (non-blocking wk 1) + nightly full sweep (`88dcd76`); flip deploy to `needs: [test, visual-smoke]` after a stable week
 - [x] WS1 exit — break-it demos verified: case-mismatched sprite → audit-assets FAILS; off-palette goal color → audit-level-config FAILS naming L+color; drifted registry constant → layout spec FAILS. Screenshots in docs/review (01-L5/02-L20/03-L2)
-- [ ] WS2-2a — fix 3 BROKEN items (black void below road, ComboGlow, shop lower half)
+- [x] WS2-2a — DONE (`2ade16c`): tray texture added (black band fixed); ComboGlow VERIFIED WORKING (audit stale — measured edge glow at combo 3, no change needed); shop denied-tap toast+shake, compact banner, floor texture. New `_nav.showShop()` hook. NOTE: audit's FTUE-banner-overlap item still open (route through PopupQueue) — small follow-up.
 - [ ] WS2-2b — widen side strips ~35→60-70px (CityEdges `_roadHW`/`MIN_STRIP_PX` + consumers), verify via harness [USER]
 - [ ] WS2-2c — icon set Batch 1: provide prompts to user → process → `UIIcon` helper → swap ~120 emoji [USER generates art]
 - [ ] WS2-2d — screen chrome Batch 2: Title buttons, Win/Lose art, Level-Select city map w/ damage states [USER generates art]

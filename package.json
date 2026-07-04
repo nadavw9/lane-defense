@@ -9,7 +9,9 @@
     "build": "vite build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "browser:kill": "scripts\\kill-browser.bat"
+    "browser:kill": "scripts\\kill-browser.bat",
+    "test:visual": "playwright test tests-visual/smoke",
+    "test:visual:full": "playwright test"
   },
   "keywords": [],
   "author": "",

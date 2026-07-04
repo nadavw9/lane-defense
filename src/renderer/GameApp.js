@@ -2229,6 +2229,7 @@ async function main() {
       // FIX 4D/4B/1 dev hooks for screenshot verification.
       showPreLevel: (n) => { _dbgCleanAll(); _showPreLevel(n); },
       showRescue:   () => { showRescue(); },
+      showShop:     () => { showShop(); },
       openColorPicker: () => {
         boosterState.colorChange = Math.max(1, boosterState.colorChange);
         boosterState.activateColorChange();

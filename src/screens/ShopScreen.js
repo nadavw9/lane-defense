@@ -2,7 +2,7 @@
 //
 // Shows four booster rows plus a daily-gift banner that fills the lower third.
 // Coin balance and booster counts update immediately on purchase.
-import { Container, Graphics, Text } from 'pixi.js';
+import { Container, Graphics, Text, TilingSprite, Assets } from 'pixi.js';
 
 // Unified card background — all cards share one dark navy base.
 const CARD_BG     = 0x0d1525;
@@ -124,11 +124,25 @@ export class ShopScreen {
       cardY += CARD_H + CARD_GAP;
     }
 
-    // ── Daily Gift banner — fills the empty lower area ──────────────────────
+    // ── Daily Gift banner — compact (a huge near-empty banner read as dead
+    //    space; design-audit CLUTTER item) ────────────────────────────────────
     const bannerY = cardY + 8;
-    const bannerH = h - bannerY - 16;
+    const bannerH = Math.min(170, h - bannerY - 16);
     if (bannerH >= 72) {
       this._buildDailyBanner(CARD_PAD, bannerY, w - CARD_PAD * 2, bannerH);
+    }
+
+    // Themed floor texture fills whatever remains below, so the lower zone reads
+    // designed rather than empty black. Skipped silently if the texture is absent.
+    const floorY = bannerY + bannerH + 10;
+    const floorTex = Assets.get(`${import.meta.env.BASE_URL}sprites/designed/panel-workshop-surface.png`);
+    if (floorTex && h - floorY > 48) {
+      const floor = new TilingSprite({ texture: floorTex, width: w - CARD_PAD * 2, height: h - floorY - 12 });
+      const s = 132 / floorTex.width;
+      floor.tileScale.set(s, s);
+      floor.position.set(CARD_PAD, floorY);
+      floor.alpha = 0.22;
+      this._container.addChild(floor);
     }
   }
 
@@ -213,13 +227,54 @@ export class ShopScreen {
     btnLabelTxt.y = btnY + BTN_H / 2;
     this._container.addChild(btnLabelTxt);
 
-    if (canAfford) {
-      btn.eventMode = 'static';
-      btn.cursor    = 'pointer';
-      btn.on('pointerdown', () => this._purchase(def));
-      btn.on('pointerover',  () => { btn.alpha = 0.80; });
-      btn.on('pointerout',   () => { btn.alpha = 1.00; });
-    }
+    // Buttons are ALWAYS interactive (design-audit JUICE item: with 0 coins every
+    // button was inert — taps gave zero feedback). Afford → press-pop + purchase;
+    // can't afford → shake + red flash + toast, so the tap always answers.
+    btn.eventMode = 'static';
+    btn.cursor    = 'pointer';
+    const group = [btn, btnLabelTxt];
+    btn.on('pointerdown', () => {
+      if (canAfford) {
+        // Quick press-pop (scale via y-nudge on Graphics: redraw-free squash).
+        for (const o of group) { o.alpha = 0.65; }
+        setTimeout(() => { for (const o of group) o.alpha = 1; }, 90);
+        this._purchase(def);
+      } else {
+        this._audio?.play('button_tap');
+        this._shake(group, btnX);
+        this._toast('Not enough coins!');
+      }
+    });
+    btn.on('pointerover',  () => { btn.alpha = 0.80; });
+    btn.on('pointerout',   () => { btn.alpha = 1.00; });
+  }
+
+  // Horizontal shake for rejected purchases (denied feedback).
+  _shake(objs, baseX) {
+    let n = 0;
+    const id = setInterval(() => {
+      const dx = (n % 2 === 0 ? 4 : -4) * (1 - n / 6);
+      for (const o of objs) o.x = (o._shakeBaseX ?? (o._shakeBaseX = o.x)) + dx;
+      if (++n >= 6) {
+        clearInterval(id);
+        for (const o of objs) { o.x = o._shakeBaseX; delete o._shakeBaseX; }
+      }
+    }, 40);
+  }
+
+  // Small transient toast above the booster cards.
+  _toast(msg) {
+    if (this._toastTxt) { this._toastTxt.destroy(); this._toastTxt = null; }
+    const t = new Text({
+      text: msg,
+      style: { fontSize: 15, fontWeight: 'bold', fill: 0xff6666,
+        dropShadow: { color: 0x000000, blur: 4, distance: 0, alpha: 0.9 } },
+    });
+    t.anchor.set(0.5, 0.5);
+    t.x = this._appW / 2; t.y = 48;
+    this._container.addChild(t);
+    this._toastTxt = t;
+    setTimeout(() => { if (this._toastTxt === t) { t.destroy(); this._toastTxt = null; } }, 1400);
   }
 
   _buildDailyBanner(x, y, w, h) {

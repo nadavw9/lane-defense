@@ -6,7 +6,7 @@
 //   • third shooter  — idle sprite at 45% opacity (always visible)
 //
 // Textures must be preloaded by GameApp before ShooterRenderer is instantiated.
-import { Sprite, Graphics, Container, Text, Assets } from 'pixi.js';
+import { Sprite, Graphics, Container, Text, Assets, TilingSprite } from 'pixi.js';
 import { spriteFlags } from './SpriteFlags.js';
 import { isColorblind, SHAPES } from '../game/ColorblindMode.js';
 import { getColumnScreenX, getColumnScreenY, getColumnSlotScreenY, getColScreenW } from './PositionRegistry.js';
@@ -569,11 +569,45 @@ export class ShooterRenderer {
     const hw_px = worldXToScreenX(roadHalfWPure(n)) - worldXToScreenX(0);
     const trayX = APP_W / 2 - hw_px - 16;
     const trayW = hw_px * 2 + 32;
+
+    // Base fill (also the no-sprites fallback).
     this._tray.clear();
     this._tray.roundRect(trayX, this._trayY, trayW, this._trayH, 12);
     this._tray.fill({ color: 0x0d1117, alpha: 0.25 });
-    this._tray.roundRect(trayX, this._trayY, trayW, this._trayH, 12);
-    this._tray.stroke({ color: 0x445566, width: 1, alpha: 0.50 });
+
+    // Themed workshop surface over the base (design-audit BROKEN item: this zone
+    // read as "pure black"). Dark-ish texture at partial alpha keeps the
+    // powerballs readable; silently skipped when the texture isn't loaded.
+    const tex = spriteFlags.loaded
+      ? Assets.get(`${import.meta.env.BASE_URL}sprites/designed/panel-workshop-surface.png`)
+      : null;
+    if (tex && !this._traySurface) {
+      this._traySurface = new TilingSprite({ texture: tex, width: trayW, height: this._trayH });
+      this._trayMask    = new Graphics();
+      this._trayEdge    = new Graphics();
+      const trayIdx = this._layer.getChildIndex(this._tray);
+      this._layer.addChildAt(this._traySurface, trayIdx + 1);
+      this._layer.addChildAt(this._trayEdge,    trayIdx + 2);
+      this._layer.addChild(this._trayMask);
+      this._traySurface.mask = this._trayMask;
+    }
+    if (this._traySurface) {
+      const s = 132 / (tex?.width ?? 512);   // ~132px on-screen per tile
+      this._traySurface.position.set(trayX, this._trayY);
+      this._traySurface.width  = trayW;
+      this._traySurface.height = this._trayH;
+      this._traySurface.tileScale.set(s, s);
+      this._traySurface.alpha  = 0.45;
+      this._trayMask.clear();
+      this._trayMask.roundRect(trayX, this._trayY, trayW, this._trayH, 12);
+      this._trayMask.fill(0xffffff);
+      this._trayEdge.clear();
+      this._trayEdge.roundRect(trayX, this._trayY, trayW, this._trayH, 12);
+      this._trayEdge.stroke({ color: 0x445566, width: 1, alpha: 0.50 });
+    } else {
+      this._tray.roundRect(trayX, this._trayY, trayW, this._trayH, 12);
+      this._tray.stroke({ color: 0x445566, width: 1, alpha: 0.50 });
+    }
   }
 
   // ── Private ──────────────────────────────────────────────────────────────────

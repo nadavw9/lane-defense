@@ -15,7 +15,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Unit + audit tests gate the deploy — a red suite never ships.
+  test:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx vitest run
+
   deploy:
+    needs: test
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -28,8 +46,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
 
-      - run: npm install
+      - run: npm ci
 
       - run: npm run build
         env:

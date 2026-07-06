@@ -30,6 +30,12 @@ const ICON_NAMES = [
   'check', 'close', 'shield', 'skull', 'hand',
 ];
 
+// Batch 1b — generated as INDIVIDUAL files (icon-<name>.png), not part of the
+// montage. Always processed via the per-file path, even when 20icons.png (the
+// Batch-1 montage) is still present. Missing files are skipped, so this stays a
+// no-op until the art lands.
+const EXTRA_ICON_NAMES = ['explosion', 'snowflake', 'lightning', 'car', 'speaker'];
+
 fs.mkdirSync(OUT, { recursive: true });
 
 const WORK = 900;
@@ -100,9 +106,15 @@ async function* iterSources() {
         .extract({ left, top, width, height }).png().toBuffer();
       yield { name: ICON_NAMES[i], buffer };
     }
+    // Batch 1b individual files are ALWAYS processed alongside the montage.
+    yield* perFile(EXTRA_ICON_NAMES);
     return;
   }
-  for (const name of ICON_NAMES) {
+  yield* perFile([...ICON_NAMES, ...EXTRA_ICON_NAMES]);
+}
+
+function* perFile(names) {
+  for (const name of names) {
     const srcPath = path.join(SRC, `icon-${name}.png`);
     if (!fs.existsSync(srcPath)) { console.log(`icon-${name}: source not found, skipped`); continue; }
     yield { name, buffer: fs.readFileSync(srcPath) };

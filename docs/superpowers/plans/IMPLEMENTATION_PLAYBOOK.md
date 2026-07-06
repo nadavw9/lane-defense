@@ -125,10 +125,15 @@ Pipeline (mechanical once art exists):
   HpGuide/HowToPlay ✕, FTUE/Tutorial 👆. `_addBtn` (HowToPlay) gained optional iconName.
 
 **DEFERRED (kept glyph — mixed-helper or baked-in-string sets; do as a unit later):**
-- Settings section labels (🔊/🕹/♿ via `_addSectionLabel`) — 3 of 4 have no icon.
+- Settings section labels (🔊/🕹/♿ via `_addSectionLabel`) — `speaker` (Batch 1b) covers 🔊;
+  🕹/♿ still need icons. Do the whole label set once 🔊 exists.
 - Pause `📖 CAR INFO` (`_btn` helper, icon-less siblings).
-- Booster legends (🎨/❄/🛡/💣) in Shop / PreLevel / LevelSelect — need the BOOSTER sprites
-  (booster-colorchange/freeze/bomb.png), not the generic Batch-1 set → a "booster-icon pass".
+- ~~Booster legends (🎨/❄/💣)~~ DONE (11c3e37) via `boosterIcon()` → booster sprites in
+  PreLevel + LevelSelect. Shop `def.icon` (🎨/❄/🛡) is dead data (never rendered). Shop 🛡
+  streak-shield → could use the Batch-1 `shield` icon if ever rendered.
+- Once Batch 1b lands (explosion/snowflake/lightning/car/speaker): 💥 goal badge + Win
+  BEST-MULTI-KILL, ❄ FROZEN pill, ⚡ CHALLENGE, 🚗 Cars-Destroyed, 🔊 SOUND label, and the
+  Win/Lose stat panels become fully swappable.
 - Stats value strings (⭐/🪙), GameApp weekly-bonus float (⭐) + streak-shield toast (🛡),
   Win/Lose stat panels (⚡/◆/★ · 🚗/⏱/🎯), NEXT LEVEL ▶ — baked into text/value runs.
 - Gameplay/data markers left intentionally: ★ bench/stash/colorblind (DragDrop/Shooter/
@@ -142,13 +147,16 @@ at identical geometry — not done (needs user OK, touches animated code).
 economy was intentionally decommissioned by "FIX 3" (no `loseHeart()` caller, no
 `refill()` caller, HUD `setHearts` is a no-op, LevelSelect `_lives` never read, gate
 removed → "levels are always startable", game-over is now one-breach + ad-continue).
-**Vestigial lives plumbing still present (follow-up cleanup, touches save schema — do
-as its own task with user OK):** `LivesManager` is still `new`'d + `tick()`'d (GameApp
-289-290, 1151) which pointlessly mutates persisted `hearts`/`heartsLastDepleted`;
+**Vestigial lives plumbing still present:** `LivesManager` is still `new`'d + `tick()`'d
+(GameApp 289-290, 1151) which pointlessly mutates persisted `hearts`/`heartsLastDepleted`;
 `LivesManager.loseHeart/refill/hasHearts/msUntilNext/formatTimeUntilNext` are now all
 dead; `livesManager` is still threaded into LevelSelectScreen as an unused param;
 `ProgressManager` still persists `hearts`/`heartsLastDepleted`. Either fully remove the
 lives system or keep `LivesManager` dormant (stop instantiating/ticking it).
+⚠️ **SCHEDULING — bundle with WS3e City Repair.** Removing the `hearts`/`heartsLastDepleted`
+fields is a ProgressManager SAVE-SCHEMA change; WS3e adds `cityState` to the SAME schema.
+Land BOTH in ONE migration (single version bump + one migration function), not two — so
+existing players' saves are upgraded once. Do NOT delete the hearts fields in isolation.
 
 **BATCH 1b — icons to generate for a fully emoji-free game (deferred, low priority):**
 - `explosion` / burst — 💥 goal-counter badge (`GoalCounterUI.js`), Win stat panel.

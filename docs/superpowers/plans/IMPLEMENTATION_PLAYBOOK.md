@@ -105,7 +105,29 @@ Pipeline (mechanical once art exists):
 6. Swap emoji → `uiIcon()` screen by screen, ONE COMMIT PER SCREEN, priority order:
    HUD/BoosterBar → TitleScreen → LevelSelect → Win/Lose → Pause/Shop/Daily/Achievements/Stats.
    Keep glyph fallbacks. Icon names ↔ emoji table is in §6.
-- Verify per screen: `npm run test:visual` + screenshot into docs/review for user approval.
+- Verify per screen: visual SMOKE subset + screenshot into docs/review for user approval;
+  run the FULL 40-level sweep ONCE after the final swap commit (per-commit smoke gives
+  clean bisection since sprite bounds differ from glyph bounds).
+- Actual source arrived as ONE montage (`sprite-sources/raw/split/20icons.png`, 4×5 grid),
+  not 20 files; `process-ui-icons.mjs` gained a montage-slicing mode (largest-blob cleanup
+  removes neighbour bleed). 'back' ◀ is reused as 'next' ▶ via `uiIcon(..., {flipX:true})`
+  (no 21st icon); 'share' reserved for share actions only.
+
+**§2c progress (per-screen swap):**
+- [x] Foundation — montage sliced → 20 icons, manifest + preload + uiIcon flip/tint.
+- [x] HUD — 🏆 trophy toast (screenshot-verified); 📖 book btn + ♥ no-hearts modal
+  (code-verified only, both currently unreachable in-game).
+- [ ] Title → LevelSelect → Win/Lose → the rest.
+
+**OPEN QUESTIONS (from §2c):**
+- `_showNoHeartsPanel` (GameApp.js) exists with **no caller** — is the hearts/lives
+  gate planned-but-unwired, or dead code? Decide: wire it into the pre-level path
+  (lives system) or delete it. Icon swap applied either way, so non-blocking.
+
+**BATCH 1b — icons to generate for a fully emoji-free game (deferred, low priority):**
+- `explosion` / burst — for the 💥 goal-counter badge (`GoalCounterUI.js`).
+- `snowflake` — for the ❄ FROZEN pill (`HUDRenderer.js`) and freeze theming.
+- (optional) a dedicated `next` ▶ chevron if flipping `back` ever reads wrong.
 
 ### 2d. Screen chrome — Batch 2 art (needs user generation, prompts in §6)
 - Title buttons: 9-slice glossy button plate (green primary + slate secondary) → replace

@@ -8,17 +8,29 @@ import { Sprite, Text, Assets } from 'pixi.js';
 const _B = import.meta.env.BASE_URL;
 function iconUrl(name) { return `${_B}sprites/ui/icon-${name}.png`; }
 
-export function uiIcon(name, size, fallbackEmoji) {
+// uiIcon(name, size, fallbackEmoji, opts)
+//   size          target box (px); the sprite is scaled to fit its longest side
+//   fallbackEmoji glyph shown (as centered Text) when the texture isn't loaded
+//   opts.flipX    mirror horizontally — used to reuse 'back' (◀) as a 'next' (▶)
+//                 chevron so we don't need a 21st icon
+//   opts.tint     Pixi tint applied to the sprite (and fill of the text fallback)
+//   opts.emojiFill text-fallback fill when no tint is given (default white)
+// Both branches return a display object anchored at its CENTER, so callers place
+// it at the same coordinates the emoji Text occupied.
+export function uiIcon(name, size, fallbackEmoji, opts = {}) {
+  const { flipX = false, tint, emojiFill } = opts;
   const tex = Assets.get(iconUrl(name));
   if (tex) {
     const sp = new Sprite(tex);
     sp.anchor.set(0.5);
-    sp.scale.set(size / Math.max(tex.width, tex.height));
+    const s = size / Math.max(tex.width, tex.height);
+    sp.scale.set(flipX ? -s : s, s);
+    if (tint != null) sp.tint = tint;
     return sp;
   }
   const tx = new Text({
     text: fallbackEmoji ?? '?',
-    style: { fontSize: size, fill: 0xffffff },
+    style: { fontSize: size, fill: tint ?? emojiFill ?? 0xffffff },
   });
   tx.anchor.set(0.5);
   return tx;

@@ -120,10 +120,21 @@ export function sceneVariantForLevel(levelId) {
   return SCENE_VARIANTS[levelId % SCENE_VARIANTS.length];
 }
 
+// UI icon set (Batch 1) — one AI montage sliced by scripts/process-ui-icons.mjs
+// into 128×128 transparent PNGs. Replaces the ~120 emoji instances across
+// screens via the uiIcon() helper (emoji glyph stays as the fallback, so these
+// are NOT critical sprites). Names match the montage grid order exactly.
+export const UI_ICON_NAMES = [
+  'star-filled', 'star-empty', 'play', 'back', 'heart', 'coin', 'gear',
+  'trophy', 'book', 'share', 'chart', 'gift', 'fire', 'timer', 'target',
+  'check', 'close', 'shield', 'skull', 'hand',
+];
+export const UI_ICON_URLS = UI_ICON_NAMES.map(n => `${_B}sprites/ui/icon-${n}.png`);
+
 export const ALL_SPRITE_URLS = [
   ...CAR_URLS, ...SHOOTER_URLS, ...POWERBALL_URLS, ...BUILDING_URLS, ...TREE_URLS,
   ...ENV_URLS, ...BOOSTER_URLS, ...TUTORIAL_URLS, ...TITLE_ART_URLS, ...WORLD_PANEL_URLS,
-  ...STRIP_PANEL_URLS, ...SCENE_STRIP_URLS, ...ZONE_FLOOR_URLS,
+  ...STRIP_PANEL_URLS, ...SCENE_STRIP_URLS, ...ZONE_FLOOR_URLS, ...UI_ICON_URLS,
   ...Object.values(WORLD_ROAD_URLS),
 ];
 

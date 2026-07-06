@@ -356,6 +356,12 @@ export class GameRenderer3D {
     this._environment?.setLaneCount(n);
   }
 
+  // Per-world road tile (url from assetManifest.WORLD_ROAD_URLS, null = default).
+  setRoadTexture(url) { this._road?.setRoadTextureUrl?.(url); }
+
+  // Dispatch-zone floor — a 3D plane UNDER the bomb spheres (null = none).
+  setZoneTexture(url) { this._road?.setZoneTextureUrl?.(url); }
+
   setActiveColCount(n) {
     this._shooters?.setActiveColCount(n);
   }

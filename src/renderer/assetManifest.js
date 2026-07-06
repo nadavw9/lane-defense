@@ -86,9 +86,45 @@ export const WORLD_PANEL_URLS = [1, 2, 3].flatMap(w => [
   `${_B}sprites/designed/world${w}-right.png`,
 ]);
 
+// Per-world road tiles — sliced from each world's '-a' scene by
+// scripts/process-scenes.mjs, with the lane dash painted programmatically on
+// the tile centre-line (Road3D's half-tile offset turns it into the dividers).
+export const WORLD_ROAD_URLS = {
+  world1: `${_B}sprites/designed/road-world1.png`,
+  world2: `${_B}sprites/designed/road-world2.png`,
+  world3: `${_B}sprites/designed/road-world3.png`,
+};
+
+// Strip-native side panels (Batch S): band aspect == on-screen strip aspect, so
+// CityEdges renders them width-fit + vertically tiled — the full band width is
+// always shown and buildings can never be sliced. The legacy world*.png panels
+// remain as the cover-crop fallback.
+export const STRIP_PANEL_URLS = [1, 2, 3].flatMap(w => [
+  `${_B}sprites/designed/strip-world${w}-left.png`,
+  `${_B}sprites/designed/strip-world${w}-right.png`,
+]);
+
+// Full-scene slices (one AI scene per world+variant → 4 unified surfaces).
+// Variants a/b/c rotate across levels within a world (sceneVariantForLevel).
+export const SCENE_VARIANTS = ['a', 'b', 'c'];
+export const SCENE_STRIP_URLS = [1, 2, 3].flatMap(w => SCENE_VARIANTS.flatMap(v => [
+  `${_B}sprites/designed/strip-world${w}-${v}-left.png`,
+  `${_B}sprites/designed/strip-world${w}-${v}-right.png`,
+]));
+export const ZONE_FLOOR_URLS = [1, 2, 3].flatMap(w => SCENE_VARIANTS.map(v =>
+  `${_B}sprites/designed/zone-world${w}-${v}.png`,
+));
+// Variant used for a given level within its world (a/b/c cycle).
+export function sceneVariantForLevel(levelId) {
+  if (typeof levelId !== 'number') return 'a';
+  return SCENE_VARIANTS[levelId % SCENE_VARIANTS.length];
+}
+
 export const ALL_SPRITE_URLS = [
   ...CAR_URLS, ...SHOOTER_URLS, ...POWERBALL_URLS, ...BUILDING_URLS, ...TREE_URLS,
   ...ENV_URLS, ...BOOSTER_URLS, ...TUTORIAL_URLS, ...TITLE_ART_URLS, ...WORLD_PANEL_URLS,
+  ...STRIP_PANEL_URLS, ...SCENE_STRIP_URLS, ...ZONE_FLOOR_URLS,
+  ...Object.values(WORLD_ROAD_URLS),
 ];
 
 // Critical sprites gate spriteFlags.loaded — gameplay must have its car icons,

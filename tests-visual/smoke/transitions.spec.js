@@ -63,6 +63,9 @@ test('play some of L5, restart L5: board re-primed, progress cleared', async ({ 
 test('rapid level hopping (L5 → L20 → L35) never leaves a dead board', async ({ game }) => {
   for (const level of [5, 20, 35]) {
     await game.startLevel(level);
+    // World-texture swaps (road tile + zone floor + panels) rebuild geometry per
+    // hop; give the async texture loads breathing room under parallel workers.
+    await game.page.waitForTimeout(700);
     const gs = await game.gs();
     expect(gs.levelId).toBe(level);
     expect(gs.isOver).toBe(false);

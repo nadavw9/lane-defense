@@ -135,10 +135,11 @@ export class CityEdges {
     this._buildingSet = BUILDING_SET_INFO[set] ? set : 'tutorial';
   }
 
-  // Swap the AI-generated world side-panel image (world1 | world2 | world3).
-  // Stores it; the subsequent setLaneCount() call in _startLevel redraws.
+  // Swap the AI-generated world side-panel set. Accepts 'world1'..'world3' or a
+  // scene-variant id like 'world2-b' (variants rotate per level). Stores it; the
+  // subsequent setLaneCount() call in _startLevel redraws.
   setWorldPanel(world) {
-    if (world === 'world1' || world === 'world2' || world === 'world3') this._worldPanel = world;
+    if (/^world[123](-[abc])?$/.test(world ?? '')) this._worldPanel = world;
   }
 
   _redraw() {
@@ -257,11 +258,38 @@ export class CityEdges {
   // buildings sit) and masked to the strip so the overflow is cropped away.
   // Returns false if the texture isn't available so the caller can fall back.
   _addWorldPanel(x0, stripW, side) {
-    const tex = Assets.get(`${_BASE}sprites/designed/${this._worldPanel}-${side}.png`);
-    if (!tex) return false;
     const top    = ROAD_TOP_Y;
     const panelH = BOMB_ZONE_BOTTOM - ROAD_TOP_Y;
-    const scale  = Math.max(stripW / tex.width, panelH / tex.height);   // cover
+
+    // PREFERRED: strip-native art. The band's aspect matches the on-screen
+    // strip, so it renders WIDTH-FIT (the entire band width is always visible —
+    // a building can never be sliced) and tiles vertically. The art's own curb
+    // line forms the road junction. Fallback chain: scene-variant strip
+    // (strip-world2-b-left) → base strip (strip-world2-left) → legacy cover-crop
+    // panel → programmatic buildings.
+    const base = this._worldPanel.split('-')[0];
+    const stripTex =
+      Assets.get(`${_BASE}sprites/designed/strip-${this._worldPanel}-${side}.png`) ??
+      Assets.get(`${_BASE}sprites/designed/strip-${base}-${side}.png`);
+    if (stripTex) {
+      const s  = stripW / stripTex.width;
+      const ts = new TilingSprite({ texture: stripTex, width: stripW, height: panelH });
+      ts.tileScale.set(s, s);
+      ts.x = x0;
+      ts.y = top;
+      // Visual hierarchy (Royal Match rule): decor must RECEDE so gameplay pops.
+      // Dim the panels ~30% — the brightest/most saturated pixels on screen must
+      // be the cars and bombs, never the background buildings.
+      ts.tint = 0xb2b2b8;
+      this._container.addChild(ts);
+      return true;
+    }
+
+    // FALLBACK: legacy full-scene panels, cover-cropped to the strip (can slice
+    // building content — kept only for resilience if a strip texture is missing).
+    const tex = Assets.get(`${_BASE}sprites/designed/${base}-${side}.png`);
+    if (!tex) return false;
+    const scale = Math.max(stripW / tex.width, panelH / tex.height);   // cover
 
     const spr = new Sprite(tex);
     spr.scale.set(scale);

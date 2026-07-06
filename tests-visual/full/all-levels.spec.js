@@ -22,15 +22,18 @@ for (let level = 1; level <= 40; level++) {
       expect(col.count, `L${level} column ${i} empty`).toBeGreaterThan(0);
     }
 
-    // At least one lane shows colored car pixels at its projected position.
+    // At least one lane shows car pixels distinct from the (possibly tinted)
+    // road at its projected position — color distance, not raw colorfulness.
     const pos = await game.positions();
     let rendered = 0;
     for (let i = 0; i < gs.laneCount; i++) {
       const row = Math.min(gs.lanes[i].frontRow ?? 0, gs.gridRows - 4);
       const y = game.rowToStageY(row, gs.gridRows);
       const s = await game.sampleRegion(pos.laneX[i], y, 12);
-      if (s.colorfulness > 18) rendered++;
+      const road = await game.sampleRegion(pos.laneX[i], y + 55, 12);
+      const dist = Math.abs(s.r - road.r) + Math.abs(s.g - road.g) + Math.abs(s.b - road.b);
+      if (dist > 28) rendered++;
     }
-    expect(rendered, `L${level}: no colored car pixels found on any lane`).toBeGreaterThan(0);
+    expect(rendered, `L${level}: no car pixels distinct from road on any lane`).toBeGreaterThan(0);
   });
 }

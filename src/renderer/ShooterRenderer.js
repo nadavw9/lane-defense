@@ -9,9 +9,9 @@
 import { Sprite, Graphics, Container, Text, Assets, TilingSprite } from 'pixi.js';
 import { spriteFlags } from './SpriteFlags.js';
 import { isColorblind, SHAPES } from '../game/ColorblindMode.js';
-import { getColumnScreenX, getColumnScreenY, getColumnSlotScreenY, getColScreenW } from './PositionRegistry.js';
+import { getColumnScreenX, getColumnScreenY, getColumnSlotScreenY, getColScreenW, getActiveColCount } from './PositionRegistry.js';
 import { BAR_Y as BOOSTER_BAR_Y } from './BoosterBar.js';
-import { worldXToScreenX, roadHalfWPure } from '../renderer3d/projection.js';
+import { worldXToScreenX, roadHalfWPure, BREACH_LINE_Y } from '../renderer3d/projection.js';
 
 // Road geometry — derived from the live projection (never hardcode a mirror).
 const APP_W = 390;
@@ -137,7 +137,10 @@ export class ShooterRenderer {
     this.draggingColumn = -1;
 
     // ── Bomb queue tray — dark backdrop from bomb columns to booster bar ──
-    this._trayY = SHOOTER_AREA_Y - 4;
+    // Starts BELOW the breach stripe (stripe spans BREACH_LINE_Y±8): the road
+    // must never be covered by the bomb zone — it ENDS at the breach line and
+    // the dispatch zone begins under it.
+    this._trayY = Math.round(BREACH_LINE_Y) + 10;
     this._trayH = BOOSTER_BAR_Y - this._trayY;
     this._tray  = new Graphics();
     this._layer.addChild(this._tray);
@@ -563,22 +566,35 @@ export class ShooterRenderer {
     }
   }
 
-  setLaneCount(n) { this._drawTray(n); }
+  setLaneCount(n) { this._laneCountCache = n; this._drawTray(n); }
+
+  // Per-world dispatch-zone floor (sliced from the same scene as the panels and
+  // road, e.g. 'world2-b'). Falls back to the workshop texture when absent.
+  setWorld(worldVariant) {
+    if (worldVariant === this._worldVariant) return;
+    this._worldVariant = worldVariant;
+    this._drawTray(this._laneCountCache ?? 4);
+  }
 
   _drawTray(n) {
     const hw_px = worldXToScreenX(roadHalfWPure(n)) - worldXToScreenX(0);
     const trayX = APP_W / 2 - hw_px - 16;
     const trayW = hw_px * 2 + 32;
 
-    // Base fill (also the no-sprites fallback).
+    // Base fill (also the no-sprites fallback). Nearly invisible when the 3D
+    // world floor is showing through from the back canvas.
     this._tray.clear();
     this._tray.roundRect(trayX, this._trayY, trayW, this._trayH, 12);
-    this._tray.fill({ color: 0x0d1117, alpha: 0.25 });
+    this._tray.fill({ color: 0x0d1117, alpha: this._worldVariant ? 0.10 : 0.25 });
 
-    // Themed workshop surface over the base (design-audit BROKEN item: this zone
-    // read as "pure black"). Dark-ish texture at partial alpha keeps the
-    // powerballs readable; silently skipped when the texture isn't loaded.
-    const tex = spriteFlags.loaded
+    // The per-world dispatch floor is a 3D plane UNDER the bomb spheres (see
+    // Road3D._buildZoneFloor) — Pixi must NOT draw an opaque floor here or it
+    // would cover the 3D bombs. When a world floor is active, the Pixi tray is
+    // just a faint tint + the slot sockets; the workshop texture remains only
+    // as the no-world fallback.
+    const zoneTex = null;
+    const has3DFloor = !!this._worldVariant;
+    const tex = (!has3DFloor && spriteFlags.loaded)
       ? Assets.get(`${import.meta.env.BASE_URL}sprites/designed/panel-workshop-surface.png`)
       : null;
     if (tex && !this._traySurface) {
@@ -591,13 +607,15 @@ export class ShooterRenderer {
       this._layer.addChild(this._trayMask);
       this._traySurface.mask = this._trayMask;
     }
-    if (this._traySurface) {
-      const s = 132 / (tex?.width ?? 512);   // ~132px on-screen per tile
+    if (this._traySurface) this._traySurface.visible = !!tex;
+    if (this._traySurface && tex) {
+      this._traySurface.texture = tex;
+      const s = zoneTex ? trayW / tex.width : 132 / (tex?.width ?? 512);
       this._traySurface.position.set(trayX, this._trayY);
       this._traySurface.width  = trayW;
       this._traySurface.height = this._trayH;
       this._traySurface.tileScale.set(s, s);
-      this._traySurface.alpha  = 0.45;
+      this._traySurface.alpha  = zoneTex ? 0.96 : 0.45;
       this._trayMask.clear();
       this._trayMask.roundRect(trayX, this._trayY, trayW, this._trayH, 12);
       this._trayMask.fill(0xffffff);
@@ -605,8 +623,27 @@ export class ShooterRenderer {
       this._trayEdge.roundRect(trayX, this._trayY, trayW, this._trayH, 12);
       this._trayEdge.stroke({ color: 0x445566, width: 1, alpha: 0.50 });
     } else {
+      // World floor active: no Pixi surface — clear any stale texture-era chrome.
+      this._trayEdge?.clear();
+      this._trayMask?.clear();
       this._tray.roundRect(trayX, this._trayY, trayW, this._trayH, 12);
-      this._tray.stroke({ color: 0x445566, width: 1, alpha: 0.50 });
+      this._tray.stroke({ color: 0x445566, width: 1, alpha: this._worldVariant ? 0.25 : 0.50 });
+    }
+
+    // ── Slot sockets — bombs sit IN designed slots, not floating on a panel ──
+    // RINGS ONLY: this graphics layer renders IN FRONT of the 3D bombs, so any
+    // filled shape would paint over the bomb face. The rim (r21) sits just
+    // outside the bomb silhouette (~r18), reading as a socket around it.
+    const sockets = this._trayEdge ?? this._tray;
+    for (let c = 0; c < getActiveColCount(); c++) {
+      const sx = getColumnScreenX(c);
+      for (let r = 0; r < 3; r++) {
+        const sy = getColumnSlotScreenY(r);
+        sockets.circle(sx, sy, 23);
+        sockets.stroke({ color: 0x000000, width: 4, alpha: 0.22 });    // soft outer shadow
+        sockets.circle(sx, sy, 21);
+        sockets.stroke({ color: 0x8fa3b8, width: 1.5, alpha: 0.35 });  // rim
+      }
     }
   }
 

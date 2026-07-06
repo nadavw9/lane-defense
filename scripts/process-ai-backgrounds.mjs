@@ -42,20 +42,56 @@ console.log('title-background.png → 390×844 (cover)');
   console.log(`title-logo.png → dark-bg removed (${cleared} px), trimmed, fit 350×200`);
 }
 
-// ── world side panels → aspect-preserving (NO stretch) ──────────────────────
-// Do NOT squash the panel into a thin 95px sliver (that was the ~9x horizontal
-// squish). Keep the source's natural proportions — just downscale to a sane
-// height — and let CityEdges._addWorldPanel cover-crop it to the on-screen strip
-// width. Cover-crop is uniform-scale, so building proportions stay correct on
-// both wide (1-lane) and narrow (4-lane) strips.
+// NOTE: the old "aspect-preserving full panel" step was removed — the raw
+// world{n}-{side}.png sources are now BAND-style (Batch S: art band + white),
+// consumed by the strip section below. The legacy public/sprites/designed/
+// world*.png files remain on disk as the cover-crop fallback and must not be
+// regenerated from band-style sources.
+// ── per-world road tiles (optional — processed only if present) ─────────────
+// CONTRACT (see Road3D): seamless SQUARE tile = ONE LANE of road surface, with a
+// single vertical dash segment on the tile centre-line (Road3D's half-tile U
+// offset turns that dash into the lane dividers). 512×512 output.
+for (const w of [1, 2, 3]) {
+  const name = `road-world${w}.png`;
+  try {
+    await sharp(path.join(SRC, name))
+      .resize(512, 512, { fit: 'cover', position: 'centre' })
+      .png().toFile(path.join(OUT, name));
+    console.log(`${name} → 512×512 (cover)`);
+  } catch { /* not generated yet — skip */ }
+}
+// ── strip-native side panels (Batch S / Option B) ───────────────────────────
+// Source: art band flush to one canvas edge, rest pure white. Auto-crop the
+// non-white band → resize to width 196 (4× the 49px display width) →
+// public/sprites/designed/strip-world{n}-{side}.png. The game shows the FULL
+// band width (width-fit + vertical tile) — zero horizontal crop, so buildings
+// can never be sliced again.
 for (const w of [1, 2, 3]) {
   for (const side of ['left', 'right']) {
-    const name = `world${w}-${side}.png`;
-    const meta = await sharp(path.join(SRC, name)).metadata();
-    await sharp(path.join(SRC, name))
-      .resize({ height: 900 })            // preserve aspect (width auto)
-      .png().toFile(path.join(OUT, name));
-    console.log(`${name} → aspect-preserved (src ${meta.width}x${meta.height} → h900)`);
+    const src = path.join(SRC, `world${w}-${side}.png`);
+    let raw;
+    try { raw = await sharp(src).raw().toBuffer({ resolveWithObject: true }); }
+    catch { continue; }
+    const { data, info } = raw;
+    const W = info.width, H = info.height, ch = info.channels;
+    const colWhite = (x) => {
+      let white = 0, n = 0;
+      for (let y = 0; y < H; y += 16) {
+        const i = (y * W + x) * ch;
+        if (data[i] > 245 && data[i + 1] > 245 && data[i + 2] > 245) white++;
+        n++;
+      }
+      return white / n > 0.95;
+    };
+    let lo = null, hi = null;
+    for (let x = 0; x < W; x++) { if (!colWhite(x)) { if (lo === null) lo = x; hi = x; } }
+    if (lo === null) { console.log(`strip-world${w}-${side}: no band found, skipped`); continue; }
+    const bandW = hi - lo + 1;
+    await sharp(src)
+      .extract({ left: lo, top: 0, width: bandW, height: H })
+      .resize({ width: 196 })
+      .png().toFile(path.join(OUT, `strip-world${w}-${side}.png`));
+    console.log(`strip-world${w}-${side}.png ← band x=${lo}..${hi} (${bandW}px) → 196w`);
   }
 }
 console.log('done');

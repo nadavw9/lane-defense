@@ -7,6 +7,7 @@
 
 import * as THREE from 'three';
 import { ROAD_Z_FAR, ROAD_Z_NEAR, ROAD_Z_VANISHING, laneToX, roadHalfW, posToZ } from './Scene3D.js';
+import { computeFrustum, screenYToZ, BREACH_LINE_Y } from './projection.js';
 
 // ── Road tile texture (loaded once, shared across rebuilds) ───────────────────
 const _roadTexLoader = new THREE.TextureLoader();
@@ -20,6 +21,20 @@ function _getRoadTex() {
     _roadTex.colorSpace = THREE.SRGBColorSpace;
   }
   return _roadTex;
+}
+
+// Per-world road-tile overrides (continuous-scene design). Cached by URL; only
+// URLs declared in assetManifest.WORLD_ROAD_URLS are ever passed here, so a
+// missing file can never 404 at runtime (the audit test guards declared files).
+const _worldRoadTexCache = new Map();
+function _getWorldRoadTex(url) {
+  if (!_worldRoadTexCache.has(url)) {
+    const t = _roadTexLoader.load(url);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.colorSpace = THREE.SRGBColorSpace;
+    _worldRoadTexCache.set(url, t);
+  }
+  return _worldRoadTexCache.get(url);
 }
 
 // ── Breach-warning texture (loaded once) ──────────────────────────────────────
@@ -107,6 +122,51 @@ export class Road3D {
 
   // Legacy no-op kept for call-site compat (replaced by setLaneCount).
   setActiveLaneCount(n) { this.setLaneCount(n); }
+
+  /** Swap the road tile per world (url from assetManifest.WORLD_ROAD_URLS, or
+   *  null to restore the default road-tile.jpg). Rebuilds geometry only when
+   *  the url actually changes; same tile contract as the default (seamless
+   *  square, one lane per tile, dash on the tile centre-line). */
+  setRoadTextureUrl(url) {
+    const next = url ?? null;
+    if (next === (this._roadTexUrl ?? null)) return;
+    this._roadTexUrl = next;
+    this._clearGeometry();
+    this._build();
+  }
+
+  /** Dispatch-zone floor texture (sliced from the same world scene). Rendered
+   *  as a 3D plane UNDER the bomb spheres — it must never live on the Pixi
+   *  layer, which would occlude the 3D bombs (front canvas covers back). */
+  setZoneTextureUrl(url) {
+    const next = url ?? null;
+    if (next === (this._zoneTexUrl ?? null)) return;
+    this._zoneTexUrl = next;
+    this._clearGeometry();
+    this._build();
+  }
+
+  // Full-width floor plane from just below the breach line to the frustum
+  // bottom; the art's designed top edge sits at the breach seam (the Pixi
+  // hazard stripe covers the junction).
+  _buildZoneFloor() {
+    if (!this._zoneTexUrl) return;
+    const tex = _getWorldRoadTex(this._zoneTexUrl);   // same loader/cache (wrap+sRGB)
+    const F     = computeFrustum();
+    const width = F.halfX * 2;
+    const zTop  = screenYToZ(BREACH_LINE_Y + 4);
+    const zBot  = F.bottomZ + 0.5;
+    const span  = zBot - zTop;
+
+    const t = tex.clone();
+    t.repeat.set(1, Math.max(1, (span / width) * ((tex.image?.width ?? 780) / (tex.image?.height ?? 400))));
+    t.needsUpdate = true;
+    const mat  = new THREE.MeshBasicMaterial({ map: t });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, span, 1, 1), mat);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(0, -0.03, zTop + span / 2);
+    this._group.add(mesh);
+  }
 
   /** Update road surface color from theme. No geometry rebuild needed. */
   setTheme(theme) {
@@ -290,6 +350,7 @@ export class Road3D {
 
   _build() {
     this._built = true;
+    this._buildZoneFloor();
     this._buildRoadSurface();
     this._buildNoiseOverlay();
     this._buildLaneDividers();
@@ -336,7 +397,7 @@ export class Road3D {
     const dark = this._roadColorDark;
 
     // ── Tiled asphalt texture — one tile = 4 world units (≈ 1 lane width) ────
-    const roadTex = _getRoadTex();
+    const roadTex = this._roadTexUrl ? _getWorldRoadTex(this._roadTexUrl) : _getRoadTex();
 
     // Main asphalt plane
     const texCopyMain = roadTex.clone();

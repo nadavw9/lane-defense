@@ -238,6 +238,24 @@ add it to CarDirector as an ordered queue consumed before weighted picks (small,
 - `win-stars.png`: three golden stars trio, middle one larger and forward, 1024×512.
 - `lose-frame.png`: cracked dark-bronze frame border with warm edge light, open center, 1024×1024.
 
+**Batch R — per-world ROAD TILES (unblocks continuous-scene Part 2 — code already wired):**
+
+⚠️ NOT a full road with markings. Road3D tiles the texture at ONE LANE per tile
+(repeat = width/CELL) and offsets by half a tile so the tile's centre dash becomes
+the lane dividers. Each image must be:
+> a SEAMLESS square texture tile of road surface viewed straight top-down, exactly
+> one lane wide, with a single short white dashed-line segment vertically centred
+> (dash ~15% of tile height, centred, gap above and below so vertical tiling forms
+> a dashed line). Edges must tile seamlessly left-right AND top-bottom. No cars,
+> no text, square 1024×1024.
+
+- `road-world1.png`: clean warm-neutral city asphalt, fine grain, subtle wear
+- `road-world2.png`: industrial concrete, hairline cracks, faint oil stains, gritty
+- `road-world3.png`: dark night asphalt with subtle blue/purple neon reflection sheen
+Save to `sprite-sources/raw/split/`, run `node scripts/process-ai-backgrounds.mjs`,
+then fill `WORLD_ROAD_URLS` in `src/renderer/assetManifest.js` (3 lines — audit
+guards the files; Road3D/GameApp wiring is already live and falls back until then).
+
 **Batch 3 — CITY MAP (generate only after WS3e schema exists):**
 - Per world (3×): top-down cartoon city district map background, winding path with 13-15 round
   empty plots, parks/rivers between, no labels — portrait 1024×1792. Style: world1 sunny suburb /

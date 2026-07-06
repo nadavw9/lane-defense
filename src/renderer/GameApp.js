@@ -159,8 +159,8 @@ function spawnFloatingText(parent, x, y, text, color = 0xffffff) {
 // (exact-case + not-gitignored). Add new sprite families THERE, not here.
 
 import {
-  ALL_SPRITE_URLS, CRITICAL_SPRITE_URLS,
-  buildingSetForLevel, worldPanelForLevel,
+  ALL_SPRITE_URLS, CRITICAL_SPRITE_URLS, WORLD_ROAD_URLS,
+  buildingSetForLevel, worldPanelForLevel, sceneVariantForLevel,
 } from './assetManifest.js';
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
@@ -741,9 +741,18 @@ async function main() {
     gameRenderer3D.applyTheme(levelId);
     gameRenderer3D.setActiveLaneCount(cfg.laneCount ?? 4);
     gameRenderer3D.setActiveColCount(cfg.colCount ?? 4);
+    // Unified world scene: panels + dispatch floor rotate a/b/c variants per
+    // level; the road tile is per-world (sliced from the same scene family).
+    const world        = worldPanelForLevel(levelId);
+    const worldVariant = `${world}-${sceneVariantForLevel(levelId)}`;
     cityEdges.setBuildingSet(buildingSetForLevel(levelId));   // programmatic fallback
-    cityEdges.setWorldPanel(worldPanelForLevel(levelId));     // primary AI city panel
+    cityEdges.setWorldPanel(worldVariant);                    // scene-variant panels
     cityEdges.setLaneCount(cfg.laneCount ?? 4);
+    gameRenderer3D.setRoadTexture(WORLD_ROAD_URLS[world] ?? null);
+    // Zone floor renders as a 3D plane UNDER the bombs (a Pixi floor would
+    // occlude the 3D bomb spheres — front canvas covers back canvas).
+    gameRenderer3D.setZoneTexture(`${import.meta.env.BASE_URL}sprites/designed/zone-${worldVariant}.png`);
+    shooterRenderer.setWorld(worldVariant);                   // (sockets only now)
     shooterRenderer.setLaneCount(cfg.laneCount ?? 4);
     gameRenderer3D.startLevelIntro();
     gameRenderer3D.setCombo(0);

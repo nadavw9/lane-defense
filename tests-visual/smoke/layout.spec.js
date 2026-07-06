@@ -43,7 +43,9 @@ for (const { level, lanes } of CASES) {
       for (let i = 0; i < lanes; i++) expect(Math.abs(pos.colX[i] - pos.laneX[i])).toBeLessThan(2);
     }
 
-    // A real car renders at each lane's projected X (colored pixels on grey road).
+    // A real car renders at each lane's projected X. Discriminator: mean-color
+    // DISTANCE between the car patch and the empty road below it — robust for
+    // any road tint (world roads are warm/concrete/night-blue, not neutral grey).
     for (let i = 0; i < lanes; i++) {
       const lane = gs.lanes[i];
       expect(lane.count, `lane ${i} has no cars after boot`).toBeGreaterThan(0);
@@ -52,8 +54,9 @@ for (const { level, lanes } of CASES) {
       const y = game.rowToStageY(row, gs.gridRows);
       const car = await game.sampleRegion(pos.laneX[i], y, 12);
       const road = await game.sampleRegion(pos.laneX[i], y + 55, 12);   // empty road below
-      expect(car.colorfulness, `no colored car pixels at lane ${i} (x=${pos.laneX[i].toFixed(0)}, y=${y.toFixed(0)})`)
-        .toBeGreaterThan(road.colorfulness + 12);
+      const dist = Math.abs(car.r - road.r) + Math.abs(car.g - road.g) + Math.abs(car.b - road.b);
+      expect(dist, `no car pixels distinct from road at lane ${i} (x=${pos.laneX[i].toFixed(0)}, y=${y.toFixed(0)})`)
+        .toBeGreaterThan(28);
     }
   });
 }

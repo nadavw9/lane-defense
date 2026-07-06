@@ -5,6 +5,7 @@
 //   • Near-miss detection: if timer was >80% used, show "SO CLOSE!"
 //   • Hearts display: shows remaining lives
 import { Container, Graphics, Text } from 'pixi.js';
+import { uiIcon } from '../renderer/UIIcon.js';
 import { ROAD_BOTTOM_Y } from '../renderer/LaneRenderer.js';
 
 export class LoseScreen {
@@ -179,8 +180,10 @@ export class LoseScreen {
     const MAX = 5, sz = 18, gap = 6;
     const x0  = cx - (MAX * sz + (MAX - 1) * gap) / 2;
     for (let i = 0; i < MAX; i++) {
-      const t = new Text({ text: '♥', style: { fontSize: sz, fill: i < count ? 0xff4466 : 0x333344 } });
-      t.anchor.set(0.5, 0.5);
+      // filled = natural red heart; empty = dark-tinted heart
+      const t = i < count
+        ? uiIcon('heart', sz + 2, '♥', { emojiFill: 0xff4466 })
+        : uiIcon('heart', sz + 2, '♥', { tint: 0x333344, emojiFill: 0x333344 });
       t.x = x0 + i * (sz + gap) + sz / 2;
       t.y = cy;
       this._panelGroup.addChild(t);

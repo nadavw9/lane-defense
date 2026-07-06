@@ -9,6 +9,7 @@
 //   • 1.5s button lock prevents accidental dismissal during outro animations
 //   • NEXT LEVEL button gently pulses once active to invite the tap
 import { Container, Graphics, Text } from 'pixi.js';
+import { uiIcon } from '../renderer/UIIcon.js';
 
 const STAR_COLOR_FULL  = 0xffcc00;
 const STAR_COLOR_EMPTY = 0x3a3a3a;
@@ -413,9 +414,16 @@ export class WinScreen {
     }
     y += 64;
 
-    // Share button (always visible, non-critical)
-    const shareBtn = new Text({ text: '📤 SHARE', style: { fontSize: 14, fontWeight: 'bold', fill: 0x66aaff } });
-    shareBtn.anchor.set(0.5, 0.5); shareBtn.x = cx; shareBtn.y = y;
+    // Share button (always visible, non-critical) — [share icon] SHARE, centered
+    const shareBtn = new Container();
+    const shareTxt = new Text({ text: 'SHARE', style: { fontSize: 14, fontWeight: 'bold', fill: 0x66aaff } });
+    shareTxt.anchor.set(0, 0.5);
+    const shareIco = uiIcon('share', 16, '📤');
+    const shTot = 16 + 4 + shareTxt.width;
+    shareIco.x = -shTot / 2 + 8;          shareIco.y = 0;
+    shareTxt.x = -shTot / 2 + 16 + 4;     shareTxt.y = 0;
+    shareBtn.addChild(shareIco); shareBtn.addChild(shareTxt);
+    shareBtn.x = cx; shareBtn.y = y;
     shareBtn.eventMode = 'static'; shareBtn.cursor = 'pointer';
     shareBtn.on('pointerdown', () => _shareWin(levelId, stars, gs.maxSingleShotKills));
     shareBtn.on('pointerover',  () => { shareBtn.alpha = 0.70; });

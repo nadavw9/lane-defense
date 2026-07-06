@@ -7,6 +7,7 @@
 //   • Large green PLAY button
 //   • Secondary buttons in pastel colors
 import { Container, Graphics, Text, Sprite, Assets } from 'pixi.js';
+import { uiIcon } from '../renderer/UIIcon.js';
 
 const CAR_COLORS  = [0xE24B4A, 0x378ADD, 0x639922, 0xEF9F27, 0x7F77DD, 0xD85A30];
 const SKY_TOP     = 0x4FC3F7;   // light sky blue
@@ -178,11 +179,17 @@ export class TitleScreen {
     btn.on('pointerover',  () => { btn.scale.set(1.05); });
     btn.on('pointerout',   () => { btn.scale.set(1.00); });
     const btnTxt = new Text({
-      text: '▶  PLAY!',
+      text: 'PLAY!',
       style: { fontSize: 34, fontWeight: 'bold', fill: 0xFFFFFF,
         dropShadow: { color: 0x1B5E20, blur: 6, distance: 2, alpha: 0.8 } },
     });
-    btnTxt.anchor.set(0.5, 0.5); btnTxt.y = btnH / 2;
+    btnTxt.anchor.set(0.5, 0.5);
+    // [play icon]  PLAY! — centered group (was '▶  PLAY!' one glyph run)
+    const playIco = uiIcon('play', 34, '▶');
+    const grpW = 34 + 10 + btnTxt.width;
+    playIco.x = -grpW / 2 + 17;         playIco.y = btnH / 2;
+    btnTxt.x  = -grpW / 2 + 34 + 10 + btnTxt.width / 2; btnTxt.y = btnH / 2;
+    btn.addChild(playIco);
     btn.addChild(btnTxt);
     this._container.addChild(btn);
     this._playBtn = btn;
@@ -200,12 +207,16 @@ export class TitleScreen {
 
     if (onDaily) {
       // Daily reward keeps its own accent color — it's the secondary hero CTA.
-      this._addPillBtn(CX, rowY, hasDailyReward ? '⭐ DAILY REWARD!' : '📅 Daily Reward',
+      this._addPillBtn(CX, rowY, hasDailyReward ? 'DAILY REWARD!' : '📅 Daily Reward',
         hasDailyReward ? 0xF9A825 : SEC_BG, hasDailyReward ? 0xFFF9C4 : SEC_TXT,
-        () => { audio?.play('button_tap'); onDaily(); });
+        () => { audio?.play('button_tap'); onDaily(); }, 200,
+        hasDailyReward ? { name: 'star-filled', emoji: '⭐' } : null);   // 📅 has no Batch-1 icon
       if (loginStreak >= 2) {
-        const badge = new Text({ text: `🔥${loginStreak}`, style: { fontSize: 14, fontWeight: 'bold', fill: 0xFF6F00 } });
-        badge.anchor.set(0, 0.5); badge.x = CX + 100; badge.y = rowY;
+        const flame = uiIcon('fire', 18, '🔥');   // icon + number (was one 🔥N glyph run)
+        flame.x = CX + 100 + 9; flame.y = rowY;    // centre-anchored, left edge ≈ CX+100
+        this._container.addChild(flame);
+        const badge = new Text({ text: `${loginStreak}`, style: { fontSize: 14, fontWeight: 'bold', fill: 0xFF6F00 } });
+        badge.anchor.set(0, 0.5); badge.x = CX + 100 + 20; badge.y = rowY;
         this._container.addChild(badge);
       }
     }
@@ -218,19 +229,22 @@ export class TitleScreen {
         SEC_BG, SEC_TXT, () => { audio?.play('button_tap'); onDailyChallenge(); }, BTN_W2);
     }
     if (onAchievements) {
-      this._addPillBtn(CX + BTN_W2 / 2 + GAP / 2, rowY, '★ TROPHIES',
-        SEC_BG, SEC_TXT, () => { audio?.play('button_tap'); onAchievements(); }, BTN_W2);
+      this._addPillBtn(CX + BTN_W2 / 2 + GAP / 2, rowY, 'TROPHIES',
+        SEC_BG, SEC_TXT, () => { audio?.play('button_tap'); onAchievements(); }, BTN_W2,
+        { name: 'star-filled', emoji: '★' });
     }
 
     rowY += 52;
 
     // 2×2 grid — Row 2: STATS | ACHIEVEMENTS
     if (onStats) {
-      this._addPillBtn(CX - BTN_W2 / 2 - GAP / 2, rowY, '📊 STATS',
-        SEC_BG, SEC_TXT, () => { audio?.play('button_tap'); onStats(); }, BTN_W2);
+      this._addPillBtn(CX - BTN_W2 / 2 - GAP / 2, rowY, 'STATS',
+        SEC_BG, SEC_TXT, () => { audio?.play('button_tap'); onStats(); }, BTN_W2,
+        { name: 'chart', emoji: '📊' });
     }
-    this._addPillBtn(CX + BTN_W2 / 2 + GAP / 2, rowY, '🏆 ACHIEVEMENTS',
-      SEC_BG, SEC_TXT, () => { audio?.play('button_tap'); this._showComingSoon(); }, BTN_W2);
+    this._addPillBtn(CX + BTN_W2 / 2 + GAP / 2, rowY, 'ACHIEVEMENTS',
+      SEC_BG, SEC_TXT, () => { audio?.play('button_tap'); this._showComingSoon(); }, BTN_W2,
+      { name: 'trophy', emoji: '🏆' });
 
     // ── Settings gear (top-right) — 44px hit area for reliable finger tap ───
     if (onSettings) {
@@ -241,8 +255,8 @@ export class TitleScreen {
       gearHit.on('pointerdown', onSettings);
       this._container.addChild(gearHit);
 
-      const gear = new Text({ text: '⚙️', style: { fontSize: 30 } });
-      gear.anchor.set(1, 0);  gear.x = w - 10; gear.y = 10;
+      const gear = uiIcon('gear', 30, '⚙️');   // was top-right anchored (1,0) → centre it
+      gear.x = w - 10 - 15; gear.y = 10 + 15;
       this._container.addChild(gear);
     }
 
@@ -377,7 +391,10 @@ export class TitleScreen {
 
   // ── Helper: pill-shaped secondary button ──────────────────────────────────
 
-  _addPillBtn(cx, cy, label, bgColor, labelColor, onClick, btnW = 200) {
+  // icon (optional): { name, emoji } → renders a sprite left of the label, the
+  // whole [icon] [text] group centered in the pill (icons keep natural colors,
+  // no tint). Omit for a plain text label (or an emoji still baked into `label`).
+  _addPillBtn(cx, cy, label, bgColor, labelColor, onClick, btnW = 200, icon = null) {
     const btnH = 40;
     const btn  = new Graphics();
     btn.roundRect(-btnW / 2, -btnH / 2, btnW, btnH, 20);
@@ -390,7 +407,16 @@ export class TitleScreen {
     btn.on('pointerover',  () => { btn.alpha = 0.80; });
     btn.on('pointerout',   () => { btn.alpha = 1.00; });
     const t = new Text({ text: label, style: { fontSize: 15, fontWeight: 'bold', fill: labelColor } });
-    t.anchor.set(0.5, 0.5); btn.addChild(t);
+    t.anchor.set(0.5, 0.5);
+    if (icon) {
+      const ICON = 18, GAP = 4;
+      const sp = uiIcon(icon.name, ICON, icon.emoji);
+      const total = ICON + GAP + t.width;
+      sp.x = -total / 2 + ICON / 2;
+      t.x  = -total / 2 + ICON + GAP + t.width / 2;
+      btn.addChild(sp);
+    }
+    btn.addChild(t);
     this._container.addChild(btn);
   }
 

@@ -2245,6 +2245,9 @@ async function main() {
       showPreLevel: (n) => { _dbgCleanAll(); _showPreLevel(n); },
       showRescue:   () => { showRescue(); },
       showShop:     () => { showShop(); },
+      showSettings: () => { showSettings(() => showTitle()); },
+      showDaily:    () => { showDailyReward(); },
+      showStats:    () => { showStats(); },
       openColorPicker: () => {
         boosterState.colorChange = Math.max(1, boosterState.colorChange);
         boosterState.activateColorChange();

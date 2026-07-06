@@ -11,6 +11,7 @@
 // All values follow colors_and_type.css tokens.
 import { Container, Graphics, Text } from 'pixi.js';
 import { setColorblindMode } from '../game/ColorblindMode.js';
+import { uiIcon } from '../renderer/UIIcon.js';
 
 const VERSION = 'v1.1.0';
 
@@ -132,10 +133,15 @@ export class SettingsScreen {
     backTxt.on('pointerdown', () => { this._audio?.play('button_tap'); this._onClose(); });
     this._container.addChild(backTxt);
 
-    // Title centered
-    const title = new Text({ text: '⚙  SETTINGS', style: { fontSize: 20, fontWeight: 'bold', fill: C_TEXT, letterSpacing: 0.5,
+    // Title centered — [gear] SETTINGS
+    const title = new Text({ text: 'SETTINGS', style: { fontSize: 20, fontWeight: 'bold', fill: C_TEXT, letterSpacing: 0.5,
       dropShadow: { color: 0x000000, blur: 6, distance: 0, alpha: 0.6 } } });
-    title.anchor.set(0.5, 0.5); title.x = cx; title.y = 32;
+    title.anchor.set(0, 0.5);
+    const gearIco = uiIcon('gear', 22, '⚙');
+    const tTot = 22 + 6 + title.width;
+    gearIco.x = cx - tTot / 2 + 11;      gearIco.y = 32;
+    title.x   = cx - tTot / 2 + 22 + 6;  title.y   = 32;
+    this._container.addChild(gearIco);
     this._container.addChild(title);
   }
 

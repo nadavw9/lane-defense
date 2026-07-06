@@ -5,6 +5,7 @@
 // which were inaccurate.
 
 import { Container, Graphics, Text, Sprite, Assets } from 'pixi.js';
+import { uiIcon } from '../renderer/UIIcon.js';
 
 const BASE_URL = import.meta.env.BASE_URL ?? '';
 
@@ -121,7 +122,7 @@ export class HowToPlayOverlay {
     this._card.addChild(body);
 
     // ✕ quit (top-right)
-    this._addBtn(PX + PW - 30, PY + 8, '✕', 0xffffff, 0.10, () => this._onClose?.());
+    this._addBtn(PX + PW - 30, PY + 8, '✕', 0xffffff, 0.10, () => this._onClose?.(), 30, 'close');
 
     // → next (bottom-right) — hidden on the last slide
     if (!isLast) {
@@ -129,11 +130,13 @@ export class HowToPlayOverlay {
     }
   }
 
-  _addBtn(x, y, glyph, color, bgAlpha, onTap, size = 30) {
+  _addBtn(x, y, glyph, color, bgAlpha, onTap, size = 30, iconName = null) {
     const g = new Graphics();
     g.roundRect(0, 0, size, size, 8);
     g.fill({ color: 0xffffff, alpha: bgAlpha });
-    const t = new Text({ text: glyph, style: { fontSize: Math.round(size * 0.6), fontWeight: 'bold', fill: color } });
+    const t = iconName
+      ? uiIcon(iconName, Math.round(size * 0.6), glyph, { emojiFill: color })
+      : new Text({ text: glyph, style: { fontSize: Math.round(size * 0.6), fontWeight: 'bold', fill: color } });
     t.anchor.set(0.5, 0.5); t.x = size / 2; t.y = size / 2;
     g.addChild(t);
     g.x = x; g.y = y;

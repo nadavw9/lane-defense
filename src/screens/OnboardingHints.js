@@ -15,6 +15,7 @@
 // Vertical rhythm (shared by all cards): title→visual ≥16px, visual→body ≥16px,
 // body→button ≥24px, body line-height 1.4×.
 import { Container, Graphics, Text, Sprite, Assets } from 'pixi.js';
+import { uiIcon } from '../renderer/UIIcon.js';
 
 const BASE_URL = import.meta.env.BASE_URL ?? '';
 
@@ -91,8 +92,8 @@ export class OnboardingHints {
     );
     // Visual: book icon with a pulsing ring (mirrors the real top-left button).
     const ring = new Graphics(); panel.addChild(ring);
-    const book = new Text({ text: '📖', style: { fontSize: 56 } });
-    book.anchor.set(0.5); book.x = vx; book.y = vy; panel.addChild(book);
+    const book = uiIcon('book', 56, '📖');
+    book.x = vx; book.y = vy; panel.addChild(book);
     this._card.pulse = (t) => {
       const p = 0.5 + 0.5 * Math.sin(t * 5);
       ring.clear();
@@ -164,9 +165,8 @@ export class OnboardingHints {
       disc.fill({ color: RB[i], alpha: 0.95 });
     }
     disc.circle(vx, vy, 40).stroke({ color: 0xffffff, width: 2.5, alpha: 0.7 });
-    const star = new Text({ text: '★', style: { fontSize: 32, fill: 0xffffff,
-      dropShadow: { color: 0x000000, blur: 4, distance: 0, alpha: 0.9 } } });
-    star.anchor.set(0.5); star.x = vx; star.y = vy; panel.addChild(star);
+    const star = uiIcon('star-filled', 34, '★', { emojiFill: 0xffffff });
+    star.x = vx; star.y = vy; panel.addChild(star);
   }
 
   // ── Shared shell ──────────────────────────────────────────────────────────────

@@ -13,6 +13,7 @@
 //   orch.completeIfActive(id);
 
 import { Container, Graphics, Text } from 'pixi.js';
+import { uiIcon } from '../renderer/UIIcon.js';
 import { ROAD_BOTTOM_Y } from '../renderer/LaneRenderer.js';
 
 const STORAGE_KEY    = 'ftue_completed';
@@ -163,7 +164,7 @@ export class TutorialOrchestrator {
 
     // Animated hand
     if (handStart) {
-      this._handObj = new Text({ text: '👆', style: { fontSize: 28 } });
+      this._handObj = uiIcon('hand', 28, '👆');
       this._handObj.anchor.set(0.5, 0.5);
       this._handObj.x = handStart.x;
       this._handObj.y = handStart.y;

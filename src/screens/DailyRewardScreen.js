@@ -11,6 +11,7 @@
 // After claiming, the screen rebuilds to reflect the new state.
 // The CLOSE button is always available.
 import { Container, Graphics, Text } from 'pixi.js';
+import { uiIcon } from '../renderer/UIIcon.js';
 import { DAILY_REWARDS }             from '../game/ProgressManager.js';
 
 const PANEL_W = 370;
@@ -201,8 +202,7 @@ export class DailyRewardScreen {
 
     // Checkmark overlay for claimed days
     if (state === 'claimed') {
-      const tick = new Text({ text: '✓', style: { fontSize: 22, fontWeight: 'bold', fill: 0x44aa66 } });
-      tick.anchor.set(0.5, 0.5);
+      const tick = uiIcon('check', 22, '✓', { emojiFill: 0x44aa66 });
       tick.x = centerX;
       tick.y = y + BOX_H / 2;
       this._container.addChild(tick);

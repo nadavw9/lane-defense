@@ -18,6 +18,7 @@
 //
 // update(dt) must be called from the render ticker while the overlay is live.
 import { Container, Graphics, Text } from 'pixi.js';
+import { uiIcon } from '../renderer/UIIcon.js';
 import { PRIORITY } from '../renderer/PopupQueue.js';
 import {
   ROAD_TOP_Y, ROAD_BOTTOM_Y,
@@ -390,8 +391,8 @@ export class FTUEOverlay {
     const trailG = new Graphics();
     this._container.addChild(trailG);
 
-    // Hand emoji
-    const emoji = new Text({ text: '👆', style: { fontSize: 48 } });
+    // Hand icon (anchored bottom-centre to preserve the drag animation)
+    const emoji = uiIcon('hand', 48, '👆');
     emoji.anchor.set(0.5, 1.0);
     emoji.alpha = 0;
     this._container.addChild(emoji);

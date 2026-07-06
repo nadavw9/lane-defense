@@ -5,6 +5,7 @@
 // Keep the HP numbers in sync with src/director/CarTypes.js base values.
 
 import { Container, Graphics, Text, Sprite, Assets } from 'pixi.js';
+import { uiIcon } from '../renderer/UIIcon.js';
 
 const BASE_URL = import.meta.env.BASE_URL ?? '';
 
@@ -125,8 +126,8 @@ export class HpGuideOverlay {
     const g = new Graphics();
     g.roundRect(0, 0, 30, 30, 8);
     g.fill({ color: 0xffffff, alpha: 0.10 });
-    const t = new Text({ text: '✕', style: { fontSize: 18, fontWeight: 'bold', fill: 0xffffff } });
-    t.anchor.set(0.5, 0.5); t.x = 15; t.y = 15;
+    const t = uiIcon('close', 18, '✕', { emojiFill: 0xffffff });
+    t.x = 15; t.y = 15;
     g.addChild(t);
     g.x = x; g.y = y;
     g.eventMode = 'static';

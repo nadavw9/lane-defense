@@ -7,6 +7,7 @@
 //   app.ticker.add(ticker => { if (!card.update(ticker.deltaMS / 1000)) { app.ticker.remove(...); } });
 
 import { Container, Graphics, Text, Sprite, Assets } from 'pixi.js';
+import { uiIcon } from '../renderer/UIIcon.js';
 
 const BASE_URL = import.meta.env.BASE_URL ?? '';
 
@@ -165,7 +166,7 @@ export class CarTypeIntroCard {
     c.addChild(hpBadge);
 
     const hpTxt = new Text({
-      text: `❤  ${info.hp} HP`,
+      text: `${info.hp} HP`,
       style: {
         fontSize:   17,
         fontWeight: 'bold',
@@ -173,9 +174,12 @@ export class CarTypeIntroCard {
         dropShadow: { color: 0x000000, blur: 4, distance: 0, alpha: 0.60 },
       },
     });
-    hpTxt.anchor.set(0.5, 0.5);
-    hpTxt.x = TEXT_CENTER_X;
-    hpTxt.y = by + bh / 2;
+    hpTxt.anchor.set(0, 0.5);
+    const hpHeart = uiIcon('heart', 18, '❤', { emojiFill: 0xff4466 });
+    const hpTot = 18 + 6 + hpTxt.width;
+    hpHeart.x = TEXT_CENTER_X - hpTot / 2 + 9;      hpHeart.y = by + bh / 2;
+    hpTxt.x   = TEXT_CENTER_X - hpTot / 2 + 18 + 6; hpTxt.y   = by + bh / 2;
+    c.addChild(hpHeart);
     c.addChild(hpTxt);
 
     // ── Timer bar ────────────────────────────────────────────────────────────

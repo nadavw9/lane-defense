@@ -68,6 +68,18 @@ async function run() {
       await page.evaluate(() => window._nav?.showShop());
       await wait(1800);
       break;
+    case 'settings':
+      await page.evaluate(() => window._nav?.showSettings());
+      await wait(1500);
+      break;
+    case 'daily':
+      await page.evaluate(() => window._nav?.showDaily());
+      await wait(1500);
+      break;
+    case 'stats':
+      await page.evaluate(() => window._nav?.showStats());
+      await wait(1500);
+      break;
     default:
       await wait(1200);
   }

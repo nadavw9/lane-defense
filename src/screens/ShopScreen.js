@@ -3,6 +3,7 @@
 // Shows four booster rows plus a daily-gift banner that fills the lower third.
 // Coin balance and booster counts update immediately on purchase.
 import { Container, Graphics, Text, TilingSprite, Assets } from 'pixi.js';
+import { uiIcon } from '../renderer/UIIcon.js';
 
 // Unified card background — all cards share one dark navy base.
 const CARD_BG     = 0x0d1525;
@@ -291,12 +292,15 @@ export class ShopScreen {
     this._container.addChild(accentBar);
 
     const headline = new Text({
-      text: '🎁  DAILY GIFT',
+      text: 'DAILY GIFT',
       style: { fontSize: 17, fontWeight: 'bold', fill: 0x66dd66 },
     });
-    headline.anchor.set(0.5, 0.5);
-    headline.x = x + w / 2;
-    headline.y = y + h / 2 - 12;
+    headline.anchor.set(0, 0.5);
+    const giftIco = uiIcon('gift', 20, '🎁');
+    const hlTot = 20 + 6 + headline.width;
+    giftIco.x = x + w / 2 - hlTot / 2 + 10;     giftIco.y = y + h / 2 - 12;
+    headline.x = x + w / 2 - hlTot / 2 + 20 + 6; headline.y = y + h / 2 - 12;
+    this._container.addChild(giftIco);
     this._container.addChild(headline);
 
     const sub = new Text({

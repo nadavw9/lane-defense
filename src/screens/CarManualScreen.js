@@ -3,6 +3,7 @@
 // Access via pause menu "CAR INFO" button or HUD book icon.
 
 import { Container, Graphics, Text, Sprite, Assets } from 'pixi.js';
+import { uiIcon } from '../renderer/UIIcon.js';
 import { getSeenCarTypes } from './CarTypeIntroCard.js';
 
 const BASE_URL = import.meta.env.BASE_URL ?? '';
@@ -157,11 +158,14 @@ export class CarManualScreen {
       this._container.addChild(hpBadge);
 
       const hpTxt = new Text({
-        text: `❤  ${entry.hp} HP`,
+        text: `${entry.hp} HP`,
         style: { fontSize: 13, fontWeight: 'bold', fill: 0xffffff },
       });
       hpTxt.anchor.set(0, 0.5);
-      hpTxt.x = textX + 10; hpTxt.y = ey + 36 + bh / 2;
+      const hpHeart = uiIcon('heart', 14, '❤', { emojiFill: 0xff4466 });
+      hpHeart.x = textX + 10 + 7; hpHeart.y = ey + 36 + bh / 2;
+      hpTxt.x = textX + 10 + 18;  hpTxt.y = ey + 36 + bh / 2;
+      this._container.addChild(hpHeart);
       this._container.addChild(hpTxt);
 
       // Damage tip

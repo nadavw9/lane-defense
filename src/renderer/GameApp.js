@@ -162,6 +162,7 @@ import {
   ALL_SPRITE_URLS, CRITICAL_SPRITE_URLS, WORLD_ROAD_URLS,
   buildingSetForLevel, worldPanelForLevel, sceneVariantForLevel,
 } from './assetManifest.js';
+import { uiIcon } from './UIIcon.js';
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 
@@ -571,8 +572,7 @@ async function main() {
     g.on('pointerdown', () => showCarManual());
     g.on('pointerover',  () => { g.alpha = 0.70; });
     g.on('pointerout',   () => { g.alpha = 1.00; });
-    const icon = new Text({ text: '📖', style: { fontSize: 22 } });
-    icon.anchor.set(0.5, 0.5);
+    const icon = uiIcon('book', 26, '📖');   // sprite (glyph fallback), same slot
     icon.x = HIT / 2; icon.y = HIT / 2;
     g.addChild(icon);
     layers.get('hudLayer').addChild(g);
@@ -1095,11 +1095,11 @@ async function main() {
     addT('OUT OF HEARTS', cx, cy, { fontSize: 24, fill: 0xff4466 });
     cy += 34;
 
-    // Hearts row
+    // Hearts row (all depleted here — dark-tinted heart icons)
     for (let i = 0; i < 5; i++) {
       const hx = cx - 4 * 22 / 2 + i * 22;
-      const ht = new Text({ text: '♥', style: { fontSize: 20, fill: 0x333344 } });
-      ht.anchor.set(0.5, 0.5); ht.x = hx; ht.y = cy;
+      const ht = uiIcon('heart', 22, '♥', { tint: 0x333344, emojiFill: 0x333344 });
+      ht.x = hx; ht.y = cy;
       c.addChild(ht);
     }
     cy += 32;
@@ -2573,9 +2573,9 @@ function _buildAchievementPopup(w, achievement) {
   bg.stroke({ color: 0xf5c842, width: 1.5, alpha: 0.85 });
   grp.addChild(bg);
 
-  const icon = new Text({ text: '🏆', style: { fontSize: 26 } });
-  icon.x = TX + 10;
-  icon.y = (TH - 32) / 2;
+  const icon = uiIcon('trophy', 32, '🏆');   // center-anchored → place at glyph-box centre
+  icon.x = TX + 10 + 16;
+  icon.y = (TH - 32) / 2 + 16;
   grp.addChild(icon);
 
   const textX = TX + 46;

@@ -1,6 +1,7 @@
 // LevelSelectScreen — Car-themed world map + Candy Crush pre-level popup.
 import { Container, Graphics, Text } from 'pixi.js';
 import { adManager, AD_COSTS } from '../ads/AdManager.js';
+import { uiIcon } from '../renderer/UIIcon.js';
 
 const HEADER_H = 88;
 const NODE_R   = 26;
@@ -204,19 +205,23 @@ export class LevelSelectScreen {
     popup.addChild(lbl);
 
     if (isWeekly) {
-      const wb = new Text({ text: '⭐ WEEKLY', style: { fontSize: 11, fill: 0xffee44, fontWeight: 'bold' } });
-      wb.anchor.set(0.5, 0.5); wb.x = w / 2; wb.y = CY + 54;
-      popup.addChild(wb);
+      const wb = new Text({ text: 'WEEKLY', style: { fontSize: 11, fill: 0xffee44, fontWeight: 'bold' } });
+      wb.anchor.set(0, 0.5);
+      const wstar = uiIcon('star-filled', 14, '⭐');
+      const wtot = 14 + 3 + wb.width;
+      wstar.x = w / 2 - wtot / 2 + 7;  wstar.y = CY + 54;
+      wb.x    = w / 2 - wtot / 2 + 17; wb.y    = CY + 54;
+      popup.addChild(wstar); popup.addChild(wb);
     }
 
     // Stars row
     const starY = CY + 88;
     for (let s = 0; s < 3; s++) {
       const filled = s < stars;
-      const sc = new Text({ text: filled ? '★' : '☆', style: {
-        fontSize: 28, fill: filled ? 0xffcc00 : 0x445566,
-      }});
-      sc.anchor.set(0.5, 0.5); sc.x = w / 2 - 28 + s * 28; sc.y = starY;
+      const sc = filled
+        ? uiIcon('star-filled', 30, '★', { emojiFill: 0xffcc00 })
+        : uiIcon('star-empty', 30, '☆', { emojiFill: 0x445566 });
+      sc.x = w / 2 - 28 + s * 28; sc.y = starY;
       popup.addChild(sc);
     }
 
@@ -229,11 +234,16 @@ export class LevelSelectScreen {
     startBg.fill({ color: 0xffffff, alpha: 0.18 });
     popup.addChild(startBg);
 
-    const startTxt = new Text({ text: '▶  START LEVEL', style: {
+    const startTxt = new Text({ text: 'START LEVEL', style: {
       fontSize: 20, fontWeight: 'bold', fill: 0xffffff,
       dropShadow: { color: 0x000000, blur: 4, distance: 2, alpha: 0.6 },
     }});
-    startTxt.anchor.set(0.5, 0.5); startTxt.x = w / 2; startTxt.y = sy + 28;
+    startTxt.anchor.set(0, 0.5);
+    const startIco = uiIcon('play', 22, '▶');
+    const stot = 22 + 6 + startTxt.width;
+    startIco.x = w / 2 - stot / 2 + 11;      startIco.y = sy + 28;
+    startTxt.x = w / 2 - stot / 2 + 22 + 6;  startTxt.y = sy + 28;
+    popup.addChild(startIco);
     startBg.eventMode = 'static'; startBg.cursor = 'pointer';
     startBg.on('pointerdown', () => {
       audio?.play('button_tap');
@@ -585,16 +595,16 @@ export class LevelSelectScreen {
       }
 
       if (isWeekly) {
-        const wk = new Text({ text: '⭐', style: { fontSize: 11 } });
-        wk.anchor.set(0.5, 0.5); wk.x = NODE_R - 3; wk.y = -NODE_R + 4;
+        const wk = uiIcon('star-filled', 14, '⭐');
+        wk.x = NODE_R - 3; wk.y = -NODE_R + 4;
         node.addChild(wk);
       }
 
       // Difficulty indicator — sits just below the node disc
       const diff = LEVEL_DIFFICULTY[levelId];
       if (diff === 'boss') {
-        const skull = new Text({ text: '💀', style: { fontSize: 12 } });
-        skull.anchor.set(0.5, 0.5); skull.x = 0; skull.y = NODE_R + 10;
+        const skull = uiIcon('skull', 15, '💀');
+        skull.x = 0; skull.y = NODE_R + 10;
         node.addChild(skull);
       } else if (diff === 'hard') {
         const dg = new Graphics();
@@ -685,8 +695,11 @@ export class LevelSelectScreen {
     }
 
     // Row 3 — coins and achievements (y=76, font 14 → top≈69px, gap≈14px ✓)
-    const coins = new Text({ text: `🏅 ${progress.coins ?? 0}`, style: { fontSize: 14, fontWeight: 'bold', fill: 0xf5c842 } });
-    coins.anchor.set(0, 0.5); coins.x = 14; coins.y = 76;
+    const coinIco = uiIcon('coin', 18, '🏅');   // medal → coin (this is the coin count)
+    coinIco.x = 14 + 9; coinIco.y = 76;
+    this._container.addChild(coinIco);
+    const coins = new Text({ text: `${progress.coins ?? 0}`, style: { fontSize: 14, fontWeight: 'bold', fill: 0xf5c842 } });
+    coins.anchor.set(0, 0.5); coins.x = 14 + 22; coins.y = 76;
     this._container.addChild(coins);
 
     if (onAchievements) mkBtn('★ ACHIEVEMENTS', w - 14, 1, 76, 0x99bbcc, onAchievements);

@@ -46,6 +46,12 @@ async function run() {
       await page.evaluate(() => window._nav?.showLevelSelect());
       await wait(1800);
       break;
+    case 'levelpopup':
+      await page.evaluate(() => window._nav?.showLevelSelect());
+      await wait(1500);
+      await page.mouse.click(45, 795);   // node L1 (bottom-left; map runs bottom-up)
+      await wait(900);
+      break;
     case 'win':
       await page.evaluate(() => window._nav?.startLevel(5));
       await wait(2500);

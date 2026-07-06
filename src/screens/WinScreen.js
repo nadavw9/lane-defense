@@ -13,6 +13,7 @@ import { uiIcon } from '../renderer/UIIcon.js';
 
 const STAR_COLOR_FULL  = 0xffcc00;
 const STAR_COLOR_EMPTY = 0x3a3a3a;
+const STAR_EMPTY_TINT  = 0x2b2f3a;   // dark tint applied to the glossy star-empty sprite so it recedes
 
 const CONFETTI_COLORS = [0xff4466, 0x44ff88, 0xffcc00, 0x44aaff, 0xff88ff, 0xff8844, 0x88ffff];
 
@@ -440,9 +441,17 @@ export class WinScreen {
     const x0 = cx - totalW / 2 + R;
     for (let i = 0; i < 3; i++) {
       const filled = i < count;
-      const g = new Graphics();
-      this._drawStar(g, R, filled ? STAR_COLOR_FULL : STAR_COLOR_EMPTY);
-      if (!filled) g.scale.set(0.78);
+      // Glossy star SPRITE at the same geometry as the old vector star (Ø = R*2).
+      // Wrapped in a Container so the empty-scale (0.78) and the fly-in .y tween act
+      // on the wrapper exactly as they did on the Graphics. uiIcon falls back to the
+      // ★/☆ glyph if the texture didn't preload (win moment never breaks).
+      const g = new Container();
+      g.addChild(uiIcon(filled ? 'star-filled' : 'star-empty', R * 2, filled ? '★' : '☆',
+        { emojiFill: filled ? STAR_COLOR_FULL : STAR_COLOR_EMPTY,
+          // Unearned star recedes: dark tint + low alpha so the gold earned stars
+          // dominate and the empty slot reads as a quiet "could earn this".
+          tint: filled ? undefined : STAR_EMPTY_TINT }));
+      if (!filled) { g.scale.set(0.78); g.alpha = 0.5; }
       g.x = x0 + i * (R * 2 + GAP);
       g.y = cy;
       this._container.addChild(g);

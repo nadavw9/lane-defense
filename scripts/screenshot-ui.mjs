@@ -58,6 +58,25 @@ async function run() {
       await page.evaluate(() => window._nav?.showWin());
       await wait(2000);
       break;
+    case 'win1':
+    case 'win2':
+      // Force the star count via gs.maxCarPosition (calcStars: <60→3, <80→2, else 1).
+      await page.evaluate(() => window._nav?.startLevel(5));
+      await wait(2500);
+      await page.evaluate((mcp) => {
+        const gs = window._nav.getGs();
+        gs.maxCarPosition = mcp; gs.rescueUsed = false;
+      }, screen === 'win2' ? 70 : 90);
+      await page.evaluate(() => window._nav?.showWin());
+      await wait(2000);
+      break;
+    case 'winflyin':
+      // Catch a mid-fly-in frame: stars land by ~0.42s (120ms each + 150ms stagger).
+      await page.evaluate(() => window._nav?.startLevel(5));
+      await wait(2500);
+      await page.evaluate(() => window._nav?.showWin());
+      await wait(240);
+      break;
     case 'lose':
       await page.evaluate(() => window._nav?.startLevel(5));
       await wait(2500);

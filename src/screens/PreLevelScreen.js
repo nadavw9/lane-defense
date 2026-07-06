@@ -11,6 +11,7 @@
 // onSelect(adCount, bundle); the caller runs the ads, then starts the level with
 // the bundle. One tap on SKIP (or the choice button) dismisses it.
 import { Container, Graphics, Text } from 'pixi.js';
+import { boosterIcon } from '../renderer/UIIcon.js';
 
 // Linear interpolate between two 0xRRGGBB colors. t=0 → a, t=1 → b.
 function _lerpHex(a, b, t) {
@@ -102,9 +103,9 @@ export class PreLevelScreen {
     this._text(levelLabel != null ? `Before ${levelLabel}` : 'Before you start', cx, py + 84,
       { fontSize: 13, fill: 0xaab4cc, fontWeight: 'normal' });
 
-    const RECOLOR = { emoji: '🎨', desc: 'Recolor' };
-    const FREEZE  = { emoji: '❄️', desc: 'Freeze' };
-    const BOMB    = { emoji: '💣', desc: 'Bomb' };
+    const RECOLOR = { key: 'colorchange', emoji: '🎨', desc: 'Recolor' };
+    const FREEZE  = { key: 'freeze',      emoji: '❄️', desc: 'Freeze' };
+    const BOMB    = { key: 'bomb',        emoji: '💣', desc: 'Bomb' };
 
     // ── Tier rows — escalating visual weight ──────────────────────────────────
     // Tier 1: standard, blue/purple border.
@@ -179,8 +180,8 @@ export class PreLevelScreen {
       : rw - 12 - boosters.length * itemW;      // right-aligned for 2+ icons
     boosters.forEach((bk, i) => {
       const icx = startX + i * itemW + itemW / 2;
-      const em = new Text({ text: bk.emoji, style: { fontSize: best ? 24 : 21 } });
-      em.anchor.set(0.5); em.x = icx; em.y = rh * 0.36;
+      const em = boosterIcon(bk.key, best ? 26 : 23, bk.emoji);   // glossy booster sprite (glyph fallback)
+      em.x = icx; em.y = rh * 0.36;
       row.addChild(em);
       const d = new Text({ text: bk.desc, style: { fontSize: 9, fontWeight: 'bold', fill: accent } });
       d.anchor.set(0.5); d.x = icx; d.y = rh * 0.74;

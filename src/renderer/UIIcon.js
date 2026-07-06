@@ -35,3 +35,22 @@ export function uiIcon(name, size, fallbackEmoji, opts = {}) {
   tx.anchor.set(0.5);
   return tx;
 }
+
+// boosterIcon(name, size, fallbackEmoji) — same contract as uiIcon but for the
+// EXISTING booster sprites (public/sprites/designed/booster-<name>.png, preloaded
+// via BOOSTER_URLS). name ∈ {colorchange, freeze, bomb}. Used to replace the
+// 🎨/❄/💣 legend glyphs with the real glossy booster art.
+function boosterUrl(name) { return `${_B}sprites/designed/booster-${name}.png`; }
+
+export function boosterIcon(name, size, fallbackEmoji) {
+  const tex = Assets.get(boosterUrl(name));
+  if (tex) {
+    const sp = new Sprite(tex);
+    sp.anchor.set(0.5);
+    sp.scale.set(size / Math.max(tex.width, tex.height));
+    return sp;
+  }
+  const tx = new Text({ text: fallbackEmoji ?? '?', style: { fontSize: size, fill: 0xffffff } });
+  tx.anchor.set(0.5);
+  return tx;
+}

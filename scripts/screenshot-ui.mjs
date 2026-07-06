@@ -87,6 +87,10 @@ async function run() {
       await page.evaluate(() => window._nav?.showShop());
       await wait(1800);
       break;
+    case 'prelevel':
+      await page.evaluate(() => window._nav?.showPreLevel(6));
+      await wait(1500);
+      break;
     case 'settings':
       await page.evaluate(() => window._nav?.showSettings());
       await wait(1500);

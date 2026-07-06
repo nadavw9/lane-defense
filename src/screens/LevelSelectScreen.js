@@ -1,7 +1,7 @@
 // LevelSelectScreen — Car-themed world map + Candy Crush pre-level popup.
 import { Container, Graphics, Text } from 'pixi.js';
 import { adManager, AD_COSTS } from '../ads/AdManager.js';
-import { uiIcon } from '../renderer/UIIcon.js';
+import { uiIcon, boosterIcon } from '../renderer/UIIcon.js';
 
 const HEADER_H = 88;
 const NODE_R   = 26;
@@ -270,9 +270,9 @@ export class LevelSelectScreen {
 
     // Ad booster buttons — driven by AdManager
     const boosterDefs = [
-      { key: 'colorchange', label: '🎨 BRUSH',  color: 0x7a44cc, glow: 0x9a55ee },
-      { key: 'freeze',      label: '❄ FREEZE', color: 0x0a3a5a, glow: 0x44ccff },
-      { key: 'bomb',        label: '💣 BOMB',   color: 0x3a1a00, glow: 0xffaa00 },
+      { key: 'colorchange', label: 'BRUSH',  emoji: '🎨', color: 0x7a44cc, glow: 0x9a55ee },
+      { key: 'freeze',      label: 'FREEZE', emoji: '❄',  color: 0x0a3a5a, glow: 0x44ccff },
+      { key: 'bomb',        label: 'BOMB',   emoji: '💣', color: 0x3a1a00, glow: 0xffaa00 },
     ];
     boosterDefs.forEach((b, idx) => {
       const bx = CX + 16 + idx * 92, by = CY + 204;
@@ -287,9 +287,15 @@ export class LevelSelectScreen {
       bg.stroke({ color: unlocked ? 0x44ff66 : b.glow, width: unlocked ? 2.5 : 1.5, alpha: 0.80 });
       popup.addChild(bg);
 
+      // [booster sprite] LABEL — composed centered (was a '🎨 BRUSH' glyph run)
       const bt = new Text({ text: unlocked ? '✓ ' + b.label : b.label,
         style: { fontSize: 10, fill: unlocked ? 0x88ff88 : 0xffffff, fontWeight: 'bold' } });
-      bt.anchor.set(0.5, 0.5); bt.x = bx + 42; bt.y = by + 14;
+      bt.anchor.set(0, 0.5);
+      const bIco = boosterIcon(b.key, 14, b.emoji);
+      const bTot = 14 + 3 + bt.width;
+      bIco.x = bx + 42 - bTot / 2 + 7;      bIco.y = by + 14;
+      bt.x   = bx + 42 - bTot / 2 + 14 + 3; bt.y   = by + 14;
+      popup.addChild(bIco);
       popup.addChild(bt);
 
       // Progress sub-label: "1 / 3 ads" or "✓ Unlocked"

@@ -1552,7 +1552,13 @@ async function main() {
       // L2: notify FTUE overlay on first kill so it can show the combo hint.
       if (!firstKillDoneThisLevel) {
         firstKillDoneThisLevel = true;
-        ftueOverlay?.onFirstKill();
+        // L2 combo hint routes through the unified queue (one-at-a-time, safe
+        // gap) — FTUEOverlay's own bottom banner could stack over a queued
+        // toast (design-audit CLUTTER item: two banners covering the game).
+        if (gs.levelId === 2) {
+          featureBanners.fire('combo_hint_L2',
+            'COMBO! Chain kills quickly for bonus coins and faster fire speed!');
+        }
       }
 
       // One-time combo explanation popup the first time combo reaches 3.

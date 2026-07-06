@@ -113,11 +113,30 @@ Pipeline (mechanical once art exists):
   removes neighbour bleed). 'back' ◀ is reused as 'next' ▶ via `uiIcon(..., {flipX:true})`
   (no 21st icon); 'share' reserved for share actions only.
 
-**§2c progress (per-screen swap):**
+**§2c progress (per-screen swap) — COMPLETE (Batch-1 coverage):**
 - [x] Foundation — montage sliced → 20 icons, manifest + preload + uiIcon flip/tint.
-- [x] HUD — 🏆 trophy toast (screenshot-verified); 📖 book btn + ♥ no-hearts modal
-  (code-verified only, both currently unreachable in-game).
-- [ ] Title → LevelSelect → Win/Lose → the rest.
+- [x] HUD — 🏆 trophy toast (screenshot-verified); 📖 book btn + ♥ no-hearts modal (code-only).
+- [x] Title — ⚙ gear, ▶ PLAY, ⭐/★ daily+trophies, 📊 stats, 🏆 achievements, 🔥 streak.
+  `_addPillBtn` gained an `{name,emoji}` icon spec (composes centered [sprite][text]).
+- [x] LevelSelect — ★/☆ star rating, ⭐ weekly, 💀 boss, 🏅 coin, ▶ START. Left the mkBtn
+  nav-link row (← BACK, W2 ▶/◀ W1, ★ ACHIEVEMENTS) as monochrome glyphs.
+- [x] Win/Lose — 📤 share, ♥ hearts. Stat panels deferred (blocked on car/lightning icon).
+- [x] The rest — Settings ⚙, Shop 🎁, Daily ✓, CarManual/CarTypeIntro ❤, Onboarding 📖/★,
+  HpGuide/HowToPlay ✕, FTUE/Tutorial 👆. `_addBtn` (HowToPlay) gained optional iconName.
+
+**DEFERRED (kept glyph — mixed-helper or baked-in-string sets; do as a unit later):**
+- Settings section labels (🔊/🕹/♿ via `_addSectionLabel`) — 3 of 4 have no icon.
+- Pause `📖 CAR INFO` (`_btn` helper, icon-less siblings).
+- Booster legends (🎨/❄/🛡/💣) in Shop / PreLevel / LevelSelect — need the BOOSTER sprites
+  (booster-colorchange/freeze/bomb.png), not the generic Batch-1 set → a "booster-icon pass".
+- Stats value strings (⭐/🪙), GameApp weekly-bonus float (⭐) + streak-shield toast (🛡),
+  Win/Lose stat panels (⚡/◆/★ · 🚗/⏱/🎯), NEXT LEVEL ▶ — baked into text/value runs.
+- Gameplay/data markers left intentionally: ★ bench/stash/colorblind (DragDrop/Shooter/
+  ColorblindMode), ✓ booster-owned ticks (LevelSelect), ❓/🚗 help/car glyphs.
+
+**OFFERED, awaiting user:** WinScreen celebration stars are animated vector Graphics
+(`_drawStar`); a sprite-star upgrade (star-filled) would premium-ify the victory moment
+at identical geometry — not done (needs user OK, touches animated code).
 
 **OPEN QUESTIONS (from §2c):**
 - `_showNoHeartsPanel` (GameApp.js) exists with **no caller** — is the hearts/lives
@@ -125,9 +144,12 @@ Pipeline (mechanical once art exists):
   (lives system) or delete it. Icon swap applied either way, so non-blocking.
 
 **BATCH 1b — icons to generate for a fully emoji-free game (deferred, low priority):**
-- `explosion` / burst — for the 💥 goal-counter badge (`GoalCounterUI.js`).
-- `snowflake` — for the ❄ FROZEN pill (`HUDRenderer.js`) and freeze theming.
-- (optional) a dedicated `next` ▶ chevron if flipping `back` ever reads wrong.
+- `explosion` / burst — 💥 goal-counter badge (`GoalCounterUI.js`), Win stat panel.
+- `snowflake` — ❄ FROZEN pill (`HUDRenderer.js`), freeze booster legend/theming.
+- `lightning` — ⚡ CHALLENGE (Title), BEST MULTI-KILL (Win).
+- `car` — 🚗 Cars-Destroyed (Lose), 🚗 help glyphs.
+- `speaker` / `controls` / `accessibility` — 🔊/🕹/♿ Settings section labels.
+- (optional) `calendar` 📅, `sparkle` ✦, dedicated `next` ▶ if flipping `back` reads wrong.
 
 ### 2d. Screen chrome — Batch 2 art (needs user generation, prompts in §6)
 - Title buttons: 9-slice glossy button plate (green primary + slate secondary) → replace

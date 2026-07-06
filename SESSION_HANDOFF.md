@@ -4,14 +4,28 @@
 **`docs/superpowers/plans/2026-07-02-master-plan-testing-ui-difficulty.md`** — three approved workstreams (Testing harness → UI overhaul → Difficulty redesign + City Repair meta). It contains an EXECUTION STATUS checklist that is updated after every step; any fresh session resumes from there. User pre-approved the work incl. commits.
 
 ## Current State
-- Git tip: 5f0b8ac feat: unified world scenes (panels + road tile + 3D dispatch floor from one AI scene per world)
+- Git tip: d99adb3 feat(icons): remaining screens emoji → sprites (+ tracker/handoff docs after)
 - Branch: master
 - Last deploy: today, green (deploy GATED on the unit+audit suite)
-- Tests: 1062 vitest (unit+audit) + 17 Playwright visual smoke + 40-level nightly sweep — green (rapid-hop occasionally flaky under parallel load, passes on retry)
-- Master plan: docs/superpowers/plans/2026-07-02-master-plan-testing-ui-difficulty.md (WS1 DONE; WS2 in progress — 2a/2b done, next: 2c icons [user art], FTUE-banner fix; then WS3 difficulty)
+- Tests: 1062 vitest (unit+audit) + 17 Playwright visual smoke + 40-level full sweep — green (rapid-hop occasionally flaky under parallel load, passes on retry)
+- Master plan: docs/superpowers/plans/2026-07-02-master-plan-testing-ui-difficulty.md (WS1 DONE; WS2 — 2a/2b/2c DONE; next: 2d screen chrome [user art], then WS3 difficulty)
 - Live URL: https://nadavw9.github.io/lane-defense/
 
 ## What Was Shipped This Session (most recent first)
+- UI ICON SET (§2c) — **DONE across all screens.** User's 20-icon art arrived as one 4×5
+  montage (`sprite-sources/raw/split/20icons.png`); `scripts/process-ui-icons.mjs` gained a
+  montage-slicer (largest-blob cleanup kills neighbour bleed) → 20×128px transparent PNGs in
+  `public/sprites/ui/`. `UIIcon.uiIcon(name,size,emoji,{flipX,tint,emojiFill})` (emoji glyph
+  fallback; `back` ◀ flips to serve `next` ▶). Swapped emoji→sprites one commit per screen:
+  HUD (trophy/book/hearts), Title (gear/PLAY/daily/trophies/stats/achievements/streak),
+  LevelSelect (star rating/weekly/skull/coin/START), Win/Lose (share/hearts), and the rest
+  (Settings/Shop/Daily/CarManual/CarTypeIntro/Onboarding/HpGuide/HowToPlay/FTUE/Tutorial).
+  `_addPillBtn`/`_addBtn` gained composed [icon][label] support. Deferred as glyphs (noted in
+  playbook §2c): mixed-helper sets (Settings section labels, Pause button), booster legends
+  (need booster sprites, not generic icons), baked-in-string emoji (Stats values, floating
+  text/toasts, Win/Lose stat panels). Batch 1b icon wishlist logged (explosion/snowflake/
+  lightning/car/speaker). Review shots: docs/review/{01-hud,02-title,03a/b-levelselect,
+  04a/b-win/lose,05-settings/shop/daily}.png + ui-icons-sliced.png contact sheet.
 - 5f0b8ac — **UNIFIED WORLD SCENES (user: "amazing").** User generates ONE full-screen scene per world+variant in ChatGPT (9 scenes: 3 worlds × a/b/c); `scripts/process-scenes.mjs` auto-detects the road band + dispatch-zone edge and slices each into 4 palette-unified surfaces: side strips (width-fit + vertical tile — buildings can never be sliced), per-world ROAD TILE (lane dash painted programmatically; world3 = night-blue road), and a dispatch-zone floor rendered as a **3D plane UNDER the bomb spheres** (`Road3D._buildZoneFloor` — key lesson: a Pixi floor occludes the 3D bombs, front canvas covers back). Variants rotate per level (`sceneVariantForLevel`). Bomb tray moved fully below the breach stripe + rim-only slot sockets (filled Pixi shapes would paint over bomb faces). Visual specs upgraded to color-distance car detection (tinted roads). Art-direction rules encoded in `docs/superpowers/plans/ART_BATCH_S_PROMPTS.md`: decor must RECEDE (calm big shapes, muted, ~30% runtime dim), saturation reserved for gameplay, one palette per scene.
 - f647f5f — UI icon pipeline scaffolding (`UIIcon` helper + `scripts/process-ui-icons.mjs`) awaiting Batch-1 icon art (playbook §6).
 - 2ade16c — WS2-2a audit fixes: textured bomb-queue tray, shop denied-tap toast+shake+compact banner, ComboGlow verified WORKING (audit was stale).

@@ -138,10 +138,17 @@ Pipeline (mechanical once art exists):
 (`_drawStar`); a sprite-star upgrade (star-filled) would premium-ify the victory moment
 at identical geometry — not done (needs user OK, touches animated code).
 
-**OPEN QUESTIONS (from §2c):**
-- `_showNoHeartsPanel` (GameApp.js) exists with **no caller** — is the hearts/lives
-  gate planned-but-unwired, or dead code? Decide: wire it into the pre-level path
-  (lives system) or delete it. Icon swap applied either way, so non-blocking.
+**RESOLVED — `_showNoHeartsPanel`:** investigated → ORPHAN, deleted. The whole hearts
+economy was intentionally decommissioned by "FIX 3" (no `loseHeart()` caller, no
+`refill()` caller, HUD `setHearts` is a no-op, LevelSelect `_lives` never read, gate
+removed → "levels are always startable", game-over is now one-breach + ad-continue).
+**Vestigial lives plumbing still present (follow-up cleanup, touches save schema — do
+as its own task with user OK):** `LivesManager` is still `new`'d + `tick()`'d (GameApp
+289-290, 1151) which pointlessly mutates persisted `hearts`/`heartsLastDepleted`;
+`LivesManager.loseHeart/refill/hasHearts/msUntilNext/formatTimeUntilNext` are now all
+dead; `livesManager` is still threaded into LevelSelectScreen as an unused param;
+`ProgressManager` still persists `hearts`/`heartsLastDepleted`. Either fully remove the
+lives system or keep `LivesManager` dormant (stop instantiating/ticking it).
 
 **BATCH 1b — icons to generate for a fully emoji-free game (deferred, low priority):**
 - `explosion` / burst — 💥 goal-counter badge (`GoalCounterUI.js`), Win stat panel.

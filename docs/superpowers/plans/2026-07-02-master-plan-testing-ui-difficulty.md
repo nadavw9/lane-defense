@@ -19,7 +19,7 @@
 - [x] WS1-1d — CI visual-smoke job (non-blocking wk 1) + nightly full sweep (`88dcd76`); flip deploy to `needs: [test, visual-smoke]` after a stable week
 - [x] WS1 exit — break-it demos verified: case-mismatched sprite → audit-assets FAILS; off-palette goal color → audit-level-config FAILS naming L+color; drifted registry constant → layout spec FAILS. Screenshots in docs/review (01-L5/02-L20/03-L2)
 - [x] WS2-2a — DONE (`2ade16c`): tray texture added (black band fixed); ComboGlow VERIFIED WORKING (audit stale — measured edge glow at combo 3, no change needed); shop denied-tap toast+shake, compact banner, floor texture. New `_nav.showShop()` hook. NOTE: audit's FTUE-banner-overlap item still open (route through PopupQueue) — small follow-up.
-- [ ] WS2-2b — widen side strips ~35→60-70px (CityEdges `_roadHW`/`MIN_STRIP_PX` + consumers), verify via harness [USER]
+- [x] WS2-2b — SUPERSEDED by unified world scenes (`5f0b8ac`): user generates ONE full scene per world+variant (9 total, `L{1-9} full.png`); `scripts/process-scenes.mjs` slices each into side panels + road tile (+painted dash) + 3D dispatch floor. Per-world roads live; variants rotate per level; bombs sit in rim sockets over a 3D floor plane (Pixi floor would occlude 3D bombs — lesson recorded). User verdict: "amazing".
 - [ ] WS2-2c — icon set Batch 1: provide prompts to user → process → `UIIcon` helper → swap ~120 emoji [USER generates art]
 - [ ] WS2-2d — screen chrome Batch 2: Title buttons, Win/Lose art, Level-Select city map w/ damage states [USER generates art]
 - [ ] WS2-2e — apply + per-screen screenshot review [USER]

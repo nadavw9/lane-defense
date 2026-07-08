@@ -135,17 +135,14 @@ L2 (2×2), L3 (3×3). Colors: R B G Y P O.
   0.47/3.5). It is NOT one of the 4 VISION bosses, so this is optional flavor — but it currently
   delivers none of its stated identity.
 
-### Structural conflicts for user decision (VISION.md is LOCKED — needs your call)
+### Structural conflicts — RESOLVED (user decision 2026-07-08)
 
-1. **Boss count.** `LevelManager.js`'s header comment lists **7 bosses** (L10,15,20,25,30,35,40);
-   VISION rule "40 Level Design Rules" lists **4** (L10,20,30,40). Recommend: treat **L10/20/30/40
-   as the 4 canonical scripted bosses** (Task 3) and **L15/25/35 as "mini-boss" flavor moments**
-   (named identity, not scripted waves). The table above uses this framing.
-2. **Relief cadence.** VISION says "**every 5th level is a RELIEF level**"; the shipped code uses an
-   **8-block cadence** (relief at each block's slot-5: L5, L13, L21, L29, L37). These disagree at
-   L15/25/35 (VISION wants relief; code ships boss/medium). Recommend adopting the **code's 8-block
-   cadence as canonical** (it's what's tuned + sim-verified) and updating VISION's wording — but
-   **VISION is locked, so this needs your explicit approval** before I touch that file.
+1. **Boss count → 4 canonical + 3 mini.** L10/20/30/40 are the 4 canonical bosses that get
+   scripted-wave designs (§3c below). L15/25/35 stay as named "mini-boss" flavor moments
+   (config identity only, no scripted wave). `LevelManager.js`'s 7-boss header comment should be
+   reworded to match when someone next touches that file (non-urgent).
+2. **Relief cadence → 8-block (VISION updated).** VISION.md rule updated to the shipped 8-block
+   cadence (relief at L5/13/21/29/37). L15/25/35 are explicitly mini-bosses, not relief.
 
 ### §3a Proposed Deltas (current → proposed → why → expected sim effect) — NOT APPLIED
 
@@ -170,6 +167,107 @@ L2 (2×2), L3 (3×3). Colors: R B G Y P O.
   "normalize" them and silently break balance.
 
 ---
+
+## Boss Design — Scripted Waves (WS3 §3c) — executable specs for L10/20/30/40
+
+Written for a Sonnet-class session to implement WITHOUT re-deriving design. VISION rule 5: bosses
+are *designed challenges with a named intended solution the player discovers*, not hp bumps. Each
+boss below states its identity, the exact wave script, the code hooks, and what must NOT change.
+**Every numeric change re-runs `node tools/balance-sim.js --level=<N> --runs=500` before commit;
+the current sim can't model boosters so treat its boss numbers as a floor (FABLE_EXIT_BRIEF §1) —
+final tuning happens after §3b booster modeling lands.** Mini-bosses L15/25/35 are OUT of scope.
+
+### Shared infrastructure these specs need (build once, three small testable changes)
+
+- **INFRA-A — fix the `initialCars` consumer.** `GameLoop._primeInitialCars` (≈L945) currently
+  only places `initialCars` in **lane 0** and ignores `def.lane`/`def.color` (honors only
+  `row`/`type`). To script a per-lane opening board, make it honor `{ lane, row, type, color }`
+  per entry (place into `gs.lanes[def.lane]`, set `car.color = def.color` from `gs.colors`, keep
+  the "no budget decrement" rule). Unit-test: a 4-entry `initialCars` lands one car in each named
+  lane with the named color/type. Needed by: L10, L40 stage-1 seed.
+- **INFRA-B — per-level car-type weights.** `CarTypes.bandWeights(level)` (CarTypes.js:89) already
+  keys on level. Add explicit level branches for boss mixes (e.g. L30 tank-heavy). Pure data, no
+  new plumbing. Needed by: L30.
+- **INFRA-C — `spawnScript` (staged/timed waves).** New optional level field consumed by
+  `CarDirector` BEFORE its `weightedPick` (CarDirector.js:80). Simplest testable form: a
+  **stage table keyed on kill-progress** — `spawnScript: [{ untilPct: 0.33, weights:{bike:…} },
+  { untilPct: 0.66, weights:{truck:…} }, { untilPct: 1.0, weights:{tank:…, bigrig:…} }]`. On each
+  spawn, pick the first stage whose `untilPct ≥ goalProgress/goalTotal` and use its weights instead
+  of `bandWeights`. (An ordered per-car queue also works but the stage table is fewer moving parts
+  and deterministic for the sim.) Needed by: L20 (surge crests), L40 (bike→truck→tank stages).
+
+### L10 — "The Bench Test" (canonical boss · Medium tier · R+B only · 3×17)
+
+- **Identity / intended solution:** Only two colors, but the board is COLOR-CLUSTERED so a column's
+  bomb is frequently the wrong color for the car in front of it → the player must **BENCH** the
+  off-color bomb and wait for a matching row instead of firing it wastefully. Bench (unlocked L6)
+  is the escape; brute-forcing loses to the truck goal.
+- **Wave script (v1, uses INFRA-A only — no new code beyond the fix):** scripted opening board via
+  `initialCars` — lanes 0 & 2 open all-**Blue**, lanes 1 & 3 open all-**Red**, 3 rows each
+  (`[{lane:0,row:0,color:'Blue'},…]` ×12). Ongoing spawns stay weighted (keep the `truck×11` goal —
+  trucks force multi-shot sequences that punish a mis-benched board). Keep `laneTargetCarCount:3`.
+- **What NOT to touch:** must stay **R+B only** (the whole puzzle is the 2-color lock); do not add
+  Green; do not lower density below 3/lane; keep the `destroyType:truck` goal.
+- **Optional v2 (deeper, needs a ShooterDirector per-level bias knob):** make the SHOOTER queue
+  drift toward one color so the lock is in the bomb supply, not just the board — richer but requires
+  a new ShooterDirector hook; ship v1 first, sim-verify, then decide.
+- **Sim band:** Boss-Hard **20–35%** first-attempt after §3b (bench modeling). v1 without bench
+  modeling will read harder than felt — expected.
+
+### L20 — "The Surge" (canonical boss · Hard tier · R+B+G · 3×18)
+
+- **Identity / intended solution:** Relentless spawn CRESTS with brief lulls — the player can't
+  clear steadily; they must **FREEZE** (unlocked L14) on a crest to buy a free turn and reset.
+- **Wave script (INFRA-C):** `spawnScript` pulsing density — e.g. stages that alternate a heavy
+  burst (high per-advance spawn) and a short lull, 3–4 cycles across the level. Concretely: stage
+  weights don't change *type* much (keep R+B+G bikes/sedans/vans) — the surge is about **rate**, so
+  the stage table modulates spawn COUNT per advance (crest = 2–3 cars/advance, lull = 0–1). Keep
+  `laneTargetCarCount:3`, `spawnBudget:18`.
+- **What NOT to touch:** keep 3 colors (adding a 4th changes the identity); the challenge is
+  *timing a freeze*, not color load. Don't raise base speed into reflex territory — L20 is pressure-
+  management, L35 is the reflex level.
+- **Sim band:** Boss-Hard **20–35%** after freeze modeling (§3b). Freeze is the designed escape;
+  without it modeled the sim under-reports.
+
+### L30 — "Industrial Finale" (canonical boss · Medium tier · 5-color · 3×20)
+
+- **Identity / intended solution:** **Tank-heavy** — tanks are high-HP, so the player must plan
+  **multi-shot sequences** (streak-shot for double damage, color-bomb to clear a locked color, bench
+  to hold the right bomb). Its "~40% tanks" design intent is currently a COMMENT NOT IN CONFIG (flag
+  above) — this spec realizes it.
+- **Wave script (INFRA-B, pure data):** add an L30 branch to `CarTypes.bandWeights` raising tank
+  weight to ≈40% of spawns (from the band default), with the remainder bigrig/truck/van so the board
+  is genuinely heavy. Keep the 5-color palette and `destroyType:bigrig×1 + Purple×5` goal.
+- **What NOT to touch:** do NOT raise `speed.base` (currently 4.0) — tanks + speed is unfair; the
+  designed challenge is *planning under weight*, not reaction. Keep 5 colors (Purple is the newest;
+  overload is part of it).
+- **Sim band:** Boss-Hard **20–35%**. Tank weight will raise effective difficulty vs today's shared
+  `R_5C_MED`; sim-verify the weight number, don't guess-and-ship.
+
+### L40 — "Grandmaster Finale" (canonical boss · Boss-Hard · 6-color · 3×24 · 120s)
+
+- **Identity / intended solution:** A staged gauntlet that forces EVERY mechanic in sequence — the
+  finale. Named solution: color-cycle the bike swarm, bench+streak the truck wall, color-bomb+freeze
+  the tank/bigrig pincer.
+- **Wave script (INFRA-C, 3 stages keyed on goal-progress):**
+  - **Stage 1 (0–33%) — Bike Swarm:** weights heavy on `bike` (fast, low HP). Tests reflex + rapid
+    color cycling. (Optionally seed the opening board with bikes via INFRA-A.)
+  - **Stage 2 (33–66%) — Truck Wall:** weights heavy on `truck`/`van` (mid HP). Tests bench + streak
+    double-damage.
+  - **Stage 3 (66–100%) — Tank+BigRig Pincer:** weights heavy on `tank`+`bigrig` (high HP). Tests
+    color-bomb (clear locked color) + freeze (survive the crest).
+- **What NOT to touch:** keep `duration:120` (the gauntlet needs the runway), all **6 colors**, and
+  the multi-goal shape. Don't flatten the stages into a uniform mix — the *sequence* is the design.
+- **Sim band:** Boss-Hard **20–35%** after §3b. The staged difficulty ramps within the level, so
+  watch the sim's *loss timing* (should skew to stage 3), not just the win-rate.
+
+### Boss implementation order (for the executing session)
+
+1. Build **INFRA-A/B/C** with unit tests first (director/game layer — has 1062-test coverage; add
+   matching tests). 2. **L30** (INFRA-B only, pure data — smallest, validates the pipeline).
+   3. **L10** (INFRA-A scripted board). 4. **L20** then **L40** (INFRA-C staged waves).
+   After each: `--runs=500` for that level, confirm the band, screenshot L10/20/30/40 boards, commit
+   one boss per commit. Do NOT batch all four into one commit — bisection matters if a band regresses.
 
 ## Feature Introduction Rules
 

@@ -54,7 +54,10 @@ NOT an HP bar. Communicates spatial urgency only.
 ## The 40 Level Design Rules
 - L10, L20, L30, L40 are BOSS LEVELS — designed with a specific intended
   solution the player discovers, not just harder numbers
-- Every 5th level is a RELIEF level (easier than the one before it)
+- Each 8-level block has a RELIEF level at its 5th slot — L5, L13, L21, L29, L37 —
+  easier than the level before it. (Shipped 8-block cadence, user-approved 2026-07-08;
+  supersedes the earlier "every 5th level" wording. L15/25/35 are mini-boss flavor
+  moments, not relief. See the canonical table in GAME_DESIGN.md.)
 - Booster unlock levels are always EASIER than the level before them
 - No level is designed by numerical ramp alone — each has a named
   design goal (see Level Master Table in GAME_DESIGN.md)

@@ -6,8 +6,8 @@
 //   • Animated colorful cars zooming across the screen
 //   • Large green PLAY button
 //   • Secondary buttons in pastel colors
-import { Container, Graphics, Text, Sprite, Assets } from 'pixi.js';
-import { uiIcon } from '../renderer/UIIcon.js';
+import { Container, Graphics, Text, Sprite, Assets, Rectangle } from 'pixi.js';
+import { uiIcon, uiPlate } from '../renderer/UIIcon.js';
 
 const CAR_COLORS  = [0xE24B4A, 0x378ADD, 0x639922, 0xEF9F27, 0x7F77DD, 0xD85A30];
 const SKY_TOP     = 0x4FC3F7;   // light sky blue
@@ -161,18 +161,22 @@ export class TitleScreen {
     this._playPulse   = 0;
 
     const btn  = new Graphics();
-    // Outer glow/shadow
-    btn.roundRect(-btnW / 2 + 3, 3, btnW, btnH, 24);
-    btn.fill({ color: 0x1B5E20, alpha: 0.6 });
-    // Button body
-    btn.roundRect(-btnW / 2, 0, btnW, btnH, 24);
-    btn.fill(0x43A047);
-    // Highlight stripe
-    btn.roundRect(-btnW / 2 + 6, 4, btnW - 12, btnH / 2 - 4, 18);
-    btn.fill({ color: 0xFFFFFF, alpha: 0.18 });
-    // Border
-    btn.roundRect(-btnW / 2, 0, btnW, btnH, 24);
-    btn.stroke({ color: 0x81C784, width: 3, alpha: 0.9 });
+    // 9-slice green plate (art), with the procedural roundRects as fallback.
+    const playPlate = uiPlate('button-primary', btnW, btnH);
+    if (playPlate) {
+      playPlate.x = -btnW / 2; playPlate.y = 0;
+      btn.addChild(playPlate);
+      btn.hitArea = new Rectangle(-btnW / 2, 0, btnW, btnH);
+    } else {
+      btn.roundRect(-btnW / 2 + 3, 3, btnW, btnH, 24);
+      btn.fill({ color: 0x1B5E20, alpha: 0.6 });
+      btn.roundRect(-btnW / 2, 0, btnW, btnH, 24);
+      btn.fill(0x43A047);
+      btn.roundRect(-btnW / 2 + 6, 4, btnW - 12, btnH / 2 - 4, 18);
+      btn.fill({ color: 0xFFFFFF, alpha: 0.18 });
+      btn.roundRect(-btnW / 2, 0, btnW, btnH, 24);
+      btn.stroke({ color: 0x81C784, width: 3, alpha: 0.9 });
+    }
     btn.x = btnCX; btn.y = btnCY;
     btn.eventMode = 'static'; btn.cursor = 'pointer';
     btn.on('pointerdown', () => { audio?.play('button_tap'); onPlay(); });
@@ -398,10 +402,18 @@ export class TitleScreen {
   _addPillBtn(cx, cy, label, bgColor, labelColor, onClick, btnW = 200, icon = null) {
     const btnH = 40;
     const btn  = new Graphics();
-    btn.roundRect(-btnW / 2, -btnH / 2, btnW, btnH, 20);
-    btn.fill(bgColor);
-    btn.roundRect(-btnW / 2, -btnH / 2, btnW, btnH, 20);
-    btn.stroke({ color: 0xFFFFFF, width: 1.5, alpha: 0.4 });
+    // 9-slice slate plate (art); Graphics roundRect is the fallback.
+    const plate = uiPlate('button-secondary', btnW, btnH);
+    if (plate) {
+      plate.x = -btnW / 2; plate.y = -btnH / 2;
+      btn.addChild(plate);
+      btn.hitArea = new Rectangle(-btnW / 2, -btnH / 2, btnW, btnH);
+    } else {
+      btn.roundRect(-btnW / 2, -btnH / 2, btnW, btnH, 20);
+      btn.fill(bgColor);
+      btn.roundRect(-btnW / 2, -btnH / 2, btnW, btnH, 20);
+      btn.stroke({ color: 0xFFFFFF, width: 1.5, alpha: 0.4 });
+    }
     btn.x = cx; btn.y = cy;
     btn.eventMode = 'static'; btn.cursor = 'pointer';
     btn.on('pointerdown', onClick);

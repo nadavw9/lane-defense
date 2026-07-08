@@ -158,13 +158,16 @@ fields is a ProgressManager SAVE-SCHEMA change; WS3e adds `cityState` to the SAM
 Land BOTH in ONE migration (single version bump + one migration function), not two — so
 existing players' saves are upgraded once. Do NOT delete the hearts fields in isolation.
 
-**BATCH 1b — icons to generate for a fully emoji-free game (deferred, low priority):**
-- `explosion` / burst — 💥 goal-counter badge (`GoalCounterUI.js`), Win stat panel.
-- `snowflake` — ❄ FROZEN pill (`HUDRenderer.js`), freeze booster legend/theming.
-- `lightning` — ⚡ CHALLENGE (Title), BEST MULTI-KILL (Win).
-- `car` — 🚗 Cars-Destroyed (Lose), 🚗 help glyphs.
-- `speaker` / `controls` / `accessibility` — 🔊/🕹/♿ Settings section labels.
-- (optional) `calendar` 📅, `sparkle` ✦, dedicated `next` ▶ if flipping `back` reads wrong.
+**BATCH 1b — DONE** (`f59abea`): explosion/snowflake/lightning/car/speaker sliced +
+wired; 💥/❄/⚡/🚗/🔊 swapped, Win/Lose stat panels completed. Still glyph (need new
+icons — call it Batch 1c): `🕹` CONTROLS + `♿` ACCESSIBILITY (Settings labels),
+`❓` help button, `📅` calendar, `✦` sparkle.
+
+**BATCH 2b — amber button plate (deferred):** the plate set is green (primary) + slate
+(secondary); `DAILY REWARD!` is currently slate-plated and lost its amber. Generate
+`button-daily.png` (amber/gold plate, 1024×512, 9-slice source, same shape as the others)
+→ swap DAILY in TitleScreen `_addPillBtn` (pass the plate name). Until then DAILY reads
+slate. `uiPlate()` helper + the 9-slice wiring are already live.
 
 ### 2d. Screen chrome — Batch 2 art (needs user generation, prompts in §6)
 - Title buttons: 9-slice glossy button plate (green primary + slate secondary) → replace

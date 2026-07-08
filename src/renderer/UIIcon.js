@@ -3,7 +3,7 @@
 // preloaded via UI_ICON_URLS in assetManifest.js), or a centered Text fallback
 // showing the emoji when the texture hasn't loaded — a missing icon never
 // blocks a screen.
-import { Sprite, Text, Assets } from 'pixi.js';
+import { Sprite, Text, Assets, NineSliceSprite } from 'pixi.js';
 
 const _B = import.meta.env.BASE_URL;
 function iconUrl(name) { return `${_B}sprites/ui/icon-${name}.png`; }
@@ -34,6 +34,20 @@ export function uiIcon(name, size, fallbackEmoji, opts = {}) {
   });
   tx.anchor.set(0.5);
   return tx;
+}
+
+// uiPlate(name, w, h) — a 9-slice button plate (public/sprites/ui/<name>.png,
+// preloaded via BUTTON_PLATE_URLS). Corner insets are clamped to the target
+// height/width so a short 40px pill never overlaps its own corners. Returns null
+// when the texture isn't loaded, so callers keep their Graphics fallback.
+export function uiPlate(name, w, h) {
+  const tex = Assets.get(`${_B}sprites/ui/${name}.png`);
+  if (!tex) return null;
+  const lw = Math.max(6, Math.min(58, Math.round(w * 0.4)));
+  const th = Math.max(6, Math.min(Math.round(tex.height * 0.42), Math.round(h * 0.46)));
+  const ns = new NineSliceSprite({ texture: tex, leftWidth: lw, rightWidth: lw, topHeight: th, bottomHeight: th });
+  ns.width = w; ns.height = h;
+  return ns;
 }
 
 // boosterIcon(name, size, fallbackEmoji) — same contract as uiIcon but for the

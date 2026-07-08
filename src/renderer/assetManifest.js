@@ -133,11 +133,15 @@ export const UI_ICON_NAMES = [
 ];
 export const UI_ICON_URLS = UI_ICON_NAMES.map(n => `${_B}sprites/ui/icon-${n}.png`);
 
+// Batch 2 chrome — 9-slice button plates (green primary + slate secondary).
+// Non-critical; TitleScreen keeps its Graphics fallback if a plate 404s.
+export const BUTTON_PLATE_URLS = ['button-primary', 'button-secondary'].map(n => `${_B}sprites/ui/${n}.png`);
+
 export const ALL_SPRITE_URLS = [
   ...CAR_URLS, ...SHOOTER_URLS, ...POWERBALL_URLS, ...BUILDING_URLS, ...TREE_URLS,
   ...ENV_URLS, ...BOOSTER_URLS, ...TUTORIAL_URLS, ...TITLE_ART_URLS, ...WORLD_PANEL_URLS,
   ...STRIP_PANEL_URLS, ...SCENE_STRIP_URLS, ...ZONE_FLOOR_URLS, ...UI_ICON_URLS,
-  ...Object.values(WORLD_ROAD_URLS),
+  ...BUTTON_PLATE_URLS, ...Object.values(WORLD_ROAD_URLS),
 ];
 
 // Critical sprites gate spriteFlags.loaded — gameplay must have its car icons,

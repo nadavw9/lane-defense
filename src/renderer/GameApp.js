@@ -2167,6 +2167,7 @@ async function main() {
       showPreLevel: (n) => { _dbgCleanAll(); _showPreLevel(n); },
       showRescue:   () => { showRescue(); },
       showShop:     () => { showShop(); },
+      showTitle:    () => { showTitle(); },
       showSettings: () => { showSettings(() => showTitle()); },
       showDaily:    () => { showDailyReward(); },
       showStats:    () => { showStats(); },

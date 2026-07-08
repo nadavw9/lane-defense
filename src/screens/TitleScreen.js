@@ -22,16 +22,17 @@ const CAR_HEX = { red: 0xE24B4A, blue: 0x378ADD, green: 0x639922,
                   orange: 0xD85A30, purple: 0x7F77DD, yellow: 0xEF9F27 };
 
 // Build a car as a real sprite (preloaded), sized to a target on-screen HEIGHT and
-// facing rightward (direction of travel). The source art is a top-down car facing UP
-// (95×122), so we rotate +90° clockwise to face east; after that rotation the texture
-// WIDTH maps to the on-screen height. Falls back to a proportioned rectangle.
-const CAR_ASPECT = 122 / 95;   // length / height after the +90° rotation
+// facing rightward (direction of travel — the intro car drives left→right toward the
+// bomb). The source art is a top-down car facing DOWN (95×122), so we rotate -90°
+// (counter-clockwise) to face EAST; after that rotation the texture WIDTH maps to the
+// on-screen height. Falls back to a proportioned rectangle.
+const CAR_ASPECT = 122 / 95;   // length / height after the ±90° rotation
 function makeCarSprite(color, targetH = 22) {
   const tex = Assets.get(`${BASE_URL}sprites/cars/car-${color}.png`);
   if (tex) {
     const spr = new Sprite(tex);
     spr.anchor.set(0.5, 0.5);
-    spr.rotation = Math.PI / 2;           // up-facing car → faces right
+    spr.rotation = -Math.PI / 2;          // down-facing art → faces right (travel dir)
     spr.scale.set(targetH / tex.width);   // texture width becomes on-screen height
     return spr;
   }

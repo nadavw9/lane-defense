@@ -42,6 +42,12 @@ async function run() {
       // already on title after boot
       await wait(1500);
       break;
+    case 'titleintro':
+      // Re-mount the title to replay the one-shot bomb-drop intro, then grab a
+      // frame while the car is still on screen (wait 0.35s + fall 0.55s ≈ 0.9s).
+      await page.evaluate(() => window._nav?.showTitle());
+      await wait(500);
+      break;
     case 'levelselect':
       await page.evaluate(() => window._nav?.showLevelSelect());
       await wait(1800);

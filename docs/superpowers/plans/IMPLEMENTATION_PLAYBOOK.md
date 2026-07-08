@@ -300,6 +300,28 @@ add it to CarDirector as an ordered queue consumed before weighted picks (small,
 - `win-stars.png`: three golden stars trio, middle one larger and forward, 1024×512.
 - `lose-frame.png`: cracked dark-bronze frame border with warm edge light, open center, 1024×1024.
 
+**Batch 1c — remaining glyph icons** (same STYLE PREFIX + format as Batch 1: single
+object, PLAIN WHITE bg, 1024×1024; save individual files `sprite-sources/raw/split/icon-<name>.png`;
+the slicer's per-file path auto-handles them — add each name to `EXTRA_ICON_NAMES` in
+`scripts/process-ui-icons.mjs` + `UI_ICON_NAMES` in assetManifest.js, then swap the glyph):
+
+| file | prompt after prefix | replaces |
+|---|---|---|
+| `icon-controls.png` | glossy retro arcade joystick, red ball top on a chunky base, slight 3D | 🕹 Settings CONTROLS label |
+| `icon-accessibility.png` | rounded blue circle badge with a simple white universal-access person symbol, glossy | ♿ Settings ACCESSIBILITY label |
+| `icon-help.png` | glossy round blue button with a bold white question mark, soft bevel | ❓ how-to-play goal-bar button |
+| `icon-calendar.png` | small glossy tear-off calendar page, red header band, one white body, chunky | 📅 Daily Reward (Title, no-reward variant) |
+| `icon-sparkle.png` | a single four-point sparkle/twinkle, pale gold with a bright core, glossy | ✦ BoosterSpotlight "TAP TO TRY!" |
+
+**Batch 2b — amber DAILY button plate** (same format/aspect as the Batch-2 plates so
+`uiPlate()` handles it unchanged; 9-slice source):
+- `button-daily.png`: wide rounded-rectangle button plate, warm AMBER/GOLD with a darker
+  amber bevel edge and a glass top highlight, EMPTY (no label), landscape 1024×512, plain
+  white background. Same silhouette + corner radius as `button-primary.png`.
+  → wire: in `TitleScreen._addPillBtn`, pass a plate name so the DAILY-reward button uses
+  `button-daily` (add a `plate` arg defaulting to `'button-secondary'`; DAILY passes
+  `'button-daily'` when `hasDailyReward`). Restores DAILY's amber (currently slate-plated).
+
 **Batch R — per-world ROAD TILES (unblocks continuous-scene Part 2 — code already wired):**
 
 ⚠️ NOT a full road with markings. Road3D tiles the texture at ONE LANE per tile

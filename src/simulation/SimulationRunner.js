@@ -36,11 +36,15 @@ const DT = 1 / 60; // seconds per simulation tick (used for fire cooldowns only)
 // cycleDelay: seconds between column-cycle actions per column.
 // Optimal cycles almost instantly (0.1s); real players decide once every few seconds.
 // A higher delay means the player sits on a bad color longer → more wasted fire windows.
+// boosterIQ: probability the sim capitalizes on an AVAILABLE booster/streak this
+// turn (WS3 §3b booster-aware modeling). optimal = 0 → boosters OFF, preserving the
+// original perfect-play baseline exactly. All booster logic below is gated on
+// `boosterIQ > 0`, so the optimal profile is byte-for-byte unchanged.
 const SKILL_PROFILES = {
-  optimal:  { accuracy: 1.00, useCycle: true,  cycleDelay: 0.10 },
-  beginner: { accuracy: 0.60, useCycle: false, cycleDelay: 0    },
-  average:  { accuracy: 0.82, useCycle: true,  cycleDelay: 3.0  },
-  skilled:  { accuracy: 0.93, useCycle: true,  cycleDelay: 0.75 },
+  optimal:  { accuracy: 1.00, useCycle: true,  cycleDelay: 0.10, boosterIQ: 0.00 },
+  beginner: { accuracy: 0.60, useCycle: false, cycleDelay: 0,    boosterIQ: 0.30 },
+  average:  { accuracy: 0.82, useCycle: true,  cycleDelay: 3.0,  boosterIQ: 0.70 },
+  skilled:  { accuracy: 0.93, useCycle: true,  cycleDelay: 0.75, boosterIQ: 0.95 },
 };
 
 // Wraps FairnessArbiter to count the fraction of checks that required a fix.
@@ -160,6 +164,18 @@ export class SimulationRunner {
     let lastKillTime    = -Infinity;
     let lostAt          = null;
 
+    // ── Booster / streak modeling (WS3 §3b) — all gated on boosterIQ > 0 ────────
+    // Earn rules mirror the shipped game; USE is probabilistic per boosterIQ so a
+    // higher-skill profile capitalizes on available boosters more often.
+    const boosterIQ        = profile.boosterIQ ?? 0;
+    let   streakCount      = 0;       // consecutive correct SHOTS (VISION streak = 3 in a row)
+    let   powerReady       = false;   // a double-damage power shot is banked
+    let   freezeCharges    = 0;       // earned 3-kill chain → +1, cap 2
+    let   freezeSkips      = 0;       // pending advance-skips from an activated freeze
+    let   bombCharges      = 0;       // earned +1 per 10 kills, cap 3
+    let   nextBombKill     = 10;
+    let   colorChangeCharges = 0;     // earned ~per 2 consecutive multi-kills, cap 2
+
     // ── Level goals (mirrors GameState.applyKillToGoals / isGoalMet) ──────────
     const goals        = this._cfg.goals ?? [];
     const hasGoals     = goals.length > 0;
@@ -242,6 +258,9 @@ export class SimulationRunner {
     // ONE correct shot → advance ALL cars 1 row, breach-check, refill. Per shot.
     const _advanceOneRow = (phase) => {
       totalAdvances++;
+      // FREEZE: an activated freeze skips this advance entirely — cars don't move
+      // forward, no breach, no refill (mirrors "your next shot is free, no cars advance").
+      if (freezeSkips > 0) { freezeSkips--; return; }
       for (const lane of discreteLanes) for (const car of lane.cars) car.row++;
       if (discreteLanes.some(l => l.cars.length > 0 && l.cars[0].row >= BREACH_ROW)) {
         lostAt = totalAdvances;   // marker (shot index), not a wall-clock time
@@ -283,6 +302,53 @@ export class SimulationRunner {
 
       shooterDir.fillColumns(columns, gameState, phaseParams);
 
+      // ── Booster USE (WS3 §3b; skill-gated — optimal boosterIQ 0 skips all of this) ──
+      if (boosterIQ > 0) {
+        // FREEZE — a front car within 3 rows of breach → activate to skip the next advance.
+        if (freezeCharges > 0
+            && discreteLanes.some(l => l.cars.length > 0 && l.cars[0].row >= this._cfg.gridRows - 3)
+            && rng.next() < boosterIQ) {
+          freezeCharges--; freezeSkips++;
+        }
+        // BOMB — a single row shared by ≥3 cars (across lanes) → clear that whole row.
+        if (bombCharges > 0) {
+          const rowCounts = new Map();
+          for (const l of discreteLanes) for (const c of l.cars) rowCounts.set(c.row, (rowCounts.get(c.row) ?? 0) + 1);
+          let bestRow = -1, bestN = 0;
+          for (const [row, n] of rowCounts) if (n > bestN) { bestN = n; bestRow = row; }
+          if (bestN >= 3 && rng.next() < boosterIQ) {
+            bombCharges--;
+            for (const l of discreteLanes) {
+              for (let i = l.cars.length - 1; i >= 0; i--) {
+                if (l.cars[i].row === bestRow) {
+                  const car = l.cars[i];
+                  l.cars.splice(i, 1);
+                  carsKilled++;
+                  applyKillToGoals(car.color, car.type);
+                }
+              }
+            }
+          }
+        }
+        // COLOR CHANGE — ≥3 front cars share a colour that no column can currently
+        // match → recolour those front cars to an available bomb colour (unlocks them).
+        if (colorChangeCharges > 0) {
+          const avail = new Set(columns.map(c => c.top()?.color).filter(Boolean));
+          const frontCounts = new Map();
+          for (const l of discreteLanes) if (l.cars.length > 0) {
+            const col = l.cars[0].color;
+            frontCounts.set(col, (frontCounts.get(col) ?? 0) + 1);
+          }
+          let lockColor = null;
+          for (const [col, n] of frontCounts) if (n >= 3 && !avail.has(col)) { lockColor = col; break; }
+          if (lockColor && avail.size > 0 && rng.next() < boosterIQ) {
+            colorChangeCharges--;
+            const target = [...avail][0];
+            for (const l of discreteLanes) if (l.cars.length > 0 && l.cars[0].color === lockColor) l.cars[0].color = target;
+          }
+        }
+      }
+
       const urgentLanes = discreteLanes
         .filter(l => l.cars.length > 0)
         .sort((a, b) => b.cars[0].row - a.cars[0].row);
@@ -300,12 +366,19 @@ export class SimulationRunner {
         shooterDir.recordDeploy(elapsed);
         columns[col].consume();
         if (this._cfg.onShot) this._cfg.onShot(isCorrect);  // tuning hook (per fired bomb)
-        if (!isCorrect) return;
+        if (!isCorrect) { streakCount = 0; powerReady = false; return; }  // wrong shot breaks the streak
         correctShots++;
         didFire = true;
+        streakCount++;
         if (lane.cars.length > 0) {
           const car = lane.cars[0];
-          car.hp -= s.damage;
+          let dmg = s.damage;
+          // STREAK power shot: 3 correct in a row banks a double-damage shot; a
+          // higher-skill profile is more likely to cash it in (boosterIQ roll).
+          if (boosterIQ > 0 && powerReady && rng.next() < boosterIQ) {
+            dmg *= 2; powerReady = false; streakCount = 0;
+          }
+          car.hp -= dmg;
           if (car.hp <= 0) {
             lane.cars.shift();
             carsKilled++;
@@ -313,8 +386,15 @@ export class SimulationRunner {
             currentCombo = (totalAdvances - lastKillTime <= COMBO_WINDOW) ? currentCombo + 1 : 1;
             lastKillTime = totalAdvances;
             if (currentCombo > maxCombo) maxCombo = currentCombo;
+            // ── Booster EARN (skill-gated; mirrors shipped earn rules) ──────────
+            if (boosterIQ > 0) {
+              if (currentCombo % 3 === 0 && freezeCharges < 2) freezeCharges++;               // 3-kill chain → freeze
+              if (carsKilled >= nextBombKill && bombCharges < 3) { bombCharges++; nextBombKill += 10; }  // 10 kills → bomb
+              if (currentCombo % 4 === 0 && colorChangeCharges < 2) colorChangeCharges++;      // ~2 consecutive multi-kills → color change
+            }
           }
         }
+        if (boosterIQ > 0 && streakCount >= 3) powerReady = true;   // bank the power shot
         _advanceOneRow(phase);
       };
 

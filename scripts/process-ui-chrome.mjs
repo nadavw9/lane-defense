@@ -29,6 +29,10 @@ for (const name of CHROME) {
   const push = (x, y) => { if (x >= 0 && x < W && y >= 0 && y < H && !visited[y * W + x]) { visited[y * W + x] = 1; stack.push(x, y); } };
   for (let x = 0; x < W; x++) { push(x, 0); push(x, H - 1); }
   for (let y = 0; y < H; y++) { push(0, y); push(W - 1, y); }
+  // Also seed the centre: a frame (e.g. lose-frame) encloses a white "open centre"
+  // unreachable from the edges — seed it so the interior goes transparent too.
+  // Harmless for solid-centre art (the isWhite test stops at the first opaque pixel).
+  push(Math.floor(W / 2), Math.floor(H / 2));
   while (stack.length) {
     const y = stack.pop(), x = stack.pop();
     const p = (y * W + x) * ch;

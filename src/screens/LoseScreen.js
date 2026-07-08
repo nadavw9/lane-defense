@@ -4,8 +4,10 @@
 //   • Stats panel: Cars Destroyed, Time Survived, Accuracy
 //   • Near-miss detection: if timer was >80% used, show "SO CLOSE!"
 //   • Hearts display: shows remaining lives
-import { Container, Graphics, Text } from 'pixi.js';
+import { Container, Graphics, Text, Sprite, Assets } from 'pixi.js';
 import { uiIcon } from '../renderer/UIIcon.js';
+
+const _B = import.meta.env.BASE_URL;
 import { ROAD_BOTTOM_Y } from '../renderer/LaneRenderer.js';
 
 export class LoseScreen {
@@ -111,6 +113,17 @@ export class LoseScreen {
     panel.roundRect(px, py, panelW, panelH, 18);
     panel.stroke({ color: 0xdd2222, width: 2, alpha: 0.60 });
     this._panelGroup.addChild(panel);
+
+    // Ornamental bronze frame bordering the panel (additive; open centre shows
+    // the panel content). Slides up with the panel group.
+    const frameTex = Assets.get(`${_B}sprites/ui/lose-frame.png`);
+    if (frameTex) {
+      const frame = new Sprite(frameTex);
+      frame.anchor.set(0.5);
+      frame.width = panelW + 34; frame.height = panelH + 34;
+      frame.x = px + panelW / 2; frame.y = py + panelH / 2;
+      this._panelGroup.addChild(frame);
+    }
 
     let cy = py + 44;
 

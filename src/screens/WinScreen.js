@@ -8,8 +8,10 @@
 //   • "PERFECT DEFENSE!" header on 3-star clean win
 //   • 1.5s button lock prevents accidental dismissal during outro animations
 //   • NEXT LEVEL button gently pulses once active to invite the tap
-import { Container, Graphics, Text } from 'pixi.js';
+import { Container, Graphics, Text, Sprite, Assets } from 'pixi.js';
 import { uiIcon } from '../renderer/UIIcon.js';
+
+const _B = import.meta.env.BASE_URL;
 
 const STAR_COLOR_FULL  = 0xffcc00;
 const STAR_COLOR_EMPTY = 0x3a3a3a;
@@ -350,6 +352,18 @@ export class WinScreen {
     const px = (w - panelW) / 2;
     const py = (h - panelH) / 2 - 36;
     const cx = w / 2;
+
+    // Celebration burst BEHIND the panel — radial rays + confetti frame the modal
+    // (additive art; transparent open centre sits behind the opaque panel).
+    const burstTex = Assets.get(`${_B}sprites/ui/win-burst.png`);
+    if (burstTex) {
+      const burst = new Sprite(burstTex);
+      burst.anchor.set(0.5);
+      burst.scale.set((panelH + 150) / burstTex.height);
+      burst.x = cx; burst.y = py + panelH / 2;
+      burst.alpha = 0.92;
+      this._container.addChild(burst);
+    }
 
     const panel = new Graphics();
     panel.roundRect(px, py, panelW, panelH, 20);

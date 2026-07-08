@@ -28,7 +28,10 @@ const CAR_HEX = { red: 0xE24B4A, blue: 0x378ADD, green: 0x639922,
 // on-screen height. Falls back to a proportioned rectangle.
 const CAR_ASPECT = 122 / 95;   // length / height after the ±90° rotation
 function makeCarSprite(color, targetH = 22) {
-  const tex = Assets.get(`${BASE_URL}sprites/cars/car-${color}.png`);
+  // Prefer the cleaner designed/ '-processed' car (glossier, clean cut); fall back
+  // to the rough cars/ sprite if that colour's processed variant isn't loaded.
+  const tex = Assets.get(`${BASE_URL}sprites/designed/car-${color}-processed.png`)
+           ?? Assets.get(`${BASE_URL}sprites/cars/car-${color}.png`);
   if (tex) {
     const spr = new Sprite(tex);
     spr.anchor.set(0.5, 0.5);
@@ -275,7 +278,7 @@ export class TitleScreen {
     const carY = h * 0.455;   // mid-screen, below the title, above the PLAY button
 
     // The car the bomb will hit — drives in toward the impact point (larger focal car).
-    const car = makeCarSprite('blue', 34);
+    const car = makeCarSprite('blue', 40);
     car.x = w * 0.26; car.y = carY;
     this._container.addChild(car);
 

@@ -49,6 +49,10 @@ export function worldPanelForLevel(levelId) {
   return 'world3';
 }
 
+// Cleaned-up top-down car used on the TITLE intro (the cars/ set has rough edges;
+// the designed/ '-processed' variant is glossier with a clean cut).
+export const TITLE_INTRO_CAR_URL = `${_B}sprites/designed/car-blue-processed.png`;
+
 export const TREE_URLS = ['oak', 'elm', 'pine'].map(t => `${_B}sprites/designed/tree-${t}-topdown.png`);
 
 export const ENV_URLS = [
@@ -146,7 +150,7 @@ export const ALL_SPRITE_URLS = [
   ...CAR_URLS, ...SHOOTER_URLS, ...POWERBALL_URLS, ...BUILDING_URLS, ...TREE_URLS,
   ...ENV_URLS, ...BOOSTER_URLS, ...TUTORIAL_URLS, ...TITLE_ART_URLS, ...WORLD_PANEL_URLS,
   ...STRIP_PANEL_URLS, ...SCENE_STRIP_URLS, ...ZONE_FLOOR_URLS, ...UI_ICON_URLS,
-  ...BUTTON_PLATE_URLS, ...FRAME_URLS, ...Object.values(WORLD_ROAD_URLS),
+  ...BUTTON_PLATE_URLS, ...FRAME_URLS, TITLE_INTRO_CAR_URL, ...Object.values(WORLD_ROAD_URLS),
 ];
 
 // Critical sprites gate spriteFlags.loaded — gameplay must have its car icons,

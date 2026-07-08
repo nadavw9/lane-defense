@@ -128,6 +128,8 @@ export const UI_ICON_NAMES = [
   'star-filled', 'star-empty', 'play', 'back', 'heart', 'coin', 'gear',
   'trophy', 'book', 'share', 'chart', 'gift', 'fire', 'timer', 'target',
   'check', 'close', 'shield', 'skull', 'hand',
+  // Batch 1b
+  'explosion', 'snowflake', 'lightning', 'car', 'speaker',
 ];
 export const UI_ICON_URLS = UI_ICON_NAMES.map(n => `${_B}sprites/ui/icon-${n}.png`);
 

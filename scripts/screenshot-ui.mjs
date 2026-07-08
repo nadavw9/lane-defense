@@ -91,6 +91,12 @@ async function run() {
       await page.evaluate(() => window._nav?.showPreLevel(6));
       await wait(1500);
       break;
+    case 'frozen':
+      await page.evaluate(() => window._nav?.startLevel(5));
+      await wait(3000);
+      await page.evaluate(() => { window._nav?.setBoosters(0, 3, 0); window._nav?.activateFreeze(); });
+      await wait(600);
+      break;
     case 'settings':
       await page.evaluate(() => window._nav?.showSettings());
       await wait(1500);

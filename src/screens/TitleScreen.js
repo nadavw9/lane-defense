@@ -225,8 +225,9 @@ export class TitleScreen {
 
     // 2×2 grid — Row 1: CHALLENGE | TROPHIES
     if (onDailyChallenge) {
-      this._addPillBtn(CX - BTN_W2 / 2 - GAP / 2, rowY, '⚡ CHALLENGE',
-        SEC_BG, SEC_TXT, () => { audio?.play('button_tap'); onDailyChallenge(); }, BTN_W2);
+      this._addPillBtn(CX - BTN_W2 / 2 - GAP / 2, rowY, 'CHALLENGE',
+        SEC_BG, SEC_TXT, () => { audio?.play('button_tap'); onDailyChallenge(); }, BTN_W2,
+        { name: 'lightning', emoji: '⚡' });
     }
     if (onAchievements) {
       this._addPillBtn(CX + BTN_W2 / 2 + GAP / 2, rowY, 'TROPHIES',

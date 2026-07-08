@@ -7,6 +7,7 @@
 // Layout: horizontal row(s), centered below the top HUD badge/pause-button row.
 
 import { Container, Graphics, Text, Sprite, Assets, Texture } from 'pixi.js';
+import { uiIcon } from './UIIcon.js';
 
 const _B = import.meta.env.BASE_URL;
 
@@ -246,13 +247,7 @@ export class GoalCounterUI {
   }
 
   _buildBurstIcon() {
-    // Explosion glyph using Text emoji
-    const txt = new Text({
-      text: '💥',
-      style: { fontSize: 30 },
-    });
-    txt.anchor.set(0.5, 0.5);
-    return txt;
+    return uiIcon('explosion', 32, '💥');   // sprite (glyph fallback)
   }
 
   _buildColorCircle(color) {
@@ -280,13 +275,8 @@ export class GoalCounterUI {
 
     const spriteKey = spriteMap[carType];
     if (!spriteKey) {
-      // Fallback to text glyph
-      const txt = new Text({
-        text: carType === 'truck' || carType === 'bigrig' ? '🚚' : '🚗',
-        style: { fontSize: 26 },
-      });
-      txt.anchor.set(0.5, 0.5);
-      return txt;
+      // Fallback to the car icon (glyph fallback inside uiIcon)
+      return uiIcon('car', 28, carType === 'truck' || carType === 'bigrig' ? '🚚' : '🚗');
     }
 
     // Try to load sprite (use red as default color)

@@ -385,7 +385,7 @@ export class WinScreen {
     const ROW_H = 38, ROW_GAP = 6;
     this._coinCountTarget  = gs.coins;
     this._coinCountCurrent = 0;
-    this._coinValText      = this._statRow(px + 14, y, panelW - 28, ROW_H, '◆  COINS EARNED', '+0', 0xf5c842);
+    this._coinValText      = this._statRow(px + 14, y, panelW - 28, ROW_H, 'COINS EARNED', '+0', 0xf5c842, { name: 'coin', emoji: '◆' });
 
     // City building repair mini-animation — top-right corner of panel
     this._cityBldTarget = stars >= 3 ? 2 : stars >= 1 ? 1 : 0;
@@ -393,10 +393,10 @@ export class WinScreen {
       this._buildCityAnim(px + panelW - 62, py + 12);
     }
     y += ROW_H + ROW_GAP;
-    this._statRow(px + 14, y, panelW - 28, ROW_H, '⚡  BEST MULTI-KILL', `×${gs.maxSingleShotKills}`, 0xff8844);
+    this._statRow(px + 14, y, panelW - 28, ROW_H, 'BEST MULTI-KILL', `×${gs.maxSingleShotKills}`, 0xff8844, { name: 'lightning', emoji: '⚡' });
     if (is3Star) {
       y += ROW_H + ROW_GAP;
-      this._statRow(px + 14, y, panelW - 28, ROW_H, '★  PERFECT CLEAR', 'Flawless!', 0xffcc00);
+      this._statRow(px + 14, y, panelW - 28, ROW_H, 'PERFECT CLEAR', 'Flawless!', 0xffcc00, { name: 'star-filled', emoji: '★' });
     }
     // Advance past the last stat row to the BUTTON CENTER position.
     // _button() centers the button on this y, so we add the row body (ROW_H),
@@ -477,15 +477,22 @@ export class WinScreen {
     }
   }
 
-  _statRow(x, y, w, h, label, value, color) {
+  _statRow(x, y, w, h, label, value, color, icon = null) {
     const bg = new Graphics();
     bg.roundRect(x, y, w, h, 8);
     bg.fill({ color: 0x081420, alpha: 0.85 });
     this._container.addChild(bg);
 
+    let lblX = x + 12;
+    if (icon) {   // [icon] label — icon keeps natural colors
+      const sp = uiIcon(icon.name, 17, icon.emoji, { emojiFill: 0x7799aa });
+      sp.x = x + 12 + 9; sp.y = y + h / 2;
+      this._container.addChild(sp);
+      lblX = x + 12 + 22;
+    }
     const lbl = new Text({ text: label, style: { fontSize: 13, fontWeight: 'bold', fill: 0x7799aa } });
     lbl.anchor.set(0, 0.5);
-    lbl.x = x + 12; lbl.y = y + h / 2;
+    lbl.x = lblX; lbl.y = y + h / 2;
     this._container.addChild(lbl);
 
     const val = new Text({ text: value, style: { fontSize: 18, fontWeight: 'bold', fill: color } });

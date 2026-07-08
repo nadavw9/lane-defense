@@ -136,21 +136,22 @@ export class LoseScreen {
       const rowW = panelW - 28, rowH = 38;
 
       this._statRow(px + 14, cy, rowW, rowH,
-        '🚗  Cars Destroyed', String(gs.totalKills ?? 0), 0xff8844);
+        'Cars Destroyed', String(gs.totalKills ?? 0), 0xff8844, { name: 'car', emoji: '🚗' });
       cy += rowH + 6;
 
       const m = Math.floor((gs.elapsed ?? 0) / 60);
       const s = Math.floor((gs.elapsed ?? 0) % 60);
       this._statRow(px + 14, cy, rowW, rowH,
-        '⏱  Time Survived', m > 0 ? `${m}m ${s}s` : `${s}s`, 0x66aaff);
+        'Time Survived', m > 0 ? `${m}m ${s}s` : `${s}s`, 0x66aaff, { name: 'timer', emoji: '⏱' });
       cy += rowH + 6;
 
       // Guard the 0-shot case: 0/0 must not read as a misleading "100%".
       const tot = gs.totalDeploys ?? 0;
       const acc = tot > 0 ? Math.round(((gs.correctDeploys ?? 0) / tot) * 100) : null;
       this._statRow(px + 14, cy, rowW, rowH,
-        '🎯  Accuracy', acc === null ? '—' : `${acc}%`,
-        acc === null ? 0x99aabb : acc >= 80 ? 0x44ff88 : acc >= 50 ? 0xffcc00 : 0xff6666);
+        'Accuracy', acc === null ? '—' : `${acc}%`,
+        acc === null ? 0x99aabb : acc >= 80 ? 0x44ff88 : acc >= 50 ? 0xffcc00 : 0xff6666,
+        { name: 'target', emoji: '🎯' });
       cy += rowH + 16;
     }
 
@@ -190,15 +191,22 @@ export class LoseScreen {
     }
   }
 
-  _statRow(x, y, w, h, label, value, color) {
+  _statRow(x, y, w, h, label, value, color, icon = null) {
     const bg = new Graphics();
     bg.roundRect(x, y, w, h, 7);
     bg.fill({ color: 0x0d0808, alpha: 0.85 });
     this._panelGroup.addChild(bg);
 
+    let lblX = x + 10;
+    if (icon) {   // [icon] label
+      const sp = uiIcon(icon.name, 16, icon.emoji, { emojiFill: 0xaabbcc });
+      sp.x = x + 10 + 8; sp.y = y + h / 2;
+      this._panelGroup.addChild(sp);
+      lblX = x + 10 + 20;
+    }
     const lbl = new Text({ text: label, style: { fontSize: 12, fontWeight: 'bold', fill: 0xaabbcc } });
     lbl.anchor.set(0, 0.5);
-    lbl.x = x + 10; lbl.y = y + h / 2;
+    lbl.x = lblX; lbl.y = y + h / 2;
     this._panelGroup.addChild(lbl);
 
     const val = new Text({ text: value, style: { fontSize: 16, fontWeight: 'bold', fill: color } });

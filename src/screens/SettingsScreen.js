@@ -152,7 +152,7 @@ export class SettingsScreen {
     this._drawCard(y, h);
 
     const ry0 = y + CARD_P;
-    this._addSectionLabel('🔊', 'SOUND', ry0 + 11);
+    this._addSectionLabel('🔊', 'SOUND', ry0 + 11, 'speaker');
     this._drawInnerSep(ry0 + 22 + 8);
 
     let ry = ry0 + 22 + 9;
@@ -223,7 +223,7 @@ export class SettingsScreen {
     this._drawCard(y, h);
 
     const ry0 = y + CARD_P;
-    this._addSectionLabel('📖', 'HOW TO PLAY', ry0 + 11);
+    this._addSectionLabel('📖', 'HOW TO PLAY', ry0 + 11, 'book');
     this._drawInnerSep(ry0 + 22 + 8);
 
     this._slideBoxY = ry0 + 22 + 9;
@@ -265,13 +265,22 @@ export class SettingsScreen {
     this._container.addChild(g);
   }
 
-  _addSectionLabel(icon, label, cy) {
-    const t = new Text({
-      text: `${icon}  ${label}`,
-      style: { fontSize: 11, fontWeight: 'bold', fill: C_LABEL, letterSpacing: 0.6 },
-    });
+  // iconName (optional): render a sprite + label; else keep the emoji prefix.
+  _addSectionLabel(icon, label, cy, iconName = null) {
+    const x = CARD_MX + CARD_P;
+    const style = { fontSize: 11, fontWeight: 'bold', fill: C_LABEL, letterSpacing: 0.6 };
+    if (iconName) {
+      const sp = uiIcon(iconName, 15, icon);
+      sp.x = x + 7; sp.y = cy;
+      this._container.addChild(sp);
+      const t = new Text({ text: label, style });
+      t.anchor.set(0, 0.5); t.x = x + 18; t.y = cy;
+      this._container.addChild(t);
+      return;
+    }
+    const t = new Text({ text: `${icon}  ${label}`, style });
     t.anchor.set(0, 0.5);
-    t.x = CARD_MX + CARD_P;
+    t.x = x;
     t.y = cy;
     this._container.addChild(t);
   }

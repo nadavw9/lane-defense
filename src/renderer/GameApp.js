@@ -581,7 +581,7 @@ async function main() {
 
   // ── Goal-bar flank buttons — HP guide (🚗 left) + how-to-play (❓ right) ────────
   // On the goal pill row (~y=47). Shown during gameplay; open a paused overlay.
-  function _makeGoalBarBtn(glyph, x, onTap) {
+  function _makeGoalBarBtn(glyph, x, onTap, iconName = null) {
     const HIT = 38;
     const g   = new Graphics();
     g.roundRect(0, 0, HIT, HIT, 9);
@@ -595,14 +595,14 @@ async function main() {
     g.on('pointerdown', onTap);
     g.on('pointerover', () => { g.alpha = 0.75; });
     g.on('pointerout',  () => { g.alpha = 1.00; });
-    const icon = new Text({ text: glyph, style: { fontSize: 20 } });
+    const icon = iconName ? uiIcon(iconName, 24, glyph) : new Text({ text: glyph, style: { fontSize: 20 } });
     icon.anchor.set(0.5, 0.5);
     icon.x = HIT / 2; icon.y = HIT / 2;
     g.addChild(icon);
     layers.get('hudLayer').addChild(g);
     return g;
   }
-  const hpGuideBtn   = _makeGoalBarBtn('🚗', 6,           () => showHpGuide());
+  const hpGuideBtn   = _makeGoalBarBtn('🚗', 6,           () => showHpGuide(), 'car');
   const howToPlayBtn = _makeGoalBarBtn('❓', APP_W - 44,  () => showHowToPlay());
 
   // (Color-bomb streak pip counter removed — color bombs are now earned by a

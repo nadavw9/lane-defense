@@ -13,6 +13,7 @@
 // win is goal-driven now (see GoalCounterUI).
 
 import { Graphics, Text } from 'pixi.js';
+import { uiIcon } from './UIIcon.js';
 
 // ── Booster-row flank geometry ──────────────────────────────────────────────────
 // Everything lives on ONE row with the booster buttons (BoosterBar draws a
@@ -142,10 +143,13 @@ export class HUDRenderer {
         dropShadow: { color: 0x000000, blur: 3, distance: 0, alpha: 0.85 },
       },
     });
-    this._frozenBadgeText.anchor.set(0.5, 0.5);
+    this._frozenBadgeText.anchor.set(0, 0.5);   // left-anchored: composed [snowflake][text]
     this._frozenBadgeText.x = appWidth / 2;
     this._frozenBadgeText.y = COMBO_Y - 36;   // just above the combo line
     this._layer.addChild(this._frozenBadgeText);
+    this._frozenIcon = uiIcon('snowflake', 16, '❄');
+    this._frozenIcon.visible = false;
+    this._layer.addChild(this._frozenIcon);
   }
 
   // ── Public API ──────────────────────────────────────────────────────────────
@@ -305,16 +309,26 @@ export class HUDRenderer {
     const g = this._frozenBadgeGfx;
     g.clear();
     this._frozenBadgeText.text = '';
+    this._frozenIcon.visible = false;
     if (!frozen) return;
 
     const label = comboFrozen
-      ? '❄ FROZEN  1 free turn'
-      : `❄ FROZEN  ${boosterState.freezeShots ?? 0} shot${(boosterState.freezeShots ?? 0) !== 1 ? 's' : ''}`;
+      ? 'FROZEN  1 free turn'
+      : `FROZEN  ${boosterState.freezeShots ?? 0} shot${(boosterState.freezeShots ?? 0) !== 1 ? 's' : ''}`;
     this._frozenBadgeText.text = label;
 
-    // Pulsing ice-blue pill behind the label.
+    // [snowflake] FROZEN … — composed group centred over the road.
+    const ICON = 16, GAP = 5;
+    const cyc = this._frozenBadgeText.y;
+    const totalW = ICON + GAP + this._frozenBadgeText.width;
+    const groupLeft = this._appW / 2 - totalW / 2;
+    this._frozenIcon.visible = true;
+    this._frozenIcon.x = groupLeft + ICON / 2;   this._frozenIcon.y = cyc;
+    this._frozenBadgeText.x = groupLeft + ICON + GAP;
+
+    // Pulsing ice-blue pill behind the group.
     const pulse = 0.22 + 0.12 * Math.sin(this._elapsed * 6);
-    const w = this._frozenBadgeText.width + 24;
+    const w = totalW + 24;
     const h = 24;
     const cx = this._appW / 2, cy = this._frozenBadgeText.y;
     g.roundRect(cx - w / 2, cy - h / 2, w, h, h / 2);

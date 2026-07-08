@@ -114,25 +114,26 @@ export class LoseScreen {
     panel.stroke({ color: 0xdd2222, width: 2, alpha: 0.60 });
     this._panelGroup.addChild(panel);
 
-    // Ornamental bronze frame bordering the panel (additive; open centre shows
-    // the panel content). Slides up with the panel group.
+    // Ornamental bronze frame bordering the panel (additive). Its open centre is
+    // landscape (≈77%×57% of the art), so we SIZE IT FROM the laid-out content
+    // bounds at the end — see the finalize block after the buttons — so every
+    // element (header, stats, buttons) sits inside the open centre, not over the
+    // border art. Added here (behind the content) but sized later.
     const frameTex = Assets.get(`${_B}sprites/ui/lose-frame.png`);
-    if (frameTex) {
-      const frame = new Sprite(frameTex);
-      frame.anchor.set(0.5);
-      frame.width = panelW + 34; frame.height = panelH + 34;
-      frame.x = px + panelW / 2; frame.y = py + panelH / 2;
-      this._panelGroup.addChild(frame);
-    }
+    const frameSprite = frameTex ? new Sprite(frameTex) : null;
+    if (frameSprite) { frameSprite.anchor.set(0.5); this._panelGroup.addChild(frameSprite); }
+    const FRAME_OPEN_W = 0.769, FRAME_OPEN_H = 0.566;   // measured hole fraction
 
     let cy = py + 44;
 
-    // Header
+    // Header — clamped so it fits inside the frame's open-centre width.
     const header = isNearMiss ? 'SO CLOSE!' : 'GAME OVER';
     const hColor = isNearMiss ? 0xff8844 : 0xff4444;
-    this._text(header, cx, cy,
+    const hdr = this._text(header, cx, cy,
       { fontSize: isNearMiss ? 34 : 32, fill: hColor,
         dropShadow: { color: isNearMiss ? 0xff4400 : 0x880000, blur: 12, distance: 0, alpha: 0.7 } });
+    const HDR_MAXW = 250;
+    if (hdr.width > HDR_MAXW) hdr.scale.set(HDR_MAXW / hdr.width);
     cy += 36;
 
     let subMsg = 'Car breached the end zone.';
@@ -180,6 +181,20 @@ export class LoseScreen {
     this._button('RETRY', cx, cy, 0x3a1010, 0xff7777, onRetry, audio);
     cy += 58;
     this._button('LEVEL SELECT', cx, cy, 0x1a2a3a, 0x88bbdd, onMenu, audio);
+
+    // Size the frame so its open centre wraps the content (header→buttons) with a
+    // margin — nothing crosses the ornamental border. Capped to the screen width.
+    if (frameSprite) {
+      const contentTop = py + 22;
+      const contentBot = cy + 30;                 // below the LEVEL SELECT button
+      const contentW   = panelW - 20;             // widest element = the stat rows
+      const fw = Math.min(this._appW - 6, contentW / FRAME_OPEN_W);
+      const fh = (contentBot - contentTop) / FRAME_OPEN_H;
+      frameSprite.width  = fw;
+      frameSprite.height = fh;
+      frameSprite.x = cx;
+      frameSprite.y = (contentTop + contentBot) / 2;
+    }
 
     // 5C: brief red "breach" flash over everything (fades in update).
     this._flashG = new Graphics();

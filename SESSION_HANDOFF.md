@@ -4,14 +4,41 @@
 **`docs/superpowers/plans/2026-07-02-master-plan-testing-ui-difficulty.md`** — three approved workstreams (Testing harness → UI overhaul → Difficulty redesign + City Repair meta). It contains an EXECUTION STATUS checklist that is updated after every step; any fresh session resumes from there. User pre-approved the work incl. commits.
 
 ## Current State
-- Git tip: d99adb3 feat(icons): remaining screens emoji → sprites (+ tracker/handoff docs after)
+- Git tip: 9770c20 fix: merges fire on mid-game auto-fill (DEFECT 1) + visible cascade fill (DEFECT 2)
 - Branch: master
 - Last deploy: today, green (deploy GATED on the unit+audit suite)
-- Tests: 1062 vitest (unit+audit) + 17 Playwright visual smoke + 40-level full sweep — green (rapid-hop occasionally flaky under parallel load, passes on retry)
-- Master plan: docs/superpowers/plans/2026-07-02-master-plan-testing-ui-difficulty.md (WS1 DONE; WS2 — 2a/2b/2c DONE; next: 2d screen chrome [user art], then WS3 difficulty)
+- Tests: 1069 vitest (unit+audit) + 17 Playwright visual smoke + 40-level full sweep — green (rapid-hop occasionally flaky under parallel load, passes on retry)
+- Master plan: WS1 DONE · WS2 2a/2b/2c + 2d (Title 9-slice button plates + Win/Lose frames) DONE ·
+  WS3 §3a canonical table + §3c boss specs (both in GAME_DESIGN.md) + §3b booster-aware SIM DONE
+  (retune NOT applied). WS3 traps/constraints live in `docs/superpowers/FABLE_EXIT_BRIEF.md`.
 - Live URL: https://nadavw9.github.io/lane-defense/
 
+## ⚠️ BLOCKER FOR THE WS3 RETUNE — the §3b retune table is STALE, DISCARD IT
+It was measured against the PRE-FIX merge behavior (merges failed to fire on mid-game auto-fill).
+Now that merges fire reliably (`9770c20`), the game reads EASIER → sim win rates will RISE → hp
+targets go UP from that table. **Re-run `node tools/balance-sim.js --level=all --runs=500` first,
+THEN do the non-boss retune ONCE against corrected numbers.** Levers (banked, bug-independent):
+**hp = difficulty, goal counts = length/relief; per-level hp requires un-sharing the `R_*` preset
+consts into inline `worldConfig` — never edit a shared preset** (FABLE_EXIT_BRIEF §1). Bosses
+L10/20/30/40 are deferred to §3c (their numbers get set WITH the scripted waves, not in the retune).
+
 ## What Was Shipped This Session (most recent first)
+- 9770c20 — **CRITICAL MERGE FIX (DEFECT 1 + DEFECT 2).** Merges now fire on mid-game auto-fill.
+  Previously merge detection ran ONLY on player actions (swap/bench/fire) + the level-start settle,
+  so a 3-same-colour line formed by an auto-fill (post-fire refill in `_advanceGrid`, bench refill in
+  `_step`) sat UNMERGED until a player move re-triggered it — and when it did fire, the slots refilled
+  INSTANTLY (teleport) instead of the built cascade. Both fixed with ONE `_onAutoFill` director→renderer
+  signal: `GameLoop` fires it once per shot (end of `_advanceGrid`, normal + FREEZE exits) and once per
+  real queue-growth tick in `_step` (before/after count — covers the latent **bench-store** bug, silent
+  on steady-state ticks); `GameApp` routes it to the SAME `mergeSequencer.start()` the player path uses,
+  so merge POSITION (vertical→top / horizontal→middle), `isMerged` exclusion (no merge-stacking), and the
+  2-pass cascade are inherited from ONE path. Race-guarded: `requestCheck()` + `_pending` re-check in
+  `_finish()` so a signal arriving mid-animation is evaluated AFTER the current sequence (not dropped →
+  would re-introduce DEFECT 1; not overlapped). Investigated with a 3-agent team (merge-engine /
+  queue-fill / animation-sequencer). 7 new tests (`tests/merge-autofill.test.js`, incl. a bug-repro
+  control that proves the line stays unmerged without the wiring). Cascade proven by screenshot
+  (`docs/review/20-merge-*`: merged "18" bomb with visibly EMPTY slots → staggered drop-in). 1069 vitest
+  + 17 visual smoke green. No HP/goal/balance changes. Dev hook `_nav._fx.mergeAutoFillDemo` added.
 - UI ICON SET (§2c) — **DONE across all screens.** User's 20-icon art arrived as one 4×5
   montage (`sprite-sources/raw/split/20icons.png`); `scripts/process-ui-icons.mjs` gained a
   montage-slicer (largest-blob cleanup kills neighbour bleed) → 20×128px transparent PNGs in

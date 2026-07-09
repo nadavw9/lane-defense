@@ -62,6 +62,11 @@ export class GameLoop {
     this._onColorBombEarned = null;  // set by GameApp; (colIdx) → color-bomb earned flash + intro card + SFX
     this._onMultiKill       = null;  // set by GameApp; (count, needed) → "MULTI-KILL n/3" notification
     this._onMerge        = null;  // set by GameApp; (descriptor) → merge animation/SFX
+    this._onAutoFill     = null;  // set by GameApp; () → re-check merges after an auto-fill that ADDED
+                                  // bombs (post-fire refill, bench refill, crisis inject). Fires once
+                                  // per real refill event, never on steady-state ticks. GameApp routes
+                                  // it through the SAME mergeSequencer the player-action path uses, so
+                                  // DEFECT 1 (no merge on auto-fill) + DEFECT 2 (instant fill) share one path.
     this.onNewCarType    = null;  // set by GameApp; fires with typeKey when a car is added to a lane
 
     // Base level duration — used to reset gs.duration on restart.
@@ -622,6 +627,7 @@ export class GameLoop {
       const phaseParams = gs.phaseMan.getParams();
       this._sDir.fillColumns(gs.activeCols, dirState, phaseParams);
       this._enforceViableMove(gs);
+      this._onAutoFill?.();   // queue settled after a frozen advance → re-check merges
       return;
     }
 
@@ -679,6 +685,10 @@ export class GameLoop {
 
     // 6. Viability guard.
     this._enforceViableMove(gs);
+
+    // 7. Queue changed (a shot consumed a bomb and it refilled) → re-check merges.
+    // Fires once per shot resolution (this method is per-shot, not per render tick).
+    this._onAutoFill?.();
   }
 
   // Re-evaluate the WIN condition after a non-advancing car removal (booster bombs).
@@ -781,7 +791,10 @@ export class GameLoop {
     // Car movement is turn-based; cars only move when _advanceGrid() is called
     // (after each shot resolves). No continuous movement here.
 
-    // Refill active shooter columns.
+    // Refill active shooter columns. Snapshot the queue size first so we can tell
+    // whether THIS tick actually added bombs (a bench refill lands here, not in
+    // _advanceGrid) → fire _onAutoFill only then, never on steady-state full-queue ticks.
+    let _qBefore = 0; for (const c of gs.activeCols) _qBefore += c.shooters.length;
     this._sDir.fillColumns(gs.activeCols, dirState, phaseParams);
 
     // 6. Viability guard: ensure the player always has at least one valid move.
@@ -821,6 +834,13 @@ export class GameLoop {
         if (gs.hitStopRemaining > 0) break;
       }
     }
+
+    // A non-shot refill grew the queue this tick (bench store refills here; crisis
+    // inject also adds) → re-check merges once. Shot-driven refills are already
+    // signalled from _advanceGrid, and this tick returns early during a hit-stop,
+    // so this fires only for the bench/crisis case, never per steady-state tick.
+    let _qAfter = 0; for (const c of gs.activeCols) _qAfter += c.shooters.length;
+    if (_qAfter > _qBefore) this._onAutoFill?.();
   }
 
   // After a rescue, force at least 2 column tops to match a front car color,

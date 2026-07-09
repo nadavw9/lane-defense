@@ -1734,7 +1734,14 @@ async function main() {
   const EB1 = 1.70158, EB3 = EB1 + 1;
   const easeOutBack = (p) => 1 + EB3 * Math.pow(p - 1, 3) + EB1 * Math.pow(p - 1, 2);  // 0 → overshoot → 1
   const mergeSequencer = {
-    active: false, phase: null, t: 0, plan: null, drops: null, chain: 0, _prevBlocked: false,
+    active: false, phase: null, t: 0, plan: null, drops: null, chain: 0, _prevBlocked: false, _pending: false,
+    // Entry point for ALL merge triggers (player action + auto-fill). If a sequence
+    // is mid-play, queue a re-check for when it finishes rather than dropping it
+    // (would re-introduce DEFECT 1) or overlapping it (visual chaos).
+    requestCheck() {
+      if (this.active) { this._pending = true; return; }
+      this.start();
+    },
     start() {
       if (this.active) return;
       const plan = gameLoop.peekMerges();
@@ -1840,6 +1847,9 @@ async function main() {
       this.active = false; this.phase = null; this.plan = null; this.drops = null;
       dragDrop.inputBlocked = this._prevBlocked ?? false;
       gameLoop.resume();
+      // Absorb any auto-fill merge that was requested WHILE this sequence played:
+      // evaluate the settled board now that we're idle (no-op if no lines remain).
+      if (this._pending) { this._pending = false; this.start(); }
     },
     // Hard-stop a sequence at a LEVEL CHANGE: drop all animation state WITHOUT
     // applying any pending merge (the board it was animating is gone). Without this
@@ -1854,6 +1864,11 @@ async function main() {
       dragDrop.inputBlocked = false;
     },
   };
+  // DEFECT 1+2 FIX: an auto-fill that added bombs (post-fire refill, bench refill,
+  // crisis inject) routes through the SAME sequencer as player-action merges — so
+  // mid-game merges both FIRE and play the full highlight→travel→pop→drop-in cascade,
+  // with position/isMerged/cascade all inherited from the one path.
+  gameLoop._onAutoFill = () => mergeSequencer.requestCheck();
   gameLoop._onColorBombEarned = () => {
     comboFX.triggerColorBomb('Rainbow');
     popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildFlashText(w, '3 MULTI-KILLS!', 0xffe14a), 1.6);
@@ -2316,6 +2331,20 @@ async function main() {
           return mergeSequencer.active ? 'animating' : 'no merges';
         },
         mergeResume: () => { gameLoop.resume(); return 'resumed'; },
+        // Faithful mid-game auto-fill demo: stage a 3-line over the LIVE full board
+        // (loop NOT paused, cols 1-3 keep their bombs), then fire the real _onAutoFill
+        // signal — the exact production path (refill → re-check → same sequencer +
+        // visible drop-in cascade). Used to screenshot DEFECT 2.
+        mergeAutoFillDemo: () => {
+          if (!gameLoopStarted || gs.levelId < 5) return 'Not in a level >= L5';
+          gs.columns[0].shooters = [
+            { color: 'Red', damage: 5, isMerged: false, isColorBomb: false },
+            { color: 'Red', damage: 6, isMerged: false, isColorBomb: false },
+            { color: 'Red', damage: 7, isMerged: false, isColorBomb: false },
+          ];
+          gameLoop._onAutoFill();
+          return mergeSequencer.active ? 'auto-fill merge animating' : 'no merge';
+        },
       },
     };
   }

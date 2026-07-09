@@ -1738,8 +1738,13 @@ async function main() {
     // Entry point for ALL merge triggers (player action + auto-fill). If a sequence
     // is mid-play, queue a re-check for when it finishes rather than dropping it
     // (would re-introduce DEFECT 1) or overlapping it (visual chaos).
+    // DRAG/MERGE MUTUAL EXCLUSION: never start while the player is holding a bomb —
+    // starting mid-drag set inputBlocked under the player's finger, swallowing the
+    // release into a zombie drag (leaked draggingColumn = invisible merged bomb;
+    // stale next-tap resolution = double-count corruption). Deferred checks are
+    // drained by update() the frame after the drag resolves.
     requestCheck() {
-      if (this.active) { this._pending = true; return; }
+      if (this.active || dragDrop.isDragging()) { this._pending = true; return; }
       this.start();
     },
     start() {
@@ -1761,7 +1766,12 @@ async function main() {
       }
     },
     update(dt) {
-      if (!this.active) return;
+      if (!this.active) {
+        // Drain a deferred check once idle AND no drag is in flight (fresh state
+        // is re-peeked inside start(), so the deferral never acts on a snapshot).
+        if (this._pending && !dragDrop.isDragging()) { this._pending = false; this.start(); }
+        return;
+      }
       this.t += dt;
       if (this.phase === 'highlight') {                       // 100ms — pulse the 3 sources
         const s = 1.0 + 0.15 * Math.min(1, this.t / 0.10);
@@ -1778,7 +1788,21 @@ async function main() {
           gameRenderer3D.setBombSlotScale(tr.col, tr.row, 1.15 * (1 - p));
         }
         if (this.t >= 0.15) {
-          gameLoop.evaluateMerges();                          // APPLY data + fire _onMerge (burst + SFX)
+          // APPLY EXACTLY WHAT WAS ANIMATED: pass the peeked plan; each entry is
+          // re-verified against fresh state inside evaluateMerges(plan) (stale →
+          // skipped, no phantom merged bomb). Fires _onMerge per applied (burst+SFX).
+          const applied = gameLoop.evaluateMerges(this.plan);
+          const survivors = applied.map(d => d.planEntry).filter(Boolean);
+          // Any dropped entries (stale by verify): release their slots untouched.
+          for (const m of this.plan) {
+            if (survivors.includes(m)) continue;
+            for (const sl of [m.dest, ...m.travelers]) {
+              gameRenderer3D.resetBombSlot(sl.col, sl.row);
+              gameRenderer3D.lockBombSlot(sl.col, sl.row, false);
+            }
+          }
+          this.plan = survivors;
+          if (!this.plan.length) { this._afterFill(); return; }   // nothing applied → re-check/finish
           for (const m of this.plan) {
             for (const tr of m.travelers) gameRenderer3D.setBombSlotScale(tr.col, tr.row, 0);
             gameRenderer3D.setBombSlotScale(m.dest.col, m.dest.row, 0);   // pop from 0
@@ -1858,6 +1882,7 @@ async function main() {
     // (b) would call evaluateMerges() on the NEW board at its burst step. Cheap no-op
     // when idle.
     abort() {
+      this._pending = false;   // a queued re-check must not leak into the next level
       if (!this.active) return;
       gameRenderer3D.clearBombAnimLocks();
       this.active = false; this.phase = null; this.plan = null; this.drops = null;

@@ -285,8 +285,25 @@ export class DragDrop {
     this._updateHighlights(x, y);
   }
 
+  // True while a queue/bench/stash bomb is being held. The merge sequencer defers
+  // its checks while this is true (drag/merge mutual exclusion).
+  isDragging() { return this._state === 'dragging'; }
+
   onPointerUp(x, y) {
-    if (this.inputBlocked) return;
+    if (this.inputBlocked) {
+      // Input got blocked MID-DRAG (a modal/sequence started while holding).
+      // The release must still RESOLVE the drag — swallowing it leaves a zombie:
+      // _state stuck 'dragging', ghost orphaned, draggingColumn render-marker
+      // leaked (the column top — where a merged bomb lands — never renders),
+      // and the NEXT tap resolves the stale drag against a changed board.
+      // Safe resolution: visual-only snap-back (no state writes).
+      if (this._state === 'dragging') {
+        this._clearHighlights();
+        this._benchRenderer?.setHighlight(-1);
+        this._snapBack();
+      }
+      return;
+    }
     if (this._state !== 'dragging') return;
     this._clearHighlights();
     this._benchRenderer?.setHighlight(-1);
@@ -494,25 +511,42 @@ export class DragDrop {
       return;
     }
 
-    // If target is occupied, SWAP
-    if (tgtColumn.shooters[tgtRow]) {
+    // If target is occupied, SWAP. Writes are index-guarded: draggedShooter's
+    // existence proves srcRow < length; the occupied-check proves tgtRow < length —
+    // so neither assignment can create a sparse array. The invariant check below
+    // is a defensive backstop in case a future race reaches this with stale indices.
+    let destRow;
+    if (tgtColumn.shooters[tgtRow] !== undefined) {
       const targetShooter = tgtColumn.shooters[tgtRow];
       srcColumn.shooters[srcRow] = targetShooter;
       tgtColumn.shooters[tgtRow] = draggedShooter;
+      destRow = tgtRow;
     } else {
       // Target slot is empty — move bomb from src to tgt (append at bottom of target column)
       srcColumn.shooters.splice(srcRow, 1);
       tgtColumn.shooters.push(draggedShooter);
+      destRow = tgtColumn.shooters.length - 1;
+    }
+    // Defensive invariant: no holes, ever (a sparse array crashes _findMerges /
+    // the renderer on undefined.color). Repair + log instead of corrupting.
+    for (const colArr of [srcColumn.shooters, tgtColumn.shooters]) {
+      if (colArr.includes(undefined)) {
+        console.error('[DragDrop] sparse queue write repaired', { srcCol, srcRow, tgtCol, tgtRow });
+        const dense = colArr.filter(s => s !== undefined);
+        colArr.length = 0; colArr.push(...dense);
+      }
     }
 
     this._shooterRenderer.draggingColumn = -1;
     this._onReorder(srcCol, srcRow, tgtCol, tgtRow);
 
-    // Snap the ghost back to the source position to show the swap visually
-    const { x: cx, y: cy } = this._shooterRenderer.getQueueSlotCenter(srcCol, srcRow);
+    // Fly the ghost to where the dragged bomb ACTUALLY landed (the target slot).
+    // It used to snap back to the SOURCE slot, so the player watched their bomb
+    // "return" while a merge simultaneously consumed it at the target (S2-B).
+    const { x: tx, y: ty } = this._shooterRenderer.getQueueSlotCenter(tgtCol, destRow);
     if (this._ghost) this._ghost.scale.set(1.0);
     this._startAnim(
-      this._ghost.x, this._ghost.y, cx, cy,
+      this._ghost.x, this._ghost.y, tx, ty,
       SNAP_DURATION, () => this._destroyGhost(),
     );
     this._state = 'snapping';

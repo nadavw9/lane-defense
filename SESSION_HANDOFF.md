@@ -4,10 +4,13 @@
 **`docs/superpowers/plans/2026-07-02-master-plan-testing-ui-difficulty.md`** — three approved workstreams (Testing harness → UI overhaul → Difficulty redesign + City Repair meta). It contains an EXECUTION STATUS checklist that is updated after every step; any fresh session resumes from there. User pre-approved the work incl. commits.
 
 ## Current State
-- Git tip: 9770c20 fix: merges fire on mid-game auto-fill (DEFECT 1) + visible cascade fill (DEFECT 2)
+- Git tip: b6597d8 fix: merge system hardening — atomic plan/apply, drag-merge mutual exclusion, no bomb loss
 - Branch: master
 - Last deploy: today, green (deploy GATED on the unit+audit suite)
-- Tests: 1069 vitest (unit+audit) + 17 Playwright visual smoke + 40-level full sweep — green (rapid-hop occasionally flaky under parallel load, passes on retry)
+- Tests: 1076 vitest (unit+audit, incl. 400-op seeded merge stress) + 17 Playwright visual smoke + 40-level full sweep — green (rapid-hop occasionally flaky under parallel load, passes solo/retry)
+- MERGE SYSTEM: hardened + audit-clean as of b6597d8 (plan==apply by construction; drag/merge
+  mutual exclusion; no bomb-loss paths; sparse-array write-site guard). The measurement sim can
+  now trust merge behavior — run it BEFORE any retune (see blocker below).
 - Master plan: WS1 DONE · WS2 2a/2b/2c + 2d (Title 9-slice button plates + Win/Lose frames) DONE ·
   WS3 §3a canonical table + §3c boss specs (both in GAME_DESIGN.md) + §3b booster-aware SIM DONE
   (retune NOT applied). WS3 traps/constraints live in `docs/superpowers/FABLE_EXIT_BRIEF.md`.

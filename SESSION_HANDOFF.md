@@ -27,6 +27,9 @@ mean 76.9%. 24 levels changed via per-level INLINE worldConfig (shared presets n
 orphaned presets deleted). Bosses L10/20/30/40 get their numbers WITH the §3c scripted waves.
 
 ## What Was Shipped This Session (most recent first)
+- Multi-kill celebration popup shrunk ~35% (`_buildMultiKillPopup`: burst R 138→90, kill-count
+  78→50px, label 23→16px, offsets proportional) — it dominated the lower board. Tier colors,
+  ring, and spring pop unchanged. Review shot docs/review/03.
 - **Goal-card color icons are now car sprites.** `GoalCounterUI` destroyColor goals show the
   standard car sprite in the goal's colour (`car-{color}-processed.png`) instead of a flat
   colour circle (circle kept as fallback); destroyType icons fixed to per-type sprites

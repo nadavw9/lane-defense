@@ -2476,7 +2476,7 @@ function _buildMultiKillPopup(w, killCount) {
 
   // ── Radial gradient burst: warm pale-gold center fading to deep orange edge ──
   const burst = new Graphics();
-  const R = 138, RINGS = 18;
+  const R = 90, RINGS = 18;   // was 138 — shrunk so the celebration doesn't dominate the board
   for (let i = RINGS; i >= 1; i--) {
     const f = i / RINGS;                       // 1 at outer edge … →0 at center
     const col = _lerpHex(0xFFF2B0, 0xE0531A, f);
@@ -2498,23 +2498,23 @@ function _buildMultiKillPopup(w, killCount) {
   // ── Big tier-colored kill count (the hero) ──
   const num = new Text({
     text: `${n}×`,
-    style: { fontSize: 78, fontWeight: '900', fill: tierCol, align: 'center',
-      stroke: { color: 0x3a1400, width: 7 },
-      dropShadow: { color: 0x000000, blur: 12, distance: 0, alpha: 0.9 } },
+    style: { fontSize: 50, fontWeight: '900', fill: tierCol, align: 'center',
+      stroke: { color: 0x3a1400, width: 5 },
+      dropShadow: { color: 0x000000, blur: 9, distance: 0, alpha: 0.9 } },
   });
   num.anchor.set(0.5, 0.5);
-  num.x = cx; num.y = cy + 8;
+  num.x = cx; num.y = cy + 5;
   inner.addChild(num);
 
   // ── Label above the number ──
   const label = new Text({
     text: 'MULTI-KILL!',
-    style: { fontSize: 23, fontWeight: '900', fill: 0xffffff, letterSpacing: 2,
-      stroke: { color: tierCol, width: 4 },
-      dropShadow: { color: 0x000000, blur: 6, distance: 0, alpha: 0.9 } },
+    style: { fontSize: 16, fontWeight: '900', fill: 0xffffff, letterSpacing: 2,
+      stroke: { color: tierCol, width: 3 },
+      dropShadow: { color: 0x000000, blur: 5, distance: 0, alpha: 0.9 } },
   });
   label.anchor.set(0.5, 1);
-  label.x = cx; label.y = cy - 36;
+  label.x = cx; label.y = cy - 24;
   inner.addChild(label);
 
   // ── Scale-pop entry: 0.7 → 1.0 with a spring overshoot over ~120ms ──

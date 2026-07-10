@@ -204,7 +204,7 @@ export class GoalCounterUI {
     if (goal.type === 'destroyTotal') {
       icon = this._buildBurstIcon();
     } else if (goal.type === 'destroyColor') {
-      icon = this._buildColorCircle(goal.color);
+      icon = this._buildColorCarIcon(goal.color);
     } else if (goal.type === 'destroyType') {
       icon = this._buildCarIcon(goal.carType);
     }
@@ -250,6 +250,14 @@ export class GoalCounterUI {
     return uiIcon('explosion', 32, '💥');   // sprite (glyph fallback)
   }
 
+  // destroyColor: the standard car sprite in the goal's color — the icon shows the
+  // actual thing the player must explode. Circle fallback if the texture isn't loaded.
+  _buildColorCarIcon(color) {
+    const sprite = this._designedSprite(`car-${String(color).toLowerCase()}-processed`, 32);
+    if (sprite) return sprite;
+    return this._buildColorCircle(color);
+  }
+
   _buildColorCircle(color) {
     const hexColor = COLOR_PALETTE[color];
     if (!hexColor) return null;
@@ -262,31 +270,33 @@ export class GoalCounterUI {
   }
 
   _buildCarIcon(carType) {
-    // Try to use a real sprite; fall back to car glyph
-    // Car types: small, big, jeep, truck, bigrig, tank
+    // Per-type sprite (red variant), matching Car3D's naming. NOTE: small/big/jeep
+    // previously pointed at car-red.png (no such file — the designed car is
+    // car-red-processed.png); latent only because no level ships those goal types.
     const spriteMap = {
-      small:  'car',
-      big:    'car',
-      jeep:   'car',
-      truck:  'truck',
-      bigrig: 'bigrig',
-      tank:   'tank',
+      small:  'bike-red',
+      big:    'car-red-processed',
+      jeep:   'van-red',
+      truck:  'truck-red',
+      bigrig: 'bigrig-red',
+      tank:   'tank-red',
     };
 
-    const spriteKey = spriteMap[carType];
-    if (!spriteKey) {
-      // Fallback to the car icon (glyph fallback inside uiIcon)
-      return uiIcon('car', 28, carType === 'truck' || carType === 'bigrig' ? '🚚' : '🚗');
-    }
+    const sprite = spriteMap[carType] && this._designedSprite(spriteMap[carType], 30);
+    if (sprite) return sprite;
+    // Fallback to the car icon (glyph fallback inside uiIcon)
+    return uiIcon('car', 28, carType === 'truck' || carType === 'bigrig' ? '🚚' : '🚗');
+  }
 
-    // Try to load sprite (use red as default color)
-    const spriteUrl = `${_B}sprites/designed/${spriteKey}-red.png`;
-    const sprite = Sprite.from(spriteUrl);
+  // Centered sprite from the preloaded designed/ set, scaled to fit a `size` box —
+  // Assets.get only (no lazy Sprite.from: its texture is 1×1 until loaded, which
+  // made the old scale-to-fit a no-op). Returns null when the texture isn't cached.
+  _designedSprite(name, size) {
+    const tex = Assets.get(`${_B}sprites/designed/${name}.png`);
+    if (!tex) return null;
+    const sprite = new Sprite(tex);
     sprite.anchor.set(0.5, 0.5);
-    // Scale to fit card
-    const maxDim = 28;
-    const scale = Math.min(1, maxDim / Math.max(sprite.width, sprite.height));
-    sprite.scale.set(scale);
+    sprite.scale.set(size / Math.max(tex.width, tex.height));
     return sprite;
   }
 

@@ -53,6 +53,14 @@ export function worldPanelForLevel(levelId) {
 // the designed/ '-processed' variant is glossier with a clean cut).
 export const TITLE_INTRO_CAR_URL = `${_B}sprites/designed/car-blue-processed.png`;
 
+// Goal-card icons (GoalCounterUI): destroyColor goals show the standard car in the
+// goal's COLOR (was a flat color circle); destroyType goals show the type's red
+// variant. Cosmetic — the UI falls back to a circle / glyph if one fails to load.
+export const GOAL_ICON_URLS = [
+  ...COLORS.map(c => `${_B}sprites/designed/car-${c}-processed.png`),
+  ...['bike', 'van', 'truck', 'bigrig', 'tank'].map(t => `${_B}sprites/designed/${t}-red.png`),
+];
+
 export const TREE_URLS = ['oak', 'elm', 'pine'].map(t => `${_B}sprites/designed/tree-${t}-topdown.png`);
 
 export const ENV_URLS = [
@@ -150,7 +158,8 @@ export const ALL_SPRITE_URLS = [
   ...CAR_URLS, ...SHOOTER_URLS, ...POWERBALL_URLS, ...BUILDING_URLS, ...TREE_URLS,
   ...ENV_URLS, ...BOOSTER_URLS, ...TUTORIAL_URLS, ...TITLE_ART_URLS, ...WORLD_PANEL_URLS,
   ...STRIP_PANEL_URLS, ...SCENE_STRIP_URLS, ...ZONE_FLOOR_URLS, ...UI_ICON_URLS,
-  ...BUTTON_PLATE_URLS, ...FRAME_URLS, TITLE_INTRO_CAR_URL, ...Object.values(WORLD_ROAD_URLS),
+  ...BUTTON_PLATE_URLS, ...FRAME_URLS, ...GOAL_ICON_URLS,   // GOAL_ICON_URLS includes TITLE_INTRO_CAR_URL (car-blue-processed)
+  ...Object.values(WORLD_ROAD_URLS),
 ];
 
 // Critical sprites gate spriteFlags.loaded — gameplay must have its car icons,

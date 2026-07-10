@@ -27,6 +27,16 @@ mean 76.9%. 24 levels changed via per-level INLINE worldConfig (shared presets n
 orphaned presets deleted). Bosses L10/20/30/40 get their numbers WITH the §3c scripted waves.
 
 ## What Was Shipped This Session (most recent first)
+- **Goal-card color icons are now car sprites.** `GoalCounterUI` destroyColor goals show the
+  standard car sprite in the goal's colour (`car-{color}-processed.png`) instead of a flat
+  colour circle (circle kept as fallback); destroyType icons fixed to per-type sprites
+  (small→bike, big→car-processed, jeep→van — the old map pointed small/big/jeep at a
+  nonexistent `car-red.png`, latent because no level ships those goal types). New
+  `GOAL_ICON_URLS` family in assetManifest (audit-covered, cosmetic tier; includes
+  TITLE_INTRO_CAR_URL so it left ALL_SPRITE_URLS' standalone entry). Sizing via Assets.get
+  (lazy Sprite.from sized itself against a 1×1 unloaded texture). Review shots:
+  docs/review/01 (L8 green+red cars), 02 (L28 yellow car + red truck). 1076 vitest +
+  17 visual smoke green.
 - **WS3 §3b BOOSTER-AWARE RETUNE (all 40 levels in band).** Measured baseline first (mean 83.6%,
   30/40 flagged vs new bands), then HP-primary one-direction retune: 22 HP raises as un-shared
   inline `worldConfig` (R_3C_MED un-shared across L11/14/18 etc.), L8 the sole DECREASE

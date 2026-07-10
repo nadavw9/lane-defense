@@ -173,9 +173,25 @@ L2 (2×2), L3 (3×3). Colors: R B G Y P O.
 Written for a Sonnet-class session to implement WITHOUT re-deriving design. VISION rule 5: bosses
 are *designed challenges with a named intended solution the player discovers*, not hp bumps. Each
 boss below states its identity, the exact wave script, the code hooks, and what must NOT change.
-**Every numeric change re-runs `node tools/balance-sim.js --level=<N> --runs=500` before commit;
-the current sim can't model boosters so treat its boss numbers as a floor (FABLE_EXIT_BRIEF §1) —
-final tuning happens after §3b booster modeling lands.** Mini-bosses L15/25/35 are OUT of scope.
+**Every numeric change re-runs `node tools/balance-sim.js --level=<N> --runs=500` before commit.**
+Mini-bosses L15/25/35 are OUT of scope.
+
+> **BOSS TARGET BAND (2026-07-10, supersedes the "20–35%" numbers below): 40–55% at the
+> booster-aware reference profile (skill=average, boosterIQ 0.70) — equivalently ~20–35%
+> tool-less. Same difficulty, two measurement profiles.** The per-boss "Sim band: 20–35%"
+> lines were written before §3b shipped booster modeling; the sim's default profile now
+> plays boosters, so bosses are tuned to 40–55% as flagged by `tools/balance-sim.js`
+> (`bandFor`). Do not re-litigate: a boss at 45% booster-aware IS the designed 25%-ish
+> tool-less boss.
+>
+> **SIM PARITY IS PART OF INFRA-B/C'S DEFINITION (hard requirement).** `SimulationRunner`
+> must consume `spawnScript` + per-level `bandWeights` identically to the live game (it
+> already instantiates the real `CarDirector`, so implement the logic INSIDE CarDirector —
+> parity by construction, like `bandWeights`), with tests asserting director == sim.
+> Same precedent as the byte-aligned `_refillLanes`. Without it the sim cannot measure
+> bosses and VISION rule 6 breaks. The L20 surge uses an optional `rate` field on the
+> stage table ({ untilPct, weights?, rate? }) — rate = per-stage lane-fill target;
+> do NOT fake density via type weights.
 
 ### Shared infrastructure these specs need (build once, three small testable changes)
 

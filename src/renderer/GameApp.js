@@ -643,6 +643,7 @@ async function main() {
     gs._initialGoals  = cfg.goals ? JSON.parse(JSON.stringify(cfg.goals)) : [];
     gs.goalProgress   = gs.goals.map(g => g.count);
     carDir.setLevel(typeof cfg.id === 'number' ? cfg.id : 1);
+    carDir.setSpawnScript(cfg.spawnScript ?? null);   // §3c staged boss waves (INFRA-C)
   }
 
   // ── Core level-start routine ──────────────────────────────────────────────

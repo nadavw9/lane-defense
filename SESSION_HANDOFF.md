@@ -11,8 +11,18 @@
 - Tests: 1076 vitest (unit+audit, incl. 400-op seeded merge stress) + 17 Playwright visual smoke + 40-level full sweep — green (rapid-hop occasionally flaky under parallel load, passes solo/retry)
 - MERGE SYSTEM: hardened + audit-clean as of b6597d8 (plan==apply by construction; drag/merge
   mutual exclusion; no bomb-loss paths; sparse-array write-site guard).
-- BALANCE: §3b retune COMPLETE (cf62d8f) — mean 76.9%, every non-boss level in its band,
-  35 orphaned presets removed. Only the 4 §3c bosses flag.
+- ⚠ SIM PARITY BUG FOUND + FIXED (2026-07-10, post-retune): SimulationRunner re-multiplied
+  car.hp by hpMultiplier — but CarDirector._buildCar already applies it (since 89e7c67), so
+  the sim fought ~half-hp heavy cars (L30 tank: live 11 vs sim 6) and floored hp at 1 vs live
+  HP_MINIMUM 2. **ALL pre-fix balance reports — including cf62d8f's "mean 76.9%, all in band"
+  and docs/balance-report*.md — were measured against that double-discounting sim and are
+  SUPERSEDED. Do not trust them.** Corrected sweep of the deployed configs: mean 54.6%,
+  28/40 flagged (live game reads much harder than intended, esp. mid/late heavy-car levels;
+  FTUE unaffected — rounding absorbs it on small cars). Re-retune against the corrected sim
+  pending user review. Regression guard: tests/boss-infra.test.js (parity formula + a static
+  audit tripwire on the re-multiplication pattern).
+- BALANCE: §3b retune structure landed in cf62d8f (bands, inline worldConfigs, preset cleanup) —
+  its NUMBERS are being re-derived against the parity-fixed sim (see above).
 - Master plan: WS1 DONE · WS2 2a/2b/2c + 2d (Title 9-slice button plates + Win/Lose frames) DONE ·
   WS3 §3a canonical table + §3c boss specs (both in GAME_DESIGN.md) + §3b booster-aware sim +
   RETUNE APPLIED (cf62d8f). Next: §3c scripted bosses — user requires the design approach

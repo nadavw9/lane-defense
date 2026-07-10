@@ -28,6 +28,37 @@ export class CarDirector {
   // Update the current level so pickCarType uses the right type distribution.
   setLevel(levelId) { this._level = levelId ?? 1; }
 
+  // ── spawnScript (WS3 §3c INFRA-C) — staged waves keyed on kill-progress ──────
+  // script: [{ untilPct, weights?, rate? }] — first stage whose untilPct >= progress
+  // wins (last stage catches progress 1.0). `weights` ({ type: weight }) replaces
+  // bandWeights for spawns; `rate` overrides the lane-fill target (read by BOTH
+  // GameLoop._refillLanes and SimulationRunner._refillLanes — sim parity is by
+  // construction: this class is the single implementation both consume).
+  setSpawnScript(script) {
+    this._spawnScript = Array.isArray(script) && script.length > 0 ? script : null;
+    this._progress = 0;
+  }
+
+  // progress: 0..1 kill-progress (1 - remainingGoal/totalGoal). Clamped.
+  setProgress(pct) {
+    this._progress = Math.max(0, Math.min(1, pct ?? 0));
+  }
+
+  // Current stage of the active spawnScript, or null when no script is set.
+  scriptStage() {
+    if (!this._spawnScript) return null;
+    for (const s of this._spawnScript) {
+      if (this._progress <= (s.untilPct ?? 1)) return s;
+    }
+    return this._spawnScript[this._spawnScript.length - 1];
+  }
+
+  // Per-stage lane-fill target override (L20 surge crests/lulls), or null.
+  scriptRate() {
+    const rate = this.scriptStage()?.rate;
+    return Number.isFinite(rate) ? rate : null;
+  }
+
   // Generate a single car for the given lane, phase, and world settings.
   // HP formula: BASE_HP × worldHpMultiplier × phaseHpMultiplier × variance(0.85–1.15)
   // Result is rounded and clamped to [HP_MINIMUM, HP_BASE.max].
@@ -139,7 +170,8 @@ export class CarDirector {
   // ─── Private helpers ──────────────────────────────────────────────────────
 
   _buildCar(color, phase, worldConfig, availableRows) {
-    const type = pickCarType(this._rng, this._level, phase, availableRows);
+    const type = this._pickScriptedType(availableRows)
+      ?? pickCarType(this._rng, this._level, phase, availableRows);
     // Apply the level's hpMultiplier (carried on worldConfig, same value the
     // balance sim uses) so difficulty actually scales by level in live play.
     const multiplier = worldConfig?.hpMultiplier ?? 1.0;
@@ -149,6 +181,22 @@ export class CarDirector {
       this._rng.nextFloat(-worldConfig.speed.variance, worldConfig.speed.variance);
 
     return new Car({ color, hp, speed, type });
+  }
+
+  // Type pick from the active spawnScript stage's weights (null → caller falls
+  // back to bandWeights). Same minSpawnRow filter contract as pickCarType.
+  _pickScriptedType(availableRows) {
+    const weights = this.scriptStage()?.weights;
+    if (!weights) return null;
+    let options = Object.entries(weights)
+      .filter(([value]) => CAR_TYPES[value])
+      .map(([value, weight]) => ({ value, weight }));
+    if (options.length === 0) return null;
+    if (availableRows !== undefined) {
+      const filtered = options.filter(w => (CAR_TYPES[w.value]?.minSpawnRow ?? 0) <= availableRows);
+      if (filtered.length > 0) options = filtered;
+    }
+    return this._rng.weightedPick(options);
   }
 
   _randomCooldown(phaseParams) {

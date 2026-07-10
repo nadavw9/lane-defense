@@ -25,7 +25,9 @@ import {
   RESCUE_TIME_BONUS,
   COMBO_WINDOW,
   DEPLOY_DILATION,
+  HP_MINIMUM,
 } from '../director/DirectorConfig.js';
+import { CAR_TYPES } from '../director/CarTypes.js';
 import { openingRowsForLevel } from '../game/LevelManager.js';
 
 const DT = 1 / 60; // seconds per simulation tick (used for fire cooldowns only)
@@ -100,6 +102,11 @@ export class SimulationRunner {
       // with the shot's correctness (true = correct-colour, false = wrong).
       // Default null → zero behaviour change for balance runs and tests.
       onShot:             levelConfig.onShot             ?? null,
+      // §3c boss fields — SIM PARITY IS A HARD REQUIREMENT (VISION rule 6): the
+      // sim must model scripted bosses identically to the live game or it can't
+      // measure them. Both wire into the SAME CarDirector implementation.
+      initialCars:        levelConfig.initialCars        ?? null,   // INFRA-A scripted opening
+      spawnScript:        levelConfig.spawnScript        ?? null,   // INFRA-C staged waves
     };
   }
 
@@ -131,6 +138,7 @@ export class SimulationRunner {
     const arbiter    = new CountingArbiter();
     const carDir     = new CarDirector({}, rng);
     if (this._cfg.levelId != null) carDir.setLevel(this._cfg.levelId);
+    carDir.setSpawnScript(this._cfg.spawnScript);   // §3c INFRA-C (same impl as live game)
     const shooterDir = new ShooterDirector({}, rng, arbiter);
     const phaseMan   = new IntensityPhase(duration);
 
@@ -203,13 +211,35 @@ export class SimulationRunner {
     // stays the front car — the rest of the sim relies on that invariant (refills
     // append row-0 cars at the back).
     // No budget limit on opening cars — boards prime fully regardless of spawnBudget.
-    const _openRows = openingRowsForLevel(this._cfg.levelId);   // back→front, e.g. [0,1,2]
-    for (const lane of discreteLanes) {
-      // Push FRONT-FIRST (highest row first) so cars[0] stays the front car.
-      for (let k = _openRows.length - 1; k >= 0; k--) {
-        const car = carDir.generateCar({ id: lane.id }, 'CALM', worldConfig, colors, this._cfg.gridRows);
-        const adjustedHp = Math.max(1, Math.round(car.hp * worldConfig.hpMultiplier));
-        lane.cars.push({ row: _openRows[k], hp: adjustedHp, type: car.type, color: car.color });
+    if (this._cfg.initialCars && this._cfg.initialCars.length > 0) {
+      // §3c INFRA-A scripted opening — mirrors GameLoop._primeInitialCars: each
+      // entry { lane?, row?, type?, color? } fully defines one car (hp recomputed
+      // for a named type); the array defines the ENTIRE opening board.
+      for (const def of this._cfg.initialCars) {
+        const li  = Math.min(LANE_N - 1, Math.max(0, def.lane ?? 0));
+        const car = carDir.generateCar({ id: li }, 'CALM', worldConfig, colors, this._cfg.gridRows);
+        const type  = (def.type && CAR_TYPES[def.type]) ? def.type : car.type;
+        const color = (def.color && colors.includes(def.color)) ? def.color : car.color;
+        // hp for a named type: base × mult with the live HP_MINIMUM clamp — the
+        // SAME formula as GameLoop._primeInitialCars / CarDirector._buildCar.
+        const hp = (def.type && CAR_TYPES[def.type])
+          ? Math.max(HP_MINIMUM, Math.round(CAR_TYPES[def.type].hp * worldConfig.hpMultiplier))
+          : car.hp;
+        discreteLanes[li].cars.push({ row: def.row ?? 0, hp, type, color });
+      }
+      for (const lane of discreteLanes) lane.cars.sort((a, b) => b.row - a.row);   // cars[0] = front
+    } else {
+      const _openRows = openingRowsForLevel(this._cfg.levelId);   // back→front, e.g. [0,1,2]
+      for (const lane of discreteLanes) {
+        // Push FRONT-FIRST (highest row first) so cars[0] stays the front car.
+        for (let k = _openRows.length - 1; k >= 0; k--) {
+          const car = carDir.generateCar({ id: lane.id }, 'CALM', worldConfig, colors, this._cfg.gridRows);
+          // car.hp is already scaled by hpMultiplier in CarDirector._buildCar —
+          // re-multiplying here was a live↔sim parity bug (pre-89e7c67 leftover,
+          // when the sim was the only place the multiplier applied): the sim
+          // fought ~half-hp heavy cars (L30 tank live 11 vs sim 6).
+          lane.cars.push({ row: _openRows[k], hp: car.hp, type: car.type, color: car.color });
+        }
       }
     }
 
@@ -239,7 +269,9 @@ export class SimulationRunner {
     // so fills don't stack; then re-sort descending by row so cars[0] stays the
     // front car (discreteLanes are plain objects, so unlike Lane this won't auto-sort).
     const _refillLanes = (phase) => {
-      const target = this._cfg.laneTargetCarCount;
+      // §3c INFRA-C rate: the spawnScript stage may override the lane-fill target
+      // (L20 surge crests/lulls). Same line as GameLoop._refillLanes — parity.
+      const target = carDir.scriptRate() ?? this._cfg.laneTargetCarCount;
       for (const lane of discreteLanes) {
         let added = false;
         while (lane.cars.length < target) {
@@ -247,8 +279,9 @@ export class SimulationRunner {
           while (lane.cars.some(c => c.row === row)) row++;
           if (row >= this._cfg.gridRows) break;   // lane physically full
           const car = carDir.generateCar({ id: lane.id }, phase, worldConfig, colors, this._cfg.gridRows);
-          const adjustedHp = Math.max(1, Math.round(car.hp * worldConfig.hpMultiplier));
-          lane.cars.push({ row, hp: adjustedHp, type: car.type, color: car.color });
+          // No re-multiplication: car.hp already carries hpMultiplier (see the
+          // opening-block parity note). Carry-over bait cars keep their 1-2 hp.
+          lane.cars.push({ row, hp: car.hp, type: car.type, color: car.color });
           added = true;
         }
         if (added) lane.cars.sort((a, b) => b.row - a.row);   // cars[0] = front (highest row)
@@ -295,6 +328,7 @@ export class SimulationRunner {
         ? 1 - goalProgress.reduce((s, r) => s + r, 0) / Math.max(1, totalGoalCount)
         : Math.min(1, carsKilled / Math.max(1, KILL_TARGET));
       const elapsed = duration * progress;
+      carDir.setProgress(progress);   // §3c spawnScript stage keyed on kill-progress (parity w/ GameLoop)
       phaseMan.update(elapsed);
       const phase       = phaseMan.getCurrentPhase();
       const phaseParams = phaseMan.getParams();

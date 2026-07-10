@@ -82,6 +82,7 @@ function runOne(levelId) {
     levelId, skill, laneCount: cfg.laneCount, colCount: cfg.colCount,
     laneTargetCarCount: cfg.laneTargetCarCount, spawnBudget: cfg.spawnBudget,
     gridRows: cfg.gridRows, goals: cfg.goals ?? [],
+    initialCars: cfg.initialCars ?? null, spawnScript: cfg.spawnScript ?? null,   // §3c bosses
   });
 
   let wins = 0, winTurns = 0, totalKills = 0, totalShots = 0;

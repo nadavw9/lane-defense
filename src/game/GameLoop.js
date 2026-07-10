@@ -5,7 +5,8 @@
 // Public API:
 //   deploy(colIdx, laneIdx) — called by DragDrop; resolves combat immediately
 //   restart()               — full level reset + reprime; called by screens
-import { PHASE_CONFIG } from '../director/DirectorConfig.js';
+import { PHASE_CONFIG, HP_MINIMUM } from '../director/DirectorConfig.js';
+import { CAR_TYPES } from '../director/CarTypes.js';
 import { Shooter } from '../models/Shooter.js';
 
 const KILLS_PER_BOMB      = 10;    // kills needed to earn one bomb charge
@@ -610,6 +611,7 @@ export class GameLoop {
     gs.resetLevel();
     gs.phaseMan.update(0);
     this._accumulator = 0;
+    this._carDir.setProgress?.(0);      // spawnScript stage back to stage 1 (§3c)
     this._primeInitialCars();
     this._sDir.fillColumns(gs.activeCols, gs.asDirectorState(), gs.phaseMan.getParams());
     // NOTE: pre-made merges are NOT settled here — GameApp plays the ANIMATED merge
@@ -766,8 +768,11 @@ export class GameLoop {
   // (win) or breach (lose).
   // In legacy mode (spawnBudget === null), falls back to spawning 1-2 per advance.
   _refillLanes() {
-    const gs     = this._gs;
-    const target = gs.laneTargetCarCount ?? 2;
+    const gs = this._gs;
+    // Feed kill-progress to the spawnScript (§3c INFRA-C) BEFORE spawning, so the
+    // stage (weights + rate) matches the moment. Mirrored in SimulationRunner.
+    this._carDir.setProgress?.(this._goalProgressPct());
+    const target = this._carDir.scriptRate?.() ?? gs.laneTargetCarCount ?? 2;
 
     if (gs.spawnBudget !== null) {
       // Budget mode: top EVERY active lane up to laneTargetCarCount each advance.
@@ -808,6 +813,19 @@ export class GameLoop {
         this.onNewCarType?.(car.type);
       }
     }
+  }
+
+  // Kill-progress 0..1 for the spawnScript stage table: goal mode = fraction of
+  // total goal counts completed; legacy = kills/targetKills. Mirrors the sim.
+  _goalProgressPct() {
+    const gs = this._gs;
+    if (gs.goals?.length > 0) {
+      const total = gs.goals.reduce((s, g) => s + g.count, 0);
+      if (total <= 0) return 0;
+      const remaining = gs.goalProgress.reduce((s, r) => s + r, 0);
+      return 1 - remaining / total;
+    }
+    return gs.targetKills > 0 ? Math.min(1, gs.totalKills / gs.targetKills) : 0;
   }
 
   _step(dt) {
@@ -1015,22 +1033,30 @@ export class GameLoop {
   // pre-defined cars if the level config supplies an initialCars array.
   // No budget decrement — opening board always primes fully. spawnBudget is a
   // density knob, not a depletion pool.
+  //
+  // initialCars (§3c INFRA-A): each entry { lane?, row?, type?, color? } fully
+  // defines one opening car — lane/color/type honored, hp recomputed for the
+  // named type (base × hpMultiplier, same formula as CarDirector._buildCar) so
+  // a scripted tank isn't born with a bike's hp. The array defines the ENTIRE
+  // opening board; unnamed lanes start empty and refill on the first advance.
+  // (Old behavior dumped every entry in lane 0, ignored color, kept rolled hp.)
   _primeInitialCars() {
     const gs   = this._gs;
     const ROWS = gs.gridRows ?? 16;
 
     if (gs.initialCars && gs.initialCars.length > 0 && gs.activeLaneCount > 0) {
       for (const def of gs.initialCars) {
-        const car    = this._carDir.generateCar(gs.lanes[0], 'CALM', gs.world, gs.colors, ROWS);
-        car.row      = def.row ?? 0;
-        car.type     = def.type ?? car.type;
+        const li  = Math.min(gs.activeLaneCount - 1, Math.max(0, def.lane ?? 0));
+        const car = this._carDir.generateCar(gs.lanes[li], 'CALM', gs.world, gs.colors, ROWS);
+        car.row = def.row ?? 0;
+        if (def.type && CAR_TYPES[def.type]) {
+          car.type = def.type;
+          const mult = gs.world?.hpMultiplier ?? 1.0;
+          car.hp    = Math.max(HP_MINIMUM, Math.round(CAR_TYPES[def.type].hp * mult));
+          car.maxHp = car.hp;
+        }
+        if (def.color && gs.colors.includes(def.color)) car.color = def.color;
         car.position = this._rowToPosition(car.row, ROWS);
-        gs.lanes[0].addCar(car);
-      }
-      for (let li = 1; li < gs.activeLaneCount; li++) {
-        const car    = this._carDir.generateCar(gs.lanes[li], 'CALM', gs.world, gs.colors, ROWS);
-        car.row      = 0;
-        car.position = this._rowToPosition(0, ROWS);
         gs.lanes[li].addCar(car);
       }
     } else {

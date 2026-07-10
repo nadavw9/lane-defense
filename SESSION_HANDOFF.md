@@ -4,16 +4,19 @@
 **`docs/superpowers/plans/2026-07-02-master-plan-testing-ui-difficulty.md`** — three approved workstreams (Testing harness → UI overhaul → Difficulty redesign + City Repair meta). It contains an EXECUTION STATUS checklist that is updated after every step; any fresh session resumes from there. User pre-approved the work incl. commits.
 
 ## Current State
-- Git tip: b6597d8 fix: merge system hardening — atomic plan/apply, drag-merge mutual exclusion, no bomb loss
+- Git tip: 34318fe ui: shrink multi-kill celebration popup ~35% (pushed; retune cf62d8f +
+  goal-card sprites aac9977 also pushed 2026-07-10)
 - Branch: master
 - Last deploy: today, green (deploy GATED on the unit+audit suite)
 - Tests: 1076 vitest (unit+audit, incl. 400-op seeded merge stress) + 17 Playwright visual smoke + 40-level full sweep — green (rapid-hop occasionally flaky under parallel load, passes solo/retry)
 - MERGE SYSTEM: hardened + audit-clean as of b6597d8 (plan==apply by construction; drag/merge
-  mutual exclusion; no bomb-loss paths; sparse-array write-site guard). The measurement sim can
-  now trust merge behavior — run it BEFORE any retune (see blocker below).
+  mutual exclusion; no bomb-loss paths; sparse-array write-site guard).
+- BALANCE: §3b retune COMPLETE (cf62d8f) — mean 76.9%, every non-boss level in its band,
+  35 orphaned presets removed. Only the 4 §3c bosses flag.
 - Master plan: WS1 DONE · WS2 2a/2b/2c + 2d (Title 9-slice button plates + Win/Lose frames) DONE ·
-  WS3 §3a canonical table + §3c boss specs (both in GAME_DESIGN.md) + §3b booster-aware SIM DONE
-  (retune NOT applied). WS3 traps/constraints live in `docs/superpowers/FABLE_EXIT_BRIEF.md`.
+  WS3 §3a canonical table + §3c boss specs (both in GAME_DESIGN.md) + §3b booster-aware sim +
+  RETUNE APPLIED (cf62d8f). Next: §3c scripted bosses — user requires the design approach
+  reviewed BEFORE implementation. WS3 traps/constraints live in `docs/superpowers/FABLE_EXIT_BRIEF.md`.
 - Live URL: https://nadavw9.github.io/lane-defense/
 
 ## ✅ WS3 §3b RETUNE — DONE (2026-07-10). Next: §3c bosses.
@@ -212,6 +215,9 @@ orphaned presets deleted). Bosses L10/20/30/40 get their numbers WITH the §3c s
 ## Active Backlog
 - Replace COLOR CHANGE placeholder glyph with a real paintbrush sprite (drop `public/sprites/designed/booster-colorchange.png` — picked up automatically; also add it to BOOSTER_URLS preload in GameApp.js once it exists)
 - Real-device playtest: Tier 1 floor levels L8/L12/L16/L33/L37 and bosses L10/L20/L30/L40
+- PLAYTEST WATCH: goal progress pre-decremented on FIRST level navigation — seen once at L8
+  (10/12 immediately after title→startLevel), never reproduced on restart. Possible first-nav
+  transition artifact; confirm on real device it is NOT a kill-crediting bug.
 - Signed AAB build for Play Store
 - Play Store assets (5 screenshots, feature graphic, short + long descriptions)
 - Agent team quality audit (next session)

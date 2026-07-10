@@ -27,86 +27,32 @@
 //   swap    L9+
 //   freeze  L14+
 
-import { WORLD_CONFIG } from '../director/DirectorConfig.js';
-
 // â”€â”€ Shared difficulty presets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// 2026-07-10 booster-aware retune: most levels now carry per-level inline worldConfig;
+// presets that became unreferenced were deleted. Target bands live in tools/balance-sim.js.
 
 // Block 1: Tutorial City â€” morning theme (L1â€“8)
 const B1_FTUE = { hpMultiplier: 0.30, speed: { base: 3.0, variance: 0.0 } };
-const B1_MED  = { hpMultiplier: 0.33, speed: { base: 3.5, variance: 0.2 } };
-const B1_HARD = { hpMultiplier: 0.45, speed: { base: 4.2, variance: 0.3 } };
-const B1_REL  = { hpMultiplier: 0.33, speed: { base: 3.5, variance: 0.2 } };
-const B1_MED2 = { hpMultiplier: 0.41, speed: { base: 4.0, variance: 0.3 } };
-const B1_HARD2= { hpMultiplier: 0.49, speed: { base: 4.5, variance: 0.4 } };
-const B1_BH   = { hpMultiplier: 0.55, speed: { base: 4.8, variance: 0.4 } };
 
 // Block 2: Tutorial City â€” afternoon/sunset themes (L9â€“16)
 const B2_EASY = { hpMultiplier: 0.45, speed: { base: 4.6, variance: 0.4 } }; // rebalanced for post-Batch-A road length
-const B2_MED  = { hpMultiplier: 0.53, speed: { base: 4.6, variance: 0.5 } };
-const B2_HARD = { hpMultiplier: 0.63, speed: { base: 5.0, variance: 0.5 } };
-const B2_REL  = { hpMultiplier: 0.43, speed: { base: 4.2, variance: 0.4 } };
-const B2_MED2 = { hpMultiplier: 0.57, speed: { base: 5.0, variance: 0.5 } };
-const B2_BH   = { hpMultiplier: 0.69, speed: { base: 5.5, variance: 0.5 } };
 
 // Block 3: Misty â†’ Industrial transition (L17â€“24)
-const B3_DISC = { hpMultiplier: 0.60, speed: { base: 5.0, variance: 0.3 } }; // L17 color-bomb discovery
-const B3_EASY = { hpMultiplier: 0.48, speed: { base: 4.5, variance: 0.4 } };
-const B3_MED  = { hpMultiplier: 0.60, speed: { base: 5.0, variance: 0.5 } };
-const B3_MED2 = { hpMultiplier: 0.63, speed: { base: 5.2, variance: 0.5 } };
-const B3_REL  = { hpMultiplier: 0.47, speed: { base: 4.5, variance: 0.4 } };
-const B3_MED3 = { hpMultiplier: 0.61, speed: { base: 5.2, variance: 0.5 } };
 const B3_HARD = { hpMultiplier: 0.71, speed: { base: 5.6, variance: 0.5 } };
-const B3_BH   = { hpMultiplier: 0.77, speed: { base: 5.8, variance: 0.6 } };
 const B3_BH_L24 = { hpMultiplier: 0.69, speed: { base: 5.8, variance: 0.6 } }; // L24 only: Ã—0.9 balance
 
-// Block 4: Industrial Zone (L25â€“32)
-const B4_MED  = { hpMultiplier: 0.67, speed: { base: 5.4, variance: 0.5 } };
-const B4_MED2 = { hpMultiplier: 0.71, speed: { base: 5.6, variance: 0.5 } };
-const B4_HARD = { hpMultiplier: 0.77, speed: { base: 6.0, variance: 0.6 } };
-const B4_REL  = { hpMultiplier: 0.53, speed: { base: 5.2, variance: 0.5 } };
-const B4_HARD2= { hpMultiplier: 0.83, speed: { base: 6.2, variance: 0.6 } };
-const B4_BH   = { hpMultiplier: 0.85, speed: { base: 6.5, variance: 0.7 } };
-
-// Block 5: Night Highway (L33â€“40)
-const B5_EASY = { hpMultiplier: 0.54, speed: { base: 5.8, variance: 0.5 } };
-const B5_MED  = { hpMultiplier: 0.73, speed: { base: 6.2, variance: 0.6 } };
-const B5_HARD = { hpMultiplier: 0.85, speed: { base: 6.8, variance: 0.7 } };
-const B5_REL  = { hpMultiplier: 0.57, speed: { base: 6.2, variance: 0.6 } };
-const B5_MED2 = { hpMultiplier: 0.81, speed: { base: 6.8, variance: 0.7 } };
-const B5_HARD2= { hpMultiplier: 0.87, speed: { base: 7.2, variance: 0.7 } };
-
 // â”€â”€ Realistic player balance presets (Phase 3) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Calibrated so an average player (82% accuracy, 3 s cycle delay) achieves:
-//   Easy: 75â€“92%, Medium: 50â€“72%, Hard: 28â€“50%, Boss-Hard: 15â€“32%
-// 5- and 6-color configs have lower speed/HP because the sim cannot model
-// SWAP/BENCH â€” actual in-game speeds should be higher after playtest.
-const R_2C_EASY = { hpMultiplier: 0.60, speed: { base: 5.5, variance: 0.2 } }; // ~90% Easy
-const R_2C_MED  = { hpMultiplier: 0.72, speed: { base: 6.5, variance: 0.3 } }; // ~57% Medium
-const R_2C_HARD = { hpMultiplier: 0.54, speed: { base: 8.0, variance: 0.3 } }; // L4 only: lowered 1.80→0.90 (outlier, same as L16 fix)
-const R_3C_EASY = { hpMultiplier: 0.51, speed: { base: 4.5, variance: 0.4 } }; // ~85% Easy
-const R_3C_MED  = { hpMultiplier: 0.66, speed: { base: 5.5, variance: 0.4 } }; // ~61% Medium
-const R_3C_HARD = { hpMultiplier: 0.78, speed: { base: 6.5, variance: 0.5 } }; // ~33% Hard
-const R_3C_BH   = { hpMultiplier: 1.08, speed: { base: 7.5, variance: 0.5 } }; // ~25% Boss-Hard
+const R_3C_HARD = { hpMultiplier: 0.78, speed: { base: 6.5, variance: 0.5 } }; // L20 boss (deferred to Â§3c)
 const R_3C_BH_L16 = { hpMultiplier: 0.72, speed: { base: 7.5, variance: 0.5 } }; // L16 only: lowered 1.62→1.20 (overcorrected with higher base HP)
-const R_L17     = { hpMultiplier: 0.36, speed: { base: 3.8, variance: 0.3 } }; // ~85% Easy (BigRig-heavy)
-const R_4C_EASY = { hpMultiplier: 0.46, speed: { base: 3.8, variance: 0.4 } }; // ~89% Easy
-const R_4C_MED  = { hpMultiplier: 0.55, speed: { base: 4.5, variance: 0.5 } }; // ~63% Medium
-// R_4C_HARD and R_4C_BH: use B3_HARD and B3_BH â€” already in target band.
-const R_5C_EASY = { hpMultiplier: 0.45, speed: { base: 3.5, variance: 0.5 } }; // ~85% Easy
-const R_5C_MED  = { hpMultiplier: 0.53, speed: { base: 4.0, variance: 0.5 } }; // ~67% Medium
-const R_5C_HARD = { hpMultiplier: 0.60, speed: { base: 4.5, variance: 0.5 } }; // ~47% Hard
-const R_6C_EASY = { hpMultiplier: 0.42, speed: { base: 3.0, variance: 0.4 } }; // ~87% Easy
-const R_6C_MED  = { hpMultiplier: 0.47, speed: { base: 3.5, variance: 0.5 } }; // ~67% Medium
-const R_6C_HARD = { hpMultiplier: 0.54, speed: { base: 4.0, variance: 0.5 } }; // ~44% Hard
-const R_6C_BH   = { hpMultiplier: 0.57, speed: { base: 4.5, variance: 0.6 } }; // ~26% Boss-Hard
-// Duration-specific variants (100 s levels have more pressure than 90 s calibration).
-const R_2C_EASY_100 = { hpMultiplier: 0.54, speed: { base: 5.8, variance: 0.2 } }; // ~72% Easy, 100s (rebalanced for post-Batch-A road length)
-const R_2C_MED_100  = { hpMultiplier: 0.60, speed: { base: 5.5, variance: 0.3 } }; // ~63% Medium, 100s
-const R_L17_V2      = { hpMultiplier: 0.45, speed: { base: 4.0, variance: 0.3 } }; // ~90% Easy, L17 BigRig
-const R_6C_BH_LONG  = { hpMultiplier: 0.51, speed: { base: 4.0, variance: 0.6 } }; // ~24% BH, 120s finale
+const R_4C_MED  = { hpMultiplier: 0.55, speed: { base: 4.5, variance: 0.5 } }; // L22
+const R_5C_MED  = { hpMultiplier: 0.53, speed: { base: 4.0, variance: 0.5 } }; // L30 boss (deferred to Â§3c)
+const R_6C_HARD = { hpMultiplier: 0.54, speed: { base: 4.0, variance: 0.5 } }; // L31/36/39
+const R_6C_BH   = { hpMultiplier: 0.57, speed: { base: 4.5, variance: 0.6 } }; // L32
+const R_2C_MED_100  = { hpMultiplier: 0.60, speed: { base: 5.5, variance: 0.3 } }; // L6 (goals-only retune) + L10 boss
+const R_6C_BH_LONG  = { hpMultiplier: 0.51, speed: { base: 4.0, variance: 0.6 } }; // L40 boss (deferred to Â§3c), 120s finale
 // L2 is 2-lane/2-col in-game but the sim always uses 4 lanes/4 cols, giving 2Ã— extra
 // firepower vs real. Compensate with higher speed/HP so the sim is harder.
-const R_L2          = { hpMultiplier: 0.90, speed: { base: 7.5, variance: 0.3 } }; // ~67% Medium, L2 2-col sim bias
+const R_L2          = { hpMultiplier: 0.90, speed: { base: 7.5, variance: 0.3 } }; // L2 2-col sim bias
 
 // â”€â”€ Level progression (all 40) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -133,19 +79,22 @@ const PROGRESSION = [
 
   // L3 Medium â€” "Third lane": 3 lanes, same 2 colors. Multi-lane management.
   { id: 3, laneCount: 3, colCount: 3, colors: ['Red', 'Blue'],
-    worldConfig: R_2C_MED, duration: 90, spawnBudget: 12, laneTargetCarCount: 2, gridRows: 16,
+    worldConfig: { hpMultiplier: 0.90, speed: { base: 6.5, variance: 0.3 } }, // 2026-07-10 retune: 0.72→0.90, tutorial-exempt like L1/L2 — 3 lanes + 2 colors has no losing mechanism at brisk HP (~100% by design; transition marker is L4)
+    duration: 90, spawnBudget: 12, laneTargetCarCount: 2, gridRows: 16,
     showArrow: false, hintText: null, showAreaLabels: true,
-    goals: [{"type":"destroyTotal","count":30}] },
+    goals: [{"type":"destroyTotal","count":26}] },
 
   // L4 Hard â€” "Full board": 4 lanes, Red+Blue. First real pressure.
   { id: 4, laneCount: 4, colCount: 4, colors: ['Red', 'Blue'],
-    worldConfig: R_2C_HARD, duration: 90, spawnBudget: 8, laneTargetCarCount: 2, gridRows: 16,
+    worldConfig: { hpMultiplier: 0.90, speed: { base: 8.0, variance: 0.3 } }, // 2026-07-10 booster-aware retune: 0.54→0.90 + goal 30→26 (~92%; smalls stay 2-hit — tutorial→game transition level)
+    duration: 90, spawnBudget: 8, laneTargetCarCount: 2, gridRows: 16,
     showArrow: false, hintText: null ,
-    goals: [{"type":"destroyTotal","count":30}]},
+    goals: [{"type":"destroyTotal","count":26}]},
 
   // L5 Easy (Relief) â€” "Breathe": 4 lanes, R+B, lower pressure. Sets up bench need.
   { id: 5, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
-    worldConfig: R_2C_EASY_100, duration: 100, spawnBudget: 13, laneTargetCarCount: 2, gridRows: 16,
+    worldConfig: { hpMultiplier: 0.86, speed: { base: 5.8, variance: 0.2 } }, // 2026-07-10 booster-aware retune: 0.54→0.86 (~92%)
+    duration: 100, spawnBudget: 13, laneTargetCarCount: 2, gridRows: 16,
     showArrow: false, hintText: null ,
     goals: [{"type":"destroyTotal","count":33}]},
 
@@ -153,17 +102,19 @@ const PROGRESSION = [
   { id: 6, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
     worldConfig: R_2C_MED_100, duration: 100, spawnBudget: 16, laneTargetCarCount: 2, gridRows: 16,
     showArrow: false, hintText: 'NEW! Bench — store a bomb to use later' ,
-    goals: [{"type":"destroyColor","color":"Red","count":40}]},
+    goals: [{"type":"destroyColor","color":"Red","count":22}]}, // 2026-07-10 retune: 40→22 (grind cut, 116→~65 turns; hp untouched)
 
   // L7 Hard â€” "Green arrives": 3 colors for the first time. Pattern reset.
   { id: 7, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
-    worldConfig: R_3C_HARD, duration: 100, spawnBudget: 11, laneTargetCarCount: 2, gridRows: 16,
+    worldConfig: { hpMultiplier: 0.84, speed: { base: 6.5, variance: 0.5 } }, // 2026-07-10 booster-aware retune: 0.78→0.84 (~92%; un-shared from R_3C_HARD)
+    duration: 100, spawnBudget: 11, laneTargetCarCount: 2, gridRows: 16,
     showArrow: false, hintText: 'NEW! Green bombs — 3 colors to manage now' ,
     goals: [{"type":"destroyColor","color":"Red","count":14},{"type":"destroyColor","color":"Blue","count":14}]},
 
   // L8 Boss-Hard â€” "Green boss": all 4 lanes, 3 colors, full density. Rescue moment.
   { id: 8, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
-    worldConfig: R_3C_BH, duration: 90, spawnBudget: 8, laneTargetCarCount: 2, gridRows: 16,
+    worldConfig: { hpMultiplier: 0.86, speed: { base: 7.5, variance: 0.5 } }, // 2026-07-10 booster-aware retune: 1.08→0.86 (~93%; was sole too-hard, pre-fix overcomp)
+    duration: 90, spawnBudget: 8, laneTargetCarCount: 2, gridRows: 16,
     showArrow: false, hintText: null ,
     goals: [{"type":"destroyColor","color":"Green","count":12},{"type":"destroyColor","color":"Red","count":12}]},
 
@@ -191,25 +142,29 @@ const PROGRESSION = [
 
   // L11 Medium â€” "Back to three": R+B+G returns. BigRig introduced.
   { id: 11, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
-    worldConfig: R_3C_MED, duration: 100, spawnBudget: 10, laneTargetCarCount: 2, gridRows: 16,
+    worldConfig: { hpMultiplier: 0.89, speed: { base: 5.5, variance: 0.4 } }, // 2026-07-10 booster-aware retune: 0.66→0.89 (~77%; un-shared from R_3C_MED)
+    duration: 100, spawnBudget: 10, laneTargetCarCount: 2, gridRows: 16,
     showArrow: false, hintText: null ,
     goals: [{"type":"destroyColor","color":"Red","count":13},{"type":"destroyColor","color":"Green","count":12}]},
 
   // L12 Hard â€” "BigRig pressure": heavy cars, tight timing.
   { id: 12, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
-    worldConfig: R_3C_HARD, duration: 95, spawnBudget: 9, laneTargetCarCount: 2, gridRows: 16,
+    worldConfig: { hpMultiplier: 0.90, speed: { base: 6.5, variance: 0.5 } }, // 2026-07-10 booster-aware retune: 0.78→0.90 (~73%; un-shared from R_3C_HARD)
+    duration: 95, spawnBudget: 9, laneTargetCarCount: 2, gridRows: 16,
     showArrow: false, hintText: null ,
     goals: [{"type":"destroyColor","color":"Blue","count":12},{"type":"destroyColor","color":"Green","count":11}]},
 
   // L13 Easy (Relief) â€” "Breather": R+B+G, light pressure after L12 spike.
   { id: 13, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
-    worldConfig: B2_REL, duration: 100, spawnBudget: 14, laneTargetCarCount: 2, gridRows: 16,
+    worldConfig: { hpMultiplier: 0.72, speed: { base: 4.2, variance: 0.4 } }, // 2026-07-10 booster-aware retune: 0.43→0.72 (~80%; un-shared from B2_REL)
+    duration: 100, spawnBudget: 14, laneTargetCarCount: 2, gridRows: 16,
     showArrow: false, hintText: null ,
     goals: [{"type":"destroyColor","color":"Red","count":18},{"type":"destroyColor","color":"Blue","count":17}]},
 
   // L14 Medium â€” "FREEZE intro": FREEZE booster unlocks. Level designed around it.
   { id: 14, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
-    worldConfig: R_3C_MED, duration: 100, spawnBudget: 9, laneTargetCarCount: 2, gridRows: 16,
+    worldConfig: { hpMultiplier: 0.86, speed: { base: 5.5, variance: 0.4 } }, // 2026-07-10 booster-aware retune: 0.66→0.86 (~74%; un-shared from R_3C_MED)
+    duration: 100, spawnBudget: 9, laneTargetCarCount: 2, gridRows: 16,
     showArrow: false, hintText: 'NEW! FREEZE booster — your next shot is free, no cars advance! (2 free)',
     goals: [{"type":"destroyColor","color":"Red","count":12},{"type":"destroyColor","color":"Blue","count":11}] },
 
@@ -241,19 +196,22 @@ const PROGRESSION = [
   // combo naturally. hpMultiplier=1.0, speed=5.0 so BigRigs feel weighty but
   // not panicky. No tanks â€” discovery should feel rewarding, not punishing.
   { id: 17, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
-    worldConfig: R_L17_V2, duration: 100, spawnBudget: 11, laneTargetCarCount: 2, gridRows: 16,
+    worldConfig: { hpMultiplier: 0.66, speed: { base: 4.0, variance: 0.3 } }, // 2026-07-10 booster-aware retune: 0.45→0.66 (~82%; un-shared from R_L17_V2)
+    duration: 100, spawnBudget: 11, laneTargetCarCount: 2, gridRows: 16,
     showArrow: false, hintText: null ,
     goals: [{"type":"destroyColor","color":"Blue","count":14},{"type":"destroyColor","color":"Green","count":14}]},
 
   // L18 Medium â€” "Combo mastery": R+B+G, moderate. Designed for combo building.
   { id: 18, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
-    worldConfig: R_3C_MED, duration: 100, spawnBudget: 8, laneTargetCarCount: 2, gridRows: 16,
+    worldConfig: { hpMultiplier: 0.69, speed: { base: 5.5, variance: 0.4 } }, // 2026-07-10 booster-aware retune: 0.66→0.69 (~77%; un-shared from R_3C_MED)
+    duration: 100, spawnBudget: 8, laneTargetCarCount: 2, gridRows: 16,
     showArrow: false, hintText: null ,
     goals: [{"type":"destroyColor","color":"Red","count":12},{"type":"destroyColor","color":"Blue","count":12}]},
 
   // L19 Medium â€” "Pre-surge": R+B+G, budget tightens. Freeze becomes essential.
   { id: 19, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
-    worldConfig: B3_MED2, duration: 100, spawnBudget: 9, laneTargetCarCount: 2, gridRows: 16,
+    worldConfig: { hpMultiplier: 0.69, speed: { base: 5.2, variance: 0.5 } }, // 2026-07-10 booster-aware retune: 0.63→0.69 (~76%; un-shared from B3_MED2)
+    duration: 100, spawnBudget: 9, laneTargetCarCount: 2, gridRows: 16,
     showArrow: false, hintText: null ,
     goals: [{"type":"destroyColor","color":"Green","count":12},{"type":"destroyColor","color":"Blue","count":11}]},
 
@@ -268,7 +226,8 @@ const PROGRESSION = [
 
   // L21 Easy (Relief) â€” "Yellow arrives": 4 colors. Light pressure after L20.
   { id: 21, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow'],
-    worldConfig: R_4C_EASY, duration: 100, spawnBudget: 10, laneTargetCarCount: 2, gridRows: 16,
+    worldConfig: { hpMultiplier: 0.58, speed: { base: 3.8, variance: 0.4 } }, // 2026-07-10 booster-aware retune: 0.46→0.58 (~77%; un-shared from R_4C_EASY)
+    duration: 100, spawnBudget: 10, laneTargetCarCount: 2, gridRows: 16,
     showArrow: false, hintText: 'NEW! Yellow bombs — 4 colors now' ,
     goals: [{"type":"destroyColor","color":"Red","count":13},{"type":"destroyColor","color":"Yellow","count":12}]},
 
@@ -300,32 +259,36 @@ const PROGRESSION = [
   // Design: player always has â‰¥1 unmatched column. SWAP and bench become vital.
   // hp is soft (1.0) but the 5th color creates constant mismatch pressure.
   { id: 25, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple'],
-    worldConfig: R_5C_EASY,
+    worldConfig: { hpMultiplier: 0.58, speed: { base: 3.5, variance: 0.5 } }, // 2026-07-10 booster-aware retune: 0.45→0.58 (~73%; un-shared from R_5C_EASY)
     duration: 100, spawnBudget: 11, laneTargetCarCount: 2, gridRows: 16,
     showArrow: false, hintText: 'NEW! Purple — 5 colors, 4 columns. Master SWAP.',
     goals: [{"type":"destroyColor","color":"Red","count":9},{"type":"destroyColor","color":"Blue","count":9},{"type":"destroyColor","color":"Green","count":9}] },
 
   // L26 Medium â€” "Purple integrated": 5 colors, building muscle memory.
   { id: 26, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple'],
-    worldConfig: R_5C_MED, duration: 100, spawnBudget: 11, laneTargetCarCount: 2, gridRows: 16,
+    worldConfig: { hpMultiplier: 0.63, speed: { base: 4.0, variance: 0.5 } }, // 2026-07-10 booster-aware retune: 0.53→0.63 (~73%; un-shared from R_5C_MED)
+    duration: 100, spawnBudget: 11, laneTargetCarCount: 2, gridRows: 16,
     showArrow: false, hintText: null ,
     goals: [{"type":"destroyColor","color":"Red","count":7},{"type":"destroyColor","color":"Purple","count":7},{"type":"destroyColor","color":"Yellow","count":6}]},
 
   // L27 Medium â€” "Five-color rhythm": medium ramp, combo play rewarded here.
   { id: 27, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple'],
-    worldConfig: R_5C_MED, duration: 100, spawnBudget: 11, laneTargetCarCount: 2, gridRows: 16,
+    worldConfig: { hpMultiplier: 0.65, speed: { base: 4.0, variance: 0.5 } }, // 2026-07-10 booster-aware retune: 0.53→0.65 (~67%; un-shared from R_5C_MED)
+    duration: 100, spawnBudget: 11, laneTargetCarCount: 2, gridRows: 16,
     showArrow: false, hintText: null ,
     goals: [{"type":"destroyColor","color":"Purple","count":9},{"type":"destroyColor","color":"Green","count":9}]},
 
   // L28 Hard â€” "Industrial grind": fast + tanky. Trucks and BigRigs dominate.
   { id: 28, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple'],
-    worldConfig: R_5C_HARD, duration: 90, spawnBudget: 9, laneTargetCarCount: 2, gridRows: 16,
+    worldConfig: { hpMultiplier: 0.72, speed: { base: 4.5, variance: 0.5 } }, // 2026-07-10 booster-aware retune: 0.60→0.72 (~64%; un-shared from R_5C_HARD)
+    duration: 90, spawnBudget: 9, laneTargetCarCount: 2, gridRows: 16,
     showArrow: false, hintText: null ,
     goals: [{"type":"destroyColor","color":"Yellow","count":6},{"type":"destroyType","carType":"truck","count":5}]},
 
   // L29 Easy (Relief) â€” "Midpoint reset": soft pressure before L30 boss.
   { id: 29, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple'],
-    worldConfig: R_5C_EASY, duration: 100, spawnBudget: 11, laneTargetCarCount: 2, gridRows: 16,
+    worldConfig: { hpMultiplier: 0.59, speed: { base: 3.5, variance: 0.5 } }, // 2026-07-10 booster-aware retune: 0.45→0.59 (~67%; un-shared from R_5C_EASY)
+    duration: 100, spawnBudget: 11, laneTargetCarCount: 2, gridRows: 16,
     showArrow: false, hintText: null ,
     goals: [{"type":"destroyColor","color":"Red","count":11},{"type":"destroyColor","color":"Blue","count":11}]},
 
@@ -358,13 +321,15 @@ const PROGRESSION = [
 
   // L33 Easy (Relief) â€” "Nightfall": 6 colors, much lower pressure. Eyes adjust to theme.
   { id: 33, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'],
-    worldConfig: R_6C_EASY, duration: 100, spawnBudget: 14, laneTargetCarCount: 2, gridRows: 16,
+    worldConfig: { hpMultiplier: 0.61, speed: { base: 3.0, variance: 0.4 } }, // 2026-07-10 booster-aware retune: 0.42→0.61 (~67%; un-shared from R_6C_EASY)
+    duration: 100, spawnBudget: 14, laneTargetCarCount: 2, gridRows: 16,
     showArrow: false, hintText: null ,
     goals: [{"type":"destroyColor","color":"Green","count":7},{"type":"destroyColor","color":"Purple","count":7}]},
 
   // L34 Medium â€” "Highway patrol": 6 colors, steady ramp. Combos are optimal here.
   { id: 34, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'],
-    worldConfig: R_6C_MED, duration: 95, spawnBudget: 10, laneTargetCarCount: 2, gridRows: 16,
+    worldConfig: { hpMultiplier: 0.65, speed: { base: 3.5, variance: 0.5 } }, // 2026-07-10 booster-aware retune: 0.47→0.65 (~67%; un-shared from R_6C_MED)
+    duration: 95, spawnBudget: 10, laneTargetCarCount: 2, gridRows: 16,
     showArrow: false, hintText: null ,
     goals: [{"type":"destroyColor","color":"Red","count":6},{"type":"destroyColor","color":"Orange","count":5}]},
 
@@ -372,7 +337,7 @@ const PROGRESSION = [
   // Design: cars die in 1-2 shots but advance every second. React instantly or breach.
   // Speed boss â€” the designed challenge is reflex, not planning.
   { id: 35, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'],
-    worldConfig: R_6C_MED,
+    worldConfig: { hpMultiplier: 0.65, speed: { base: 3.5, variance: 0.5 } }, // 2026-07-10 booster-aware retune: 0.47→0.65 (~69%; un-shared from R_6C_MED)
     duration: 90, spawnBudget: 10, laneTargetCarCount: 2, gridRows: 16,
     showArrow: false, hintText: null ,
     goals: [{"type":"destroyColor","color":"Blue","count":6},{"type":"destroyType","carType":"truck","count":5}]},
@@ -385,13 +350,15 @@ const PROGRESSION = [
 
   // L37 Easy (Relief) â€” "Last breath": gentler wave before the final gauntlet.
   { id: 37, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'],
-    worldConfig: R_6C_EASY, duration: 100, spawnBudget: 14, laneTargetCarCount: 2, gridRows: 16,
+    worldConfig: { hpMultiplier: 0.58, speed: { base: 3.0, variance: 0.4 } }, // 2026-07-10 booster-aware retune: 0.42→0.58 (~67%; un-shared from R_6C_EASY)
+    duration: 100, spawnBudget: 14, laneTargetCarCount: 2, gridRows: 16,
     showArrow: false, hintText: null ,
     goals: [{"type":"destroyColor","color":"Purple","count":8},{"type":"destroyColor","color":"Red","count":7}]},
 
   // L38 Medium â€” "Storm warning": all types, all colors, fast ramp.
   { id: 38, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'],
-    worldConfig: R_6C_MED, duration: 90, spawnBudget: 10, laneTargetCarCount: 2, gridRows: 16,
+    worldConfig: { hpMultiplier: 0.67, speed: { base: 3.5, variance: 0.5 } }, // 2026-07-10 booster-aware retune: 0.47→0.67 (~67%; un-shared from R_6C_MED)
+    duration: 90, spawnBudget: 10, laneTargetCarCount: 2, gridRows: 16,
     showArrow: false, hintText: null ,
     goals: [{"type":"destroyColor","color":"Orange","count":6},{"type":"destroyType","carType":"truck","count":4}]},
 

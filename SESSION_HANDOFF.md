@@ -16,16 +16,27 @@
   (retune NOT applied). WS3 traps/constraints live in `docs/superpowers/FABLE_EXIT_BRIEF.md`.
 - Live URL: https://nadavw9.github.io/lane-defense/
 
-## ⚠️ BLOCKER FOR THE WS3 RETUNE — the §3b retune table is STALE, DISCARD IT
-It was measured against the PRE-FIX merge behavior (merges failed to fire on mid-game auto-fill).
-Now that merges fire reliably (`9770c20`), the game reads EASIER → sim win rates will RISE → hp
-targets go UP from that table. **Re-run `node tools/balance-sim.js --level=all --runs=500` first,
-THEN do the non-boss retune ONCE against corrected numbers.** Levers (banked, bug-independent):
-**hp = difficulty, goal counts = length/relief; per-level hp requires un-sharing the `R_*` preset
-consts into inline `worldConfig` — never edit a shared preset** (FABLE_EXIT_BRIEF §1). Bosses
-L10/20/30/40 are deferred to §3c (their numbers get set WITH the scripted waves, not in the retune).
+## ✅ WS3 §3b RETUNE — DONE (2026-07-10). Next: §3c bosses.
+The booster-aware retune landed against corrected post-merge-fix numbers (profile: skill=average,
+boosterIQ 0.70). Bands now live in `tools/balance-sim.js` (`bandFor`): tutorial L1-3 win%-exempt
+(~100% correct — L3 has no losing mechanism at brisk HP: 3 lanes/2 colors; the tutorial→game
+transition marker is L4 at 92.2%) · FTUE L4-9 85-95 · mid L10-26 70-82 · late L27-40 60-75 ·
+bosses 40-55 flagged `BOSS §3c`, configs untouched. TOO LONG threshold 25→70 turns (goal-driven
+levels legitimately run 35-55). Post-retune sweep: 4/40 flagged (the 4 deferred bosses only),
+mean 76.9%. 24 levels changed via per-level INLINE worldConfig (shared presets never edited;
+orphaned presets deleted). Bosses L10/20/30/40 get their numbers WITH the §3c scripted waves.
 
 ## What Was Shipped This Session (most recent first)
+- **WS3 §3b BOOSTER-AWARE RETUNE (all 40 levels in band).** Measured baseline first (mean 83.6%,
+  30/40 flagged vs new bands), then HP-primary one-direction retune: 22 HP raises as un-shared
+  inline `worldConfig` (R_3C_MED un-shared across L11/14/18 etc.), L8 the sole DECREASE
+  (1.08→0.86 — pre-fix overcompensation), L6 goal-count cut Red:40→22 (grind fix: 116.7→64.7
+  turns, hp untouched), L3+L4 solved with hp 0.90 + goal trim 30→26 (user rejected the 1.30/1.12
+  first pass as too grindy-per-car; L3 declared tutorial-exempt — no losing mechanism at brisk HP,
+  L4 is the transition at 92.2%). Every change binary-searched + sim-verified at --runs=500
+  (seed-deterministic, so projected == final). `tools/balance-sim.js` bands restated to the
+  average+boosterIQ0.70 profile; 35 orphaned preset consts deleted (grep-verified unreferenced).
+  Final sweep 4/40 flagged (deferred bosses only), mean 76.9%. 1076 vitest green.
 - 9770c20 — **CRITICAL MERGE FIX (DEFECT 1 + DEFECT 2).** Merges now fire on mid-game auto-fill.
   Previously merge detection ran ONLY on player actions (swap/bench/fire) + the level-start settle,
   so a 3-same-colour line formed by an auto-fill (post-fire refill in `_advanceGrid`, bench refill in

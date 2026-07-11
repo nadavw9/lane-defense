@@ -13,6 +13,7 @@
 
 import * as THREE from 'three';
 import { CELL, posToZ, laneToX } from './Scene3D.js';
+import { ROAD_Z_FAR, POS_NEAR_Z } from './projection.js';
 
 // ── Canvas size for programmatic textures ────────────────────────────────────
 const CVS    = 256;
@@ -34,7 +35,43 @@ const POWER_SQUASH_DUR = 0.16;   // total squash→stretch→settle duration
 // relative to the on-screen row pitch. gridRows went 11 → 16, so the pitch shrank
 // by 10/15; the scale is reduced proportionally (0.65 × 10/15 ≈ 0.43) so adjacent
 // rows keep a clear gap instead of overlapping.
-const SPRITE_SCALE     = 0.43;
+const SPRITE_SCALE     = 0.43;   // boss/fallback only — real types use spriteScaleFor()
+
+// ── Per-type sprite scale, derived from the projected row pitch (Bug B) ───────
+// One global scale rendered car BODIES at 66%–130% of the row pitch because the
+// art padding is wildly inconsistent (sedan body = 78% of its image height, tank
+// ≈ 99%): sedans looked tiny while truck/tank/bigrig physically overlapped the
+// car behind. spriteScaleFor() normalizes each type's MEASURED body length to
+// FIT × row pitch — nothing touches its lane neighbour, and the size ordering
+// (bike < sedan < van < truck < tank < bigrig) is preserved.
+// BODY_FRAC (alpha-bbox fractions of the sprite image) and cx (body-center X
+// offset, + = right of image center) are MEASURED by scripts/measure-car-bbox.mjs
+// — regenerate the table if the car art changes.
+const BODY_FRAC = {
+  small:  { w: 0.572, h: 0.893, cx: -0.005 },
+  big:    { w: 0.518, h: 0.775, cx: -0.002 },
+  jeep:   { w: 0.514, h: 0.900, cx:  0.000 },
+  truck:  { w: 0.657, h: 0.961, cx:  0.018 },
+  bigrig: { w: 0.560, h: 0.932, cx:  0.108 },   // body rides 10.8% right — the "front car misaligned" bug
+  tank:   { w: 0.975, h: 0.993, cx: -0.002 },
+};
+// Body length as a fraction of the row pitch. The first pass targeted a ~1.9px
+// worst gap — it perceptually FUSED (antialiased sprite edges eat ~1px each side,
+// and any screenshot downscale erases the rest). Revised 2026-07-11: worst stacked
+// pair (bigrig behind bigrig) keeps a ~4px gap — clearly separated at any scale.
+const FIT = { small: 0.75, big: 0.77, jeep: 0.79, truck: 0.81, tank: 0.83, bigrig: 0.85 };
+
+// World-unit distance between adjacent rows: cars span ROAD_Z_FAR→POS_NEAR_Z
+// over (gridRows-1) steps. gridRows 16 everywhere today, but derive anyway.
+function rowPitchWu(gridRows) {
+  return (Math.abs(ROAD_Z_FAR) - Math.abs(POS_NEAR_Z)) / (Math.max(2, gridRows) - 1);
+}
+
+function spriteScaleFor(type, gridRows) {
+  const fit = FIT[type], body = BODY_FRAC[type], dims = TYPE_DIMS[type];
+  if (!fit || !body || !dims) return SPRITE_SCALE;   // boss / unknown types
+  return fit * rowPitchWu(gridRows) / (CELL * dims.hF * body.h);
+}
 
 // ── Idle bob (2A) — gentle continuous up/down so the road feels alive ──────────
 const BOB_AMP   = 0.05;                 // world units
@@ -519,9 +556,12 @@ export class Car3D {
     );
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.y = 0.05;
-    // No per-type X offset: every car centers purely on its lane via the group's
-    // laneToX() position (the stale offset table mis-centered the tender/bigrig).
-    mesh.position.x = 0;
+    // Center the sprite's MEASURED body (not its padded image) on the lane: the
+    // group sits at laneToX(); this local offset cancels the art asymmetry
+    // (bigrig body rides 10.8% right of image center). Unlike the old hand-tuned
+    // SPRITE_X_OFFSET table (removed in 9e878b1 — stale/wrong-signed), these come
+    // from scripts/measure-car-bbox.mjs and regenerate with the art.
+    mesh.position.x = -(BODY_FRAC[car.type]?.cx ?? 0) * CELL * cfg.wF;
     group.add(mesh);
 
     // Boss ring
@@ -535,8 +575,9 @@ export class Car3D {
       this._scene.add(bossRing);
     }
 
-    group.userData.baseScale = SPRITE_SCALE;
-    group.scale.setScalar(SPRITE_SCALE);
+    const spriteScale = spriteScaleFor(car.type, this._breachRow + 1);
+    group.userData.baseScale = spriteScale;
+    group.scale.setScalar(spriteScale);
 
     // Spawn animation: start off-screen (further from breach)
     const targetZ  = posToZ(car.position);
@@ -559,7 +600,7 @@ export class Car3D {
         });
         const gMesh = new THREE.Mesh(mesh.geometry, gm);
         gMesh.rotation.x = -Math.PI / 2;
-        gMesh.scale.setScalar(SPRITE_SCALE);
+        gMesh.scale.setScalar(spriteScale);
         gMesh.position.set(worldX, 0.04, spawnZ);
         this._scene.add(gMesh);
         ghosts.push({ mesh: gMesh, mat: gm, lag: (i + 1) * 0.7 });
@@ -626,7 +667,10 @@ export class Car3D {
       });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.rotation.x = -Math.PI / 2;
-      const xOff = (i === 0 ? -0.30 : 0.30) * CELL * cfg.wF;
+      // Flank at ~1.4× the rendered half-width (was 0.30×wF hand-tuned against the
+      // old global 0.43 scale — now follows each car's actual per-type scale).
+      const flank = 0.70 * CELL * cfg.wF * (entry.group.userData.baseScale ?? SPRITE_SCALE);
+      const xOff = i === 0 ? -flank : flank;
       mesh.position.set(lx + xOff, 0.03, entry.renderZ - 0.30);
       this._scene.add(mesh);
       entry._speedLines.push({ mesh, mat, t: 0, startZ: entry.renderZ });

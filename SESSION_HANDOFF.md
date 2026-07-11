@@ -18,11 +18,18 @@
   and docs/balance-report*.md — were measured against that double-discounting sim and are
   SUPERSEDED. Do not trust them.** Corrected sweep of the deployed configs: mean 54.6%,
   28/40 flagged (live game reads much harder than intended, esp. mid/late heavy-car levels;
-  FTUE unaffected — rounding absorbs it on small cars). Re-retune against the corrected sim
-  pending user review. Regression guard: tests/boss-infra.test.js (parity formula + a static
-  audit tripwire on the re-multiplication pattern).
-- BALANCE: §3b retune structure landed in cf62d8f (bands, inline worldConfigs, preset cleanup) —
-  its NUMBERS are being re-derived against the parity-fixed sim (see above).
+  FTUE unaffected — rounding absorbs it on small cars). Regression guard:
+  tests/boss-infra.test.js (parity formula + a static audit tripwire on the re-multiplication
+  pattern). Cross-check that the parity fix was the WHOLE bug: the biased sim effectively
+  simulated hp ≈ mult², and the corrected re-retune kept landing near the square of the
+  biased-era values (L17 0.66²≈0.44 → found 0.46) — the two rulers agree.
+- BALANCE: parity-fixed RE-RETUNE COMPLETE (user-reviewed) — 26 levels lowered to mid-band
+  against the corrected sim; 9 of 10 of the old "untouched in-band" set were false readings
+  (all retuned; L9 genuinely in band). Sweep: 38/40 OK, mean 74.8%; only L10 boss + L22 flag
+  TOO LONG (L22 at 71.4 turns ruled noise — trim on device if it bothers, not now). Low
+  multipliers (0.32-0.58 mid/late) are the honest post-fix numbers — do NOT bump for looking
+  low. Bosses all read in 40-55 at corrected measurement BEFORE scripted waves: L10 45.0 /
+  L20 47.4 / L30 51.4 / L40 50.2 — §3c waves add the designed challenge while staying in band.
 - Master plan: WS1 DONE · WS2 2a/2b/2c + 2d (Title 9-slice button plates + Win/Lose frames) DONE ·
   WS3 §3a canonical table + §3c boss specs (both in GAME_DESIGN.md) + §3b booster-aware sim +
   RETUNE APPLIED (cf62d8f). Next: §3c scripted bosses — user requires the design approach

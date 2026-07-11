@@ -39,7 +39,6 @@ const B2_EASY = { hpMultiplier: 0.45, speed: { base: 4.6, variance: 0.4 } }; // 
 
 // â”€â”€ Realistic player balance presets (Phase 3) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const R_3C_HARD = { hpMultiplier: 0.78, speed: { base: 6.5, variance: 0.5 } }; // L20 boss (deferred to Â§3c)
-const R_5C_MED  = { hpMultiplier: 0.53, speed: { base: 4.0, variance: 0.5 } }; // L30 boss (deferred to Â§3c)
 const R_2C_MED_100  = { hpMultiplier: 0.60, speed: { base: 5.5, variance: 0.3 } }; // L6 (goals-only retune) + L10 boss
 const R_6C_BH_LONG  = { hpMultiplier: 0.51, speed: { base: 4.0, variance: 0.6 } }; // L40 boss (deferred to Â§3c), 120s finale
 // L2 is 2-lane/2-col in-game but the sim always uses 4 lanes/4 cols, giving 2Ã— extra
@@ -291,7 +290,7 @@ const PROGRESSION = [
   // L30 Medium â€” BOSS "Industrial Finale": 5 colors, tank-heavy spawn mix.
   // Design: tanks make up ~40% of spawns. Player must plan multi-shot sequences.
   { id: 30, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple'],
-    worldConfig: R_5C_MED,
+    worldConfig: { hpMultiplier: 0.32, speed: { base: 4.0, variance: 0.5 } }, // 2026-07-11 §3c boss solve: 0.53→0.32 (~49% w/ WEIGHTS_L30_TANK; un-shared from R_5C_MED — ~40% tanks now realized in config, was comment-only)
     duration: 100, spawnBudget: 20, laneTargetCarCount: 3, gridRows: 16,
     showArrow: false, hintText: null ,
     goals: [{"type":"destroyColor","color":"Purple","count":5},{"type":"destroyType","carType":"bigrig","count":1}]},

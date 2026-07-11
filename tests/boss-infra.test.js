@@ -20,7 +20,7 @@ import { IntensityPhase }   from '../src/director/IntensityPhase.js';
 import { SeededRandom }     from '../src/utils/SeededRandom.js';
 import { Lane }             from '../src/models/Lane.js';
 import { Column }           from '../src/models/Column.js';
-import { CAR_TYPES }        from '../src/director/CarTypes.js';
+import { CAR_TYPES, bandWeights } from '../src/director/CarTypes.js';
 import { HP_MINIMUM }       from '../src/director/DirectorConfig.js';
 import { SimulationRunner } from '../src/simulation/SimulationRunner.js';
 
@@ -197,6 +197,27 @@ describe('INFRA-C: spawnScript { untilPct, weights?, rate? }', () => {
     const easy = run([{ untilPct: 1, weights: { small: 1 } }]);
     const hard = run([{ untilPct: 1, weights: { tank: 1 } }]);
     expect(easy).toBeGreaterThan(hard + 0.10);   // deterministic seeds; wide margin
+  });
+});
+
+// ── INFRA-B — L30 "Industrial Finale" tank-heavy weights (§3c boss) ─────────────
+
+describe('INFRA-B: L30 tank-heavy bandWeights', () => {
+  it('L30 spawns ≈40% tanks (the design intent, realized in config); bigrig present in every phase (destroyType goal)', () => {
+    const band = bandWeights(30);
+    for (const phase of ['CALM', 'BUILD', 'PRESSURE', 'CLIMAX', 'RELIEF']) {
+      expect(band[phase].some(w => w.value === 'bigrig')).toBe(true);
+    }
+    // Weighted tank share across phases lands ~25-50% (≈40% through the level).
+    for (const phase of ['BUILD', 'PRESSURE', 'CLIMAX']) {
+      const total = band[phase].reduce((s, w) => s + w.weight, 0);
+      const tank  = band[phase].find(w => w.value === 'tank')?.weight ?? 0;
+      expect(tank / total).toBeGreaterThanOrEqual(0.35);
+      expect(tank / total).toBeLessThanOrEqual(0.55);
+    }
+    // L29/L31 are NOT tank-heavy — the branch is L30-only.
+    expect(bandWeights(29)).not.toBe(band);
+    expect(bandWeights(31)).not.toBe(band);
   });
 });
 

@@ -75,6 +75,18 @@ const WEIGHTS_L17_BIGRIG = {
   RELIEF:   [{ value: 'small', weight: 30 }, { value: 'big', weight: 40 }, { value: 'jeep', weight: 20 }, { value: 'bigrig', weight: 10 }],
 };
 
+// L30 boss "Industrial Finale" (WS3 §3c, INFRA-B): tank-heavy — ≈40% tanks across
+// the level (VISION rule 5: the designed challenge is planning multi-shot sequences
+// under weight). Remainder bigrig/truck/jeep keeps the board genuinely heavy.
+// bigrig stays in EVERY phase (the level has a destroyType:bigrig goal — audit-gated).
+const WEIGHTS_L30_TANK = {
+  CALM:     [{ value: 'jeep', weight: 20 }, { value: 'truck', weight: 30 }, { value: 'bigrig', weight: 25 }, { value: 'tank', weight: 25 }],
+  BUILD:    [{ value: 'jeep', weight: 15 }, { value: 'truck', weight: 20 }, { value: 'bigrig', weight: 25 }, { value: 'tank', weight: 40 }],
+  PRESSURE: [{ value: 'jeep', weight: 10 }, { value: 'truck', weight: 20 }, { value: 'bigrig', weight: 25 }, { value: 'tank', weight: 45 }],
+  CLIMAX:   [{ value: 'truck', weight: 20 }, { value: 'bigrig', weight: 30 }, { value: 'tank', weight: 50 }],
+  RELIEF:   [{ value: 'jeep', weight: 25 }, { value: 'truck', weight: 30 }, { value: 'bigrig', weight: 20 }, { value: 'tank', weight: 25 }],
+};
+
 // L15+: all types including tank.  FR-4 still caps tank HP if max damage < 8.
 const WEIGHTS_FULL = {
   CALM:     [{ value: 'small', weight: 25 }, { value: 'big', weight: 35 }, { value: 'jeep', weight: 25 }, { value: 'truck', weight: 15 }],
@@ -93,6 +105,7 @@ export function bandWeights(level) {
   if (level <= 12)  return WEIGHTS_HARD;
   if (level <= 14)  return WEIGHTS_HARD_PLUS;
   if (level === 17) return WEIGHTS_L17_BIGRIG;
+  if (level === 30) return WEIGHTS_L30_TANK;   // §3c boss: tank-heavy (INFRA-B)
   return WEIGHTS_FULL;
 }
 

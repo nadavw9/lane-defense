@@ -46,14 +46,16 @@ const SPRITE_SCALE     = 0.43;   // boss/fallback only — real types use sprite
 // (bike < sedan < van < truck < tank < bigrig) is preserved.
 // BODY_FRAC (alpha-bbox fractions of the sprite image) and cx (body-center X
 // offset, + = right of image center) are MEASURED by scripts/measure-car-bbox.mjs
-// — regenerate the table if the car art changes.
+// — regenerate the table if the car art changes. All color variants share red's
+// framing (scripts/normalize-car-variants.mjs re-frames them; run it first after
+// any art change), so this per-type table is valid for every color.
 const BODY_FRAC = {
-  small:  { w: 0.572, h: 0.893, cx: -0.005 },
-  big:    { w: 0.518, h: 0.775, cx: -0.002 },
+  small:  { w: 0.572, h: 0.893, cx:  0.000 },
+  big:    { w: 0.518, h: 0.775, cx:  0.002 },
   jeep:   { w: 0.514, h: 0.900, cx:  0.000 },
-  truck:  { w: 0.657, h: 0.961, cx:  0.018 },
-  bigrig: { w: 0.560, h: 0.932, cx:  0.108 },   // body rides 10.8% right — the "front car misaligned" bug
-  tank:   { w: 0.975, h: 0.993, cx: -0.002 },
+  truck:  { w: 0.614, h: 0.961, cx:  0.000 },
+  bigrig: { w: 0.560, h: 0.932, cx:  0.004 },
+  tank:   { w: 0.975, h: 0.993, cx:  0.002 },
 };
 // Body length as a fraction of the row pitch. The first pass targeted a ~1.9px
 // worst gap — it perceptually FUSED (antialiased sprite edges eat ~1px each side,

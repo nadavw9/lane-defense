@@ -5,11 +5,12 @@
 // 78% of its image height while the tank fills ~99%). Car3D derives each type's
 // render scale from these fractions so the body — not the padded image — is
 // normalized to the projected row pitch (no lane-neighbour touching), and centers
-// the body on the lane via the measured cx offset (the bigrig art rides 10.8%
-// right of its image center).
+// the body on the lane via the measured cx offset.
 //
-// Run after ANY car art change:  node scripts/measure-car-bbox.mjs
-// then copy the printed table into Car3D.js BODY_FRAC.
+// Measures the RED variant of each type; scripts/normalize-car-variants.mjs
+// re-frames all other colors to red's framing, so red stands for the whole set.
+// Run after ANY car art change:  node scripts/normalize-car-variants.mjs
+// then:  node scripts/measure-car-bbox.mjs  → copy the table into Car3D.js BODY_FRAC.
 import sharp from 'sharp';
 
 const SPRITES = {

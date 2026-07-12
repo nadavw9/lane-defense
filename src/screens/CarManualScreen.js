@@ -4,18 +4,20 @@
 
 import { Container, Graphics, Text, Sprite, Assets } from 'pixi.js';
 import { uiIcon } from '../renderer/UIIcon.js';
-import { getSeenCarTypes } from './CarTypeIntroCard.js';
+import { CAR_TYPES } from '../director/CarTypes.js';
 
 const BASE_URL = import.meta.env.BASE_URL ?? '';
 
-// HP values match CarTypes.js base HP (post-gridRows-16 raise).
+// hp comes from CAR_TYPES (single source of truth) — the manual shows base HP;
+// live cars scale it by the level's hpMultiplier. (The values previously
+// hardcoded here were from the reverted gridRows-16 HP raise.)
 const CAR_ENTRIES = [
-  { key: 'small',  name: 'MOTORBIKE', hp:  3, color: 0x44BB99, sprite: 'sprites/designed/bike-red.png'           },
-  { key: 'big',    name: 'CAR',       hp:  6, color: 0xDD8833, sprite: 'sprites/designed/car-red-processed.png'  },
-  { key: 'jeep',   name: 'VAN',       hp:  8, color: 0x378ADD, sprite: 'sprites/designed/van-red.png'            },
-  { key: 'truck',  name: 'TENDER',    hp: 10, color: 0x639922, sprite: 'sprites/designed/truck-red.png'          },
-  { key: 'bigrig', name: 'BIG RIG',   hp: 15, color: 0xD85A30, sprite: 'sprites/designed/bigrig-red.png'         },
-  { key: 'tank',   name: 'TANK',      hp: 30, color: 0x7F77DD, sprite: 'sprites/designed/tank.png'               },
+  { key: 'small',  name: 'MOTORBIKE', hp: CAR_TYPES.small.hp,  color: 0x44BB99, sprite: 'sprites/designed/bike-red.png'           },
+  { key: 'big',    name: 'CAR',       hp: CAR_TYPES.big.hp,    color: 0xDD8833, sprite: 'sprites/designed/car-red-processed.png'  },
+  { key: 'jeep',   name: 'VAN',       hp: CAR_TYPES.jeep.hp,   color: 0x378ADD, sprite: 'sprites/designed/van-red.png'            },
+  { key: 'truck',  name: 'TENDER',    hp: CAR_TYPES.truck.hp,  color: 0x639922, sprite: 'sprites/designed/truck-red.png'          },
+  { key: 'bigrig', name: 'BIG RIG',   hp: CAR_TYPES.bigrig.hp, color: 0xD85A30, sprite: 'sprites/designed/bigrig-red.png'         },
+  { key: 'tank',   name: 'TANK',      hp: CAR_TYPES.tank.hp,   color: 0x7F77DD, sprite: 'sprites/designed/tank.png'               },
 ];
 
 const ENTRY_H    = 100;
@@ -25,7 +27,10 @@ const SPR_MAX_W  = 62;
 const SPR_MAX_H  = 80;
 
 export class CarManualScreen {
-  constructor(stage, appW, appH, { onClose }) {
+  // seenTypes: Set of type keys the player has been introduced to
+  // (ProgressManager.getIntroducedCarTypes()); others render as locked silhouettes.
+  constructor(stage, appW, appH, { onClose, seenTypes }) {
+    this._seenTypes = seenTypes ?? new Set();
     this._container = new Container();
     stage.addChild(this._container);
     this._build(appW, appH, onClose);
@@ -44,7 +49,7 @@ export class CarManualScreen {
     const PX = (W - PW) / 2;
     const PY = Math.max(10, (H - PH) / 2);
 
-    const seenTypes = getSeenCarTypes();
+    const seenTypes = this._seenTypes;
 
     // Backdrop — blocks game clicks
     const backdrop = new Graphics();

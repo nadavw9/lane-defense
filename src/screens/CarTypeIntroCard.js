@@ -1,6 +1,7 @@
 // CarTypeIntroCard — Royal Match "Meet the new blocker!" style intro overlay.
-// Shows once per car type (tracked in localStorage). Gameplay is paused
-// while the card is on screen. Auto-dismisses after DISPLAY_MS.
+// Shows once per car type EVER (seen-state persisted in
+// ProgressManager.introducedCarTypes; GameApp fires cards at level start only).
+// Gameplay is paused while the card is on screen. Auto-dismisses after DISPLAY_MS.
 //
 // Usage:
 //   const card = new CarTypeIntroCard(stage, APP_W, APP_H, typeKey, onDismiss);
@@ -8,23 +9,25 @@
 
 import { Container, Graphics, Text, Sprite, Assets } from 'pixi.js';
 import { uiIcon } from '../renderer/UIIcon.js';
+import { CAR_TYPES } from '../director/CarTypes.js';
 
 const BASE_URL = import.meta.env.BASE_URL ?? '';
 
 // ── Per-type display data ─────────────────────────────────────────────────────
+// hp comes from CAR_TYPES (single source of truth) — the card shows base HP;
+// live cars scale it by the level's hpMultiplier.
 const TYPE_INFO = {
-  small:  { name: 'MOTORBIKE', hp:  2, color: 0x44BB99, sprite: 'sprites/designed/bike-red.png'          },
-  big:    { name: 'CAR',       hp:  4, color: 0xDD8833, sprite: 'sprites/designed/car-red-processed.png' },
-  jeep:   { name: 'VAN',       hp:  5, color: 0x378ADD, sprite: 'sprites/designed/van-red.png'           },
-  truck:  { name: 'TENDER',    hp:  6, color: 0x639922, sprite: 'sprites/designed/truck-red.png'         },
-  bigrig: { name: 'BIG RIG',   hp: 10, color: 0xD85A30, sprite: 'sprites/designed/bigrig-red.png'        },
-  tank:   { name: 'TANK',      hp: 20, color: 0x7F77DD, sprite: 'sprites/designed/tank.png'              },
+  small:  { name: 'MOTORBIKE', hp: CAR_TYPES.small.hp,  color: 0x44BB99, sprite: 'sprites/designed/bike-red.png'          },
+  big:    { name: 'CAR',       hp: CAR_TYPES.big.hp,    color: 0xDD8833, sprite: 'sprites/designed/car-red-processed.png' },
+  jeep:   { name: 'VAN',       hp: CAR_TYPES.jeep.hp,   color: 0x378ADD, sprite: 'sprites/designed/van-red.png'           },
+  truck:  { name: 'TENDER',    hp: CAR_TYPES.truck.hp,  color: 0x639922, sprite: 'sprites/designed/truck-red.png'         },
+  bigrig: { name: 'BIG RIG',   hp: CAR_TYPES.bigrig.hp, color: 0xD85A30, sprite: 'sprites/designed/bigrig-red.png'        },
+  tank:   { name: 'TANK',      hp: CAR_TYPES.tank.hp,   color: 0x7F77DD, sprite: 'sprites/designed/tank.png'              },
 };
 
 const DISPLAY_MS    = 2500;
 const ANIM_IN_MS    = 220;
 const ANIM_OUT_MS   = 180;
-const LS_KEY        = 'lane_defense_seen_car_types';
 
 // Sprite display dimensions
 const SPR_W = 88;
@@ -32,19 +35,11 @@ const SPR_H = 108;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-export function getSeenCarTypes() {
-  try { return new Set(JSON.parse(localStorage.getItem(LS_KEY) ?? '[]')); }
-  catch { return new Set(); }
-}
-
-export function markCarTypeSeen(typeKey) {
-  const seen = getSeenCarTypes();
-  seen.add(typeKey);
-  localStorage.setItem(LS_KEY, JSON.stringify([...seen]));
-}
-
-export function shouldShowIntro(typeKey) {
-  return typeKey in TYPE_INFO && !getSeenCarTypes().has(typeKey);
+// True if the type has intro display data. Seen-state lives in
+// ProgressManager.introducedCarTypes (with a migration from the legacy
+// 'lane_defense_seen_car_types' localStorage key this module used to own).
+export function hasIntroCard(typeKey) {
+  return typeKey in TYPE_INFO;
 }
 
 // ── Card class ────────────────────────────────────────────────────────────────

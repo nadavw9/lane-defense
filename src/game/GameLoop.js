@@ -68,7 +68,6 @@ export class GameLoop {
                                   // per real refill event, never on steady-state ticks. GameApp routes
                                   // it through the SAME mergeSequencer the player-action path uses, so
                                   // DEFECT 1 (no merge on auto-fill) + DEFECT 2 (instant fill) share one path.
-    this.onNewCarType    = null;  // set by GameApp; fires with typeKey when a car is added to a lane
 
     // Base level duration — used to reset gs.duration on restart.
     this._baseDuration = gameState.duration;
@@ -792,7 +791,6 @@ export class GameLoop {
           car.row = row;
           car.position = this._rowToPosition(row, ROWS);
           lane.addCar(car);
-          this.onNewCarType?.(car.type);
         }
       }
     } else {
@@ -810,7 +808,6 @@ export class GameLoop {
         const car = this._carDir.generateCar(gs.lanes[li], 'CALM', gs.world, gs.colors, gs.gridRows);
         car.row = 0; car.position = 0;
         gs.lanes[li].addCar(car);
-        this.onNewCarType?.(car.type);
       }
     }
   }

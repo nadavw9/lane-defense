@@ -68,6 +68,9 @@ function defaults() {
     hintDamageShown:   false,  // first bomb pickup on L1 → match-damage tooltip
     hintAdvanceShown:  false,  // first correct shot on L1 → "all cars advance" hint
     hintColorBombShown: false, // first rainbow bomb earned → color-bomb intro card
+    // v1.5 — car types whose "Meet the ..." intro card has been shown (once EVER,
+    // at level start; see GameApp level-start intros)
+    introducedCarTypes: [],
   };
 }
     
@@ -93,6 +96,17 @@ export class ProgressManager {
   markHintAdvance()      { this._data.hintAdvanceShown = true; this._save(); }
   get hintColorBombShown() { return !!this._data.hintColorBombShown; }
   markHintColorBomb()      { this._data.hintColorBombShown = true; this._save(); }
+
+  // ── Car-type intros (once per type EVER; shown at level start) ─────────────
+  getIntroducedCarTypes() { return new Set(this._data.introducedCarTypes ?? []); }
+
+  markCarTypeIntroduced(typeKey) {
+    const seen = this.getIntroducedCarTypes();
+    if (seen.has(typeKey)) return;
+    seen.add(typeKey);
+    this._data.introducedCarTypes = [...seen];
+    this._save();
+  }
 
   hasSeenUnlock(levelId) {
     return !!(this._data.seenUnlocks ?? {})[String(levelId)];
@@ -471,6 +485,22 @@ export class ProgressManager {
         d.boosterUseCounts   = Object.assign(defaults().boosterUseCounts,   saved.boosterUseCounts   ?? {});
         d.achievements       = saved.achievements  ?? {};
         d.seenUnlocks        = saved.seenUnlocks   ?? {};
+        // Migration: earlier builds tracked intro-seen car types in a separate
+        // localStorage key AND re-showed intros mid-level with no backfill, so
+        // mid-progression players were re-introduced to types they met long ago.
+        // Merge the legacy key, then backfill from progression — anyone past a
+        // type's historical intro level has already met that type.
+        const INTRO_LEVEL = { small: 1, big: 2, jeep: 5, truck: 9, bigrig: 13, tank: 15 };
+        const introduced  = new Set(saved.introducedCarTypes ?? []);
+        try {
+          for (const t of JSON.parse(localStorage.getItem('lane_defense_seen_car_types') ?? '[]')) {
+            introduced.add(t);
+          }
+        } catch { /* legacy key corrupt — ignore */ }
+        for (const [type, lvl] of Object.entries(INTRO_LEVEL)) {
+          if (d.unlockedLevel > lvl) introduced.add(type);
+        }
+        d.introducedCarTypes = [...introduced];
         return d;
       }
     } catch {

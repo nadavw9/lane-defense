@@ -85,7 +85,8 @@ import { Analytics, logEvent }    from '../analytics/Analytics.js';
 import { AutoTuner }             from '../analytics/AutoTuner.js';
 import { AchievementManager }     from '../game/AchievementManager.js';
 import { DailyChallengeManager }  from '../game/DailyChallengeManager.js';
-import { CarTypeIntroCard, shouldShowIntro, markCarTypeSeen } from '../screens/CarTypeIntroCard.js';
+import { CarTypeIntroCard, hasIntroCard } from '../screens/CarTypeIntroCard.js';
+import { bandWeights } from '../director/CarTypes.js';
 import { ComboFX } from './ComboFX.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -478,26 +479,14 @@ async function main() {
   let tutOrch     = null;  // assigned after gameLoop is constructed
 
   // ── Car type intro card ───────────────────────────────────────────────────
+  // Bug A: intros fire at level start ONLY, once per type EVER (persisted in
+  // ProgressManager.introducedCarTypes). The old flow re-showed cards mid-level
+  // whenever a refill spawned a type (localStorage key + no backfill).
   let carTypeIntroCard    = null;  // active intro card (only one at a time)
   let carTypeIntroTimer   = null;  // setTimeout handle for level-start intro delay
-  // FIX 3: an intro only SHOWS when a car of that type is actually visible on the
-  // road, and ≥3 grid advances have passed since the last card. Requests that can't
-  // show yet wait in this queue and are retried on every advance.
-  let _introQueue         = [];        // pending intro type keys
-  let _advanceCount       = 0;         // grid advances elapsed this level
-  let _lastIntroAdvance   = -Infinity; // advance index when the last intro was shown
 
-  // First level that introduces each car type — intro fires here if type is unseen.
-  // delay: ms after level start before card shows. L1 uses 4500 to fire after
-  // the FTUE drag-arrow clears (~1.35 s splash + 3 s FTUE window).
-  const LEVEL_INTRO_TYPE = {
-    1:  { type: 'small',  delay: 4500 },
-    2:  { type: 'big',    delay: 1500 },
-    5:  { type: 'jeep',   delay: 1500 },
-    9:  { type: 'truck',  delay: 1500 },
-    13: { type: 'bigrig', delay: 1500 },
-    15: { type: 'tank',   delay: 1500 },
-  };
+  // Canonical reveal order when one level introduces several new types at once.
+  const INTRO_ORDER = ['small', 'big', 'jeep', 'truck', 'bigrig', 'tank'];
 
   // ── End-of-game screens ───────────────────────────────────────────────────
   let winScreen        = null;
@@ -659,7 +648,6 @@ async function main() {
     tutOrch?.dismiss();
     clearTimeout(carTypeIntroTimer); carTypeIntroTimer   = null;
     carTypeIntroCard?._destroy();   carTypeIntroCard    = null;
-    _introQueue = []; _advanceCount = 0; _lastIntroAdvance = -Infinity;   // FIX 3
     _dismissColorPicker();                 // FIX 4B: clear any open picker
     preLevelScreen?.destroy(); preLevelScreen = null;   // FIX 4D
     _clearModalQueue();
@@ -767,10 +755,6 @@ async function main() {
       gameLoop.start();
     }
     gameLoop.resume();   // un-pause if coming from a Quit
-    // Mid-game backup: trigger intro when a new type is first spawned via shot-refill.
-    // FIX 3: route through the request queue so it only shows when the car is on
-    // screen and ≥3 advances after the previous card.
-    gameLoop.onNewCarType = (typeKey) => { _requestCarTypeIntro(typeKey); };
     gameLoop.restart();
 
     // Drop any merge sequence left running by the PREVIOUS level so it can't (a) make
@@ -793,17 +777,25 @@ async function main() {
     };
     setTimeout(_trySettle, 1000);
 
-    // Level-start intro: fires after splash clears (standard 1.5 s) or after the
-    // FTUE drag-arrow window (L1: 4.5 s — splash 1.35 s + 3 s FTUE buffer).
-    if (typeof levelId === 'number') {
-      const entry = LEVEL_INTRO_TYPE[levelId];
-      if (entry && shouldShowIntro(entry.type)) {
-        const { type: introType, delay } = entry;
+    // Level-start car-type intros (Bug A): every type this level can spawn that
+    // the player has never been introduced to gets its card now — nothing fires
+    // mid-level. Cards route through the modal queue, so multiple new types show
+    // one after another in INTRO_ORDER. Fires after the splash clears (1.5 s), or
+    // after the FTUE drag-arrow window on L1 (4.5 s = 1.35 s splash + 3 s FTUE).
+    {
+      const introduced = progress.getIntroducedCarTypes();
+      const newTypes = INTRO_ORDER.filter(
+        (t) => _levelCarTypes(cfg).has(t) && hasIntroCard(t) && !introduced.has(t),
+      );
+      if (newTypes.length > 0) {
+        const delay = levelId === 1 ? 4500 : 1500;
         carTypeIntroTimer = setTimeout(() => {
           carTypeIntroTimer = null;
-          // FIX 3: request (not force) — shows only when a car of this type is
-          // actually on the road; otherwise defers until one spawns.
-          if (!gs.isOver) _requestCarTypeIntro(introType);
+          if (gs.isOver) return;
+          for (const t of newTypes) {
+            progress.markCarTypeIntroduced(t);
+            _triggerCarTypeIntro(t);
+          }
         }, delay);
       }
     }
@@ -928,32 +920,22 @@ async function main() {
     });
   }
 
-  // FIX 3: true only when a car of `typeKey` is currently on the road (any active lane).
-  function _carTypeVisible(typeKey) {
-    return gs.activeLanes.some((lane) => lane.cars.some((c) => c.type === typeKey));
-  }
-
-  // FIX 3: queue an intro request. It is only SHOWN once the car is visible on
-  // screen and spacing allows; otherwise it waits and is retried on each advance.
-  function _requestCarTypeIntro(typeKey) {
-    if (!shouldShowIntro(typeKey)) return;
-    if (!_introQueue.includes(typeKey)) _introQueue.push(typeKey);
-    _tryShowPendingIntro();
-  }
-
-  // FIX 3: show the first queued intro whose car is on screen, respecting a minimum
-  // of 3 grid advances between consecutive cards (so reveals don't bunch up).
-  function _tryShowPendingIntro() {
-    if (gs.isOver) return;
-    _introQueue = _introQueue.filter((t) => shouldShowIntro(t));   // drop already-seen
-    if (_introQueue.length === 0) return;
-    if (_advanceCount - _lastIntroAdvance < 3) return;             // too soon after last card
-    const next = _introQueue.find((t) => _carTypeVisible(t));
-    if (!next) return;                                             // none visible yet → keep waiting
-    _introQueue = _introQueue.filter((t) => t !== next);
-    _lastIntroAdvance = _advanceCount;
-    markCarTypeSeen(next);
-    _triggerCarTypeIntro(next);
+  // Every car type a level can put on the road: band-weight table for its level
+  // (same level key CarDirector uses) ∪ spawnScript stage weights ∪ the scripted
+  // opening board. Drives the level-start intro check (Bug A).
+  function _levelCarTypes(cfg) {
+    const types = new Set();
+    const level = typeof cfg.id === 'number' ? cfg.id : 1;   // mirrors carDir.setLevel
+    for (const phase of Object.values(bandWeights(level))) {
+      for (const w of phase) types.add(w.value);
+    }
+    for (const stage of cfg.spawnScript ?? []) {
+      for (const w of stage.weights ?? []) types.add(w.value);
+    }
+    for (const car of cfg.initialCars ?? []) {
+      if (car.type) types.add(car.type);
+    }
+    return types;
   }
 
   // ── COLOR CHANGE picker (FIX 4B step 2) ──────────────────────────────────
@@ -1172,6 +1154,7 @@ async function main() {
     bookBtn.visible  = false;
     pauseBtn.visible = false;
     carManualScreen = new CarManualScreen(app.stage, APP_W, APP_H, {
+      seenTypes: progress.getIntroducedCarTypes(),
       onClose: () => {
         carManualScreen?.destroy();
         carManualScreen = null;
@@ -1682,8 +1665,6 @@ async function main() {
   // ── Combo power-shot callbacks ────────────────────────────────────────────
   gameLoop._onAdvance = () => {
     gameRenderer3D.onAdvance();
-    _advanceCount++;          // FIX 3: track grid advances for intro spacing
-    _tryShowPendingIntro();   // FIX 3: a deferred intro may now be visible
   };
   // Immediate impact reaction (squash + flash) the moment a bomb lands, before the
   // hit-stop resolves combat. Color bombs run their own cascade flash on resolve.

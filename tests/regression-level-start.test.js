@@ -65,9 +65,11 @@ describe('regression: every level starts in a valid state', () => {
 });
 
 // ── Car-type introduction ordering ──────────────────────────────────────────────
-// Design contract mirrored from GameApp.LEVEL_INTRO_TYPE (which lives inside a
-// pixi-importing module that can't load headlessly). If that map changes, this
-// must change with it — that is the point of pinning it here.
+// Design contract: the historical car-type introduction schedule. GameApp now
+// derives level-start intros from level CONTENT (band weights ∪ spawnScript ∪
+// initialCars — Bug A), but ProgressManager._load's migration backfills
+// introducedCarTypes from this same schedule (its INTRO_LEVEL map). If the
+// schedule changes, change ProgressManager's INTRO_LEVEL with it.
 const LEVEL_INTRO_TYPE = {
   1:  'small',   // motorbike
   2:  'big',     // sedan

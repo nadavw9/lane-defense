@@ -4,7 +4,7 @@
 //   - claimOfflineReward()
 //   - weekly playlist claim tracking
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { ProgressManager } from '../src/game/ProgressManager.js';
 
 // ProgressManager reads/writes localStorage. In the Node test environment
@@ -167,5 +167,71 @@ describe('ProgressManager weekly playlist tracking', () => {
     const claimed = p._data.weeklyClaimedLevels['2026-W17'];
     const deduplicated = [...new Set(claimed)];
     expect(claimed.length).toBe(deduplicated.length);
+  });
+});
+
+// ── Car-type intro persistence (Bug A) ────────────────────────────────────────
+
+describe('ProgressManager introducedCarTypes', () => {
+  function withStorage(store) {
+    vi.stubGlobal('localStorage', {
+      getItem:    (k) => (k in store ? store[k] : null),
+      setItem:    (k, v) => { store[k] = String(v); },
+      removeItem: (k) => { delete store[k]; },
+    });
+  }
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('fresh player: empty set', () => {
+    const p = new ProgressManager();
+    expect(p.getIntroducedCarTypes().size).toBe(0);
+  });
+
+  it('markCarTypeIntroduced persists and is idempotent', () => {
+    const store = {};
+    withStorage(store);
+    const p = new ProgressManager();
+    p.markCarTypeIntroduced('truck');
+    p.markCarTypeIntroduced('truck');
+    expect(p.getIntroducedCarTypes().has('truck')).toBe(true);
+    const reloaded = new ProgressManager();
+    expect(reloaded.getIntroducedCarTypes().has('truck')).toBe(true);
+    expect([...reloaded.getIntroducedCarTypes()].filter((t) => t === 'truck').length).toBe(1);
+  });
+
+  it('migration merges the legacy lane_defense_seen_car_types key', () => {
+    const store = {
+      'lane-defense-v1': JSON.stringify({ unlockedLevel: 1 }),
+      'lane_defense_seen_car_types': JSON.stringify(['small', 'big']),
+    };
+    withStorage(store);
+    const p = new ProgressManager();
+    expect(p.getIntroducedCarTypes().has('small')).toBe(true);
+    expect(p.getIntroducedCarTypes().has('big')).toBe(true);
+    expect(p.getIntroducedCarTypes().has('tank')).toBe(false);
+  });
+
+  it('migration backfills from progression: past a type intro level = introduced', () => {
+    const store = { 'lane-defense-v1': JSON.stringify({ unlockedLevel: 13 }) };
+    withStorage(store);
+    const p = new ProgressManager();
+    const seen = p.getIntroducedCarTypes();
+    // completed L1..L12 → met small(L1), big(L2), jeep(L5), truck(L9)
+    for (const t of ['small', 'big', 'jeep', 'truck']) expect(seen.has(t)).toBe(true);
+    // bigrig intros AT L13 (not yet played), tank at L15
+    expect(seen.has('bigrig')).toBe(false);
+    expect(seen.has('tank')).toBe(false);
+  });
+
+  it('corrupt legacy key is ignored, backfill still applies', () => {
+    const store = {
+      'lane-defense-v1': JSON.stringify({ unlockedLevel: 3 }),
+      'lane_defense_seen_car_types': '{not json',
+    };
+    withStorage(store);
+    const p = new ProgressManager();
+    expect(p.getIntroducedCarTypes().has('small')).toBe(true);
+    expect(p.getIntroducedCarTypes().has('big')).toBe(true);
+    expect(p.getIntroducedCarTypes().has('jeep')).toBe(false);
   });
 });

@@ -12,12 +12,19 @@ import { test, expect } from '../fixtures/game.js';
 const SAMPLE_Y = 250;
 
 const WORLDS = [
-  { level: 5,  world: 'world1 (city)' },
-  { level: 20, world: 'world2 (industrial)' },
-  { level: 35, world: 'world3 (night)' },
+  { level: 5,  world: 'world1 (city)',       minBrightness: 12 },
+  { level: 20, world: 'world2 (industrial)', minBrightness: 12 },
+  // Night world's art is legitimately darker at the sample point than the
+  // other two worlds (verified 2026-07-13: brightness is a REPRODUCIBLE
+  // 10.97 across repeated runs, not run-to-run flake, and the panel visibly
+  // renders real building/window art in the failure screenshot — not a
+  // blank/missing strip). 12 was tuned against city/industrial and never
+  // actually validated against night. 8 stays well clear of a genuinely
+  // missing panel (which renders near-black, not merely "dark").
+  { level: 35, world: 'world3 (night)',      minBrightness: 8 },
 ];
 
-for (const { level, world } of WORLDS) {
+for (const { level, world, minBrightness } of WORLDS) {
   test(`L${level}: ${world} side panels render on both edges`, async ({ game }) => {
     await game.startLevel(level);
 
@@ -30,11 +37,12 @@ for (const { level, world } of WORLDS) {
     const right = await game.sampleRegion(rightStripCenter, SAMPLE_Y, 12);
 
     // A rendered panel is never near-black (the historical failure mode is a
-    // black/blank strip). Night world is dark but still has lit content ≥ ~15.
+    // black/blank strip). Threshold is per-world — see WORLDS above for why
+    // night world gets a lower floor.
     expect(left.brightness,  `left panel missing at L${level} (x=${leftStripCenter.toFixed(0)})`)
-      .toBeGreaterThan(12);
+      .toBeGreaterThan(minBrightness);
     expect(right.brightness, `right panel missing at L${level} (x=${rightStripCenter.toFixed(0)})`)
-      .toBeGreaterThan(12);
+      .toBeGreaterThan(minBrightness);
   });
 }
 

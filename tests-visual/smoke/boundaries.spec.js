@@ -7,8 +7,6 @@
 
 import { test, expect } from '../fixtures/game.js';
 
-const COLUMN_TOP_Y = 552;   // top bomb slot center ≈ PositionRegistry COLUMN_TOP_Y+8
-
 async function dragDeploy(game, colIdx, laneIdx) {
   // Guarantee the drop is a valid color match, then drag bomb → lane center.
   const before = await game.page.evaluate(([c, l]) => {
@@ -22,8 +20,14 @@ async function dragDeploy(game, colIdx, laneIdx) {
     };
   }, [colIdx, laneIdx]);
 
+  // Pickup Y comes from the SAME canonical bomb-slot source the live game
+  // hit-tests against (projection.js bombSlotZ, via PositionRegistry) — a
+  // hardcoded local constant here went stale by 33px after the board
+  // re-layout (B=0.82 + DESIGN_ROAD_BOTTOM_Y change moved the true slot-0
+  // center from 544 to ~585), eating most of the hit-test's safety margin
+  // and making this test newly flake-prone under CI load (2026-07-13).
   const pos = await game.positions();
-  await game.dragStage(pos.colX[colIdx], COLUMN_TOP_Y, pos.laneX[laneIdx], 300);
+  await game.dragStage(pos.colX[colIdx], pos.slotY[0], pos.laneX[laneIdx], 300);
   await game.page.waitForTimeout(900);   // travel + resolve + advance
 
   const after = await game.page.evaluate(([c, l]) => {

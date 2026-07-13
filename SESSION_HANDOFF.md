@@ -4,11 +4,18 @@
 **`docs/superpowers/plans/2026-07-02-master-plan-testing-ui-difficulty.md`** — three approved workstreams (Testing harness → UI overhaul → Difficulty redesign + City Repair meta). It contains an EXECUTION STATUS checklist that is updated after every step; any fresh session resumes from there. User pre-approved the work incl. commits.
 
 ## Current State
-- Git tip: 34318fe ui: shrink multi-kill celebration popup ~35% (pushed; retune cf62d8f +
-  goal-card sprites aac9977 also pushed 2026-07-10)
+- Git tip: aa99253 test: fix two CI visual failures from the board re-layout batch (pushed
+  2026-07-13/14 — see "BOARD-POLISH BATCH" below for the full 8-commit summary)
 - Branch: master
-- Last deploy: today, green (deploy GATED on the unit+audit suite)
-- Tests: 1076 vitest (unit+audit, incl. 400-op seeded merge stress) + 17 Playwright visual smoke + 40-level full sweep — green (rapid-hop occasionally flaky under parallel load, passes solo/retry)
+- Last deploy: green (deploy job GATED on vitest only, per .github/workflows/deploy.yml — this
+  is intentional, not a gap: `visual-smoke` is a separate non-blocking observability job, see
+  the CI-access note below). Live URL confirmed serving the batch.
+- Tests: 1100 vitest (unit+audit) — green. Visual smoke: **verify locally, not via CI status**
+  (see CI-ACCESS GAP below). Local single-worker full run (2026-07-14, post-batch): 13 passed,
+  0 hard failures, 4 flaky-but-pass-on-retry (all pre-existing documented flakes — rapid-hop,
+  title-screen boot — not new). Two-worker runs show DIFFERENT random tests failing each time,
+  all clean when re-run solo — classic resource-contention flake under this project's existing
+  `retries: 1  // WebGL boot can be flaky under CI load` policy, not a regression.
 - MERGE SYSTEM: hardened + audit-clean as of b6597d8 (plan==apply by construction; drag/merge
   mutual exclusion; no bomb-loss paths; sparse-array write-site guard).
 - ⚠ SIM PARITY BUG FOUND + FIXED (2026-07-10, post-retune): SimulationRunner re-multiplied
@@ -36,6 +43,38 @@
   reviewed BEFORE implementation. WS3 traps/constraints live in `docs/superpowers/FABLE_EXIT_BRIEF.md`.
 - Live URL: https://nadavw9.github.io/lane-defense/
 
+## ⚠ CI-ACCESS GAP: visual-smoke job logs/artifacts are unreadable from the agent environment
+No `gh` CLI and no `GITHUB_TOKEN` are available here — the GitHub Actions logs endpoint and the
+artifact-download endpoint both return 401/403 unauthenticated, even for this public repo. This
+means a red `visual-smoke` job in CI **cannot be diagnosed by inspecting CI** from this
+environment. The reliable path: run `npx playwright test tests-visual/smoke` locally (repeat
+2-3x, and re-run any individual failure solo with `-g "<test name>"` — a failure that vanishes
+in isolation is the known parallel-worker flake, not a regression; a failure that repeats
+consistently, including solo, is real). Deploy status (`deploy` job) is a valid green/red signal
+on its own since it only depends on vitest — but do NOT treat visual-smoke's CI conclusion as
+authoritative without a local run to back it up.
+
+## ⚠ WATCH-OUT: recurring bug class — stale hardcoded copies of a moved source of truth
+Board-polish batch fixed a recurring bug class — hardcoded values left stale after their
+source of truth moved to a derived constant (bomb-slot position ×3 copies, merge scale 1.30
+vs `MERGE_SCALE`, terminus cap `ROAD_Z_FAR` vs `computeFrustum().topZ`, HP double-discount,
+car variant framing). Guard test added for bomb-slot sync. When changing any
+geometry/scale/position constant, grep for hardcoded copies of the old value — more
+stragglers may exist.
+
+**Extended (2026-07-14): the pattern reaches into TESTS too.** A 4th hardcoded copy of the
+bomb-slot position surfaced post-push, in `tests-visual/smoke/boundaries.spec.js`
+(`COLUMN_TOP_Y = 552`, itself an admitted approximation — `≈ PositionRegistry
+COLUMN_TOP_Y+8` — even before this batch). The re-layout moved the true value to ~585,
+eating the test's hit-radius margin from ~40px down to ~15px; still inside the hit radius
+(the underlying drag mechanism was never broken — verified with a live manual drag on the
+running game, not just a re-run test) but thin enough to intermittently time out under CI
+load. Fixed by pointing the test at `pos.slotY[0]` (`getPositions()`, backed by the same
+canonical `bombSlotZ` source) instead of a second hardcoded number. **When collapsing a
+duplicated constant to one source of truth, grep test files too — a magic number in a test
+is the same bug class as a magic number in game code, just harder to notice because the
+test still passes most of the time.**
+
 ## ✅ WS3 §3b RETUNE — DONE (2026-07-10). Next: §3c bosses.
 The booster-aware retune landed against corrected post-merge-fix numbers (profile: skill=average,
 boosterIQ 0.70). Bands now live in `tools/balance-sim.js` (`bandFor`): tutorial L1-3 win%-exempt
@@ -47,6 +86,48 @@ mean 76.9%. 24 levels changed via per-level INLINE worldConfig (shared presets n
 orphaned presets deleted). Bosses L10/20/30/40 get their numbers WITH the §3c scripted waves.
 
 ## What Was Shipped This Session (most recent first)
+- **BOARD-POLISH BATCH (2026-07-13/14, 8 commits, aa99253) — bomb queue clarity + full
+  re-layout + 4 bug fixes + CI test fixes.** Pushed and deploy-confirmed green (vitest gate);
+  visual-smoke verified via repeated local runs (see CI-ACCESS GAP above), not CI inspection.
+  - `4695482` **Bug A** — car-type intro card now fires exactly once per type EVER, at level
+    start only (was re-showing mid-level on every refill; `ProgressManager.introducedCarTypes`
+    persisted + migrated/backfilled from progression for existing saves).
+  - `eff01b8` **Car sprite variant normalization** — color variants (truck/bigrig/van/sedan)
+    were sliced inconsistently from source montages (up to 19% off-center, some literally
+    cropped with ghost fragments of neighbouring cars); re-sliced from raw art, all colors now
+    match red's framing. `scripts/normalize-car-variants.mjs` committed as reusable provenance.
+  - `9d9e9e2` **Bug B** — car size/spacing now derived per-type from the projected row pitch
+    (`Car3D.spriteScaleFor`, `BODY_FRAC` measured via `scripts/measure-car-bbox.mjs`) instead
+    of one global scale — fixed cars touching/overlapping and inconsistent sizing.
+  - `857a551` **Bug C + full board re-layout (B=0.82)** — the big one. Bomb badge/number
+    rendering fixed at the root (canvas sized to true on-screen resolution, was mip-minified
+    ~8x; digit cap height raised to ~54% of ball diameter, match-3 standard; ACES tone mapping
+    skipped for badges so digits stay pure white). **Collapsed THREE independent copies of
+    "where is bomb slot N"** (Shooter3D's own formula, a hand-mirrored duplicate in
+    PositionRegistry, hardcoded pixel constants in ShooterRenderer that DragDrop hit-tested
+    against) into ONE canonical `bombSlotZ()/bombSlotScreenY()` in projection.js — this was
+    the root cause of the ball/socket/touch-target desync. New `BOMB_ZONE_SCALE=0.82` shrinks
+    the whole bomb queue (ball/badge/pitch/clearance, one constant); `DESIGN_ROAD_BOTTOM_Y`
+    510→540 grows the car viewport ~5.9% (uniform across all car types). New guard test
+    `tests/bomb-slot-position-sync.test.js`. Approved on real-device tap test at this ratio.
+  - `601e1ac` **Merge "shrink then return" glitch** — the merge-sequencer's pop-in spring
+    animated toward a stale hardcoded 1.30 scale peak that no longer matched the resting
+    `MERGE_SCALE` (1.22) the previous commit established; fixed to reference the same
+    constant. Verified via a frame-by-frame scale trace: settles to exactly 1.22, holds
+    steady, zero dip.
+  - `cddbbe8` **Post-clear respawn visibility** — Road3D's decorative "terminus" barrier was
+    hardcoded at `ROAD_Z_FAR` (predates `SPAWN_VIEWPORT_EXTRA`, which exists specifically to
+    keep spawning cars visible past that point) — it sat on top of the car spawn line, most
+    visible when a full-board clear (e.g. a color bomb) respawned every lane at once.
+    Investigated first (confirmed normal refill and post-clear respawn use the IDENTICAL
+    row-0 placement — never two diverging paths); fixed by repositioning to
+    `computeFrustum().topZ`, no new constant. Sim parity confirmed clean by construction
+    (zero Road3D references anywhere in GameLoop/GameState/SimulationRunner).
+  - `aa99253` **Two CI visual-smoke failures, both diagnosed not masked** (diffs prove no game
+    code touched): a 4th stale hardcoded bomb-slot copy in a test (see WATCH-OUT above), and a
+    world3 (night) panel-brightness threshold that had never been validated against night
+    world's genuinely darker art (per-world threshold now: city/industrial 12, night 8 — panel
+    confirmed rendering via screenshot, not loosened blind).
 - Multi-kill celebration popup shrunk ~35% (`_buildMultiKillPopup`: burst R 138→90, kill-count
   78→50px, label 23→16px, offsets proportional) — it dominated the lower board. Tier colors,
   ring, and spring pop unchanged. Review shot docs/review/03.

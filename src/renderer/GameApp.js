@@ -88,6 +88,7 @@ import { DailyChallengeManager }  from '../game/DailyChallengeManager.js';
 import { CarTypeIntroCard, hasIntroCard } from '../screens/CarTypeIntroCard.js';
 import { bandWeights } from '../director/CarTypes.js';
 import { ComboFX } from './ComboFX.js';
+import { MERGE_SCALE } from '../renderer3d/projection.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const APP_W       = 390;
@@ -1792,8 +1793,12 @@ async function main() {
           this.phase = 'pop'; this.t = 0;
         }
       } else if (this.phase === 'pop') {                      // 120ms — merged bomb springs in
+        // Pop peak MUST land on MERGE_SCALE (the merged bomb's actual resting
+        // scale) — a stale hardcoded peak here that doesn't match the resting
+        // scale _beginFill lands on produces a visible extra jump/shrink
+        // right after the spring settles (2026-07-13).
         const p = Math.min(1, this.t / 0.12);
-        for (const m of this.plan) gameRenderer3D.setBombSlotScale(m.dest.col, m.dest.row, 1.30 * easeOutBack(p));
+        for (const m of this.plan) gameRenderer3D.setBombSlotScale(m.dest.col, m.dest.row, MERGE_SCALE * easeOutBack(p));
         if (this.t >= 0.12) this._beginFill();
       } else if (this.phase === 'fill') {                     // new bombs fall in from above, overshoot
         const DROP_START_Z = -1.0;                            // above the queue's front row

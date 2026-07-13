@@ -148,10 +148,13 @@ export class Road3D {
 
   // Full-width floor plane from just below the breach line to the frustum
   // bottom; the art's designed top edge sits at the breach seam (the Pixi
-  // hazard stripe covers the junction).
+  // hazard stripe covers the junction). Falls back to the workshop surface so
+  // the floor ALWAYS renders here, under the bombs — the old Pixi fallback
+  // (a 45%-alpha TilingSprite on the front canvas) veiled the whole bomb zone.
   _buildZoneFloor() {
-    if (!this._zoneTexUrl) return;
-    const tex = _getWorldRoadTex(this._zoneTexUrl);   // same loader/cache (wrap+sRGB)
+    const url = this._zoneTexUrl
+      ?? `${import.meta.env.BASE_URL}sprites/designed/panel-workshop-surface.png`;
+    const tex = _getWorldRoadTex(url);   // same loader/cache (wrap+sRGB)
     const F     = computeFrustum();
     const width = F.halfX * 2;
     const zTop  = screenYToZ(BREACH_LINE_Y + 4);
@@ -605,12 +608,20 @@ export class Road3D {
     const hw   = roadHalfW(n);
     const capD = 1.0;   // Z-depth of terminus band inside the play road
 
-    // Concrete cap at the road's far edge — visible as a horizontal bar
-    // at the top of the top-down viewport (Z = ROAD_Z_FAR is top of screen).
+    // Concrete cap sits at the CAMERA's true far edge (topZ) — NOT at
+    // ROAD_Z_FAR. topZ = ROAD_Z_FAR - SPAWN_VIEWPORT_EXTRA is the whole
+    // reason SPAWN_VIEWPORT_EXTRA exists: the camera reveals PAST ROAD_Z_FAR
+    // so a car spawning AT ROAD_Z_FAR (row 0, the spawn line) is fully
+    // visible. This cap predated that extension and was still hardcoded to
+    // ROAD_Z_FAR, so it sat directly on top of the spawn line, visually
+    // slicing every freshly-spawned row-0 car in half — most obvious when a
+    // full-board clear (e.g. a color bomb) respawns every lane at once
+    // (2026-07-13).
+    const { topZ } = computeFrustum();
     const capMat = new THREE.MeshBasicMaterial({ color: COL_BARRIER });
     const cap = new THREE.Mesh(new THREE.PlaneGeometry(hw * 2, capD), capMat);
     cap.rotation.x = -Math.PI / 2;
-    cap.position.set(0, 0.01, ROAD_Z_FAR + capD / 2);
+    cap.position.set(0, 0.01, topZ - capD / 2);
     this._group.add(cap);
 
     // Bright boundary stripe at the road/cap junction
@@ -619,7 +630,7 @@ export class Road3D {
     });
     const line = new THREE.Mesh(new THREE.PlaneGeometry(hw * 2, 0.14), lineMat);
     line.rotation.x = -Math.PI / 2;
-    line.position.set(0, 0.015, ROAD_Z_FAR + 0.07);
+    line.position.set(0, 0.015, topZ - 0.07);
     this._group.add(line);
   }
 

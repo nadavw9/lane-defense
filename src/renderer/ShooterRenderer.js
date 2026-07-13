@@ -11,26 +11,39 @@ import { spriteFlags } from './SpriteFlags.js';
 import { isColorblind, SHAPES } from '../game/ColorblindMode.js';
 import { getColumnScreenX, getColumnScreenY, getColumnSlotScreenY, getColScreenW, getActiveColCount } from './PositionRegistry.js';
 import { BAR_Y as BOOSTER_BAR_Y } from './BoosterBar.js';
-import { worldXToScreenX, roadHalfWPure, BREACH_LINE_Y } from '../renderer3d/projection.js';
+import {
+  worldXToScreenX, roadHalfWPure, BREACH_LINE_Y, PX_PER_WU,
+  BOMB_R, MERGE_SCALE, bombSlotScreenY,
+} from '../renderer3d/projection.js';
 
 // Road geometry — derived from the live projection (never hardcode a mirror).
 const APP_W = 390;
 
 // ── Layout ────────────────────────────────────────────────────────────────────
-export const SHOOTER_AREA_Y  = 520;
-export const SHOOTER_AREA_H  = 180;   // 520–700 (bench row follows at 703)
+// SHOOTER_AREA_Y/H track the bomb zone's real position (BREACH_LINE_Y moves
+// whenever DESIGN_ROAD_BOTTOM_Y or BOMB_ZONE_SCALE change) — do not hardcode.
+export const SHOOTER_AREA_Y  = Math.round(BREACH_LINE_Y);
+// Spans breach line to just past the stash cell's bottom edge (bombSlotScreenY
+// accepts a non-integer row; 3.5 = stash center + half a slot pitch) + padding.
+export const SHOOTER_AREA_H  = Math.round(bombSlotScreenY(3.5) + 20 - SHOOTER_AREA_Y);
 export const COL_COUNT       = 4;
 export const COL_W           = 390 / COL_COUNT;  // 97.5 px
 
+// Touch-target radii — deliberately DECOUPLED from the visual ball size
+// (BOMB_R, which shrinks with BOMB_ZONE_SCALE). Kept fixed so the queue stays
+// comfortably tappable even as the rendered bomb shrinks.
 export const TOP_RADIUS    = 34;   // kept for DragDrop hit-testing
 export const SECOND_RADIUS = 24;
 const        THIRD_RADIUS  = 17;
 
-
-export const TOP_Y    = SHOOTER_AREA_Y + 24;    // 544 — ortho: worldZ=-1.5 → screen Y 544
-export const SECOND_Y = SHOOTER_AREA_Y + 71;    // 591 — slot1 worldZ=-0.5
-const        THIRD_Y  = SHOOTER_AREA_Y + 118;   // 638 — slot2 worldZ=+0.5
-export const STASH_Y  = SHOOTER_AREA_Y + 161;   // 681 — stash slot (below 3-bomb queue)
+// Bomb-queue slot screen Y — the canonical projection.js source, so the
+// drawn socket ring, the 2D fallback icons, and DragDrop's touch target
+// (via getQueueSlotCenter/getTopShooterCenter below) all agree with the
+// ACTUAL 3D ball position. Never hardcode these.
+export const TOP_Y    = bombSlotScreenY(0);
+export const SECOND_Y = bombSlotScreenY(1);
+const        THIRD_Y  = bombSlotScreenY(2);
+export const STASH_Y  = bombSlotScreenY(3);
 
 // Target rendered diameters (diameter, not radius) at 1× scale
 const TOP_DIAM    = TOP_RADIUS    * 2;   // 68 px
@@ -315,7 +328,15 @@ export class ShooterRenderer {
     const g = this._overlayG;
     g.clear();
 
-    const slotR = [TOP_RADIUS, SECOND_RADIUS, THIRD_RADIUS];
+    // Ring radius per row = the bomb's ACTUAL rendered on-screen radius, not
+    // TOP/SECOND/THIRD_RADIUS (hit-test constants from an earlier 2D-only ball
+    // render, ~1.8-2x too big for the current 3D sprite). Only row 0 merged
+    // bombs enlarge to MERGE_SCALE (see Shooter3D.update()); rows 1-2 stay at
+    // the base radius. Using the true size is what keeps the ring — at the
+    // SAME 1.18x/1.08x/1.00x multipliers already tuned to hug the ball — from
+    // bleeding above the breach stripe.
+    const ballR = PX_PER_WU * BOMB_R;
+    const slotR = [ballR * MERGE_SCALE, ballR, ballR];
     const pulse = 0.5 + 0.5 * Math.sin(elapsed * 3);   // 0..1
 
     for (let c = 0; c < COL_COUNT; c++) {
@@ -339,10 +360,11 @@ export class ShooterRenderer {
         g.circle(x, y, R * 1.08); g.stroke({ color, width: 6, alpha: a * 0.78 });
         g.circle(x, y, R * 1.00); g.stroke({ color, width: 5, alpha: a });
 
-        // Merge color bomb: a small color-matched ★ micro-label above the damage
-        // number so players read it as a special "powerful same-colour" bomb.
+        // Merge color bomb: a small color-matched ★ micro-label tucked into the
+        // ball's upper-right, INSIDE its silhouette — at y−0.92R the star landed
+        // on the hazard stripe for front-slot bombs.
         if (s.mergeColorBomb) {
-          g.star(x, y - R * 0.92, 5, 5, 2.2);   // ~10px tall, subtle, just above the bomb
+          g.star(x + R * 0.58, y - R * 0.58, 5, 5, 2.2);
           g.fill({ color, alpha: 0.90 });
         }
       }
@@ -374,7 +396,13 @@ export class ShooterRenderer {
 
   // Call with true during gameplay so Shooter3D handles the visuals.
   // Panels become transparent; 2D circles are hidden.
-  enable3DMode(enabled) { this._mode3D = !!enabled; }
+  enable3DMode(enabled) {
+    const next = !!enabled;
+    if (next !== this._mode3D) {
+      this._mode3D = next;
+      this._drawTray(this._laneCountCache ?? 4);   // tray veil depends on the mode
+    }
+  }
 
   /** Hides/shows all 4 column UIs without touching BenchRenderer (same layer). */
   get container() { return this._columnsGroup; }
@@ -581,19 +609,21 @@ export class ShooterRenderer {
     const trayX = APP_W / 2 - hw_px - 16;
     const trayW = hw_px * 2 + 32;
 
-    // Base fill (also the no-sprites fallback). Nearly invisible when the 3D
-    // world floor is showing through from the back canvas.
+    // Base fill — 2D fallback mode only. In 3D mode the tray must paint NO
+    // translucent fill over the zone: this Pixi layer sits in FRONT of the 3D
+    // canvas, so even a 10% tint veiled every bomb and damage number below the
+    // breach line (visibly duller than the road above it). The floor is a 3D
+    // plane under the bombs (Road3D._buildZoneFloor, workshop fallback included).
     this._tray.clear();
-    this._tray.roundRect(trayX, this._trayY, trayW, this._trayH, 12);
-    this._tray.fill({ color: 0x0d1117, alpha: this._worldVariant ? 0.10 : 0.25 });
+    if (!this._mode3D) {
+      this._tray.roundRect(trayX, this._trayY, trayW, this._trayH, 12);
+      this._tray.fill({ color: 0x0d1117, alpha: this._worldVariant ? 0.10 : 0.25 });
+    }
 
-    // The per-world dispatch floor is a 3D plane UNDER the bomb spheres (see
-    // Road3D._buildZoneFloor) — Pixi must NOT draw an opaque floor here or it
-    // would cover the 3D bombs. When a world floor is active, the Pixi tray is
-    // just a faint tint + the slot sockets; the workshop texture remains only
-    // as the no-world fallback.
     const zoneTex = null;
-    const has3DFloor = !!this._worldVariant;
+    // Pixi workshop surface: 2D fallback mode only — in 3D mode Road3D always
+    // renders a zone floor (per-world slice or the same workshop texture).
+    const has3DFloor = this._mode3D || !!this._worldVariant;
     const tex = (!has3DFloor && spriteFlags.loaded)
       ? Assets.get(`${import.meta.env.BASE_URL}sprites/designed/panel-workshop-surface.png`)
       : null;

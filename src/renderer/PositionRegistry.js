@@ -8,12 +8,10 @@
 
 import {
   laneToXPure, CELL, worldXToScreenX, screenXToWorldX, zToScreenY, screenYToZ,
+  bombSlotScreenY,
 } from '../renderer3d/projection.js';
 
 const APP_W = 390;
-
-// TOP_Y = SHOOTER_AREA_Y(520) + 24 — mirrors ShooterRenderer.TOP_Y without the import
-const COLUMN_TOP_Y = 544;
 
 let _laneCount = 4;
 let _colCount  = 4;
@@ -41,15 +39,15 @@ export function getColumnScreenX(colIdx) {
   return worldXToScreenX(laneToXPure(colIdx, _colCount));
 }
 
-// Screen Y of the top shooter row (constant).
-export function getColumnScreenY() { return COLUMN_TOP_Y; }
+// Screen Y of the top shooter row.
+export function getColumnScreenY() { return bombSlotScreenY(0); }
 
-// Exact on-screen centre Y of bomb-queue slot rowIdx (0,1,2) — the SAME point the
-// 3D bomb projects to. Bombs render at world Z = slotZ = (rowIdx+0.5)·CELL·0.70
-// (mirrors Shooter3D.slotZ); project through the real camera mapping.
+// Exact on-screen centre Y of bomb-queue slot rowIdx (0,1,2,3=stash) — the
+// SAME canonical function Shooter3D's 3D ball and ShooterRenderer's touch
+// targets use (projection.js bombSlotZ). Do not re-derive this locally —
+// see that function's comment.
 export function getColumnSlotScreenY(rowIdx) {
-  const slotZ = (rowIdx + 0.5) * CELL * 0.70;
-  return zToScreenY(slotZ);
+  return bombSlotScreenY(rowIdx);
 }
 
 // Width of one shooter column in screen pixels.

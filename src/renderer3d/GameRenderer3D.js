@@ -25,6 +25,7 @@ import { PostFX3D }      from './PostFX3D.js';
 import { ScorchMarks3D } from './ScorchMarks3D.js';
 import { Environment3D } from './Environment3D.js';
 import { Ambient3D }     from './Ambient3D.js';
+import { computeFrustum } from './projection.js';
 
 export class GameRenderer3D {
   constructor(width, height) {
@@ -86,6 +87,7 @@ export class GameRenderer3D {
     this._syncCanvasSize();
 
     this._scene3d  = new Scene3D(this._canvas, this._width, this._height);
+    this._applyRenderScale();
     this._lighting = new Lighting3D(this._scene3d.scene);
     this._skybox   = new Skybox3D(this._scene3d.scene);
     this._skybox._group.visible = false;  // sky/hills geometry not suited for top-down view
@@ -493,6 +495,7 @@ export class GameRenderer3D {
     if (!this._mounted) return;
     this._syncCanvasSize();
     this._scene3d.resize(this._width, this._height);
+    this._applyRenderScale();
   }
 
   // ── Private ─────────────────────────────────────────────────────────────────
@@ -506,8 +509,14 @@ export class GameRenderer3D {
     this._particles?.dispose();
 
     const scene = this._scene3d.scene;
+    // Device (render-target) px per world unit — badge canvases are sized from
+    // this so damage numbers rasterize at their true on-screen resolution.
+    // Same pixel-ratio clamp as Scene3D's renderer.setPixelRatio.
+    const frustum = computeFrustum(this._width, this._height);
+    const scale   = this._renderScale ?? Math.min(window.devicePixelRatio || 1, 2);
+    const pxPerWu = (this._height * scale) / (2 * frustum.halfZe);
     this._cars        = new Car3D(scene, this._lanes);
-    this._shooters    = new Shooter3D(scene, this._columns);
+    this._shooters    = new Shooter3D(scene, this._columns, pxPerWu);
     this._projectiles = new Projectile3D(scene, this._firingSlots, this._lanes);
     this._particles   = new Particles3D(scene, this._lighting, this._lanes);
     // Re-apply the active lane count to the freshly-built renderers.
@@ -518,6 +527,18 @@ export class GameRenderer3D {
   }
 
   
+
+  // Internal render buffer = logical stage × this ratio. Matching the canvas's
+  // CSS size × devicePixelRatio means the browser never has to CSS-upscale the
+  // 3D layer (the old fixed ×2 buffer was stretched ~1.1-1.4× on desktop —
+  // a permanent slight blur on everything, worst on the damage digits).
+  _applyRenderScale() {
+    if (!this._scene3d || !this._canvas) return;
+    const cssH  = parseFloat(this._canvas.style.height) || this._height;
+    const ratio = Math.min(3, Math.max(1, (cssH / this._height) * (window.devicePixelRatio || 1)));
+    this._scene3d.setRenderScale(ratio);
+    this._renderScale = ratio;
+  }
 
   _syncCanvasSize() {
     if (!this._canvas) return;

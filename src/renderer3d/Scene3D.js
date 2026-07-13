@@ -191,6 +191,16 @@ export class Scene3D {
     this._computeFrustum(this._activeLaneCount);
   }
 
+  // Render-target scale: internal buffer = logical 390×844 stage × ratio.
+  // GameRenderer3D keeps this in sync with the canvas's CSS size × DPR so the
+  // 3D layer is never CSS-upscaled (which softened everything, worst on the
+  // small damage digits).
+  setRenderScale(ratio) {
+    this.renderer.setPixelRatio(ratio);
+    this.composer.setPixelRatio(ratio);
+    this.composer.setSize(this.width, this.height);
+  }
+
   render() { this.composer.render(); }
 
   renderDual() {

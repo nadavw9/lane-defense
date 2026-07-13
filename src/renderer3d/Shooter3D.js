@@ -3,11 +3,14 @@
 // full bomb sprite (fuse, spark, shine) from directly above.
 //
 // Slot layout: 4 evenly-spaced cells filling the bomb zone (Z=0 breach line
-// to Z≈11.2 booster bar). Each cell = CELL × 0.70 world units tall.
-// Slot centers at midpoint of each cell: Z = (s + 0.5) × CELL × 0.70.
+// to the booster bar). Slot Z positions come from projection.js's
+// bombSlotZ() — the canonical source every consumer (this file's 3D ball,
+// PositionRegistry, ShooterRenderer, DragDrop) must use; see that function's
+// comment for why.
 
 import * as THREE from 'three';
 import { laneToX, CELL } from './Scene3D.js';
+import { BOMB_R, MERGE_SCALE, BOMB_ZONE_SCALE, bombSlotZ } from './projection.js';
 
 // ── Powerball texture cache (one loader shared across all slots) ───────────────
 const _texLoader  = new THREE.TextureLoader();
@@ -29,29 +32,41 @@ function _getPowerballTex(colorName, merged = false) {
 const LANE_COUNT = 4;
 const SLOT_COUNT = 3;   // visible queue depth (was 4; 4th slot is now the stash)
 
-// Bomb zone: Z=0 (breach) to Z≈11.2 (booster bar). Cell height = CELL × 0.70.
-function slotZ(s) { return (s + 0.5) * CELL * 0.70; }
+// ── Bomb geometry ──────────────────────────────────────────────────────────────
+// BOMB_R, MERGE_SCALE, and slot Z positions (bombSlotZ) are imported from
+// projection.js — the SINGLE canonical source for bomb-slot geometry.
+// Formerly duplicated here (own slotZ formula + breach-clearance derivation);
+// PositionRegistry and ShooterRenderer each carried their OWN independent
+// copies too, and the three silently drifted apart. Never re-derive any of
+// this locally — see the projection.js comment above bombSlotZ.
+const BOMB_CX  = 0;
+const BOMB_CZ  = 0;
+
+function slotZ(s) { return bombSlotZ(s); }
 
 // Stash slot sits directly below the 3 queue slots (same position as old slot 3).
 const STASH_Z = slotZ(3);
-
-// ── Bomb geometry ──────────────────────────────────────────────────────────────
-// BOMB_R = cell_height × 0.38 = CELL × 0.70 × 0.38 ≈ CELL × 0.266.
-const BOMB_R   = CELL * 0.266;   // ≈ 1.064 world units (body radius for badge sizing)
-const BOMB_CX  = 0;
-const BOMB_CZ  = 0;
 // Plane size: sprite is 1254×1254 with bomb body ~72% of image → scale up so
 // body diameter matches the original sphere's visual size.
 const BOMB_PLANE_SIZE = BOMB_R * 2.8;
 
-// ── Badge canvas — single size for all slots ───────────────────────────────────
-// BADGE_WORLD_H = 1.10 world units ≈ 22 px on screen (readable from across a room)
-const BADGE_CVS_W   = 192;
-const BADGE_CVS_H   = 112;
-// World size kept inside the visible bomb ball (≈1.50 dia) so the dark pill behind
-// the number doesn't bleed past the bomb edge.
-const BADGE_WORLD_W = 1.34;
-const BADGE_WORLD_H = 0.80;
+// ── Badge canvas ───────────────────────────────────────────────────────────────
+// The canvas is sized from the badge's ACTUAL on-screen size (world units ×
+// device px/wu, passed in by GameRenderer3D from projection.js) × 2 supersample.
+// The old fixed 192×112 canvas displayed at ~23 screen px minified ~8× through
+// the mip chain — the numbers rendered blurry, worst at side slots where the
+// sprite lands on fractional pixels. BADGE_SS=2 needs only one clean 2:1
+// downsample with plain linear filtering (mipmaps off).
+const BADGE_SS = 2;
+const BADGE_PX_PER_WU_FALLBACK = 35;   // ≈ 390-stage px/wu (17.4) × DPR 2
+// Badge world size, expressed as a fixed ratio to BOMB_R (2.30/1.60 tuned
+// against the unscaled 1.064wu ball: digit cap height ≈54% of ball diameter,
+// the match-3 standard for at-a-glance readability) so the number ALWAYS
+// scales in lockstep with the ball — BOMB_ZONE_SCALE shrinks both together,
+// never independently (a badge that shrank on its own axis would drift off
+// the ball's new size, or stay readable-but-oversized against a smaller ball).
+const BADGE_WORLD_W = 2.30 * BOMB_ZONE_SCALE;
+const BADGE_WORLD_H = 1.60 * BOMB_ZONE_SCALE;
 
 // ── Color palette ──────────────────────────────────────────────────────────────
 const COLOR_HEX = {
@@ -97,7 +112,9 @@ function drawDamageBadge(ctx, W, H, damage) {
   ctx.shadowOffsetX = 0;
   ctx.shadowOffsetY = Math.max(1, H * 0.02);
 
-  ctx.lineWidth   = Math.max(2.5, fontSize * 0.07);
+  // Proportional stroke — slightly heavier than body text so the digit reads
+  // as a game piece label at arm's length.
+  ctx.lineWidth   = Math.max(1.5, fontSize * 0.10);
   ctx.strokeStyle = 'rgba(0,0,0,0.92)';
   ctx.strokeText(String(damage), W / 2, H / 2 + 1);
 
@@ -107,9 +124,11 @@ function drawDamageBadge(ctx, W, H, damage) {
 }
 
 // Rainbow color-bomb badge — dark pill with a gold star (no damage number).
+// Pill fractions are tuned against the ENLARGED badge quad (2.30×1.60 wu) to
+// keep the pill at its original on-screen size (~1.2×0.62 wu).
 function drawColorBombBadge(ctx, W, H) {
   ctx.clearRect(0, 0, W, H);
-  const pw = W * 0.90, ph = H * 0.78;
+  const pw = W * 0.52, ph = H * 0.40;
   const px = (W - pw) / 2, py = (H - ph) / 2;
   const r  = ph / 2;
 
@@ -141,10 +160,15 @@ function drawColorBombBadge(ctx, W, H) {
 function easeOut3(t) { return 1 - Math.pow(1 - Math.min(t, 1), 3); }
 
 export class Shooter3D {
-  constructor(scene, columns) {
+  // pxPerWu: device (render-target) pixels per world unit — computed by
+  // GameRenderer3D from projection.computeFrustum × renderer pixel ratio, so
+  // badge canvases match their real on-screen size instead of a guessed one.
+  constructor(scene, columns, pxPerWu = BADGE_PX_PER_WU_FALLBACK) {
     this._scene   = scene;
     this._columns = columns;
     this._elapsed = 0;
+    this._badgeW  = Math.max(32, Math.round(BADGE_WORLD_W * pxPerWu * BADGE_SS));
+    this._badgeH  = Math.max(20, Math.round(BADGE_WORLD_H * pxPerWu * BADGE_SS));
 
     this._bgPlane = this._createBgPlane();
 
@@ -242,9 +266,19 @@ export class Shooter3D {
     const slot = this._slots[col]?.[row];
     if (slot) slot.group.position.set(x, y, z);
   }
+  // Called the instant a merge/refill animation releases a slot (still inside
+  // the SAME synchronous call as setSlotAnimLock(false) — see GameApp's
+  // _beginFill). Must land on the FINAL resting scale immediately: a merged
+  // dest slot's resting scale is MERGE_SCALE, not the generic _baseScale
+  // (1.0) — landing on 1.0 here and relying on the next update() tick to
+  // correct it to MERGE_SCALE produced a one-frame shrink-then-regrow after
+  // every merge (visible as a glitch, 2026-07-13).
   resetSlotTransform(col, row) {
     const slot = this._slots[col]?.[row];
-    if (slot) slot.group.scale.setScalar(slot._baseScale ?? 1);  // position restored by idle bob once unlocked
+    if (!slot) return;
+    const shooter = this._columns[col]?.shooters?.[row];
+    const scale = (row === 0 && shooter?.isMerged) ? MERGE_SCALE : 1;
+    slot.group.scale.setScalar(scale * (slot._baseScale ?? 1));  // position restored by idle bob once unlocked
   }
   // CANONICAL resting world position of a slot (NOT the live group, which may be
   // mid-animation) — the drop-in target for a freshly spawned bomb.
@@ -273,12 +307,14 @@ export class Shooter3D {
         if (this._slots[li][si]._animLock) continue;   // merge sequencer drives this slot
         const g = this._slots[li][si].group;
         if (g._baseX != null) g.position.x = g._baseX + shakeX;
-        // 3A: idle bob (top-down → Z is screen-vertical). Front bomb (si 0) bobs
-        // more — it reads as the "active" one. Phase-offset per column + slot.
+        // Bombs rest STILL. The old idle bob spanned only ±0.12 wu ≈ ±2.4 device
+        // px — a sine that small renders as discrete 1px steps with ~0.5s dwells
+        // at its extremes ("stuck then jumps"), and it dragged the big damage
+        // digit with it. Liveliness comes from alpha effects (merge halo pulse,
+        // merge-ready ball pulse) and event motion (punch spring, shake), which
+        // read smoothly because they don't crawl geometry across pixels.
         if (g._baseZ == null) g._baseZ = g.position.z;
-        // Merged bombs sit still (amp 0) so their static 2D halo stays concentric.
-        const amp = (this._columns[li]?.shooters?.[si]?.isMerged) ? 0 : (si === 0 ? 0.12 : 0.06);
-        g.position.z = g._baseZ + Math.sin(elapsed * 2.4 + li * 1.1 + si * 0.6) * amp;
+        g.position.z = g._baseZ;
       }
       const sg = this._stashSlots[li]?.group;
       if (sg && sg._baseX != null) sg.position.x = sg._baseX + shakeX;
@@ -335,13 +371,13 @@ export class Shooter3D {
           if (isCB) {
             // Rainbow: keep the prior powerball as a base; the rainbow swirl
             // overlay (below) dominates. Badge shows a gold star, not a number.
-            drawColorBombBadge(slot.badgeCtx, BADGE_CVS_W, BADGE_CVS_H);
+            drawColorBombBadge(slot.badgeCtx, slot.badgeCanvas.width, slot.badgeCanvas.height);
           } else {
             // Merged bombs use the dedicated lightning-crack sprite; the 2D halo
             // ring (ShooterRenderer.drawMergeOverlay) still layers on top.
             slot.sphereMesh.material.map = _getPowerballTex(shooter.color, isMerged);
             slot.sphereMesh.material.needsUpdate = true;
-            drawDamageBadge(slot.badgeCtx, BADGE_CVS_W, BADGE_CVS_H, damage, hex);
+            drawDamageBadge(slot.badgeCtx, slot.badgeCanvas.width, slot.badgeCanvas.height, damage, hex);
           }
           slot.badgeTex.needsUpdate = true;
         }
@@ -362,12 +398,15 @@ export class Shooter3D {
           }
         }
 
-        // Merged bomb visual: scale up to 1.3x with a subtle pulse. These bombs use
-        // MeshBasicMaterial (no emissive channel), so the "glow" reads via scale; a
-        // vertical merge additionally shows the color-bomb shimmer below.
+        // Merged bomb visual: enlarged, STATIC. MERGE_SCALE is the exact value
+        // slotZ()'s breach clearance was derived against, so the ball body is
+        // guaranteed to clear the hazard stripe at this scale — the old
+        // 1.30±15% pulse (up to 1.50×) exceeded what any fixed clearance could
+        // absorb and pushed the ball under the stripe every cycle. No scale
+        // pulse either: ±4% on the crisp digit smeared it sub-pixel every
+        // frame; the 2D halo's alpha pulse carries the glow instead.
         if (si === 0 && !slot._punching && isMerged) {
-          const pulseScale = 1.0 + 0.15 * Math.sin(elapsed * 2.5);
-          slot.group.scale.setScalar((1.30 * pulseScale) * slot._baseScale);
+          slot.group.scale.setScalar(MERGE_SCALE * slot._baseScale);
         } else if (si === 0 && !slot._punching) {
           // 3B: the grabbed column's front bomb pops to 1.15x (focus); others rest.
           const sel = (li === this._selectedCol) ? 1.15 : 1.0;
@@ -375,15 +414,19 @@ export class Shooter3D {
         }
 
         // Opacity: dim bombs queued behind the grabbed column (0.7); pulse bombs
-        // one swap from a vertical merge (merge-ready preview, 0.7→1.0, 600ms).
-        let opacity = 1.0;
-        if (si > 0 && li === this._selectedCol) opacity = 0.7;
-        else if (previewRows.has(si) && li !== this._selectedCol) opacity = previewPulse;
-        slot.sphereMesh.material.transparent = opacity < 1.0;
-        slot.sphereMesh.material.opacity     = opacity;
+        // one swap from a vertical merge (merge-ready preview, 600ms cycle).
+        // The damage NUMBER never pulses — flashing the big white digit every
+        // 0.6 s read as jitter; the hint lives on the ball alone (soft 0.85→1.0).
+        let ballOpacity = 1.0;
+        if (si > 0 && li === this._selectedCol) ballOpacity = 0.7;
+        else if (previewRows.has(si) && li !== this._selectedCol) {
+          ballOpacity = 0.85 + 0.15 * (previewPulse - 0.7) / 0.3;
+        }
+        slot.sphereMesh.material.transparent = ballOpacity < 1.0;
+        slot.sphereMesh.material.opacity     = ballOpacity;
         if (slot.badgeMesh.material) {
-          slot.badgeMesh.material.transparent = opacity < 1.0;
-          slot.badgeMesh.material.opacity     = opacity;
+          const badgeOpacity = (si > 0 && li === this._selectedCol) ? 0.7 : 1.0;
+          slot.badgeMesh.material.opacity = badgeOpacity;
         }
 
         // Color-bomb indicator — front slot only. Driven by the shooter itself
@@ -437,7 +480,7 @@ export class Shooter3D {
           stash.lastDamage = damage;
           stash.sphereMesh.material.map = _getPowerballTex(stashedShooter.color);
           stash.sphereMesh.material.needsUpdate = true;
-          drawDamageBadge(stash.badgeCtx, BADGE_CVS_W, BADGE_CVS_H, damage, hex);
+          drawDamageBadge(stash.badgeCtx, stash.badgeCanvas.width, stash.badgeCanvas.height, damage, hex);
           stash.badgeTex.needsUpdate = true;
           // Dim the stash bomb slightly to distinguish from queue bombs
           stash.sphereMesh.material.opacity = 0.72;
@@ -540,17 +583,25 @@ export class Shooter3D {
     sphereMesh.position.set(BOMB_CX, 0.05, BOMB_CZ);
     group.add(sphereMesh);
 
-    // ── Damage badge — colored pill, bold white number ─────────────────────────
+    // ── Damage badge — bold white number, canvas at 2× on-screen pixel size ────
     const badgeCanvas = document.createElement('canvas');
-    badgeCanvas.width  = BADGE_CVS_W;
-    badgeCanvas.height = BADGE_CVS_H;
+    badgeCanvas.width  = this._badgeW;
+    badgeCanvas.height = this._badgeH;
     const badgeCtx = badgeCanvas.getContext('2d');
     const badgeTex = new THREE.CanvasTexture(badgeCanvas);
+    // Only a single 2:1 minification happens — plain linear filtering keeps the
+    // glyph edges crisp; the mip chain blurred them on the old 192px canvas.
+    badgeTex.generateMipmaps = false;
+    badgeTex.minFilter = THREE.LinearFilter;
     const badgeMat = new THREE.SpriteMaterial({
       map: badgeTex, transparent: true, depthTest: false,
-      // Discard fully-transparent texels so the cleared canvas doesn't render as a
-      // dark rectangle behind the number (only the digit's pixels draw).
+      // Required: alpha-0 canvas texels otherwise render as a dark quad in the
+      // tonemapped composer pipeline. Harmless to crispness at ~1:1 texel scale
+      // (it only eroded glyphs when combined with the old 8× mip minification).
       alphaTest: 0.04,
+      // UI text, not scene lighting: skip ACES so the digits stay pure white
+      // with a full-contrast black stroke instead of tonemapped grey.
+      toneMapped: false,
     });
     const badgeMesh = new THREE.Sprite(badgeMat);
     badgeMesh.scale.set(BADGE_WORLD_W, BADGE_WORLD_H, 1);
@@ -711,13 +762,19 @@ export class Shooter3D {
     sphereMesh.visible = false;
     group.add(sphereMesh);
 
-    // ── Damage badge ───────────────────────────────────────────────────────────
+    // ── Damage badge — canvas at 2× the stash's 0.80-scaled on-screen size ─────
     const badgeCanvas = document.createElement('canvas');
-    badgeCanvas.width  = BADGE_CVS_W;
-    badgeCanvas.height = BADGE_CVS_H;
+    badgeCanvas.width  = Math.round(this._badgeW * 0.80);
+    badgeCanvas.height = Math.round(this._badgeH * 0.80);
     const badgeCtx = badgeCanvas.getContext('2d');
     const badgeTex = new THREE.CanvasTexture(badgeCanvas);
-    const badgeMat = new THREE.SpriteMaterial({ map: badgeTex, transparent: true, depthTest: false });
+    badgeTex.generateMipmaps = false;
+    badgeTex.minFilter = THREE.LinearFilter;
+    const badgeMat = new THREE.SpriteMaterial({
+      map: badgeTex, transparent: true, depthTest: false,
+      alphaTest:  0.04,   // same dark-quad guard as the queue-slot badge
+      toneMapped: false,  // pure-white digits (see queue-slot badge)
+    });
     const badgeMesh = new THREE.Sprite(badgeMat);
     badgeMesh.scale.set(BADGE_WORLD_W * 0.80, BADGE_WORLD_H * 0.80, 1);
     badgeMesh.position.set(BOMB_CX, BOMB_R * 0.80 + 0.50, BOMB_CZ);

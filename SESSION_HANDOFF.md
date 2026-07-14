@@ -10,12 +10,18 @@
 - Last deploy: green (deploy job GATED on vitest only, per .github/workflows/deploy.yml — this
   is intentional, not a gap: `visual-smoke` is a separate non-blocking observability job, see
   the CI-access note below). Live URL confirmed serving the batch.
-- Tests: 1100 vitest (unit+audit) — green. Visual smoke: **verify locally, not via CI status**
-  (see CI-ACCESS GAP below). Local single-worker full run (2026-07-14, post-batch): 13 passed,
-  0 hard failures, 4 flaky-but-pass-on-retry (all pre-existing documented flakes — rapid-hop,
-  title-screen boot — not new). Two-worker runs show DIFFERENT random tests failing each time,
-  all clean when re-run solo — classic resource-contention flake under this project's existing
-  `retries: 1  // WebGL boot can be flaky under CI load` policy, not a regression.
+- Tests: 1100 vitest (unit+audit) — green. Visual smoke: root cause of the standing CI red
+  CONFIRMED via `gh run download` + log inspection (2026-07-14, see WATCH-OUT below) — CI's
+  GPU-less runners fall back to software WebGL (SwiftShader), and the game's Three.js scene
+  costs enough extra wall-clock per frame there that tests were hitting Playwright's own
+  timeout mid-animation. Zero test assertions ever failed (grepped full CI logs — no matches
+  for any assertion message); failure screenshots showed the game working correctly (one
+  mid-combo, with an achievement toast firing) at the moment the clock ran out. Fixed at the
+  budget, not the steps: `playwright.config.js` now sets `timeout: 120_000` on CI (was
+  60_000, shared with local) + explicit SwiftShader-WebGL launch flags; `game.js`'s boot()
+  had its OWN separate hardcoded 45s wait (`waitForFunction` for `window._nav`), raised to
+  90s on CI. Verified locally by forcing `CI=true npx playwright test tests-visual/smoke`
+  (exercises the same SwiftShader code path + new timeouts on this machine) — green.
 - MERGE SYSTEM: hardened + audit-clean as of b6597d8 (plan==apply by construction; drag/merge
   mutual exclusion; no bomb-loss paths; sparse-array write-site guard).
 - ⚠ SIM PARITY BUG FOUND + FIXED (2026-07-10, post-retune): SimulationRunner re-multiplied
@@ -43,16 +49,20 @@
   reviewed BEFORE implementation. WS3 traps/constraints live in `docs/superpowers/FABLE_EXIT_BRIEF.md`.
 - Live URL: https://nadavw9.github.io/lane-defense/
 
-## ⚠ CI-ACCESS GAP: visual-smoke job logs/artifacts are unreadable from the agent environment
-No `gh` CLI and no `GITHUB_TOKEN` are available here — the GitHub Actions logs endpoint and the
-artifact-download endpoint both return 401/403 unauthenticated, even for this public repo. This
-means a red `visual-smoke` job in CI **cannot be diagnosed by inspecting CI** from this
-environment. The reliable path: run `npx playwright test tests-visual/smoke` locally (repeat
-2-3x, and re-run any individual failure solo with `-g "<test name>"` — a failure that vanishes
-in isolation is the known parallel-worker flake, not a regression; a failure that repeats
-consistently, including solo, is real). Deploy status (`deploy` job) is a valid green/red signal
-on its own since it only depends on vitest — but do NOT treat visual-smoke's CI conclusion as
-authoritative without a local run to back it up.
+## ✅ CI-ACCESS GAP RESOLVED (2026-07-14): gh CLI now installed + authenticated
+Previously: no `gh` CLI, no `GITHUB_TOKEN` — GitHub's Actions logs/artifact-download endpoints
+returned 401/403 unauthenticated, so a red `visual-smoke` job couldn't be diagnosed from this
+environment (had to infer from local runs only). **Fixed this session**: `gh` installed via
+`winget install --id GitHub.cli` (lands at `C:\Program Files\GitHub CLI\gh.exe` — not on PATH
+in already-open shells until they restart; call it by full path, or open a fresh shell), then
+`gh auth login --hostname github.com --git-protocol https --web` (device-code browser flow,
+authenticated as `nadavw9`). Check `gh auth status` first — the token persists on this machine,
+so a fresh session may already be authenticated. With `gh` working: `gh run list --branch
+master --limit 5`, `gh run view <id>`, `gh run view <id> --log-failed`, `gh run download <id>`
+all work directly — this is how the SwiftShader-timeout root cause (above) was actually
+confirmed, not inferred. Still worth running `npx playwright test tests-visual/smoke` locally
+too when in doubt (fast, no auth needed) — but CI can now be inspected directly when a local
+run doesn't reproduce something.
 
 ## ⚠ WATCH-OUT: recurring bug class — stale hardcoded copies of a moved source of truth
 Board-polish batch fixed a recurring bug class — hardcoded values left stale after their
@@ -74,6 +84,20 @@ canonical `bombSlotZ` source) instead of a second hardcoded number. **When colla
 duplicated constant to one source of truth, grep test files too — a magic number in a test
 is the same bug class as a magic number in game code, just harder to notice because the
 test still passes most of the time.**
+
+## ⚠ CORRECTION (2026-07-14): "rapid-hop passes on solo/retry" was the wrong mental model
+This project's own `Current State` line long described the visual suite's flakes as
+"occasionally flaky under parallel load, passes solo/retry" — implying a render-timing race
+that clears itself on a second attempt. A real CI run (id 29289038652, downloaded and
+inspected via `gh run download`) showed `rapid level hopping (L5→L20→L35) never leaves a
+dead board` failing its INITIAL attempt AND its retry, both times with the identical
+`Test timeout of 60000ms exceeded` (not a render-state assertion). The actual mechanism is
+wall-clock budget under SwiftShader software WebGL (see the resolved CI-ACCESS GAP entry
+above) — a fixed 60s/45s ceiling tuned against real-GPU timing, not flaky rendering state. A
+retry doesn't reliably help because the SAME slow rendering happens again; it only "passes on
+retry" when the runner happens to be under lighter load that attempt. Now fixed at the root
+(CI timeouts raised in `playwright.config.js` + `tests-visual/fixtures/game.js`) rather than
+relying on retries to paper over it.
 
 ## ✅ WS3 §3b RETUNE — DONE (2026-07-10). Next: §3c bosses.
 The booster-aware retune landed against corrected post-merge-fix numbers (profile: skill=average,

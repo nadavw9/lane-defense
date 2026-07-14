@@ -25,6 +25,14 @@ const IGNORED_URLS = [
   /googleads|admob|googlesyndication|doubleclick/,
 ];
 
+// GitHub-hosted CI runners have no GPU — Chromium's WebGL falls back to
+// software rendering (SwiftShader, forced explicitly via playwright.config.js
+// launchOptions), and booting the full app (WebGL context + Pixi + Three.js
+// scene init) costs much more wall-clock there than on a real GPU. Same
+// budget-not-steps fix as the per-test timeout in playwright.config.js —
+// see that file's comment for the CI investigation this is based on.
+const BOOT_TIMEOUT_MS = process.env.CI ? 90_000 : 45_000;
+
 export class GamePage {
   constructor(page) {
     this.page = page;
@@ -48,7 +56,7 @@ export class GamePage {
       }
     });
     await this.page.goto('/', { waitUntil: 'domcontentloaded' });
-    await this.page.waitForFunction(() => !!window._nav, null, { timeout: 45_000 });
+    await this.page.waitForFunction(() => !!window._nav, null, { timeout: BOOT_TIMEOUT_MS });
     // Let the loading screen finish + title settle.
     await this.page.waitForTimeout(1500);
   }

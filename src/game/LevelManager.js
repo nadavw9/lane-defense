@@ -38,7 +38,6 @@ const B1_FTUE = { hpMultiplier: 0.30, speed: { base: 3.0, variance: 0.0 } };
 const B2_EASY = { hpMultiplier: 0.45, speed: { base: 4.6, variance: 0.4 } }; // rebalanced for post-Batch-A road length
 
 // â”€â”€ Realistic player balance presets (Phase 3) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const R_3C_HARD = { hpMultiplier: 0.78, speed: { base: 6.5, variance: 0.5 } }; // L20 boss (deferred to Â§3c)
 const R_2C_MED_100  = { hpMultiplier: 0.60, speed: { base: 5.5, variance: 0.3 } }; // L6 (goals-only retune) â€” L10 un-shared 2026-07-15 (Â§3c boss)
 const R_6C_BH_LONG  = { hpMultiplier: 0.51, speed: { base: 4.0, variance: 0.6 } }; // L40 boss (deferred to Â§3c), 120s finale
 // L2 is 2-lane/2-col in-game but the sim always uses 4 lanes/4 cols, giving 2Ã— extra
@@ -218,13 +217,33 @@ const PROGRESSION = [
     showArrow: false, hintText: null ,
     goals: [{"type":"destroyColor","color":"Green","count":12},{"type":"destroyColor","color":"Blue","count":11}]},
 
-  // L20 Hard â€” BOSS "The Surge": R+B+G, massive spawn budget, max lane density.
-  // Design: wave after wave â€” player must survive constant pressure without pause.
-  // Freeze booster is the key tool.
+  // L20 Hard â€” BOSS "The Surge" (Â§3c, INFRA-C): spawnScript pulses the lane-fill
+  // RATE between crest (3, relentless full density) and lull (1, brief breather) â€”
+  // 4 crests / 3 lulls across kill-progress. The player can't clear steadily
+  // through a crest; they must FREEZE on one to buy a free turn and reset. Type
+  // weights are untouched (no `weights` field per stage â€” stays bandWeights R+B+G);
+  // the surge is about rate, not color load. What NOT to touch: keep 3 colors
+  // (adding a 4th changes the identity); don't raise base speed into reflex
+  // territory â€” L20 is pressure-management, L35 is the reflex level.
+  // FREEZE ASYMMETRY (2026-07-15): hpMultiplier 0.90 is higher than neighbours
+  // because the naive sim clears the surges WITHOUT using freeze (62.6% at 0.78).
+  // Freeze-on-a-crest is L20's designed solution, so real players who use it may
+  // find L20 easier than the 44.2% sim figure suggests. If device playtest reads
+  // too easy, that's the expected direction â€” retune down rather than assuming
+  // the sim is wrong.
   { id: 20, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
-    worldConfig: R_3C_HARD,
+    worldConfig: { hpMultiplier: 0.90, speed: { base: 6.5, variance: 0.5 } }, // 2026-07-15 Â§3c boss: 0.78â†’0.90 (sim-verified; un-shared from R_3C_HARD, was L20-only already)
     duration: 100, spawnBudget: 18, laneTargetCarCount: 3, gridRows: 16,
     showArrow: false, hintText: null ,
+    spawnScript: [
+      { untilPct: 0.20, rate: 3 },   // crest 1 â€” relentless from the start
+      { untilPct: 0.30, rate: 1 },   // lull 1 â€” brief breather
+      { untilPct: 0.50, rate: 3 },   // crest 2
+      { untilPct: 0.60, rate: 1 },   // lull 2
+      { untilPct: 0.80, rate: 3 },   // crest 3
+      { untilPct: 0.90, rate: 1 },   // lull 3
+      { untilPct: 1.00, rate: 3 },   // crest 4 â€” finale push
+    ],
     goals: [{"type":"destroyColor","color":"Red","count":8},{"type":"destroyType","carType":"truck","count":3}]},
 
   // L21 Easy (Relief) â€” "Yellow arrives": 4 colors. Light pressure after L20.

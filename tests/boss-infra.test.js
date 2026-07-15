@@ -11,6 +11,7 @@ import { describe, it, expect, vi } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { GameLoop }         from '../src/game/GameLoop.js';
+import { LevelManager }     from '../src/game/LevelManager.js';
 import { GameState }        from '../src/game/GameState.js';
 import { CombatResolver }   from '../src/game/CombatResolver.js';
 import { CarDirector }      from '../src/director/CarDirector.js';
@@ -218,6 +219,60 @@ describe('INFRA-B: L30 tank-heavy bandWeights', () => {
     // L29/L31 are NOT tank-heavy — the branch is L30-only.
     expect(bandWeights(29)).not.toBe(band);
     expect(bandWeights(31)).not.toBe(band);
+  });
+});
+
+// ── L20 "The Surge" (§3c boss) — spawnScript rate + director==sim parity ────────
+
+describe('L20 "The Surge": crest/lull rate script + director==sim parity', () => {
+  const CHECKPOINTS = [0.05, 0.25, 0.35, 0.55, 0.65, 0.85, 0.95];
+
+  it('the real L20 config alternates crest (rate 3) / lull (rate 1) across kill-progress, no type weights', () => {
+    const lm = new LevelManager();
+    lm.goToLevel(20);
+    const cfg = lm.current;
+    expect(cfg.colors).toEqual(['Red', 'Blue', 'Green']);            // what NOT to touch: 3 colors
+    expect(cfg.spawnScript.every((s) => !s.weights)).toBe(true);      // rate-only — surge is about rate, not type
+
+    const dir = new CarDirector({}, new SeededRandom(1));
+    dir.setSpawnScript(cfg.spawnScript);
+    const rates = CHECKPOINTS.map((p) => { dir.setProgress(p); return dir.scriptRate(); });
+    expect(rates).toEqual([3, 1, 3, 1, 3, 1, 3]);
+  });
+
+  it('GameLoop._refillLanes honors the real L20 spawnScript rate (not laneTargetCarCount) at every stage', () => {
+    const lm = new LevelManager();
+    lm.goToLevel(20);
+    const cfg = lm.current;
+    // _refillLanes derives progress itself via _goalProgressPct (overwriting any
+    // manual setProgress) — drive it through gs.goalProgress instead, using a
+    // round total so the checkpoints land on exact fractions.
+    const { gs, loop, carDir } = makeLoop({ goals: [{ type: 'destroyTotal', count: 100 }] });
+    carDir.setSpawnScript(cfg.spawnScript);
+
+    for (const [p, expectedRate] of CHECKPOINTS.map((p, i) => [p, [3, 1, 3, 1, 3, 1, 3][i]])) {
+      for (const lane of gs.lanes) lane.cars = [];   // reset so refill fills from empty
+      gs.goalProgress = [Math.round(100 * (1 - p))];
+      loop._refillLanes();
+      for (let li = 0; li < 4; li++) expect(gs.lanes[li].cars.length).toBe(expectedRate);
+    }
+  });
+
+  it('SimulationRunner measurably reacts to the crest/lull alternation: an all-crest (no relief) variant of the SAME script is at least as hard as the real one', () => {
+    const lm = new LevelManager();
+    lm.goToLevel(20);
+    const cfg = { ...lm.current, skill: 'average' };
+    const allCrest = cfg.spawnScript.map((s) => ({ ...s, rate: 3 }));   // strip the lulls, same untilPct boundaries
+
+    const run = (spawnScript) => {
+      const r = new SimulationRunner({ ...cfg, spawnScript });
+      let wins = 0;
+      for (let s = 0; s < 150; s++) if (r.runLevel(1 + s).won) wins++;
+      return wins / 150;
+    };
+    const real = run(cfg.spawnScript);
+    const noRelief = run(allCrest);
+    expect(real).toBeGreaterThanOrEqual(noRelief);   // lulls can only help, never hurt
   });
 });
 

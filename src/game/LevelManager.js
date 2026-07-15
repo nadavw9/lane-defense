@@ -39,7 +39,6 @@ const B2_EASY = { hpMultiplier: 0.45, speed: { base: 4.6, variance: 0.4 } }; // 
 
 // â”€â”€ Realistic player balance presets (Phase 3) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const R_2C_MED_100  = { hpMultiplier: 0.60, speed: { base: 5.5, variance: 0.3 } }; // L6 (goals-only retune) â€” L10 un-shared 2026-07-15 (Â§3c boss)
-const R_6C_BH_LONG  = { hpMultiplier: 0.51, speed: { base: 4.0, variance: 0.6 } }; // L40 boss (deferred to Â§3c), 120s finale
 // L2 is 2-lane/2-col in-game but the sim always uses 4 lanes/4 cols, giving 2Ã— extra
 // firepower vs real. Compensate with higher speed/HP so the sim is harder.
 const R_L2          = { hpMultiplier: 0.90, speed: { base: 7.5, variance: 0.3 } }; // L2 2-col sim bias
@@ -397,14 +396,32 @@ const PROGRESSION = [
     showArrow: false, hintText: null ,
     goals: [{"type":"destroyColor","color":"Blue","count":3},{"type":"destroyColor","color":"Green","count":3},{"type":"destroyType","carType":"tank","count":3}]},
 
-  // L40 Boss-Hard â€” BOSS "Grandmaster Finale": all 6 colors, all car types.
-  // Design: budget 35 across 4 lanes, max density. Every mechanic must be used.
-  // The intended solution: color-bomb combos to kill tanks, freeze during surge waves,
-  // SWAP when columns lock, bomb on tank clusters.
+  // L40 Boss-Hard â€” BOSS "Grandmaster Finale" (Â§3c, INFRA-C + INFRA-A): a staged
+  // gauntlet forcing every mechanic in sequence. Stage 1 (0-33%) Bike Swarm â€”
+  // fast low-HP smalls test reflex + rapid color cycling (opening board seeded
+  // all-bikes via initialCars). Stage 2 (33-66%) Truck Wall â€” mid-HP truck/van
+  // tests bench + streak double-damage. Stage 3 (66-100%) Tank+BigRig Pincer â€”
+  // high-HP heavies test color-bomb (clear a locked color) + freeze (survive the
+  // crest). The goal shape drives the player THROUGH the stages: Red:4 clearable
+  // early, truck:1 needs stage 2, bigrig:1 needs stage 3 spawns. What NOT to
+  // touch: keep duration:120 (the gauntlet needs the runway), all 6 colors, the
+  // multi-goal shape; do NOT flatten the stages into a uniform mix â€” the
+  // sequence is the design. Sim loss-timing should skew to stage 3.
   { id: 40, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'],
-    worldConfig: R_6C_BH_LONG,
+    worldConfig: { hpMultiplier: 0.64, speed: { base: 4.0, variance: 0.6 } }, // 2026-07-16 Â§3c boss: 0.51â†’0.64 (50.0% @ 500 runs, losses skew stage-3 63%; un-shared from R_6C_BH_LONG, was L40-only already)
     duration: 120, spawnBudget: 24, laneTargetCarCount: 3, gridRows: 16,
     showArrow: false, hintText: null ,
+    initialCars: [
+      { lane: 0, row: 0, type: 'small' }, { lane: 0, row: 1, type: 'small' }, { lane: 0, row: 2, type: 'small' },
+      { lane: 1, row: 0, type: 'small' }, { lane: 1, row: 1, type: 'small' }, { lane: 1, row: 2, type: 'small' },
+      { lane: 2, row: 0, type: 'small' }, { lane: 2, row: 1, type: 'small' }, { lane: 2, row: 2, type: 'small' },
+      { lane: 3, row: 0, type: 'small' }, { lane: 3, row: 1, type: 'small' }, { lane: 3, row: 2, type: 'small' },
+    ],
+    spawnScript: [
+      { untilPct: 0.33, weights: { small: 6, big: 2 } },                 // Bike Swarm
+      { untilPct: 0.66, weights: { truck: 4, jeep: 3, big: 1 } },        // Truck Wall
+      { untilPct: 1.00, weights: { tank: 3, bigrig: 3, truck: 1 } },     // Tank+BigRig Pincer
+    ],
     goals: [{"type":"destroyColor","color":"Red","count":4},{"type":"destroyType","carType":"bigrig","count":1},{"type":"destroyType","carType":"truck","count":1}]},
 ];
 

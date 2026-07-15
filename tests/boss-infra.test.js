@@ -278,6 +278,44 @@ describe('L20 "The Surge": crest/lull rate script + director==sim parity', () =>
 
 // ── L40 "Grandmaster Finale" (§3c boss) — 3-stage gauntlet config fidelity ──────
 
+describe('L40 "Grandmaster Finale": staged gauntlet + bike-seed opening', () => {
+  const cfg = (() => { const lm = new LevelManager(); lm.goToLevel(40); return lm.current; })();
+
+  it('opening board is seeded all-bikes: 12 initialCars covering rows 0-2 of all 4 lanes', () => {
+    expect(cfg.initialCars).toHaveLength(12);
+    expect(cfg.initialCars.every((d) => d.type === 'small')).toBe(true);
+    for (let lane = 0; lane < 4; lane++) {
+      const rows = cfg.initialCars.filter((d) => d.lane === lane).map((d) => d.row).sort();
+      expect(rows).toEqual([0, 1, 2]);
+    }
+  });
+
+  it('the director spawns each stage\'s designed types from the REAL config: bikes → trucks/vans → tanks/bigrigs', () => {
+    const dir = new CarDirector({}, new SeededRandom(17));
+    dir.setSpawnScript(cfg.spawnScript);
+    const WC = cfg.worldConfig;
+    const typesAt = (p, n = 60) => {
+      dir.setProgress(p);
+      const seen = new Set();
+      for (let i = 0; i < n; i++) {
+        const car = dir.generateCar({ id: i % 4 }, 'BUILD', WC, cfg.colors, cfg.gridRows);
+        if (!(car.type === 'small' && car.hp <= 2 && p > 0.33)) seen.add(car.type);   // skip carry-over pairs off-stage-1
+      }
+      return seen;
+    };
+    const s1 = typesAt(0.10), s2 = typesAt(0.50), s3 = typesAt(0.90);
+    expect([...s1].every((t) => ['small', 'big'].includes(t))).toBe(true);            // Bike Swarm
+    expect([...s2].every((t) => ['truck', 'jeep', 'big', 'small'].includes(t))).toBe(true); // Truck Wall (small = carry-over pairs only)
+    expect(s2.has('truck')).toBe(true);
+    expect([...s3].every((t) => ['tank', 'bigrig', 'truck', 'small'].includes(t))).toBe(true); // Pincer
+    expect(s3.has('tank') || s3.has('bigrig')).toBe(true);
+    // What NOT to touch: 6 colors, 120s runway, multi-goal shape.
+    expect(cfg.colors).toHaveLength(6);
+    expect(cfg.duration).toBe(120);
+    expect(cfg.goals.length).toBeGreaterThanOrEqual(3);
+  });
+});
+
 // ── Config-shape audit: spawnScript weights are { type: weight } OBJECTS ────────
 // CarDirector consumes them via Object.entries; GameApp._levelCarTypes scans them
 // via Object.keys (car-type intro cards). L40 was the FIRST config to carry

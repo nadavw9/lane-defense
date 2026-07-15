@@ -276,6 +276,38 @@ describe('L20 "The Surge": crest/lull rate script + director==sim parity', () =>
   });
 });
 
+// ── L40 "Grandmaster Finale" (§3c boss) — 3-stage gauntlet config fidelity ──────
+
+// ── Config-shape audit: spawnScript weights are { type: weight } OBJECTS ────────
+// CarDirector consumes them via Object.entries; GameApp._levelCarTypes scans them
+// via Object.keys (car-type intro cards). L40 was the FIRST config to carry
+// spawnScript weights and exposed a for...of over the object in GameApp (crash on
+// level start) — pin the shape for every level so a future array-shaped weights
+// entry (bandWeights style) fails here instead of at runtime.
+describe('config audit: spawnScript weight shape across all 40 levels', () => {
+  it('every spawnScript stage has untilPct, and weights (when present) is a plain object of known CAR_TYPES', () => {
+    const lm = new LevelManager();
+    for (let id = 1; id <= 40; id++) {
+      lm.goToLevel(id);
+      for (const stage of lm.current.spawnScript ?? []) {
+        expect(typeof stage.untilPct).toBe('number');
+        if (stage.weights !== undefined) {
+          expect(Array.isArray(stage.weights)).toBe(false);
+          expect(typeof stage.weights).toBe('object');
+          for (const t of Object.keys(stage.weights)) {
+            expect(CAR_TYPES[t], `L${id} spawnScript has unknown car type "${t}"`).toBeDefined();
+          }
+        }
+        if (stage.rate !== undefined) expect(Number.isFinite(stage.rate)).toBe(true);
+      }
+      for (const def of lm.current.initialCars ?? []) {
+        if (def.type) expect(CAR_TYPES[def.type], `L${id} initialCars has unknown type "${def.type}"`).toBeDefined();
+        if (def.color) expect(lm.current.colors).toContain(def.color);
+      }
+    }
+  });
+});
+
 // ── Live↔sim HP parity (the double-discount regression) ─────────────────────────
 
 describe('live↔sim HP parity', () => {

@@ -930,8 +930,10 @@ async function main() {
     for (const phase of Object.values(bandWeights(level))) {
       for (const w of phase) types.add(w.value);
     }
+    // spawnScript weights are a { type: weight } OBJECT (the shape CarDirector's
+    // Object.entries consumes), not a bandWeights-style [{value,weight}] array.
     for (const stage of cfg.spawnScript ?? []) {
-      for (const w of stage.weights ?? []) types.add(w.value);
+      for (const t of Object.keys(stage.weights ?? {})) types.add(t);
     }
     for (const car of cfg.initialCars ?? []) {
       if (car.type) types.add(car.type);

@@ -45,9 +45,9 @@
   L20 47.4 / L30 51.4 / L40 50.2 — §3c waves add the designed challenge while staying in band.
 - Master plan: WS1 DONE · WS2 2a/2b/2c + 2d (Title 9-slice button plates + Win/Lose frames) DONE ·
   WS3 §3a canonical table + §3c boss specs (both in GAME_DESIGN.md) + §3b booster-aware sim +
-  RETUNE APPLIED (cf62d8f). §3c scripted bosses: L30 (8b53039) + L10 (bef3e6c) + L20
-  (7eef483) DONE — L40 "Grandmaster Finale" remains (INFRA-C 3-stage gauntlet + INFRA-A
-  seed; same review gate). WS3 traps/constraints live in `docs/superpowers/FABLE_EXIT_BRIEF.md`.
+  RETUNE APPLIED (cf62d8f). **§3c scripted bosses COMPLETE (2026-07-16)** — all 4 in the
+  40-55 band: L10 41.8% (bef3e6c) / L20 44.2% (7eef483) / L30 48.8% (8b53039) / L40 50.0%
+  (1e003e8). WS3 traps/constraints live in `docs/superpowers/FABLE_EXIT_BRIEF.md`.
 - Live URL: https://nadavw9.github.io/lane-defense/
 
 ## ✅ CI-ACCESS GAP RESOLVED (2026-07-14): gh CLI now installed + authenticated
@@ -111,9 +111,21 @@ mean 76.9%. 24 levels changed via per-level INLINE worldConfig (shared presets n
 orphaned presets deleted). Bosses L10/20/30/40 get their numbers WITH the §3c scripted waves.
 
 ## What Was Shipped This Session (most recent first)
-- **§3c SCRIPTED BOSSES L10 + L20 (2026-07-15, bef3e6c + 7eef483) — 3 of 4 bosses done
-  (L30 was 8b53039); L40 remains.** Both review-gated: sim to 40-55 band at --runs=500,
-  board screenshots presented, committed only after explicit approval.
+- **§3c SCRIPTED BOSSES — ALL 4 DONE (2026-07-15/16): L10 41.8% / L20 44.2% / L30 48.8% /
+  L40 50.0%, all in the 40-55 band.** Each review-gated: sim at --runs=500, board
+  screenshots presented, committed only after explicit approval. One boss per commit.
+  - `1e003e8` **L40 "Grandmaster Finale"** — INFRA-C 3-stage gauntlet + INFRA-A all-bike
+    opening seed: bike swarm (0-33%) → truck wall (33-66%) → tank+bigrig pincer (66-100%).
+    hpMultiplier 0.51→0.64, 50.0% at 500 runs. **Loss timing verified, not just win rate**
+    (the spec's own criterion): 63% of losses land in stage 3, 24% stage 2, 13% stage 1
+    (`scripts/_l40-loss-timing.mjs` probe). The goal shape (Red:4/bigrig:1/truck:1)
+    forces play through all 3 stages — bigrig goal needs stage-3 spawns.
+  - `cc105ca` **Crash fix + config-shape audit (recurring bug class, again)** —
+    `GameApp._levelCarTypes` (car-type intro scanner) iterated spawnScript `weights`
+    with for...of as if bandWeights-style arrays; they're `{type: weight}` OBJECTS
+    (CarDirector's Object.entries shape). L40 is the FIRST config carrying spawnScript
+    weights, so the branch never ran before — crashed level start. New audit test scans
+    all 40 levels' spawnScript/initialCars shapes so drift fails in vitest, not runtime.
   - `bef3e6c` **L10 "The Bench Test"** — INFRA-A scripted opening: lanes 0/2 all-Blue,
     1/3 all-Red, 3 rows each; bench-the-mismatch is the designed solution. 41.8% first
     try, no tuning needed (the scripted design carries the difficulty). AvgTurns 70.2
@@ -353,7 +365,9 @@ orphaned presets deleted). Bosses L10/20/30/40 get their numbers WITH the §3c s
 1. On-device review (title screen + world panels).
 2. Colorblind mode.
 3. Agent team quality audit.
-4. Real-device playtest checklist: L8/12/16/33/37 + bosses L10/20/30/40.
+4. Real-device playtest checklist: L8/12/16/33/37 + bosses L10/20/30/40 (all 4 now §3c
+   scripted; L20 has a known freeze asymmetry — if it plays too easy that's the expected
+   direction, retune DOWN, see the L20 config comment).
 5. Signed AAB build.
 6. Play Store assets + submission.
 

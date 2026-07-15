@@ -39,7 +39,7 @@ const B2_EASY = { hpMultiplier: 0.45, speed: { base: 4.6, variance: 0.4 } }; // 
 
 // â”€â”€ Realistic player balance presets (Phase 3) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const R_3C_HARD = { hpMultiplier: 0.78, speed: { base: 6.5, variance: 0.5 } }; // L20 boss (deferred to Â§3c)
-const R_2C_MED_100  = { hpMultiplier: 0.60, speed: { base: 5.5, variance: 0.3 } }; // L6 (goals-only retune) + L10 boss
+const R_2C_MED_100  = { hpMultiplier: 0.60, speed: { base: 5.5, variance: 0.3 } }; // L6 (goals-only retune) â€” L10 un-shared 2026-07-15 (Â§3c boss)
 const R_6C_BH_LONG  = { hpMultiplier: 0.51, speed: { base: 4.0, variance: 0.6 } }; // L40 boss (deferred to Â§3c), 120s finale
 // L2 is 2-lane/2-col in-game but the sim always uses 4 lanes/4 cols, giving 2Ã— extra
 // firepower vs real. Compensate with higher speed/HP so the sim is harder.
@@ -122,13 +122,24 @@ const PROGRESSION = [
     showArrow: false, hintText: 'NEW! SWAP booster — exchange two column colors' ,
     goals: [{"type":"destroyColor","color":"Blue","count":18},{"type":"destroyColor","color":"Green","count":17}]},
 
-  // L10 Medium â€” BOSS "The Bench Test": R+B only (puzzle). Dense 3 cars/lane.
-  // Design: column queue drifts heavily toward one color. Bench is the only escape.
-  // High HP multiplier makes shooting through mismatches impossible.
+  // L10 Medium â€” BOSS "The Bench Test" (Â§3c, INFRA-A): scripted opening board
+  // color-clusters the board (lanes 0/2 open all-Blue, 1/3 open all-Red, 3
+  // rows each) so a column's bomb is frequently the wrong color for the car
+  // in front â€” the player must BENCH the off-color bomb and wait for a
+  // matching row instead of firing wastefully. Ongoing spawns stay weighted;
+  // truckÃ—11 goal punishes a mis-benched board (forces multi-shot sequences).
+  // What NOT to touch: R+B only (the whole puzzle is the 2-color lock); do
+  // not add Green; do not lower density below 3/lane.
   { id: 10, laneCount: 4, colCount: 4, colors: ['Red', 'Blue'],
-    worldConfig: R_2C_MED_100,
+    worldConfig: { hpMultiplier: 0.60, speed: { base: 5.5, variance: 0.3 } }, // 2026-07-15 Â§3c boss: un-shared from R_2C_MED_100 for independent boss tuning
     duration: 100, spawnBudget: 17, laneTargetCarCount: 3, gridRows: 16,
     showArrow: false, hintText: null ,
+    initialCars: [
+      { lane: 0, row: 0, color: 'Blue' }, { lane: 0, row: 1, color: 'Blue' }, { lane: 0, row: 2, color: 'Blue' },
+      { lane: 1, row: 0, color: 'Red'  }, { lane: 1, row: 1, color: 'Red'  }, { lane: 1, row: 2, color: 'Red'  },
+      { lane: 2, row: 0, color: 'Blue' }, { lane: 2, row: 1, color: 'Blue' }, { lane: 2, row: 2, color: 'Blue' },
+      { lane: 3, row: 0, color: 'Red'  }, { lane: 3, row: 1, color: 'Red'  }, { lane: 3, row: 2, color: 'Red'  },
+    ],
     goals: [{"type":"destroyColor","color":"Red","count":35},{"type":"destroyType","carType":"truck","count":11}]},
 
   // L11 Medium â€” "Back to three": R+B+G returns. BigRig introduced.

@@ -45,8 +45,9 @@
   L20 47.4 / L30 51.4 / L40 50.2 — §3c waves add the designed challenge while staying in band.
 - Master plan: WS1 DONE · WS2 2a/2b/2c + 2d (Title 9-slice button plates + Win/Lose frames) DONE ·
   WS3 §3a canonical table + §3c boss specs (both in GAME_DESIGN.md) + §3b booster-aware sim +
-  RETUNE APPLIED (cf62d8f). Next: §3c scripted bosses — user requires the design approach
-  reviewed BEFORE implementation. WS3 traps/constraints live in `docs/superpowers/FABLE_EXIT_BRIEF.md`.
+  RETUNE APPLIED (cf62d8f). §3c scripted bosses: L30 (8b53039) + L10 (bef3e6c) + L20
+  (7eef483) DONE — L40 "Grandmaster Finale" remains (INFRA-C 3-stage gauntlet + INFRA-A
+  seed; same review gate). WS3 traps/constraints live in `docs/superpowers/FABLE_EXIT_BRIEF.md`.
 - Live URL: https://nadavw9.github.io/lane-defense/
 
 ## ✅ CI-ACCESS GAP RESOLVED (2026-07-14): gh CLI now installed + authenticated
@@ -110,6 +111,28 @@ mean 76.9%. 24 levels changed via per-level INLINE worldConfig (shared presets n
 orphaned presets deleted). Bosses L10/20/30/40 get their numbers WITH the §3c scripted waves.
 
 ## What Was Shipped This Session (most recent first)
+- **§3c SCRIPTED BOSSES L10 + L20 (2026-07-15, bef3e6c + 7eef483) — 3 of 4 bosses done
+  (L30 was 8b53039); L40 remains.** Both review-gated: sim to 40-55 band at --runs=500,
+  board screenshots presented, committed only after explicit approval.
+  - `bef3e6c` **L10 "The Bench Test"** — INFRA-A scripted opening: lanes 0/2 all-Blue,
+    1/3 all-Red, 3 rows each; bench-the-mismatch is the designed solution. 41.8% first
+    try, no tuning needed (the scripted design carries the difficulty). AvgTurns 70.2
+    trips the >70 heuristic by 0.2 — ruled baseline-plus-goals, not pathology (same
+    call as L22).
+  - `7eef483` **L20 "The Surge"** — first live use of INFRA-C's `rate` field: 7 stages
+    alternating crest (rate 3) / lull (rate 1), no per-stage weights. hpMultiplier
+    0.78→0.90, 44.2% in band. Parity proven comparatively: the real crest/lull script
+    scores ≥ an all-crest variant in the sim (rate isn't silently ignored), plus exact
+    rate-sequence and GameLoop._refillLanes stage tests.
+  - **⚠ L20 FREEZE ASYMMETRY (also in the L20 config comment):** hpMultiplier 0.90 is
+    higher than neighbours because the naive sim clears the surges WITHOUT using freeze
+    (62.6% at 0.78). Freeze-on-a-crest is L20's designed solution, so real players who
+    use it may find L20 easier than the 44.2% sim figure suggests. If device playtest
+    reads too easy, that's the expected direction — retune down rather than assuming
+    the sim is wrong.
+  - Also: visual-smoke flipped to a blocking deploy gate (`7687656`, `needs: [test,
+    visual-smoke]`) — verified live: run 29437681272 had deploy start only after both
+    jobs finished green.
 - **BOARD-POLISH BATCH (2026-07-13/14, 8 commits, aa99253) — bomb queue clarity + full
   re-layout + 4 bug fixes + CI test fixes.** Pushed and deploy-confirmed green (vitest gate);
   visual-smoke verified via repeated local runs (see CI-ACCESS GAP above), not CI inspection.

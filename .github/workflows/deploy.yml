@@ -32,8 +32,10 @@ jobs:
 
       - run: npx vitest run
 
-  # Visual smoke (Playwright, ~4 min). Non-blocking for now — observing flake
-  # rate; flip deploy to `needs: [test, visual-smoke]` once proven stable.
+  # Visual smoke (Playwright, ~4-8 min). Blocking: root-caused the standing
+  # timeout as SwiftShader software-WebGL wall-clock cost (not a real
+  # regression) and fixed it at the CI timeout budget — proven stable across
+  # two full green runs (a push + an unattended nightly sweep).
   visual-smoke:
     runs-on: ubuntu-latest
     steps:
@@ -58,7 +60,7 @@ jobs:
           retention-days: 7
 
   deploy:
-    needs: test
+    needs: [test, visual-smoke]
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

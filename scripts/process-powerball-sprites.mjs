@@ -25,9 +25,19 @@ const COLORS = ['red', 'blue', 'green', 'yellow', 'purple', 'orange'];
 // (May) correctly-named leftovers AND the new (Jun) batch — 3 of which arrived
 // typo'd (pwerball-red, owerball-green, owerball-yellow). Pick the NEWEST existing
 // candidate by mtime so we always take the fresh upload regardless of naming.
+// normalize: scale + center the ball BODY (solid core, alpha>200) to match the
+// sibling sprites' framing on the 256 canvas — the powerball equivalent of the
+// car-variant normalization (eff01b8). Sibling cores measure 184-187px centered
+// ~(128.5, 120); a fresh source whose ball is drawn smaller/offset in its frame
+// would otherwise ship visibly off-size next to the other 5 in the queue.
+const BODY_NORM = { size: 186, cx: 128.5, cy: 120 };
+
 const JOBS = [];
 for (const c of COLORS) {
-  JOBS.push({ out: `powerball-${c}.png`, srcs: [`powerball-${c}.png`, `pwerball-${c}.png`, `owerball-${c}.png`] });
+  // bomb_red_new: 2026-07-16 regenerated red (white-line artifact under the ball);
+  // normalized — its ball body arrived ~4% smaller than the other 5 (178 vs 184-187).
+  JOBS.push({ out: `powerball-${c}.png`, srcs: [`powerball-${c}.png`, `pwerball-${c}.png`, `owerball-${c}.png`, `bomb_${c}_new.png`],
+              normalize: c === 'red' });
 }
 for (const c of COLORS) {
   JOBS.push({ out: `powerball-merged-${c}.png`, srcs: [`powerball-merged-${c}.png`] });
@@ -67,8 +77,26 @@ function floodFillBackground(data, width, height, threshold = 210, satThreshold 
   }
 }
 
+// --only=<output name> reprocesses a single sprite (exact match) — a fresh source
+// for one color must not silently re-emit the other 11 outputs.
+const only = process.argv.find(a => a.startsWith('--only='))?.slice(7) ?? null;
+
+// Solid-core (alpha>200) bounding box — the ball body, excluding glow fringe.
+function coreBBox(px, width, height) {
+  let minX = width, maxX = -1, minY = height, maxY = -1;
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    if (px[(y * width + x) * 4 + 3] > 200) {
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
+    }
+  }
+  return { minX, maxX, minY, maxY, w: maxX - minX + 1, h: maxY - minY + 1,
+           cx: (minX + maxX) / 2, cy: (minY + maxY) / 2 };
+}
+
 async function run() {
-  for (const { out, srcs } of JOBS) {
+  for (const { out, srcs, normalize } of JOBS) {
+    if (only && out !== only) continue;
     const file = pickNewest(srcs);
     if (!file) { console.log(`  ✗ ${out} — no source found (${srcs.join(', ')})`); continue; }
 
@@ -76,13 +104,35 @@ async function run() {
     const px = new Uint8Array(data.buffer);
     floodFillBackground(px, info.width, info.height);
 
-    await sharp(Buffer.from(px), { raw: { width: info.width, height: info.height, channels: 4 } })
-      .resize(SIZE, SIZE, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-      .png()
-      .toFile(path.join(OUT, out));
+    const flooded = sharp(Buffer.from(px), { raw: { width: info.width, height: info.height, channels: 4 } });
+
+    if (normalize) {
+      // Scale so the source's solid core lands at BODY_NORM.size on the canvas,
+      // positioned so the core center hits (BODY_NORM.cx, BODY_NORM.cy).
+      const core = coreBBox(px, info.width, info.height);
+      const factor = BODY_NORM.size / ((core.w + core.h) / 2);
+      const W2 = Math.round(info.width * factor), H2 = Math.round(info.height * factor);
+      const resized = await flooded.resize(W2, H2).png().toBuffer();
+      let left = Math.round(BODY_NORM.cx - core.cx * factor);
+      let top  = Math.round(BODY_NORM.cy - core.cy * factor);
+      // Composite offsets must be >= 0: pre-crop anything hanging off the canvas.
+      const cropL = Math.max(0, -left), cropT = Math.max(0, -top);
+      const cropW = Math.min(W2 - cropL, SIZE - Math.max(0, left));
+      const cropH = Math.min(H2 - cropT, SIZE - Math.max(0, top));
+      const piece = await sharp(resized).extract({ left: cropL, top: cropT, width: cropW, height: cropH }).png().toBuffer();
+      await sharp({ create: { width: SIZE, height: SIZE, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+        .composite([{ input: piece, left: Math.max(0, left), top: Math.max(0, top) }])
+        .png()
+        .toFile(path.join(OUT, out));
+    } else {
+      await flooded
+        .resize(SIZE, SIZE, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+        .png()
+        .toFile(path.join(OUT, out));
+    }
 
     const m = await sharp(path.join(OUT, out)).metadata();
-    console.log(`  ✓ ${out.padEnd(26)} from ${path.basename(file).padEnd(28)} ${m.width}×${m.height} alpha:${m.hasAlpha}`);
+    console.log(`  ✓ ${out.padEnd(26)} from ${path.basename(file).padEnd(28)} ${m.width}×${m.height} alpha:${m.hasAlpha}${normalize ? ' (body-normalized)' : ''}`);
   }
 }
 

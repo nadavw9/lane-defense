@@ -33,6 +33,7 @@ import {
   getActiveLaneCount, getActiveColCount, screenToWorldXZ,
 } from '../renderer/PositionRegistry.js';
 import { BENCH_Y, BENCH_SLOT_H } from '../renderer/BenchRenderer.js';
+import { bombSlotScreenY, PX_PER_WU, BOMB_R } from '../renderer3d/projection.js';
 
 // Re-export color map so we can use it without a circular dep on ShooterRenderer.
 const COLOR_MAP = {
@@ -45,6 +46,17 @@ const COLOR_MAP = {
 };
 
 const HIT_RADIUS      = TOP_RADIUS + 14;
+
+// Queue/bench zone boundary — the midpoint of the visual gap between the
+// row-2 ball's bottom edge and the bench tray's top edge (tray rect starts at
+// BENCH_Y - 4, see BenchRenderer.update). Above it, drops belong to the queue
+// (reorder/merge); at or below it, to the bench. Without this cut the row-2
+// slot's circular HIT_RADIUS (48px from y≈669) reached ~24px INTO the visible
+// tray, and since reorder resolves before bench in onPointerUp, releases in
+// the upper two-thirds of the tray became SILENT reorders — fatal for L10
+// "The Bench Test", whose designed solution is benching (2026-07-16 playtest).
+const QUEUE_BENCH_BOUNDARY_Y =
+  ((bombSlotScreenY(2) + PX_PER_WU * BOMB_R) + (BENCH_Y - 4)) / 2;
 const HIGHLIGHT_GREEN = 0x44ff88;
 const HIGHLIGHT_RED   = 0xff4444;
 const HIGHLIGHT_ALPHA = 0.28;
@@ -769,6 +781,9 @@ export class DragDrop {
 
   // Hit-test any queue slot (col, row) — returns { col, row } or null
   _hitTestQueueSlot(x, y) {
+    // The bench band owns everything at/below the boundary: the row-2 slot's
+    // circular radius must not shadow the tray (see QUEUE_BENCH_BOUNDARY_Y).
+    if (y >= QUEUE_BENCH_BOUNDARY_Y) return null;
     // Test all 3 slot rows (not just occupied ones) so EMPTY slots/columns are
     // valid drop targets for reorder + bench-return. The drag-source path in
     // onPointerDown guards with `if (shooter)`, so this never grabs an empty slot.
@@ -797,7 +812,9 @@ export class DragDrop {
     // showing it (same gate as benchRenderer.setVisible(benchUnlocked)). Without
     // this, drops were consumed into an invisible bench on locked/hidden levels.
     if (!this._benchRenderer?._visible) return false;
-    return y >= BENCH_Y - 30 && y <= BENCH_Y + BENCH_SLOT_H + 10;
+    // Lower bound is the queue/bench boundary (was BENCH_Y - 30, which overlapped
+    // the row-2 slot's hit circle — the reorder check then shadowed the tray).
+    return y >= QUEUE_BENCH_BOUNDARY_Y && y <= BENCH_Y + BENCH_SLOT_H + 10;
   }
 
   _hitTestStashArea(x, y) {

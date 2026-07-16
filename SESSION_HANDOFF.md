@@ -111,6 +111,19 @@ mean 76.9%. 24 levels changed via per-level INLINE worldConfig (shared presets n
 orphaned presets deleted). Bosses L10/20/30/40 get their numbers WITH the §3c scripted waves.
 
 ## What Was Shipped This Session (most recent first)
+- **`b0c351a` Nightly sampler fix — all-levels car-render check counts strong pixels,
+  not region means.** The first nightly after L40 landed failed `L40: boots primed and
+  renders cars` on BOTH attempts; the game was fine (CI failure screenshot showed all
+  12 seeded bikes rendering). The 12px MEAN-color metric was latently near-failing:
+  measured on a real GPU, 3 of 4 L40 lanes sat below the 28 threshold (22-26), one lane
+  at 45.7 carried the test, and CI SwiftShader dropped that too. New metric: count
+  pixels >80 L1-distance from the road-box mean, lane passes at ≥8 — bikes measure
+  23-39 strong pixels, road boxes 0 (real separation, not a loosened threshold).
+  **Same recurring theme as the stale-consumer bugs: a metric tuned against one shape
+  (wide cars) silently degraded for another (narrow bikes) and only surfaced when a
+  config finally stressed it — L40's all-bike opening was the first.** Fixture gained
+  additive `strongPixelCount()`; smoke specs untouched. Local full sweep with new
+  metric: 39 passed + L15 boot-timeout flaky (known class).
 - **§3c SCRIPTED BOSSES — ALL 4 DONE (2026-07-15/16): L10 41.8% / L20 44.2% / L30 48.8% /
   L40 50.0%, all in the 40-55 band.** Each review-gated: sim at --runs=500, board
   screenshots presented, committed only after explicit approval. One boss per commit.

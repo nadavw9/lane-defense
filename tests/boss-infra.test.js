@@ -316,6 +316,74 @@ describe('L40 "Grandmaster Finale": staged gauntlet + bike-seed opening', () => 
   });
 });
 
+// ── L10 v2 "The Bench Test" — bomb-supply color bias (§3c) ──────────────────────
+
+describe('L10 v2: shooterColorWeights supply bias', () => {
+  const mkGameState = () => ({
+    colorPalette: ['Red', 'Blue'],
+    // Balanced fronts/stacks so demand-match wouldn't skew a control run.
+    lanes: [
+      { cars: [{ color: 'Red', hp: 2 }],  frontCar() { return this.cars[0]; } },
+      { cars: [{ color: 'Blue', hp: 2 }], frontCar() { return this.cars[0]; } },
+      { cars: [{ color: 'Red', hp: 2 }],  frontCar() { return this.cars[0]; } },
+      { cars: [{ color: 'Blue', hp: 2 }], frontCar() { return this.cars[0]; } },
+    ],
+    columns: [],
+  });
+  const noopArbiter = { checkShooter: () => ({ fixed: false }) };
+
+  it('bias {Blue:3,Red:1} rolls ~75% Blue (overdue floor still forces the scarce color to reappear)', () => {
+    const dir = new ShooterDirector({}, new SeededRandom(5), noopArbiter);
+    dir.setColorBias({ Blue: 3, Red: 1 });
+    const gs = mkGameState();
+    let blue = 0, maxRedGap = 0, gap = 0;
+    for (let i = 0; i < 600; i++) {
+      const s = dir.generateShooter(0, gs, { damageSkew: 'standard' });
+      if (s.color === 'Blue') { blue++; gap++; maxRedGap = Math.max(maxRedGap, gap); }
+      else gap = 0;
+    }
+    expect(blue / 600).toBeGreaterThan(0.62);   // biased well above uniform 50%
+    expect(blue / 600).toBeLessThan(0.85);      // but the overdue floor caps the drift
+    expect(maxRedGap).toBeLessThanOrEqual(7);   // COLOR_WINDOW guarantee: red within every 7 shots
+  });
+
+  it('setColorBias(null/{}) turns the bias off; off-palette colors in the map are ignored', () => {
+    const dir = new ShooterDirector({}, new SeededRandom(5), noopArbiter);
+    dir.setColorBias({ Green: 100 });            // not in this level's palette
+    const gs = mkGameState();
+    let blue = 0;
+    for (let i = 0; i < 400; i++) if (dir.generateShooter(0, gs, { damageSkew: 'standard' }).color === 'Blue') blue++;
+    expect(blue / 400).toBeGreaterThan(0.3);     // falls through to demand-match/uniform
+    expect(blue / 400).toBeLessThan(0.7);
+    dir.setColorBias(null);
+    dir.setColorBias({});
+  });
+
+  it('the real L10 config carries the bias, and the sim measurably reacts: red-scarce supply on a red goal is harder than none', () => {
+    const lm = new LevelManager();
+    lm.goToLevel(10);
+    const cfg = lm.current;
+    expect(cfg.shooterColorWeights).toEqual({ Blue: 3, Red: 1 });
+    expect(cfg.colors).toEqual(['Red', 'Blue']);   // what NOT to touch: 2-color lock
+
+    const base = {
+      duration: cfg.duration, colors: cfg.colors, worldConfig: cfg.worldConfig, levelId: 10,
+      skill: 'average', laneCount: cfg.laneCount, colCount: cfg.colCount,
+      laneTargetCarCount: cfg.laneTargetCarCount, spawnBudget: cfg.spawnBudget,
+      gridRows: cfg.gridRows, goals: cfg.goals, initialCars: cfg.initialCars,
+    };
+    const run = (weights) => {
+      const r = new SimulationRunner({ ...base, shooterColorWeights: weights });
+      let wins = 0;
+      for (let s = 0; s < 150; s++) if (r.runLevel(1 + s).won) wins++;
+      return wins / 150;
+    };
+    // Deterministic seeds; use an extreme bias for a margin-proof direction test
+    // (the config's 3:1 is intentionally gentle — measured -2pts at 150 seeds).
+    expect(run(null)).toBeGreaterThan(run({ Blue: 50, Red: 1 }) + 0.05);
+  });
+});
+
 // ── Config-shape audit: spawnScript weights are { type: weight } OBJECTS ────────
 // CarDirector consumes them via Object.entries; GameApp._levelCarTypes scans them
 // via Object.keys (car-type intro cards). L40 was the FIRST config to carry

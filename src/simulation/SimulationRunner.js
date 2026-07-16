@@ -107,6 +107,7 @@ export class SimulationRunner {
       // measure them. Both wire into the SAME CarDirector implementation.
       initialCars:        levelConfig.initialCars        ?? null,   // INFRA-A scripted opening
       spawnScript:        levelConfig.spawnScript        ?? null,   // INFRA-C staged waves
+      shooterColorWeights: levelConfig.shooterColorWeights ?? null, // §3c L10 v2 supply bias
     };
   }
 
@@ -140,6 +141,7 @@ export class SimulationRunner {
     if (this._cfg.levelId != null) carDir.setLevel(this._cfg.levelId);
     carDir.setSpawnScript(this._cfg.spawnScript);   // §3c INFRA-C (same impl as live game)
     const shooterDir = new ShooterDirector({}, rng, arbiter);
+    shooterDir.setColorBias(this._cfg.shooterColorWeights);   // §3c L10 v2 (same impl as live game)
     const phaseMan   = new IntensityPhase(duration);
 
     // Respect the level's real lane/column counts so low-lane tutorial levels

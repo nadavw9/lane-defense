@@ -36,9 +36,31 @@ export class ShooterDirector {
     // within every COLOR_WINDOW-shot rolling window.
     this._colorLastSeen = {};  // { color → shotIndex }
     this._shotCount     = 0;
+
+    // §3c L10 v2 — per-level bomb-SUPPLY color bias (null = off).
+    this._colorBias = null;
   }
 
   // ─── Public API ───────────────────────────────────────────────────────────
+
+  // §3c L10 v2 "The Bench Test" — bias the bomb SUPPLY toward one color so the
+  // lock lives in the QUEUE, not the board (a 2-color board can't lock: any
+  // bomb color almost always has a matching front). weights: { color: weight },
+  // e.g. { Blue: 3, Red: 1 } → ~75% Blue rolls. Replaces the demand-match /
+  // uniform roll only; the _overdueColor fairness floor and the FairnessArbiter
+  // (FR-1 top-row-match, FR-5 two-colors-on-top) still run, so the scarce color
+  // is guaranteed to keep appearing — scarcity, never starvation.
+  // Wired from the level config (shooterColorWeights) by BOTH GameApp and
+  // SimulationRunner — single implementation, parity by construction (same
+  // pattern as CarDirector.setSpawnScript).
+  setColorBias(weights) {
+    const entries = weights
+      ? Object.entries(weights).filter(([, w]) => Number.isFinite(w) && w > 0)
+      : [];
+    this._colorBias = entries.length > 0
+      ? entries.map(([value, weight]) => ({ value, weight }))
+      : null;
+  }
 
   // Generate one shooter for a column.
   // Color: forced if an active lane color is overdue in the availability window;
@@ -48,7 +70,7 @@ export class ShooterDirector {
   // FairnessArbiter runs after generation and may override color or damage.
   generateShooter(column, gameState, phaseParams) {
     const colId  = this._colId(column);
-    const color  = this._overdueColor(gameState) ?? this._demandMatchColor(gameState);
+    const color  = this._overdueColor(gameState) ?? this._biasedColor(gameState) ?? this._demandMatchColor(gameState);
     const damage = this._pickDamageForContext(phaseParams.damageSkew, gameState);
     const shooter = new Shooter({ color, damage, column: colId });
     this._arbiter.checkShooter(shooter, gameState);
@@ -188,6 +210,17 @@ export class ShooterDirector {
       }
     }
     return oldest;
+  }
+
+  // §3c L10 v2: weighted roll from the supply bias, restricted to the level's
+  // palette. Returns null when no bias is set (falls through to demand-match).
+  // Depth-bait pairs intentionally bypass this — the reward's front-car match
+  // is its own designed mechanic.
+  _biasedColor(gameState) {
+    if (!this._colorBias) return null;
+    const inPalette = this._colorBias.filter(e => gameState.colorPalette.includes(e.value));
+    if (inPalette.length === 0) return null;
+    return this._rng.weightedPick(inPalette);
   }
 
   // 60% chance to reroll toward a current front-car color; 40% uniform palette.

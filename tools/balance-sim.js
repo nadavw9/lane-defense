@@ -83,6 +83,7 @@ function runOne(levelId) {
     laneTargetCarCount: cfg.laneTargetCarCount, spawnBudget: cfg.spawnBudget,
     gridRows: cfg.gridRows, goals: cfg.goals ?? [],
     initialCars: cfg.initialCars ?? null, spawnScript: cfg.spawnScript ?? null,   // §3c bosses
+    shooterColorWeights: cfg.shooterColorWeights ?? null,                         // §3c L10 v2
   });
 
   let wins = 0, winTurns = 0, totalKills = 0, totalShots = 0;

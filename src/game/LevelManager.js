@@ -120,18 +120,22 @@ const PROGRESSION = [
     showArrow: false, hintText: 'NEW! SWAP booster — exchange two column colors' ,
     goals: [{"type":"destroyColor","color":"Blue","count":18},{"type":"destroyColor","color":"Green","count":17}]},
 
-  // L10 Medium â€” BOSS "The Bench Test" (Â§3c, INFRA-A): scripted opening board
-  // color-clusters the board (lanes 0/2 open all-Blue, 1/3 open all-Red, 3
-  // rows each) so a column's bomb is frequently the wrong color for the car
-  // in front â€” the player must BENCH the off-color bomb and wait for a
-  // matching row instead of firing wastefully. Ongoing spawns stay weighted;
-  // truckÃ—11 goal punishes a mis-benched board (forces multi-shot sequences).
+  // L10 Medium â€” BOSS "The Bench Test" (Â§3c v2): the goal demands REDS but the
+  // bomb SUPPLY is biased 3:1 toward Blue (shooterColorWeights), so red bombs
+  // are the scarce resource â€” the player must BENCH blue tops to dig the queue
+  // for reds instead of wasting them, and hold reds for truck lanes. v1's
+  // board-side cluster (lanes 0/2 Blue, 1/3 Red openings) is kept for opening
+  // tension, but playtest proved a 2-color BOARD can't lock (any bomb color
+  // almost always has a matching front) â€” the lock must live in the QUEUE.
+  // Fairness floors stay on: _overdueColor + FR-1/FR-5 guarantee red bombs
+  // keep trickling â€” scarcity, never starvation.
   // What NOT to touch: R+B only (the whole puzzle is the 2-color lock); do
-  // not add Green; do not lower density below 3/lane.
+  // not add Green; do not lower density below 3/lane; keep destroyType:truck.
   { id: 10, laneCount: 4, colCount: 4, colors: ['Red', 'Blue'],
     worldConfig: { hpMultiplier: 0.60, speed: { base: 5.5, variance: 0.3 } }, // 2026-07-15 Â§3c boss: un-shared from R_2C_MED_100 for independent boss tuning
     duration: 100, spawnBudget: 17, laneTargetCarCount: 3, gridRows: 16,
     showArrow: false, hintText: null ,
+    shooterColorWeights: { Blue: 3, Red: 1 },   // 2026-07-16 Â§3c v2: supply-side lock
     initialCars: [
       { lane: 0, row: 0, color: 'Blue' }, { lane: 0, row: 1, color: 'Blue' }, { lane: 0, row: 2, color: 'Blue' },
       { lane: 1, row: 0, color: 'Red'  }, { lane: 1, row: 1, color: 'Red'  }, { lane: 1, row: 2, color: 'Red'  },

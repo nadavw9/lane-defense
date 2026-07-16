@@ -634,6 +634,7 @@ async function main() {
     gs.goalProgress   = gs.goals.map(g => g.count);
     carDir.setLevel(typeof cfg.id === 'number' ? cfg.id : 1);
     carDir.setSpawnScript(cfg.spawnScript ?? null);   // §3c staged boss waves (INFRA-C)
+    shooterDir.setColorBias(cfg.shooterColorWeights ?? null);   // §3c L10 v2 supply bias
   }
 
   // ── Core level-start routine ──────────────────────────────────────────────

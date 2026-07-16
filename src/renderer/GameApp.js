@@ -990,6 +990,13 @@ async function main() {
       preLevelScreen = null;
       transition.fadeOut(0.25, () => { _startLevel(levelId); transition.fadeIn(0.25, null); });
     };
+    // §3d DDA mercy: after 2 consecutive fails, offer 1 free COLOR CHANGE (no ad)
+    // as an "ON THE HOUSE" gift row. Numeric levels only (daily excluded). Base
+    // hp-mercy is already applied in applyLevelConfig; this is the visible half.
+    const failStreak  = typeof levelId === 'number' ? progress.getFailStreak(levelId) : 0;
+    const freeBooster = failStreak >= 2
+      ? { key: 'colorchange', emoji: '🎨', desc: 'Recolor', bundle: { colorChange: 1, freeze: 0, bombs: 0 } }
+      : null;
     preLevelScreen = new PreLevelScreen(app.stage, APP_W, APP_H, label, {
       onSelect: (adCount, bundle) => {
         if (adCount <= 0) { start(bundle); return; }
@@ -1003,6 +1010,7 @@ async function main() {
         showOne();
       },
       audio,
+      freeBooster,
     });
   }
 

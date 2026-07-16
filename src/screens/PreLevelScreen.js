@@ -7,6 +7,13 @@
 //   Watch 3 ads → all 3 (COLOR CHANGE + FREEZE + BOMB)
 //   Skip        → start with 0 boosters
 //
+// §3d DDA mercy: when the caller passes `freeBooster` (only at failStreak ≥ 2),
+// a green "ON THE HOUSE" gift row appears above the ad tiers granting 1 booster
+// for FREE (no ad). It NEVER references the player's failure — it reads as a
+// gift, not charity (the invisible-assist principle: the player should not clock
+// it's tied to their losses). The booster is COLOR CHANGE, matching the paid
+// tier-1 value so "free" never out-values a paid ad tier.
+//
 // The screen is decoupled from AdManager: it reports the player's choice via
 // onSelect(adCount, bundle); the caller runs the ads, then starts the level with
 // the bundle. One tap on SKIP (or the choice button) dismisses it.
@@ -24,17 +31,20 @@ function _lerpHex(a, b, t) {
 }
 
 export class PreLevelScreen {
-  // callbacks: { onSelect(adCount, bundle), audio }
-  //   bundle = { colorChange, freeze, bombs }
-  constructor(stage, appW, appH, levelLabel, { onSelect, audio }) {
-    this._container = new Container();
+  // callbacks: { onSelect(adCount, bundle), audio, freeBooster }
+  //   bundle      = { colorChange, freeze, bombs }
+  //   freeBooster = null | { key, emoji, desc, bundle } — §3d mercy gift row
+  constructor(stage, appW, appH, levelLabel, { onSelect, audio, freeBooster = null }) {
+    this._container   = new Container();
     stage.addChild(this._container);
-    this._onSelect = onSelect;
-    this._audio    = audio;
-    this._done     = false;
-    this._t        = 0;
-    this._jackpot  = null;   // tier-3 row container (animated shimmer)
-    this._glow     = null;   // header radial glow (animated pulse)
+    this._onSelect    = onSelect;
+    this._audio       = audio;
+    this._freeBooster = freeBooster;
+    this._done        = false;
+    this._t           = 0;
+    this._jackpot     = null;   // tier-3 row container (animated shimmer)
+    this._glow        = null;   // header radial glow (animated pulse)
+    this._gift        = null;   // mercy gift row container (animated pulse)
     this._build(appW, appH, levelLabel);
   }
 
@@ -47,6 +57,10 @@ export class PreLevelScreen {
       // scale 1.0 → 1.02 → 1.0 over ~1.5s
       const s = 1.0 + 0.01 * (1 + Math.sin(this._t * (Math.PI * 2 / 1.5)));
       this._jackpot.scale.set(s);
+    }
+    if (this._gift) {
+      // gentle gift-row pulse (offset phase from the jackpot so they don't sync)
+      this._gift.scale.set(1.0 + 0.012 * (1 + Math.sin(this._t * (Math.PI * 2 / 1.7) + 1)));
     }
     if (this._glow) {
       this._glow.alpha = 0.55 + 0.20 * Math.sin(this._t * 2.2);
@@ -67,7 +81,10 @@ export class PreLevelScreen {
     bg.eventMode = 'static';
     this._container.addChild(bg);
 
-    const panelW = 340, panelH = 436;
+    // The mercy gift row (when present) adds a block above the ad tiers; grow the
+    // panel and shift the ad section down by the same amount so nothing overlaps.
+    const GIFT_BLOCK = this._freeBooster ? 76 : 0;
+    const panelW = 340, panelH = 436 + GIFT_BLOCK;
     const px = (w - panelW) / 2;
     const py = (h - panelH) / 2;
     const cx = w / 2;
@@ -107,26 +124,41 @@ export class PreLevelScreen {
     const FREEZE  = { key: 'freeze',      emoji: '❄️', desc: 'Freeze' };
     const BOMB    = { key: 'bomb',        emoji: '💣', desc: 'Bomb' };
 
+    // ── Mercy gift row (§3d) — green "ON THE HOUSE", FREE, no ad ───────────────
+    // Reads as a gift, never as pity: no reference to the player's losses. Placed
+    // above the ad tiers as the most inviting option; a struggling player takes
+    // the free help. The ad tiers below still sell bigger BUNDLES, so the paid
+    // economy is intact (free grants exactly the tier-1 booster).
+    if (this._freeBooster) {
+      const fb = this._freeBooster;
+      this._gift = this._tierRow(cx, py + 108, 308, 64, {
+        leftLabel: 'FREE', boosters: [{ key: fb.key, emoji: fb.emoji, desc: fb.desc }],
+        accent: 0x3ddc84, bgColor: 0x0e2418, shadow: 5,
+        badge: { text: 'ON THE HOUSE', fill: 0x3ddc84, textFill: 0x06331d },
+        onClick: () => this._choose(0, fb.bundle),
+      });
+    }
+
     // ── Tier rows — escalating visual weight ──────────────────────────────────
     // Tier 1: standard, blue/purple border.
-    this._tierRow(cx, py + 112, 300, 62, {
+    this._tierRow(cx, py + 112 + GIFT_BLOCK, 300, 62, {
       ads: 1, boosters: [RECOLOR], accent: 0x8a7bff, bgColor: 0x12122a, shadow: 4,
       onClick: () => this._choose(1, { colorChange: 1, freeze: 0, bombs: 0 }),
     });
     // Tier 2: slightly larger, cyan border, more elevated.
-    this._tierRow(cx, py + 190, 308, 68, {
+    this._tierRow(cx, py + 190 + GIFT_BLOCK, 308, 68, {
       ads: 2, boosters: [RECOLOR, FREEZE], accent: 0x44ccff, bgColor: 0x101a2a, shadow: 5,
       onClick: () => this._choose(2, { colorChange: 1, freeze: 1, bombs: 0 }),
     });
     // Tier 3: jackpot — gold border, warmer bg, BEST VALUE badge, animated shimmer.
-    this._jackpot = this._tierRow(cx, py + 274, 316, 76, {
+    this._jackpot = this._tierRow(cx, py + 274 + GIFT_BLOCK, 316, 76, {
       ads: 3, boosters: [RECOLOR, FREEZE, BOMB], accent: 0xFFD700, bgColor: 0x241a08,
       shadow: 7, best: true,
       onClick: () => this._choose(3, { colorChange: 1, freeze: 1, bombs: 1 }),
     });
 
     // ── Skip — secondary, muted ───────────────────────────────────────────────
-    this._skip('SKIP — START NOW', cx, py + 372, 200,
+    this._skip('SKIP — START NOW', cx, py + 372 + GIFT_BLOCK, 200,
       () => this._choose(0, { colorChange: 0, freeze: 0, bombs: 0 }));
   }
 
@@ -147,7 +179,7 @@ export class PreLevelScreen {
 
   // One offer row, drawn in a self-contained Container pivoted at its centre so
   // the tier-3 jackpot can shimmer (scale) about its centre.
-  _tierRow(cx, top, rw, rh, { ads, boosters, accent, bgColor, shadow, best = false, onClick }) {
+  _tierRow(cx, top, rw, rh, { ads, boosters, accent, bgColor, shadow, best = false, leftLabel = null, badge = null, onClick }) {
     const row = new Container();
     row.x = cx; row.y = top + rh / 2;
     row.pivot.set(rw / 2, rh / 2);   // local (0..rw, 0..rh); scale about centre
@@ -166,7 +198,7 @@ export class PreLevelScreen {
     card.on('pointerout',  () => { row.alpha = 1.0; });
     row.addChild(card);
 
-    const lbl = new Text({ text: `WATCH ${ads} AD${ads > 1 ? 'S' : ''}`,
+    const lbl = new Text({ text: leftLabel ?? `WATCH ${ads} AD${ads > 1 ? 'S' : ''}`,
       style: { fontSize: 15, fontWeight: '900', fill: 0xffffff, letterSpacing: 0.5 } });
     lbl.anchor.set(0, 0.5); lbl.x = 14; lbl.y = rh / 2;
     row.addChild(lbl);
@@ -188,17 +220,19 @@ export class PreLevelScreen {
       row.addChild(d);
     });
 
-    // BEST VALUE gold pill in the top-right corner.
-    if (best) {
-      const bw = 72, bh = 17, bx = rw - bw - 4, by = -9;
-      const badge = new Graphics();
-      badge.roundRect(bx, by, bw, bh, 8);
-      badge.fill({ color: 0xFFD700 });
-      row.addChild(badge);
-      const bt = new Text({ text: 'BEST VALUE',
-        style: { fontSize: 9, fontWeight: '900', fill: 0x3a2a00, letterSpacing: 0.5 } });
-      bt.anchor.set(0.5); bt.x = bx + bw / 2; bt.y = by + bh / 2;
-      row.addChild(bt);
+    // Corner pill badge: BEST VALUE for the jackpot tier, or a caller-supplied
+    // badge (the mercy gift's "ON THE HOUSE"). Same shape, different palette.
+    const pill = badge ?? (best ? { text: 'BEST VALUE', fill: 0xFFD700, textFill: 0x3a2a00 } : null);
+    if (pill) {
+      const bt0 = new Text({ text: pill.text,
+        style: { fontSize: 9, fontWeight: '900', fill: pill.textFill, letterSpacing: 0.5 } });
+      const bw = Math.max(72, bt0.width + 16), bh = 17, bx = rw - bw - 4, by = -9;
+      const bg2 = new Graphics();
+      bg2.roundRect(bx, by, bw, bh, 8);
+      bg2.fill({ color: pill.fill });
+      row.addChild(bg2);
+      bt0.anchor.set(0.5); bt0.x = bx + bw / 2; bt0.y = by + bh / 2;
+      row.addChild(bt0);
     }
 
     this._container.addChild(row);

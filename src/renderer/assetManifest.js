@@ -53,11 +53,14 @@ export function worldPanelForLevel(levelId) {
 // the designed/ '-processed' variant is glossier with a clean cut).
 export const TITLE_INTRO_CAR_URL = `${_B}sprites/designed/car-blue-processed.png`;
 
-// Goal-card icons (GoalCounterUI): destroyColor goals show the standard car in the
-// goal's COLOR (was a flat color circle); destroyType goals show the type's red
-// variant. Cosmetic — the UI falls back to a circle / glyph if one fails to load.
+// Goal-card icons (GoalCounterUI): destroyColor goals show a dedicated stylized
+// side-view car icon in the goal's COLOR (Bug D — sliced from goal-cars.png by
+// scripts/process-goal-car-sprites.mjs; was the 32px top-down gameplay sprite);
+// destroyType goals show the type's red variant. Cosmetic — the UI falls back to
+// the old top-down sprite, then a circle / glyph, if one fails to load.
 export const GOAL_ICON_URLS = [
-  ...COLORS.map(c => `${_B}sprites/designed/car-${c}-processed.png`),
+  ...COLORS.map(c => `${_B}sprites/designed/goal-car-${c}.png`),
+  ...COLORS.map(c => `${_B}sprites/designed/car-${c}-processed.png`),   // fallback tier + title intro car
   ...['bike', 'van', 'truck', 'bigrig', 'tank'].map(t => `${_B}sprites/designed/${t}-red.png`),
 ];
 

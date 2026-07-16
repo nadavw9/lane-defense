@@ -250,10 +250,13 @@ export class GoalCounterUI {
     return uiIcon('explosion', 32, '💥');   // sprite (glyph fallback)
   }
 
-  // destroyColor: the standard car sprite in the goal's color — the icon shows the
-  // actual thing the player must explode. Circle fallback if the texture isn't loaded.
+  // destroyColor: dedicated stylized counter icon (side-view car, Bug D — the
+  // top-down gameplay sprite read poorly at 32px). Fallback chain: goal-car →
+  // old top-down sprite → flat color circle.
   _buildColorCarIcon(color) {
-    const sprite = this._designedSprite(`car-${String(color).toLowerCase()}-processed`, 32);
+    const c = String(color).toLowerCase();
+    const sprite = this._designedSprite(`goal-car-${c}`, 34)
+                ?? this._designedSprite(`car-${c}-processed`, 32);
     if (sprite) return sprite;
     return this._buildColorCircle(color);
   }

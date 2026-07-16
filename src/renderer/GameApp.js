@@ -38,6 +38,7 @@ import { CombatResolver }  from '../game/CombatResolver.js';
 import { LevelManager, openingRowsForLevel } from '../game/LevelManager.js';
 import { BoosterState }    from '../game/BoosterState.js';
 import { ProgressManager } from '../game/ProgressManager.js';
+import { applyDda }         from '../game/dda.js';
 import { LivesManager }    from '../game/LivesManager.js';
 import { HapticsManager }  from '../game/HapticsManager.js';
 import { setColorblindMode } from '../game/ColorblindMode.js';
@@ -615,7 +616,14 @@ async function main() {
     gs.activeLaneCount    = cfg.laneCount;
     gs.activeColCount     = cfg.colCount;
     gs.colors             = cfg.colors;
-    gs.world              = cfg.worldConfig;
+    // §3d DDA + safety: gs.world is ALWAYS a fresh deep copy (via applyDda),
+    // never a reference to LevelManager's config — a raw ref would let any
+    // downstream write poison the balance source of truth, catastrophic for
+    // shared presets. The fail-streak mercy factor (base 1.0) is folded into
+    // the copy's hpMultiplier here and nowhere else; the copy is what the
+    // Director reads. Daily challenge never gets mercy (non-numeric id → 0).
+    const failStreak = typeof cfg.id === 'number' ? progress.getFailStreak(cfg.id) : 0;
+    gs.world = applyDda(cfg.worldConfig, failStreak);
     gs.phaseMan           = new IntensityPhase(cfg.duration);
     gameLoop.baseDuration = cfg.duration;
     // Turn-based target: use explicit targetKills or compute from duration.
@@ -1342,6 +1350,12 @@ async function main() {
     );
   }
   function _showNoRescueLose() {
+    // §3d DDA: this is the FINAL-loss moment (a breach that gets rescued and
+    // then won never reaches here). Bump the fail streak so the next attempt's
+    // config copy gets the mercy factor. Daily challenge excluded inside
+    // recordLoss (non-numeric levelId), but guard here too for clarity.
+    if (!currentLevelIsDaily) progress.recordLoss(levelManager.levelNumber);
+
     pauseBtn.visible = false;
     bookBtn.visible  = false;
     // Same modal cleanup as the win screen.

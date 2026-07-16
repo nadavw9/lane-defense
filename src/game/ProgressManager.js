@@ -71,6 +71,11 @@ function defaults() {
     // v1.5 — car types whose "Meet the ..." intro card has been shown (once EVER,
     // at level start; see GameApp level-start intros)
     introducedCarTypes: [],
+    // v1.6 — DDA fail-streak mercy (§3d): consecutive fails per level, { [levelId]: n }.
+    // Persistent by design — the player this assists is the one who comes back
+    // tomorrow. Increment on final loss, reset on win. Consumed by src/game/dda.js
+    // at level start; the sim NEVER reads it (see the dda.js tripwire test).
+    failStreak: {},
   };
 }
     
@@ -137,7 +142,25 @@ export class ProgressManager {
     if (levelId >= this._data.unlockedLevel && levelId < 40) {
       this._data.unlockedLevel = levelId + 1;
     }
+    // §3d DDA: a win clears the mercy streak — next attempt starts at base.
+    delete this._data.failStreak[key];
     this._save();
+  }
+
+  // ── DDA fail-streak (§3d) ──────────────────────────────────────────────────
+  // Record a FINAL loss on a level (called at the no-rescue lose screen — a
+  // breach that gets rescued and then won is not a fail). Numeric levels only;
+  // the daily challenge is excluded (competitive integrity).
+  recordLoss(levelId) {
+    if (typeof levelId !== 'number') return;
+    const key = String(levelId);
+    this._data.failStreak[key] = (this._data.failStreak[key] ?? 0) + 1;
+    this._save();
+  }
+
+  // Consecutive fails on a level (0 if never failed / last attempt won).
+  getFailStreak(levelId) {
+    return this._data.failStreak[String(levelId)] ?? 0;
   }
 
   setCoins(amount) {

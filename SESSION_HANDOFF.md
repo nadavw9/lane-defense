@@ -111,6 +111,38 @@ mean 76.9%. 24 levels changed via per-level INLINE worldConfig (shared presets n
 orphaned presets deleted). Bosses L10/20/30/40 get their numbers WITH the §3c scripted waves.
 
 ## What Was Shipped This Session (most recent first)
+- **§3c COMPLETE — all four bosses now deliver their DESIGNS in play, not just in band
+  (2026-07-16, e17eb39 + f225e66 + ec52a19).** Hands-on playtest of all four (tool-less,
+  real board states) was the gate:
+  - **L10 v2 (e17eb39)** — playtest proved v1's board-cluster premise structurally
+    undeliverable (2 colors × 4 lanes: zero locked states in 16 turns; bench never
+    needed). v2 moves the lock into the QUEUE: `shooterColorWeights: {Blue:3, Red:1}`
+    on a Red goal via new `ShooterDirector.setColorBias` (overdue floor + FR-1/FR-5
+    keep the scarce color trickling — scarcity, never starvation; parity by
+    construction across GameApp/SimulationRunner/balance-sim). 42.4% @ 500 runs.
+    **Bench gate passed: benched unprompted 3-of-4 turns; re-play after the input fix
+    benched 3/3, each exposing a red.** Monotonic-knob sim test is now the standard
+    (none 46.0 → 3:1 44.0 → 10:1 38.0 → 50:1 34.0).
+  - **Bench drop-zone fix (f225e66)** — the row-2 queue slot's 48px hit circle reached
+    ~24px into the visible tray and reorder resolves first → releases in the upper
+    two-thirds of the tray were SILENT reorders (fatal for L10's named solution).
+    Fixed by partition, not reprioritization: one derived boundary (≈694.5, midpoint
+    of the row-2 ball's bottom edge and the tray's top edge, from projection
+    constants). ⚠ Deliberate behavior change: a reorder released >5px below the row-2
+    ball's visual bottom now snaps back instead of landing — explicit bounce beats
+    silent misfire.
+  - **L20** in band (44.2%); crests read loudly in play (board swings 9→12 in one
+    advance) but clean play never needed freeze — the recorded freeze asymmetry is
+    real, expect device playtest to say "too easy" and retune DOWN.
+  - **L30** — best of the four: the tank wall forces genuine multi-shot planning
+    immediately (screen-kill → wound 6→2 → finisher-with-carry executed as planned).
+  - **L40** — beat the tool-less playtest at turn 16 in stage 1 (correct for a 50%
+    booster-aware finale); loss-skew verified 63% stage-3. Note: staging is
+    progress-keyed, so struggling players stay in the bike swarm — the three-act
+    structure is a reward for surviving act one; boosters are the intended valve.
+  - **Bug D (ec52a19)** — dedicated goal-card color icons (stylized side-view sedans,
+    consistency by construction: all six 256×123 @ (127.5,127)); pill now reads
+    "destroy N of this color", not "bomb this specific car".
 - **`b0c351a` Nightly sampler fix — all-levels car-render check counts strong pixels,
   not region means.** The first nightly after L40 landed failed `L40: boots primed and
   renders cars` on BOTH attempts; the game was fine (CI failure screenshot showed all

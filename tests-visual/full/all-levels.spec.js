@@ -23,16 +23,20 @@ for (let level = 1; level <= 40; level++) {
     }
 
     // At least one lane shows car pixels distinct from the (possibly tinted)
-    // road at its projected position — color distance, not raw colorfulness.
+    // road at its projected position. Metric: COUNT of strongly-distinct pixels
+    // (>80 L1 distance from the road mean), not the region mean — a thin bike
+    // (L40's all-bike opening) occupies too little of the 12px box for a mean
+    // to clear any threshold that road texture doesn't also clear (measured:
+    // bikes 23-39 strong pixels vs road boxes 0; means were 22-46 vs road
+    // noise ~12-25 and failed under CI SwiftShader on both attempts).
     const pos = await game.positions();
     let rendered = 0;
     for (let i = 0; i < gs.laneCount; i++) {
       const row = Math.min(gs.lanes[i].frontRow ?? 0, gs.gridRows - 4);
       const y = game.rowToStageY(row, gs.gridRows);
-      const s = await game.sampleRegion(pos.laneX[i], y, 12);
       const road = await game.sampleRegion(pos.laneX[i], y + 55, 12);
-      const dist = Math.abs(s.r - road.r) + Math.abs(s.g - road.g) + Math.abs(s.b - road.b);
-      if (dist > 28) rendered++;
+      const strong = await game.strongPixelCount(pos.laneX[i], y, 12, road, 80);
+      if (strong >= 8) rendered++;
     }
     expect(rendered, `L${level}: no car pixels distinct from road on any lane`).toBeGreaterThan(0);
   });

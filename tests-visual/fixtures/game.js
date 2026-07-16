@@ -184,6 +184,28 @@ export class GamePage {
     };
   }
 
+  // Count pixels in a region whose summed |ΔR|+|ΔG|+|ΔB| from refRgb exceeds
+  // thresh. Robust "is a sprite here?" metric for NARROW sprites (bikes): a
+  // 12px mean dilutes a thin bike below any workable threshold (L40's all-bike
+  // opening read meanDist 22-46 vs road on a real GPU and failed under CI
+  // SwiftShader), while its core pixels sit 200+ away — count them instead.
+  async strongPixelCount(cx, cy, size, refRgb, thresh = 80) {
+    const half = size / 2;
+    const buf = await this.page.screenshot({
+      clip: { x: Math.max(0, cx - half), y: Math.max(0, cy - half), width: size, height: size },
+    });
+    const { data, info } = await sharp(buf).raw().toBuffer({ resolveWithObject: true });
+    let count = 0;
+    const px = info.width * info.height;
+    for (let i = 0; i < px; i++) {
+      const d = Math.abs(data[i * info.channels] - refRgb.r)
+              + Math.abs(data[i * info.channels + 1] - refRgb.g)
+              + Math.abs(data[i * info.channels + 2] - refRgb.b);
+      if (d > thresh) count++;
+    }
+    return count;
+  }
+
   assertNoTripwires() {
     expect(this.consoleErrors, `Console errors:\n${this.consoleErrors.join('\n')}`).toEqual([]);
     expect(this.failedRequests, `Failed requests (404s ship as broken art!):\n${this.failedRequests.join('\n')}`).toEqual([]);

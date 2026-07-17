@@ -19,6 +19,7 @@ export class ComboFX {
     this._vigAlpha = 0;
     this._vigDur   = 0;
     this._vigT     = 0;
+    this._vigThrob = false;
     glowLayer.addChild(this._vignette);
   }
 
@@ -28,6 +29,7 @@ export class ComboFX {
     this._vigAlpha = 0.55;
     this._vigDur   = 0.30;
     this._vigT     = 0;
+    this._vigThrob = false;
   }
 
   // Edge flash when a combo freeze fires.
@@ -36,12 +38,29 @@ export class ComboFX {
     this._vigAlpha = 0.50;
     this._vigDur   = 0.20;
     this._vigT     = 0;
+    this._vigThrob = false;
+  }
+
+  // §3d near-miss drama: red edge pulse that THROBS twice (synced to the
+  // heartbeat's double-thump) — dread, not the single-decay impact flash.
+  triggerNearMiss() {
+    this._vigCol   = 0xff2a2a;
+    this._vigAlpha = 0.52;
+    this._vigDur   = 0.62;
+    this._vigT     = 0;
+    this._vigThrob = true;   // two-beat envelope instead of linear decay
   }
 
   update(dt) {
     if (this._vigT < this._vigDur) {
       this._vigT += dt;
-      const alpha = this._vigAlpha * Math.max(0, 1 - this._vigT / this._vigDur);
+      const p = this._vigT / this._vigDur;
+      // Throb: two sine humps over the duration (matches the heartbeat thumps),
+      // fading out overall. Otherwise a linear decay for the impact flashes.
+      const env = this._vigThrob
+        ? Math.abs(Math.sin(p * Math.PI * 2)) * (1 - p)
+        : Math.max(0, 1 - p);
+      const alpha = this._vigAlpha * env;
       const W = this._W, H = this._H;
       const ew = W * 0.13;
       const eh = H * 0.09;

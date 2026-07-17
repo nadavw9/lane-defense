@@ -63,6 +63,7 @@ export class GameLoop {
     this._onColorBombEarned = null;  // set by GameApp; (colIdx) → color-bomb earned flash + intro card + SFX
     this._onMultiKill       = null;  // set by GameApp; (count, needed) → "MULTI-KILL n/3" notification
     this._onMerge        = null;  // set by GameApp; (descriptor) → merge animation/SFX
+    this._onNearMiss     = null;  // set by GameApp; () → near-miss drama (slow-mo + heartbeat + red pulse)
     this._onAutoFill     = null;  // set by GameApp; () → re-check merges after an auto-fill that ADDED
                                   // bombs (post-fire refill, bench refill, crisis inject). Fires once
                                   // per real refill event, never on steady-state ticks. GameApp routes
@@ -79,6 +80,11 @@ export class GameLoop {
     // COLOR CHANGE earn: streak of strictly-consecutive multi-kills (2+ kills each
     // shot). Reset to 0 here and at every level start (restart()).
     this._consecutiveComboCount = 0;
+
+    // Near-miss drama (§3d) re-arm flag: fire ONCE per danger episode, then stay
+    // silent until the board returns to clearly-safe (a fresh brush-with-death is
+    // required to fire again). Armed at level start; reset in restart().
+    this._nearMissArmed = true;
   }
 
   start()  { this._app.ticker.add(this._bound); }
@@ -607,6 +613,7 @@ export class GameLoop {
     const gs = this._gs;
     gs.duration = this._baseDuration;   // undo any rescue-added time
     this._consecutiveComboCount = 0;    // COLOR CHANGE combo streak resets each level
+    this._nearMissArmed = true;         // near-miss drama re-armed for the fresh level
     gs.resetLevel();
     gs.phaseMan.update(0);
     this._accumulator = 0;
@@ -743,6 +750,44 @@ export class GameLoop {
     // 7. Queue changed (a shot consumed a bomb and it refilled) → re-check merges.
     // Fires once per shot resolution (this method is per-shot, not per render tick).
     this._onAutoFill?.();
+
+    // 8. Near-miss drama check on the settled post-advance board.
+    this._checkNearMiss();
+  }
+
+  // §3d near-miss drama trigger + re-arm state machine. Fires _onNearMiss when the
+  // player is ≥80% to winning AND a car has reached the last two rows — the genuine
+  // heart-in-throat moment, not just "a car advanced". Re-arm model (NOT once-per-
+  // level): fires once per DANGER EPISODE, then stays silent until the board returns
+  // to clearly-safe (max front row < ROWS-3). This measures "has something dramatic
+  // happened since?" directly — so it catches the real climax even after an earlier
+  // near-miss, and structurally can't spam (a fire needs a fresh brush with death
+  // after pulling clearly safe). The ≥80%-done clause arms it only in the endgame,
+  // so a near-breach at 20% (a Tuesday) can never trigger it.
+  _checkNearMiss() {
+    const gs = this._gs;
+    if (gs.isOver || gs.goals.length === 0) return;   // near-win needs goals
+    const ROWS = gs.gridRows ?? 16;
+
+    // Most-advanced car row across active lanes (higher row = closer to breach).
+    let maxFrontRow = -1;
+    for (let li = 0; li < gs.activeLaneCount; li++) {
+      for (const c of gs.lanes[li].cars) if (c.row > maxFrontRow) maxFrontRow = c.row;
+    }
+
+    // Re-arm once clearly safe again (a fresh brush-with-death required to re-fire).
+    if (maxFrontRow < ROWS - 3) { this._nearMissArmed = true; return; }
+    if (!this._nearMissArmed) return;   // already fired for this danger episode
+
+    const goalTotal     = gs.goals.reduce((s, g) => s + g.count, 0);
+    const goalRemaining = gs.goalProgress.reduce((s, r) => s + r, 0);
+    const nearWin = goalTotal > 0 && goalRemaining > 0 && goalRemaining <= 0.2 * goalTotal;
+    const danger  = maxFrontRow >= ROWS - 2;
+
+    if (nearWin && danger) {
+      this._nearMissArmed = false;
+      this._onNearMiss?.();
+    }
   }
 
   // Re-evaluate the WIN condition after a non-advancing car removal (booster bombs).

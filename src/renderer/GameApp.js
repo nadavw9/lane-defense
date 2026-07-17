@@ -1711,6 +1711,17 @@ async function main() {
     audio.play('freeze_tinkle');   // 6A: ice-crystal tinkle
     haptics.medium();
   };
+  // §3d near-miss drama: fired by GameLoop when the player is ≥80% to winning AND a
+  // car reached the last two rows (see GameLoop._checkNearMiss re-arm gate). Dread,
+  // NOT impact — timeScale 0.35 (gentler than the 0.3 combo bullet-time), the low
+  // heartbeat double-thump, and a red edge pulse that throbs in sync.
+  gameLoop._onNearMiss = () => {
+    gs.timeScale       = 0.35;
+    gs.slowMoRemaining = 0.5;
+    comboFX.triggerNearMiss();
+    audio.play('heartbeat');
+    haptics.medium();
+  };
   // Progress feedback per multi-kill (1/3, 2/3) — through the unified queue (FIX 4).
   gameLoop._onMultiKill = (count, needed) => {
     audio.play('pip_fill', { index: count - 1 });   // 6A: ascending pip-fill note

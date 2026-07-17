@@ -221,9 +221,20 @@ add it to CarDirector as an ordered queue consumed before weighted picks (small,
 - Implementation point: `GameApp._startLevel` where cfg is read; do NOT mutate LevelManager
   configs — apply the multiplier on the copy passed to the Director.
 - Tests: unit test the multiplier schedule; sim unaffected (sim models base difficulty).
-- Near-miss drama (separate commit): in GameLoop, when `goalProgress` total ≤ 20% of target AND
-  any front car row ≥ gridRows-2 → fire `onNearMiss` callback once per level; GameApp: 0.5s
-  slow-mo (gs.timeScale exists) + heartbeat SFX + red vignette pulse (ComboGlow pattern).
+- Near-miss drama (SHIPPED 2026-07-17, GameLoop._checkNearMiss + ComboFX.triggerNearMiss):
+  when `goalProgress` total ≤ 20% of target AND any front car row ≥ gridRows-2 → fire
+  `onNearMiss`; GameApp: 0.35× slow-mo for 0.5s (gs.timeScale/slowMoRemaining) + `heartbeat`
+  SFX + red throb vignette (ComboFX, double-beat envelope synced to the heartbeat).
+  **GATING IS RE-ARM-ON-SAFETY, NOT "once per level" — do NOT "fix" it back.** Once-per-level
+  spends the drama on the FIRST near-miss and then goes silent for the actual climax (e.g. a
+  95%-done bigrig one row from breach after an earlier 80% scare gets nothing). Re-arm instead:
+  fire once per DANGER EPISODE, stay silent while the danger persists (no heartbeat spam if the
+  player teeters at the edge for turns), and re-arm only after the board returns clearly safe
+  (max front row < gridRows-3). This measures "has something dramatic happened SINCE?" directly
+  rather than using a count as a proxy, catches the real climax, and structurally can't spam (a
+  fire needs a fresh brush with death after pulling clearly safe). The ≥80%-done clause arms it
+  ONLY in the endgame, so a near-breach at 20% (a Tuesday) can never trigger it. Covered by
+  tests/near-miss.test.js (incl. the L30 early-scare-then-95%-climax case).
 
 ### 3e. City Repair meta-loop — integration facts + spec
 - Save: `ProgressManager` (localStorage key `lane-defense-v1`), add `cityState: { [buildingId]: 0|1|2 }`

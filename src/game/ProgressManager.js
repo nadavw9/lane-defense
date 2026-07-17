@@ -1,14 +1,14 @@
 // ProgressManager — read/write player progress to localStorage.
 //
 // Added fields (v1.1):
-//   hearts               — current life count (0-5)
-//   heartsLastDepleted   — ms timestamp when hearts were last below max (null = full)
 //   colorblindMode       — bool; shape-symbol overlay enabled
 //   hapticsEnabled       — bool; haptic feedback enabled
 //   sfxVolume            — 0.0–1.0
 //   musicVolume          — 0.0–1.0
 //   loginStreak          — { count: N, lastLogin: 'YYYY-MM-DD' }
 //   ratingPromptShown    — bool; one-time app-rate prompt flag
+// (v1.1 hearts/heartsLastDepleted removed in v1.7 — the lives system was vestigial;
+//  see the _load migration and §3e City Repair which replaced it with cityState.)
 const STORAGE_KEY = 'lane-defense-v1';
 
 // 7-day reward sequence.  Exported so DailyRewardScreen can render labels.
@@ -44,9 +44,8 @@ function defaults() {
     totalAccurateShots:     0,
     totalShots:             0,
     boosterUseCounts:       { swap: 0, freeze: 0 },
-    // v1.1 additions
-    hearts:              5,
-    heartsLastDepleted:  null,
+    // v1.1 additions (hearts/heartsLastDepleted removed v1.7 — see _load migration:
+    // the lives system was vestigial, gameplay had no hearts gate since FIX 3).
     colorblindMode:      false,
     hapticsEnabled:      true,
     sfxVolume:           1.0,
@@ -76,6 +75,11 @@ function defaults() {
     // tomorrow. Increment on final loss, reset on win. Consumed by src/game/dda.js
     // at level start; the sim NEVER reads it (see the dda.js tripwire test).
     failStreak: {},
+    // v1.7 — City Repair meta-loop (§3e): { [buildingId]: 0 rubble | 1 scaffold | 2 repaired }.
+    // One building per level node (buildingForLevel = identity). Repaired on win,
+    // downgraded 2→1 on a final loss (never to 0). Backfilled from stars for veteran
+    // saves (see _load) so a returning player's city reflects their real progress.
+    cityState: {},
   };
 }
     
@@ -268,15 +272,31 @@ export class ProgressManager {
 
   // ── Daily reward ──────────────────────────────────────────────────────────
 
-  // ── Hearts (lives) ────────────────────────────────────────────────────────
+  // ── City Repair (§3e) ─────────────────────────────────────────────────────
+  // level select IS the city; every beaten level repairs one building; state saved.
+  // buildingForLevel is identity for now (one building per level node) — kept a
+  // function so a future coarser mapping changes one place.
 
-  get hearts()             { return this._data.hearts ?? 5; }
-  get heartsLastDepleted() { return this._data.heartsLastDepleted ?? null; }
+  getCityState() { return { ...this._data.cityState }; }
 
-  setHearts(count, anchor) {
-    this._data.hearts             = Math.max(0, Math.min(5, count));
-    this._data.heartsLastDepleted = anchor ?? null;
+  buildingForLevel(levelId) { return levelId; }
+
+  // A win repairs the level's building (→ 2 repaired). Idempotent.
+  repairBuilding(buildingId) {
+    if (buildingId == null) return;
+    this._data.cityState[String(buildingId)] = 2;
     this._save();
+  }
+
+  // A FINAL loss scuffs a REPAIRED building down to scaffolding (2→1) — losses
+  // sting, they don't erase. Never drops below 1; leaves rubble (0)/absent alone.
+  damageBuilding(buildingId) {
+    if (buildingId == null) return;
+    const key = String(buildingId);
+    if ((this._data.cityState[key] ?? 0) === 2) {
+      this._data.cityState[key] = 1;
+      this._save();
+    }
   }
 
   // ── User preferences ──────────────────────────────────────────────────────
@@ -524,6 +544,27 @@ export class ProgressManager {
           if (d.unlockedLevel > lvl) introduced.add(type);
         }
         d.introducedCarTypes = [...introduced];
+
+        // ── v1.7 migration (§3e) — ONE migration, two schema changes ──────────
+        // (a) Strip the vestigial hearts fields. Object.assign(d, saved) carried
+        //     them from old saves; defaults() no longer declares them and the
+        //     lives system is deleted (gameplay had no hearts gate since FIX 3).
+        delete d.hearts;
+        delete d.heartsLastDepleted;
+        // (b) Backfill cityState ONLY when the save has none — a veteran's already
+        //     beaten levels (stars ≥ 1) become repaired buildings, honoring the
+        //     VISION retroactively from truth already in the save (same pattern as
+        //     the intro-card backfill above). PRESENCE-DRIVEN GUARD: this must run
+        //     at most once. Re-deriving on a save that ALREADY has cityState would
+        //     silently repair a damaged (2→1) building back to 2 on the next load —
+        //     so once a city is persisted, never re-derive it from stars.
+        if (saved.cityState == null) {
+          const city = {};
+          for (const [lvl, stars] of Object.entries(d.stars ?? {})) {
+            if (stars >= 1) city[String(this.buildingForLevel(Number(lvl)))] = 2;
+          }
+          d.cityState = city;
+        }
         return d;
       }
     } catch {

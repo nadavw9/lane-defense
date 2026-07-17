@@ -158,8 +158,6 @@ export class HUDRenderer {
     this._levelText.text = `L${n}`;
   }
 
-  setHearts() {}        // hearts removed; harmless no-op for stray callers
-
   showObjective() {}    // kill objective removed; goals own the objective now
 
   // Re-stack the HUD elements above anything added to the layer after construction

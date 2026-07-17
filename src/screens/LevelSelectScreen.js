@@ -48,15 +48,13 @@ function nodePos(levelId) {
 
 export class LevelSelectScreen {
   constructor(stage, appW, appH, progress,
-    { onSelectLevel, onBack, onShop, onAchievements, audio, weeklyLevels = [] },
-    livesManager = null) {
+    { onSelectLevel, onBack, onShop, onAchievements, audio, weeklyLevels = [] }) {
 
     this._container    = new Container();
     stage.addChild(this._container);
     this._stage        = stage;
     this._glowNode     = null;
     this._glowTime     = 0;
-    this._lives        = livesManager;
     this._worldPage    = 1;
     this._progress     = progress;
     this._appW         = appW;

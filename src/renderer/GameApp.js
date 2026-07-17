@@ -39,7 +39,6 @@ import { LevelManager, openingRowsForLevel } from '../game/LevelManager.js';
 import { BoosterState }    from '../game/BoosterState.js';
 import { ProgressManager } from '../game/ProgressManager.js';
 import { applyDda }         from '../game/dda.js';
-import { LivesManager }    from '../game/LivesManager.js';
 import { HapticsManager }  from '../game/HapticsManager.js';
 import { setColorblindMode } from '../game/ColorblindMode.js';
 
@@ -288,9 +287,7 @@ async function main() {
   // ── Progress (localStorage) ──────────────────────────────────────────────
   const progress = new ProgressManager();
 
-  // ── Lives + Haptics + Colorblind ─────────────────────────────────────────
-  const livesManager = new LivesManager(progress);
-  livesManager.tick();   // credit any regenerated hearts immediately
+  // ── Haptics + Colorblind ─────────────────────────────────────────────────
   await adManager.init();
 
   const haptics = new HapticsManager();
@@ -1073,7 +1070,6 @@ async function main() {
     layers.get('backgroundLayer').visible = false;  // hide CityBackground behind LevelSelect (F-07)
     layers.get('laneLayer').visible       = false;
     layers.get('carLayer').visible        = false;
-    livesManager.tick();   // credit any regenerated hearts before showing
     levelSelectScreen = new LevelSelectScreen(app.stage, APP_W, APP_H, progress, {
       onSelectLevel: (levelId) => {
         // Hearts/energy gate removed (FIX 3) — levels are always startable.
@@ -1103,7 +1099,7 @@ async function main() {
       },
       audio,
       weeklyLevels: weeklyPlaylist.levels,
-    }, livesManager);
+    });
   }
   function showShop() {
     shopScreen = new ShopScreen(app.stage, APP_W, APP_H, progress, boosterState, {
@@ -1304,6 +1300,8 @@ async function main() {
       const levelId = levelManager.levelNumber;
       const stars   = calcStars(gs);
       progress.recordWin(levelId, stars);
+      // §3e City Repair: a win repairs the level's building (→ repaired).
+      progress.repairBuilding(progress.buildingForLevel(levelId));
 
       // Weekly playlist bonus: +15 coins for winning a featured level this week.
       const { levels: featuredLevels, weekKey: wk } = weeklyPlaylist;
@@ -1362,7 +1360,15 @@ async function main() {
     // then won never reaches here). Bump the fail streak so the next attempt's
     // config copy gets the mercy factor. Daily challenge excluded inside
     // recordLoss (non-numeric levelId), but guard here too for clarity.
-    if (!currentLevelIsDaily) progress.recordLoss(levelManager.levelNumber);
+    // §3e City Repair damage fires HERE (final loss), not on first breach — a
+    // rescued-then-won breach is not a fail, so it must not scuff the city
+    // either (same single definition of failure as DDA). Only downgrades an
+    // already-repaired building (2→1) — replaying a beaten level and losing.
+    if (!currentLevelIsDaily) {
+      const lvl = levelManager.levelNumber;
+      progress.recordLoss(lvl);
+      progress.damageBuilding(progress.buildingForLevel(lvl));
+    }
 
     pauseBtn.visible = false;
     bookBtn.visible  = false;

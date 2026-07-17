@@ -117,11 +117,14 @@ export class LevelSelectScreen {
       ? unlocked : null;
 
     // City repair buildings — drawn before nodes so they sit behind level circles.
+    // State comes from the PERSISTED cityState (§3e), not a stars proxy: 2 repaired
+    // (any win), 1 scaffolding (a beaten level replayed-and-lost — damage), 0 rubble
+    // (never beaten). buildingForLevel is identity, so the key is the global levelId.
+    const city = progress.getCityState();
     for (let levelId = firstId; levelId <= lastId; levelId++) {
-      const localId  = levelId - worldBase;
-      const { x, y } = nodePos(localId);
-      const stars    = progress.getStars(levelId);
-      const repairState = stars >= 3 ? 2 : stars >= 1 ? 1 : 0;
+      const localId     = levelId - worldBase;
+      const { x, y }    = nodePos(localId);
+      const repairState = city[String(progress.buildingForLevel(levelId))] ?? 0;
       this._buildCityBuilding(x, y - 50, repairState); // centered above node, 50px above node center
     }
 
@@ -724,16 +727,32 @@ export class LevelSelectScreen {
     g.fill({ color: 0x000000, alpha: 0.30 });
 
     if (state === 0) {
-      // DAMAGED — a broken building: collapsed jagged top, dark empty windows, rubble.
-      g.moveTo(bx,       by + 16);
-      g.lineTo(bx + 9,   by + 7);
-      g.lineTo(bx + 17,  by + 13);
-      g.lineTo(bx + 25,  by + 3);
-      g.lineTo(bx + 33,  by + 11);
-      g.lineTo(bx + bw,  by + 7);
-      g.lineTo(bx + bw,  by + bh);
-      g.lineTo(bx,       by + bh);
-      g.closePath();
+      // RUBBLE — a collapsed building AWAITING repair. Against the dark night-city
+      // backdrop the bare silhouette read as scenery, so a subtle amber rim-light
+      // (warm light catching the broken edge) lifts it off the background: it reads
+      // as "pending, yours to rebuild" — not scenery, but not an alert/quest marker.
+      // The meta-loop's payoff needs the player to first SEE the city is broken.
+      const jaggedTop = () => {
+        g.moveTo(bx,       by + 16);
+        g.lineTo(bx + 9,   by + 7);
+        g.lineTo(bx + 17,  by + 13);
+        g.lineTo(bx + 25,  by + 3);
+        g.lineTo(bx + 33,  by + 11);
+        g.lineTo(bx + bw,  by + 7);
+        g.lineTo(bx + bw,  by + bh);
+        g.lineTo(bx,       by + bh);
+        g.closePath();
+      };
+      // Warm ground glow — a faint amber pool under the ruin (drawn over the neutral
+      // shadow) says "a spot is waiting here".
+      g.ellipse(cx, cy + 2, bw * 0.5, 5);
+      g.fill({ color: 0xFFB347, alpha: 0.12 });
+      // Amber rim: two soft strokes on the silhouette BEHIND the dark body, so warm
+      // light peeks along the broken edge (wider = softer outer halo).
+      jaggedTop(); g.stroke({ color: 0xFFB347, width: 5,   alpha: 0.10 });
+      jaggedTop(); g.stroke({ color: 0xFFB347, width: 2.5, alpha: 0.24 });
+      // Dark body on top of the rim.
+      jaggedTop();
       g.fill({ color: 0x2b2f3e, alpha: 0.96 });
       g.stroke({ color: 0x12141f, width: 2, alpha: 0.9 });
       for (const [wx, wy] of [[9, 22], [27, 25], [15, 33]]) {

@@ -454,6 +454,15 @@ orphaned presets deleted). Bosses L10/20/30/40 get their numbers WITH the §3c s
 - BOMB booster and rainbow COLOR BOMB are TWO DISTINCT SYSTEMS — do not conflate:
   - **BOMB booster** — earned at **10 total kills** this level (`gs.killsTowardBomb` counter; +1 per kill, charge every 10). Tap a road row to destroy **every car in that row, regardless of colour** (`placeBombOnRow`; refunds if the row is empty).
   - **Rainbow COLOR BOMB** (a queue item, not a booster) — earned after **3 banked multi-kills** (`gs.multiKillCount`; a multi-kill = 2+ cars destroyed in one shot). When fired it clears every car of one colour (hits any colour car).
+- **City Repair (§3e): LevelSelect buildings source from `progress.cityState`, NOT stars.**
+  Per the VISION ("every beaten level repairs one building"), ANY win → repaired (2);
+  a beaten level replayed-and-lost → scaffolding (1, damage); never-beaten → rubble (0).
+  Star-mastery lives on the level NODE (the star row under the number), not the building.
+  The OLD stars-proxy (`stars>=3 ? 2 : stars>=1 ? 1 : 0`) was a pre-cityState stand-in, NOT
+  a design — do NOT "fix" buildings back to star-gating. Rubble carries a deliberately
+  subtle amber rim-light (legibility, not an alert) so the broken city reads as pending
+  against the dark map; primary broken/fixed signal is lit-windows (repaired) vs dark
+  (rubble). `damageBuilding` fires only at FINAL loss (same definition of failure as DDA).
 
 ## Tool Workflow
 - Claude Chat: design judgment, visual approval, prompts, roadmap

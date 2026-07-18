@@ -48,7 +48,7 @@ function nodePos(levelId) {
 
 export class LevelSelectScreen {
   constructor(stage, appW, appH, progress,
-    { onSelectLevel, onBack, onShop, onAchievements, audio, weeklyLevels = [] }) {
+    { onSelectLevel, onBack, onShop, onAchievements, audio, weeklyLevels = [], cityAnim = null }) {
 
     this._container    = new Container();
     stage.addChild(this._container);
@@ -62,7 +62,14 @@ export class LevelSelectScreen {
     this._weeklyLevels = weeklyLevels;
     this._callbacks    = { onSelectLevel, onBack, onShop, onAchievements, audio, weeklyLevels };
     this._revealAnims  = [];
+    this._repairAnims  = [];     // §3e active building repair pops
+    this._cityAnim     = cityAnim;   // §3e { building, prior } — consumed once in _build
+    this._skipCatcher  = null;   // full-screen tap-to-skip while a repair pops
     this._popup        = null;   // active pre-level popup
+    // Open the world page that owns the just-repaired building so the pop is visible.
+    if (cityAnim && typeof cityAnim.building === 'number') {
+      this._worldPage = Math.min(2, Math.floor((cityAnim.building - 1) / 20) + 1);
+    }
     this._build(appW, appH, progress, onSelectLevel, onBack, onShop, onAchievements, audio);
   }
 
@@ -100,6 +107,22 @@ export class LevelSelectScreen {
       a.node.alpha = Math.min(1, a.t * 3);
       if (a.t >= 1) this._revealAnims.splice(i, 1);
     }
+    // §3e repair pop: old state fades out in the first ~40%, repaired building rises
+    // in with a slight overshoot (grows from the ground line). ~0.7s, then finalize.
+    for (let i = this._repairAnims.length - 1; i >= 0; i--) {
+      const a = this._repairAnims[i];
+      a.t     = Math.min(a.t + dt / a.duration, 1);
+      a.gPrior.alpha = Math.max(0, 1 - a.t / 0.4);
+      const e  = 1 - Math.pow(1 - a.t, 3);
+      const ov = a.t < 0.7 ? Math.sin(a.t / 0.7 * Math.PI) * 0.26 : 0;
+      a.gNew.scale.set(e * (1 + ov));
+      a.gNew.alpha = Math.min(1, a.t * 3);
+      if (a.t >= 1) {
+        a.gPrior.destroy();
+        a.gNew.scale.set(1); a.gNew.alpha = 1;
+        this._repairAnims.splice(i, 1);
+      }
+    }
   }
 
   // ── Private ────────────────────────────────────────────────────────────────
@@ -121,12 +144,21 @@ export class LevelSelectScreen {
     // (any win), 1 scaffolding (a beaten level replayed-and-lost — damage), 0 rubble
     // (never beaten). buildingForLevel is identity, so the key is the global levelId.
     const city = progress.getCityState();
+    const anim = this._cityAnim;
     for (let levelId = firstId; levelId <= lastId; levelId++) {
       const localId     = levelId - worldBase;
       const { x, y }    = nodePos(localId);
-      const repairState = city[String(progress.buildingForLevel(levelId))] ?? 0;
-      this._buildCityBuilding(x, y - 50, repairState); // centered above node, 50px above node center
+      const bId         = progress.buildingForLevel(levelId);
+      const repairState = city[String(bId)] ?? 0;
+      // §3e: the just-repaired building (state actually changed) plays the pop; the
+      // rest render static. buildingForLevel is identity, so anim.building === bId.
+      if (anim && anim.building === bId && anim.prior !== 2) {
+        this._startRepairAnim(x, y - 50, anim.prior);
+      } else {
+        this._buildCityBuilding(x, y - 50, repairState); // centered above node, 50px above node center
+      }
     }
+    this._cityAnim = null;   // consume once — never re-fire on a _switchWorld rebuild
 
     for (let levelId = firstId; levelId <= lastId; levelId++) {
       const localId    = levelId - worldBase;
@@ -791,6 +823,25 @@ export class LevelSelectScreen {
       }
     }
     this._container.addChild(g);
+    return g;
+  }
+
+  // §3e repair pop: the building at (cx, cyBld) rises from its PRIOR state into
+  // repaired over ~0.7s — the meta-loop payoff, played on level-select entry after
+  // a win that CHANGED the building (first clear, or re-repair after a replay-loss).
+  // Deliberately BRIEF and NON-BLOCKING: it's cosmetic, taps pass straight through,
+  // so tapping a level to leave the map naturally ends it (skippable for free, with
+  // no swallowed taps). prior===2 wins never reach here (GameApp gates on change).
+  _startRepairAnim(cx, cyBld, prior) {
+    const gPrior = this._buildCityBuilding(cx, cyBld, prior);   // old state, fades out
+    const gNew   = this._buildCityBuilding(cx, cyBld, 2);       // repaired, pops in
+    // Scale about the ground line (cx, cyBld) so it grows UP like construction.
+    gNew.pivot.set(cx, cyBld);
+    gNew.position.set(cx, cyBld);
+    gNew.scale.set(0);
+    gNew.alpha = 0;
+    this._repairAnims.push({ gPrior, gNew, t: 0, duration: 0.7 });
+    this._callbacks?.audio?.play('coin_collect');   // one soft sparkle, not a fanfare
   }
 
   _switchWorld(page) {

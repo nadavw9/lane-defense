@@ -376,6 +376,11 @@ async function main() {
   let _pendingBoosterGrant = null;
   let preLevelScreen = null;   // active "Power Up?" screen
   let colorPicker    = null;   // active COLOR CHANGE color picker
+  // §3e transient (session-only, not persisted): a win that CHANGED a building's
+  // state to repaired stashes { building, prior } here so the next level-select
+  // entry plays the repair pop once. prior===2 (replay-win, nothing changed) never
+  // sets it → grinding a beaten level pays zero animation tax.
+  let _pendingCityAnim = null;
 
   // ── Bench storage + renderer ──────────────────────────────────────────────
   const benchStorage  = new BenchStorage();
@@ -1099,7 +1104,9 @@ async function main() {
       },
       audio,
       weeklyLevels: weeklyPlaylist.levels,
+      cityAnim: _pendingCityAnim,   // §3e repair pop (consumed once, then cleared)
     });
+    _pendingCityAnim = null;
   }
   function showShop() {
     shopScreen = new ShopScreen(app.stage, APP_W, APP_H, progress, boosterState, {
@@ -1299,9 +1306,14 @@ async function main() {
     } else {
       const levelId = levelManager.levelNumber;
       const stars   = calcStars(gs);
+      // §3e City Repair: a win repairs the level's building (→ repaired). Capture
+      // the PRIOR state first — if it actually changed (prior !== 2), the next
+      // level-select entry plays the brief repair pop; a replay-win (2→2) is silent.
+      const bId       = progress.buildingForLevel(levelId);
+      const priorCity = progress.getCityState()[String(bId)] ?? 0;
       progress.recordWin(levelId, stars);
-      // §3e City Repair: a win repairs the level's building (→ repaired).
-      progress.repairBuilding(progress.buildingForLevel(levelId));
+      progress.repairBuilding(bId);
+      if (priorCity !== 2) _pendingCityAnim = { building: bId, prior: priorCity };
 
       // Weekly playlist bonus: +15 coins for winning a featured level this week.
       const { levels: featuredLevels, weekKey: wk } = weeklyPlaylist;

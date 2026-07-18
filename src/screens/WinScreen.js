@@ -401,11 +401,13 @@ export class WinScreen {
     this._coinCountCurrent = 0;
     this._coinValText      = this._statRow(px + 14, y, panelW - 28, ROW_H, 'COINS EARNED', '+0', 0xf5c842, { name: 'coin', emoji: '◆' });
 
-    // City building repair mini-animation — top-right corner of panel
-    this._cityBldTarget = stars >= 3 ? 2 : stars >= 1 ? 1 : 0;
-    if (this._cityBldTarget > 0) {
-      this._buildCityAnim(px + panelW - 62, py + 12);
-    }
+    // City building repair mini-animation — top-right corner of panel.
+    // §3e: ANY win repairs the level's building (→ repaired), matching the
+    // persisted cityState the map reads. The old stars-proxy (scaffold at 1-2
+    // stars, repaired only at 3) contradicted the map — a 1-star win showed the
+    // corner at scaffold while the map showed the same building repaired.
+    this._cityBldTarget = 2;
+    this._buildCityAnim(px + panelW - 62, py + 12);
     y += ROW_H + ROW_GAP;
     this._statRow(px + 14, y, panelW - 28, ROW_H, 'BEST MULTI-KILL', `×${gs.maxSingleShotKills}`, 0xff8844, { name: 'lightning', emoji: '⚡' });
     if (is3Star) {

@@ -4,12 +4,13 @@
 **`docs/superpowers/plans/2026-07-02-master-plan-testing-ui-difficulty.md`** — three approved workstreams (Testing harness → UI overhaul → Difficulty redesign + City Repair meta). It contains an EXECUTION STATUS checklist that is updated after every step; any fresh session resumes from there. User pre-approved the work incl. commits.
 
 ## Current State
-- Git tip: aa99253 test: fix two CI visual failures from the board re-layout batch (pushed
-  2026-07-13/14 — see "BOARD-POLISH BATCH" below for the full 8-commit summary)
+- Git tip: 9760943 feat: §3e City Repair animation (2026-07-17/18). **WS3 §3 arc COMPLETE
+  (a/b/c/d/e) — see "§3 ARC COMPLETE" below.**
 - Branch: master
-- Last deploy: green (deploy job GATED on vitest only, per .github/workflows/deploy.yml — this
-  is intentional, not a gap: `visual-smoke` is a separate non-blocking observability job, see
-  the CI-access note below). Live URL confirmed serving the batch.
+- Last deploy: green. **`visual-smoke` is now a BLOCKING deploy gate** (`needs: [test,
+  visual-smoke]`, flipped 2026-07-15 after the SwiftShader timeout root-cause fix proved it
+  stable). CI logs readable via `gh` CLI (`"/c/Program Files/GitHub CLI/gh.exe"`, authed as
+  nadavw9). Nightly full sweep green.
 - Tests: 1100 vitest (unit+audit) — green. Visual smoke: root cause of the standing CI red
   CONFIRMED via `gh run download` + log inspection (2026-07-14, see WATCH-OUT below) — CI's
   GPU-less runners fall back to software WebGL (SwiftShader), and the game's Three.js scene
@@ -109,6 +110,32 @@ bosses 40-55 flagged `BOSS §3c`, configs untouched. TOO LONG threshold 25→70 
 levels legitimately run 35-55). Post-retune sweep: 4/40 flagged (the 4 deferred bosses only),
 mean 76.9%. 24 levels changed via per-level INLINE worldConfig (shared presets never edited;
 orphaned presets deleted). Bosses L10/20/30/40 get their numbers WITH the §3c scripted waves.
+
+## §3 ARC COMPLETE (WS3 difficulty redesign + City Repair meta — 2026-07-15/18)
+All of §3a–e shipped, each review-gated, one concern per commit:
+- **§3a/b** (earlier) — canonical difficulty table + booster-aware sim retune.
+- **§3c — 4 scripted bosses, all in the 40-55 band AND delivering their designs in play:**
+  L10 v2 "Bench Test" (supply-side color bias 3:1 so the LOCK lives in the queue — v1's board
+  cluster couldn't lock a 2-color board; bench-gate passed 3/3 by hand), L20 "Surge" (crest/lull
+  rate script), L30 "Industrial" (tank-heavy), L40 "Grandmaster" (3-stage gauntlet, loss-skew
+  verified stage-3). Bench drop-zone fix (f225e66) made benching reliable — L10's named solution
+  depended on it. Red-bomb artifact + goal-car icons (Bug D) also shipped.
+- **§3d — DDA fail-streak mercy** (`888d98e` invisible hp ×0.9/fail floored 0.73, applied ONLY to
+  the Director's config COPY — sim stays base, tripwire-guarded; `f380f3d` visible half: free
+  "ON THE HOUSE" COLOR CHANGE at 2+ fails) + **near-miss drama** (`962fd6a` slow-mo+heartbeat+red
+  throb, RE-ARM-ON-SAFETY gating not once-per-level — catches the real climax, can't spam).
+- **§3e — City Repair meta-loop COMPLETE:**
+  - `d5e2d72` schema+hooks: `cityState {building:0|1|2}`, repaired on win / damaged 2→1 on FINAL
+    loss (same failure def as DDA), backfilled from stars for veterans. **Bundled with the
+    vestigial LivesManager removal in ONE v1.7 migration** (hearts had no gate since FIX 3);
+    presence-guarded so it's idempotent (a damaged city never re-repairs on reload — tested).
+    **LivesManager fully deleted.**
+  - `4ae00dc` map rendering: LevelSelect buildings source from cityState (NOT a stars proxy —
+    handoff-noted, do not revert); rubble carries a subtle amber rim-light for legibility.
+  - `9760943` repair animation: building repair pop on level-select entry, FIRST-REPAIR-ONLY
+    (prior!==2 gate → grinding pays zero tax) + brief ~0.7s + non-blocking (skippable for free);
+    WinScreen corner building aligned to cityState (any win → repaired).
+- Test count grew to 1141 green across the arc; every commit deploy-green through the blocking gate.
 
 ## What Was Shipped This Session (most recent first)
 - **§3c COMPLETE — all four bosses now deliver their DESIGNS in play, not just in band

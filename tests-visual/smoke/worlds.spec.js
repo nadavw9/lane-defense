@@ -8,8 +8,34 @@
 import { test, expect } from '../fixtures/game.js';
 
 // Side-strip center X for a 4-lane level ≈ 17px from each edge (35px strips).
-// Sample INSIDE the strips at a mid-road Y, away from HUD and breach stripe.
+// Sample INSIDE the strips, away from HUD and breach stripe.
 const SAMPLE_Y = 250;
+
+// 2026-07-19: single-point sampling on a REPEATING tiled strip texture
+// (CityEdges._addWorldPanel draws it as a TilingSprite) is fragile, not a
+// reliable "is the panel visible" signal — proven while investigating a car-
+// size ceiling: sampling 5 points just 15px apart at ONE band/level gave a
+// 6.68-to-21.53 spread (more variance WITHIN one sample set than between a
+// "passing" and a "failing" band). The fixed point can land on a lit window
+// or a dark gap between buildings by pure luck of where the tile phase falls.
+// Sampling several points spread across the strip's vertical extent and
+// taking the MEDIAN fixes this without weakening the check: a genuinely
+// missing/blank panel renders near-black at every point (median stays low),
+// while a real panel that got unlucky at one point still has the rest at
+// normal brightness (median reflects the panel's true state).
+const SAMPLE_OFFSETS = [-80, -40, 0, 40, 80];
+
+function median(nums) {
+  const sorted = [...nums].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+async function medianBrightness(game, cx, cyBase, offsets, size = 12) {
+  const samples = [];
+  for (const dy of offsets) samples.push((await game.sampleRegion(cx, cyBase + dy, size)).brightness);
+  return { median: median(samples), samples };
+}
 
 const WORLDS = [
   { level: 5,  world: 'world1 (city)',       minBrightness: 12 },
@@ -33,15 +59,15 @@ for (const { level, world, minBrightness } of WORLDS) {
     const leftStripCenter  = pos.laneBounds[0].left / 2;
     const rightStripCenter = (pos.laneBounds[pos.laneCount - 1].right + 390) / 2;
 
-    const left  = await game.sampleRegion(leftStripCenter,  SAMPLE_Y, 12);
-    const right = await game.sampleRegion(rightStripCenter, SAMPLE_Y, 12);
+    const left  = await medianBrightness(game, leftStripCenter,  SAMPLE_Y, SAMPLE_OFFSETS);
+    const right = await medianBrightness(game, rightStripCenter, SAMPLE_Y, SAMPLE_OFFSETS);
 
     // A rendered panel is never near-black (the historical failure mode is a
     // black/blank strip). Threshold is per-world — see WORLDS above for why
     // night world gets a lower floor.
-    expect(left.brightness,  `left panel missing at L${level} (x=${leftStripCenter.toFixed(0)})`)
+    expect(left.median,  `left panel missing at L${level} (x=${leftStripCenter.toFixed(0)}) — samples: ${left.samples.map(s => s.toFixed(1)).join(', ')}`)
       .toBeGreaterThan(minBrightness);
-    expect(right.brightness, `right panel missing at L${level} (x=${rightStripCenter.toFixed(0)})`)
+    expect(right.median, `right panel missing at L${level} (x=${rightStripCenter.toFixed(0)}) — samples: ${right.samples.map(s => s.toFixed(1)).join(', ')}`)
       .toBeGreaterThan(minBrightness);
   });
 }

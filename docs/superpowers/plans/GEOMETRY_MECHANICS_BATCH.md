@@ -11,7 +11,7 @@ gate per item, ONE COMMIT PER ITEM). Push → watch to deploy-green with `gh`
 
 ## 0. SETTLED — do not re-open
 
-### 0a. Car size (SHIPPED, commits 69e2485 + [fix commit hash])
+### 0a. Car size (SHIPPED, commits 69e2485 + 8c4eba3 fix)
 - **Final shipped state: FIT +0.03 ONLY** (Car3D.js: 0.78/0.80/0.82/0.84/0.86/0.88,
   ordering preserved, bigrig gap ~3.5px). `DESIGN_ROAD_BOTTOM_Y` back at **540**
   (unchanged from pre-batch), `ROAD_Z_FAR` unchanged at −26. **~1.04× car growth.**

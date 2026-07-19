@@ -11,14 +11,39 @@ gate per item, ONE COMMIT PER ITEM). Push → watch to deploy-green with `gh`
 
 ## 0. SETTLED — do not re-open
 
-### 0a. Car size (SHIPPED, commit 69e2485)
-- ~1.09× bigger cars via **FIT +0.03** (Car3D.js: 0.78/0.80/0.82/0.84/0.86/0.88,
-  ordering preserved, bigrig gap 3.6px) + **DESIGN_ROAD_BOTTOM_Y 540→565**
-  (projection.js — viewport zoom; also grew bomb balls 32.1→33.5px).
-  **ROAD_Z_FAR unchanged at −26.**
-- **THE HONEST CEILING at fixed gridRows is ~1.11×. The levers are exhausted:**
-  - Viewport (band) clips the 3rd bomb-queue row behind the booster bar at 575
-    (proven by render). 565 is max-safe.
+### 0a. Car size (SHIPPED, commits 69e2485 + [fix commit hash])
+- **Final shipped state: FIT +0.03 ONLY** (Car3D.js: 0.78/0.80/0.82/0.84/0.86/0.88,
+  ordering preserved, bigrig gap ~3.5px). `DESIGN_ROAD_BOTTOM_Y` back at **540**
+  (unchanged from pre-batch), `ROAD_Z_FAR` unchanged at −26. **~1.04× car growth.**
+- **CORRECTION (post-deploy, caught by visual-smoke — read this before touching
+  `DESIGN_ROAD_BOTTOM_Y` again):** the first push (69e2485, band 540→565) shipped
+  with a real regression that passed local checks but failed real CI. `visual-smoke`
+  caught it: `tests-visual/smoke/worlds.spec.js` "right panel missing at L35" —
+  the night-world side-panel brightness sample dropped from 8.85 to 7.25 (below
+  the minBrightness=8 floor). Root cause, confirmed architecturally AND
+  empirically: `halfX = halfZe × (width/height)` in `computeFrustum()` — the
+  ortho camera ties horizontal zoom to vertical zoom by a FIXED aspect ratio to
+  avoid distortion. **`DESIGN_ROAD_BOTTOM_Y` is NOT a "grow cars" lever, it's a
+  "zoom the whole scene" lever** — it also zooms horizontally, which squeezes
+  the side-panel strips (40.7px → 33.6px at band 565, a 17% squeeze) exactly
+  where the already-marginal night-world brightness threshold lives. The
+  original "max-safe band" analysis only checked ONE of band's two costs
+  (bomb-queue vertical clipping) and missed the other (edge-panel horizontal
+  squeeze) — **checking centered content is not enough; edge content is where
+  a horizontal-zoom side effect bites.**
+  - A local sweep found the band's *safe* range (respecting bomb-clip AND
+    all-3-worlds panel-brightness-with-real-margin) buys only ~1% over FIT
+    alone (1.04×→1.05× at band=545) — not worth the reintroduced coupling risk
+    for a 1% gain. **Verdict: drop the band lever entirely.**
+- **FIT is the only lever that's structurally decoupled** (doesn't touch
+  `projection.js` at all — cannot affect frustum/bombs/panels by construction,
+  not just by empirical luck). Prefer structural decoupling over empirical
+  "safe range" tuning when a lever touches the shared frustum.
+- **THE HONEST CEILING at fixed gridRows via FIT alone is ~1.04–1.05×.** Lower
+  than the ~1.11× first estimated — the band lever's true cost (edge-panel
+  squeeze) wasn't part of that estimate. The levers are exhausted:
+  - Band (viewport): re-zooms the WHOLE scene, unavoidably squeezing side
+    panels in proportion to vertical car growth — its safe range buys ~1%.
   - FIT caps at bigrig 0.88–0.90 (same-type gap fuses beyond; ordering must hold).
   - ROAD_Z_FAR **backfires**: lengthening the road rescales the whole frustum
     smaller — bombs shrank 32→24px while cars barely grew. Never use it for size.
@@ -26,10 +51,20 @@ gate per item, ONE COMMIT PER ITEM). Push → watch to deploy-green with `gh`
   gridRows ~12 the 4-lane flow floods structurally: 0% win even at hp 0.08 with
   goals ×0.25 (you clear one lane per shot while three advance). gridRows 7/8
   are unwinnable AT ANY TUNING. Do not retry.
-- **Bigger than ~1.11× ⇒ PROJECT B: bomb-zone redesign** (compact/horizontal
+- **Bigger than ~1.05× ⇒ PROJECT B: bomb-zone redesign** (compact/horizontal
   queue frees road-band pixels; still zero balance cost). Separate UI project.
-  **Justified ONLY if device feedback (the user's sister) says ~1.09× isn't
-  enough.** Do not start speculatively.
+  **Justified ONLY if device feedback (the user's sister) says ~1.04× isn't
+  enough.** Do not start speculatively. Given the ceiling is now lower than
+  first thought, this trigger is MORE likely to fire than originally framed —
+  don't be surprised if B becomes the next real ask.
+- **PROCESS LESSON (apply to every future geometry change, not just this one):**
+  a render lever can be balance-decoupled (proven via the sim byte-identity
+  check) while still NOT being cost-free — it can carry a rendering-side-effect
+  on a DIFFERENT subsystem (here: side panels) that only real visual-regression
+  testing catches. Local manual renders of centered content (cars, bombs) did
+  not catch this; `visual-smoke`'s edge-panel brightness sample did. **Always
+  run the full local `tests-visual/smoke` suite before pushing a geometry
+  change** — vitest + the 4-level sim check are necessary but NOT sufficient.
 
 ### 0b. The decoupling method (now the standard for any geometry change)
 The sim reads NO render geometry (structural: SimulationRunner imports only
@@ -88,33 +123,43 @@ THREE callers of `GameApp.onReorder → mergeSequencer.start()`:
 3. the **level-start settle** (`_trySettle` → `mergeSequencer.start()`,
    GameApp ~line 788, settles pre-made opening-board merges).
 
-**Remove (switch mechanic):**
+**RESOLVED (design thread, 2026-07-19) — the governing rule:**
+**player rearranging bombs = no merge** (that's the switch mechanic being
+removed); **system placing bombs = merge** (auto-fill AND level-start-settle).
+An opening 3-line is the initial deal, not player manipulation — leaving it
+visibly unmerged would read as a bug. So triggers 1 and 2 (both player-
+initiated) are removed; auto-fill and level-start-settle (both system-
+initiated) **STAY**. No design ambiguity remains here.
+
+**Remove (switch mechanic — player-initiated triggers only):**
 - DragDrop: queue-slot drag-START pickup (onPointerDown ~line 260 block),
   `_handleQueueReorder`, the reorder branch in onPointerUp (~line 350), reorder
   hover highlight (onPointerMove ~line 681 block). Keep `_hitTestQueueSlot`
   itself — bench-return still targets queue columns with it.
 - ShooterRenderer: `setReorderTarget`/`clearReorderTarget` become dead — remove.
-- GameApp `onReorder` handler: remove `mergeSequencer.start()` for player paths.
+- GameApp `onReorder` handler: remove `mergeSequencer.start()` for player paths
+  (triggers 1 and 2 only).
 - Bench-return: KEEP the return action, DELETE its `_onReorder(...)` call. A
   merge pattern created by a bench-return stays unmerged until the next
   auto-fill (`gameLoop._onAutoFill → mergeSequencer.requestCheck()` — the
   post-shot refill catches it one shot later). That's the intended semantics.
-- KEEP: `gameLoop._onAutoFill = () => mergeSequencer.requestCheck()` (the ONE
-  merge trigger), the merge engine itself (peekMerges/evaluateMerges), the
-  free-queue-action gate for bench-store/bench-return (reorder no longer counts).
 
-> **DECISION-NEEDED (do NOT guess — ask the user before implementing):**
-> does the **level-start settle** (trigger 3) stay or go? Stay = a level never
-> opens on a pre-made unmerged match (current Candy-Crush-style behavior).
-> Go = opening matches sit until the first auto-fill. This is a design call the
-> design thread has not made. Present both, get the call, then implement.
+**Keep unchanged (system-initiated triggers):**
+- `gameLoop._onAutoFill = () => mergeSequencer.requestCheck()` (auto-fill —
+  trigger 3 in the original numbering here, "system placing bombs").
+- The **level-start settle** (`_trySettle` → `mergeSequencer.start()`,
+  GameApp ~line 788) — untouched, no code change. A level still never opens
+  on a visible pre-made unmerged match.
+- The merge engine itself (peekMerges/evaluateMerges), the free-queue-action
+  gate for bench-store/bench-return (reorder no longer counts toward it).
 
 **Tests:** delete dragdrop-reorder.test.js; rewrite free-queue-action.test.js
 (bench-store/return remain the only queue actions); merge-hardening/
 merge-autofill/merge-engine stay (engine unchanged) but grep them for
-reorder-driven setups. Update SESSION_HANDOFF "Known Design Decisions" (the
+reorder-driven setups — level-start-settle tests should need NO changes
+(untouched code path). Update SESSION_HANDOFF "Known Design Decisions" (the
 "1 free queue action per shot (swap / bench-store / bench-retrieve)" line and
-the merge-trigger description).
+the merge-trigger description — record the player-vs-system rule above).
 
 ---
 
@@ -155,22 +200,25 @@ the merge-trigger description).
 by `hFrac × ROAD_H` and tiles/repeats per-building sprites — that repetition is
 the "crowded" complaint. Replace with ONE full-height siding image per side.
 
-**Exact on-screen geometry (shipped, band 565):** road width ≈ 323px centered
-→ each side strip ≈ **33.6px wide × ~576px tall** (y 0→BREACH_LINE_Y≈576;
-visible band starts at road top 44 but art should fill to y0 for safety).
-Aspect ≈ **1 : 17** — extremely tall.
+**Exact on-screen geometry (recompute from projection.js at execution time —
+these numbers are for `DESIGN_ROAD_BOTTOM_Y=540`, the shipped baseline; if §0a's
+band value ever changes, re-run this calc, don't reuse these numbers):** each
+side strip ≈ **40.7px wide × ~551px tall** (y 0→BREACH_LINE_Y≈551; visible band
+starts at road top 44 but art should fill to y0 for safety).
+Aspect ≈ **1 : 13.6** — extremely tall, but noticeably less extreme than the
+first (incorrect, band-565-based) estimate.
 
 **Art generation (user runs in ChatGPT, global style prefix from
 IMPLEMENTATION_PLAYBOOK §6):** request **1024×1792 (9:16)** — the tallest
 ChatGPT output — of a continuous vertical strip of connected building facades,
 top-down-adjacent side view, no repetition, one per world theme × side:
 `siding-world{1,2,3}-{left,right}.png` → save to `sprite-sources/raw/`.
-Because 9:16 ≪ 1:17, the processing step CENTER-CROPS a 1024×1792 source to a
-~105×1792 column (matching 33.6:576 aspect) — brief the user that the usable
+Because 9:16 ≪ 1:13.6, the processing step CENTER-CROPS a 1024×1792 source to a
+~128×1792 column (matching 40.7:551 aspect) — brief the user that the usable
 content is a narrow central column, so the prompt should ask for a "narrow
 strip composition, subjects centered in a vertical column".
 Processing script (follow scripts/process-goal-car-sprites.mjs conventions):
-crop → resize to 128×2192 → `public/sprites/designed/`, add to assetManifest
+crop → resize to 160×2172 → `public/sprites/designed/`, add to assetManifest
 (STRIP-family), integrate in CityEdges as width-fit cover, **no tiling** (the
 single image spans the full strip height). Fallback: existing tiled path stays
 for missing sprites (Assets allSettled degradation pattern).
@@ -180,16 +228,26 @@ for missing sprites (Assets allSettled degradation pattern).
 ---
 
 ## 5. Validation recipe (every item)
-`npx vitest run` → visual smoke locally if input/geometry touched
-(`npm run test:visual` — note ~50-zombie-chrome cleanup: `npm run browser:kill`)
-→ 4-level sim check (byte-identity for render changes; band table for mechanic
-changes) → screenshots to docs/review/ (wipe + 00-labels.txt per the standing
-workflow) → user review → commit → push → `gh run watch` to deploy-green.
+`npx vitest run` → **run the FULL local visual-smoke suite for ANY geometry
+change, not conditionally** (`npx playwright test tests-visual/smoke` —
+`scripts/kill-browser.bat` first if runs have been piling up: ~50 zombie
+chrome processes accumulate over a long session and degrade results) → 4-level
+sim check (byte-identity for render changes; band table for mechanic changes)
+→ screenshots to docs/review/ (wipe + 00-labels.txt per the standing workflow)
+→ user review → commit → push → `gh run watch` to REAL deploy-green (confirm
+the run, don't infer it from local checks — see the car-size correction above:
+vitest + sim + manual renders all passed locally while a real regression
+shipped; only the full visual-smoke suite, run either locally or by CI, caught
+it).
 
 ## 6. Open items ledger
-- **DEVICE VERDICT PENDING:** sister judges ~1.09× car size on a phone. "Good
-  now" → car-size closed. "Not enough" → open PROJECT B (bomb-zone redesign).
-- **DECISION-NEEDED:** level-start settle merges stay/go (see §2).
+- **DEVICE VERDICT PENDING:** sister judges ~1.04–1.05× car size on a phone
+  (revised down from the original ~1.09× estimate — see the §0a correction).
+  "Good now" → car-size closed. "Not enough" → open PROJECT B (bomb-zone
+  redesign) — more likely to fire now that the ceiling is lower than first
+  estimated.
+- ~~DECISION-NEEDED: level-start settle merges stay/go~~ — RESOLVED in §2
+  (system-initiated merges, including level-start settle, stay).
 - Near-miss drama + repair-animation feel params: tuned constants, may get
   device-playtest tweaks (timeScale 0.35/0.5s; 0.7s repair pop) — three-number
   changes, not redesigns.

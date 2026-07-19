@@ -37,7 +37,7 @@ export const DESIGN_ROAD_TOP_Y    = 44;
 // proportionally), funded by shrinking the bomb queue — see BOMB_ZONE_SCALE
 // below. Approved budget: B=0.82 is the largest bomb-zone shrink that still
 // keeps queue slots comfortably tappable at this car-growth target.
-export const DESIGN_ROAD_BOTTOM_Y = 565;
+export const DESIGN_ROAD_BOTTOM_Y = 540;
 
 // ── Camera frustum (must stay identical to Scene3D._computeFrustum) ──────────
 export function computeFrustum(width = APP_W, height = APP_H) {

@@ -1099,6 +1099,10 @@ export class GameLoop {
         }
         if (def.color && gs.colors.includes(def.color)) car.color = def.color;
         car.position = this._rowToPosition(car.row, ROWS);
+        // The initial deal has nothing to "arrive" at — render settled immediately
+        // (Car3D._createEntry skips the spawn-glide for isInitial cars). Mid-play
+        // refills (_refillLanes) never set this, so they keep the normal glide-in.
+        car.isInitial = true;
         gs.lanes[li].addCar(car);
       }
     } else {
@@ -1111,6 +1115,7 @@ export class GameLoop {
           const car    = this._carDir.generateCar(gs.lanes[li], 'CALM', gs.world, gs.colors, ROWS);
           car.row      = row;
           car.position = this._rowToPosition(row, ROWS);
+          car.isInitial = true;   // see comment above — opening board renders settled
           gs.lanes[li].addCar(car);
         }
       }

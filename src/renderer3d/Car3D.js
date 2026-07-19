@@ -585,9 +585,13 @@ export class Car3D {
     group.userData.baseScale = spriteScale;
     group.scale.setScalar(spriteScale);
 
-    // Spawn animation: start off-screen (further from breach)
+    // Spawn animation: start off-screen (further from breach) and glide in.
+    // EXCEPTION — the opening board (car.isInitial, set by GameLoop._primeInitialCars):
+    // there's nothing to "arrive" at level start, so it renders settled immediately
+    // (no glide, no ghost trail). Mid-play spawns (lane refills after a kill) never
+    // carry this flag and keep the normal glide-in.
     const targetZ  = posToZ(car.position);
-    const spawnZ   = targetZ - SPAWN_OFFSET;
+    const spawnZ   = car.isInitial ? targetZ : targetZ - SPAWN_OFFSET;
     const worldX   = laneToX(laneIdx, this._laneCount);
     group.position.set(worldX, 0, spawnZ);
 
@@ -597,8 +601,9 @@ export class Car3D {
     // 2D: spawn motion-blur trail — 3 faded ghost copies of the sprite that trail
     // behind the car during its entrance glide, then fade out. Share the car's
     // geometry + texture (disposed with the car, never by the ghost cleanup).
+    // Skipped for the opening board — no glide means no trail to draw.
     const ghosts = [];
-    if (bodyMat.map) {
+    if (bodyMat.map && !car.isInitial) {
       for (let i = 0; i < 3; i++) {
         const gm = new THREE.MeshBasicMaterial({
           map: bodyMat.map, transparent: true, opacity: 0,
@@ -619,8 +624,8 @@ export class Car3D {
       baseHex: 0xffffff,  // always white — all sprites pre-colored, boss canvas bakes color
       lastHp: -1, _prevFrozen: false,
       bossRing, bossRingMat, bossAngle: 0,
-      renderZ: spawnZ, targetZ, lerpStartZ: spawnZ, lerpT: 0,
-      _isSpawning: true,
+      renderZ: spawnZ, targetZ, lerpStartZ: spawnZ, lerpT: car.isInitial ? 1 : 0,
+      _isSpawning: !car.isInitial,
       _auraBlend: 0, _auraT: 0,
       _powerFlashing: false, _powerFlashT: 0,
       _powerSquashing: false, _powerSquashT: 0,

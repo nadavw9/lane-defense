@@ -10,16 +10,30 @@
 //   setHighlight  — which slot to blue-highlight as a drop target
 import { Sprite, Graphics, Text, Assets } from 'pixi.js';
 import { COL_W } from './ShooterRenderer.js';
+import { PX_PER_WU, BOMB_R, MERGE_SCALE } from '../renderer3d/projection.js';
 
 export const BENCH_Y      = 703;
 export const BENCH_SLOT_H = 50;
 
-// Target size for bench shooter sprites — fits within the slot.
-const BENCH_SPRITE_SIZE = 32;
+// Same source art as the live bomb queue (Shooter3D's powerball plane): the bomb
+// body fills ~72% of the image (fuse/spark/shine padding around it), so the full
+// sprite must be scaled up by this ratio for the visible BODY to match 2×BOMB_R.
+// Must track Shooter3D.js's BOMB_PLANE_SIZE ratio — same art, same padding.
+export const SPRITE_PAD_RATIO = 2.8;
+
+// Target size for bench shooter sprites, DERIVED from the canonical ball size
+// (was a hardcoded 32 — silently drifted from the queue's actual rendered size,
+// and never accounted for the merged-bomb enlargement at all).
+export const BENCH_SPRITE_SIZE = BOMB_R * SPRITE_PAD_RATIO * PX_PER_WU;
 
 // Stored bombs use the powerball sprite (same art as the live bomb queue) so the
-// bench matches the game — was the old shooter-idle sprite.
-function bombUrl(color) { return `${import.meta.env.BASE_URL}sprites/designed/powerball-${color.toLowerCase()}.png`; }
+// bench matches the game — was the old shooter-idle sprite. Merged bombs use the
+// same special lightning-crack texture the queue shows (Shooter3D._getPowerballTex).
+export function bombUrl(color, isMerged = false) {
+  const c    = color.toLowerCase();
+  const file = isMerged ? `powerball-merged-${c}.png` : `powerball-${c}.png`;
+  return `${import.meta.env.BASE_URL}sprites/designed/${file}`;
+}
 const SLOT_BG    = 0x0d0d1a;
 const SLOT_EDGE  = 0x223344;
 const HI_COLOR   = 0x44aaff;
@@ -159,14 +173,19 @@ export class BenchRenderer {
         g.roundRect(sx, BENCH_Y, sw, BENCH_SLOT_H, 7);
         g.stroke({ color: glowCol, width: 1.5, alpha: 0.45 });
 
-        // Idle sprite left-of-center, damage number right-of-center.
-        const sp  = this._sprites[i];
-        const tex = Assets.get(bombUrl(shooter.color));
+        // Idle sprite left-of-center, damage number right-of-center. Merged bombs
+        // get the queue's special texture AND its MERGE_SCALE enlargement — a
+        // benched merged bomb must look identical to how it looks in the queue.
+        const sp        = this._sprites[i];
+        const isMerged  = shooter.isMerged === true;
+        const tex       = Assets.get(bombUrl(shooter.color, isMerged));
         if (tex) {
-          if (sp.texture !== tex) {
+          const targetSize = BENCH_SPRITE_SIZE * (isMerged ? MERGE_SCALE : 1);
+          if (sp.texture !== tex || sp._benchTargetSize !== targetSize) {
             sp.texture = tex;
             const max = Math.max(tex.width, tex.height);
-            sp.scale.set(BENCH_SPRITE_SIZE / max);
+            sp.scale.set(targetSize / max);
+            sp._benchTargetSize = targetSize;
           }
           sp.x       = cx - 14;
           sp.y       = cy;

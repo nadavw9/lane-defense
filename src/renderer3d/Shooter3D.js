@@ -48,7 +48,7 @@ function slotZ(s) { return bombSlotZ(s); }
 const STASH_Z = slotZ(3);
 // Plane size: sprite is 1254×1254 with bomb body ~72% of image → scale up so
 // body diameter matches the original sphere's visual size.
-const BOMB_PLANE_SIZE = BOMB_R * 2.8;
+export const BOMB_PLANE_SIZE = BOMB_R * 2.8;
 
 // ── Badge canvas ───────────────────────────────────────────────────────────────
 // The canvas is sized from the badge's ACTUAL on-screen size (world units ×

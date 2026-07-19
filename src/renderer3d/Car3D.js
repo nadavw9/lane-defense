@@ -61,7 +61,11 @@ const BODY_FRAC = {
 // worst gap — it perceptually FUSED (antialiased sprite edges eat ~1px each side,
 // and any screenshot downscale erases the rest). Revised 2026-07-11: worst stacked
 // pair (bigrig behind bigrig) keeps a ~4px gap — clearly separated at any scale.
-const FIT = { small: 0.75, big: 0.77, jeep: 0.79, truck: 0.81, tank: 0.83, bigrig: 0.85 };
+// Phase 1 (2026-07-18): +0.10 across the board — cars fill more of the row pitch
+// for a ~1.13× on-screen size bump (part of the ~1.3× decoupled car-size increase,
+// with the ROAD_Z_FAR/road-band moves in projection.js). No balance cost: the sim
+// reads no render geometry. Gaps stay no-touch (0.23→0.13 of the pitch).
+const FIT = { small: 0.78, big: 0.80, jeep: 0.82, truck: 0.84, tank: 0.86, bigrig: 0.88 };
 
 // World-unit distance between adjacent rows: cars span ROAD_Z_FAR→POS_NEAR_Z
 // over (gridRows-1) steps. gridRows 16 everywhere today, but derive anyway.

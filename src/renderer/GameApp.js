@@ -16,7 +16,7 @@ import { Application, Assets, Container, Graphics, Text, Ticker } from 'pixi.js'
 import { GameRenderer3D }  from '../renderer3d/GameRenderer3D.js';
 import { assetLoader }     from '../renderer3d/AssetLoader.js';
 import { LayerManager }    from './LayerManager.js';
-import { LaneRenderer, laneCenterX, posToScreenY, ROAD_TOP_Y, ROAD_BOTTOM_Y, screenYToRow, FRONT_ROW_TAP_MARGIN } from './LaneRenderer.js';
+import { LaneRenderer, laneCenterX, posToScreenY, ROAD_TOP_Y, ROAD_BOTTOM_Y, screenYToRow, FRONT_ROW_TAP_MARGIN, recomputeRoadGeometry } from './LaneRenderer.js';
 import { spriteFlags }     from './SpriteFlags.js';
 import { CityBackground }  from './CityBackground.js';
 import { CityEdges }       from './CityEdges.js';
@@ -742,6 +742,13 @@ async function main() {
     gameRenderer3D.applyTheme(levelId);
     gameRenderer3D.setActiveLaneCount(cfg.laneCount ?? 4);
     gameRenderer3D.setActiveColCount(cfg.colCount ?? 4);
+    // projection.js's band is now lane-count-keyed (THREE_LANE_REDESIGN_BATCH.md
+    // §1) — setActiveLaneCount() above already updated it (via Scene3D). Refresh
+    // the 2D chrome geometry (breach stripe, road strips, tap-to-row mapping)
+    // that derives from it BEFORE anything below reads ROAD_TOP_Y/ROAD_BOTTOM_Y/
+    // screenYToRow — cityEdges.setLaneCount() a few lines down calls its own
+    // ROAD_H refresh, but only after this has run.
+    recomputeRoadGeometry();
     // Unified world scene: panels + dispatch floor rotate a/b/c variants per
     // level; the road tile is per-world (sliced from the same scene family).
     const world        = worldPanelForLevel(levelId);

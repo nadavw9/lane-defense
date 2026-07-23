@@ -7,7 +7,11 @@
 //   startBreachZoom(duration)   — brief zoom-in pulse
 //   setCombo(combo)             — subtle sustained zoom-out at high combo
 //   startLevelIntro()           — zoom ease from slightly out to resting
-//   setLaneCount(n)             — no-op (frustum adapts in Scene3D)
+//   setLaneCount(n)             — re-syncs the resting pose from the camera
+//                                 (frustum/zCenter adapts in Scene3D; this
+//                                 class must re-capture it or every frame's
+//                                 update() silently reverts the camera back
+//                                 to whatever position was frozen at construction)
 //   reset()                     — restore resting pose + zoom
 
 const SHAKE_DECAY    = 0.35;
@@ -53,7 +57,18 @@ export class CameraFX {
     this._targetComboZoom = dz;
   }
 
-  setLaneCount(_n) { /* frustum adapts in Scene3D; nothing to do */ }
+  // Must run AFTER Scene3D has already set the camera's new resting position
+  // for this level (GameRenderer3D.setActiveLaneCount calls _scene3d.setLaneCount()
+  // before _cameraFX.setLaneCount() — confirmed order). Since 2026-07-23
+  // (THREE_LANE_REDESIGN_BATCH.md §1) the resting zCenter is lane-count-keyed,
+  // not constant — without this re-capture, update() below reverts the camera
+  // to the FROZEN position from construction time every single frame, silently
+  // undoing Scene3D's fix (discovered via the L4-L8 pilot: cars existed in game
+  // state and were correctly positioned in world space, but nothing was visible
+  // on screen because the live camera's Z was still the stale pre-band value).
+  setLaneCount(_n) {
+    this._baseP.copy(this._camera.position);
+  }
 
   startLevelIntro() { this._introActive = true; this._introT = 0; }
 

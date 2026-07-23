@@ -51,9 +51,19 @@ for (const { level, lanes } of CASES) {
       expect(lane.count, `lane ${i} has no cars after boot`).toBeGreaterThan(0);
       // Sample at the front car's row; avoid rows near the breach stripe.
       const row = Math.min(lane.frontRow ?? 0, gs.gridRows - 4);
-      const y = game.rowToStageY(row, gs.gridRows);
+      const y = game.rowToStageY(row, gs.gridRows, gs.laneCount);
+      // Road sample must clear the car's own rendered footprint. A fixed 55px
+      // gap was calibrated for the pre-2026-07-23 band=540 car scale; 3-lane
+      // levels now render ~34% bigger (THREE_LANE_REDESIGN_BATCH.md §1, band=730),
+      // so a fixed px gap can land back on the car itself. Derive the gap from
+      // the live row-to-row spacing (same projection the game renders with)
+      // instead of a hardcoded pixel value — 1.5 rows clears any car's height
+      // at any band.
+      const rowSpacingPx = game.rowToStageY(row + 1, gs.gridRows, gs.laneCount)
+                          - game.rowToStageY(row, gs.gridRows, gs.laneCount);
+      const roadGap = Math.round(Math.abs(rowSpacingPx) * 1.5);
       const car = await game.sampleRegion(pos.laneX[i], y, 12);
-      const road = await game.sampleRegion(pos.laneX[i], y + 55, 12);   // empty road below
+      const road = await game.sampleRegion(pos.laneX[i], y + roadGap, 12);   // empty road below
       const dist = Math.abs(car.r - road.r) + Math.abs(car.g - road.g) + Math.abs(car.b - road.b);
       expect(dist, `no car pixels distinct from road at lane ${i} (x=${pos.laneX[i].toFixed(0)}, y=${y.toFixed(0)})`)
         .toBeGreaterThan(28);

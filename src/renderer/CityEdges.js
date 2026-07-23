@@ -19,7 +19,13 @@ import { ROAD_TOP_Y, ROAD_BOTTOM_Y } from './LaneRenderer.js';
 import { worldXToScreenX, roadHalfWPure } from '../renderer3d/projection.js';
 
 const APP_W  = 390;
-const ROAD_H = ROAD_BOTTOM_Y - ROAD_TOP_Y;
+// `let`, not `const`: ROAD_BOTTOM_Y is now lane-count-keyed and mutable
+// (THREE_LANE_REDESIGN_BATCH.md §1) — a const snapshot here would freeze at
+// whatever band was active when this module first loaded. Recomputed by
+// recomputeRoadH(), called from the same per-level choke point as
+// roadGeometry.js's own recomputeRoadGeometry().
+let ROAD_H = ROAD_BOTTOM_Y - ROAD_TOP_Y;
+export function recomputeRoadH() { ROAD_H = ROAD_BOTTOM_Y - ROAD_TOP_Y; }
 const BOMB_ZONE_BOTTOM = 752;
 
 // Minimum city-edge strip width — ensures buildings/trees are always visible
@@ -124,6 +130,10 @@ export class CityEdges {
   }
 
   setLaneCount(n) {
+    // Refresh ROAD_H before redrawing — projection.js's band (and therefore
+    // ROAD_TOP_Y/ROAD_BOTTOM_Y) has already been updated for this level by the
+    // time GameApp.js reaches this call (it runs after gameRenderer3D.setActiveLaneCount()).
+    recomputeRoadH();
     this._laneCount = n;
     this._redraw();
   }

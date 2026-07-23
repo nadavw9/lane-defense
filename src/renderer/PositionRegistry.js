@@ -55,7 +55,16 @@ export function getColScreenW() { return APP_W / _colCount; }
 
 // Half a lane (CELL world units wide) projected to screen px. Top-down ortho, so
 // lanes are vertical strips of constant width.
-const LANE_HALF_PX = worldXToScreenX(CELL / 2) - worldXToScreenX(0);
+//
+// Must be a live call, NOT a module-level const: since 2026-07-23
+// (THREE_LANE_REDESIGN_BATCH.md §1) the band worldXToScreenX() derives from is
+// lane-count-keyed and mutable (projection.js's setActiveLaneCount()). A const
+// computed once at import time would freeze in whatever band was active when
+// this module first loaded (540, the default) and silently diverge from
+// getLaneScreenX()'s live-computed centers for any level on a different band
+// (3-lane) — lane bounds narrower than the actual lane spacing, producing dead
+// zones between lanes and missed taps/drags at the outer lanes.
+function getLaneHalfPx() { return worldXToScreenX(CELL / 2) - worldXToScreenX(0); }
 
 // Lane index whose projected centre is nearest screen x — the SAME projection
 // the cars/bombs render with, so a tap on a car lands on that car's lane.
@@ -72,7 +81,8 @@ export function getLaneFromScreenX(x) {
 // lane's projected screen X (top-down view: same bounds top and bottom).
 export function getLaneScreenBounds(laneIdx) {
   const c = getLaneScreenX(laneIdx);
-  return { left: c - LANE_HALF_PX, right: c + LANE_HALF_PX };
+  const halfPx = getLaneHalfPx();
+  return { left: c - halfPx, right: c + halfPx };
 }
 
 // Top-of-road bounds — identical to getLaneScreenBounds because the top-down road

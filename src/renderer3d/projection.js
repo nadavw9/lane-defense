@@ -37,7 +37,24 @@ export const DESIGN_ROAD_TOP_Y    = 44;
 // proportionally), funded by shrinking the bomb queue — see BOMB_ZONE_SCALE
 // below. Approved budget: B=0.82 is the largest bomb-zone shrink that still
 // keeps queue slots comfortably tappable at this car-growth target.
-export const DESIGN_ROAD_BOTTOM_Y = 540;
+//
+// 2026-07-23 (THREE_LANE_REDESIGN_BATCH.md §1): band is now LANE-COUNT-KEYED,
+// not a single global value. 4-lane's own road width is what capped how far
+// this could grow (the road alone fills the 390px screen around band≈650-700
+// at 4 lanes); dropping to 3 lanes removes that cap. `DESIGN_ROAD_BOTTOM_Y` is
+// still the ONE value computeFrustum() reads — it's just reassigned by
+// setActiveLaneCount() below instead of frozen at import time. Every derived
+// export in this file (F, FRUSTUM_HALF_X, PROJ_ROAD_TOP_Y, PROJ_ROAD_BOTTOM_Y,
+// BREACH_LINE_Y, PX_PER_WU, BOMB_SLOT_CLEARANCE_Z) is `let`, recomputed by
+// setActiveLaneCount() below, and re-exported as a live binding — importers
+// that `import { X } from './projection.js'` see the updated value automatically,
+// no call-site changes needed anywhere else in the codebase.
+const BAND_4_LANE = 540;   // unchanged shipped value — 1/2/4-lane levels
+const BAND_3_LANE = 730;   // validated via render sweep, THREE_LANE_REDESIGN_BATCH.md §1
+export function bandForLaneCount(activeLaneCount) {
+  return activeLaneCount === 3 ? BAND_3_LANE : BAND_4_LANE;
+}
+export let DESIGN_ROAD_BOTTOM_Y = BAND_4_LANE;
 
 // ── Camera frustum (must stay identical to Scene3D._computeFrustum) ──────────
 export function computeFrustum(width = APP_W, height = APP_H) {
@@ -57,8 +74,12 @@ export function computeFrustum(width = APP_W, height = APP_H) {
 }
 
 // Default-stage frustum — the game always renders the 390×844 stage.
-const F = computeFrustum();
-export const FRUSTUM_HALF_X = F.halfX;    // ≈ 11.237 (was hardcoded 9.650 — stale)
+// `let`, not `const`: reassigned by setActiveLaneCount() so every consumer
+// (worldXToScreenX, zToScreenY, bombSlotZ, ...) automatically uses the
+// current level's band without changing their own call signatures — they all
+// close over this binding and read it fresh at call time.
+let F = computeFrustum();
+export let FRUSTUM_HALF_X = F.halfX;    // ≈ 11.237 (was hardcoded 9.650 — stale)
 
 // ── Pure lane math ────────────────────────────────────────────────────────────
 export function laneToXPure(laneIdx, n) {
@@ -79,14 +100,16 @@ export function posToZPure(position) {
 export function posToScreenYProjected(position) { return zToScreenY(posToZPure(position)); }
 
 // ── Derived on-screen anchors (use THESE, never hardcode) ─────────────────────
-export const PROJ_ROAD_TOP_Y    = zToScreenY(posToZPure(0));     // ≈ 69.4 — position-0 car centre
-export const PROJ_ROAD_BOTTOM_Y = zToScreenY(posToZPure(100));   // ≈ 475.4 — position-100 car centre
-export const BREACH_LINE_Y      = zToScreenY(ROAD_Z_NEAR);       // ≈ 551.2 — 3D breach line
-export const HUD_BOTTOM_Y       = DESIGN_ROAD_TOP_Y;             // 44 — 2D layout band top (HUD edge)
+// `let`, recomputed by setActiveLaneCount() below (live-bound exports — every
+// `import { X } from './projection.js'` call site sees the update automatically).
+export let PROJ_ROAD_TOP_Y    = zToScreenY(posToZPure(0));     // ≈ 69.4 — position-0 car centre
+export let PROJ_ROAD_BOTTOM_Y = zToScreenY(posToZPure(100));   // ≈ 475.4 — position-100 car centre
+export let BREACH_LINE_Y      = zToScreenY(ROAD_Z_NEAR);       // ≈ 551.2 — 3D breach line
+export const HUD_BOTTOM_Y     = DESIGN_ROAD_TOP_Y;              // 44 — 2D layout band top (HUD edge), band-independent
 
 // Screen pixels per world unit — the ortho projection is linear in Z, so any
 // two samples give the true (constant) scale.
-export const PX_PER_WU = zToScreenY(1) - zToScreenY(0);
+export let PX_PER_WU = zToScreenY(1) - zToScreenY(0);
 
 // ── Bomb queue geometry — THE single source of truth for "where is bomb slot
 // N" (world Z, ball radius, slot spacing). Previously duplicated THREE times
@@ -136,7 +159,26 @@ function _computeBombSlotClearanceZ() {
   const baseSlot0Z        = 0.5 * BOMB_SLOT_PITCH_WU;
   return Math.max(0, slot0ZMin - baseSlot0Z);
 }
-export const BOMB_SLOT_CLEARANCE_Z = _computeBombSlotClearanceZ();
+export let BOMB_SLOT_CLEARANCE_Z = _computeBombSlotClearanceZ();
+
+// ── Lane-count-aware band activation ──────────────────────────────────────────
+// Call at level start, BEFORE any frustum-consuming geometry is built for that
+// level. Single call site: Scene3D.setLaneCount(n), which already runs first in
+// the per-level rebuild sequence (GameRenderer3D.setActiveLaneCount → Scene3D →
+// Road3D → cameraFX/shooters/cars/environment) — every downstream computeFrustum()
+// call (Road3D's zone-floor build, the road-cap build, GameRenderer3D's own
+// pxPerWu calc) reads the module-scope DESIGN_ROAD_BOTTOM_Y fresh, so setting it
+// here before that sequence runs is sufficient; no other call site needs to change.
+export function setActiveLaneCount(activeLaneCount) {
+  DESIGN_ROAD_BOTTOM_Y = bandForLaneCount(activeLaneCount);
+  F              = computeFrustum();
+  FRUSTUM_HALF_X = F.halfX;
+  PROJ_ROAD_TOP_Y    = zToScreenY(posToZPure(0));
+  PROJ_ROAD_BOTTOM_Y = zToScreenY(posToZPure(100));
+  BREACH_LINE_Y      = zToScreenY(ROAD_Z_NEAR);
+  PX_PER_WU          = zToScreenY(1) - zToScreenY(0);
+  BOMB_SLOT_CLEARANCE_Z = _computeBombSlotClearanceZ();
+}
 
 // Canonical bomb-queue slot position (world Z / screen Y). rowIdx: 0=front,
 // 1=second, 2=third, 3=stash. Non-integer rowIdx is valid arithmetic (e.g.

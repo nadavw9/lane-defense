@@ -20,6 +20,7 @@ import {
   ROAD_Z_FAR as P_ROAD_Z_FAR, ROAD_Z_NEAR as P_ROAD_Z_NEAR,
   ROAD_Z_VANISHING as P_ROAD_Z_VANISHING,
   CELL as P_CELL, POS_NEAR_Z as P_POS_NEAR_Z, computeFrustum,
+  setActiveLaneCount as setProjectionActiveLaneCount,
 } from './projection.js';
 
 // ── Tweakable design constants ─────────────────────────────────────────────────
@@ -165,6 +166,12 @@ export class Scene3D {
    */
   setLaneCount(n) {
     setActiveLaneCount(n);
+    // projection.js's band is lane-count-keyed (THREE_LANE_REDESIGN_BATCH.md §1) —
+    // must run before _computeFrustum(n) below, and before any other renderer
+    // (Road3D, GameRenderer3D badge sizing, etc.) calls computeFrustum() for this
+    // level. This is the earliest, single choke point in the per-level rebuild
+    // sequence (GameRenderer3D.setActiveLaneCount → Scene3D → Road3D → ...).
+    setProjectionActiveLaneCount(n);
 
     // Dispose and remove old divider meshes.
     for (const m of this._divMeshes) {

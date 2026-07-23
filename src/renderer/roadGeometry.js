@@ -20,14 +20,25 @@ import {
 } from '../renderer3d/projection.js';
 
 // ── Layout anchors (2D chrome) ────────────────────────────────────────────────
-export const ROAD_TOP_Y    = HUD_BOTTOM_Y;              // 44 — HUD bottom / side-strip top
-export const ROAD_BOTTOM_Y = Math.round(BREACH_LINE_Y); // ≈ 521 — 3D breach line (stripe anchor)
-export const ROAD_HEIGHT   = ROAD_BOTTOM_Y - ROAD_TOP_Y;
+// `export let`, not `const`: since 2026-07-23 (THREE_LANE_REDESIGN_BATCH.md §1)
+// the band BREACH_LINE_Y/PROJ_ROAD_* derive from is lane-count-keyed and
+// mutable (projection.js's setActiveLaneCount()). These used to be safe to
+// compute once at module load because band was a true constant; now they must
+// be recomputed per level — see recomputeRoadGeometry() below, called from the
+// same per-level choke point as projection.js's own setActiveLaneCount
+// (GameApp.js, right after gameRenderer3D.setActiveLaneCount()). ES module
+// live bindings mean every existing `import { ROAD_BOTTOM_Y } from ...`
+// call site (LaneRenderer.js's re-export chain, CityEdges.js, DragDrop.js,
+// GameApp.js, FTUEOverlay.js, LoseScreen.js, TutorialOrchestrator.js,
+// LaneFlash.js) sees the update automatically — no call-site changes needed.
+export let ROAD_TOP_Y    = HUD_BOTTOM_Y;              // 44 — HUD bottom / side-strip top (band-independent, stays const in practice)
+export let ROAD_BOTTOM_Y = Math.round(BREACH_LINE_Y); // ≈ 521 — 3D breach line (stripe anchor)
+export let ROAD_HEIGHT   = ROAD_BOTTOM_Y - ROAD_TOP_Y;
 
 // ── Projected car-position band ───────────────────────────────────────────────
-const POS_TOP_Y    = PROJ_ROAD_TOP_Y;                    // ≈ 69.4 — position-0 car centre
-const POS_BOTTOM_Y = PROJ_ROAD_BOTTOM_Y;                 // ≈ 475.4 — position-100 car centre
-const POS_HEIGHT   = POS_BOTTOM_Y - POS_TOP_Y;
+let POS_TOP_Y    = PROJ_ROAD_TOP_Y;                    // ≈ 69.4 — position-0 car centre
+let POS_BOTTOM_Y = PROJ_ROAD_BOTTOM_Y;                 // ≈ 475.4 — position-100 car centre
+let POS_HEIGHT   = POS_BOTTOM_Y - POS_TOP_Y;
 
 // Screen Y for game-unit position [0-100] — where the car at that position
 // actually renders (same projection as the 3D camera).
@@ -47,4 +58,16 @@ export function screenYToRow(y, gridRows) {
 // Half a grid-row in px (16-row grid → 15 intervals) in the PROJECTED band.
 // A BOMB tap up to this far below the front car still belongs to the frontmost
 // row. Stays well above the first bomb-queue slot (ShooterRenderer TOP_Y = 544).
-export const FRONT_ROW_TAP_MARGIN = Math.round(POS_HEIGHT / 15 / 2);   // ≈ 14 px
+export let FRONT_ROW_TAP_MARGIN = Math.round(POS_HEIGHT / 15 / 2);   // ≈ 14 px
+
+// Call after projection.js's band has been updated for the new level (i.e.
+// after setActiveLaneCount() in projection.js has already run).
+export function recomputeRoadGeometry() {
+  ROAD_TOP_Y    = HUD_BOTTOM_Y;
+  ROAD_BOTTOM_Y = Math.round(BREACH_LINE_Y);
+  ROAD_HEIGHT   = ROAD_BOTTOM_Y - ROAD_TOP_Y;
+  POS_TOP_Y     = PROJ_ROAD_TOP_Y;
+  POS_BOTTOM_Y  = PROJ_ROAD_BOTTOM_Y;
+  POS_HEIGHT    = POS_BOTTOM_Y - POS_TOP_Y;
+  FRONT_ROW_TAP_MARGIN = Math.round(POS_HEIGHT / 15 / 2);
+}

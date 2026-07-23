@@ -13,7 +13,7 @@
 
 import { test as base, expect } from '@playwright/test';
 import sharp from 'sharp';
-import { posToScreenYProjected } from '../../src/renderer3d/projection.js';
+import { posToScreenYProjected, setActiveLaneCount } from '../../src/renderer3d/projection.js';
 
 // Requests that are allowed to fail without failing the test:
 //  - favicon (browser noise)
@@ -152,7 +152,17 @@ export class GamePage {
   // Row → stage Y through the game's OWN projection math (renderer3d/projection.js)
   // — the same formula the live camera uses, so this can never drift from the
   // renderer the way a copied constant would.
-  rowToStageY(row, gridRows) {
+  //
+  // This module is imported directly in the Node test process — a SEPARATE
+  // module instance from the one Vite bundles into the browser page. Since
+  // 2026-07-23 (THREE_LANE_REDESIGN_BATCH.md §1) the projected band is
+  // lane-count-keyed, stateful module state (set via Scene3D.setLaneCount() ->
+  // projection.js's setActiveLaneCount() inside the browser). This Node-side
+  // copy never sees that call, so it silently stayed on the default (4-lane)
+  // band unless synced here explicitly — pass the level's actual laneCount so
+  // this copy's state matches what the browser is actually rendering.
+  rowToStageY(row, gridRows, laneCount = 4) {
+    setActiveLaneCount(laneCount);
     const pos = (row / (gridRows - 1)) * 100;
     return posToScreenYProjected(pos);
   }

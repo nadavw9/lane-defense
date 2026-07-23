@@ -17,14 +17,14 @@ import { Graphics } from 'pixi.js';
 // headless-testable; re-exported here to preserve existing import paths.
 import {
   ROAD_TOP_Y, ROAD_BOTTOM_Y, ROAD_HEIGHT,
-  posToScreenY, screenYToRow, FRONT_ROW_TAP_MARGIN,
+  posToScreenY, screenYToRow, FRONT_ROW_TAP_MARGIN, recomputeRoadGeometry,
 } from './roadGeometry.js';
 
 // ── Layout constants ───────────────────────────────────────────────────────────
 
 export {
   ROAD_TOP_Y, ROAD_BOTTOM_Y, ROAD_HEIGHT,
-  posToScreenY, screenYToRow, FRONT_ROW_TAP_MARGIN,
+  posToScreenY, screenYToRow, FRONT_ROW_TAP_MARGIN, recomputeRoadGeometry,
 };
 
 export const ROAD_TOP_X    = 115;  // px — left edge of road at top

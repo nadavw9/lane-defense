@@ -41,7 +41,13 @@ describe('audit: level configs (all 40)', () => {
         expect(cfg.duration).toBeGreaterThan(0);
         expect(cfg.spawnBudget).toBeGreaterThan(0);
         expect(cfg.laneTargetCarCount ?? 2).toBeGreaterThanOrEqual(1);
-        expect(cfg.laneTargetCarCount ?? 2).toBeLessThanOrEqual(3);
+        // Ceiling was 3 pre-2026-07-23 (4-lane only). THREE_LANE_REDESIGN_BATCH.md
+        // §2a's pilot (L4-L8) verified laneTargetCarCount is the real per-lane
+        // density lever for 3-lane levels (spawnBudget has no sim effect) and
+        // needs ~2x a 4-lane level's value to hit the same win-rate band — L4-L8
+        // land at 4. Raised with headroom for the remaining 3-lane rollout
+        // (Phases 3-6) rather than re-tightened to the exact observed max.
+        expect(cfg.laneTargetCarCount ?? 2).toBeLessThanOrEqual(6);
       });
 
       it('palette is a non-empty subset of the 6 game colors', () => {

@@ -43,8 +43,15 @@ describe('regression: every level starts in a valid state', () => {
       // 6. Grid-rows invariant (post-rebalance, now 16).
       expect(cfg.gridRows).toBe(16);
 
-      // 7. Lane target car count: L1 eases in with 1, bosses crowd to 3, rest 2.
-      const expectedTarget = cfg.id === 1 ? 1 : BOSS_LEVELS.includes(cfg.id) ? 3 : 2;
+      // 7. Lane target car count: L1 eases in with 1, bosses crowd to 3, rest 2 —
+      //    except L4-L8, converted to 3-lane by THREE_LANE_REDESIGN_BATCH.md §2's
+      //    pilot (2026-07-23): laneTargetCarCount 2→4 is the verified real density
+      //    lever compensating for one fewer lane (spawnBudget has no sim effect).
+      const THREE_LANE_PILOT = [4, 5, 6, 7, 8];
+      const expectedTarget = cfg.id === 1 ? 1
+        : BOSS_LEVELS.includes(cfg.id) ? 3
+        : THREE_LANE_PILOT.includes(cfg.id) ? 4
+        : 2;
       expect(cfg.laneTargetCarCount).toBe(expectedTarget);
 
       // 8. At least one car per lane must exist to defeat.

@@ -74,36 +74,52 @@ const PROGRESSION = [
     goals: [{"type":"destroyTotal","count":26}] },
 
   // L4 Hard â€” "Full board": 4 lanes, Red+Blue. First real pressure.
-  { id: 4, laneCount: 4, colCount: 4, colors: ['Red', 'Blue'],
+  { id: 4, laneCount: 3, colCount: 3, colors: ['Red', 'Blue'],
     worldConfig: { hpMultiplier: 0.90, speed: { base: 8.0, variance: 0.3 } }, // 2026-07-10 booster-aware retune: 0.54→0.90 + goal 30→26 (~92%; smalls stay 2-hit — tutorial→game transition level)
-    duration: 90, spawnBudget: 8, laneTargetCarCount: 2, gridRows: 16,
+    // 2026-07-23 THREE_LANE_REDESIGN_BATCH.md §2a pilot: laneCount 4→3 (bigger/spaced
+    // cars). Naive 3-lane sim: 99.7% (way outside FTUE 85-95 band). spawnBudget swept
+    // first per the retune algorithm but has ZERO sim effect (verified: SimulationRunner
+    // refills every lane to laneTargetCarCount every advance with no budget gate —
+    // spawnBudget is vestigial in the current sim, contrary to the spec's original
+    // assumption). laneTargetCarCount 2→4 is the real density lever; lands at 90.7%.
+    duration: 90, spawnBudget: 8, laneTargetCarCount: 4, gridRows: 16,
     showArrow: false, hintText: null ,
     goals: [{"type":"destroyTotal","count":26}]},
 
   // L5 Easy (Relief) â€” "Breathe": 4 lanes, R+B, lower pressure. Sets up bench need.
-  { id: 5, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
+  { id: 5, laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'],
     worldConfig: { hpMultiplier: 0.86, speed: { base: 5.8, variance: 0.2 } }, // 2026-07-10 booster-aware retune: 0.54→0.86 (~92%)
-    duration: 100, spawnBudget: 13, laneTargetCarCount: 2, gridRows: 16,
+    // 2026-07-23 THREE_LANE_REDESIGN_BATCH.md §2a pilot: laneCount 4→3. Naive 3-lane
+    // sim: 100.0%. laneTargetCarCount 2→4 (spawnBudget verified to have no sim effect,
+    // see L4's note) lands at 88.7%, inside the 85-95 FTUE band.
+    duration: 100, spawnBudget: 13, laneTargetCarCount: 4, gridRows: 16,
     showArrow: false, hintText: null ,
     goals: [{"type":"destroyTotal","count":33}]},
 
   // L6 Medium â€” "Bench unlocks": first time bench is available. R+B still.
-  { id: 6, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
-    worldConfig: R_2C_MED_100, duration: 100, spawnBudget: 16, laneTargetCarCount: 2, gridRows: 16,
+  { id: 6, laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'],
+    // 2026-07-23 THREE_LANE_REDESIGN_BATCH.md §2a pilot: laneCount 4→3. Naive 3-lane
+    // sim: 99.7%. laneTargetCarCount 2→4 lands at 89.0%, inside the 85-95 FTUE band.
+    worldConfig: R_2C_MED_100, duration: 100, spawnBudget: 16, laneTargetCarCount: 4, gridRows: 16,
     showArrow: false, hintText: 'NEW! Bench — store a bomb to use later' ,
     goals: [{"type":"destroyColor","color":"Red","count":22}]}, // 2026-07-10 retune: 40→22 (grind cut, 116→~65 turns; hp untouched)
 
   // L7 Hard â€” "Green arrives": 3 colors for the first time. Pattern reset.
-  { id: 7, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
+  { id: 7, laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'],
     worldConfig: { hpMultiplier: 0.84, speed: { base: 6.5, variance: 0.5 } }, // 2026-07-10 booster-aware retune: 0.78→0.84 (~92%; un-shared from R_3C_HARD)
-    duration: 100, spawnBudget: 11, laneTargetCarCount: 2, gridRows: 16,
+    // 2026-07-23 THREE_LANE_REDESIGN_BATCH.md §2a pilot: laneCount 4→3. Naive 3-lane
+    // sim: 99.7%. laneTargetCarCount 2→4 lands at 85.7%, inside (near the floor of)
+    // the 85-95 FTUE band.
+    duration: 100, spawnBudget: 11, laneTargetCarCount: 4, gridRows: 16,
     showArrow: false, hintText: 'NEW! Green bombs — 3 colors to manage now' ,
     goals: [{"type":"destroyColor","color":"Red","count":14},{"type":"destroyColor","color":"Blue","count":14}]},
 
   // L8 Boss-Hard â€” "Green boss": all 4 lanes, 3 colors, full density. Rescue moment.
-  { id: 8, laneCount: 4, colCount: 4, colors: ['Red', 'Blue', 'Green'],
+  { id: 8, laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'],
     worldConfig: { hpMultiplier: 0.86, speed: { base: 7.5, variance: 0.5 } }, // 2026-07-10 booster-aware retune: 1.08→0.86 (~93%; was sole too-hard, pre-fix overcomp)
-    duration: 90, spawnBudget: 8, laneTargetCarCount: 2, gridRows: 16,
+    // 2026-07-23 THREE_LANE_REDESIGN_BATCH.md §2a pilot: laneCount 4→3. Naive 3-lane
+    // sim: 100.0%. laneTargetCarCount 2→4 lands at 87.7%, inside the 85-95 FTUE band.
+    duration: 90, spawnBudget: 8, laneTargetCarCount: 4, gridRows: 16,
     showArrow: false, hintText: null ,
     goals: [{"type":"destroyColor","color":"Green","count":12},{"type":"destroyColor","color":"Red","count":12}]},
 

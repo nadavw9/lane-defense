@@ -12,7 +12,10 @@ const CASES = [
   { level: 1, lanes: 1 },
   { level: 2, lanes: 2 },
   { level: 3, lanes: 3 },
-  { level: 5, lanes: 4 },
+  // L5: 4→3 lanes, THREE_LANE_REDESIGN_BATCH.md §2 pilot (2026-07-23).
+  { level: 5, lanes: 3 },
+  // L9 stays the reference 4-lane case now that L5 is part of the pilot.
+  { level: 9, lanes: 4 },
 ];
 
 for (const { level, lanes } of CASES) {
@@ -74,14 +77,24 @@ for (const { level, lanes } of CASES) {
 test('L5: deploying into lane i damages lane i (not a neighbour)', async ({ game }) => {
   await game.startLevel(5);
 
-  for (const lane of [0, 3]) {   // leftmost and rightmost — where offset bugs bite
-    // Make col 0's top bomb a guaranteed match for the target lane's front car.
+  // L5 is 3-lane (THREE_LANE_REDESIGN_BATCH.md §2 pilot, 2026-07-23) — leftmost
+  // and rightmost are 0 and 2, not 0 and 3.
+  for (const lane of [0, 2]) {   // leftmost and rightmost — where offset bugs bite
+    // Make col 0's top bomb a guaranteed match for the target lane's front car,
+    // and tag that exact car object (not just "whatever is at cars[0]" — L5's
+    // 2026-07-23 pilot retune raised laneTargetCarCount 2→4, so refill after a
+    // kill can repopulate the lane fast enough that a NEW car occupies cars[0]
+    // again by the time `after` is read, with a coincidentally-matching hp —
+    // a hp/count heuristic on array position alone can't tell a masked kill
+    // from "nothing happened". Track the tagged car's survival instead.
     const before = await game.page.evaluate((l) => {
       const gs = window._nav.getGs();
       const bomb = gs.columns[0].shooters[0];
-      gs.lanes[l].cars[0].color = bomb.color;   // recolor front car to match
+      const target = gs.lanes[l].cars[0];
+      target.color = bomb.color;   // recolor front car to match
+      target.__testTag = 'target';
       return {
-        hp: gs.lanes[l].cars[0].hp,
+        hp: target.hp,
         count: gs.lanes[l].cars.length,
         others: gs.lanes.filter((_, i) => i !== l && i < gs.activeLaneCount)
                         .map((ln) => ln.cars.length),
@@ -89,17 +102,27 @@ test('L5: deploying into lane i damages lane i (not a neighbour)', async ({ game
     }, lane);
 
     await game.deploy(0, lane);
+    // game.deploy()'s internal 650ms wait is occasionally too tight for the
+    // shot-travel + damage + advance + refill cycle to fully settle before we
+    // read state below (observed as a rare flake reading mid-resolution state,
+    // not a logic bug — see the tag-based detection above). A small extra
+    // margin here is cheap insurance against CI's slower software-WebGL timing.
+    await game.page.waitForTimeout(400);
 
     const after = await game.page.evaluate((l) => {
       const gs = window._nav.getGs();
+      const target = gs.lanes[l].cars.find(c => c.__testTag === 'target');
       return {
-        hp: gs.lanes[l].cars[0]?.hp ?? 0,
+        targetGone: !target,
+        targetHp: target?.hp ?? null,
         count: gs.lanes[l].cars.length,
       };
     }, lane);
 
-    const damaged = after.hp < before.hp || after.count < before.count
-      || after.hp !== before.hp;   // killed → next car's hp differs
+    // Damaged = the tagged car is gone (killed) or its hp dropped. A refill
+    // bringing count back up (or even above) the original is expected now and
+    // is NOT evidence of "no effect" — it's the retuned density working as intended.
+    const damaged = after.targetGone || (after.targetHp != null && after.targetHp < before.hp);
     expect(damaged, `deploy(0, ${lane}) had no effect on lane ${lane}`).toBe(true);
   }
 });

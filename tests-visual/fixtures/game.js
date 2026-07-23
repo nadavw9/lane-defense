@@ -146,7 +146,24 @@ export class GamePage {
 
   async deploy(colIdx, laneIdx) {
     await this.page.evaluate(([c, l]) => window._nav.deploy(c, l), [colIdx, laneIdx]);
-    await this.page.waitForTimeout(650);           // shot travel + advance + refill
+    // Wait for the actual event (GameLoop clears firingSlots[laneIdx] once the
+    // shot's travel-time timer elapses and combat/advance/refill resolve) rather
+    // than a fixed wall-clock sleep. A fixed 650ms was tuned against a normal
+    // frame rate; CI's slower software-WebGL rendering (documented in
+    // .github/workflows/deploy.yml) plus L4-L8's higher laneTargetCarCount
+    // (THREE_LANE_REDESIGN_BATCH.md §2 pilot, 2026-07-23 — more simultaneous
+    // per-lane car movement to resolve) made that margin too tight, causing
+    // real, reproducible CI failures ("deploy had no effect") on state read
+    // before resolution actually finished. Poll instead — correct at any
+    // rendering speed — with a generous ceiling as a safety net.
+    try {
+      await this.page.waitForFunction(
+        (l) => window._nav.getGs().firingSlots[l] === null,
+        laneIdx,
+        { timeout: 5000 },
+      );
+    } catch { /* fall through — caller's own assertions will catch a real stall */ }
+    await this.page.waitForTimeout(150);   // let the resolved state settle one more tick
   }
 
   // Row → stage Y through the game's OWN projection math (renderer3d/projection.js)

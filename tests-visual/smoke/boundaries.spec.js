@@ -37,7 +37,20 @@ async function dragDeploy(game, colIdx, laneIdx) {
   // and making this test newly flake-prone under CI load (2026-07-13).
   const pos = await game.positions();
   await game.dragStage(pos.colX[colIdx], pos.slotY[0], pos.laneX[laneIdx], 300);
-  await game.page.waitForTimeout(900);   // travel + resolve + advance
+  // Wait for the actual event (firingSlots[laneIdx] clears once combat/advance/
+  // refill resolve) instead of a fixed wall-clock sleep — a fixed 900ms proved
+  // too tight under CI's slower software-WebGL rendering combined with L4-L8's
+  // higher laneTargetCarCount (THREE_LANE_REDESIGN_BATCH.md §2 pilot,
+  // 2026-07-23), causing real, reproducible CI failures reading state before
+  // resolution finished.
+  try {
+    await game.page.waitForFunction(
+      (l) => window._nav.getGs().firingSlots[l] === null,
+      laneIdx,
+      { timeout: 5000 },
+    );
+  } catch { /* fall through — the assertion below will catch a real stall */ }
+  await game.page.waitForTimeout(150);   // let the resolved state settle one more tick
 
   const after = await game.page.evaluate(([c, l]) => {
     const gs = window._nav.getGs();

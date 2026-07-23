@@ -4,7 +4,7 @@
 
 ## What This Game Is
 A spatial puzzle game where the skill is reading the board 3 moves ahead.
-Players scan 4 lanes, see danger approaching, and sequence their bomb queue
+Players scan 3 lanes, see danger approaching, and sequence their bomb queue
 like a chess player — not reacting, anticipating.
 
 ## The Three Worlds

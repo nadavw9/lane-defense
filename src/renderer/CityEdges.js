@@ -17,6 +17,7 @@ import { Graphics, Container, Sprite, TilingSprite, Assets } from 'pixi.js';
 import { spriteFlags } from './SpriteFlags.js';
 import { ROAD_TOP_Y, ROAD_BOTTOM_Y } from './LaneRenderer.js';
 import { worldXToScreenX, roadHalfWPure } from '../renderer3d/projection.js';
+import { BAR_Y } from './BoosterBar.js';
 
 const APP_W  = 390;
 // `let`, not `const`: ROAD_BOTTOM_Y is now lane-count-keyed and mutable
@@ -26,7 +27,10 @@ const APP_W  = 390;
 // roadGeometry.js's own recomputeRoadGeometry().
 let ROAD_H = ROAD_BOTTOM_Y - ROAD_TOP_Y;
 export function recomputeRoadH() { ROAD_H = ROAD_BOTTOM_Y - ROAD_TOP_Y; }
-const BOMB_ZONE_BOTTOM = 752;
+// City-edge strips extend down to the top of the booster bar. Mirrors
+// BoosterBar.BAR_Y (not a hardcoded 752) — 2026-07-24 geometry-liveness /
+// layout-gate stale-constant sweep.
+const BOMB_ZONE_BOTTOM = BAR_Y;
 
 // Minimum city-edge strip width — ensures buildings/trees are always visible
 // even on 4-lane levels where the road nearly fills the screen.

@@ -1,0 +1,236 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lane-defense.local/gates/layout-change-schema.json",
+  "title": "Layout/geometry change gate report",
+  "description": "Every check is required and carries both a computed numeric value and a boolean pass/fail — see docs/gates/layout-change-gate.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "gateVersion",
+    "changeLabel",
+    "stageWidthPx",
+    "stageHeightPx",
+    "boosterBarTopY",
+    "bandByLaneCount",
+    "checks"
+  ],
+  "properties": {
+    "gateVersion": { "const": 1 },
+    "changeLabel": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Free-text identifier for what change/state this report describes."
+    },
+    "stageWidthPx": { "type": "number", "exclusiveMinimum": 0 },
+    "stageHeightPx": { "type": "number", "exclusiveMinimum": 0 },
+    "boosterBarTopY": { "type": "number", "exclusiveMinimum": 0 },
+    "bandByLaneCount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["1", "2", "3", "4"],
+      "properties": {
+        "1": { "type": "number", "exclusiveMinimum": 0 },
+        "2": { "type": "number", "exclusiveMinimum": 0 },
+        "3": { "type": "number", "exclusiveMinimum": 0 },
+        "4": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "carGrowthMultiplier",
+        "panelWidthPx",
+        "panelBrightness",
+        "bombQueueVerticalFit",
+        "bombZoneLegibility",
+        "simParityByteIdentity",
+        "staleConstantSweep"
+      ],
+      "properties": {
+        "carGrowthMultiplier": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["baselineLaneCount", "baselinePxPerWu", "currentLaneCount", "currentPxPerWu", "value", "pass"],
+          "properties": {
+            "baselineLaneCount": { "type": "integer", "enum": [1, 2, 3, 4] },
+            "baselinePxPerWu": { "type": "number", "exclusiveMinimum": 0 },
+            "currentLaneCount": { "type": "integer", "enum": [1, 2, 3, 4] },
+            "currentPxPerWu": { "type": "number", "exclusiveMinimum": 0 },
+            "value": { "type": "number", "exclusiveMinimum": 0 },
+            "pass": { "type": "boolean" }
+          }
+        },
+        "panelWidthPx": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["minStripPx", "byLaneCount", "pass"],
+          "properties": {
+            "minStripPx": { "type": "number", "exclusiveMinimum": 0 },
+            "byLaneCount": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["1", "2", "3", "4"],
+              "properties": {
+                "1": { "$ref": "#/$defs/panelWidthEntry" },
+                "2": { "$ref": "#/$defs/panelWidthEntry" },
+                "3": { "$ref": "#/$defs/panelWidthEntry" },
+                "4": { "$ref": "#/$defs/panelWidthEntry" }
+              }
+            },
+            "pass": { "type": "boolean" }
+          }
+        },
+        "panelBrightness": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["city", "industrial", "night", "pass"],
+          "properties": {
+            "city": { "$ref": "#/$defs/panelBrightnessEntry" },
+            "industrial": { "$ref": "#/$defs/panelBrightnessEntry" },
+            "night": { "$ref": "#/$defs/panelBrightnessEntry" },
+            "pass": { "type": "boolean" }
+          }
+        },
+        "bombQueueVerticalFit": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["byLaneCount", "pass"],
+          "properties": {
+            "byLaneCount": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["1", "2", "3", "4"],
+              "properties": {
+                "1": { "$ref": "#/$defs/bombQueueFitEntry" },
+                "2": { "$ref": "#/$defs/bombQueueFitEntry" },
+                "3": { "$ref": "#/$defs/bombQueueFitEntry" },
+                "4": { "$ref": "#/$defs/bombQueueFitEntry" }
+              }
+            },
+            "pass": { "type": "boolean" }
+          }
+        },
+        "bombZoneLegibility": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["minLegibleScale", "byLaneCount", "pass"],
+          "properties": {
+            "minLegibleScale": { "type": "number", "exclusiveMinimum": 0 },
+            "byLaneCount": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["1", "2", "3", "4"],
+              "properties": {
+                "1": { "$ref": "#/$defs/bombZoneLegibilityEntry" },
+                "2": { "$ref": "#/$defs/bombZoneLegibilityEntry" },
+                "3": { "$ref": "#/$defs/bombZoneLegibilityEntry" },
+                "4": { "$ref": "#/$defs/bombZoneLegibilityEntry" }
+              }
+            },
+            "pass": { "type": "boolean" }
+          }
+        },
+        "simParityByteIdentity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["byLevel", "pass"],
+          "properties": {
+            "byLevel": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["L5", "L13", "L20", "L30"],
+              "properties": {
+                "L5": { "$ref": "#/$defs/simParityEntry" },
+                "L13": { "$ref": "#/$defs/simParityEntry" },
+                "L20": { "$ref": "#/$defs/simParityEntry" },
+                "L30": { "$ref": "#/$defs/simParityEntry" }
+              }
+            },
+            "pass": { "type": "boolean" }
+          }
+        },
+        "staleConstantSweep": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["matchCount", "matches", "filesChecked", "pass"],
+          "properties": {
+            "matchCount": { "type": "integer", "minimum": 0 },
+            "matches": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["file", "line", "snippet"],
+                "properties": {
+                  "file": { "type": "string", "minLength": 1 },
+                  "line": { "type": "integer", "exclusiveMinimum": 0 },
+                  "snippet": { "type": "string", "minLength": 1 }
+                }
+              }
+            },
+            "filesChecked": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "pass": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "panelWidthEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["leftPx", "rightPx", "pass"],
+      "properties": {
+        "leftPx": { "type": "number", "exclusiveMinimum": 0 },
+        "rightPx": { "type": "number", "exclusiveMinimum": 0 },
+        "pass": { "type": "boolean" }
+      }
+    },
+    "panelBrightnessEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "laneCount", "leftMedian", "rightMedian", "minBrightness", "pass"],
+      "properties": {
+        "level": { "type": "integer", "exclusiveMinimum": 0 },
+        "laneCount": { "type": "integer", "enum": [1, 2, 3, 4] },
+        "leftMedian": { "type": "number", "minimum": 0 },
+        "rightMedian": { "type": "number", "minimum": 0 },
+        "minBrightness": { "type": "number", "minimum": 0 },
+        "pass": { "type": "boolean" }
+      }
+    },
+    "bombQueueFitEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stashBottomEdgePx", "marginPx", "pass"],
+      "properties": {
+        "stashBottomEdgePx": { "type": "number", "exclusiveMinimum": 0 },
+        "marginPx": { "type": "number" },
+        "pass": { "type": "boolean" }
+      }
+    },
+    "bombZoneLegibilityEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bombZoneScale", "pass"],
+      "properties": {
+        "bombZoneScale": { "type": "number", "exclusiveMinimum": 0 },
+        "pass": { "type": "boolean" }
+      }
+    },
+    "simParityEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baselineWinPct", "currentWinPct", "pass"],
+      "properties": {
+        "baselineWinPct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "currentWinPct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "pass": { "type": "boolean" }
+      }
+    }
+  }
+}

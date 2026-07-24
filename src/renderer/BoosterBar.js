@@ -7,7 +7,7 @@ const _B = import.meta.env.BASE_URL;
 function boosterUrl(name) { return `${_B}sprites/designed/booster-${name}.png`; }
 
 export const BAR_Y   = 752;
-const BAR_H   = 68;
+export const BAR_H = 68;
 
 // ── Icon card layout ──────────────────────────────────────────────────────────
 // 64px cards: generous tap target and room for a readable 18px label.

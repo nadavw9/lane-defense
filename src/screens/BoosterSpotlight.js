@@ -8,6 +8,7 @@
 //   const s = new BoosterSpotlight(stage, appW, appH, 'swap', () => resume());
 //   // call s.update(dt) each frame; tap anywhere auto-calls onDismiss.
 import { Container, Graphics, Text } from 'pixi.js';
+import { BAR_Y } from '../renderer/BoosterBar.js';
 
 // ── Booster metadata ──────────────────────────────────────────────────────────
 const BOOSTER_INFO = {
@@ -72,7 +73,7 @@ export class BoosterSpotlight {
     this._confettiBurst = false;
 
     // Vertical anchors
-    const textCY  = Math.round((510 + 752) / 2);   // empty strip midpoint (y≈631)
+    const textCY  = Math.round((510 + BAR_Y) / 2);   // empty strip midpoint (y≈631); BAR_Y not a hardcoded 752
     const iconCY  = Math.round((510 + textCY) / 2); // icon disc settles here (y≈570)
     this._textCY  = textCY;
     this._iconCY  = iconCY;

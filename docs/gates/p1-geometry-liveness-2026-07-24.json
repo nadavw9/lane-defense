@@ -1,0 +1,78 @@
+{
+  "gateVersion": 1,
+  "changeLabel": "P1 geometry-liveness: fix 4 stale-constant bench/FTUE bugs + add geometry-liveness guard test. NO band change (still 600 for 3-lane / 540 for 1/2/4-lane) — a stale-constant + consumer-liveness cleanup. Geometry checks carry over from the 2026-07-24 backfill (identical band mapping); staleConstantSweep driven from 4→0.",
+  "stageWidthPx": 390,
+  "stageHeightPx": 844,
+  "boosterBarTopY": 752,
+  "bandByLaneCount": { "1": 540, "2": 540, "3": 600, "4": 540 },
+  "checks": {
+    "carGrowthMultiplier": {
+      "baselineLaneCount": 4,
+      "baselinePxPerWu": 18.373595505617914,
+      "currentLaneCount": 3,
+      "currentPxPerWu": 20.381514940931197,
+      "value": 1.1092828801362988,
+      "pass": true
+    },
+    "panelWidthPx": {
+      "minStripPx": 35,
+      "byLaneCount": {
+        "1": { "leftPx": 151, "rightPx": 151, "pass": true },
+        "2": { "leftPx": 114, "rightPx": 114, "pass": true },
+        "3": { "leftPx": 65, "rightPx": 65, "pass": true },
+        "4": { "leftPx": 41, "rightPx": 41, "pass": true }
+      },
+      "pass": true
+    },
+    "panelBrightness": {
+      "city": { "level": 5, "laneCount": 3, "leftMedian": 109.26388888888889, "rightMedian": 90.69907407407408, "minBrightness": 12, "pass": true },
+      "industrial": { "level": 20, "laneCount": 4, "leftMedian": 14.337962962962964, "rightMedian": 49.69444444444444, "minBrightness": 12, "pass": true },
+      "night": { "level": 35, "laneCount": 4, "leftMedian": 10.967592592592593, "rightMedian": 31.37962962962963, "minBrightness": 8, "pass": true },
+      "pass": true
+    },
+    "bombQueueVerticalFit": {
+      "byLaneCount": {
+        "1": { "stashBottomEdgePx": 727.3531110380584, "marginPx": 24.646888961941613, "pass": true },
+        "2": { "stashBottomEdgePx": 727.3531110380584, "marginPx": 24.646888961941613, "pass": true },
+        "3": { "stashBottomEdgePx": 740.0, "marginPx": 12.0, "pass": true },
+        "4": { "stashBottomEdgePx": 727.3531110380584, "marginPx": 24.646888961941613, "pass": true }
+      },
+      "pass": true
+    },
+    "bombZoneLegibility": {
+      "minLegibleScale": 0.45,
+      "byLaneCount": {
+        "1": { "bombZoneScale": 0.82, "pass": true },
+        "2": { "bombZoneScale": 0.82, "pass": true },
+        "3": { "bombZoneScale": 0.5222514719370521, "pass": true },
+        "4": { "bombZoneScale": 0.82, "pass": true }
+      },
+      "pass": true
+    },
+    "simParityByteIdentity": {
+      "byLevel": {
+        "L5": { "baselineWinPct": 88.7, "currentWinPct": 88.7, "pass": true },
+        "L13": { "baselineWinPct": 79.7, "currentWinPct": 79.7, "pass": true },
+        "L20": { "baselineWinPct": 43.0, "currentWinPct": 43.0, "pass": true },
+        "L30": { "baselineWinPct": 46.3, "currentWinPct": 46.3, "pass": true }
+      },
+      "pass": true
+    },
+    "staleConstantSweep": {
+      "matchCount": 0,
+      "matches": [],
+      "filesChecked": [
+        "src/renderer3d/projection.js",
+        "src/renderer/CityEdges.js",
+        "src/renderer/BoosterBar.js",
+        "src/renderer/HUDRenderer.js",
+        "src/renderer/BenchRenderer.js",
+        "src/input/DragDrop.js",
+        "src/screens/BoosterSpotlight.js",
+        "src/screens/ColorPicker.js",
+        "src/screens/FTUEOverlay.js"
+      ],
+      "pass": true
+    }
+  }
+}

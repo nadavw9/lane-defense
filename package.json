@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "browser:kill": "scripts\\kill-browser.bat",
     "test:visual": "playwright test tests-visual/smoke",
-    "test:visual:full": "playwright test"
+    "test:visual:full": "playwright test",
+    "gate:layout": "node scripts/validate-layout-change-gate.mjs"
   },
   "keywords": [],
   "author": "",

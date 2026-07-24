@@ -1,5 +1,5 @@
-// BenchRenderer — draws the 4-slot shooter bench row at y 703–753, between
-// the shooter columns and the booster bar.
+// BenchRenderer — draws the 4-slot shooter bench row between the bomb queue
+// and the booster bar.
 //
 // Each slot shows:
 //   • Occupied: a color circle + damage number for the stored shooter
@@ -10,21 +10,43 @@
 //   setHighlight  — which slot to blue-highlight as a drop target
 import { Sprite, Graphics, Text, Assets } from 'pixi.js';
 import { COL_W } from './ShooterRenderer.js';
-import { PX_PER_WU, BOMB_R, MERGE_SCALE } from '../renderer3d/projection.js';
+import { PX_PER_WU, BOMB_R, MERGE_SCALE, bombSlotScreenY } from '../renderer3d/projection.js';
+import { BAR_Y } from './BoosterBar.js';
 
-export const BENCH_Y      = 703;
-export const BENCH_SLOT_H = 50;
+// ── Live bench geometry ───────────────────────────────────────────────────────
+// FUNCTIONS, not module-level consts (2026-07-24, geometry-liveness sweep):
+// the queue's screen position is lane-count-keyed and mutable since 63092fd,
+// and the old `BENCH_Y = 703` — hand-tuned against band-540 geometry — put the
+// tray 13px INTO the queue's row-2 balls on 3-lane levels (and 5px into the
+// booster bar everywhere, a latent overlap the original layout shipped with).
+// The bench now derives its band: it hugs the queue's bottom edge and flexes
+// its slot height to whatever room remains above the booster bar.
+const BENCH_QUEUE_GAP  = 4;    // px between row-2 ball bottom and tray top
+const BENCH_TRAY_PAD   = 4;    // tray extends this far above/below the slots
+const BENCH_BAR_GAP    = 2;    // px between tray bottom and the booster bar
+const BENCH_SLOT_H_MAX = 50;   // the original design height (4-lane levels keep it)
+const BENCH_SLOT_H_MIN = 28;   // touch-target floor — never flex below this
+
+export function benchY() {
+  const row2Bottom = bombSlotScreenY(2) + BOMB_R * PX_PER_WU;
+  return row2Bottom + BENCH_QUEUE_GAP + BENCH_TRAY_PAD;
+}
+export function benchSlotH() {
+  const room = BAR_Y - BENCH_BAR_GAP - BENCH_TRAY_PAD - benchY();
+  return Math.max(BENCH_SLOT_H_MIN, Math.min(BENCH_SLOT_H_MAX, room));
+}
 
 // Same source art as the live bomb queue (Shooter3D's powerball plane): the bomb
 // body fills ~72% of the image (fuse/spark/shine padding around it), so the full
 // sprite must be scaled up by this ratio for the visible BODY to match 2×BOMB_R.
-// Must track Shooter3D.js's BOMB_PLANE_SIZE ratio — same art, same padding.
+// Must track Shooter3D.js's bombPlaneSize() ratio — same art, same padding.
 export const SPRITE_PAD_RATIO = 2.8;
 
-// Target size for bench shooter sprites, DERIVED from the canonical ball size
-// (was a hardcoded 32 — silently drifted from the queue's actual rendered size,
-// and never accounted for the merged-bomb enlargement at all).
-export const BENCH_SPRITE_SIZE = BOMB_R * SPRITE_PAD_RATIO * PX_PER_WU;
+// Target size for bench shooter sprites, DERIVED from the canonical ball size.
+// Function, not a const: BOMB_R and PX_PER_WU are live (band-compensated) — a
+// const froze at import with band-540 values and rendered bench sprites ~39%
+// larger than the queue's own balls on 3-lane levels.
+export function benchSpriteSize() { return BOMB_R * SPRITE_PAD_RATIO * PX_PER_WU; }
 
 // Stored bombs use the powerball sprite (same art as the live bomb queue) so the
 // bench matches the game — was the old shooter-idle sprite. Merged bombs use the
@@ -112,20 +134,22 @@ export class BenchRenderer {
   getSlotCenter(i) {
     return {
       x: (i + 0.5) * this._colW,
-      y: BENCH_Y + BENCH_SLOT_H / 2,
+      y: benchY() + benchSlotH() / 2,
     };
   }
 
   // Returns the slot index (0-3) that (x, y) falls in, or -1 if outside the bench.
   // Hit area is slightly larger than visual to account for fat fingers.
   hitTestSlot(x, y) {
-    if (y < BENCH_Y - 8 || y > BENCH_Y + BENCH_SLOT_H + 8) return -1;
+    if (y < benchY() - 8 || y > benchY() + benchSlotH() + 8) return -1;
     return Math.max(0, Math.min(3, Math.floor(x / this._colW)));
   }
 
   // Call every render frame.
   update() {
     if (!this._visible) return;
+    const BENCH_Y      = benchY();       // live per frame — band is per-level
+    const BENCH_SLOT_H = benchSlotH();
     const cy = BENCH_Y + BENCH_SLOT_H / 2;
 
     // Solid tray panel spanning the full bench band — drawn first, behind slots,
@@ -180,7 +204,7 @@ export class BenchRenderer {
         const isMerged  = shooter.isMerged === true;
         const tex       = Assets.get(bombUrl(shooter.color, isMerged));
         if (tex) {
-          const targetSize = BENCH_SPRITE_SIZE * (isMerged ? MERGE_SCALE : 1);
+          const targetSize = benchSpriteSize() * (isMerged ? MERGE_SCALE : 1);
           if (sp.texture !== tex || sp._benchTargetSize !== targetSize) {
             sp.texture = tex;
             const max = Math.max(tex.width, tex.height);

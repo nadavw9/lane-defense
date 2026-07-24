@@ -27,7 +27,15 @@ import {
   SHOOTER_AREA_Y,
   TOP_RADIUS,
 } from '../renderer/ShooterRenderer.js';
+import { BAR_Y } from '../renderer/BoosterBar.js';
 import { getColumnScreenX, getColumnScreenY, getLaneScreenX } from '../renderer/PositionRegistry.js';
+
+// FTUE hint banner sits just above the booster bar (its documented anchor).
+// Derived, not a literal 710 (which silently assumed BAR_Y=752 AND the old
+// fixed queue geometry) — the 2026-07-24 geometry-liveness sweep flagged the
+// hardcoded value as overlapping the queue's row-2 ball on 3-lane levels.
+const BANNER_H = 38;
+const FTUE_BANNER_Y = BAR_Y - BANNER_H - 4;
 
 const HUD_H          = 44;
 const HINT_AUTO_HIDE = 8;  // seconds for banner auto-hide
@@ -278,7 +286,7 @@ export class FTUEOverlay {
     txt.y = 19;
     grp.addChild(txt);
 
-    grp.y = 710;  // 10px below bomb grid bottom (700), 4px above booster bar (752)
+    grp.y = FTUE_BANNER_Y;
   }
 
   // Permanently suppressed — was cluttering the top-down HUD with TIMER/COINS labels.
@@ -377,7 +385,7 @@ export class FTUEOverlay {
     txt.x = appW / 2;
     txt.y = 19;
     grp.addChild(txt);
-    grp.y = 710;  // 10px below bomb grid bottom (700), 4px above booster bar (752)
+    grp.y = FTUE_BANNER_Y;
 
     // Transparent full-screen hitbox — any touch aborts the demo
     const hitbox = new Graphics();

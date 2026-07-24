@@ -16,7 +16,7 @@ import {
 import { getColumnSlotScreenY, getColumnScreenY, setActiveCounts } from '../src/renderer/PositionRegistry.js';
 import { TOP_Y, SECOND_Y, STASH_Y } from '../src/renderer/ShooterRenderer.js';
 import { bombPlaneSize } from '../src/renderer3d/Shooter3D.js';
-import { BENCH_SPRITE_SIZE, SPRITE_PAD_RATIO, bombUrl as benchBombUrl } from '../src/renderer/BenchRenderer.js';
+import { benchSpriteSize, SPRITE_PAD_RATIO, bombUrl as benchBombUrl } from '../src/renderer/BenchRenderer.js';
 import { BAR_Y as BOOSTER_BAR_ACTUAL_Y } from '../src/renderer/BoosterBar.js';
 
 describe('bomb-slot position sync (drift guard)', () => {
@@ -97,15 +97,15 @@ describe('bomb-slot position sync (drift guard)', () => {
       expect(SPRITE_PAD_RATIO * BOMB_R).toBeCloseTo(bombPlaneSize(), 6);
     });
 
-    it('BENCH_SPRITE_SIZE is derived from canonical BOMB_R/PX_PER_WU, not a hardcoded literal', () => {
-      expect(BENCH_SPRITE_SIZE).toBeCloseTo(BOMB_R * SPRITE_PAD_RATIO * PX_PER_WU, 6);
-      expect(BENCH_SPRITE_SIZE).toBeCloseTo(bombPlaneSize() * PX_PER_WU, 6);
+    it('benchSpriteSize() is derived from canonical BOMB_R/PX_PER_WU, not a hardcoded literal', () => {
+      expect(benchSpriteSize()).toBeCloseTo(BOMB_R * SPRITE_PAD_RATIO * PX_PER_WU, 6);
+      expect(benchSpriteSize()).toBeCloseTo(bombPlaneSize() * PX_PER_WU, 6);
     });
 
     it('a benched merged bomb is enlarged by the same MERGE_SCALE the queue applies', () => {
-      const benchedSize = BENCH_SPRITE_SIZE * MERGE_SCALE;
-      expect(benchedSize).toBeCloseTo(BENCH_SPRITE_SIZE * 1.22, 6);
-      expect(benchedSize).toBeGreaterThan(BENCH_SPRITE_SIZE);
+      const benchedSize = benchSpriteSize() * MERGE_SCALE;
+      expect(benchedSize).toBeCloseTo(benchSpriteSize() * 1.22, 6);
+      expect(benchedSize).toBeGreaterThan(benchSpriteSize());
     });
 
     it('bombUrl resolves the merged texture for merged bombs and the plain texture otherwise, for every color', () => {

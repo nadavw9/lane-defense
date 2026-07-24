@@ -54,10 +54,21 @@ Phase 2 (L4–L8 pilot retune) are implemented, verified, and approved for commi
 3-lane and going to the sister's device. **Two numbers below turned out wrong once actually
 measured/executed — read the corrections, don't carry the original numbers into Phases 3–6:**
 
-- **Band is 730, not 680.** 680 (this doc's §2, below) was a demonstration pick, never validated
-  precisely — it only delivers **1.25× car growth** against the shipped baseline, short of the
-  1.3× target. 730 delivers 1.338× with real margin and passed the actual fixed-median
-  brightness sampler. See `THREE_LANE_REDESIGN_BATCH.md` §1's RESULT note for the full sweep.
+- **Band is 600 — a HOLDING STATE, not a destination (corrected 2026-07-24; supersedes the
+  2026-07-23 "band is 730" entry that stood here).** The chain: 680 was a demo pick that only
+  delivered 1.25× (rejected) → 730 delivered 1.338× on car size but **shipped with the bomb
+  queue off-screen on every 3-lane level** (queue Y≈778–947 on an 844px stage; confirmed broken
+  on the live site 2026-07-24) → 600 is the bleed-fix: renders correctly, but delivers only
+  **~1.109× total car growth vs. the shipped 4-lane baseline** (two independent measurements
+  agree). That's a ~6% increment over a size already rejected on device — it's live because a
+  correct 1.109× beats a broken 1.338×, not because it answers the size complaint. Two
+  structural facts for whoever picks this up: (a) `PX_PER_WU` depends only on band, never lane
+  count — 3-lane bought panel headroom for pushing band, not car size itself; (b) the binding
+  constraint on band is now the bomb queue vs. the fixed booster bar (BAR_Y=752), NOT panel
+  brightness (proven false constraint) or road width (moved by 3-lane). The bomb-zone redesign
+  investigation (2026-07-24) is the active path to ~1.3×; level conversion is FROZEN at L8
+  until its verdict. The sister's device verdict is reserved for the redesign outcome — do not
+  send her the band=600 build. See `THREE_LANE_REDESIGN_BATCH.md` §1 (corrected RESULT) and §8.
 - **`spawnBudget` is NOT a viable re-tune knob — it's vestigial in the current sim.** §2 below
   lists it among "knobs to re-tune"; that assumption was never verified against the actual
   `SimulationRunner` code. Swept L4's `spawnBudget` 8→48: **zero effect on win rate** —

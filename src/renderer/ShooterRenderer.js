@@ -20,12 +20,15 @@ import {
 const APP_W = 390;
 
 // ── Layout ────────────────────────────────────────────────────────────────────
-// SHOOTER_AREA_Y/H track the bomb zone's real position (BREACH_LINE_Y moves
-// whenever DESIGN_ROAD_BOTTOM_Y or BOMB_ZONE_SCALE change) — do not hardcode.
-export const SHOOTER_AREA_Y  = Math.round(BREACH_LINE_Y);
+// `let`, not `const`: BREACH_LINE_Y/bombSlotScreenY are lane-count-keyed and
+// mutable (THREE_LANE_REDESIGN_BATCH.md §1, and its §7b bomb-queue-scale
+// follow-up) — a const snapshot here would freeze at whatever band was active
+// when this module first loaded. Recomputed by recomputeShooterLayout(),
+// called from setLaneCount() below (the existing per-level choke point).
+export let SHOOTER_AREA_Y  = Math.round(BREACH_LINE_Y);
 // Spans breach line to just past the stash cell's bottom edge (bombSlotScreenY
 // accepts a non-integer row; 3.5 = stash center + half a slot pitch) + padding.
-export const SHOOTER_AREA_H  = Math.round(bombSlotScreenY(3.5) + 20 - SHOOTER_AREA_Y);
+export let SHOOTER_AREA_H  = Math.round(bombSlotScreenY(3.5) + 20 - SHOOTER_AREA_Y);
 export const COL_COUNT       = 4;
 export const COL_W           = 390 / COL_COUNT;  // 97.5 px
 
@@ -39,11 +42,20 @@ const        THIRD_RADIUS  = 17;
 // Bomb-queue slot screen Y — the canonical projection.js source, so the
 // drawn socket ring, the 2D fallback icons, and DragDrop's touch target
 // (via getQueueSlotCenter/getTopShooterCenter below) all agree with the
-// ACTUAL 3D ball position. Never hardcode these.
-export const TOP_Y    = bombSlotScreenY(0);
-export const SECOND_Y = bombSlotScreenY(1);
-const        THIRD_Y  = bombSlotScreenY(2);
-export const STASH_Y  = bombSlotScreenY(3);
+// ACTUAL 3D ball position. Never hardcode these. `let` — see comment above.
+export let TOP_Y    = bombSlotScreenY(0);
+export let SECOND_Y = bombSlotScreenY(1);
+let        THIRD_Y  = bombSlotScreenY(2);
+export let STASH_Y  = bombSlotScreenY(3);
+
+function recomputeShooterLayout() {
+  SHOOTER_AREA_Y = Math.round(BREACH_LINE_Y);
+  SHOOTER_AREA_H = Math.round(bombSlotScreenY(3.5) + 20 - SHOOTER_AREA_Y);
+  TOP_Y    = bombSlotScreenY(0);
+  SECOND_Y = bombSlotScreenY(1);
+  THIRD_Y  = bombSlotScreenY(2);
+  STASH_Y  = bombSlotScreenY(3);
+}
 
 // Target rendered diameters (diameter, not radius) at 1× scale
 const TOP_DIAM    = TOP_RADIUS    * 2;   // 68 px
@@ -594,7 +606,13 @@ export class ShooterRenderer {
     }
   }
 
-  setLaneCount(n) { this._laneCountCache = n; this._drawTray(n); }
+  setLaneCount(n) {
+    // projection.js's band/queue-scale must already be updated for this level
+    // by the time this runs (via gameRenderer3D.setActiveLaneCount() → Scene3D).
+    recomputeShooterLayout();
+    this._laneCountCache = n;
+    this._drawTray(n);
+  }
 
   // Per-world dispatch-zone floor (sliced from the same scene as the panels and
   // road, e.g. 'world2-b'). Falls back to the workshop texture when absent.

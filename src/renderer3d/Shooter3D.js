@@ -45,10 +45,17 @@ const BOMB_CZ  = 0;
 function slotZ(s) { return bombSlotZ(s); }
 
 // Stash slot sits directly below the 3 queue slots (same position as old slot 3).
-const STASH_Z = slotZ(3);
+// Function, not a frozen const: bombSlotZ() depends on the LIVE camera
+// (THREE_LANE_REDESIGN_BATCH.md §1 follow-up — the queue's screen position is
+// now band-invariant, but only if re-read per level, not cached at import time).
+function stashZ() { return slotZ(3); }
 // Plane size: sprite is 1254×1254 with bomb body ~72% of image → scale up so
 // body diameter matches the original sphere's visual size.
-export const BOMB_PLANE_SIZE = BOMB_R * 2.8;
+// Function, not a frozen const: BOMB_R is now live (band-compensated to keep
+// on-screen ball size constant) — a cached snapshot would freeze this plane at
+// whatever band was active at import time while the actual ball (and every
+// other BOMB_R-derived size) tracked the live value, drifting the two apart.
+export function bombPlaneSize() { return BOMB_R * 2.8; }
 
 // ── Badge canvas ───────────────────────────────────────────────────────────────
 // The canvas is sized from the badge's ACTUAL on-screen size (world units ×
@@ -65,8 +72,10 @@ const BADGE_PX_PER_WU_FALLBACK = 35;   // ≈ 390-stage px/wu (17.4) × DPR 2
 // scales in lockstep with the ball — BOMB_ZONE_SCALE shrinks both together,
 // never independently (a badge that shrank on its own axis would drift off
 // the ball's new size, or stay readable-but-oversized against a smaller ball).
-const BADGE_WORLD_W = 2.30 * BOMB_ZONE_SCALE;
-const BADGE_WORLD_H = 1.60 * BOMB_ZONE_SCALE;
+// Functions, not frozen consts: BOMB_ZONE_SCALE is now live (band-compensated) —
+// see bombPlaneSize() above for why a cached snapshot would drift.
+function badgeWorldW() { return 2.30 * BOMB_ZONE_SCALE; }
+function badgeWorldH() { return 1.60 * BOMB_ZONE_SCALE; }
 
 // ── Color palette ──────────────────────────────────────────────────────────────
 const COLOR_HEX = {
@@ -167,8 +176,8 @@ export class Shooter3D {
     this._scene   = scene;
     this._columns = columns;
     this._elapsed = 0;
-    this._badgeW  = Math.max(32, Math.round(BADGE_WORLD_W * pxPerWu * BADGE_SS));
-    this._badgeH  = Math.max(20, Math.round(BADGE_WORLD_H * pxPerWu * BADGE_SS));
+    this._badgeW  = Math.max(32, Math.round(badgeWorldW() * pxPerWu * BADGE_SS));
+    this._badgeH  = Math.max(20, Math.round(badgeWorldH() * pxPerWu * BADGE_SS));
 
     this._bgPlane = this._createBgPlane();
 
@@ -183,10 +192,10 @@ export class Shooter3D {
       );
     }
 
-    // One stash slot per column — positioned at STASH_Z (below the 3 queue slots).
+    // One stash slot per column — positioned at stashZ() (below the 3 queue slots).
     this._stashSlots = [];
     for (let li = 0; li < LANE_COUNT; li++) {
-      this._stashSlots.push(this._createStashSlot(li, STASH_Z));
+      this._stashSlots.push(this._createStashSlot(li, stashZ()));
     }
 
     this._activeColCount = LANE_COUNT;
@@ -207,9 +216,34 @@ export class Shooter3D {
       }
       if (this._stashSlots[li]) {
         this._stashSlots[li].group.position.x = x;
-        this._stashSlots[li].group.position.z = STASH_Z;
+        this._stashSlots[li].group.position.z = stashZ();
         this._stashSlots[li].group._baseX     = x;
       }
+    }
+    this._refreshSlotSizes();
+  }
+
+  // Re-applies scale to every existing slot/stash mesh from the CURRENT
+  // BOMB_R/BOMB_ZONE_SCALE. Needed because this class is constructed once per
+  // app session and persists across level transitions (unlike Car3D, which
+  // recreates meshes fresh per spawn) — a size baked in at construction goes
+  // stale the moment a level with a different band loads
+  // (THREE_LANE_REDESIGN_BATCH.md §1 follow-up).
+  _refreshSlotSizes() {
+    const plane = bombPlaneSize();
+    const bw = badgeWorldW(), bh = badgeWorldH();
+    for (const col of this._slots) {
+      for (const slot of col) {
+        slot.sphereMesh.scale.set(plane, plane, 1);
+        slot.badgeMesh.scale.set(bw, bh, 1);
+        slot.emptyMesh.scale.setScalar(BOMB_R);
+        if (slot.cbOverlayMesh) slot.cbOverlayMesh.scale.set(plane * 0.518, plane * 0.518, 1);
+      }
+    }
+    for (const stash of this._stashSlots) {
+      if (!stash) continue;
+      stash.sphereMesh.scale.set(plane * 0.80, plane * 0.80, 1);
+      stash.badgeMesh.scale.set(bw * 0.80, bh * 0.80, 1);
     }
   }
 
@@ -569,8 +603,15 @@ export class Shooter3D {
     const group = new THREE.Group();
 
     // ── Bomb plane — powerball sprite lying flat (top-down camera sees full sprite)
+    // Unit geometry + scale (not baked PlaneGeometry(size,size)): BOMB_R/
+    // bombPlaneSize() are now live and band-compensated (THREE_LANE_REDESIGN_BATCH.md
+    // §1 follow-up) — Shooter3D is constructed ONCE per app session and persists
+    // across level transitions, so a size baked into GEOMETRY at construction time
+    // would go stale the moment a level with a different band loads (unlike
+    // Car3D, which recreates its meshes fresh per spawn). scale.set() lets
+    // _refreshSlotSizes() (called from setLaneCount()) keep it current.
     const sphereMesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(BOMB_PLANE_SIZE, BOMB_PLANE_SIZE),
+      new THREE.PlaneGeometry(1, 1),
       new THREE.MeshBasicMaterial({
         transparent: true,
         alphaTest:   0.05,
@@ -581,6 +622,7 @@ export class Shooter3D {
     );
     sphereMesh.rotation.x = -Math.PI / 2;
     sphereMesh.position.set(BOMB_CX, 0.05, BOMB_CZ);
+    sphereMesh.scale.set(bombPlaneSize(), bombPlaneSize(), 1);
     group.add(sphereMesh);
 
     // ── Damage badge — bold white number, canvas at 2× on-screen pixel size ────
@@ -604,11 +646,12 @@ export class Shooter3D {
       toneMapped: false,
     });
     const badgeMesh = new THREE.Sprite(badgeMat);
-    badgeMesh.scale.set(BADGE_WORLD_W, BADGE_WORLD_H, 1);
+    badgeMesh.scale.set(badgeWorldW(), badgeWorldH(), 1);
     badgeMesh.position.set(BOMB_CX, BOMB_R + 0.60, BOMB_CZ);
     group.add(badgeMesh);
 
     // ── Empty slot placeholder — dim grey sphere when no shooter ──────────────
+    // Unit radius + scale, same reasoning as sphereMesh above.
     const emptyMat = new THREE.MeshStandardMaterial({
       color:             0x888888,
       emissive:          0x333333,
@@ -619,10 +662,11 @@ export class Shooter3D {
       opacity:           0.25,
     });
     const emptyMesh = new THREE.Mesh(
-      new THREE.SphereGeometry(BOMB_R, 12, 8),
+      new THREE.SphereGeometry(1, 12, 8),
       emptyMat,
     );
     emptyMesh.position.set(BOMB_CX, BOMB_R, BOMB_CZ);
+    emptyMesh.scale.setScalar(BOMB_R);
     emptyMesh.visible = false;
     group.add(emptyMesh);
 
@@ -687,13 +731,13 @@ export class Shooter3D {
     // the powerball sprite's ball is ~50.2% of its 1254px canvas width, so the
     // rendered ball ≈ 0.502 × BOMB_PLANE_SIZE. The conic gradient fills 62/64
     // (0.969) of the overlay plane, so plane = 0.502 / 0.969 ≈ 0.518 × BOMB_PLANE_SIZE.
-    const cbDisc = BOMB_PLANE_SIZE * 0.518;
     const overlayMesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(cbDisc, cbDisc),
+      new THREE.PlaneGeometry(1, 1),
       overlayMat,
     );
     overlayMesh.rotation.x = -Math.PI / 2;
     overlayMesh.position.set(0, 0.07, 0);  // just above the bomb sprite (y=0.05)
+    overlayMesh.scale.set(bombPlaneSize() * 0.518, bombPlaneSize() * 0.518, 1);
     overlayMesh.visible = false;
     slot.group.add(overlayMesh);
 
@@ -747,7 +791,7 @@ export class Shooter3D {
 
     // ── Bomb plane — same as queue slots but 80% scale ─────────────────────────
     const sphereMesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(BOMB_PLANE_SIZE * 0.80, BOMB_PLANE_SIZE * 0.80),
+      new THREE.PlaneGeometry(1, 1),
       new THREE.MeshBasicMaterial({
         transparent: true,
         alphaTest:   0.05,
@@ -759,6 +803,7 @@ export class Shooter3D {
     );
     sphereMesh.rotation.x = -Math.PI / 2;
     sphereMesh.position.set(BOMB_CX, 0.05, BOMB_CZ);
+    sphereMesh.scale.set(bombPlaneSize() * 0.80, bombPlaneSize() * 0.80, 1);
     sphereMesh.visible = false;
     group.add(sphereMesh);
 
@@ -776,7 +821,7 @@ export class Shooter3D {
       toneMapped: false,  // pure-white digits (see queue-slot badge)
     });
     const badgeMesh = new THREE.Sprite(badgeMat);
-    badgeMesh.scale.set(BADGE_WORLD_W * 0.80, BADGE_WORLD_H * 0.80, 1);
+    badgeMesh.scale.set(badgeWorldW() * 0.80, badgeWorldH() * 0.80, 1);
     badgeMesh.position.set(BOMB_CX, BOMB_R * 0.80 + 0.50, BOMB_CZ);
     badgeMesh.visible = false;
     group.add(badgeMesh);

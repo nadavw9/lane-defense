@@ -50,7 +50,13 @@ export const DESIGN_ROAD_TOP_Y    = 44;
 // that `import { X } from './projection.js'` see the updated value automatically,
 // no call-site changes needed anywhere else in the codebase.
 const BAND_4_LANE = 540;   // unchanged shipped value — 1/2/4-lane levels
-const BAND_3_LANE = 730;   // validated via render sweep, THREE_LANE_REDESIGN_BATCH.md §1
+// 2026-07-23 CORRECTION: 730 shipped broken — the bomb queue computed off-stage
+// entirely (see the "Bomb queue geometry" comment block below for the full
+// story and the growth/legibility tradeoff this is bound by). 600 is a
+// conservative, verified-safe placeholder (growth 1.109x, queue scale ≈0.56,
+// ball radius ≈12px, comfortably above MIN_LEGIBLE_SCALE) pending the user's
+// call on the real target — see THREE_LANE_REDESIGN_BATCH.md §7b.
+const BAND_3_LANE = 600;
 export function bandForLaneCount(activeLaneCount) {
   return activeLaneCount === 3 ? BAND_3_LANE : BAND_4_LANE;
 }
@@ -121,36 +127,97 @@ export let PX_PER_WU = zToScreenY(1) - zToScreenY(0);
 // (Shooter3D's 3D ball, PositionRegistry, ShooterRenderer, DragDrop) must
 // call bombSlotZ/bombSlotScreenY — never re-derive this elsewhere. ─────────
 
-// BOMB_ZONE_SCALE is the ONE lever for the whole bomb queue's size: ball
-// radius, badge/number size (Shooter3D scales its badge world size by this
-// too, preserving the number's proportion to the ball), and slot-to-slot
-// spacing all derive from it. Approved 2026-07-13: 0.82 is the largest scale
-// that still fits the queue (3 slots + stash) below the breach line with a
-// comfortable clearance margin at the DESIGN_ROAD_BOTTOM_Y=540 car-viewport
-// size — see the budget analysis in SESSION_HANDOFF / commit message.
-export const BOMB_ZONE_SCALE = 0.82;
-
-// Ball body radius. Unscaled formula: cell_height × 0.38 = CELL × 0.70 × 0.38
-// ≈ CELL × 0.266 — then × BOMB_ZONE_SCALE.
-export const BOMB_R = CELL * 0.266 * BOMB_ZONE_SCALE;
-
 // Merged-bomb group enlargement (front slot only, see Shooter3D.update()) — a
 // multiplier ON TOP of BOMB_R, not itself scaled by BOMB_ZONE_SCALE (it's a
 // relative "how much bigger than a normal bomb", independent of base size).
 export const MERGE_SCALE = 1.22;
 
-// World-unit spacing between adjacent bomb-slot centers.
-export const BOMB_SLOT_PITCH_WU = CELL * 0.70 * BOMB_ZONE_SCALE;
+const BREACH_STRIPE_HALF_PX = 8;
+const BREACH_MARGIN_PX      = 6;
+
+// ── Bomb queue geometry — SCALE compensates for band, POSITION stays
+// breach-line-relative ──────────────────────────────────────────────────────
+// 2026-07-23 bug (THREE_LANE_REDESIGN_BATCH.md §1 follow-up, found live on a
+// real device): at band=730 the queue's slots computed past Y=844 (off-stage)
+// entirely — the "bomb-queue vertical clipping" check from the Phase 1 sweep
+// was a qualitative visual scan, not real math, and missed it completely.
+//
+// First fix attempt (reverted): pin the queue to a FIXED screen position,
+// decoupled entirely from the live camera. WRONG — the 2D breach/hazard
+// stripe (roadGeometry.js's ROAD_BOTTOM_Y, tied to the SAME live BREACH_LINE_Y)
+// still moves down with band. A fixed-position queue would end up floating
+// ABOVE the stripe at high bands — overlapping the road itself instead of
+// sitting below it. Position must stay relative to the LIVE breach line to
+// preserve the road → stripe → queue → booster-bar ordering.
+//
+// Correct fix: SCALE is the only thing that compensates for band. Growing
+// band pushes the breach line down toward the fixed booster bar (BoosterBar.js
+// positions it at BOOSTER_BAR_TOP_Y=754, independent of road geometry) — the
+// queue must shrink to fit whatever room remains. maxQueueScaleForBand()
+// binary-searches the largest BOMB_ZONE_SCALE whose slot-3 (stash) bottom
+// edge still clears the booster bar by QUEUE_BOTTOM_MARGIN_PX, using the
+// SAME breach-clearance formula as before — just re-solved per band instead
+// of fixed at the 2026-07-13-approved 0.82.
+//
+// IMPORTANT — this is a real product tradeoff, not just a formula fix: ball
+// tap-targets are already decoupled from visual size (ShooterRenderer.js's
+// TOP_RADIUS/SECOND_RADIUS/THIRD_RADIUS are fixed regardless of BOMB_ZONE_SCALE),
+// so shrinking the ball doesn't hurt tappability — but it DOES hurt legibility
+// (the HP-number badge shrinks in lockstep, BADGE_WORLD_W/H below). Measured:
+// digit height stays comfortably readable (≈13-17px) down to roughly
+// scale≈0.55 (~12px ball radius); it gets marginal below ~0.45 (~10px radius,
+// ~11px digits) and drops off fast beyond that. MIN_LEGIBLE_SCALE below is a
+// hard floor — bandForLaneCount() must not pick a band that needs less than
+// this, or the queue becomes readable-fit but illegible. Don't raise
+// BAND_3_LANE without re-running this tradeoff and confirming the resulting
+// scale against a real render, not just the math.
+// Mirrors BoosterBar.js's BAR_Y=752 (fixed, band-independent screen Y where
+// the booster bar starts). projection.js must stay Pixi/Three/DOM-free (see
+// file header), so this can't be a live import — it's a duplicated constant,
+// guarded against drift by tests/bomb-slot-position-sync.test.js's
+// "BOOSTER_BAR_TOP_Y mirrors BoosterBar.BAR_Y" check. If BoosterBar.js's
+// BAR_Y ever changes, update this to match or the queue-fit solver below will
+// silently target the wrong boundary.
+export const BOOSTER_BAR_TOP_Y = 752;
+const QUEUE_BOTTOM_MARGIN_PX = 12;    // clearance above the booster bar
+const MIN_LEGIBLE_SCALE      = 0.45;  // ≈10px ball radius / ≈11px digit height — hard floor
+
+export const BOMB_ZONE_SCALE_AT_540 = 0.82;   // the 2026-07-13-approved ceiling — never scale up past this
+
+function _worstCaseSlot3BottomEdge(scale) {
+  const bombR    = CELL * 0.266 * scale;
+  const pitchWu  = CELL * 0.70  * scale;
+  const stripeBottomY     = BREACH_LINE_Y + BREACH_STRIPE_HALF_PX;
+  const worstCaseRadiusPx = bombR * MERGE_SCALE * PX_PER_WU;
+  const slot0CenterYMin   = stripeBottomY + BREACH_MARGIN_PX + worstCaseRadiusPx;
+  const slot0ZMin         = screenYToZ(slot0CenterYMin);
+  const baseSlot0Z        = 0.5 * pitchWu;
+  const clearanceZ        = Math.max(0, slot0ZMin - baseSlot0Z);
+  const slot3Z            = 3.5 * pitchWu + clearanceZ;
+  return zToScreenY(slot3Z) + bombR * PX_PER_WU;
+}
+
+// Largest BOMB_ZONE_SCALE (capped at the approved 0.82 ceiling) whose queue
+// still clears the booster bar with margin, at the CURRENT live band. Must be
+// called AFTER PX_PER_WU/BREACH_LINE_Y are updated for the new band.
+function _maxQueueScaleForBand() {
+  let lo = 0.02, hi = BOMB_ZONE_SCALE_AT_540;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (_worstCaseSlot3BottomEdge(mid) <= BOOSTER_BAR_TOP_Y - QUEUE_BOTTOM_MARGIN_PX) lo = mid;
+    else hi = mid;
+  }
+  return lo;
+}
+
+export let BOMB_ZONE_SCALE = BOMB_ZONE_SCALE_AT_540;
+export let BOMB_R = CELL * 0.266 * BOMB_ZONE_SCALE;
+export let BOMB_SLOT_PITCH_WU = CELL * 0.70 * BOMB_ZONE_SCALE;
 
 // BOMB_SLOT_CLEARANCE_Z pushes every row a fixed extra distance from the
 // breach line so the front slot's ball, AT ITS LARGEST rendered size (a
 // merged bomb, MERGE_SCALE), never crosses under the 2D hazard stripe —
-// derived from the stripe's actual screen geometry, not eyeballed. The
-// stripe is drawn BREACH_STRIPE_HALF_PX below BREACH_LINE_Y (mirrors the ±8
-// span ShooterRenderer draws it at); the worst-case ball top must clear that
-// edge by BREACH_MARGIN_PX.
-const BREACH_STRIPE_HALF_PX = 8;
-const BREACH_MARGIN_PX      = 6;
+// derived from the stripe's actual screen geometry, not eyeballed.
 function _computeBombSlotClearanceZ() {
   const stripeBottomY     = BREACH_LINE_Y + BREACH_STRIPE_HALF_PX;
   const worstCaseRadiusPx = BOMB_R * MERGE_SCALE * PX_PER_WU;
@@ -177,6 +244,19 @@ export function setActiveLaneCount(activeLaneCount) {
   PROJ_ROAD_BOTTOM_Y = zToScreenY(posToZPure(100));
   BREACH_LINE_Y      = zToScreenY(ROAD_Z_NEAR);
   PX_PER_WU          = zToScreenY(1) - zToScreenY(0);
+  // Queue scale re-solved for the new band — see the comment block above.
+  BOMB_ZONE_SCALE    = _maxQueueScaleForBand();
+  if (BOMB_ZONE_SCALE < MIN_LEGIBLE_SCALE) {
+    console.error(
+      `[projection] bandForLaneCount(${activeLaneCount}) requires ` +
+      `BOMB_ZONE_SCALE=${BOMB_ZONE_SCALE.toFixed(3)}, below the MIN_LEGIBLE_SCALE ` +
+      `floor (${MIN_LEGIBLE_SCALE}) — the bomb-queue HP numbers will not be ` +
+      `legible at this band. Do not ship this band value without either ` +
+      `raising the floor's justification or picking a smaller band.`,
+    );
+  }
+  BOMB_R             = CELL * 0.266 * BOMB_ZONE_SCALE;
+  BOMB_SLOT_PITCH_WU = CELL * 0.70  * BOMB_ZONE_SCALE;
   BOMB_SLOT_CLEARANCE_Z = _computeBombSlotClearanceZ();
 }
 

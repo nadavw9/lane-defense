@@ -38,14 +38,12 @@ Reasoning, for anyone who picks this up without the full arc in memory:
 - **Going further than 3-lane (2-lane, etc.) is unproven and unnecessary.** Nobody has
   rendered or measured 2-lane. The game's pitch is "reading the board 3 moves ahead" — fewer
   lanes reduces the puzzle's information density, and at some point that stops being "bigger
-  cars" and starts being "a simpler game." 3-lane already clears the growth target with real
-  margin (37.6px panel vs. 40.7px shipped, at the Phase 1 pilot's locked band=730 — see §1;
-  **680 was carried forward from the prior investigation as a strong prior and did NOT hold up
-  under precise measurement — it only delivered 1.25× car growth, short of the 1.3× target; 730
-  is the value Phase 1 actually validated and shipped in the pilot**). There is no evidence
-  2-lane is needed, and reaching for it now would be solving a problem we haven't measured. If
-  3-lane ships and the sister STILL says "too small," that's the trigger to investigate 2-lane
-  with the same render-first discipline used here — not before.
+  cars" and starts being "a simpler game." **[2026-07-24 correction: the growth-target claim
+  this bullet originally made did NOT survive — see §1's corrected RESULT. Band=730 cleared
+  1.3× on car size but shipped with the bomb queue off-screen; the current holding state
+  (band=600) delivers only ~1.109× vs. the shipped 4-lane baseline. The path to ~1.3× now runs
+  through the bomb-zone redesign investigation, not through band alone.]** There is no evidence
+  2-lane is needed, and reaching for it now would be solving a problem we haven't measured.
 - **This is not architecturally risky**, which is why "go big" is the right call rather than
   another cautious increment: the rendering/input layer needs zero rework (DragDrop,
   ShooterRenderer, Shooter3D, PositionRegistry, GameLoop, GameState already key off
@@ -89,17 +87,35 @@ verdict, even if Phase 1's geometry-only groundwork lands first.
 
 ## 1. Phase 1 — Geometry: lock the band value
 
-**RESULT (2026-07-23, executed as part of the pilot): band = 730, not 680.** Precise math
-(`PX_PER_WU` at band=680 ÷ `PX_PER_WU` at shipped band=540) showed 680 gives only **1.25×** car
-growth — short of the 1.3× target — contrary to the prior investigation's "comfortably clears"
-read, which had conflated panel-width margin with the actual growth ratio. A finer sweep
-(700/710/715/720/725/730/735/740/750) found growth crosses 1.3× at band≈710 (1.3038×, no real
-margin) and clears with margin by band=730 (1.3384×, +3.8pp over target) while panel width
-(37.6px) stays well clear of the 33.6px danger zone that caused the historical L35 CI brightness
-regression. 730 was verified against the REAL fixed-median brightness sampler
-(`tests-visual/smoke/worlds.spec.js`, using L5 — now in the pilot — as the World-1 case) and
-passed at `minBrightness=12` with margin. See §7a — the band value was the easy part; making it
-actually render correctly took two separate production-bug fixes.
+**RESULT — CORRECTED 2026-07-24: band = 600, as a HOLDING STATE, not a destination.**
+
+History of this number, in order, because each prior value shipped or nearly shipped wrong:
+
+1. **680** (prior investigation's demo pick): precise math showed only 1.25× growth vs. the
+   shipped band=540 — short of the 1.3× target. The earlier "comfortably clears" read had
+   conflated panel-width margin with the growth ratio. Rejected.
+2. **730** (2026-07-23, shipped in the pilot): 1.3384× growth, panels fine (37.6px), brightness
+   sampler passed. **Shipped live-broken:** the bomb queue's screen position is derived from
+   the same band-driven camera, and at 730 the queue computed to Y≈778–947 on an 844px stage —
+   almost entirely off-screen, game unplayable on every 3-lane level. The Phase 1 sweep's
+   "bomb-queue vertical clipping" check was performed as a qualitative visual scan instead of
+   math, and missed it. Confirmed broken on the LIVE deployed site 2026-07-24 (real screenshot,
+   deployed bundle contained the 730 constant). See §7a/§7b.
+3. **600** (2026-07-24, the bleed-fix): renders correctly — queue fully visible and legible
+   (ball radius ≈11.5px at auto-solved `BOMB_ZONE_SCALE≈0.53`), stash bottom edge Y≈742 with
+   margin above the booster bar (752). Verified by real render + full test suite + new
+   regression tests (`tests/bomb-slot-position-sync.test.js`, "bomb queue always fits above the
+   booster bar" block, all lane counts 1–4).
+
+**Why 600 is a holding state:** measured TOTAL car growth vs. the ACTUAL SHIPPED 4-lane
+baseline — not band-vs-band — is **~1.109×** (two independent methods agree: exact formula
+22.9px→25.4px sedan body height, and live flood-fill pixel measurement 24px→26px). That is a
+~6% increment over the 1.04× state already rejected on device. It ships because a
+correct-rendering 1.109× beats a broken 1.338×, not because it answers the size complaint.
+**The bomb-zone redesign investigation (2026-07-24, in progress) is what answers that.**
+Key structural fact driving it: `PX_PER_WU` depends only on band, not lane count — 3-lane
+never bought car size directly, it bought the panel headroom to push band further; the queue
+collision (not panels) is what killed 730, so the queue is the binding constraint to redesign.
 
 **Goal:** determine and lock the `DESIGN_ROAD_BOTTOM_Y` ("band") value that 3-lane levels will
 render at, empirically, not by copying the 680 demonstration number blind.
@@ -506,17 +522,26 @@ All updated — see each file's inline 2026-07-23 comments for specifics.
 
 ## 8. Open items ledger
 
-- **STATUS as of 2026-07-23:** Phase 1 (band lookup + lock) and Phase 2 (L4–L8 pilot retune)
-  are IMPLEMENTED locally — not committed, not pushed, nothing shipped. `npx vitest run` and
-  the local `tests-visual/smoke` suite are green (one pre-existing timing-sensitive flake on
-  `L5: deploying into lane i`, confirmed non-blocking — passes on retry, unrelated to any
-  geometry issue). Waiting on: user approval of the VISION.md wording (§0a), user review of the
-  sim table + screenshots, then the sister's device verdict (§2 checkpoint) before Phase 3.
-- **Pilot verdict pending** (§2, checkpoint): the sister's read on L4–L8 at 3-lane gates
-  whether Phases 3–6 happen at all.
-- **Band value: locked at 730, not 680** (§1's RESULT note) — the 680 number carried forward
-  from the prior investigation did not survive precise measurement (only 1.25× growth, short of
-  1.3×). Don't reuse 680 anywhere downstream; 730 is the shipped, validated value.
+- **STATUS as of 2026-07-24 (supersedes the 2026-07-23 entry):** Phases 1–2 shipped
+  (commits f0df553/63092fd/4dc75be/5d80ebd) — but 730 shipped with the bomb queue off-screen
+  on every 3-lane level (see §1's corrected RESULT), confirmed broken on the live site. The
+  bleed-fix (band=600 + per-band queue-scale solve + frozen-const consumer fixes + queue-fit
+  regression tests) is the current deployed state. **Level conversion is FROZEN at L8** — do
+  not convert L9–L40; converting now would pay the full 32-level retune bill for a 1.109×
+  outcome. Phases 3–6 are ON HOLD pending the bomb-zone redesign investigation's verdict.
+- **Band value: 600, a HOLDING STATE, not a destination** (§1's corrected RESULT). It delivers
+  ~1.109× total car growth vs. the shipped 4-lane baseline — a ~6% increment over a size
+  already rejected on device. It's live because a correct-rendering 1.109× beats a broken
+  1.338×. **Do NOT send this build to the sister as "the fix"** — her device verdict is
+  reserved for the redesign outcome, not this. Don't reuse 680 or 730 anywhere downstream.
+- **Bomb-zone redesign investigation (2026-07-24, in progress)** — the actual path to ~1.3×.
+  Scope: full 844px vertical budget audit, max-band/max-growth derivation per candidate
+  architecture (horizontal queue, fewer slots, merged bottom chrome, HUD reclaim), lane-count-
+  independence verification, stale-geometry-constant sweep + guard test. Findings go to the
+  user for review before any spec is written. If nothing reaches ~1.3×, that's a conversation
+  with the sister BEFORE further spend, not after.
+- **Pilot verdict pending — but deliberately deferred** (§2 checkpoint): the sister judges the
+  redesign outcome, not the band=600 holding state.
 - **Retune lever: `laneTargetCarCount`, not `spawnBudget`** (§2a's CORRECTED step 4a) —
   `spawnBudget` was verified to have zero effect on win rate in the current `SimulationRunner`.
   Re-verify this holds for each level in Phases 3–6 rather than assuming it's universal.

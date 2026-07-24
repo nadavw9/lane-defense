@@ -8,12 +8,16 @@
 // projection.js's bombSlotZ/bombSlotScreenY. This test asserts every
 // consumer still agrees with it, so that class of drift can't ship silently
 // again.
-import { describe, it, expect } from 'vitest';
-import { bombSlotScreenY, bombSlotZ, BOMB_ZONE_SCALE, BOMB_R, PX_PER_WU, MERGE_SCALE } from '../src/renderer3d/projection.js';
+import { describe, it, expect, afterAll } from 'vitest';
+import {
+  bombSlotScreenY, bombSlotZ, BOMB_ZONE_SCALE, BOMB_R, PX_PER_WU, MERGE_SCALE,
+  BOOSTER_BAR_TOP_Y, setActiveLaneCount,
+} from '../src/renderer3d/projection.js';
 import { getColumnSlotScreenY, getColumnScreenY, setActiveCounts } from '../src/renderer/PositionRegistry.js';
 import { TOP_Y, SECOND_Y, STASH_Y } from '../src/renderer/ShooterRenderer.js';
-import { BOMB_PLANE_SIZE } from '../src/renderer3d/Shooter3D.js';
+import { bombPlaneSize } from '../src/renderer3d/Shooter3D.js';
 import { BENCH_SPRITE_SIZE, SPRITE_PAD_RATIO, bombUrl as benchBombUrl } from '../src/renderer/BenchRenderer.js';
+import { BAR_Y as BOOSTER_BAR_ACTUAL_Y } from '../src/renderer/BoosterBar.js';
 
 describe('bomb-slot position sync (drift guard)', () => {
   it('PositionRegistry.getColumnSlotScreenY matches the canonical source for every row', () => {
@@ -56,6 +60,32 @@ describe('bomb-slot position sync (drift guard)', () => {
     expect(BOMB_ZONE_SCALE).toBeCloseTo(0.82, 6);
   });
 
+  it('projection.js\'s BOOSTER_BAR_TOP_Y mirrors BoosterBar.BAR_Y — the queue-fit solver targets this boundary and can\'t import BoosterBar.js directly (Pixi/DOM-free file)', () => {
+    expect(BOOSTER_BAR_TOP_Y).toBe(BOOSTER_BAR_ACTUAL_Y);
+  });
+
+  // 2026-07-23 regression: at band=730 the queue's slots computed past Y=844
+  // (off-stage) entirely — invisible on a real device. The Phase 1 sweep's own
+  // "bomb-queue vertical clipping" check was a qualitative visual scan, not
+  // this math, and missed it. This is the math, permanently, for every lane
+  // count the game actually ships (THREE_LANE_REDESIGN_BATCH.md §1/§7b).
+  describe('bomb queue always fits above the booster bar (2026-07-23 off-stage-queue regression)', () => {
+    // Restore the default (4-lane) state other tests in this file assume —
+    // must be afterAll, not inline: `it()` callbacks run in a later phase
+    // than describe-body collection, so code here would otherwise run BEFORE
+    // the tests below actually execute.
+    afterAll(() => { setActiveLaneCount(4); });
+
+    for (const laneCount of [1, 2, 3, 4]) {
+      it(`laneCount=${laneCount}: stash slot's bottom edge clears the booster bar`, () => {
+        setActiveLaneCount(laneCount);
+        const stashBottomEdge = bombSlotScreenY(3) + BOMB_R * PX_PER_WU;
+        expect(stashBottomEdge, `stash bottom edge ${stashBottomEdge.toFixed(1)}px vs booster bar at ${BOOSTER_BAR_TOP_Y}px`)
+          .toBeLessThan(BOOSTER_BAR_TOP_Y);
+      });
+    }
+  });
+
   // 2026-07-19 bench drift: BenchRenderer had its OWN hardcoded sprite size (32px,
   // ignoring BOMB_R/PX_PER_WU entirely) and never checked isMerged at all — a
   // benched merged bomb silently shrank back to base size and lost the special
@@ -64,12 +94,12 @@ describe('bomb-slot position sync (drift guard)', () => {
   // checks above. These assertions pin the bench to the same canonical source.
   describe('bench matches the queue (2026-07-19 bench drift guard)', () => {
     it('BenchRenderer\'s sprite padding ratio matches Shooter3D\'s — both scale the SAME source art (fuse/spark/shine padding) the same way', () => {
-      expect(SPRITE_PAD_RATIO * BOMB_R).toBeCloseTo(BOMB_PLANE_SIZE, 6);
+      expect(SPRITE_PAD_RATIO * BOMB_R).toBeCloseTo(bombPlaneSize(), 6);
     });
 
     it('BENCH_SPRITE_SIZE is derived from canonical BOMB_R/PX_PER_WU, not a hardcoded literal', () => {
       expect(BENCH_SPRITE_SIZE).toBeCloseTo(BOMB_R * SPRITE_PAD_RATIO * PX_PER_WU, 6);
-      expect(BENCH_SPRITE_SIZE).toBeCloseTo(BOMB_PLANE_SIZE * PX_PER_WU, 6);
+      expect(BENCH_SPRITE_SIZE).toBeCloseTo(bombPlaneSize() * PX_PER_WU, 6);
     });
 
     it('a benched merged bomb is enlarged by the same MERGE_SCALE the queue applies', () => {

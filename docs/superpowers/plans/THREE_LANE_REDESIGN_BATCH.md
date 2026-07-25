@@ -540,6 +540,15 @@ All updated — see each file's inline 2026-07-23 comments for specifics.
   independence verification, stale-geometry-constant sweep + guard test. Findings go to the
   user for review before any spec is written. If nothing reaches ~1.3×, that's a conversation
   with the sister BEFORE further spend, not after.
+- **Bench minimum height is a FIRST-CLASS constraint in the redesign band-solve — NOT the free
+  residual the first budget table treated it as** (finding from the 2026-07-24 P1 bench fix,
+  verified by touch testing). The band=600 holding state forces the bench to its 28px floor
+  (functional, non-overlapping, but cramped — see the P1 commit and the "holding-state note" in
+  §8's status entry). When the redesign's max-band is solved, the bench's real usable minimum
+  (the 28px floor PLUS whatever touch-target testing proves is actually usable, which may be
+  higher) is an INPUT to that solve, alongside panel raw-width and queue legibility. **If a
+  candidate architecture only clears its growth target by squeezing the bench back to a cramped
+  floor, the problem has been MOVED, not solved — that is a reject condition, not a pass.**
 - **Pilot verdict pending — but deliberately deferred** (§2 checkpoint): the sister judges the
   redesign outcome, not the band=600 holding state.
 - **Retune lever: `laneTargetCarCount`, not `spawnBudget`** (§2a's CORRECTED step 4a) —

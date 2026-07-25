@@ -22,6 +22,10 @@ async function dragDeploy(game, colIdx, laneIdx) {
     const target = gs.lanes[l].cars[0];
     target.color = bomb.color;
     target.__testTag = 'target';
+    // Tag the bomb OBJECT too. The queue refills the moment a bomb is consumed,
+    // so shooters.length is not a usable "did it launch?" signal — but a
+    // consumed bomb object never comes back.
+    bomb.__testTag = 'bomb';
     return {
       queueCount: gs.columns[c].shooters.length,
       frontHp: target.hp,
@@ -36,11 +40,47 @@ async function dragDeploy(game, colIdx, laneIdx) {
   // center from 544 to ~585), eating most of the hit-test's safety margin
   // and making this test newly flake-prone under CI load (2026-07-13).
   const pos = await game.positions();
-  await game.dragStage(pos.colX[colIdx], pos.slotY[0], pos.laneX[laneIdx], 300);
-  // Wait for the actual event (firingSlots[laneIdx] clears once combat/advance/
-  // refill resolve) instead of a fixed wall-clock sleep — a fixed 900ms proved
-  // too tight under CI's slower software-WebGL rendering combined with L4-L8's
-  // higher laneTargetCarCount (THREE_LANE_REDESIGN_BATCH.md §2 pilot,
+
+  // Perform the drag, and CONFIRM THE PICKUP ACTUALLY TOOK before waiting on the
+  // result. A launch is observable: firingSlots[lane] goes non-null while the
+  // bomb is in flight.
+  //
+  // Why this matters (2026-07-25, rows-8 pilot): a drag whose pickup is
+  // swallowed by an overlay is indistinguishable, at the old wait below, from a
+  // drag that landed — firingSlots[lane] is null in BOTH cases, so the wait
+  // returned instantly and the test read an unchanged board and reported "did
+  // not land". That is a SETUP failure being reported as a product failure.
+  // The pilot's shallow opening deals a jeep at row 0 on L5, which fires the
+  // "MEET THE CAR" intro card; dismissOverlays() taps a fixed number of times
+  // without verifying, so under CI's slower software-WebGL the card was still
+  // up at drag time. Passed 9/9 locally, failed 2/2 in CI.
+  //
+  // This retries the SETUP only. The hit assertion below is unchanged and just
+  // as strict — a bomb that launches and misses still fails the test.
+  // The signal is THE TAGGED BOMB leaving the queue — a durable change. Two
+  // signals that look right and are not: firingSlots[lane] going non-null is a
+  // transient in-flight window a poll can miss entirely (retrying a drag that
+  // already succeeded, firing a second bomb), and shooters.length dropping is
+  // erased by the queue's immediate refill.
+  let launched = false;
+  for (let attempt = 0; attempt < 3 && !launched; attempt++) {
+    if (attempt > 0) await game.dismissOverlays(4);
+    await game.dragStage(pos.colX[colIdx], pos.slotY[0], pos.laneX[laneIdx], 300);
+    try {
+      await game.page.waitForFunction(
+        (c) => !window._nav.getGs().columns[c].shooters.some((b) => b.__testTag === 'bomb'),
+        colIdx,
+        { timeout: 2000 },
+      );
+      launched = true;
+    } catch { /* pickup was intercepted — clear overlays and drag again */ }
+  }
+  expect(launched, `bomb never left the queue for lane ${laneIdx} — the drag pickup was intercepted (overlay still up?), not a deploy-targeting failure`).toBe(true);
+
+  // Then wait for the actual event (firingSlots[laneIdx] clears once combat/
+  // advance/refill resolve) instead of a fixed wall-clock sleep — a fixed 900ms
+  // proved too tight under CI's slower software-WebGL rendering combined with
+  // L4-L8's higher laneTargetCarCount (THREE_LANE_REDESIGN_BATCH.md §2 pilot,
   // 2026-07-23), causing real, reproducible CI failures reading state before
   // resolution finished.
   try {

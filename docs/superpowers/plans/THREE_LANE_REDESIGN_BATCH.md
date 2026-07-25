@@ -549,6 +549,23 @@ All updated — see each file's inline 2026-07-23 comments for specifics.
   higher) is an INPUT to that solve, alongside panel raw-width and queue legibility. **If a
   candidate architecture only clears its growth target by squeezing the bench back to a cramped
   floor, the problem has been MOVED, not solved — that is a reject condition, not a pass.**
+  - Queued follow-up (post-redesign, tied to the `gate:layout` test work below): the
+    `carGrowthMultiplier` + `panelWidthPx` recording discipline should be captured by whatever
+    geometry test suite the redesign lands, so growth/panel numbers are recomputed-and-asserted
+    per change rather than self-reported.
+- **`gate:layout` will NOT get an Option-B recompute harness — decision 2026-07-24.** The gate
+  validator (`scripts/validate-layout-change-gate.mjs`) recomputes nothing — it trusts every
+  number in its report — so wiring it into CI as-is is theater (a stale, skipped, or fabricated
+  all-pass report passes). Most of the gate's intent is ALREADY blocked structurally in CI:
+  `panelBrightness` ≈ `worlds.spec.js` (visual-smoke); `bombQueueVerticalFit` /
+  `bombZoneLegibility` ≈ `geometry-liveness.test.js` + `bomb-slot-position-sync.test.js`
+  (vitest); `simParity` ≈ a one-line CLI step. The gate's ONLY genuinely-unenforced value is
+  forcing `carGrowthMultiplier` / `panelWidthPx` to be measured-and-recorded, plus the
+  `staleConstantSweep` discipline. **Plan: close those two gaps as real blocking TESTS that
+  recompute from the code (the guard-test pattern already established), NOT as a report-trusting
+  harness.** The gate doc (`docs/gates/layout-change-gate.md`) then becomes advisory/dead, not a
+  CI dependency. Sequenced AFTER the bomb-zone redesign — the new assertions get written against
+  the real redesigned layout, not against the band=600 holding state. Queued, not started.
 - **Pilot verdict pending — but deliberately deferred** (§2 checkpoint): the sister judges the
   redesign outcome, not the band=600 holding state.
 - **Retune lever: `laneTargetCarCount`, not `spawnBudget`** (§2a's CORRECTED step 4a) —

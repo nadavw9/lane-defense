@@ -55,10 +55,24 @@ export function screenYToRow(y, gridRows) {
   return Math.max(0, Math.min(gridRows - 1, row));
 }
 
-// Half a grid-row in px (16-row grid → 15 intervals) in the PROJECTED band.
-// A BOMB tap up to this far below the front car still belongs to the frontmost
-// row. Stays well above the first bomb-queue slot (ShooterRenderer TOP_Y = 544).
-export let FRONT_ROW_TAP_MARGIN = Math.round(POS_HEIGHT / 15 / 2);   // ≈ 14 px
+// Half a grid-row in px, in the PROJECTED band. A BOMB tap up to this far below
+// the front car still belongs to the frontmost row.
+//
+// 2026-07-25 STALE-CONSTANT FIX (rows-8 pilot): this was
+// `Math.round(POS_HEIGHT / 15 / 2)` — and that `15` was silently `gridRows - 1`
+// for the 16-row board, hardcoded. On an 8-row board the true row interval is
+// POS_HEIGHT/7, so the old formula produced a margin ~half the correct size:
+// taps in the lower half of the front row's cell missed it. Now derived from
+// the level's ACTUAL gridRows.
+//
+// Function, not a `let`: unlike the other exports here (which depend only on
+// the band and are refreshed by recomputeRoadGeometry), this one additionally
+// depends on gridRows, which is a per-level GAME config the geometry layer
+// isn't handed. Every caller already knows it — see callers in GameApp/DragDrop.
+export function frontRowTapMargin(gridRows = 16) {
+  const intervals = Math.max(1, (gridRows ?? 16) - 1);
+  return Math.round(POS_HEIGHT / intervals / 2);
+}
 
 // Call after projection.js's band has been updated for the new level (i.e.
 // after setActiveLaneCount() in projection.js has already run).
@@ -69,5 +83,4 @@ export function recomputeRoadGeometry() {
   POS_TOP_Y     = PROJ_ROAD_TOP_Y;
   POS_BOTTOM_Y  = PROJ_ROAD_BOTTOM_Y;
   POS_HEIGHT    = POS_BOTTOM_Y - POS_TOP_Y;
-  FRONT_ROW_TAP_MARGIN = Math.round(POS_HEIGHT / 15 / 2);
 }

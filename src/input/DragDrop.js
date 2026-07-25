@@ -18,7 +18,7 @@
 //   • BLUE ring on the hovered empty bench slot
 import { Graphics, Container, Text, Sprite, Texture } from 'pixi.js';
 import {
-  ROAD_TOP_Y, ROAD_BOTTOM_Y, FRONT_ROW_TAP_MARGIN,
+  ROAD_TOP_Y, ROAD_BOTTOM_Y, frontRowTapMargin,
   ROAD_TOP_X, ROAD_TOP_W, ROAD_BOTTOM_W,
   LANE_COUNT,
 } from '../renderer/LaneRenderer.js';
@@ -183,6 +183,12 @@ export class DragDrop {
 
     this._firingSlots = firingSlots;
     this._mergeEnabled = false;   // L5+ reorder gate
+    // Board depth for the current level — drives the BOMB-booster front-row tap
+    // margin (frontRowTapMargin), which is half a ROW interval and therefore
+    // depends on how many rows the board has. Set per level by GameApp
+    // (setGridRows), same pattern as setMergeEnabled. Defaults to the 16-row
+    // standard so any un-set path behaves exactly as before.
+    this._gridRows = 16;
 
     // ── State ──────────────────────────────────────────────────────────────
     this._state         = 'idle';
@@ -230,6 +236,11 @@ export class DragDrop {
     this._mergeEnabled = !!enabled;
   }
 
+  // Board depth for the current level — see this._gridRows in the constructor.
+  setGridRows(gridRows) {
+    this._gridRows = gridRows ?? 16;
+  }
+
   // ── Called by InputManager ─────────────────────────────────────────────────
 
   onPointerDown(x, y) {
@@ -239,7 +250,7 @@ export class DragDrop {
     if (this._boosterState?.bombMode) {
       // Extend the lower bound half a row past the breach line so the frontmost
       // row (its cars sit ON ROAD_BOTTOM_Y) is fully tappable; onBombPlaced clamps.
-      if (y >= ROAD_TOP_Y && y <= ROAD_BOTTOM_Y + FRONT_ROW_TAP_MARGIN) {
+      if (y >= ROAD_TOP_Y && y <= ROAD_BOTTOM_Y + frontRowTapMargin(this._gridRows)) {
         this._onBombPlaced(x, y);
       }
       return;

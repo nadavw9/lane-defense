@@ -40,31 +40,39 @@ describe('regression: every level starts in a valid state', () => {
       expect(cfg.colors.length).toBeGreaterThanOrEqual(1);
       if (cfg.id > 3) expect(cfg.colors.length).toBeGreaterThanOrEqual(2);
 
-      // 6. Grid-rows invariant (post-rebalance, now 16).
-      expect(cfg.gridRows).toBe(16);
+      // 6. Grid-rows invariant. 16 everywhere EXCEPT the rows-8 + 2× pilot
+      //    (L4-L8, 2026-07-25): halving the board doubles the row pitch, which
+      //    is what makes cars ~2× bigger (see Car3D's FIT note). 8 is the
+      //    sim-proven FLOOR at 3 lanes — 7 and below are unwinnable at any
+      //    tuning, verified across all 40 levels.
+      const ROWS_8_PILOT = [4, 5, 6, 7, 8];
+      expect(cfg.gridRows).toBe(ROWS_8_PILOT.includes(cfg.id) ? 8 : 16);
 
-      // 7. Lane target car count: L1 eases in with 1, bosses crowd to 3, rest 2 —
-      //    except L4-L8, converted to 3-lane by THREE_LANE_REDESIGN_BATCH.md §2's
-      //    pilot (2026-07-23): laneTargetCarCount 2→4 is the verified real density
-      //    lever compensating for one fewer lane (spawnBudget has no sim effect).
-      const THREE_LANE_PILOT = [4, 5, 6, 7, 8];
+      // 7. Lane target car count: L1 eases in with 1, bosses crowd to 3, rest 2.
+      //    The rows-8 pilot levels are back at 2: the 2026-07-23 3-lane pilot
+      //    raised them to 4 to compensate for one fewer lane, but on an 8-row
+      //    board that density floods (ltc4 sims at 0-1% win). Density must fall
+      //    with board depth — ltc2 restores them to band.
       const expectedTarget = cfg.id === 1 ? 1
         : BOSS_LEVELS.includes(cfg.id) ? 3
-        : THREE_LANE_PILOT.includes(cfg.id) ? 4
         : 2;
       expect(cfg.laneTargetCarCount).toBe(expectedTarget);
 
       // 8. At least one car per lane must exist to defeat.
       expect(cfg.spawnBudget).toBeGreaterThanOrEqual(cfg.laneCount);
 
-      // 9. Uniform opening: EVERY level opens with 3 cars per lane filling the top
-      //    rows [0,1,2]. The visual gap between them comes from car render size
-      //    (SPRITE_SCALE), not row spacing. Difficulty is carried by bomb power + car
-      //    count, not the opening geometry — same on every level, never near breach.
-      expect(openingCarsForLevel(cfg.id)).toBe(3);
-      expect(openingRowsForLevel(cfg.id)).toEqual([0, 1, 2]);
+      // 9. Uniform opening, now DEPTH-AWARE: deep boards (16) open with 3 cars
+      //    per lane at rows [0,1,2]; shallow boards (<=10, the rows-8 pilot) open
+      //    with 2 at [0,1]. 3 rows is 19% of a 16-row board but 37% of an 8-row
+      //    one — the deeper deal alone floods a shallow runway (sim-proven
+      //    unwinnable at any tuning). Difficulty is still carried by bomb power +
+      //    car count, not opening geometry. See tests/opening-depth-parity.test.js
+      //    for the full derivation + live/sim parity guard.
+      const expectedOpen = cfg.gridRows <= 10 ? [0, 1] : [0, 1, 2];
+      expect(openingCarsForLevel(cfg.id, cfg.gridRows)).toBe(expectedOpen.length);
+      expect(openingRowsForLevel(cfg.id, cfg.gridRows)).toEqual(expectedOpen);
       // Opening cars never start on or past the breach line (row gridRows-1).
-      for (const row of openingRowsForLevel(cfg.id)) {
+      for (const row of openingRowsForLevel(cfg.id, cfg.gridRows)) {
         expect(row).toBeLessThan(cfg.gridRows - 1);
       }
     });

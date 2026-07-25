@@ -65,7 +65,25 @@ const BODY_FRAC = {
 // for a ~1.13× on-screen size bump (part of the ~1.3× decoupled car-size increase,
 // with the ROAD_Z_FAR/road-band moves in projection.js). No balance cost: the sim
 // reads no render geometry. Gaps stay no-touch (0.23→0.13 of the pitch).
-const FIT = { small: 0.78, big: 0.80, jeep: 0.82, truck: 0.84, tank: 0.86, bigrig: 0.88 };
+// 2026-07-25 ROWS-8 + 2× PILOT (L4-L8): the whole set scaled by k = 0.84138,
+// derived (not guessed) from the reference-car measurement — FIT(big) is solved
+// so the sedan body lands at exactly 2.00× the SHIPPED 4-lane baseline
+// (22.93px @ band 540 / gridRows 16 / FIT .80) at the pilot's geometry
+// (gridRows 8, band 600):
+//     FIT_big = 2.0 × 22.93px ÷ (rowPitchWu(8) × pxPerWu(600)) = 0.67311
+// Per-TYPE, not one collapsed value: the .78-.88 spread is scaled
+// proportionally, so type ORDERING (small < big < jeep < truck < tank < bigrig)
+// is preserved as §0a requires, and types stay visibly different in size/shape
+// per CLAUDE.md §7. Resulting growth runs 1.95× (small) to 2.20× (bigrig).
+//
+// WHY FIT DROPS while cars get BIGGER — the identity that drove this design:
+//     gap / car = (1 − FIT) / FIT        (band and gridRows cancel out entirely)
+// Spacing is a pure function of FIT. Halving gridRows doubles the row PITCH, so
+// cars grow ~2× even as FIT falls .80 → .673, and the inter-car gap widens from
+// 0.25 to ~0.49 car-lengths (~6px → ~22px on screen). Raising FIT back toward
+// .88 would re-fuse the cars; lowering it further trades car size for more air
+// (FIT .50 = a full car-length gap, but only ~1.79× size — measured, rejected).
+const FIT = { small: 0.656, big: 0.673, jeep: 0.690, truck: 0.707, tank: 0.724, bigrig: 0.740 };
 
 // World-unit distance between adjacent rows: cars span ROAD_Z_FAR→POS_NEAR_Z
 // over (gridRows-1) steps. gridRows 16 everywhere today, but derive anyway.
@@ -87,7 +105,17 @@ const BOB_PHASE = 1.3;                  // per-lane phase offset (so they don't 
 // ── Danger aura (2C) — ramps with absolute proximity to the breach line ────────
 // gridRows is now configurable (was 11, now 16), so breach = gridRows - 1.
 // BREACH_ROW is now set per-instance via setGridRows().
-const DANGER_ROWS = 3;                  // aura starts 3 rows out and intensifies
+//
+// 2026-07-25 (rows-8 pilot): DANGER_ROWS was a flat 3. That is ~19% of a 16-row
+// board — a deliberate "last fifth of the road is scary" read — but 37% of an
+// 8-row board, which would leave a third of the board permanently lit and
+// destroy the signal (if everything is urgent, nothing is). It is now a
+// FRACTION of board depth, clamped to at least 1 row so it never vanishes on a
+// very shallow board. At gridRows 16 this returns 3 — byte-identical to before.
+const DANGER_ROWS_FRACTION = 3 / 16;    // the shipped 16-row look, as a ratio
+function dangerRowsFor(gridRows) {
+  return Math.max(1, Math.round((gridRows ?? 16) * DANGER_ROWS_FRACTION));
+}
 const AURA_RATE = 1 / 0.3;
 const AURA_FREQ = 1.4;                  // base pulse; scales up nearer the breach
 const AURA_AMP  = 0.3;
@@ -432,10 +460,13 @@ export class Car3D {
             }
           }
 
-          // Danger aura (2C) — intensity ramps with ABSOLUTE proximity to the
-          // breach row: 3 rows out = subtle, 2 = medium, 1 = strong.
+          // Danger aura (2C) — intensity ramps with proximity to the breach row:
+          // dangerRows out = subtle, ramping to strong 1 row away. dangerRows is
+          // a FRACTION of board depth (see dangerRowsFor) so the lit zone stays
+          // ~19% of the road at any gridRows, not a fixed 3 rows.
+          const dangerRows = dangerRowsFor(this._breachRow + 1);
           const rowsOut    = this._breachRow - car.row;   // 1 = one step from breaching
-          const auraTarget = Math.max(0, Math.min(1, (DANGER_ROWS + 1 - rowsOut) / DANGER_ROWS));
+          const auraTarget = Math.max(0, Math.min(1, (dangerRows + 1 - rowsOut) / dangerRows));
           const blendStep  = AURA_RATE * dt;
           entry._auraBlend = auraTarget > entry._auraBlend
             ? Math.min(auraTarget, entry._auraBlend + blendStep)

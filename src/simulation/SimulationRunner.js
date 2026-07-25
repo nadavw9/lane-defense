@@ -28,7 +28,7 @@ import {
   HP_MINIMUM,
 } from '../director/DirectorConfig.js';
 import { CAR_TYPES } from '../director/CarTypes.js';
-import { openingRowsForLevel } from '../game/LevelManager.js';
+import { openingRowsForLevel, clampInitialCarsToDepth } from '../game/LevelManager.js';
 
 const DT = 1 / 60; // seconds per simulation tick (used for fire cooldowns only)
 
@@ -213,11 +213,15 @@ export class SimulationRunner {
     // stays the front car — the rest of the sim relies on that invariant (refills
     // append row-0 cars at the back).
     // No budget limit on opening cars — boards prime fully regardless of spawnBudget.
-    if (this._cfg.initialCars && this._cfg.initialCars.length > 0) {
+    // Scripted openings go through the SAME depth clamp as the live game
+    // (GameApp: clampInitialCarsToDepth) — a scripted 3-row deal on a shallow
+    // board floods exactly like a uniform one (L10 0.3% / L40 2.7% unclamped).
+    const _initialCars = clampInitialCarsToDepth(this._cfg.initialCars, this._cfg.gridRows);
+    if (_initialCars && _initialCars.length > 0) {
       // §3c INFRA-A scripted opening — mirrors GameLoop._primeInitialCars: each
       // entry { lane?, row?, type?, color? } fully defines one car (hp recomputed
       // for a named type); the array defines the ENTIRE opening board.
-      for (const def of this._cfg.initialCars) {
+      for (const def of _initialCars) {
         const li  = Math.min(LANE_N - 1, Math.max(0, def.lane ?? 0));
         const car = carDir.generateCar({ id: li }, 'CALM', worldConfig, colors, this._cfg.gridRows);
         const type  = (def.type && CAR_TYPES[def.type]) ? def.type : car.type;
@@ -231,7 +235,10 @@ export class SimulationRunner {
       }
       for (const lane of discreteLanes) lane.cars.sort((a, b) => b.row - a.row);   // cars[0] = front
     } else {
-      const _openRows = openingRowsForLevel(this._cfg.levelId);   // back→front, e.g. [0,1,2]
+      // gridRows-aware opening depth — SAME source the live game calls
+      // (GameApp -> gs.openingRows). Parity pinned by
+      // tests/opening-depth-parity.test.js.
+      const _openRows = openingRowsForLevel(this._cfg.levelId, this._cfg.gridRows);
       for (const lane of discreteLanes) {
         // Push FRONT-FIRST (highest row first) so cars[0] stays the front car.
         for (let k = _openRows.length - 1; k >= 0; k--) {

@@ -83,6 +83,39 @@ bombSlotZ/bombSlotScreenY (bomb queue), frontRowTapMargin(gridRows)
 turns-to-breach + car-sprite pitch scaling; the road-span axis (CELL,
 BOMB_ZONE_SCALE, band) drives bomb slots + side-strip width. Don't conflate.
 
+**Sweep the DELIVERY path too, not just the constants (added 2026-07-25).** The
+sweep above catches *stale copies*. It does not catch a value that is correct at
+its source and never arrives. Two live instances found the same day, both from
+one cause: `GameApp`'s `gameRenderer3D.update({...})` payload is a hand-built
+object literal, so any field `GameRenderer3D.update()` reads but the literal
+omits is silently `undefined` — a dead read, no error, no warning.
+- `gridRows` was never passed ⇒ `Car3D._breachRow` sat at its constructor
+  default (15 = gridRows 16) on **every level, forever**. Invisible only because
+  every shipped level *is* gridRows 16. The rows-8 pilot exposed it: cars
+  rendered ~55% of intended size.
+- `bombFreezeUntil` was never passed ⇒ `elapsed < (undefined ?? -Infinity)` is
+  always false, so the bomb-concussion freeze visual **never once fired** in
+  production.
+Ritual: when a renderer reads `gameState.X`, grep the call site's literal for
+`X`. Prefer passing the state object over rebuilding a literal.
+
+**Geometry consumed at ENTITY-CREATION time needs its own guard.** Car scale is
+baked once in `Car3D._createEntry` and never recomputed, so a value that becomes
+correct on frame 2 is already too late. `geometry-liveness.test.js`'s
+import-freeze canary does NOT catch this (it asks "can this value change?" — the
+value was live, the wiring was dead). See `tests/entity-creation-geometry.test.js`.
+
+**MEASURING CAR SIZE: use FRAME DIFFERENCING. Flood-fill is not trusted.**
+Method: screenshot the board with ONE isolated car; remove that car; screenshot
+the identical board again; diff the two — the changed pixels *are* the car.
+Immune to lane-divider dashes, road texture, antialiasing and threshold guessing.
+Flood-fill-against-road-colour has now produced a **wrong number twice**: it
+leaked along the white lane dashes and reported a 2× car (42px) that was really
+~1.1× (22px), and it earlier produced a bogus queue-clipping read. Always
+sanity-check a size claim against a real upscaled crop you have actually looked
+at, and prefer measuring a *ratio* against a same-method baseline over trusting
+any single absolute pixel figure.
+
 ---
 
 ## 1. #2 Bomb-grab hit-testing ("wrong bomb grabbed when bombs are close")

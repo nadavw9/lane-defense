@@ -584,6 +584,19 @@ All updated — see each file's inline 2026-07-23 comments for specifics.
   exercise it (no canonical boss in L4–L8), so Phase 3 (first boss: L10) is also this gate's
   first real test. If it turns out to be too vague to act on in practice, tighten it before
   Phase 4 rather than skipping it for L20/30/40.
+- **Rows-8 pilot playtest checklist (2026-07-25)** — things the simulator CANNOT answer, to be
+  judged in play (by the user and/or the sister) before L9–L40 convert. The sim scores win rate;
+  none of these are win-rate questions.
+  - **L39-class check — at rows 8 with hp relief, does a tank still READ as meaningfully tougher
+    than its neighbours in play?** Context: the rare-type investigation (accepted 2026-07-25) got
+    L31/32/36/39 back in band by raising bigrig/tank spawn weight ×2.5 AND cutting hp (0.6 on
+    bigrig levels, 0.5 on tank levels), keeping the `destroyType` goals at ×3. Those two levers
+    pull opposite ways on FEEL: more tanks appear, but each dies faster. In-band win rate says
+    the level is passable; it says nothing about whether the tank still lands as a heavy, or has
+    been flattened into a reskinned sedan that merely shows up more often. If it reads flat,
+    the fix is to move weight further and hp less — not to re-open the band.
+  - Judge this on the converted pilot only. No config commits ride on this line; it is a
+    question to answer in play, and the answer feeds the L27–L40 block's retune, not L4–L8's.
 - If the pilot verdict is "still not enough," the next investigation (2-lane, or something
   structurally different) is explicitly NOT scoped by this document and needs its own
   render-first investigation before any spec gets written for it.

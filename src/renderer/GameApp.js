@@ -16,7 +16,7 @@ import { Application, Assets, Container, Graphics, Text, Ticker } from 'pixi.js'
 import { GameRenderer3D }  from '../renderer3d/GameRenderer3D.js';
 import { assetLoader }     from '../renderer3d/AssetLoader.js';
 import { LayerManager }    from './LayerManager.js';
-import { LaneRenderer, laneCenterX, posToScreenY, ROAD_TOP_Y, ROAD_BOTTOM_Y, screenYToRow, FRONT_ROW_TAP_MARGIN, recomputeRoadGeometry } from './LaneRenderer.js';
+import { LaneRenderer, laneCenterX, posToScreenY, ROAD_TOP_Y, ROAD_BOTTOM_Y, screenYToRow, frontRowTapMargin, recomputeRoadGeometry } from './LaneRenderer.js';
 import { spriteFlags }     from './SpriteFlags.js';
 import { CityBackground }  from './CityBackground.js';
 import { CityEdges }       from './CityEdges.js';
@@ -35,7 +35,7 @@ import { BenchRenderer }   from './BenchRenderer.js';
 import { GameState }       from '../game/GameState.js';
 import { GameLoop }        from '../game/GameLoop.js';
 import { CombatResolver }  from '../game/CombatResolver.js';
-import { LevelManager, openingRowsForLevel } from '../game/LevelManager.js';
+import { LevelManager, openingRowsForLevel, clampInitialCarsToDepth } from '../game/LevelManager.js';
 import { BoosterState }    from '../game/BoosterState.js';
 import { ProgressManager } from '../game/ProgressManager.js';
 import { applyDda }         from '../game/dda.js';
@@ -631,8 +631,12 @@ async function main() {
     // Turn-based target: use explicit targetKills or compute from duration.
     gs.targetKills = cfg.targetKills ?? Math.max(5, Math.round((cfg.duration ?? 60) * 0.12));
     gs.gridRows    = cfg.gridRows ?? 10;  // default 10 road slots
-    gs.initialCars = cfg.initialCars ?? null;
-    gs.openingRows = openingRowsForLevel(cfg.id);   // uniform 3-car opening, rows [0,1,2]
+    // Opening depth is gridRows-aware (2026-07-25 rows-8 pilot): shallow boards
+    // get a shallower deal, or the opening alone floods the runway. Scripted
+    // openings (L10/L40) go through the same depth rule. Both derived from the
+    // ONE source in LevelManager — never re-derive here (sim reads the same).
+    gs.initialCars = clampInitialCarsToDepth(cfg.initialCars ?? null, gs.gridRows);
+    gs.openingRows = openingRowsForLevel(cfg.id, gs.gridRows);
     // Spawn budget & lane fill target (budget-based win replaces kill-count win).
     gs.spawnBudget         = cfg.spawnBudget        ?? null;
     gs._initialSpawnBudget = cfg.spawnBudget        ?? null;
@@ -700,6 +704,7 @@ async function main() {
     // high id so the advanced daily challenge always has merges enabled.
     gs.levelId = (typeof levelId === 'number') ? levelId : 99;
     dragDrop.setMergeEnabled((typeof levelId === 'number' ? levelId : 99) >= 5);
+    dragDrop.setGridRows(gs.gridRows);   // board depth drives the BOMB front-row tap margin
     // Use levelNumber for normal levels; 'D' label for daily challenge.
     hudRenderer.setLevel(currentLevelIsDaily ? 'D' : levelManager.levelNumber);
 
@@ -742,6 +747,12 @@ async function main() {
     gameRenderer3D.applyTheme(levelId);
     gameRenderer3D.setActiveLaneCount(cfg.laneCount ?? 4);
     gameRenderer3D.setActiveColCount(cfg.colCount ?? 4);
+    // Board depth — MUST be set before any car mesh is created: Car3D bakes each
+    // car's scale at creation from gridRows and never rescales it. Uses gs.gridRows
+    // (already defaulted above) rather than cfg, so the daily challenge and any
+    // other config without an explicit gridRows gets the same value the game logic
+    // uses, not a second guess. See GameRenderer3D.setGridRows for the bug history.
+    gameRenderer3D.setGridRows(gs.gridRows);
     // projection.js's band is now lane-count-keyed (THREE_LANE_REDESIGN_BATCH.md
     // §1) — setActiveLaneCount() above already updated it (via Scene3D). Refresh
     // the 2D chrome geometry (breach stripe, road strips, tap-to-row mapping)
@@ -1573,8 +1584,12 @@ async function main() {
       }
 
       // Danger pulse — once per advance (onHit fires per advancing shot) when any
-      // active car has reached the last 2 rows of the grid (row 14-15 of 16).
-      const _dangerRow = gs.gridRows - 2;
+      // active car has reached the last rows of the grid (rows 14-15 of 16).
+      // 2026-07-25 (rows-8 pilot): the "last 2 rows" window is a FRACTION of
+      // board depth, not a constant — 2 of 16 is 12.5% of the road, but 2 of 8
+      // would be 25%, firing the warning haptic twice as often on a shallow
+      // board and cheapening it. Rounds to 2 at gridRows 16 (unchanged), 1 at 8.
+      const _dangerRow = gs.gridRows - Math.max(1, Math.round(gs.gridRows * (2 / 16)));
       if (gs.lanes.slice(0, gs.activeLaneCount).some(l => l.cars.some(c => c.row >= _dangerRow))) {
         haptics.warning();
       }
@@ -1970,7 +1985,7 @@ async function main() {
         // The frontmost row's car centre sits ON ROAD_BOTTOM_Y, so accept taps up
         // to half a row below the breach line; screenYToRow clamps to the last row
         // so those taps map to gridRows-1 rather than overflowing out of bounds.
-        if (y < ROAD_TOP_Y || y > ROAD_BOTTOM_Y + FRONT_ROW_TAP_MARGIN) return;
+        if (y < ROAD_TOP_Y || y > ROAD_BOTTOM_Y + frontRowTapMargin(gs.gridRows)) return;
         const rows = gs.gridRows ?? 10;
         gameLoop.placeBombOnRow(screenYToRow(y, rows));
       },
@@ -2095,8 +2110,16 @@ async function main() {
     // 3D scene update + render (runs when gameRenderer3D is visible/active).
     // dt is scaled by gs.timeScale so a 3+ multi-kill plays back in brief bullet-time.
     const fxDt = dt * (gs.timeScale ?? 1);
+    // NOTE: this payload is a hand-built literal, so any field GameRenderer3D
+    // reads but this object omits is silently `undefined` — a dead read with no
+    // error. That is exactly how the gridRows sync went unnoticed (see
+    // GameRenderer3D.setGridRows) and how `bombFreezeUntil` below was dead:
+    // `elapsed < (undefined ?? -Infinity)` is always false, so the bomb-
+    // concussion freeze visual never once fired. Keep this in sync with the
+    // fields GameRenderer3D.update() actually reads.
     gameRenderer3D.update({ lanes: gs.lanes, boosterState, isBreaching: gs.isOver && !gs.won,
                              comboFreezeShots: gs.comboFreezeShots,
+                             bombFreezeUntil: gs.bombFreezeUntil,
                              colorBombArmed: gs.colorBombArmed }, fxDt, gs.elapsed);
 
     // Merge sequence drives locked 3D bomb slots (after Shooter3D.update skipped them,

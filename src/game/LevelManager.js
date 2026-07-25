@@ -75,53 +75,65 @@ const PROGRESSION = [
 
   // L4 Hard â€” "Full board": 4 lanes, Red+Blue. First real pressure.
   { id: 4, laneCount: 3, colCount: 3, colors: ['Red', 'Blue'],
-    worldConfig: { hpMultiplier: 0.90, speed: { base: 8.0, variance: 0.3 } }, // 2026-07-10 booster-aware retune: 0.54→0.90 + goal 30→26 (~92%; smalls stay 2-hit — tutorial→game transition level)
-    // 2026-07-23 THREE_LANE_REDESIGN_BATCH.md §2a pilot: laneCount 4→3 (bigger/spaced
-    // cars). Naive 3-lane sim: 99.7% (way outside FTUE 85-95 band). spawnBudget swept
-    // first per the retune algorithm but has ZERO sim effect (verified: SimulationRunner
-    // refills every lane to laneTargetCarCount every advance with no budget gate —
-    // spawnBudget is vestigial in the current sim, contrary to the spec's original
-    // assumption). laneTargetCarCount 2→4 is the real density lever; lands at 90.7%.
-    duration: 90, spawnBudget: 8, laneTargetCarCount: 4, gridRows: 16,
+    worldConfig: { hpMultiplier: 0.54, speed: { base: 8.0, variance: 0.3 } }, // 2026-07-25 rows-8 pilot: 0.90→0.54 (= 0.90×0.60) — see the gridRows note below
+    // 2026-07-23 §2a pilot: laneCount 4→3, laneTargetCarCount 2→4 (spawnBudget is
+    // vestigial in the sim — no budget gate in _refillLanes).
+    // 2026-07-25 ROWS-8 + 2× PILOT: gridRows 16→8 (halved row count doubles the
+    // row pitch, which is what makes cars ~2× bigger — see Car3D's FIT note).
+    // Density MUST come down with the board: at gridRows 8 the old ltc4 sims at
+    // 1.0% (the board is 50% full at all times and floods). Re-swept: ltc2 +
+    // hp×0.60 lands 88.3% in the 85-95 FTUE band.
+    duration: 90, spawnBudget: 8, laneTargetCarCount: 2, gridRows: 8,
     showArrow: false, hintText: null ,
     goals: [{"type":"destroyTotal","count":26}]},
 
   // L5 Easy (Relief) â€” "Breathe": 4 lanes, R+B, lower pressure. Sets up bench need.
   { id: 5, laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'],
-    worldConfig: { hpMultiplier: 0.86, speed: { base: 5.8, variance: 0.2 } }, // 2026-07-10 booster-aware retune: 0.54→0.86 (~92%)
-    // 2026-07-23 THREE_LANE_REDESIGN_BATCH.md §2a pilot: laneCount 4→3. Naive 3-lane
-    // sim: 100.0%. laneTargetCarCount 2→4 (spawnBudget verified to have no sim effect,
-    // see L4's note) lands at 88.7%, inside the 85-95 FTUE band.
-    duration: 100, spawnBudget: 13, laneTargetCarCount: 4, gridRows: 16,
+    worldConfig: { hpMultiplier: 0.36, speed: { base: 5.8, variance: 0.2 } }, // 2026-07-25 rows-8 pilot: 0.86→0.36
+    // 2026-07-23 §2a pilot: laneCount 4→3.
+    // 2026-07-25 ROWS-8 + 2× PILOT: gridRows 16→8, density ltc4→ltc2 (ltc4 sims
+    // at 0.0% on the shallow board), hp→0.36, goal 33→21. Lands 90.0% — targeted
+    // MID-band, not the 85 floor: an earlier pass sat at 84-86 and three levels
+    // fell out of band when re-measured at the full 500-run gate.
+    duration: 100, spawnBudget: 13, laneTargetCarCount: 2, gridRows: 8,
     showArrow: false, hintText: null ,
-    goals: [{"type":"destroyTotal","count":33}]},
+    goals: [{"type":"destroyTotal","count":21}]}, // 2026-07-25 rows-8: 33→21 (throughput)
 
   // L6 Medium â€” "Bench unlocks": first time bench is available. R+B still.
   { id: 6, laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'],
-    // 2026-07-23 THREE_LANE_REDESIGN_BATCH.md §2a pilot: laneCount 4→3. Naive 3-lane
-    // sim: 99.7%. laneTargetCarCount 2→4 lands at 89.0%, inside the 85-95 FTUE band.
-    worldConfig: R_2C_MED_100, duration: 100, spawnBudget: 16, laneTargetCarCount: 4, gridRows: 16,
+    // 2026-07-23 §2a pilot: laneCount 4→3.
+    // 2026-07-25 ROWS-8 + 2× PILOT: gridRows 16→8, density ltc4→ltc2, goal 22→9.
+    // L6 is GOAL-THROUGHPUT limited, not difficulty limited — hp barely moves it
+    // (81.6% at hp ×1.0 and ×0.85 alike): the shallow board can't cycle 22 Red
+    // cars through in the runway. Lands 88.2%.
+    // UN-SHARED from the R_2C_MED_100 preset (was the only remaining user, but
+    // inlining keeps the preset from silently becoming a one-level alias and
+    // matches how L10 was un-shared in §3c) — hp 0.60→0.36 for the shallow board.
+    worldConfig: { hpMultiplier: 0.36, speed: { base: 5.5, variance: 0.3 } },
+    duration: 100, spawnBudget: 16, laneTargetCarCount: 2, gridRows: 8,
     showArrow: false, hintText: 'NEW! Bench — store a bomb to use later' ,
-    goals: [{"type":"destroyColor","color":"Red","count":22}]}, // 2026-07-10 retune: 40→22 (grind cut, 116→~65 turns; hp untouched)
+    goals: [{"type":"destroyColor","color":"Red","count":9}]}, // 2026-07-25 rows-8: 22→9 (throughput, see above)
 
   // L7 Hard â€” "Green arrives": 3 colors for the first time. Pattern reset.
   { id: 7, laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'],
-    worldConfig: { hpMultiplier: 0.84, speed: { base: 6.5, variance: 0.5 } }, // 2026-07-10 booster-aware retune: 0.78→0.84 (~92%; un-shared from R_3C_HARD)
-    // 2026-07-23 THREE_LANE_REDESIGN_BATCH.md §2a pilot: laneCount 4→3. Naive 3-lane
-    // sim: 99.7%. laneTargetCarCount 2→4 lands at 85.7%, inside (near the floor of)
-    // the 85-95 FTUE band.
-    duration: 100, spawnBudget: 11, laneTargetCarCount: 4, gridRows: 16,
+    worldConfig: { hpMultiplier: 0.252, speed: { base: 6.5, variance: 0.5 } }, // 2026-07-25 rows-8 pilot: 0.84→0.252
+    // 2026-07-23 §2a pilot: laneCount 4→3.
+    // 2026-07-25 ROWS-8 + 2× PILOT: gridRows 16→8, density ltc4→ltc2, hp→0.252,
+    // goals 14→7 each. Lands 88.0%. Two-color goals on a shallow board are
+    // throughput-sensitive like L6's — the goal trim does more work than hp here.
+    duration: 100, spawnBudget: 11, laneTargetCarCount: 2, gridRows: 8,
     showArrow: false, hintText: 'NEW! Green bombs — 3 colors to manage now' ,
-    goals: [{"type":"destroyColor","color":"Red","count":14},{"type":"destroyColor","color":"Blue","count":14}]},
+    goals: [{"type":"destroyColor","color":"Red","count":7},{"type":"destroyColor","color":"Blue","count":7}]}, // 2026-07-25 rows-8: 14→7 each
 
   // L8 Boss-Hard â€” "Green boss": all 4 lanes, 3 colors, full density. Rescue moment.
   { id: 8, laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'],
-    worldConfig: { hpMultiplier: 0.86, speed: { base: 7.5, variance: 0.5 } }, // 2026-07-10 booster-aware retune: 1.08→0.86 (~93%; was sole too-hard, pre-fix overcomp)
-    // 2026-07-23 THREE_LANE_REDESIGN_BATCH.md §2a pilot: laneCount 4→3. Naive 3-lane
-    // sim: 100.0%. laneTargetCarCount 2→4 lands at 87.7%, inside the 85-95 FTUE band.
-    duration: 90, spawnBudget: 8, laneTargetCarCount: 4, gridRows: 16,
+    worldConfig: { hpMultiplier: 0.43, speed: { base: 7.5, variance: 0.5 } }, // 2026-07-25 rows-8 pilot: 0.86→0.43 (= 0.86×0.50)
+    // 2026-07-23 §2a pilot: laneCount 4→3.
+    // 2026-07-25 ROWS-8 + 2× PILOT: gridRows 16→8, density ltc4→ltc2, hp×0.50
+    // and goals ×0.75 (12→9 each). Lands 87.5% in-band.
+    duration: 90, spawnBudget: 8, laneTargetCarCount: 2, gridRows: 8,
     showArrow: false, hintText: null ,
-    goals: [{"type":"destroyColor","color":"Green","count":12},{"type":"destroyColor","color":"Red","count":12}]},
+    goals: [{"type":"destroyColor","color":"Green","count":9},{"type":"destroyColor","color":"Red","count":9}]}, // 2026-07-25 rows-8: 12→9 each
 
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // BLOCK 2 â€” L9-L16 | Tutorial City | Afternoon / Sunset themes
@@ -461,17 +473,57 @@ const PROGRESSION = [
 // kill/shot exceeds the runway), so the sim is the floor — real play relies on
 // boosters + color bombs, by design.
 const OPENING_ROWS = [0, 1, 2];
-export function openingRowsForLevel(id) {
+
+// 2026-07-25 (rows-8 pilot): opening depth is now gridRows-AWARE. It used to be
+// a flat [0,1,2] for every level regardless of board depth — harmless at
+// gridRows 16 (3 of 16 rows = 19% of the board), structurally fatal at
+// gridRows 8, where the same 3 rows are 37% of the board and the opening deal
+// alone floods the runway. Sim-proven: at 3 lanes / gridRows 8 the 3-row
+// opening is unwinnable at ANY tuning, while a 2-row opening puts all four
+// reference levels in-band with non-degenerate tuning (L5 88.7 / L13 72.3 /
+// L20 47.3 / L30 49.7).
+//
+// SHALLOW_ROWS_THRESHOLD is the board depth at or below which the opening
+// drops a row. NO-OP at gridRows 16 (returns [0,1,2] exactly as before), so
+// L1-L3 and L9-L40 are byte-identical until they're converted.
+const SHALLOW_ROWS_THRESHOLD = 10;
+const OPENING_ROWS_SHALLOW   = [0, 1];
+
+/**
+ * Opening cars per lane at level start, as rows.
+ * THE single source of truth — called by BOTH the live game
+ * (GameApp -> gs.openingRows -> GameLoop._primeInitialCars) and the headless
+ * sim (SimulationRunner). Never re-derive opening depth anywhere else; the
+ * live/sim parity test in tests/opening-depth-parity.test.js pins them together.
+ *
+ * @param {number|*} id        level id (non-numeric = generic/daily probe config)
+ * @param {number}   gridRows  board depth; defaults to the 16-row standard
+ */
+export function openingRowsForLevel(id, gridRows = 16) {
   // Generic/world-based configs (no numeric level id) and the daily challenge use a
   // light single-car opening — they probe the director engine, not a level's opening
-  // density. Every real numbered level uses the uniform 3-car opening.
+  // density. Every real numbered level uses the uniform opening.
   if (typeof id !== 'number') return [2];
-  return OPENING_ROWS;
+  return gridRows <= SHALLOW_ROWS_THRESHOLD ? OPENING_ROWS_SHALLOW : OPENING_ROWS;
 }
 
-// Count of opening cars per lane (= openingRowsForLevel(id).length). For tests.
-export function openingCarsForLevel(id) {
-  return openingRowsForLevel(id).length;
+// Count of opening cars per lane (= openingRowsForLevel(id, gridRows).length). For tests.
+export function openingCarsForLevel(id, gridRows = 16) {
+  return openingRowsForLevel(id, gridRows).length;
+}
+
+/**
+ * Clamp a scripted `initialCars` opening (L10/L40's hand-authored boards) to the
+ * same depth rule the uniform opening follows. Without this, a scripted level
+ * converted to a shallow board keeps its 3-row deal and floods — measured: L10
+ * 0.3% and L40 2.7% win rate at gridRows 8 with their scripted openings intact,
+ * vs 47.7% / 44.3% (both in-band) once clamped.
+ * Returns the array unchanged when the board is deep enough (no-op at 16).
+ */
+export function clampInitialCarsToDepth(initialCars, gridRows = 16) {
+  if (!initialCars?.length || gridRows > SHALLOW_ROWS_THRESHOLD) return initialCars;
+  const maxRow = OPENING_ROWS_SHALLOW[OPENING_ROWS_SHALLOW.length - 1];
+  return initialCars.filter(def => (def.row ?? 0) <= maxRow);
 }
 
 export class LevelManager {

@@ -358,6 +358,26 @@ export class GameRenderer3D {
     this._environment?.setLaneCount(n);
   }
 
+  // Board depth for the current level. MUST be called at level start, BEFORE any
+  // car mesh is created — Car3D sizes each car ONCE at creation
+  // (spriteScaleFor(type, gridRows) in _createEntry) and never rescales it, so a
+  // gridRows that arrives late produces permanently mis-sized cars.
+  //
+  // 2026-07-25 BUG THIS FIXES: this used to be attempted per-frame inside
+  // update(), guarded on `gameState?.gridRows` — but GameApp's update() call
+  // passes a freshly-built object literal ({ lanes, boosterState, isBreaching,
+  // comboFreezeShots, colorBombArmed }) that has NO gridRows field. The guard
+  // was therefore always falsy and Car3D._breachRow sat at its constructor
+  // default of 15 (= gridRows 16) on EVERY level, forever. Invisible in
+  // production only because every shipped level is gridRows 16 — the default
+  // happened to be right. The rows-8 pilot made it visible: cars rendered at
+  // ~55% of their intended size (measured 22px vs the intended 46px).
+  // Stored so a rebuilt Car3D re-applies it, mirroring _activeLaneCount above.
+  setGridRows(gridRows) {
+    this._gridRows = gridRows;
+    this._cars?.setGridRows(gridRows);
+  }
+
   // Per-world road tile (url from assetManifest.WORLD_ROAD_URLS, null = default).
   setRoadTexture(url) { this._road?.setRoadTextureUrl?.(url); }
 
@@ -365,6 +385,12 @@ export class GameRenderer3D {
   setZoneTexture(url) { this._road?.setZoneTextureUrl?.(url); }
 
   setActiveColCount(n) {
+    // Stored as well as forwarded: _buildGameObjects() replaces _shooters with a
+    // default-constructed one, so anything only ever pushed at level start is
+    // lost on a rebuild. Latent today (setGameData is called once, at init,
+    // before any level starts) but it is the same shape as the gridRows bug, so
+    // it is closed rather than left to be discovered later.
+    this._activeColCount = n;
     this._shooters?.setActiveColCount(n);
   }
 
@@ -374,10 +400,12 @@ export class GameRenderer3D {
     if (!this._mounted) return;
     if (this._canvas?.style.display === 'none') return;
 
-    // Sync gridRows to Car3D for danger aura proximity calculation.
-    if (gameState?.gridRows && this._cars) {
-      this._cars.setGridRows(gameState.gridRows);
-    }
+    // (gridRows is NOT synced here any more — it is a per-LEVEL constant, set
+    // once by setGridRows() at level start. The old per-frame sync guarded on
+    // `gameState?.gridRows`, a field this call site never passes, so it silently
+    // never ran; see setGridRows' comment. Per-frame syncing of a per-level
+    // value is also the wrong shape: car scale is baked at mesh creation, so a
+    // value that only becomes correct on frame 2 is already too late.)
 
     const isFrozen = (gameState?.boosterState?.isFrozen?.() ?? false)
       || (gameState?.lanes && elapsed < (gameState.bombFreezeUntil ?? -Infinity))
@@ -519,10 +547,19 @@ export class GameRenderer3D {
     this._shooters    = new Shooter3D(scene, this._columns, pxPerWu);
     this._projectiles = new Projectile3D(scene, this._firingSlots, this._lanes);
     this._particles   = new Particles3D(scene, this._lighting, this._lanes);
-    // Re-apply the active lane count to the freshly-built renderers.
+    // Re-apply per-level geometry to the freshly-built renderers. Both MUST be
+    // re-applied here: these objects are rebuilt with constructor defaults
+    // (Car3D._breachRow = 15), and car scale is baked at mesh creation, so a
+    // rebuild that misses gridRows silently resurrects the mis-sized-car bug.
     if (this._activeLaneCount != null) {
       this._cars.setLaneCount(this._activeLaneCount);
       this._shooters.setLaneCount(this._activeLaneCount);
+    }
+    if (this._activeColCount != null) {
+      this._shooters.setActiveColCount(this._activeColCount);
+    }
+    if (this._gridRows != null) {
+      this._cars.setGridRows(this._gridRows);
     }
   }
 

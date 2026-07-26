@@ -407,8 +407,22 @@ export class GameRenderer3D {
     // value is also the wrong shape: car scale is baked at mesh creation, so a
     // value that only becomes correct on frame 2 is already too late.)
 
+    // DORMANT ON PURPOSE — do not re-add without a deliberate review.
+    // A third clause used to sit here:
+    //     || (gameState?.lanes && elapsed < (gameState.bombFreezeUntil ?? -Infinity))
+    // GameLoop still sets gs.bombFreezeUntil (a 2s freeze after a bomb
+    // detonates) and this renderer is its ONLY consumer, so the effect has never
+    // rendered: GameApp's update() payload never carried the field, making the
+    // comparison `elapsed < undefined` permanently false. Discovered 2026-07-25
+    // while fixing the gridRows delivery bug of the same shape.
+    //
+    // It is left OFF rather than switched on with that fix: a 2s full-board
+    // effect is a pacing decision, not a geometry one, and it would land
+    // unreviewed on levels that already run 20-25% shorter after the rows-8
+    // pilot, on a project that just cut multi-kill popups 1.4s -> 0.8s for
+    // pacing. Turning it on is its own change with its own review.
+    // See THREE_LANE_REDESIGN_BATCH.md section 8, "known-dormant".
     const isFrozen = (gameState?.boosterState?.isFrozen?.() ?? false)
-      || (gameState?.lanes && elapsed < (gameState.bombFreezeUntil ?? -Infinity))
       || (gameState?.comboFreezeShots ?? 0) > 0;
 
     // Detect freeze onset — spawn ice burst on each lane that has a car

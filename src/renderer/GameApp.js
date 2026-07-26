@@ -2112,14 +2112,17 @@ async function main() {
     const fxDt = dt * (gs.timeScale ?? 1);
     // NOTE: this payload is a hand-built literal, so any field GameRenderer3D
     // reads but this object omits is silently `undefined` — a dead read with no
-    // error. That is exactly how the gridRows sync went unnoticed (see
-    // GameRenderer3D.setGridRows) and how `bombFreezeUntil` below was dead:
-    // `elapsed < (undefined ?? -Infinity)` is always false, so the bomb-
-    // concussion freeze visual never once fired. Keep this in sync with the
-    // fields GameRenderer3D.update() actually reads.
+    // error, which is exactly how the gridRows sync went unnoticed (see
+    // GameRenderer3D.setGridRows) and how the bomb-concussion freeze visual
+    // never once fired. Keep this in sync with the fields
+    // GameRenderer3D.update() actually reads; tests/entity-creation-geometry
+    // enforces that every `gameState.X` the renderer reads appears here.
+    //
+    // `gs.bombFreezeUntil` is deliberately NOT passed — the renderer no longer
+    // reads it either. See the "DORMANT ON PURPOSE" note in GameRenderer3D's
+    // isFrozen; turning that effect on is its own reviewed change.
     gameRenderer3D.update({ lanes: gs.lanes, boosterState, isBreaching: gs.isOver && !gs.won,
                              comboFreezeShots: gs.comboFreezeShots,
-                             bombFreezeUntil: gs.bombFreezeUntil,
                              colorBombArmed: gs.colorBombArmed }, fxDt, gs.elapsed);
 
     // Merge sequence drives locked 3D bomb slots (after Shooter3D.update skipped them,

@@ -584,6 +584,22 @@ All updated — see each file's inline 2026-07-23 comments for specifics.
   exercise it (no canonical boss in L4–L8), so Phase 3 (first boss: L10) is also this gate's
   first real test. If it turns out to be too vague to act on in practice, tighten it before
   Phase 4 rather than skipping it for L20/30/40.
+- **KNOWN-DORMANT: the bomb-concussion freeze VFX (2026-07-25).** `GameLoop` sets
+  `gs.bombFreezeUntil = elapsed + 2.0` when a bomb detonates, and `GameRenderer3D` was its
+  ONLY consumer — so a 2s board-wide ice effect (freeze-activation burst + drifting crystals
+  on every occupied lane) has **never rendered in production**, because GameApp's `update()`
+  payload never carried the field and `elapsed < undefined` is permanently false. Found while
+  fixing the `gridRows` delivery bug of the identical shape (§0c's delivery-path sweep).
+  **It was deliberately NOT switched on with that fix.** A 2s full-board effect is a PACING
+  decision, not a geometry one: it would have landed unreviewed on levels that now run 20-25%
+  shorter after the rows-8 pilot, on a project that had just cut multi-kill popups 1.4s → 0.8s
+  for exactly that reason. The renderer's read and the payload field are both removed; the
+  GameLoop side is untouched, so the mechanic is intact and one clause away from live.
+  **Do not let it return as a silent side-effect of a refactor** — the in-code marker is the
+  "DORMANT ON PURPOSE" comment on `isFrozen` in `GameRenderer3D`. Turning it on is its own
+  change with its own review, sequenced AFTER the pilot verdict. Open question for that
+  review: at 2s it is longer than the whole shortened turn cycle on a rows-8 board, so it may
+  need a shorter duration or a lane-local scope rather than board-wide.
 - **Rows-8 pilot playtest checklist (2026-07-25)** — things the simulator CANNOT answer, to be
   judged in play (by the user and/or the sister) before L9–L40 convert. The sim scores win rate;
   none of these are win-rate questions.

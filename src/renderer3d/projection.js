@@ -299,6 +299,27 @@ export function setActiveLaneCount(activeLaneCount) {
 // Canonical bomb-queue slot position (world Z / screen Y). rowIdx: 0=front,
 // 1=second, 2=third, 3=stash. Non-integer rowIdx is valid arithmetic (e.g.
 // 3.5 = the stash cell's bottom edge) — used for panel-height derivations.
+// THE canonical on-screen radius of a queued bomb ball, in stage pixels.
+// Anything drawing AROUND a bomb (sockets, selection rings, highlights, glow)
+// must size itself from this and never from a literal — the ball scales with
+// BOMB_ZONE_SCALE, which is re-solved per band, so a hardcoded ring silently
+// stops matching the moment the band moves.
+//
+// 2026-07-26: exactly that had happened. ShooterRenderer drew its sockets at a
+// fixed r21/r23. At band 540 the ball is r16.0 and the rim sat at 1.31x it — the
+// intended look. At band 600 (3-lane) the ball is r11.3 while the rim stayed at
+// 21, i.e. 1.85x — a 41% oversized ring, which reads as a small bomb rattling
+// around in a too-big hole and contributed to the "bombs look small" complaint.
+export function bombBallScreenRadius() {
+  return BOMB_R * PX_PER_WU;
+}
+
+// Socket ring sizes as MULTIPLES of the ball, taken from the shipped band-540
+// design (rim 21/16.0, outer shadow 23/16.0) so the look is preserved exactly
+// where it already looked right, and tracks the ball everywhere else.
+export const SOCKET_RIM_RATIO    = 21 / 16.0;
+export const SOCKET_SHADOW_RATIO = 23 / 16.0;
+
 export function bombSlotZ(rowIdx) {
   return (rowIdx + 0.5) * BOMB_SLOT_PITCH_WU + BOMB_SLOT_CLEARANCE_Z;
 }

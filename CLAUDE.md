@@ -165,6 +165,24 @@ Always `${import.meta.env.BASE_URL}sprites/...`. Hardcoded `/sprites/...` causes
 **1186 passing**, 5 todo — 47 test files. Run: `npx vitest run`. All headless (no render tests).
 Visual smoke (`npm run test:visual`, Playwright) is separate and is a blocking CI gate.
 
+#### HEADLESS FPS IS NOT EVIDENCE — measure performance in HEADED Chromium only
+Headless Chromium has no GPU here and falls back to **SwiftShader** (software
+rasterisation), which pins this game at **~6fps regardless of what the code does**. A headless
+measurement tells you about the rasteriser, not the game.
+
+```js
+// Perf harnesses MUST launch like this:
+chromium.launch({ headless: false, args: ['--use-gl=angle', '--enable-gpu'] })
+```
+Verified 2026-07-26: headless reports `SwiftShader driver`; headed reports
+`Intel(R) UHD Graphics ... D3D11`. Same build, same level — 6fps vs 66fps.
+
+**This is the second time SwiftShader has corrupted a conclusion in this project.** It also
+underlies the "slow CI" flakes: `.github/workflows/deploy.yml`'s visual-smoke runs on software
+WebGL, which is why timeout-shaped failures there are usually a budget problem rather than a
+real regression (see FABLE_EXIT_BRIEF §1 "Real regression vs. load-flake"). If a number looks
+impossibly bad, check what is drawing before you believe it.
+
 #### Wait conditions that are also true on failure — CHECK THIS WHEN WRITING ASYNC TESTS
 A test that waits for state X before asserting is **broken if X is reachable by a failure
 path**. It will not flake — it will confidently report the wrong thing.

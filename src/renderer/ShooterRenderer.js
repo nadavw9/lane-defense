@@ -14,6 +14,7 @@ import { BAR_Y as BOOSTER_BAR_Y } from './BoosterBar.js';
 import {
   worldXToScreenX, roadHalfWPure, BREACH_LINE_Y, PX_PER_WU,
   BOMB_R, MERGE_SCALE, bombSlotScreenY,
+  bombBallScreenRadius, SOCKET_RIM_RATIO, SOCKET_SHADOW_RATIO,
 } from '../renderer3d/projection.js';
 
 // Road geometry — derived from the live projection (never hardcode a mirror).
@@ -347,7 +348,7 @@ export class ShooterRenderer {
     // the base radius. Using the true size is what keeps the ring — at the
     // SAME 1.18x/1.08x/1.00x multipliers already tuned to hug the ball — from
     // bleeding above the breach stripe.
-    const ballR = PX_PER_WU * BOMB_R;
+    const ballR = bombBallScreenRadius();   // same canonical source as the sockets
     const slotR = [ballR * MERGE_SCALE, ballR, ballR];
     const pulse = 0.5 + 0.5 * Math.sin(elapsed * 3);   // 0..1
 
@@ -680,16 +681,23 @@ export class ShooterRenderer {
 
     // ── Slot sockets — bombs sit IN designed slots, not floating on a panel ──
     // RINGS ONLY: this graphics layer renders IN FRONT of the 3D bombs, so any
-    // filled shape would paint over the bomb face. The rim (r21) sits just
-    // outside the bomb silhouette (~r18), reading as a socket around it.
+    // filled shape would paint over the bomb face. The rim sits just outside the
+    // bomb silhouette, reading as a socket around it.
+    //
+    // DERIVED, never literal. These used to be hardcoded r21/r23, which matched
+    // the ball only at band 540; at band 600 the ball shrank to r11.3 while the
+    // ring stayed at 21 (1.85x instead of the intended 1.31x). Sizing from
+    // bombBallScreenRadius() means the socket can never drift from the ball
+    // again, at any band or lane count.
     const sockets = this._trayEdge ?? this._tray;
+    const ballR   = bombBallScreenRadius();
     for (let c = 0; c < getActiveColCount(); c++) {
       const sx = getColumnScreenX(c);
       for (let r = 0; r < 3; r++) {
         const sy = getColumnSlotScreenY(r);
-        sockets.circle(sx, sy, 23);
+        sockets.circle(sx, sy, ballR * SOCKET_SHADOW_RATIO);
         sockets.stroke({ color: 0x000000, width: 4, alpha: 0.22 });    // soft outer shadow
-        sockets.circle(sx, sy, 21);
+        sockets.circle(sx, sy, ballR * SOCKET_RIM_RATIO);
         sockets.stroke({ color: 0x8fa3b8, width: 1.5, alpha: 0.35 });  // rim
       }
     }

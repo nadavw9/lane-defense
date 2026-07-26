@@ -8,6 +8,7 @@
 
 import { Container, Graphics, Text, Sprite, Assets, Texture } from 'pixi.js';
 import { uiIcon } from './UIIcon.js';
+import { row0CoverY } from '../renderer3d/projection.js';
 
 const _B = import.meta.env.BASE_URL;
 
@@ -48,6 +49,11 @@ export class GoalCounterUI {
     this._band = new Graphics();
     this._container.addChild(this._band);
 
+    // Board depth, for the band's row-0 occlusion floor (see _layoutCards).
+    // Defaults to 16 = every level's depth before the rows-8 pilot, so an
+    // un-wired caller reproduces the historical band exactly.
+    this._gridRows = 16;
+
     this._goals = [];
     this._goalProgress = [];
     this._prevProgress = [];
@@ -60,6 +66,19 @@ export class GoalCounterUI {
   }
 
   // (Re)build cards from goals array
+  /**
+   * Board depth for this level. Drives the band's row-0 occlusion floor.
+   * MUST be called BEFORE setGoals() — setGoals triggers _layoutCards, which is
+   * what actually sizes the band, so a depth arriving afterwards would size the
+   * band for the previous level. (This is the same create-before-configure trap
+   * that made Car3D render every level at gridRows-16 size; see
+   * GameRenderer3D.setGridRows.)
+   */
+  setGridRows(gridRows) {
+    this._gridRows = gridRows ?? 16;
+    if (this._cards.length > 0) this._layoutCards();   // re-size if goals already exist
+  }
+
   setGoals(goals) {
     this._goals = goals ?? [];
     this._goalProgress = this._goals.map(g => g.count);
@@ -314,7 +333,18 @@ export class GoalCounterUI {
     const panelStartX = (this._stageWidth - rowWidth) / 2;
 
     // Opaque full-width band sized to enclose all rows (occludes road behind it).
-    const bandH = PANEL_TOP_Y * 2 + totalRowsNeeded * CARD_H + (totalRowsNeeded - 1) * CARD_GAP;
+    //
+    // It must ALSO fully cover row 0. Row 0 is a staging row — hidden on all 40
+    // shipped levels, cars emerging whole at row 1 — and the rows-8 pilot's
+    // doubled row pitch left ~23% of a row-0 car protruding below the card-sized
+    // band, which reads as cars sliced in half at level start.
+    //
+    // max() rather than a depth-keyed constant so the no-op is GUARANTEED, not
+    // asserted: on every shipped 16-row board the card height already exceeds
+    // row0CoverY, so this returns exactly today's value and cannot regress a
+    // level it was not meant to touch. Only shallow boards move it.
+    const cardsH = PANEL_TOP_Y * 2 + totalRowsNeeded * CARD_H + (totalRowsNeeded - 1) * CARD_GAP;
+    const bandH  = Math.max(cardsH, row0CoverY(this._gridRows));
     this._band.clear();
     this._band.rect(0, 0, this._stageWidth, bandH);
     this._band.fill(BAND_BG_COLOR);

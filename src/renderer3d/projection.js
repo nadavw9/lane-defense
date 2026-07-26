@@ -113,6 +113,42 @@ export let PROJ_ROAD_BOTTOM_Y = zToScreenY(posToZPure(100));   // ≈ 475.4 — 
 export let BREACH_LINE_Y      = zToScreenY(ROAD_Z_NEAR);       // ≈ 551.2 — 3D breach line
 export const HUD_BOTTOM_Y     = DESIGN_ROAD_TOP_Y;              // 44 — 2D layout band top (HUD edge), band-independent
 
+// Largest FIT in Car3D's table (bigrig). Mirrored rather than imported: Car3D
+// imports THIS module, so importing it back would be a cycle. A guard test
+// asserts the two stay equal — see tests/row0-occlusion.test.js.
+export const MAX_CAR_FIT = 0.740;
+
+// ── Row-0 occlusion (the goal band's depth-aware floor) ──────────────────────
+// Row 0 is a STAGING row: it has always been fully hidden behind the goal
+// counter's opaque band, on all 40 shipped levels, and cars emerge whole at row
+// 1. That is deliberate, and it only became visible as a defect when the rows-8
+// pilot doubled the row pitch: the same band left 22-25% of a row-0 car
+// protruding below it, and a car sliced by a horizontal edge reads far worse
+// than one that was never shown.
+//
+// Returns the screen Y that the band must reach to keep row 0 fully hidden at a
+// given board depth, using the LONGEST car type (type dims cancel in the size
+// identity, so body length is exactly FIT x rowPitch -> max FIT = max length).
+// Sized for bigrig even though its minSpawnRow is 3: the opening deal bypasses
+// minSpawnRow (a jeep was observed live at row 0 on L5 despite minSpawnRow 1),
+// so the filter cannot be relied on to bound what appears there.
+export function row0CoverY(gridRows = 16) {
+  const rows      = Math.max(2, gridRows ?? 16);
+  const rowPitch  = (Math.abs(ROAD_Z_FAR) - Math.abs(POS_NEAR_Z)) / (rows - 1);
+  const halfBody  = (MAX_CAR_FIT * rowPitch) / 2;
+  return zToScreenY(posToZPure(0) + halfBody);   // +Z = nearer = further down screen
+}
+
+// The top edge of the NEAREST row-1 car — the ceiling the band must stay above,
+// or extending it would newly occlude a row players are meant to see.
+export function row1TopY(gridRows = 16) {
+  const rows      = Math.max(2, gridRows ?? 16);
+  const rowPitch  = (Math.abs(ROAD_Z_FAR) - Math.abs(POS_NEAR_Z)) / (rows - 1);
+  const halfBody  = (MAX_CAR_FIT * rowPitch) / 2;
+  const row1Pos   = (1 / (rows - 1)) * 100;
+  return zToScreenY(posToZPure(row1Pos) - halfBody);
+}
+
 // Screen pixels per world unit — the ortho projection is linear in Z, so any
 // two samples give the true (constant) scale.
 export let PX_PER_WU = zToScreenY(1) - zToScreenY(0);

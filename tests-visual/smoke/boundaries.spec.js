@@ -16,6 +16,9 @@ async function dragDeploy(game, colIdx, laneIdx) {
   // cars[0] again before `after` is read, with a coincidentally-matching hp —
   // an hp/count heuristic on array position alone can't tell a masked kill
   // from "nothing happened".
+  // Same precondition as layout.spec: a shot in flight anywhere makes the
+  // deploy a no-op, and lets the queue advance between the recolor and the drag.
+  await game.waitForIdle();
   const before = await game.page.evaluate(([c, l]) => {
     const gs = window._nav.getGs();
     const bomb = gs.columns[c].shooters[0];

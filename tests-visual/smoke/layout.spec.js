@@ -87,6 +87,12 @@ test('L5: deploying into lane i damages lane i (not a neighbour)', async ({ game
     // again by the time `after` is read, with a coincidentally-matching hp —
     // a hp/count heuristic on array position alone can't tell a masked kill
     // from "nothing happened". Track the tagged car's survival instead.
+    // The board must be idle BEFORE we sample the queue head: a shot still in
+    // flight (dismissOverlays taps the road, which can launch one) makes
+    // GameLoop.deploy reject outright, and would also let the queue advance
+    // between the recolor below and the deploy — recoloring the car to match a
+    // bomb that is no longer the one fired.
+    await game.waitForIdle();
     const before = await game.page.evaluate((l) => {
       const gs = window._nav.getGs();
       const bomb = gs.columns[0].shooters[0];

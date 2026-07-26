@@ -144,7 +144,31 @@ Always `${import.meta.env.BASE_URL}sprites/...`. Hardcoded `/sprites/...` causes
 ## 6. Current State
 
 ### Tests
-**633 passing**, 5 todo — 18 test files. Run: `npx vitest run`. All headless (no render tests).
+**1186 passing**, 5 todo — 47 test files. Run: `npx vitest run`. All headless (no render tests).
+Visual smoke (`npm run test:visual`, Playwright) is separate and is a blocking CI gate.
+
+#### Wait conditions that are also true on failure — CHECK THIS WHEN WRITING ASYNC TESTS
+A test that waits for state X before asserting is **broken if X is reachable by a failure
+path**. It will not flake — it will confidently report the wrong thing.
+
+`firingSlots[lane] === null` is true both after a bomb lands *and* when it never launched. A
+drag whose pickup was swallowed by an overlay satisfied that wait instantly, so the test read
+an unchanged board and reported a product bug ("drag deploy did not land") that was actually a
+setup failure. **This has now bitten three times**, each time on the same instinct:
+1. `5d80ebd` replaced fixed-timeout waits with this very poll (an improvement that carried the
+   flaw in).
+2. 2026-07-25, `boundaries.spec` — overlay ate the pickup; reported as a targeting bug.
+3. 2026-07-25, `layout.spec` — `GameLoop.deploy()` rejects outright while ANY lane has a shot
+   in flight, and `dismissOverlays()` taps the road, which can launch one. The deploy was
+   never accepted; the test called it "no effect on lane 0".
+
+**When choosing a wait signal, ask what else makes it true.** Prefer a signal only the success
+path can produce. Two that look right and are not: `firingSlots[lane] !== null` is a transient
+in-flight window a poll can miss (so it retries an already-successful action), and
+`shooters.length` dropping is erased by the queue's immediate refill. The durable one is the
+**tagged bomb object** leaving the queue. Also check the action's own PRECONDITIONS — if the
+API can reject the call, wait for it to be acceptable first (`game.waitForIdle()`), rather than
+inferring rejection from an unchanged board.
 
 ### What is done
 - **40 levels** configured in `LevelManager.js` (L1–L40, three worlds)

@@ -144,8 +144,46 @@ export class GamePage {
   hudBounds() { return this.page.evaluate(() => window._nav.getHudBounds()); }
   winLevel()  { return this.page.evaluate(() => window._nav.winLevel()); }
 
+  // Wait until NO shot is in flight in any lane. This is a PRECONDITION for a
+  // deploy to be accepted at all: GameLoop.deploy() rejects outright if
+  // `Object.values(firingSlots).some(s => s !== null)` — a shot anywhere blocks
+  // a deploy everywhere (it is turn-based). dismissOverlays() taps the road,
+  // which can itself launch a shot, so a test that dismisses and then
+  // immediately deploys is racing that shot. Call this before reading any
+  // "before" state you intend to act on.
+  async waitForIdle(timeout = 5000) {
+    try {
+      await this.page.waitForFunction(
+        () => Object.values(window._nav.getGs().firingSlots).every((s) => s === null),
+        null,
+        { timeout },
+      );
+    } catch { /* caller's assertions will catch a genuine stall */ }
+  }
+
   async deploy(colIdx, laneIdx) {
-    await this.page.evaluate(([c, l]) => window._nav.deploy(c, l), [colIdx, laneIdx]);
+    // GameLoop.deploy() returns undefined on both success and every rejection
+    // path, so the call itself tells us nothing. Confirm the launch with a
+    // signal only the success path can produce: the tagged bomb OBJECT leaving
+    // the column. (shooters.length is erased by the queue's immediate refill,
+    // and firingSlots[lane] !== null is a transient a poll can miss.)
+    await this.waitForIdle();
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const tagged = await this.page.evaluate((c) => {
+        const top = window._nav.getGs().columns[c].shooters[0];
+        if (!top) return false;
+        top.__deployTag = 'inflight';
+        return true;
+      }, colIdx);
+      if (!tagged) break;                       // empty column — let the caller's assertion speak
+      await this.page.evaluate(([c, l]) => window._nav.deploy(c, l), [colIdx, laneIdx]);
+      const left = await this.page.evaluate(
+        (c) => !window._nav.getGs().columns[c].shooters.some((b) => b.__deployTag === 'inflight'),
+        colIdx,
+      );
+      if (left) break;                          // accepted
+      await this.waitForIdle();                 // rejected — almost always a stray in-flight shot
+    }
     // Wait for the actual event (GameLoop clears firingSlots[laneIdx] once the
     // shot's travel-time timer elapses and combat/advance/refill resolve) rather
     // than a fixed wall-clock sleep. A fixed 650ms was tuned against a normal

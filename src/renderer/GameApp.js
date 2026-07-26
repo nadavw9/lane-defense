@@ -708,9 +708,13 @@ async function main() {
     // Use levelNumber for normal levels; 'D' label for daily challenge.
     hudRenderer.setLevel(currentLevelIsDaily ? 'D' : levelManager.levelNumber);
 
-    // Goals are set further down, AFTER setActiveLaneCount — the goal band's
-    // height depends on the projection, which is lane-count-keyed. See the
-    // goalCounterUI block below the 3D lane-count calls.
+    // Set goals for the level (if any). gs.goals is set by the level config.
+    // If empty, goalCounterUI hides itself automatically.
+    // Stays HERE, at its original point in level start: moving it later (past
+    // setActiveLaneCount, to get the projection configured first) regressed the
+    // L5 deploy smoke tests in CI. The band's depth-aware height is applied
+    // afterwards instead, via setGridRows, which re-lays out the existing cards.
+    goalCounterUI.setGoals(gs.goals ?? []);
 
     // Feature gating: bench unlocks at L4 (hidden for L1-3). COLOR CHANGE and FREEZE
     // are now earned in-level (coin threshold / 3-car chain) or via the pre-level ad
@@ -754,15 +758,15 @@ async function main() {
     // uses, not a second guess. See GameRenderer3D.setGridRows for the bug history.
     gameRenderer3D.setGridRows(gs.gridRows);
 
-    // Goals + goal-band sizing. MUST come after setActiveLaneCount above: the
-    // band's row-0 occlusion floor is computed through projection.js, whose
-    // scale is lane-count-keyed, so sizing it earlier measures the PREVIOUS
-    // level's band. (Found by screenshot — the unit test passed because it sets
-    // the lane count itself. Same create-before-configure shape as the gridRows
-    // bug, one dependency further out.)
-    // Depth before goals: setGoals is what triggers the band layout.
+    // Goal-band depth. MUST come after setActiveLaneCount above: the band's
+    // row-0 occlusion floor is computed through projection.js, whose scale is
+    // lane-count-keyed, so sizing it earlier measures the PREVIOUS level's band.
+    // (Found by screenshot — the unit tests passed because they set the lane
+    // count themselves. Same create-before-configure shape as the gridRows bug,
+    // one dependency further out.)
+    // setGoals already ran above, so this re-lays out the existing cards with
+    // the correct depth rather than reordering level start around it.
     goalCounterUI.setGridRows(gs.gridRows);
-    goalCounterUI.setGoals(gs.goals ?? []);
     // projection.js's band is now lane-count-keyed (THREE_LANE_REDESIGN_BATCH.md
     // §1) — setActiveLaneCount() above already updated it (via Scene3D). Refresh
     // the 2D chrome geometry (breach stripe, road strips, tap-to-row mapping)

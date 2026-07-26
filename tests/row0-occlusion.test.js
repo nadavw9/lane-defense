@@ -102,26 +102,30 @@ describe('row-0 occlusion — the band fully hides row 0 without touching row 1'
     }
   });
 
-  it('GameApp sets board depth on the goal counter BEFORE its goals', async () => {
-    const src = (await import('fs')).readFileSync('src/renderer/GameApp.js', 'utf8');
-    const depth = src.indexOf('goalCounterUI.setGridRows(');
-    const goals = src.indexOf('goalCounterUI.setGoals(');
-    expect(depth, 'goalCounterUI.setGridRows(...) is never called').toBeGreaterThan(-1);
-    expect(depth, 'depth must be set before setGoals — setGoals is what lays the band out')
-      .toBeLessThan(goals);
-  });
-
-  // The failure this test exists for shipped past the unit tests above and was
+  // The failure this test exists for shipped past every maths test above and was
   // only caught by looking at a screenshot: row0CoverY() reads projection.js,
-  // whose scale is LANE-COUNT-KEYED, so laying the band out before
-  // setActiveLaneCount() sizes it against the previous level's band. The maths
-  // tests all passed because they call setActiveLaneCount themselves.
-  it('GameApp sizes the goal band AFTER the lane count reconfigures the projection', async () => {
+  // whose scale is LANE-COUNT-KEYED, so sizing the band before
+  // setActiveLaneCount() measures the PREVIOUS level's band. The maths tests all
+  // passed because they call setActiveLaneCount themselves.
+  //
+  // The first fix moved setGoals after setActiveLaneCount — which sized the band
+  // correctly but regressed the L5 deploy smoke tests in CI, because level start
+  // has other ordering dependencies on when goals are set. So setGoals stays put
+  // and setGridRows re-lays out afterwards; this pins that arrangement.
+  it('GameApp applies goal-band depth AFTER the lane count reconfigures the projection', async () => {
     const src = (await import('fs')).readFileSync('src/renderer/GameApp.js', 'utf8');
     const lanes = src.indexOf('gameRenderer3D.setActiveLaneCount(');
-    const band  = src.indexOf('goalCounterUI.setGoals(');
+    const depth = src.indexOf('goalCounterUI.setGridRows(');
     expect(lanes, 'setActiveLaneCount(...) is never called').toBeGreaterThan(-1);
-    expect(band, 'the goal band must be laid out after the projection is reconfigured')
+    expect(depth, 'goalCounterUI.setGridRows(...) is never called').toBeGreaterThan(-1);
+    expect(depth, 'band depth must be applied after the projection is reconfigured')
       .toBeGreaterThan(lanes);
+  });
+
+  it('setGridRows re-lays out already-built cards (it runs after setGoals)', async () => {
+    const src = (await import('fs')).readFileSync('src/renderer/GoalCounterUI.js', 'utf8');
+    const fn = src.slice(src.indexOf('setGridRows('));
+    expect(fn.slice(0, 400), 'setGridRows must relayout when cards already exist')
+      .toMatch(/_cards\.length\s*>\s*0.*_layoutCards\(\)/s);
   });
 });

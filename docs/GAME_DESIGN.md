@@ -2,6 +2,23 @@
 
 > **For agentic workers:** Read this file in full before making ANY change to gameplay mechanics, level configs, car types, or booster behavior.
 
+> ⚠️ **STALENESS WARNING (2026-07-26) — THE CODE IS THE SOURCE OF TRUTH, NOT THIS FILE.**
+>
+> The 40-level table below is a **snapshot**, and it has been superseded by several rounds of
+> retuning since it was written (the 3-lane conversion, the rows-8 pilot on L4–L8, the
+> rare-type weight pass, and multiple `hpMultiplier`/goal retunes). Specific values that have
+> drifted include lane counts, `gridRows`, `hpMultiplier`, `laneTargetCarCount`, and goal
+> counts. Read `src/game/LevelManager.js` for what a level actually is.
+>
+> **When this file and the code disagree, the CODE is right — and that is not automatically a
+> bug to fix.** Do NOT "correct" level configs to match this document. The configs are tuned
+> against the simulator's win-rate bands (`tools/balance-sim.js` `bandFor()`), which is the
+> binding contract; this document describes design *intent*. Flag the drift and ask, rather
+> than silently editing configs to match prose.
+>
+> The difficulty MODEL, design pillars, and per-level design *intent* below are still the
+> reference — it is the specific numbers that go stale.
+
 **Goal:** Define the design pillars, known bugs, difficulty model, and level master doc so every code change reinforces — not undermines — the player's core skill loop.
 
 **Architecture:** Turn-based grid. Color-recognition is the skill. The meta loop is why players return.

@@ -80,7 +80,7 @@ it lands as its own commit with its own message (e.g. `docs: VISION.md — 4 lan
 (pending 3-lane redesign)`), on its own schedule. Implementation of Phase 1 onward proceeds
 against whatever `VISION.md` currently says; it does not require this amendment to have landed
 first, but no phase should ship game-facing 3-lane content to players while `VISION.md` still
-contradicts it — get this approved before Phase 2's pilot goes out for the sister's device
+contradicts it — get this approved before Phase 2's pilot goes out for the user's device
 verdict, even if Phase 1's geometry-only groundwork lands first.
 
 ---
@@ -198,7 +198,7 @@ of any level conversion, and ahead of the `VISION.md` amendment landing too.
 
 **Goal:** convert the first 5 post-tutorial levels, prove the sim-driven retune loop works and
 produces a game that still feels like the intended difficulty wave, and get this in front of
-the sister on a real device BEFORE spending the effort retuning the other 32 levels. This is
+the user on a real device BEFORE spending the effort retuning the other 32 levels. This is
 the same "propose, render, prove" discipline the whole arc has used — don't commit to 32 more
 levels of retuning until the pilot's verdict is in.
 
@@ -300,13 +300,53 @@ For each level being converted:
 - Sim check: run `--runs=500` on all 5 pilot levels before commit (VISION rule 6).
 
 **Checkpoint — do not proceed to Phase 3 without this:** get the pilot batch in front of the
-sister on a real device. Her verdict gates the remaining 32-level effort:
+user on a real device. That playtest verdict gates the remaining 32-level effort:
 - **"Good now"** → proceed to Phase 3, convert the rest.
 - **"Still not enough"** → STOP. Do not spend Phase 3–6 effort on more of the same lever. This
   is the signal to open the 2-lane investigation (render-first, same discipline as this whole
   arc) or reconsider the growth target itself, before touching L9–L40's balance.
 - **"Better, but something else feels off"** (e.g. spacing improved but a different complaint
   surfaces) → treat as a new investigation, don't assume Phase 3–6 will fix it by extrapolation.
+
+### 2c. VERTICAL BUDGET: an opaque band over the road CONSUMES ROAD (2026-07-26)
+
+**The rule: an opaque 2D element drawn over the road is not a free overlay — it is a real
+consumer of the road viewport, because cars occupy the rows underneath it.** Vertical-budget
+accounting that treats the top chrome as "overlay, not budget" is wrong by exactly the height
+of that chrome.
+
+The concrete case: `GoalCounterUI`'s band is a **full-width opaque rect** whose height is
+`PANEL_TOP_Y*2 + CARD_H` = **94px**, sized purely to enclose the goal cards. It begins at y=0,
+so it covers the top **~50px of road below `DESIGN_ROAD_TOP_Y` (44)**. Measured empirically:
+the visible road surface starts at y≈94, not at 44.
+
+What that costs, per board depth (3-lane, band 600):
+
+| gridRows | row-0 car span | behind the 94px band |
+|---|---|---|
+| 16 (all shipped levels) | y 69.8–93.3 | **100% — row 0 is invisible** |
+| 8 (rows-8 pilot) | y 56.3–106.7 | 75–78% — the rest protrudes |
+
+Two consequences worth carrying forward:
+
+1. **Row 0 has always been a staging row.** On all 40 shipped levels a row-0 car is entirely
+   hidden and emerges whole at row 1. That was never designed — it is an accident of the band
+   being taller than a 16-row car — but it is the shipped feel, and it is why nobody ever
+   reported it. The rows-8 pilot doubled the row pitch, turning total occlusion into PARTIAL
+   occlusion, and a car sliced by a horizontal edge reads far worse than one never shown.
+   Fixed by making the band's height `max(cardsHeight, row0CoverY(gridRows))` — see §8.
+2. **The band already clips row 1 slightly.** At gridRows 16 on 1/2/4-lane boards, row 1's
+   longest car (bigrig) starts at y 91.6 while the band reaches 94 — a pre-existing ~2.4px
+   (11%) clip of its nose. Unreported, not introduced by any of this work, pinned by a test so
+   it cannot silently get worse.
+
+**H4 IMPACT — re-check before restarting.** H4's max-band solve was computed against a budget
+that did not account for this: it treated the top chrome as overlay and the road viewport as
+starting at `DESIGN_ROAD_TOP_Y`=44, when ~50px of it is in fact covered. **Any H4 candidate
+architecture must be re-checked at the TOP edge**, not just at the bomb-queue/bench bottom
+edge, and the goal band's height belongs in the budget table as a first-class consumer —
+exactly like the bench minimum height in §8. A candidate that "wins" band by pushing cars up
+under the goal band has moved the problem, not solved it.
 
 ---
 
@@ -532,14 +572,14 @@ All updated — see each file's inline 2026-07-23 comments for specifics.
 - **Band value: 600, a HOLDING STATE, not a destination** (§1's corrected RESULT). It delivers
   ~1.109× total car growth vs. the shipped 4-lane baseline — a ~6% increment over a size
   already rejected on device. It's live because a correct-rendering 1.109× beats a broken
-  1.338×. **Do NOT send this build to the sister as "the fix"** — her device verdict is
+  1.338×. **Do NOT ship this build as "the fix"** — the device-playtest verdict is
   reserved for the redesign outcome, not this. Don't reuse 680 or 730 anywhere downstream.
 - **Bomb-zone redesign investigation (2026-07-24, in progress)** — the actual path to ~1.3×.
   Scope: full 844px vertical budget audit, max-band/max-growth derivation per candidate
   architecture (horizontal queue, fewer slots, merged bottom chrome, HUD reclaim), lane-count-
   independence verification, stale-geometry-constant sweep + guard test. Findings go to the
   user for review before any spec is written. If nothing reaches ~1.3×, that's a conversation
-  with the sister BEFORE further spend, not after.
+  with the user BEFORE further spend, not after.
 - **Bench minimum height is a FIRST-CLASS constraint in the redesign band-solve — NOT the free
   residual the first budget table treated it as** (finding from the 2026-07-24 P1 bench fix,
   verified by touch testing). The band=600 holding state forces the bench to its 28px floor
@@ -566,7 +606,7 @@ All updated — see each file's inline 2026-07-23 comments for specifics.
   harness.** The gate doc (`docs/gates/layout-change-gate.md`) then becomes advisory/dead, not a
   CI dependency. Sequenced AFTER the bomb-zone redesign — the new assertions get written against
   the real redesigned layout, not against the band=600 holding state. Queued, not started.
-- **Pilot verdict pending — but deliberately deferred** (§2 checkpoint): the sister judges the
+- **Pilot verdict pending — but deliberately deferred** (§2 checkpoint): the user judges the
   redesign outcome, not the band=600 holding state.
 - **Retune lever: `laneTargetCarCount`, not `spawnBudget`** (§2a's CORRECTED step 4a) —
   `spawnBudget` was verified to have zero effect on win rate in the current `SimulationRunner`.
@@ -578,7 +618,7 @@ All updated — see each file's inline 2026-07-23 comments for specifics.
   touching camera/geometry code in Phases 3–6 should read §7a before assuming "it's just a
   config change."
 - **VISION.md amendment** (§0a) is a standalone approval, not a hard blocker on Phase 1's
-  commit — but it must land before Phase 2's pilot goes to the sister for a device verdict, so
+  commit — but it must land before Phase 2's pilot goes out for the user's device playtest, so
   the contract never contradicts what's shipping to a real player.
 - **Boss-identity gate** (§4) is new and unvalidated as a process — the pilot (Phase 2) doesn't
   exercise it (no canonical boss in L4–L8), so Phase 3 (first boss: L10) is also this gate's
@@ -600,8 +640,31 @@ All updated — see each file's inline 2026-07-23 comments for specifics.
   change with its own review, sequenced AFTER the pilot verdict. Open question for that
   review: at 2s it is longer than the whole shortened turn cycle on a rows-8 board, so it may
   need a shorter duration or a lane-local scope rather than board-wide.
+- **OPEN QUESTION: the opening deal BYPASSES `minSpawnRow` (2026-07-26).** `CarTypes` gives
+  each type a `minSpawnRow` (small 0, big 0, jeep 1, truck 2, bigrig 3, tank 4) — a filter that
+  should keep heavy types from appearing right at the far edge. **The opening deal does not
+  apply it.** Observed live on L5: `lane1 = [{small, row 1}, {jeep, row 0}]`, a jeep at row 0
+  despite `minSpawnRow: 1`. Not theoretical, and not a rows-8 regression — it is how the
+  opening has always dealt.
+  - **Why it matters more at rows 8:** on a 16-row board an unfiltered heavy at row 0 still has
+    15 advances of runway. On an 8-row board it has 7. A **tank** (`minSpawnRow` 4, ~20hp) that
+    opens at row 0 is 8 advances from breach with the player holding starting bombs — that is
+    the worst realistic opening hand, and the filter that is supposed to prevent it is not
+    consulted.
+  - **How likely is it actually?** Not measured. The opening's type selection may never pick a
+    tank at L4–L8 (they are introduced at L15), so this may be unreachable on the pilot and only
+    bite later in Phases 3–6 where tanks are in-band. **Verify before treating it as a live
+    bug.**
+  - **Do NOT change spawn logic now.** Flagged for the rows-8 playtest: if an opening ever feels
+    unfairly heavy, this is the first thing to check. The fix, if needed, is to apply the same
+    `minSpawnRow` filter to the opening deal that `_refillLanes` uses — a one-place change, but
+    it moves sim numbers, so it needs its own retune pass rather than riding along with a
+    cosmetic fix.
+  - Related: the goal band is now sized for **bigrig** (the longest type) regardless of
+    `minSpawnRow`, precisely because this filter cannot be trusted to bound what appears at
+    row 0. See §2c.
 - **Rows-8 pilot playtest checklist (2026-07-25)** — things the simulator CANNOT answer, to be
-  judged in play (by the user and/or the sister) before L9–L40 convert. The sim scores win rate;
+  judged in play by the user before L9–L40 convert. The sim scores win rate;
   none of these are win-rate questions.
   - **L39-class check — at rows 8 with hp relief, does a tank still READ as meaningfully tougher
     than its neighbours in play?** Context: the rare-type investigation (accepted 2026-07-25) got

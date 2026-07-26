@@ -16,7 +16,7 @@ codebase traps — note the correction in §3 below, one of its claims is now st
 
 ## 1. The complaint, in the user's words
 
-The user's sister playtests on a real device. Feedback arc:
+The user playtests on a real device himself (changed 2026-07-26 — was the user's sister; the loop is now tighter, he plays each deploy). Feedback arc:
 1. Shipped ~1.04× car-size bump (commits `69e2485` + `8c4eba3` fix) → sister: **"still too small."**
 2. Investigated whether the bomb queue could be compacted to free road-band pixels for bigger
    cars (**"Project B"**) → **killed before building**: the aspect-trap coupling means freed
@@ -67,7 +67,7 @@ measured/executed — read the corrections, don't carry the original numbers int
   constraint on band is now the bomb queue vs. the fixed booster bar (BAR_Y=752), NOT panel
   brightness (proven false constraint) or road width (moved by 3-lane). The bomb-zone redesign
   investigation (2026-07-24) is the active path to ~1.3×; level conversion is FROZEN at L8
-  until its verdict. The sister's device verdict is reserved for the redesign outcome — do not
+  until its verdict. The user's device playtest is reserved for the redesign outcome — do not
   send her the band=600 build. See `THREE_LANE_REDESIGN_BATCH.md` §1 (corrected RESULT) and §8.
 - **`spawnBudget` is NOT a viable re-tune knob — it's vestigial in the current sim.** §2 below
   lists it among "knobs to re-tune"; that assumption was never verified against the actual

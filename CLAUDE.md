@@ -9,7 +9,25 @@ An approved 3-workstream master plan is in progress (WS1 testing DONE → WS2 UI
 2. **Per-task HOW + work guidelines + model routing + art prompts:** `docs/superpowers/plans/IMPLEMENTATION_PLAYBOOK.md`
 
 Route mechanical spec-execution to cheaper models; reserve Fable/Opus for design judgment
-(playbook §2). Every task: vitest green (1062+) + `npm run test:visual` green (17+) before commit.
+(playbook §2). Every task: vitest green (1193+) + `npm run test:visual` green (18) before commit.
+
+### BOSSES MUST BE PLAYED, NOT JUST SIMMED
+
+**After ANY change to lane count or row count, the four canonical bosses (L10 / L20 / L30 /
+L40) must be PLAYED on a real device before the change is called done.** In-band sim is
+necessary and NOT sufficient.
+
+The sim measures one thing: win rate. It cannot see whether the boss's *intended solution*
+still works. A boss built around "save a column for the final wave" or "chain three merges
+across lanes" can hold its win rate while the actual play pattern that made it that boss has
+become impossible — fewer lanes means fewer parallel setups, and fewer rows means fewer turns
+to build one. The number stays green while the identity quietly dies.
+
+Full gate and per-boss identity notes: `THREE_LANE_REDESIGN_BATCH.md` §4.
+
+**Device playtesting is the USER's** (changed 2026-07-26; previously the user's sister). The
+loop is tighter now — he plays each deploy himself, so ship to green and tell him what to look
+at.
 
 ---
 

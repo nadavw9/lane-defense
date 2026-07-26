@@ -12,6 +12,35 @@ gate per item, ONE COMMIT PER ITEM). Push → watch to deploy-green with `gh`
 ## 0. SETTLED — do not re-open
 
 ### 0a. Car size (SHIPPED, commits 69e2485 + 8c4eba3 fix)
+
+> ⚠️ **STALE — 4-LANE ERA. Superseded by the 3-lane conversion + rows-8 pilot (2026-07-23 →
+> 2026-07-26). Read this banner before acting on any number below.**
+>
+> Everything in §0a was measured on a **4-lane, gridRows-16, band-540** board. All three of
+> those inputs have changed for L4–L8, so the values below are history, not current state:
+>
+> | §0a says | Current (verify in code, not here) |
+> |---|---|
+> | FIT `0.78/0.80/0.82/0.84/0.86/0.88` | **`0.656/0.673/0.690/0.707/0.724/0.740`** (`Car3D.js`) |
+> | `DESIGN_ROAD_BOTTOM_Y` = 540 | **540 at 1/2/4 lanes, 600 at 3 lanes** — band is now lane-count-keyed (`bandForLaneCount`) |
+> | `gridRows` 16 everywhere | **8 on L4–L8**; 16 elsewhere; daily runs 10 |
+> | growth ceiling "~1.04–1.05×" | **~2.00×** — reached by cutting row COUNT, not by FIT or band |
+>
+> **The binding constraint MOVED, and that is the real lesson here.** §0a's conclusion — "FIT is
+> the only structurally decoupled lever, the honest ceiling is ~1.04×" — was correct *at fixed
+> gridRows*, which was an unexamined assumption. `gridRows` turned out to be the dominant lever:
+> halving it doubles the row pitch, and car length is exactly `FIT × rowPitch`. FIT then had to
+> come DOWN (0.88 → 0.740) to buy back inter-car spacing. So §0a's ceiling was real but local.
+>
+> Still true and worth keeping: the **mechanism** warnings. `DESIGN_ROAD_BOTTOM_Y` really is a
+> "zoom the whole scene" lever that squeezes edge panels horizontally via
+> `halfX = halfZe × (width/height)`; checking centred content is not enough; and preferring a
+> structurally-decoupled lever over an empirically-tuned "safe range" is the right instinct.
+> Those are why the band lever stayed capped at 600 rather than going to 730.
+>
+> New constraint discovered since, not accounted for anywhere in §0a: the goal counter's opaque
+> band consumes ~50px off the TOP of the road viewport — see
+> `THREE_LANE_REDESIGN_BATCH.md` §2c.
 - **Final shipped state: FIT +0.03 ONLY** (Car3D.js: 0.78/0.80/0.82/0.84/0.86/0.88,
   ordering preserved, bigrig gap ~3.5px). `DESIGN_ROAD_BOTTOM_Y` back at **540**
   (unchanged from pre-batch), `ROAD_Z_FAR` unchanged at −26. **~1.04× car growth.**
@@ -53,7 +82,7 @@ gate per item, ONE COMMIT PER ITEM). Push → watch to deploy-green with `gh`
   are unwinnable AT ANY TUNING. Do not retry.
 - **Bigger than ~1.05× ⇒ PROJECT B: bomb-zone redesign** (compact/horizontal
   queue frees road-band pixels; still zero balance cost). Separate UI project.
-  **Justified ONLY if device feedback (the user's sister) says ~1.04× isn't
+  **Justified ONLY if device feedback (the user's own playtest) says ~1.04× isn't
   enough.** Do not start speculatively. Given the ceiling is now lower than
   first thought, this trigger is MORE likely to fire than originally framed —
   don't be surprised if B becomes the next real ask.
@@ -274,7 +303,7 @@ shipped; only the full visual-smoke suite, run either locally or by CI, caught
 it).
 
 ## 6. Open items ledger
-- **DEVICE VERDICT PENDING:** sister judges ~1.04–1.05× car size on a phone
+- **DEVICE VERDICT PENDING:** the user judges ~1.04–1.05× car size on a phone
   (revised down from the original ~1.09× estimate — see the §0a correction).
   "Good now" → car-size closed. "Not enough" → open PROJECT B (bomb-zone
   redesign) — more likely to fire now that the ceiling is lower than first

@@ -128,6 +128,45 @@ omits is silently `undefined` — a dead read, no error, no warning.
 Ritual: when a renderer reads `gameState.X`, grep the call site's literal for
 `X`. Prefer passing the state object over rebuilding a literal.
 
+**LEVEL-START ORDERING MAP (audited 2026-07-26).** Four instances of create-before-configure in
+one arc means the sequence itself is the defect, not the individual call sites. Unit tests pass
+on all of them because a test configures state explicitly before asserting; the bug lives in the
+ORDER, which no test executes.
+
+**There is exactly ONE write for all projection geometry:** `GameApp.js` line ~752
+`gameRenderer3D.setActiveLaneCount()` → `Scene3D.setLaneCount()` →
+`projection.setActiveLaneCount()`, which reassigns 8 live-bound exports (`DESIGN_ROAD_BOTTOM_Y`,
+`F`, `FRUSTUM_HALF_X`, `PROJ_ROAD_TOP_Y`, `PROJ_ROAD_BOTTOM_Y`, `BREACH_LINE_Y`, `PX_PER_WU`,
+`BOMB_ZONE_SCALE`). A second write, `recomputeRoadGeometry()` at ~776, refreshes the 2D mirrors.
+**Anything reading a projection- or roadGeometry-derived value before those lines sees the
+PREVIOUS level's board.**
+
+| # | Consumer | Reads | Written at | Status |
+|---|---|---|---|---|
+| 1 | `Car3D._breachRow` | `gridRows`, baked at mesh creation | never (payload had no field) | FIXED `a3a89e4` |
+| 2 | `goalCounterUI.setGoals` @717 | projection, via `row0CoverY` | 752 | FIXED `2dc958e` (re-apply @769) |
+| 3 | `setActiveColCount` | col count, on renderer rebuild | not re-applied | FIXED `a3a89e4` (latent) |
+| 4 | **`FTUEOverlay` @748** | `ROAD_BOTTOM_Y`, `getColumnScreenX` — **baked in its constructor** | 752 / 776 | **OPEN, LIVE** |
+
+Hazard 4 is real and shipping: the constructor calls `_buildDimMask`/`_buildHandDemo`/
+`_buildArrowHint`/`_buildBanner`/`_buildAreaLabels`, all of which bake screen coordinates. It
+fires whenever consecutive levels differ in lane count — L2 (2-lane, band 540) → L3 (3-lane,
+600), and L8 (3-lane) → L9 (4-lane). Measured error on L2→L3: **column X off by ±8px,
+`ROAD_BOTTOM_Y` off by 60px.** (`ROAD_TOP_Y` is band-independent at 44, so reads of it are safe.)
+Cosmetic, but it is the same class and it is live.
+
+Verified NOT hazards: `Particles3D` / `LaneFlash3D` / `ScorchMarks3D` (rebuilt at 750, zero
+projection reads); `PositionRegistry.setActiveCounts` @737 (stores counts only, its getters read
+`F` lazily at use time); `dragDrop.setGridRows` @707 (stores only, `frontRowTapMargin` is called
+at drag time).
+
+**Per-frame geometry sync is now dead and gone** — the old `gameState?.gridRows` sync was removed
+in `a3a89e4`. Nothing legitimately needs per-frame geometry updates: `recomputeRoadGeometry()`,
+`setActiveCounts()` and `setActiveLaneCount()` each run exactly once per level start, and
+`onResize()` is event-driven and only touches canvas size, not the band. **Do not reintroduce a
+per-frame sync** — a value that only becomes correct on frame 2 is already too late for anything
+baked at creation, which is most of this list.
+
 **Geometry consumed at ENTITY-CREATION time needs its own guard.** Car scale is
 baked once in `Car3D._createEntry` and never recomputed, so a value that becomes
 correct on frame 2 is already too late. `geometry-liveness.test.js`'s

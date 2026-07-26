@@ -20,11 +20,25 @@ conversions go IN that file, never beside it.
    for Hard/Boss-Hard levels are a FLOOR, systematically lower than felt difficulty. Don't
    compare a sim number to "does this feel right" 1:1 — that gap is real and expected until §3b
    ships booster-aware profiles.
-2. The sim always simulates 4 lanes/4 columns, even for levels that are narrower in the real
-   game (e.g. L2 is 2-lane/2-col). `LevelManager.js` has hand-compensated presets for this
-   (`R_L2`, hpMultiplier 0.90 — see the inline comment "L2 2-col sim bias"). If you see an
-   oddly aggressive-looking preset, check for a sim-bias comment before "fixing" it — it may be
-   deliberately overtuned to compensate for the sim's blind spot, not a mistake.
+2. ~~The sim always simulates 4 lanes/4 columns, even for levels that are narrower in the real
+   game (e.g. L2 is 2-lane/2-col).~~ **CORRECTED 2026-07-26 — THIS IS NO LONGER TRUE, AND HAS
+   NOT BEEN SINCE `e101c08`.** `SimulationRunner` reads `laneCount`/`colCount` straight off the
+   level config (lines ~92-93, consumed at ~149-150) and only falls back to 4 when they are
+   absent. Verified: simulating L2 reports `lanes/cols = 2/2`.
+   - **Why this matters now:** the entire 3-lane conversion was balanced on sim numbers. If the
+     original claim were still true, every 3-lane win-rate in `THREE_LANE_REDESIGN_BATCH.md`
+     would have been simulated at 4 lanes and be worthless. It is not true, so they stand — but
+     anyone re-reading this brief could reasonably have concluded the opposite. **Do not apply
+     the old rule to a new narrow level.**
+   - **The compensation it justified is now vestigial.** `R_L2` (hpMultiplier 0.90, speed 7.5)
+     still carries the inline comment "the sim always uses 4 lanes/4 cols, giving 2× extra
+     firepower vs real." That reasoning is dead. Measured impact today: **L2 sims 100% with the
+     compensation and 100% without it** — L2 is tutorial-tier (L1–L3 are exempt from win-rate
+     bands by design), so the stale tuning is inert and is NOT worth a config change on its own.
+     Left in place deliberately; retune it only if L2 is being touched for another reason.
+   - Still true and still worth the caution: if you see an oddly aggressive-looking preset,
+     check for an inline sim-bias comment before "fixing" it — but now verify the stated bias
+     still exists rather than trusting the comment.
 2b. Presets are SHARED BY REFERENCE across levels (`R_3C_MED` is the literal object used by
    L11, L14, L18 simultaneously). Editing a shared const changes every level using it. Before
    touching any `B#_*` / `R_#C_*` constant, grep which levels reference it.
@@ -53,6 +67,17 @@ on retry. **Rule: if a smoke/full-sweep failure is a timeout on one of these two
 a texture/asset didn't finish loading, rerun solo before treating it as a regression.** A REAL
 regression fails solo too, or produces a screenshot with something visibly wrong (misplaced
 element, wrong color, missing sprite) — not just a slow load.
+
+**Update 2026-07-26 — two more entries in this category, and one thing that LOOKS like it but
+is not.** (a) `boundaries.spec` / `layout.spec`'s L5 deploy tests time out on boot
+(`waitForFunction: window._nav`) if anything else is bound to port 5173 — a stray `npm run dev`
+alongside a Playwright run will do it, and it presents exactly as the texture-load flake above.
+Check for a competing dev server before diagnosing. (b) **NOT a load-flake, do not dismiss it as
+one:** those same two specs fail with `deploy had no effect` / `drag deploy did not land` when
+the wait condition is satisfied by the failure path — see CLAUDE.md §6 "Wait conditions that are
+also true on failure." That one fails deterministically in CI and passes locally, which is the
+opposite signature to a load-flake. **Rule: a load-flake is a TIMEOUT; an assertion that
+FAILS with a real message is not a load-flake, however green it is locally.**
 
 **Boss-level labeling conflict (found this session, not yet resolved — see §3a delta list).**
 `LevelManager.js`'s own header comment lists SEVEN "boss levels" — L10, L15, L20, L25, L30,
@@ -103,10 +128,25 @@ the task is choosing the "what," route smart.
    above — that one WAS obvious enough to note and move on; not all will be).
 5. **Never touch `android/lane-defense-release.keystore`.** Losing it forever loses Play Store
    update ability.
-6. **Every commit: vitest green (treat 1062 as a floor, it will grow) + `npm run test:visual`
-   green (17+ smoke).** Full 40-level sweep only after a batch of related commits, not per-commit
-   (it's ~7-8 min).
+6. **Every commit: vitest green (treat 1062 as a floor, it will grow — it is 1194 as of
+   2026-07-26) + `npm run test:visual` green (17+ smoke; the suite is 18 as of 2026-07-26).**
+   Full 40-level sweep only after a batch of related commits, not per-commit (it's ~7-8 min).
 7. **No popups outside `PopupQueue`. No lane/column position math outside `PositionRegistry`.**
+8. **BOSSES MUST BE PLAYED, NOT JUST SIMMED, after any lane-count or row-count change.** The
+   four canonical bosses (L10 / L20 / L30 / L40 — the VISION four, not the seven the
+   `LevelManager.js` header comments call "BOSS"; see the labeling conflict in §1) must be
+   played on a real device before such a change is called done. In-band sim is necessary and
+   NOT sufficient.
+   - **Why the sim cannot cover this:** it measures win rate, and win rate is not identity. A
+     boss built around "hold a column for the final wave" or "chain three merges across lanes"
+     can hold its win rate while the play pattern that made it that boss has become impossible.
+     Fewer lanes means fewer parallel setups; fewer rows means fewer turns to build one. The
+     number stays green while the fight quietly becomes a different fight.
+   - This compounds with constraint 2 and §1.1: the sim already under-reads difficulty because
+     it never uses boosters, so a boss can be BOTH in-band and unrecognisable. Two blind spots,
+     same direction.
+   - Full gate + per-boss identity notes: `THREE_LANE_REDESIGN_BATCH.md` §4.
+   - Device playtesting is **the user's own** (changed 2026-07-26; previously his sister).
 
 ---
 

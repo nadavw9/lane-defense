@@ -308,6 +308,34 @@ user on a real device. That playtest verdict gates the remaining 32-level effort
 - **"Better, but something else feels off"** (e.g. spacing improved but a different complaint
   surfaces) → treat as a new investigation, don't assume Phase 3–6 will fix it by extrapolation.
 
+### 2d. THE PILOT AS DEPLOYED — one authoritative statement (2026-07-26)
+
+Several of these numbers were reported at different values during the arc (band 680/730/600;
+growth 1.04×/1.109×/1.338×/1.83×/2.0×). **This block is what is live right now**, read out of
+the code, and supersedes every earlier figure. Verify against the source, not against prose.
+
+| | value | source |
+|---|---|---|
+| Applies to | **L4, L5, L6, L7, L8 only** | `LevelManager.js` |
+| Untouched | L1–L3, L9–L40 (all still 4-lane except L1/L2/L3, all still `gridRows` 16) | — |
+| Lane count | **3** | `laneCount: 3` |
+| `gridRows` | **8** | `gridRows: 8` |
+| Band (`DESIGN_ROAD_BOTTOM_Y`) | **600** at 3 lanes; **540** at 1/2/4 lanes | `bandForLaneCount()` |
+| FIT set | **small .656 · big .673 · jeep .690 · truck .707 · tank .724 · bigrig .740** | `Car3D.js` |
+| `laneTargetCarCount` | **2** (was 4 in the 2026-07-23 3-lane pilot; ltc3 sims 35–50%, ltc4 sims 3–6%) | — |
+| Opening depth | **rows [0, 1]** — 2 cars/lane, row 0 occluded so **1 visible row at start** | `openingRowsForLevel()` |
+| Goal band height | **106.7px** on these levels (94px everywhere else) | `max(cardsH, row0CoverY)` |
+| `hpMultiplier` | L4 0.54 · L5 0.36 · L6 0.36 · L7 0.252 · L8 0.43 | per-level `worldConfig` |
+| Sim win rate | L4 89.2 · L5 90.0 · L6 88.2 · L7 88.0 · L8 86.2 (500 runs, FTUE band 85–95) | `balance-sim` |
+
+**Car growth vs. the shipped 4-lane baseline = 2.00×.** Derivation, all three factors:
+`(FIT 0.656/0.78 = 0.841) × (rowPitch 15/7 = 2.143) × (band 600/540 = 1.111) = 2.003×`.
+Measured on-board at row 1 it reads ~2.3× because the perspective camera puts a rows-8 row-1 car
+nearer than a rows-16 row-1 car; 2.00× is the like-for-like number and the one to quote.
+
+**Method note:** measure car size by FRAME DIFFERENCING (§0c of `GEOMETRY_MECHANICS_BATCH.md`),
+never flood-fill — flood-fill produced a wrong number twice in this arc.
+
 ### 2c. VERTICAL BUDGET: an opaque band over the road CONSUMES ROAD (2026-07-26)
 
 **The rule: an opaque 2D element drawn over the road is not a free overlay — it is a real
@@ -640,6 +668,25 @@ All updated — see each file's inline 2026-07-23 comments for specifics.
   change with its own review, sequenced AFTER the pilot verdict. Open question for that
   review: at 2s it is longer than the whole shortened turn cycle on a rows-8 board, so it may
   need a shorter duration or a lane-local scope rather than board-wide.
+- **KNOWN-ACCEPTED COSMETIC DEFECT: the goal band clips row 1's bigrig nose by ~2.4px at
+  gridRows 16 (2026-07-26).** Not new, not introduced by this arc, and **deliberately not being
+  fixed** — recorded so a future session doesn't rediscover it as a fresh bug.
+  - **Numbers:** on 1/2/4-lane boards at gridRows 16, row 1's longest car (bigrig) has its top
+    edge at y **91.6**, while the goal band reaches y **94** → **2.4px, about 11% of a 21.2px
+    body**, hidden behind the band. Live on all 35 unconverted levels today. 3-lane boards are
+    unaffected (band 600 pushes row 1's top to 101.6, clear of 94).
+  - **Why it is not being fixed:** the band's height is `max(cardsHeight, row0CoverY(gridRows))`,
+    and at 16 rows `row0CoverY(16) = 93.3 < cardsHeight = 94` — so **the CARDS are the binding
+    term, not the row-0 floor.** Fixing it means shrinking the goal-card band (`CARD_H` 70, or
+    `PANEL_TOP_Y` 12 — trimming padding is the cheaper lever, see below) and trading card
+    legibility for 2.4px of a car nose that nobody has ever reported. Bad trade, and not one to
+    make unilaterally.
+  - **If it is ever revisited:** `bandH = PANEL_TOP_Y*2 + CARD_H`, so the ≤32px figure quoted
+    for `CARD_H` during the option-C analysis assumed padding stays at 12. Padding is the
+    cheaper lever. Do not carry "CARD_H ≤ 32" forward as if card height were the only variable.
+  - Pinned by `tests/row0-occlusion.test.js` ("documents the pre-existing 16-row row-1 clip"),
+    which asserts the overlap is ~2.4px — so if a future change makes it worse, the test fails
+    and the decision becomes explicit rather than silent.
 - **OPEN QUESTION: the opening deal BYPASSES `minSpawnRow` (2026-07-26).** `CarTypes` gives
   each type a `minSpawnRow` (small 0, big 0, jeep 1, truck 2, bigrig 3, tank 4) — a filter that
   should keep heavy types from appearing right at the far edge. **The opening deal does not

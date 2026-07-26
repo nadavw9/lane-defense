@@ -2307,6 +2307,11 @@ async function main() {
       },
       stashBomb: (colIdx = 0) => gs?.columns[colIdx]?.stashBomb() ?? false,
       getGs: () => gs,
+      // Profiling handle: lets a harness wrap DragDrop's handlers to attribute
+      // input-path cost (see scripts/_perf-handlers.mjs). Dev-only, like the
+      // rest of this block.
+      getDragDrop: () => dragDrop,
+      getMergeSequencer: () => mergeSequencer,
       // Test hook: enqueue a sample achievement toast (verifies popup z-order /
       // end-screen suppression).
       fireTestAchievement: () => popupQueue.enqueue(

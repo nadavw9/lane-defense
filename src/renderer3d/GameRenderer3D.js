@@ -346,6 +346,31 @@ export class GameRenderer3D {
   /** Sweep camera from high steep angle to gameplay position over 0.6 s. */
   startLevelIntro() {
     this._cameraFX?.startLevelIntro();
+    this._warmupShaders();
+  }
+
+  /**
+   * Force shader programs for everything currently in the scene to compile NOW,
+   * during the level-intro camera move, instead of lazily on first render.
+   *
+   * Without this, a material variant that first appears mid-play (a deployed
+   * bomb, a projectile, a new car type) compiles at that moment and the driver
+   * stalls the frame. Profiling a drag+drop on L5 measured that as a ~243ms
+   * hitch at the instant of deploy — the single worst frame in the interaction,
+   * and the likeliest source of "the response isn't fluent".
+   *
+   * Cheap and idempotent: Three caches by program cache key, so anything already
+   * compiled is skipped, and the cost lands in a moment the player is watching a
+   * camera sweep rather than trying to aim.
+   */
+  _warmupShaders() {
+    if (!this._mounted || !this._scene3d) return;
+    try {
+      this._scene3d.renderer?.compile(this._scene3d.scene, this._scene3d.camera);
+    } catch (e) {
+      // Never let a warm-up failure break level start — it is an optimisation.
+      console.warn('[GameRenderer3D] shader warm-up skipped:', e);
+    }
   }
 
   setActiveLaneCount(n) {

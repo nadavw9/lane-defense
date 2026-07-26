@@ -67,6 +67,52 @@ export class Projectile3D {
     this._nextStart     = new Array(firingSlots.length).fill(null);
 
     this._geo = new THREE.SphereGeometry(PROJ_R, 8, 6);
+
+    // ── Fixed PointLight pool — scene light COUNT must never change ──────────
+    // Every bomb used to add a PointLight on spawn and remove it on despawn.
+    // Three bakes the scene's light counts into each material's program cache
+    // key, so adding or removing ANY light invalidates every lit material and
+    // forces the programs to re-link. The re-link is resolved synchronously the
+    // next time the program is used (`gl.getProgramParameter(LINK_STATUS)`
+    // blocks on the driver), so each shot paid a compile stall — TWICE, once on
+    // spawn and once on despawn.
+    //
+    // Measured on L5 @4x CPU throttle (2026-07-26), profiling only the release
+    // window: getProgramParameter was 259ms of 1610ms (16.1%), landing as a
+    // ~235ms hitch at the moment of the drop. That is the "response isn't
+    // fluent" complaint.
+    //
+    // Lights are now created ONCE, added ONCE, and never removed — a shot just
+    // claims one, sets its colour/position, and parks it at intensity 0 when
+    // done. Light count is therefore constant for the whole session and no
+    // re-link is ever triggered. Pool size = one per lane, which is the real
+    // ceiling: firingSlots holds at most one in-flight bomb per lane.
+    this._lightPool = [];
+    for (let i = 0; i < Math.max(1, firingSlots.length); i++) {
+      const l = new THREE.PointLight(0xffffff, 0, 4);
+      l.visible = false;
+      scene.add(l);
+      this._lightPool.push({ light: l, inUse: false });
+    }
+  }
+
+  /** Claim a parked light from the pool, or null if all are busy. */
+  _acquireLight(hex) {
+    const slot = this._lightPool.find((s) => !s.inUse);
+    if (!slot) return null;                 // more in-flight than lanes: skip the glow, never grow the pool
+    slot.inUse = true;
+    slot.light.color.setHex(hex);
+    slot.light.intensity = 1.5;
+    slot.light.visible = true;
+    return slot;
+  }
+
+  /** Park a light: intensity 0 + hidden, but it STAYS in the scene. */
+  _releaseLight(slot) {
+    if (!slot) return;
+    slot.light.intensity = 0;
+    slot.light.visible = false;
+    slot.inUse = false;
   }
 
   // Set where the next bomb in a lane should start its travel (player's release).
@@ -128,11 +174,11 @@ export class Projectile3D {
       }
 
       p.mesh.position.set(p.x, p.y, p.z);
-      p.light.position.set(p.x, p.y + 0.2, p.z);
+      p.light?.position.set(p.x, p.y + 0.2, p.z);
 
       p.mesh.material.opacity           = frac * 0.92;
       p.mesh.material.emissiveIntensity = 0.6 + frac * 1.2;
-      p.light.intensity                 = frac * 1.5;
+      if (p.light) p.light.intensity = frac * 1.5;
 
       // ── Update ribbon trail ─────────────────────────────────────────────
       const pos = p.trail.geometry.attributes.position;
@@ -209,10 +255,12 @@ export class Projectile3D {
     mesh.position.set(sx, PROJ_Y, sz);
     this._scene.add(mesh);
 
-    // Point light.
-    const light = new THREE.PointLight(hex, 1.5, 4);
-    light.position.set(sx, PROJ_Y + 0.2, sz);
-    this._scene.add(light);
+    // Point light — claimed from the fixed pool, NOT added to the scene here.
+    // See the pool comment in the constructor: adding/removing lights re-links
+    // every lit material and stalls the frame.
+    const lightSlot = this._acquireLight(hex);
+    const light = lightSlot?.light ?? null;
+    light?.position.set(sx, PROJ_Y + 0.2, sz);
 
     // Trail ribbon (LINE_TRAIL_LEN points initialised at spawn position).
     const positions = new Float32Array(TRAIL_LEN * 3);
@@ -232,7 +280,7 @@ export class Projectile3D {
     const trail     = new THREE.Line(trailGeo, trailMat);
     this._scene.add(trail);
 
-    this._projectiles.push({ mesh, light, trail, color, x: sx, y: PROJ_Y, z: sz, sx, sz, tx, tz, life: TOTAL_LIFE });
+    this._projectiles.push({ mesh, light, lightSlot, trail, color, x: sx, y: PROJ_Y, z: sz, sx, sz, tx, tz, life: TOTAL_LIFE });
   }
 
   _spawnMuzzleCone(laneIdx, slot) {
@@ -256,7 +304,7 @@ export class Projectile3D {
     p.trail.geometry.dispose();
     p.trail.material.dispose();
     this._scene.remove(p.mesh);
-    this._scene.remove(p.light);
+    this._releaseLight(p.lightSlot);   // park it — the light STAYS in the scene
     this._scene.remove(p.trail);
   }
 

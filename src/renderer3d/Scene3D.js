@@ -110,6 +110,14 @@ export class Scene3D {
     });
     this.renderer.setSize(width, height, false);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // Shader-error checking forces a SYNCHRONOUS driver readback
+    // (getProgramParameter + getProgramInfoLog) after every program link, which
+    // stalls the pipeline until the GPU finishes compiling. Three defaults it on.
+    // Profiling a drag+drop on L5 (2026-07-26) attributed 324ms of a 4.36s
+    // profile — 7.4%, the single largest non-idle entry — to getProgramInfoLog
+    // alone, landing as a ~243ms hitch at the moment a bomb is deployed. Keep it
+    // ON in dev (it is how you find broken shaders) and OFF in production.
+    this.renderer.debug.checkShaderErrors = !!import.meta.env.DEV;
     this.renderer.shadowMap.enabled   = false;
     this.renderer.toneMapping         = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.1;

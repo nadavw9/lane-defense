@@ -96,6 +96,15 @@ async function dragDeploy(game, colIdx, laneIdx) {
   // marginally slower than a dev box blew it. That is why this test failed in CI
   // on LANE 0 — always the first shot, never lane 2 — including on a docs-only
   // commit that changed no code at all.
+  // DO NOT LOWER THIS. It looks like a 4x-oversized budget and it is not.
+  // The first-shot cost is paid ONCE PER SESSION, not once per level — measured
+  // 2026-07-27 on a real GPU: L5 shot#1 1699ms, shot#2 267ms; then L13 shot#1
+  // 188ms and L5 re-entered shot#1 274ms. Playwright gives every test a FRESH
+  // PAGE, so every test's first drag is a session-first shot and pays the full
+  // cost. That is structural, not a one-off, and it is why this test failed in
+  // CI on lane 0 (first shot) and never lane 2.
+  // The budget stays until session-init is actually fixed — see the open item in
+  // GEOMETRY_MECHANICS_BATCH.md §0c.
   const RESOLVE_TIMEOUT_MS = 20000;
   let resolved = true;
   try {

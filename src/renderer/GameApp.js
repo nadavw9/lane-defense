@@ -2069,12 +2069,20 @@ async function main() {
 
   let _lastPointerY = 300;
   let _lastPointerX = APP_W / 2;
+  // Rect cached for the same reason as InputManager's: getBoundingClientRect()
+  // forces a synchronous layout flush and this fires on every pointermove.
+  // Invalidated on layout changes; refreshed lazily on the next move.
+  let _ptrRect = null;
+  const _invalidatePtrRect = () => { _ptrRect = null; };
+  window.addEventListener('resize', _invalidatePtrRect);
+  window.addEventListener('orientationchange', _invalidatePtrRect);
+  app.canvas.addEventListener('pointerdown', _invalidatePtrRect, { passive: true });
   app.canvas.addEventListener('pointermove', (e) => {
-    const rect   = app.canvas.getBoundingClientRect();
-    const scaleY = app.screen.height / rect.height;
-    const scaleX = app.screen.width  / rect.width;
-    _lastPointerY = (e.clientY - rect.top)  * scaleY;
-    _lastPointerX = (e.clientX - rect.left) * scaleX;
+    if (!_ptrRect) _ptrRect = app.canvas.getBoundingClientRect();
+    const scaleY = app.screen.height / _ptrRect.height;
+    const scaleX = app.screen.width  / _ptrRect.width;
+    _lastPointerY = (e.clientY - _ptrRect.top)  * scaleY;
+    _lastPointerX = (e.clientX - _ptrRect.left) * scaleX;
   }, { passive: true });
 
   // ── Tab-visibility auto-pause ─────────────────────────────────────────────

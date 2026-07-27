@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [master]
+    branches: ['**']   # gates run on every branch; deploy is master-only (see the deploy job)
   workflow_dispatch:
 
 permissions:
@@ -61,6 +61,10 @@ jobs:
 
   deploy:
     needs: [test, visual-smoke]
+    # MASTER ONLY. The gates above run on every branch so a change can be judged
+    # by CI before it reaches master (CLAUDE.md 0, branch-first rule), but a
+    # branch must never publish to production Pages.
+    if: github.ref == 'refs/heads/master'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

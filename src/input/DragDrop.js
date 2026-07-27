@@ -129,6 +129,11 @@ function _drawRainbowSpark(g, x, y, angle, size, colorIdx) {
 }
 
 export class DragDrop {
+  // Ghost bomb textures, keyed by colour|damage|isColorBomb. Static: the artwork
+  // is identical across DragDrop instances and across levels, so a level restart
+  // must not re-pay the rasterise + upload. Bounded (~6 colours x a few damages).
+  static _ghostTexCache = new Map();
+
   // columns        — Column[] (live reference from GameState)
   // lanes          — Lane[]   (live reference from GameState, for color-match checks)
   // benchStorage   — BenchStorage
@@ -925,6 +930,22 @@ export class DragDrop {
     const color  = COLOR_MAP[shooter.color] ?? 0x888888;
     const damage = shooter.damage ?? 1;
 
+    // GHOST TEXTURE CACHE. Everything below rasterises a 160x160 bomb into a
+    // fresh canvas (radial gradients, glow arcs, fuse, damage text) and then
+    // uploads it to the GPU — synchronously, at the exact instant the player
+    // touches a bomb. Measured at 17.4ms in onPointerDown, i.e. over a frame
+    // budget at the one moment the input must feel instant. That is the
+    // "dragging and response aren't fluent" complaint.
+    //
+    // The artwork is a pure function of (colour, damage, isColorBomb), and there
+    // are only ~6 colours x a handful of damage values, so the texture is cached
+    // and reused. First pickup of each variant still pays; every later one is a
+    // Map lookup. Textures are never destroyed — the set is tiny and bounded,
+    // and destroying them would reintroduce the upload we are removing.
+    const cacheKey = `${color}|${damage}|${isColorBomb ? 1 : 0}`;
+    const cached = DragDrop._ghostTexCache.get(cacheKey);
+    if (cached) return this._assembleGhost(cached, x, y, color, isColorBomb);
+
     const S = 160;
     const cv = document.createElement('canvas');
     cv.width = cv.height = S;
@@ -1045,7 +1066,17 @@ export class DragDrop {
     ctx.shadowBlur   = 0;
 
     // ── Build PIXI container ─────────────────────────────────────────────────
-    const tex    = Texture.from(cv);
+    const tex = Texture.from(cv);
+    DragDrop._ghostTexCache.set(cacheKey, { tex, fuseEndX, fuseEndY, S });
+    return this._assembleGhost({ tex, fuseEndX, fuseEndY, S }, x, y, color, isColorBomb);
+  }
+
+  /**
+   * Build the ghost display objects around an (already rasterised) texture.
+   * Split out of _createGhost so a cached texture skips the canvas draw and the
+   * GPU upload entirely — see the cache note there.
+   */
+  _assembleGhost({ tex, fuseEndX, fuseEndY, S }, x, y, color, isColorBomb) {
     const sprite = new Sprite(tex);
     sprite.anchor.set(0.5);
 

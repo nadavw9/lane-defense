@@ -86,13 +86,32 @@ async function dragDeploy(game, colIdx, laneIdx) {
   // L4-L8's higher laneTargetCarCount (THREE_LANE_REDESIGN_BATCH.md §2 pilot,
   // 2026-07-23), causing real, reproducible CI failures reading state before
   // resolution finished.
+  // BUDGET, measured — not guessed (2026-07-27). Under SwiftShader (the software
+  // renderer CI uses; see CLAUDE.md §6) the game loop advances ~0.10s of game
+  // time per ~3.9s of wall clock on the FIRST shot of a level, versus ~0.31s for
+  // later shots — the first shot pays one-time GPU work (impact VFX materials
+  // compiling) spread across its frames. Measured resolution times on L5:
+  //   first shot 4597-4802ms, later shots 658-914ms.
+  // The old 5000ms budget sat at ~95% of the first-shot cost, so any CI runner
+  // marginally slower than a dev box blew it. That is why this test failed in CI
+  // on LANE 0 — always the first shot, never lane 2 — including on a docs-only
+  // commit that changed no code at all.
+  const RESOLVE_TIMEOUT_MS = 20000;
+  let resolved = true;
   try {
     await game.page.waitForFunction(
       (l) => window._nav.getGs().firingSlots[l] === null,
       laneIdx,
-      { timeout: 5000 },
+      { timeout: RESOLVE_TIMEOUT_MS },
     );
-  } catch { /* fall through — the assertion below will catch a real stall */ }
+  } catch { resolved = false; }
+
+  // Do NOT fall through on timeout. A shot that never resolved leaves the board
+  // unchanged, and the hit assertion below would then report "drag deploy did
+  // not land" — a targeting failure that never happened. Third instance of the
+  // wait-condition antipattern on this test; the fix is to name the real one.
+  expect(resolved, `shot into lane ${laneIdx} never resolved within ${RESOLVE_TIMEOUT_MS}ms — the game loop stalled or the shot was swallowed; this is NOT a deploy-targeting failure`).toBe(true);
+
   await game.page.waitForTimeout(150);   // let the resolved state settle one more tick
 
   const after = await game.page.evaluate(([c, l]) => {

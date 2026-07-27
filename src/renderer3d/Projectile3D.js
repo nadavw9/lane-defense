@@ -94,6 +94,109 @@ export class Projectile3D {
       scene.add(l);
       this._lightPool.push({ light: l, inUse: false });
     }
+
+    // ── Projectile pool — mesh + material + trail, created ONCE ───────────────
+    // Same reasoning as the lights, one level up: a brand-new material acquires
+    // its shader program the first time it renders, and Three resolves that link
+    // synchronously (gl.getProgramParameter(LINK_STATUS) blocks on the driver).
+    // _spawn used to allocate a MeshStandardMaterial, a BufferGeometry and a
+    // LineBasicMaterial per shot, so the FIRST shot of every level paid a link
+    // stall.
+    //
+    // Measured under SwiftShader (the software renderer CI uses), L5:
+    //   first shot resolved in 4768ms; 2nd 853ms; 3rd 658ms.
+    // The visual-smoke drag test allows 5000ms, so the first shot sat at 95% of
+    // budget — which is why `boundaries.spec` failed in CI on LANE 0 (always the
+    // first shot, never lane 2) regardless of what the commit changed.
+    this._projPool = [];
+    for (let i = 0; i < Math.max(1, firingSlots.length); i++) {
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 1.8,
+        transparent: true, opacity: 0.92,
+      });
+      const mesh = new THREE.Mesh(this._geo, mat);
+      mesh.visible = false;
+      scene.add(mesh);
+
+      const positions = new Float32Array(TRAIL_LEN * 3);
+      const colors    = new Float32Array(TRAIL_LEN * 3);
+      const trailGeo  = new THREE.BufferGeometry();
+      trailGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      trailGeo.setAttribute('color',    new THREE.BufferAttribute(colors,    3));
+      const trailMat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, linewidth: 1 });
+      const trail    = new THREE.Line(trailGeo, trailMat);
+      trail.visible  = false;
+      trail.frustumCulled = false;   // trail verts are rewritten every frame
+      scene.add(trail);
+
+      this._projPool.push({ mesh, trail, inUse: false });
+    }
+  }
+
+  /**
+   * Every pooled object goes through THIS on acquire — never rely on the caller
+   * to overwrite each field. Leaked state (a stale colour, a mid-splat scale, a
+   * faded opacity, last shot's trail vertices) shows up as an intermittently
+   * wrong-looking projectile: it passes tests and fails on a device.
+   */
+  _resetProjSlot(slot, hex, sx, sz) {
+    const { mesh, trail } = slot;
+    mesh.visible = true;
+    mesh.scale.set(1, 1, 1);
+    mesh.rotation.set(0, 0, 0);
+    mesh.position.set(sx, PROJ_Y, sz);
+    mesh.material.color.setHex(hex);
+    mesh.material.emissive.setHex(hex);
+    mesh.material.emissiveIntensity = 1.8;
+    mesh.material.opacity = 0.92;
+    mesh.material.transparent = true;
+    mesh.material.needsUpdate = false;   // only the uniforms changed, not the program
+
+    // Collapse the whole trail onto the spawn point, and clear its colours, so
+    // no segment of the previous shot survives into this one.
+    const pos = trail.geometry.attributes.position;
+    const col = trail.geometry.attributes.color;
+    for (let j = 0; j < TRAIL_LEN; j++) {
+      pos.array[j * 3] = sx; pos.array[j * 3 + 1] = PROJ_Y; pos.array[j * 3 + 2] = sz;
+      col.array[j * 3] = 0;  col.array[j * 3 + 1] = 0;      col.array[j * 3 + 2] = 0;
+    }
+    pos.needsUpdate = true;
+    col.needsUpdate = true;
+    trail.visible = true;
+    trail.scale.set(1, 1, 1);
+    trail.position.set(0, 0, 0);
+    trail.material.opacity = 1;
+  }
+
+  /** Claim a projectile slot, fully reset. Null if all are busy. */
+  _acquireProj(hex, sx, sz) {
+    const slot = this._projPool.find((s) => !s.inUse);
+    if (!slot) return null;
+    slot.inUse = true;
+    this._resetProjSlot(slot, hex, sx, sz);
+    return slot;
+  }
+
+  /** Park a projectile slot: hidden, but it STAYS in the scene. */
+  _releaseProj(slot) {
+    if (!slot) return;
+    slot.mesh.visible  = false;
+    slot.trail.visible = false;
+    slot.inUse = false;
+  }
+
+  /**
+   * Materials whose programs must be linked BEFORE play, so no shot pays the
+   * link stall. GameRenderer3D's warm-up renders these once during the level
+   * intro. Pooling alone would only move the stall to shot #1.
+   */
+  warmupMaterials() {
+    return this._projPool.flatMap((s) => [s.mesh.material, s.trail.material]);
+  }
+
+  /** The pooled OBJECTS, for the warm-up to reveal while it compiles. */
+  warmupMeshes() {
+    return this._projPool.flatMap((s) => [s.mesh, s.trail]);
   }
 
   /** Claim a parked light from the pool, or null if all are busy. */
@@ -101,8 +204,15 @@ export class Projectile3D {
     const slot = this._lightPool.find((s) => !s.inUse);
     if (!slot) return null;                 // more in-flight than lanes: skip the glow, never grow the pool
     slot.inUse = true;
+    // FULL reset, not just the fields _spawn happens to touch: distance and
+    // decay are mutated by nothing today, but a pooled object that resets only
+    // "the fields someone currently writes" rots the moment someone writes
+    // another one. Same discipline as _resetProjSlot.
     slot.light.color.setHex(hex);
     slot.light.intensity = 1.5;
+    slot.light.distance  = 4;
+    slot.light.decay     = 2;               // three.js default
+    slot.light.position.set(0, PROJ_Y + 0.2, 0);
     slot.light.visible = true;
     return slot;
   }
@@ -243,17 +353,11 @@ export class Projectile3D {
     const sx = start ? start.x : tx;
     const sz = start ? start.z : tz + 2.0;
 
-    // Sphere.
-    const mat = new THREE.MeshStandardMaterial({
-      color,
-      emissive:          color,
-      emissiveIntensity: 1.8,
-      transparent:       true,
-      opacity:           0.92,
-    });
-    const mesh = new THREE.Mesh(this._geo, mat);
-    mesh.position.set(sx, PROJ_Y, sz);
-    this._scene.add(mesh);
+    // Sphere + trail — claimed from the pool and fully reset. Nothing is created
+    // or added to the scene here, so no shader program is ever acquired mid-play.
+    const projSlot = this._acquireProj(hex, sx, sz);
+    if (!projSlot) return;            // more in flight than lanes — drop the visual, never grow
+    const { mesh, trail } = projSlot;
 
     // Point light — claimed from the fixed pool, NOT added to the scene here.
     // See the pool comment in the constructor: adding/removing lights re-links
@@ -262,25 +366,10 @@ export class Projectile3D {
     const light = lightSlot?.light ?? null;
     light?.position.set(sx, PROJ_Y + 0.2, sz);
 
-    // Trail ribbon (LINE_TRAIL_LEN points initialised at spawn position).
-    const positions = new Float32Array(TRAIL_LEN * 3);
-    const colors    = new Float32Array(TRAIL_LEN * 3);
-    for (let j = 0; j < TRAIL_LEN; j++) {
-      positions[j * 3]     = sx;
-      positions[j * 3 + 1] = PROJ_Y;
-      positions[j * 3 + 2] = sz;
-      colors[j * 3]     = 0;
-      colors[j * 3 + 1] = 0;
-      colors[j * 3 + 2] = 0;
-    }
-    const trailGeo = new THREE.BufferGeometry();
-    trailGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    trailGeo.setAttribute('color',    new THREE.BufferAttribute(colors,    3));
-    const trailMat  = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, linewidth: 1 });
-    const trail     = new THREE.Line(trailGeo, trailMat);
-    this._scene.add(trail);
-
-    this._projectiles.push({ mesh, light, lightSlot, trail, color, x: sx, y: PROJ_Y, z: sz, sx, sz, tx, tz, life: TOTAL_LIFE });
+    this._projectiles.push({
+      mesh, light, lightSlot, projSlot, trail, color,
+      x: sx, y: PROJ_Y, z: sz, sx, sz, tx, tz, life: TOTAL_LIFE,
+    });
   }
 
   _spawnMuzzleCone(laneIdx, slot) {
@@ -300,12 +389,11 @@ export class Projectile3D {
   }
 
   _disposeProj(p) {
-    p.mesh.material.dispose();
-    p.trail.geometry.dispose();
-    p.trail.material.dispose();
-    this._scene.remove(p.mesh);
-    this._releaseLight(p.lightSlot);   // park it — the light STAYS in the scene
-    this._scene.remove(p.trail);
+    // Nothing is disposed or removed: mesh, material, trail and light are POOLED
+    // and live in the scene for the session. Disposing them would force the next
+    // shot to re-acquire a program — the exact stall this pool exists to avoid.
+    this._releaseProj(p.projSlot);
+    this._releaseLight(p.lightSlot);
   }
 
   _disposeCone(c) {

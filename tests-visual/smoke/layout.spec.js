@@ -128,6 +128,9 @@ test('L5: deploying into lane i damages lane i (not a neighbour)', async ({ game
     // Damaged = the tagged car is gone (killed) or its hp dropped. A refill
     // bringing count back up (or even above) the original is expected now and
     // is NOT evidence of "no effect" — it's the retuned density working as intended.
+    // Distinguish "the shot never resolved" from "it resolved and missed" —
+    // otherwise a stalled game loop reports a targeting bug that never happened.
+    expect(game.lastShotResolved, `shot into lane ${lane} never resolved — game loop stalled, NOT a targeting failure`).toBe(true);
     const damaged = after.targetGone || (after.targetHp != null && after.targetHp < before.hp);
     expect(damaged, `deploy(0, ${lane}) had no effect on lane ${lane}`).toBe(true);
   }

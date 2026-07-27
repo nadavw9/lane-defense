@@ -365,11 +365,23 @@ export class GameRenderer3D {
    */
   _warmupShaders() {
     if (!this._mounted || !this._scene3d) return;
+    // The pooled projectile objects sit in the scene but start hidden, and
+    // renderer.compile() walks only VISIBLE objects — so warming up without
+    // revealing them first would compile everything except the materials that
+    // actually cause the stall. Show them for the duration of the compile, off
+    // to the side, then hide them again. Nothing is rendered to screen in
+    // between: compile() does not draw a frame.
+    const hidden = [];
     try {
+      for (const m of this._projectiles?.warmupMeshes?.() ?? []) {
+        if (!m.visible) { m.visible = true; hidden.push(m); }
+      }
       this._scene3d.renderer?.compile(this._scene3d.scene, this._scene3d.camera);
     } catch (e) {
       // Never let a warm-up failure break level start — it is an optimisation.
       console.warn('[GameRenderer3D] shader warm-up skipped:', e);
+    } finally {
+      for (const m of hidden) m.visible = false;
     }
   }
 

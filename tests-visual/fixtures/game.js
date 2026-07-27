@@ -194,13 +194,19 @@ export class GamePage {
     // real, reproducible CI failures ("deploy had no effect") on state read
     // before resolution actually finished. Poll instead — correct at any
     // rendering speed — with a generous ceiling as a safety net.
+    // Budget measured under SwiftShader, not guessed — see the note in
+    // boundaries.spec. The first shot of a level resolves in ~4.6-4.8s there
+    // (vs ~0.7-0.9s later), so a 5000ms budget was ~95% consumed and any slower
+    // runner blew it. On timeout the caller must be able to tell "never
+    // resolved" from "resolved but missed", so record it rather than swallowing.
+    this.lastShotResolved = true;
     try {
       await this.page.waitForFunction(
         (l) => window._nav.getGs().firingSlots[l] === null,
         laneIdx,
-        { timeout: 5000 },
+        { timeout: 20000 },
       );
-    } catch { /* fall through — caller's own assertions will catch a real stall */ }
+    } catch { this.lastShotResolved = false; }
     await this.page.waitForTimeout(150);   // let the resolved state settle one more tick
   }
 

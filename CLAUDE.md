@@ -198,6 +198,22 @@ setup failure. **This has now bitten three times**, each time on the same instin
    in flight, and `dismissOverlays()` taps the road, which can launch one. The deploy was
    never accepted; the test called it "no effect on lane 0".
 
+**A CI-only assertion failure is STILL this antipattern — not a new category.** A slow
+environment does not produce assertion failures on its own. It produces them when a wait gives
+up early and the assertion then reads a state the failure path also satisfies. Resist widening
+this to "assertion failures can be environmental"; that weakens a rule that exists for good
+reason. **Before treating any CI-only assertion failure as environmental, identify which wait
+is giving up and what state it leaves behind.**
+
+Third instance, same test (2026-07-27): `boundaries.spec` L5 drag deploy failed in CI on a
+**docs-only commit**, which proved no diff caused it. Measured under SwiftShader: the FIRST
+shot of a level resolves in ~4.6–4.8s (later shots ~0.7–0.9s) because the game loop advances
+only ~0.10s of game time per ~3.9s of wall clock while one-time GPU work compiles. The budget
+was 5000ms — ~95% consumed — so a marginally slower runner blew it, the wait gave up, and the
+assertion read an unchanged board and reported "drag deploy did not land". Always lane 0, never
+lane 2, because lane 0 is the first shot. Fixed by measuring the real budget AND asserting
+"never resolved" separately from "resolved but missed".
+
 **When choosing a wait signal, ask what else makes it true.** Prefer a signal only the success
 path can produce. Two that look right and are not: `firingSlots[lane] !== null` is a transient
 in-flight window a poll can miss (so it retries an already-successful action), and

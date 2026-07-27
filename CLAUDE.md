@@ -165,6 +165,29 @@ Always `${import.meta.env.BASE_URL}sprites/...`. Hardcoded `/sprites/...` causes
 **1186 passing**, 5 todo — 47 test files. Run: `npx vitest run`. All headless (no render tests).
 Visual smoke (`npm run test:visual`, Playwright) is separate and is a blocking CI gate.
 
+#### READ THE CALL SITE — don't infer a sequence from a symptom
+**Verify WHERE a callback fires before building a fix around WHEN it fires.** Two diagnoses in
+the 2026-07 arc asserted call ordering without reading the actual call site, and both looked
+right:
+- *"`col.consume()` fires `_onAutoFill` before `_startFiring` sets `firingSlots`"* — the
+  callback is not in `deploy()` at all. Its call sites are in the refill/advance paths, which
+  run after `_startFiring`. A fix was authorised on this premise and would have changed nothing.
+- *"the first-shot hitch is a per-level warm-up cost"* — it is **session**-scoped. Measured
+  1699ms on the session's first shot, then 188ms on a different level and 274ms on the same
+  level re-entered. A per-level warm-up was built against it and measured no improvement.
+
+Same family as the four create-before-configure bugs (§0c of `GEOMETRY_MECHANICS_BATCH.md`):
+unverified assumptions about *when* things happen. Grep the call sites; don't reason backwards
+from the symptom.
+
+#### A POLLING SAMPLER CANNOT TELL "PERSISTS" FROM "RECURS"
+Prefer an **edge-triggered** instrument for any "did X happen at the moment of Y" question.
+Worked example: an 8ms poll reported *107 merges animating mid-flight*. The real number was
+**2** — `mergeSequencer.start()` calls `gameLoop.pause()`, which freezes an in-flight shot with
+`firingSlots` still occupied for the whole animation, so one legitimate merge produced ~100
+samples. Re-measuring at the single instant `start()` fires gave 2 of 2 before the fix and 0 of
+6 after. A wrong instrument here would have produced a wrong root cause and a wrong fix.
+
 #### HEADLESS FPS IS NOT EVIDENCE — measure performance in HEADED Chromium only
 Headless Chromium has no GPU here and falls back to **SwiftShader** (software
 rasterisation), which pins this game at **~6fps regardless of what the code does**. A headless

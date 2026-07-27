@@ -1816,8 +1816,30 @@ async function main() {
     // release into a zombie drag (leaked draggingColumn = invisible merged bomb;
     // stale next-tap resolution = double-count corruption). Deferred checks are
     // drained by update() the frame after the drag resolves.
+    // SHOT/MERGE ORDERING (2026-07-27, user-reported): "when there is both a bomb
+    // shooting and a merge following it, the bomb shot should appear first on the
+    // screen, and only then all the merge."
+    // Firing consumes a bomb; the refill that follows fires _onAutoFill ->
+    // requestCheck() while the bomb is still travelling, so the merge animation
+    // began on top of the shot. Measured with an edge-triggered instrument
+    // (sampling at the instant start() fires, BEFORE pause() can freeze
+    // anything): 2 of 2 merges on an L8 run began mid-flight.
+    //
+    // A shot is in flight exactly while its lane's firingSlot is occupied; the
+    // slot clears when travel + impact resolve, which is the moment we want.
+    // NOTE this is a pure read — the gate must never write game state.
+    _shotInFlight() {
+      const slots = gs.firingSlots;
+      if (!slots) return false;
+      for (const k in slots) if (slots[k] != null) return true;
+      return false;
+    },
     requestCheck() {
-      if (this.active || dragDrop.isDragging()) { this._pending = true; return; }
+      // Deferral only — this gates WHEN THE ANIMATION STARTS, never when state is
+      // written. gameLoop applies merges on its own schedule; start() re-peeks
+      // fresh state via peekMerges(), so a deferred check can never act on a
+      // stale snapshot (the bug class the hardening pass fixed).
+      if (this.active || dragDrop.isDragging() || this._shotInFlight()) { this._pending = true; return; }
       this.start();
     },
     start() {
@@ -1842,7 +1864,11 @@ async function main() {
       if (!this.active) {
         // Drain a deferred check once idle AND no drag is in flight (fresh state
         // is re-peeked inside start(), so the deferral never acts on a snapshot).
-        if (this._pending && !dragDrop.isDragging()) { this._pending = false; this.start(); }
+        // Mirror of requestCheck's condition — the two MUST agree, or a merge is
+        // either released early or deferred forever.
+        if (this._pending && !dragDrop.isDragging() && !this._shotInFlight()) {
+          this._pending = false; this.start();
+        }
         return;
       }
       this.t += dt;

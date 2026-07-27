@@ -11,6 +11,25 @@ An approved 3-workstream master plan is in progress (WS1 testing DONE → WS2 UI
 Route mechanical spec-execution to cheaper models; reserve Fable/Opus for design judgment
 (playbook §2). Every task: vitest green (1193+) + `npm run test:visual` green (18) before commit.
 
+### BRANCH-FIRST FOR THE DEPLOY / MERGE PATH — local green proves nothing there
+**Anything touching the deploy → auto-fill → merge path goes to a BRANCH and waits for CI
+before it reaches master.** Do not validate locally and push to master.
+
+Three changes have now failed CI on the same two L5 deploy tests after passing *everything*
+locally — full vitest, full visual-smoke, and `CI=true` + SwiftShader across 3 repeats. Two of
+them reached master and had to be reverted; the third was caught on a branch, which is the
+whole point. That path is the most CI-sensitive surface in the project: it is timing-dependent,
+and CI's software renderer runs the game loop ~12× slower than a dev GPU, so windows that never
+open locally open reliably there.
+
+Same lesson as the SwiftShader and wait-condition rules below, one level up: **the local
+environment is not a proxy for CI on this path.** Push the branch, let CI judge, merge on green.
+If diagnosis outruns your budget, leave the branch pushed and unmerged with findings — that is a
+clean handoff, not an unfinished task.
+
+The workflow supports this as of `ec5b14b`: gates run on every branch, and `deploy` is gated to
+`refs/heads/master` so a branch can never publish to Pages.
+
 ### BOSSES MUST BE PLAYED, NOT JUST SIMMED
 
 **After ANY change to lane count or row count, the four canonical bosses (L10 / L20 / L30 /

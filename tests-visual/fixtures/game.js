@@ -151,14 +151,63 @@ export class GamePage {
   // which can itself launch a shot, so a test that dismisses and then
   // immediately deploys is racing that shot. Call this before reading any
   // "before" state you intend to act on.
-  async waitForIdle(timeout = 5000) {
+  /**
+   * Wait until the game will actually ACCEPT a deploy.
+   *
+   * This must mirror every precondition GameLoop.deploy() checks, plus every
+   * state that blocks input. It has been wrong twice by omission:
+   *   - originally it only waited for the shot to clear (firingSlots), because
+   *     that was the only blocker at the time;
+   *   - it did not know about the MERGE SEQUENCER, which pauses the game loop
+   *     and sets dragDrop.inputBlocked for the length of its animation.
+   *
+   * The merge omission is what broke CI when shot/merge ordering was gated
+   * (2026-07-27). Gating did not introduce a bug — it moved merges from "during
+   * flight" to "immediately after the shot resolves", which is exactly the
+   * instant waitForIdle() used to return. The fixture then deployed into a
+   * paused, input-blocked game and reported "deploy didn't land". Diagnosed from
+   * the CI failure screenshot: a merged bomb mid-animation in one column and
+   * drained sockets in another, at assertion time.
+   *
+   * If a new blocker is ever added to deploy(), it belongs HERE too.
+   */
+  async waitForIdle(timeout = 20000) {
     try {
       await this.page.waitForFunction(
-        () => Object.values(window._nav.getGs().firingSlots).every((s) => s === null),
+        () => {
+          const gs = window._nav.getGs();
+          if (!Object.values(gs.firingSlots).every((s) => s === null)) return false;
+          // Merge sequencer: active OR holding a deferred check. Both pause the
+          // loop / block input, and a pending one is about to.
+          const ms = window._nav.getMergeSequencer?.();
+          if (ms && (ms.active || ms._pending)) return false;
+          return true;
+        },
         null,
         { timeout },
       );
-    } catch { /* caller's assertions will catch a genuine stall */ }
+      return true;
+    } catch { return false; }
+  }
+
+  /**
+   * Why the game would refuse a deploy right now, or null if it would accept.
+   * Mirrors GameLoop.deploy's guards (GameLoop.js ~105-108) plus the input
+   * blockers, so a rejected deploy can be reported as a REJECTION rather than
+   * silently becoming "the shot missed".
+   */
+  async deployBlockedReason(colIdx, laneIdx) {
+    return this.page.evaluate(([c, l]) => {
+      const gs = window._nav.getGs();
+      const ms = window._nav.getMergeSequencer?.();
+      if (!gs.columns[c]?.top())                                   return `column ${c} is empty`;
+      if (Object.values(gs.firingSlots).some((s) => s !== null))   return 'a shot is already in flight (deploy is turn-based)';
+      if (gs.firingSlots[l])                                       return `lane ${l} already has a shot`;
+      if (ms?.active)                                              return 'a merge animation is running (game loop paused, input blocked)';
+      if (ms?._pending)                                            return 'a merge is queued and about to start';
+      if (gs.isOver)                                               return 'the level is already over';
+      return null;
+    }, [colIdx, laneIdx]);
   }
 
   async deploy(colIdx, laneIdx) {
@@ -176,13 +225,19 @@ export class GamePage {
         return true;
       }, colIdx);
       if (!tagged) break;                       // empty column — let the caller's assertion speak
+      // Record WHY a deploy would be refused, before attempting it. This is what
+      // turns "deploy didn't land" into an accurate message: five separate bugs
+      // have been misdiagnosed through this fixture because a rejected deploy
+      // and a missed shot were indistinguishable.
+      this.lastDeployBlockedReason = await this.deployBlockedReason(colIdx, laneIdx);
       await this.page.evaluate(([c, l]) => window._nav.deploy(c, l), [colIdx, laneIdx]);
       const left = await this.page.evaluate(
         (c) => !window._nav.getGs().columns[c].shooters.some((b) => b.__deployTag === 'inflight'),
         colIdx,
       );
-      if (left) break;                          // accepted
-      await this.waitForIdle();                 // rejected — almost always a stray in-flight shot
+      this.lastDeployAccepted = left;
+      if (left) { this.lastDeployBlockedReason = null; break; }   // accepted
+      await this.waitForIdle();                 // rejected — wait out whatever blocked it, then retry
     }
     // Wait for the actual event (GameLoop clears firingSlots[laneIdx] once the
     // shot's travel-time timer elapses and combat/advance/refill resolve) rather

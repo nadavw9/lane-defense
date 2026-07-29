@@ -128,10 +128,16 @@ test('L5: deploying into lane i damages lane i (not a neighbour)', async ({ game
     // Damaged = the tagged car is gone (killed) or its hp dropped. A refill
     // bringing count back up (or even above) the original is expected now and
     // is NOT evidence of "no effect" — it's the retuned density working as intended.
-    // Distinguish "the shot never resolved" from "it resolved and missed" —
-    // otherwise a stalled game loop reports a targeting bug that never happened.
-    expect(game.lastShotResolved, `shot into lane ${lane} never resolved — game loop stalled, NOT a targeting failure`).toBe(true);
+    // THREE OUTCOMES, THREE MESSAGES. Five distinct bugs were misdiagnosed
+    // through this test because all three collapsed into "deploy had no effect".
+    // 1. rejected — a precondition was unmet; the deploy never happened.
+    expect(game.lastDeployAccepted,
+      `deploy(0, ${lane}) was REJECTED, not missed — reason: ${game.lastDeployBlockedReason ?? 'unknown'}. This is a fixture/precondition problem, NOT a targeting failure`).toBe(true);
+    // 2. accepted but never resolved — the loop stalled.
+    expect(game.lastShotResolved,
+      `shot into lane ${lane} was accepted but never resolved — game loop stalled, NOT a targeting failure`).toBe(true);
+    // 3. resolved and missed — the only real product failure.
     const damaged = after.targetGone || (after.targetHp != null && after.targetHp < before.hp);
-    expect(damaged, `deploy(0, ${lane}) had no effect on lane ${lane}`).toBe(true);
+    expect(damaged, `deploy(0, ${lane}) resolved but damaged nothing in lane ${lane} — REAL targeting failure`).toBe(true);
   }
 });

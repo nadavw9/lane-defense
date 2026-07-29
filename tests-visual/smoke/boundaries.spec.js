@@ -78,7 +78,7 @@ async function dragDeploy(game, colIdx, laneIdx) {
       launched = true;
     } catch { /* pickup was intercepted — clear overlays and drag again */ }
   }
-  expect(launched, `bomb never left the queue for lane ${laneIdx} — the drag pickup was intercepted (overlay still up?), not a deploy-targeting failure`).toBe(true);
+  expect(launched, `bomb never left the queue for lane ${laneIdx} — the drag was REJECTED or the pickup was intercepted (blocked by: ${await game.deployBlockedReason(colIdx, laneIdx) ?? 'overlay/pickup'}); NOT a deploy-targeting failure`).toBe(true);
 
   // Then wait for the actual event (firingSlots[laneIdx] clears once combat/
   // advance/refill resolve) instead of a fixed wall-clock sleep — a fixed 900ms
@@ -119,7 +119,7 @@ async function dragDeploy(game, colIdx, laneIdx) {
   // unchanged, and the hit assertion below would then report "drag deploy did
   // not land" — a targeting failure that never happened. Third instance of the
   // wait-condition antipattern on this test; the fix is to name the real one.
-  expect(resolved, `shot into lane ${laneIdx} never resolved within ${RESOLVE_TIMEOUT_MS}ms — the game loop stalled or the shot was swallowed; this is NOT a deploy-targeting failure`).toBe(true);
+  expect(resolved, `shot into lane ${laneIdx} was accepted but never resolved within ${RESOLVE_TIMEOUT_MS}ms — the game loop stalled; this is NOT a deploy-targeting failure`).toBe(true);
 
   await game.page.waitForTimeout(150);   // let the resolved state settle one more tick
 

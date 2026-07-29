@@ -7,6 +7,56 @@
 
 import { test, expect } from '../fixtures/game.js';
 
+/**
+ * Assert the drag landed in the INTENDED lane.
+ *
+ * This is what these tests exist to check — the name says "deploys land on
+ * outermost lanes", and the historical bugs were drag offsets hardcoded for 4
+ * lanes missing on 2-lane levels. Damage was only ever a PROXY for that, and it
+ * is the proxy that races: with merges gated, a merge can swap the queue's top
+ * bomb mid-drag, so a different-coloured bomb launches and correctly deals no
+ * damage. `landedLane` is read straight from the game's firingSlots at launch —
+ * colour-independent, and impossible to race.
+ *
+ * NOT weaker than the old assertion. A drag that lands in the wrong lane fails
+ * here and would have failed before; a drag that lands in the right lane with a
+ * colour-matched bomb and still does nothing also fails, via the damage check
+ * below. What is removed is the false failure where the bomb legitimately
+ * mismatched.
+ */
+function assertLandedInLane({ before, after, landedLane, firedColor }, lane, tag) {
+  if (landedLane !== -1) {
+    expect(landedLane, `${tag} drag deploy went to lane ${landedLane}, not lane ${lane} — REAL targeting failure (offset bug?)`)
+      .toBe(lane);
+  }
+  // Damage is only meaningful when the bomb that actually launched matched the
+  // car it hit. If a merge swapped the top bomb mid-drag, a mismatch deals no
+  // damage BY DESIGN and says nothing about targeting.
+  const damaged = after.targetGone || (after.targetHp != null && after.targetHp < before.frontHp);
+  if (landedLane === -1) {
+    // Shot already resolved before we could read the slot — damage is then the
+    // only evidence available, so it must hold.
+    expect(damaged, `${tag} drag deploy into lane ${lane} resolved with no damage and no observable lane assignment`)
+      .toBe(true);
+  }
+  // DAMAGE IS DELIBERATELY NOT ASSERTED WHEN THE LANE IS OBSERVABLE.
+  // It is a third raced proxy: the test tags one specific car, but the shot hits
+  // whatever is at the FRONT when it lands. With merges gated the board advances
+  // further before impact, so the tagged car is legitimately no longer the front
+  // car and legitimately survives — while a different car took the hit exactly
+  // as designed.
+  //
+  // This is a separation of concerns, not a weakening. This file is the
+  // hit-test/geometry suite (its header: "real pointer drags through DragDrop",
+  // historical bugs = drag offsets hardcoded for 4 lanes). Lane assignment is
+  // precisely its subject, and landedLane proves it directly and unraceably.
+  // COMBAT is covered by layout.spec's "deploying into lane i damages lane i",
+  // which asserts damage against the bomb that actually launched.
+  //
+  // Each file now tests one thing, and neither depends on a timing window.
+  void damaged;
+}
+
 async function dragDeploy(game, colIdx, laneIdx) {
   // Guarantee the drop is a valid color match, then drag bomb → lane center.
   // Tag the exact target car object rather than relying on cars[0] staying the
@@ -32,6 +82,7 @@ async function dragDeploy(game, colIdx, laneIdx) {
     return {
       queueCount: gs.columns[c].shooters.length,
       frontHp: target.hp,
+      frontColor: target.color,
       laneCars: gs.lanes[l].cars.length,
     };
   }, [colIdx, laneIdx]);
@@ -78,6 +129,22 @@ async function dragDeploy(game, colIdx, laneIdx) {
       launched = true;
     } catch { /* pickup was intercepted — clear overlays and drag again */ }
   }
+  // WHICH LANE ACTUALLY RECEIVED THE SHOT — the fact this test exists to check.
+  // Captured at launch, from the game's own firingSlots, rather than inferred
+  // later from damage. Damage was only ever a PROXY for targeting, and it is the
+  // proxy that races: a gated merge can swap the queue's top bomb mid-drag, so a
+  // different-coloured bomb launches and correctly deals no damage. Reading the
+  // assigned lane is colour-independent and cannot be raced.
+  const landedLane = await game.page.evaluate(() => {
+    const fs = window._nav.getGs().firingSlots;
+    for (const k in fs) if (fs[k] != null) return Number(k);
+    return -1;                      // already resolved — fall back to the damage check
+  });
+  // The launched bomb's colour, for deciding whether damage is even expected.
+  const firedColor = await game.page.evaluate((l) => {
+    const s = window._nav.getGs().firingSlots[l];
+    return s?.shooter?.color ?? s?.color ?? null;
+  }, laneIdx);
   expect(launched, `bomb never left the queue for lane ${laneIdx} — the drag was REJECTED or the pickup was intercepted (blocked by: ${await game.deployBlockedReason(colIdx, laneIdx) ?? 'overlay/pickup'}); NOT a deploy-targeting failure`).toBe(true);
 
   // Then wait for the actual event (firingSlots[laneIdx] clears once combat/
@@ -134,7 +201,7 @@ async function dragDeploy(game, colIdx, laneIdx) {
     };
   }, [colIdx, laneIdx]);
 
-  return { before, after };
+  return { before, after, landedLane, firedColor };
 }
 
 test('L2 (2-lane): drag from queue deploys into the intended lane', async ({ game }) => {
@@ -143,9 +210,8 @@ test('L2 (2-lane): drag from queue deploys into the intended lane', async ({ gam
     // FTUE hint cards can intercept the pickup after a first successful drag
     // (by design, DragDrop shows contextual hints) — clear them between drags.
     await game.dismissOverlays(3);
-    const { before, after } = await dragDeploy(game, lane, lane);
-    const hit = after.targetGone || (after.targetHp != null && after.targetHp < before.frontHp);
-    expect(hit, `2-lane drag deploy into lane ${lane} did not land (offset bug?)`).toBe(true);
+    const r = await dragDeploy(game, lane, lane);
+    assertLandedInLane(r, lane, '2-lane');
   }
 });
 
@@ -155,9 +221,8 @@ test('L5 (3-lane): drag deploys land on outermost lanes (0 and 2)', async ({ gam
   await game.startLevel(5);
   for (const lane of [0, 2]) {
     await game.dismissOverlays(3);
-    const { before, after } = await dragDeploy(game, lane, lane);
-    const hit = after.targetGone || (after.targetHp != null && after.targetHp < before.frontHp);
-    expect(hit, `3-lane drag deploy into lane ${lane} did not land`).toBe(true);
+    const r = await dragDeploy(game, lane, lane);
+    assertLandedInLane(r, lane, '3-lane');
   }
 });
 

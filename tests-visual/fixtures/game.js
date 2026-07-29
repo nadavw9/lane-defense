@@ -140,6 +140,56 @@ export class GamePage {
     });
   }
 
+  /**
+   * Tag EVERY car currently in a lane and record the cohort's total hp.
+   *
+   * Why a cohort and not one car: these specs used to tag a single "target" car
+   * and assert it took damage. A shot hits whatever is at the FRONT when it
+   * lands, and with merges gated the board advances further before impact — so
+   * the tagged car is legitimately no longer front, legitimately survives, and a
+   * different car takes the hit exactly as designed. The assertion then reported
+   * correct behaviour as a targeting failure. That was the third raced proxy
+   * found in this fixture; all three shared one shape — asserting on
+   * PRE-ARRANGED OBJECT IDENTITY, which is always a timing window.
+   *
+   * A cohort is immune to all three: advancement keeps the tags, merges do not
+   * touch cars, and refill adds cars that are NOT in the cohort (so they cannot
+   * mask a drop the way a raw lane-total would).
+   */
+  async snapshotLane(laneIdx) {
+    return this.page.evaluate((l) => {
+      const cars = window._nav.getGs().lanes[l].cars;
+      let totalHp = 0;
+      const ids = [];
+      cars.forEach((c, i) => {
+        c.__cohort = `L${l}#${i}#${Date.now()}`;
+        ids.push(c.__cohort);
+        totalHp += c.hp ?? 0;
+      });
+      return { ids, totalHp, count: cars.length };
+    }, laneIdx);
+  }
+
+  /**
+   * Did the tagged cohort take damage? True if any cohort car died OR the
+   * surviving cohort's total hp fell. Both facts hold regardless of which car
+   * ended up front, and regardless of refill.
+   */
+  async laneCohortDamaged(snapshot, laneIdx) {
+    return this.page.evaluate(([snap, l]) => {
+      const cars = window._nav.getGs().lanes[l].cars;
+      const alive = cars.filter((c) => snap.ids.includes(c.__cohort));
+      const survivingHp = alive.reduce((a, c) => a + (c.hp ?? 0), 0);
+      return {
+        died: alive.length < snap.ids.length,
+        hpDropped: survivingHp < snap.totalHp,
+        before: snap.totalHp,
+        after: survivingHp,
+        lost: snap.ids.length - alive.length,
+      };
+    }, [snapshot, laneIdx]);
+  }
+
   positions() { return this.page.evaluate(() => window._nav.getPositions()); }
   hudBounds() { return this.page.evaluate(() => window._nav.getHudBounds()); }
   winLevel()  { return this.page.evaluate(() => window._nav.winLevel()); }
@@ -233,8 +283,13 @@ export class GamePage {
         const top = gs.columns[c].shooters[0];
         if (!top) return null;
         top.__deployTag = 'inflight';
+        // Recolour EVERY car in the lane, not just cars[0]. The shot hits
+        // whichever car is front AT IMPACT, and the board advances between here
+        // and landing — matching only one car leaves a legitimate colour mismatch
+        // (and correctly zero damage) whenever a different car ends up front.
+        if (l != null) for (const car of gs.lanes[l]?.cars ?? []) car.color = top.color;
         const target = l != null ? gs.lanes[l]?.cars?.[0] : null;
-        if (target) { target.color = top.color; target.__testTag = 'target'; }
+        if (target) { target.__testTag = 'target'; }
         const snap = { color: top.color, damage: top.damage ?? 1, targetHp: target?.hp ?? null };
         // FIRE IN THE SAME EVALUATE. Tag, colour-match and deploy must be one
         // synchronous block: splitting them left an await gap, and with merges

@@ -93,12 +93,9 @@ test('L5: deploying into lane i damages lane i (not a neighbour)', async ({ game
     // between the recolor below and the deploy — recoloring the car to match a
     // bomb that is no longer the one fired.
     await game.waitForIdle();
-    // NOTE: the colour match and the target tag are NOT arranged here any more.
-    // Doing so opened a race — deploy() waits and may retry, and a merge in that
-    // window changes which bomb is on top, so a different-coloured bomb fired
-    // and correctly dealt no damage. deploy() now tags the bomb and colour-matches
-    // the target in a single evaluate, and reports what actually launched via
-    // game.lastDeployedBomb. This asserts against the bomb that really flew.
+    // Cohort snapshot: a LANE-LEVEL fact, immune to which car ends up front at
+    // impact. See GamePage.snapshotLane.
+    const cohort = await game.snapshotLane(lane);
     const before = await game.page.evaluate((l) => {
       const gs = window._nav.getGs();
       return {
@@ -138,10 +135,13 @@ test('L5: deploying into lane i damages lane i (not a neighbour)', async ({ game
     expect(game.lastShotResolved,
       `shot into lane ${lane} was accepted but never resolved — game loop stalled, NOT a targeting failure`).toBe(true);
     // 3. resolved and missed — the only real product failure.
-    // hp baseline comes from the bomb that ACTUALLY launched, captured atomically
-    // with the tag — not from an arrangement made before deploy() may have retried.
-    const hp0 = game.lastDeployedBomb?.targetHp;
-    const damaged = after.targetGone || (after.targetHp != null && hp0 != null && after.targetHp < hp0);
-    expect(damaged, `deploy(0, ${lane}) resolved but damaged nothing in lane ${lane} — REAL targeting failure`).toBe(true);
+    // LANE-LEVEL fact, not the survival of one pre-chosen car: a shot hits
+    // whatever is front at impact, and with merges gated the board advances
+    // further before landing, so a tagged car legitimately survives while a
+    // different car takes the hit. Cohort damage holds either way.
+    const damage = await game.laneCohortDamaged(cohort, lane);
+    expect(damage.died || damage.hpDropped,
+      `deploy(0, ${lane}) resolved but lane ${lane} took NO damage — REAL combat failure `
+      + `(cohort hp ${damage.before} -> ${damage.after}, ${damage.lost} cars lost)`).toBe(true);
   }
 });

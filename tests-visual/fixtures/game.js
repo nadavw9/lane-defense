@@ -218,19 +218,38 @@ export class GamePage {
     // and firingSlots[lane] !== null is a transient a poll can miss.)
     await this.waitForIdle();
     for (let attempt = 0; attempt < 2; attempt++) {
-      const tagged = await this.page.evaluate((c) => {
-        const top = window._nav.getGs().columns[c].shooters[0];
-        if (!top) return false;
+      // Tag the bomb AND colour-match the target in ONE evaluate, so no window
+      // exists between them. The previous shape — caller recolours cars[0] to
+      // match shooters[0], then calls deploy(), which waits and may retry — let
+      // a merge change the queue top in between, so a different-coloured bomb
+      // fired and correctly dealt no damage. The old fixture reported that as
+      // "deploy had no effect", identical to five unrelated causes.
+      //
+      // Atomic here, and it records WHAT ACTUALLY LAUNCHED (colour + damage), so
+      // the caller asserts against the bomb that really flew rather than against
+      // an arrangement it made earlier and assumed still held.
+      const tagged = await this.page.evaluate(([c, l]) => {
+        const gs  = window._nav.getGs();
+        const top = gs.columns[c].shooters[0];
+        if (!top) return null;
         top.__deployTag = 'inflight';
-        return true;
-      }, colIdx);
-      if (!tagged) break;                       // empty column — let the caller's assertion speak
-      // Record WHY a deploy would be refused, before attempting it. This is what
-      // turns "deploy didn't land" into an accurate message: five separate bugs
-      // have been misdiagnosed through this fixture because a rejected deploy
-      // and a missed shot were indistinguishable.
-      this.lastDeployBlockedReason = await this.deployBlockedReason(colIdx, laneIdx);
-      await this.page.evaluate(([c, l]) => window._nav.deploy(c, l), [colIdx, laneIdx]);
+        const target = l != null ? gs.lanes[l]?.cars?.[0] : null;
+        if (target) { target.color = top.color; target.__testTag = 'target'; }
+        const snap = { color: top.color, damage: top.damage ?? 1, targetHp: target?.hp ?? null };
+        // FIRE IN THE SAME EVALUATE. Tag, colour-match and deploy must be one
+        // synchronous block: splitting them left an await gap, and with merges
+        // gated they fire exactly when waitForIdle() returns — landing in that
+        // gap and swapping the top bomb, so a different-coloured bomb launched
+        // and correctly dealt no damage. Proven: with the gate off this test
+        // passed 3/3; with it on it failed reproducibly until the gap closed.
+        window._nav.deploy(c, l);
+        return snap;
+      }, [colIdx, laneIdx]);
+      this.lastDeployedBomb = tagged || null;
+      // NOTE: the deploy happens INSIDE the same evaluate as the tag+recolour
+      // (above), not here. Splitting them left an await gap, and with merges
+      // gated they fire exactly when waitForIdle() returns — landing in that gap
+      // and changing which bomb is on top.
       const left = await this.page.evaluate(
         (c) => !window._nav.getGs().columns[c].shooters.some((b) => b.__deployTag === 'inflight'),
         colIdx,

@@ -668,6 +668,38 @@ All updated — see each file's inline 2026-07-23 comments for specifics.
   change with its own review, sequenced AFTER the pilot verdict. Open question for that
   review: at 2s it is longer than the whole shortened turn cycle on a rows-8 board, so it may
   need a shorter duration or a lane-local scope rather than board-wide.
+- **PREREQUISITE FOR THE 35-LEVEL CONVERSION: the sim's BOMB trigger under-fires on 3 lanes
+  (measured 2026-07-27).** `SimulationRunner.js` (~line 356-362) fires BOMB when a single row
+  holds `bestN >= 3` cars — a threshold written for a 4-lane board. **At 3 lanes that requires a
+  COMPLETELY FULL row**, which sampling puts at only ~20% of boards, so the sim under-uses BOMB
+  on every 3-lane level and reports win rates below what a real player achieves.
+  - Corrected trigger `min(laneCount, max(2, ceil(laneCount × 0.6)))` — a majority of the row
+    rather than a fixed integer. **At 4 lanes it returns 3, identical to today**, so nothing
+    already tuned at 4 lanes moves.
+
+    | level | current (`>=3`) | corrected | delta |
+    |---|---|---|---|
+    | L3 | 99.8% | 99.6% | -0.2 (tutorial, noise) |
+    | L4 | 89.2% | 93.0% | **+3.8** |
+    | L5 | 90.0% | 92.6% | **+2.6** |
+    | L6 | 88.2% | 91.6% | **+3.4** |
+    | L7 | 88.0% | 92.0% | **+4.0** |
+    | L8 | 86.2% | 90.4% | **+4.2** |
+
+  - **L4–L8 need NO retune.** They sit at 90.4–93.0 corrected, comfortably inside the 85–95 FTUE
+    band. They were never out of band — they were *measured low*.
+  - **Bosses unaffected.** L10/20/30/40 are all still 4-lane, where the corrected threshold is
+    unchanged at 3.
+  - **THE REASON THIS IS RECORDED AS A BLOCKER:** converting L9–L40 to 3 lanes and retuning
+    against the CURRENT heuristic would make all 32 levels **systematically ~4 points harder
+    than intended** — the retune would be compensating for a measurement artefact. Fix the
+    heuristic BEFORE the conversion retune, not after. Same class as the hpMultiplier
+    double-discount.
+  - The code fix was deliberately NOT committed: BOMB is moving from row-clear to lane-clear
+    (user decision, 2026-07-27), and lane-clear yield is deterministic (always exactly
+    `laneTargetCarCount`), so a *yield threshold* is the wrong model for it entirely — the
+    trigger must be re-derived as threat-based (fire when a lane's front car is within N rows of
+    breach) rather than re-patched. Do both in one pass.
 - **KNOWN-ACCEPTED COSMETIC DEFECT: the goal band clips row 1's bigrig nose by ~2.4px at
   gridRows 16 (2026-07-26).** Not new, not introduced by this arc, and **deliberately not being
   fixed** — recorded so a future session doesn't rediscover it as a fresh bug.

@@ -8,6 +8,7 @@
 import { PHASE_CONFIG, HP_MINIMUM } from '../director/DirectorConfig.js';
 import { CAR_TYPES } from '../director/CarTypes.js';
 import { Shooter } from '../models/Shooter.js';
+import { COLUMN_CAPACITY } from '../models/Column.js';
 
 const KILLS_PER_BOMB      = 10;    // kills needed to earn one bomb charge
 const MULTI_KILLS_PER_BOMB = 3;    // multi-kills (2+ cars/shot) banked to earn a color bomb
@@ -937,11 +938,47 @@ export class GameLoop {
       if (crisis) {
         const laneIdx = gs.activeLanes.indexOf(crisis.lane);
         const colIdx  = Math.max(0, Math.min(laneIdx >= 0 ? laneIdx : 0, gs.activeColCount - 1));
-        crisis.shooter.column = colIdx;
-        gs.columns[colIdx].shooters.unshift(crisis.shooter);
-        // Keep column within capacity (3 + 1 extra tolerance for crisis inject).
-        if (gs.columns[colIdx].shooters.length > 4) gs.columns[colIdx].shooters.length = 4;
-        this._onCrisis(colIdx, laneIdx);
+        // CRISIS INJECT vs QUEUE DEPTH (fixed 2026-07-30).
+        //
+        // This used to unshift and tolerate a column of 4. That tolerance dated
+        // from when SLOT_COUNT was 4 and slot 3 was the stash; the stash was
+        // retired (the bench is sole storage) and the rendered depth became 3,
+        // but this capacity never followed. The bomb at index 3 was therefore
+        // rendered nowhere (Shooter3D.SLOT_COUNT = 3), hit-tested nowhere
+        // (DragDrop._hitTestQueueSlot loops row < 3) and merge-ineligible (the
+        // merge window is the 3 visible rows) — it reappeared only after a fire
+        // shifted the column up. On the band-600 pilot, where the queue is
+        // compressed and the bench sits at its 28px floor, it visibly clipped
+        // through the bench strip: "still got to a phase were bombs are out of
+        // the grid" (crisis only fires in PRESSURE/CLIMAX/RELIEF — hence "phase").
+        //
+        // Crisis pressure is preserved rather than capped away: the new bomb
+        // still goes to the TOP (immediately playable), and the bomb it displaces
+        // moves to the BENCH, which is the designated storage and where the
+        // player can still reach it. If the bench is full there is nowhere for
+        // the displaced bomb to go, so the inject is SKIPPED for that column —
+        // dropping a playable bomb on the floor would be worse than skipping.
+        // Three cases, because "no bench wired" and "bench full" are different:
+        //   bench available  -> displace the bottom bomb into it (preferred)
+        //   bench FULL       -> skip the inject; dropping a playable bomb on the
+        //                       floor is worse than forgoing the pressure
+        //   no bench at all  -> truncate, as before. Only reachable when a caller
+        //                       does not wire one (tests, and pre-bench levels);
+        //                       the grid stays correct, which is the defect here.
+        const col = gs.columns[colIdx];
+        const bench = this._benchStorage;
+        const wouldOverflow = col.shooters.length >= COLUMN_CAPACITY;
+        if (wouldOverflow && bench && bench.isFull) {
+          this._crisisSkippedBenchFull = (this._crisisSkippedBenchFull ?? 0) + 1;
+        } else {
+          col.shooters.unshift(crisis.shooter);
+          crisis.shooter.column = colIdx;
+          while (col.shooters.length > COLUMN_CAPACITY) {
+            const displaced = col.shooters.pop();
+            if (displaced && bench && !bench.isFull) bench.store(displaced);
+          }
+          this._onCrisis(colIdx, laneIdx);
+        }
       }
     }
 

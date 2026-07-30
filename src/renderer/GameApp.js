@@ -1781,7 +1781,12 @@ async function main() {
     audio.play('pip_fill', { index: count - 1 });   // 6A: ascending pip-fill note
     haptics.heavy();                                 // multi-kill (2+ cars)
     if (count < needed) {
-      popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildMultiKillPopup(w, _lastShotKills), 1.4);
+      // 0.8s, was 1.4s (2026-07-30). User: "the combo appears for too long, it
+      // should appear for a moment and disappear." 1.4s was tuned on 16-row
+      // boards; the rows-8 pilot runs levels 20-25% shorter, so the same duration
+      // now occupies a proportionally larger share of a level and of the turn
+      // cycle it interrupts. Specced in GEOMETRY_MECHANICS_BATCH.
+      popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildMultiKillPopup(w, _lastShotKills), 0.8);
     }
   };
   // Color bomb EARNED after 3 multi-kills. Edge flash + queued "3 MULTI-KILLS!"

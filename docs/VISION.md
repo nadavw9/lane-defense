@@ -73,7 +73,19 @@ These cannot be changed to fit existing code. If code needs changing, change the
 5. Boss levels MUST have designed challenges, not just hpMultiplier bumps
 6. The balance simulator MUST pass for every level before it ships
 7. Wrong-color shots do NOT advance cars (already shipped — never revert)
-8. BOMB booster destroys ALL cars in the targeted row, regardless of color (corrects the earlier "color-matching only" note, which was wrong)
+8. BOMB booster destroys ALL cars in the TARGETED CAR'S LANE, regardless of color
+   — **owner amendment, 2026-07-31.** The bomb travels to the tapped car and clears
+   that car's entire lane, any colour, any row.
+   - *Superseded:* "destroys ALL cars in the targeted ROW" (which itself corrected an
+     earlier "color-matching only" note). The row-clear shipped and was rejected on
+     device: it reads as a horizontal band across all lanes rather than a lane, and it
+     never matches the one thing the player is tracking — the lane about to breach.
+   - This is a deliberate amendment of a locked contract by its owner, not a drift.
+     The lane-clear is now the locked behaviour; do not revert it to a row-clear.
+   - Known consequence, accepted: a lane clear removes breach risk rather than the most
+     cars (yield per fire 3.00 → 2.00, win rate up), so L4–L8 were retuned to hold the
+     85–95 FTUE band. Boss colour-scarcity levels are affected too — see the L10/20/30/40
+     margins recorded with that work.
 
 ## How To Use This Document
 Before making ANY change to:

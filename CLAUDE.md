@@ -366,7 +366,15 @@ inferring rejection from an unchanged board.
 - **Danger Aura** — red pulse on cars within 2 rows of breach gate
 - **Fairness rules** (FR-1 through FR-5) enforced in `GameLoop._enforceViableMove()`
 - **Wrong-color shot = no advance** (shipped — never revert)
-- **Bomb hits color-matching cars only** (shipped — never revert)
+- **Bomb hits color-matching cars only** (shipped — never revert) — this is the QUEUE
+  bomb the player drags onto a lane. It is not the BOMB booster; see the next entry.
+- **BOMB booster clears the targeted car's LANE**, any colour, any row (shipped
+  2026-07-31 — never revert). Mirrors `docs/VISION.md` item 8, amended by the owner on
+  the same date. It was a ROW clear; device play rejected that ("hits a vertical left to
+  right line and not a car lane"). The bomb travels to the tapped car, then clears that
+  car's lane. Sim models the decision as THREAT, not yield — a lane clear's yield is
+  deterministic, so yield degenerates into "fire at the fullest lane, any time";
+  `BOMB_THREAT_ROWS = 2` matches the Danger Aura's existing 2-row warning.
 
 ### What is NOT done (production gates)
 - Replace AdMob test IDs with production unit IDs

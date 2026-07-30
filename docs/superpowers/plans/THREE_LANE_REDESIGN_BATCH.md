@@ -368,6 +368,51 @@ Two consequences worth carrying forward:
    (11%) clip of its nose. Unreported, not introduced by any of this work, pinned by a test so
    it cannot silently get worse.
 
+**H4 BLOCKER FOUND AT THE BOTTOM EDGE (2026-07-31) — the 3-lane budget is over-subscribed
+by 5.15px.** Device play reported "bombs out of the grid"; the third queue row read as clipped.
+Re-diagnosed by measurement (branch `fix/bench-clips-queue-socket`, kept as evidence, NOT
+merged). Two separate things were conflated:
+
+1. *Fixed and shipped separately:* crisis inject exceeding `COLUMN_CAPACITY`. Real stale drift,
+   but it could not have produced the symptom — that 4th bomb renders nowhere.
+2. *This blocker:* a slot is not its ball. The socket's outer shadow ring draws at
+   `SOCKET_SHADOW_RATIO` (1.4375x) around the ball, so a slot extends that far below its
+   centre. `BenchRenderer.benchY()` clears only the BALL, so the tray sits **inside** the third
+   row's socket — **0.95px at 3 lanes, 3.01px at 4 lanes**. It is worse at 4 lanes, which is
+   what proves the clip itself is a derivation bug and not the band-600 squeeze: the
+   ball→socket gap scales with radius, so it is largest where balls are biggest.
+
+**But correcting the derivation is what exposes the real overflow.** Honouring the true socket
+extent needs, at 3 lanes / band 600: socket edge 715.15 + queue gap 4 + tray pad 4 + bench
+floor 28 + tray pad 4 + bar gap 2 = **757.15**, against a booster bar starting at **752**.
+
+| lanes | band | socket sits below ball | needs down to | vs bar 752 |
+|-------|------|------------------------|---------------|------------|
+| 2     | 540  | 7.01px                 | 734.18        | fits, 17.82px slack |
+| **3** | **600** | **4.95px**          | **757.15**    | **OVERFLOW 5.15px** |
+| 4     | 540  | 7.01px                 | 734.18        | fits, 17.82px slack |
+
+The shipped layout only *appears* to fit because the ball-radius derivation is 4.95px
+optimistic and hides the deficit by clipping the socket. `benchSlotH` is already clamped UP to
+its 28px touch floor (true room: 22.85px), so the layout was at zero slack before this.
+
+**What would have to give (5.15px), none of it free:**
+
+- **Booster bar** `BAR_Y`=752 moves down — fixed bottom chrome, 92px tall; ~5px is plausible.
+- **Bench touch floor** 28 → 22.85px — rejected: it is the touch-target minimum.
+- **Bench paddings** `BENCH_QUEUE_GAP`+`BENCH_TRAY_PAD` (4+4) cut to ~3px total — cheapest, but
+  the tray and queue then visually touch, which is what these gaps exist to prevent.
+- **`BOMB_ZONE_SCALE`** shrinks so the socket is smaller — already solver-limited at 0.5223
+  against a 0.45 legibility floor; costs the "bombs look small" complaint again.
+- **The band itself** (600) — i.e. H4.
+
+**Related, unverified, do NOT act on without isolating it first:** the queue-scale solver
+`_worstCaseSlot3BottomEdge()` still solves for **slot 3.5** — the retired stash slot. At 3
+lanes its own constraint reads as overshot by 14.90px (slot-3.5 bottom 754.90 vs its 740
+limit). If that is genuinely reserving a phantom slot's worth of vertical space, fixing it
+frees real room and may dissolve this blocker outright — but it changes ball size, which is
+bomb-zone layout, i.e. H4. Measure before touching.
+
 **H4 IMPACT — re-check before restarting.** H4's max-band solve was computed against a budget
 that did not account for this: it treated the top chrome as overlay and the road viewport as
 starting at `DESIGN_ROAD_TOP_Y`=44, when ~50px of it is in fact covered. **Any H4 candidate

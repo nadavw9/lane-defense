@@ -1,0 +1,12 @@
+import sharp from 'sharp';
+const P = 'C:/Users/dalit/.claude/projects/C--Users-dalit';
+const meta = await sharp(`${P}/live-l35-panel-verify.png`).metadata();
+const scale = meta.width / 390;
+console.log('image', meta.width, meta.height, 'scale', scale);
+const cx = 24 * scale, cy = 250 * scale;
+const boxW = 48 * scale, boxH = 40 * scale;
+const left = Math.max(0, Math.round(cx - boxW/2));
+const top = Math.max(0, Math.round(cy - boxH/2));
+console.log('left', left, 'top', top, 'w', Math.round(boxW), 'h', Math.round(boxH));
+const buf = await sharp(`${P}/live-l35-panel-verify.png`).extract({ left, top, width: Math.round(boxW), height: Math.round(boxH) }).toBuffer();
+await sharp(buf).resize(Math.round(boxW)*6, Math.round(boxH)*6, {kernel:'nearest'}).png().toFile('docs/review/l35-sample-zoom.png');

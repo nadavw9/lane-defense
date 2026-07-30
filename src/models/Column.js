@@ -1,7 +1,13 @@
 // Column — one of the 4 shooter columns in the bottom half of the screen.
 // Holds up to 3 visible queue slots; the top shooter (index 0) is the active one.
 // One stash slot per column holds a temporarily set-aside bomb.
-const COLUMN_CAPACITY = 3;
+// THE canonical queue depth. Must equal the rendered slot count
+// (Shooter3D.SLOT_COUNT) and the hit-test depth (DragDrop._hitTestQueueSlot) —
+// tests/column-capacity.test.js asserts they agree. When the stash was retired
+// this dropped 4 -> 3 but GameLoop kept a hardcoded capacity-4 tolerance, which
+// left crisis-injected columns holding a bomb that was rendered nowhere and
+// hit-tested nowhere.
+export const COLUMN_CAPACITY = 3;
 
 export class Column {
   constructor({ id } = {}) {

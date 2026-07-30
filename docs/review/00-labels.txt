@@ -1,0 +1,20 @@
+Review batch — 2026-07-25 — ROWS-8 + 2x PILOT (L4-L8), STAGED FOR REVIEW, NOT COMMITTED
+
+08-rows8-pilot-vs-current.png   <-- THE COMPARISON
+    A = current live (rows 16, ~1.11x, ~6px gap)
+    B = rows-8 pilot (rows 8, 1.83x MEASURED, ~26px gap)
+    Cars are measurably 1.83x taller (42px body vs 22.93px baseline) with ~4x
+    the empty road between them. Same level (L5), true 1:1 pixels, both live.
+
+    OPEN QUESTION I want your call on: with the density drop to 2 cars/lane
+    (required — ltc4 on 8 rows sims at 0-1% win, it floods), the opening board
+    is 2 cars per lane on an 8-row road, so it READS sparse. The cars really
+    are ~2x bigger; the empty road around them makes them feel smaller than the
+    number suggests. See "the density question" in my report.
+
+pilot-L4.png / pilot-L5.png / pilot-L8.png
+    Full-screen pilot renders. Check: no cars cut at road top or breach line,
+    bomb queue fully legible above the booster bar, bench/queue separated.
+
+01-current-live-board-L5-band600.png    the current live board, for scale
+06 / 07                                  earlier probes (spacing extreme, 2x candidates)

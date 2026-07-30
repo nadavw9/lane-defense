@@ -273,7 +273,11 @@ describe('L20 "The Surge": crest/lull rate script + director==sim parity', () =>
     const real = run(cfg.spawnScript);
     const noRelief = run(allCrest);
     expect(real).toBeGreaterThanOrEqual(noRelief);   // lulls can only help, never hurt
-  });
+  // 300 level sims (2 scripts x 150 seeds) against vitest's 5s default. This sat
+  // marginally UNDER the default and tipped over on a loaded CI runner once the
+  // L10 test in this same file grew — it is not a new cost, it was always
+  // unfunded. Budgeted explicitly rather than left to sample-size roulette.
+  }, 30_000);
 });
 
 // ── L40 "Grandmaster Finale" (§3c boss) — 3-stage gauntlet config fidelity ──────

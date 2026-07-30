@@ -674,6 +674,20 @@ export class GameLoop {
   // checks for breach/win, then spawns new cars at row 0.
   _advanceGrid() {
     const gs       = this._gs;
+    // TURN COUNTER — a pure observable for test harnesses. Incremented here, at
+    // the single canonical funnel for turn completion (both call sites, the
+    // colour-bomb path and _resolveShot, route through this method), and BEFORE
+    // the freeze branch below so it counts a completed turn even when cars
+    // deliberately do not move.
+    //
+    // Exists because "did the board advance?" is unusable as a harness canary:
+    // _advanceGrid skips movement entirely under FREEZE, so unchanged rows are
+    // satisfied by a correctly-frozen game AND by a broken harness alike — the
+    // wait-condition antipattern (CLAUDE.md §6) inside the sanity check written
+    // to catch it. A monotonic counter has no such ambiguity.
+    //
+    // Nothing in production logic reads this. Do not branch on it.
+    gs.turnCount = (gs.turnCount ?? 0) + 1;
     const ROWS     = gs.gridRows ?? 16;
     const MAX_ROW  = ROWS - 1;
 

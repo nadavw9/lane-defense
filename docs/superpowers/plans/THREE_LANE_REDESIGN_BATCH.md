@@ -668,6 +668,30 @@ All updated — see each file's inline 2026-07-23 comments for specifics.
   change with its own review, sequenced AFTER the pilot verdict. Open question for that
   review: at 2s it is longer than the whole shortened turn cycle on a rows-8 board, so it may
   need a shorter duration or a lane-local scope rather than board-wide.
+- **MERGE-ORDERING GATE — EVIDENCE LEDGER (2026-07-30).** Recorded so this is not re-litigated.
+  The gate lives unmerged on `fix/deploy-fixture-rebuild`; the fix is a few lines.
+  - **CONFIRMED, by reading `GameLoop` — independent of any probe.** `firingSlots` clears when
+    TRAVEL ends (~941); the damage is applied 30–80ms later, when the hit-stop expires and
+    `_resolveShot` runs (~880-884). So `firingSlots === null` means "the bomb finished
+    travelling", NOT "the shot resolved". The gate's predicate must therefore be
+    `firingSlots || hitStopRemaining > 0 || _pendingShot` — "is a shot still resolving". That
+    widening is committed on the branch and its mechanism does not depend on measurement.
+  - **CONFIRMED, by the user on device.** He reported the merge animation playing over the bomb
+    shot. This report was never in question.
+  - **RETRACTED — every probe-derived verification.** The "2/2 mid-flight before → 0/6 after"
+    figures, the cascade-depth lists, the merge-during-flight traces, and the "gate suppresses
+    damage, 5/6 shots lost" escalation are ALL withdrawn. Cause: undetected pauses. Four things
+    pause the loop and the instruments detected two; `TutorialOrchestrator` pauses with no flag,
+    so contaminated runs were counted as clean. See CLAUDE.md §6 "ASSERT THE REAL STATE".
+  - **UNRESOLVED, and explicitly NOT a blocker.** Whether a mid-flight pause loses a shot. Raised,
+    escalated, and retracted twice. It may be real; it may be an artifact of the same
+    contamination. **Do not let it hold the gate hostage** — the gate addresses a visual-ordering
+    complaint, and damage-loss is a separate question needing its own clean measurement.
+  - **The cheapest remaining path**, given the verification cost already sunk (six sessions): the
+    mechanism is code-confirmed, the full suite gates it, and it is one revert away if wrong.
+    `scripts/harness.mjs` is now validated (baseline: 1 turn + 1 damaged lane per deploy) and can
+    check it in one run — but per CLAUDE.md §6 the *decision* about how much more verification to
+    buy belongs to the user, not to another instrument.
 - **PREREQUISITE FOR THE 35-LEVEL CONVERSION: the sim's BOMB trigger under-fires on 3 lanes
   (measured 2026-07-27).** `SimulationRunner.js` (~line 356-362) fires BOMB when a single row
   holds `bestN >= 3` cars — a threshold written for a 4-lane board. **At 3 lanes that requires a

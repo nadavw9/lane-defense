@@ -199,6 +199,39 @@ Same family as the four create-before-configure bugs (§0c of `GEOMETRY_MECHANIC
 unverified assumptions about *when* things happen. Grep the call sites; don't reason backwards
 from the symptom.
 
+#### DIAGNOSTIC PROBES MUST ASSERT THEIR PRECONDITIONS — the wait-condition rule applies to TOOLING
+The rule below is about tests. It applies just as hard to the throwaway probes used to diagnose
+a bug, and that is where it keeps being forgotten. **A probe that cannot tell you it was
+contaminated will report the contamination as a finding.**
+
+Worked example, 2026-07-30. Probes dismissed intro cards by clicking a fixed pixel (195, 430).
+That cannot distinguish *dismissed* from *missed* — the exact antipattern this file already
+warns about, reproduced in the diagnostic tooling. Earning a colour bomb enqueues a modal, and
+`_runNextModal()` calls **`gameLoop.pause()` until a real tap dismisses it**. A paused loop never
+resolves a shot, so every sample read zero damage regardless of the code under test. That was
+reported as "the merge gate suppresses damage, 5/6 shots lost" and escalated as a live product
+bug. Re-measured excluding contaminated samples: **2 of 5 samples were modal-blocked, and clean
+shots damaged 3/3.** The bug did not exist. The user noticed the probe window sitting on an
+undismissed colour-bomb screen.
+
+**Three findings in ONE session traced to instrument flaws, not code:**
+1. **~6fps everywhere** — headless Chromium falls back to SwiftShader (see below).
+2. **"4/5 shots lose damage" with no pause at all** — a raw lane-hp total, where refill spawns a
+   replacement and hides the kill. Caught only because the number was absurd.
+3. **"gate suppresses damage"** — modal-paused loop, above.
+
+**Rules:**
+- Assert preconditions before sampling, and **exclude contaminated samples explicitly** rather
+  than assuming they are absent. Report how many were excluded.
+- Prefer an **existing observable** over inferring state from pixels or elapsed time:
+  `dragDrop.inputBlocked` (modal/merge), `gs.hitStopRemaining`, a tagged object leaving a
+  collection. These already exist — reach for them before inventing a heuristic.
+- Sanity-check every number against what the game would have to be doing for it to be true. "The
+  game runs at 6fps" and "most shots deal no damage" both describe an unplayable game; both were
+  instrument artefacts.
+- A control run is worth more than a bigger sample. Change one variable, keep the instrument
+  identical.
+
 #### A POLLING SAMPLER CANNOT TELL "PERSISTS" FROM "RECURS"
 Prefer an **edge-triggered** instrument for any "did X happen at the moment of Y" question.
 Worked example: an 8ms poll reported *107 merges animating mid-flight*. The real number was

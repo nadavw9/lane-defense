@@ -1828,10 +1828,27 @@ async function main() {
     // A shot is in flight exactly while its lane's firingSlot is occupied; the
     // slot clears when travel + impact resolve, which is the moment we want.
     // NOTE this is a pure read — the gate must never write game state.
+    // "Is a shot still RESOLVING?" — not "is a bomb still travelling".
+    //
+    // firingSlots clears when TRAVEL ends (GameLoop ~941), but the damage is
+    // applied 30-80ms later: _beginHitStop sets gs.hitStopRemaining and stashes
+    // the shot, and _resolveShot only runs when that countdown expires
+    // (GameLoop ~880-884). A paused loop never advances the countdown.
+    //
+    // Reading firingSlots alone therefore reports "not in flight" during the
+    // hit-stop, and the gate would start a merge — which pauses the loop —
+    // inside the window where the shot has landed but done nothing yet.
+    // Measured with a strict instrument: 1/1 clean merges started inside that
+    // window with the narrow predicate.
+    //
+    // Same shape as the wait-condition rule in CLAUDE.md §6, applied to the
+    // product rather than a test: a condition that is already true before the
+    // thing you care about has happened.
     _shotInFlight() {
       const slots = gs.firingSlots;
-      if (!slots) return false;
-      for (const k in slots) if (slots[k] != null) return true;
+      if (slots) for (const k in slots) if (slots[k] != null) return true;
+      if ((gs.hitStopRemaining ?? 0) > 0) return true;          // landed, damage pending
+      if (gameLoop?._pendingShot) return true;                  // stashed, awaiting hit-stop expiry
       return false;
     },
     requestCheck() {

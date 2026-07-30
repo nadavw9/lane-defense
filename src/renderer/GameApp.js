@@ -2320,6 +2320,25 @@ async function main() {
       // rest of this block.
       getDragDrop: () => dragDrop,
       getMergeSequencer: () => mergeSequencer,
+      // ── Harness observability (dev-only, see the block guard above) ─────────
+      // THE REAL PAUSE STATE, not a proxy. Four things pause the loop:
+      //   1. _modalActive (hint / colour-bomb cards)   -> sets dragDrop.inputBlocked
+      //   2. the colour picker                          -> sets dragDrop.inputBlocked
+      //   3. TutorialOrchestrator.show(pauseGame)       -> sets NO FLAG AT ALL
+      //   4. player pause / tab-hidden / context-lost   -> sets no flag
+      // A harness inferring pause from dragDrop.inputBlocked therefore sees only
+      // (1) and (2), and silently counts runs frozen by (3) or (4) as CLEAN.
+      // That is what invalidated five diagnostic instruments in this project:
+      // implausible readings ("8/9 shots deal no damage", "0/23 turns advanced")
+      // that were a paused game, not a broken one. Assert `!getGameLoop().paused`
+      // instead of guessing which mechanism froze things.
+      getGameLoop: () => gameLoop,
+      // Deterministic tutorial dismissal. TutorialOrchestrator resumes the loop
+      // only via completeIfActive(id) — which needs the player to perform the
+      // required action, e.g. a real drag — or an explicit dismiss(). Tapping a
+      // pixel does nothing, which is how harnesses got stuck on the
+      // "drag the bomb" screen with the loop paused underneath.
+      dismissTutorial: () => { tutOrch?.dismiss?.(); return !gameLoop.paused; },
       // Test hook: enqueue a sample achievement toast (verifies popup z-order /
       // end-screen suppression).
       fireTestAchievement: () => popupQueue.enqueue(

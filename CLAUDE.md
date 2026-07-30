@@ -199,6 +199,64 @@ Same family as the four create-before-configure bugs (§0c of `GEOMETRY_MECHANIC
 unverified assumptions about *when* things happen. Grep the call sites; don't reason backwards
 from the symptom.
 
+#### VERIFICATION COST MUST BE BOUNDED — stop after two failed attempts and escalate
+**If confirming a fix costs more than the fix, stop and report.** This is the most expensive
+lesson in the project's history and it is a process failure, not a technical one.
+
+The merge-ordering gate is a handful of lines with a mechanism confirmable by reading
+`GameLoop`. Verifying it consumed **six sessions** and produced: five instruments that gave wrong
+readings, one "live production bug" escalated to top priority and then retracted, a sanity check
+that raised its own false alarm, and two reverts — while the fix the user reported sat unshipped
+the whole time. No single probe was unreasonable. The failure was continuing to refine
+measurement with no limit.
+
+**The rule:** after **two** failed verification attempts on the same claim, STOP. Report (1) what
+is confirmed, (2) what is not, (3) the cheapest remaining path. **Do not build a third instrument
+without explicit approval.**
+
+Weigh what a fix actually needs. A change whose mechanism is confirmed by code reading, gated by
+the full test suite, and trivially revertible does not always need a bespoke harness. **The
+user's own device observation is legitimate evidence** — he reported the merge animating over the
+bomb shot, and that report was never in doubt while six sessions went into trying to reproduce it
+synthetically.
+
+#### ASSERT THE REAL STATE, NEVER A PROXY — and wait on signals, not intervals
+Five diagnostic instruments in this arc produced wrong readings. Two mistakes, every time:
+
+**1. Reading state after a guessed time window.** Every wrong reading came from sampling N ms
+after an action and assuming resolution had finished. Wait on something only completion produces.
+`gs.turnCount` exists for exactly this — it increments once per completed turn at
+`_advanceGrid`, including under FREEZE.
+
+**2. Inferring "the game is running" from a proxy.** **Four things pause the loop:**
+
+| source | sets `dragDrop.inputBlocked`? |
+|---|---|
+| `_modalActive` (hint / colour-bomb cards) | yes |
+| colour picker | yes |
+| **`TutorialOrchestrator.show(pauseGame)`** | **NO FLAG AT ALL** |
+| player pause / tab-hidden / WebGL context-lost | no |
+
+A harness inferring pause from `inputBlocked` sees only the first two and **counts runs frozen by
+the others as CLEAN**. That is what produced "8/9 shots deal no damage" and "0/23 turns advanced"
+— a paused game, not a broken one. `TutorialOrchestrator` resumes only via `completeIfActive(id)`
+(needs the player's actual required action, e.g. a real drag) or `dismiss()`; **tapping a pixel
+does nothing**, which is how harnesses got stuck on the "drag the bomb" screen.
+
+**Use `_nav.getGameLoop().paused` and `_nav.dismissTutorial()`** (dev-only hooks). Assert
+`!paused` at every sample; discard and COUNT any run paused for a reason you did not cause.
+
+`boardAdvanced` is structurally unusable as a canary: `_advanceGrid` skips car movement under
+FREEZE by design, so "the board didn't advance" is satisfiable by a correctly-frozen game as well
+as a broken harness. (In principle — freeze was not what occurred in the traces above, but the
+ambiguity is real and disqualifies the metric.)
+
+**Prefer a time-series of raw state over a derived metric.** A derived metric can be true on both
+the success and failure path; a sequence shows which occurred. `scripts/harness.mjs` is the
+validated reference implementation — it reports a baseline of 1 turn and 1 damaged lane per
+deploy, which is what a working game does. Any instrument whose baseline does not look like a
+working game is still wrong; fix it, do not report from it.
+
 #### DIAGNOSTIC PROBES MUST ASSERT THEIR PRECONDITIONS — the wait-condition rule applies to TOOLING
 The rule below is about tests. It applies just as hard to the throwaway probes used to diagnose
 a bug, and that is where it keeps being forgotten. **A probe that cannot tell you it was

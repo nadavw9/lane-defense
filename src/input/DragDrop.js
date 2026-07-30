@@ -256,7 +256,9 @@ export class DragDrop {
       // Extend the lower bound half a row past the breach line so the frontmost
       // row (its cars sit ON ROAD_BOTTOM_Y) is fully tappable; onBombPlaced clamps.
       if (y >= ROAD_TOP_Y && y <= ROAD_BOTTOM_Y + frontRowTapMargin(this._gridRows)) {
-        this._onBombPlaced(x, y);
+        // The BOMB clears the tapped car's LANE, so the lane is the payload; x,y
+        // still travel through for the tapped row (the blast's travel target).
+        this._onBombPlaced(x, y, this._hitTestLane(x, y));
       }
       return;
     }

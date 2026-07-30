@@ -42,6 +42,27 @@ const DT = 1 / 60; // seconds per simulation tick (used for fire cooldowns only)
 // turn (WS3 §3b booster-aware modeling). optimal = 0 → boosters OFF, preserving the
 // original perfect-play baseline exactly. All booster logic below is gated on
 // `boosterIQ > 0`, so the optimal profile is byte-for-byte unchanged.
+// BOMB threat window: fire when a lane's front car is this many rows (or fewer)
+// from the breach line.
+//
+// WHY THREAT AND NOT YIELD (2026-07-30). The BOMB used to clear a ROW, so "how many
+// cars share a row" was a real decision the player made and the sim modelled it as
+// yield (fire when a row holds >=3 cars). A LANE clear has no such choice: the yield
+// is whatever that lane happens to hold, so a yield trigger degenerates into "fire at
+// the fullest lane, any time". What actually makes a player spend the charge is a
+// lane about to breach.
+//
+// WHY 2. Swept N=1..5 at skill=average / boosterIQ 0.70, 400 runs x L4-L8, choosing
+// the N whose fire rate stays closest to the shipped row-trigger's (0.27-0.79 per
+// level) so the mechanic swap is not silently also a difficulty change:
+//     N=1  0.14-0.27 fires/level  (0.41x shipped — too strict, a last-instant panic)
+//     N=2  0.53-1.08 fires/level  (1.59x shipped — closest on both absolute and ratio)
+//     N=3  1.09-2.18 fires/level  (3.3x  shipped — fires from mid-board, not a threat)
+// N=2 is corroborated independently: the shipped Danger Aura pulses red on cars within
+// 2 rows of the breach gate (CLAUDE.md S6), so this models the player reacting to the
+// warning the game already gives them, rather than a number fitted to the outcome.
+const BOMB_THREAT_ROWS = 2;
+
 const SKILL_PROFILES = {
   optimal:  { accuracy: 1.00, useCycle: true,  cycleDelay: 0.10, boosterIQ: 0.00 },
   beginner: { accuracy: 0.60, useCycle: false, cycleDelay: 0,    boosterIQ: 0.30 },
@@ -94,6 +115,9 @@ export class SimulationRunner {
       laneTargetCarCount: levelConfig.laneTargetCarCount ?? 1,
       spawnBudget:        levelConfig.spawnBudget        ?? Infinity,
       gridRows:           levelConfig.gridRows           ?? 16,
+      // BOMB threat window in rows from the breach line. Defaults to the derived
+      // BOMB_THREAT_ROWS; exposed only so the derivation sweep can vary it.
+      bombThreatRows:     levelConfig.bombThreatRows     ?? BOMB_THREAT_ROWS,
       // Level Goal System: array of { type, color?, carType?, count }. When present,
       // the sim WINS by completing every goal (matching the live game), not by a
       // generic kill target. Empty/omitted → legacy kill-target behaviour.
@@ -183,6 +207,8 @@ export class SimulationRunner {
     let   freezeCharges    = 0;       // earned 3-kill chain → +1, cap 2
     let   freezeSkips      = 0;       // pending advance-skips from an activated freeze
     let   bombCharges      = 0;       // earned +1 per 10 kills, cap 3
+    let   bombsFired       = 0;       // instrumentation: BOMB activations this level
+    let   bombKills        = 0;       // instrumentation: cars removed by BOMB
     let   nextBombKill     = 10;
     let   colorChangeCharges = 0;     // earned ~per 2 consecutive multi-kills, cap 2
 
@@ -353,24 +379,28 @@ export class SimulationRunner {
             && rng.next() < boosterIQ) {
           freezeCharges--; freezeSkips++;
         }
-        // BOMB — a single row shared by ≥3 cars (across lanes) → clear that whole row.
+        // BOMB — THREAT, not yield. The bomb clears an entire lane, so its yield is
+        // deterministic (however many cars that lane holds) and a yield trigger would
+        // just fire on the fullest lane at any time. What actually drives a player to
+        // spend the charge is a lane about to breach, so the trigger is: some lane's
+        // FRONT car is within BOMB_THREAT_ROWS of the breach line. The most-threatened
+        // lane is the target, ties broken by car count (more cars = better spend).
         if (bombCharges > 0) {
-          const rowCounts = new Map();
-          for (const l of discreteLanes) for (const c of l.cars) rowCounts.set(c.row, (rowCounts.get(c.row) ?? 0) + 1);
-          let bestRow = -1, bestN = 0;
-          for (const [row, n] of rowCounts) if (n > bestN) { bestN = n; bestRow = row; }
-          if (bestN >= 3 && rng.next() < boosterIQ) {
-            bombCharges--;
-            for (const l of discreteLanes) {
-              for (let i = l.cars.length - 1; i >= 0; i--) {
-                if (l.cars[i].row === bestRow) {
-                  const car = l.cars[i];
-                  l.cars.splice(i, 1);
-                  carsKilled++;
-                  applyKillToGoals(car.color, car.type);
-                }
-              }
+          const threatRow = this._cfg.gridRows - this._cfg.bombThreatRows;
+          let bestLane = null, bestFront = -1, bestCars = 0;
+          for (const l of discreteLanes) {
+            if (!l.cars.length) continue;
+            const front = l.cars[0].row;
+            if (front < threatRow) continue;
+            if (front > bestFront || (front === bestFront && l.cars.length > bestCars)) {
+              bestLane = l; bestFront = front; bestCars = l.cars.length;
             }
+          }
+          if (bestLane && rng.next() < boosterIQ) {
+            bombCharges--;
+            bombsFired++;
+            for (const car of bestLane.cars) { carsKilled++; bombKills++; applyKillToGoals(car.color, car.type); }
+            bestLane.cars.length = 0;
           }
         }
         // COLOR CHANGE — ≥3 front cars share a colour that no column can currently
@@ -516,6 +546,8 @@ export class SimulationRunner {
       totalAdvances,
       maxAdvPerTick,
       turns,
+      bombsFired,
+      bombKills,
     };
   }
 

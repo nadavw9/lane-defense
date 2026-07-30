@@ -2042,14 +2042,15 @@ async function main() {
         gameRenderer3D.setDropStart(laneIdx, release);   // bomb travels FROM release
         gameLoop.deploy(colIdx, laneIdx);
       },
-      onBombPlaced: (x, y) => {
-        // BOMB booster clears an entire ROW — every car in it, any colour, any lane.
+      onBombPlaced: (x, y, laneIdx) => {
+        // BOMB booster clears the tapped car's entire LANE — every car in it, any
+        // colour, any row (2026-07-30; was a row-clear across lanes).
         // The frontmost row's car centre sits ON ROAD_BOTTOM_Y, so accept taps up
         // to half a row below the breach line; screenYToRow clamps to the last row
         // so those taps map to gridRows-1 rather than overflowing out of bounds.
         if (y < ROAD_TOP_Y || y > ROAD_BOTTOM_Y + frontRowTapMargin(gs.gridRows)) return;
         const rows = gs.gridRows ?? 10;
-        gameLoop.placeBombOnRow(screenYToRow(y, rows));
+        gameLoop.placeBombOnLane(laneIdx, screenYToRow(y, rows));
       },
       onColorChangeTap: (laneIdx) => {
         // FIX 4B: player tapped a car (lane) during COLOR CHANGE mode → use that

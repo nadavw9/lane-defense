@@ -93,14 +93,12 @@ test('L5: deploying into lane i damages lane i (not a neighbour)', async ({ game
     // between the recolor below and the deploy — recoloring the car to match a
     // bomb that is no longer the one fired.
     await game.waitForIdle();
+    // Cohort snapshot: a LANE-LEVEL fact, immune to which car ends up front at
+    // impact. See GamePage.snapshotLane.
+    const cohort = await game.snapshotLane(lane);
     const before = await game.page.evaluate((l) => {
       const gs = window._nav.getGs();
-      const bomb = gs.columns[0].shooters[0];
-      const target = gs.lanes[l].cars[0];
-      target.color = bomb.color;   // recolor front car to match
-      target.__testTag = 'target';
       return {
-        hp: target.hp,
         count: gs.lanes[l].cars.length,
         others: gs.lanes.filter((_, i) => i !== l && i < gs.activeLaneCount)
                         .map((ln) => ln.cars.length),
@@ -128,10 +126,22 @@ test('L5: deploying into lane i damages lane i (not a neighbour)', async ({ game
     // Damaged = the tagged car is gone (killed) or its hp dropped. A refill
     // bringing count back up (or even above) the original is expected now and
     // is NOT evidence of "no effect" — it's the retuned density working as intended.
-    // Distinguish "the shot never resolved" from "it resolved and missed" —
-    // otherwise a stalled game loop reports a targeting bug that never happened.
-    expect(game.lastShotResolved, `shot into lane ${lane} never resolved — game loop stalled, NOT a targeting failure`).toBe(true);
-    const damaged = after.targetGone || (after.targetHp != null && after.targetHp < before.hp);
-    expect(damaged, `deploy(0, ${lane}) had no effect on lane ${lane}`).toBe(true);
+    // THREE OUTCOMES, THREE MESSAGES. Five distinct bugs were misdiagnosed
+    // through this test because all three collapsed into "deploy had no effect".
+    // 1. rejected — a precondition was unmet; the deploy never happened.
+    expect(game.lastDeployAccepted,
+      `deploy(0, ${lane}) was REJECTED, not missed — reason: ${game.lastDeployBlockedReason ?? 'unknown'}. This is a fixture/precondition problem, NOT a targeting failure`).toBe(true);
+    // 2. accepted but never resolved — the loop stalled.
+    expect(game.lastShotResolved,
+      `shot into lane ${lane} was accepted but never resolved — game loop stalled, NOT a targeting failure`).toBe(true);
+    // 3. resolved and missed — the only real product failure.
+    // LANE-LEVEL fact, not the survival of one pre-chosen car: a shot hits
+    // whatever is front at impact, and with merges gated the board advances
+    // further before landing, so a tagged car legitimately survives while a
+    // different car takes the hit. Cohort damage holds either way.
+    const damage = await game.laneCohortDamaged(cohort, lane);
+    expect(damage.died || damage.hpDropped,
+      `deploy(0, ${lane}) resolved but lane ${lane} took NO damage — REAL combat failure `
+      + `(cohort hp ${damage.before} -> ${damage.after}, ${damage.lost} cars lost)`).toBe(true);
   }
 });

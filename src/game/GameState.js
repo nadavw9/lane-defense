@@ -75,6 +75,10 @@ export class GameState {
     this.benchUsed      = 0;
     this.killsTowardBomb  = 0;   // kills this level; every 10 earns one bomb charge
     this.bombFreezeUntil  = -Infinity;  // bomb concussion freeze expiry (elapsed time)
+    // Monotonic turn counter — pure observable for test harnesses, incremented
+    // once per completed turn in GameLoop._advanceGrid (including under FREEZE,
+    // where cars do not move). Nothing in production logic reads it.
+    this.turnCount        = 0;
 
     // ── Economy ───────────────────────────────────────────────────────────
     this.coins = 0;
@@ -209,6 +213,7 @@ export class GameState {
     this.maxCarPosition = 0;
     this.killsTowardBomb  = 0;
     this.bombFreezeUntil  = -Infinity;
+    this.turnCount        = 0;
     this.spawnBudget      = this._initialSpawnBudget;
     this.rescueUsed    = false;
     this.isOver        = false;

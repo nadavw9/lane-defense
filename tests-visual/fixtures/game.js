@@ -140,6 +140,56 @@ export class GamePage {
     });
   }
 
+  /**
+   * Tag EVERY car currently in a lane and record the cohort's total hp.
+   *
+   * Why a cohort and not one car: these specs used to tag a single "target" car
+   * and assert it took damage. A shot hits whatever is at the FRONT when it
+   * lands, and with merges gated the board advances further before impact — so
+   * the tagged car is legitimately no longer front, legitimately survives, and a
+   * different car takes the hit exactly as designed. The assertion then reported
+   * correct behaviour as a targeting failure. That was the third raced proxy
+   * found in this fixture; all three shared one shape — asserting on
+   * PRE-ARRANGED OBJECT IDENTITY, which is always a timing window.
+   *
+   * A cohort is immune to all three: advancement keeps the tags, merges do not
+   * touch cars, and refill adds cars that are NOT in the cohort (so they cannot
+   * mask a drop the way a raw lane-total would).
+   */
+  async snapshotLane(laneIdx) {
+    return this.page.evaluate((l) => {
+      const cars = window._nav.getGs().lanes[l].cars;
+      let totalHp = 0;
+      const ids = [];
+      cars.forEach((c, i) => {
+        c.__cohort = `L${l}#${i}#${Date.now()}`;
+        ids.push(c.__cohort);
+        totalHp += c.hp ?? 0;
+      });
+      return { ids, totalHp, count: cars.length };
+    }, laneIdx);
+  }
+
+  /**
+   * Did the tagged cohort take damage? True if any cohort car died OR the
+   * surviving cohort's total hp fell. Both facts hold regardless of which car
+   * ended up front, and regardless of refill.
+   */
+  async laneCohortDamaged(snapshot, laneIdx) {
+    return this.page.evaluate(([snap, l]) => {
+      const cars = window._nav.getGs().lanes[l].cars;
+      const alive = cars.filter((c) => snap.ids.includes(c.__cohort));
+      const survivingHp = alive.reduce((a, c) => a + (c.hp ?? 0), 0);
+      return {
+        died: alive.length < snap.ids.length,
+        hpDropped: survivingHp < snap.totalHp,
+        before: snap.totalHp,
+        after: survivingHp,
+        lost: snap.ids.length - alive.length,
+      };
+    }, [snapshot, laneIdx]);
+  }
+
   positions() { return this.page.evaluate(() => window._nav.getPositions()); }
   hudBounds() { return this.page.evaluate(() => window._nav.getHudBounds()); }
   winLevel()  { return this.page.evaluate(() => window._nav.winLevel()); }
@@ -151,14 +201,63 @@ export class GamePage {
   // which can itself launch a shot, so a test that dismisses and then
   // immediately deploys is racing that shot. Call this before reading any
   // "before" state you intend to act on.
-  async waitForIdle(timeout = 5000) {
+  /**
+   * Wait until the game will actually ACCEPT a deploy.
+   *
+   * This must mirror every precondition GameLoop.deploy() checks, plus every
+   * state that blocks input. It has been wrong twice by omission:
+   *   - originally it only waited for the shot to clear (firingSlots), because
+   *     that was the only blocker at the time;
+   *   - it did not know about the MERGE SEQUENCER, which pauses the game loop
+   *     and sets dragDrop.inputBlocked for the length of its animation.
+   *
+   * The merge omission is what broke CI when shot/merge ordering was gated
+   * (2026-07-27). Gating did not introduce a bug — it moved merges from "during
+   * flight" to "immediately after the shot resolves", which is exactly the
+   * instant waitForIdle() used to return. The fixture then deployed into a
+   * paused, input-blocked game and reported "deploy didn't land". Diagnosed from
+   * the CI failure screenshot: a merged bomb mid-animation in one column and
+   * drained sockets in another, at assertion time.
+   *
+   * If a new blocker is ever added to deploy(), it belongs HERE too.
+   */
+  async waitForIdle(timeout = 20000) {
     try {
       await this.page.waitForFunction(
-        () => Object.values(window._nav.getGs().firingSlots).every((s) => s === null),
+        () => {
+          const gs = window._nav.getGs();
+          if (!Object.values(gs.firingSlots).every((s) => s === null)) return false;
+          // Merge sequencer: active OR holding a deferred check. Both pause the
+          // loop / block input, and a pending one is about to.
+          const ms = window._nav.getMergeSequencer?.();
+          if (ms && (ms.active || ms._pending)) return false;
+          return true;
+        },
         null,
         { timeout },
       );
-    } catch { /* caller's assertions will catch a genuine stall */ }
+      return true;
+    } catch { return false; }
+  }
+
+  /**
+   * Why the game would refuse a deploy right now, or null if it would accept.
+   * Mirrors GameLoop.deploy's guards (GameLoop.js ~105-108) plus the input
+   * blockers, so a rejected deploy can be reported as a REJECTION rather than
+   * silently becoming "the shot missed".
+   */
+  async deployBlockedReason(colIdx, laneIdx) {
+    return this.page.evaluate(([c, l]) => {
+      const gs = window._nav.getGs();
+      const ms = window._nav.getMergeSequencer?.();
+      if (!gs.columns[c]?.top())                                   return `column ${c} is empty`;
+      if (Object.values(gs.firingSlots).some((s) => s !== null))   return 'a shot is already in flight (deploy is turn-based)';
+      if (gs.firingSlots[l])                                       return `lane ${l} already has a shot`;
+      if (ms?.active)                                              return 'a merge animation is running (game loop paused, input blocked)';
+      if (ms?._pending)                                            return 'a merge is queued and about to start';
+      if (gs.isOver)                                               return 'the level is already over';
+      return null;
+    }, [colIdx, laneIdx]);
   }
 
   async deploy(colIdx, laneIdx) {
@@ -169,20 +268,50 @@ export class GamePage {
     // and firingSlots[lane] !== null is a transient a poll can miss.)
     await this.waitForIdle();
     for (let attempt = 0; attempt < 2; attempt++) {
-      const tagged = await this.page.evaluate((c) => {
-        const top = window._nav.getGs().columns[c].shooters[0];
-        if (!top) return false;
+      // Tag the bomb AND colour-match the target in ONE evaluate, so no window
+      // exists between them. The previous shape — caller recolours cars[0] to
+      // match shooters[0], then calls deploy(), which waits and may retry — let
+      // a merge change the queue top in between, so a different-coloured bomb
+      // fired and correctly dealt no damage. The old fixture reported that as
+      // "deploy had no effect", identical to five unrelated causes.
+      //
+      // Atomic here, and it records WHAT ACTUALLY LAUNCHED (colour + damage), so
+      // the caller asserts against the bomb that really flew rather than against
+      // an arrangement it made earlier and assumed still held.
+      const tagged = await this.page.evaluate(([c, l]) => {
+        const gs  = window._nav.getGs();
+        const top = gs.columns[c].shooters[0];
+        if (!top) return null;
         top.__deployTag = 'inflight';
-        return true;
-      }, colIdx);
-      if (!tagged) break;                       // empty column — let the caller's assertion speak
-      await this.page.evaluate(([c, l]) => window._nav.deploy(c, l), [colIdx, laneIdx]);
+        // Recolour EVERY car in the lane, not just cars[0]. The shot hits
+        // whichever car is front AT IMPACT, and the board advances between here
+        // and landing — matching only one car leaves a legitimate colour mismatch
+        // (and correctly zero damage) whenever a different car ends up front.
+        if (l != null) for (const car of gs.lanes[l]?.cars ?? []) car.color = top.color;
+        const target = l != null ? gs.lanes[l]?.cars?.[0] : null;
+        if (target) { target.__testTag = 'target'; }
+        const snap = { color: top.color, damage: top.damage ?? 1, targetHp: target?.hp ?? null };
+        // FIRE IN THE SAME EVALUATE. Tag, colour-match and deploy must be one
+        // synchronous block: splitting them left an await gap, and with merges
+        // gated they fire exactly when waitForIdle() returns — landing in that
+        // gap and swapping the top bomb, so a different-coloured bomb launched
+        // and correctly dealt no damage. Proven: with the gate off this test
+        // passed 3/3; with it on it failed reproducibly until the gap closed.
+        window._nav.deploy(c, l);
+        return snap;
+      }, [colIdx, laneIdx]);
+      this.lastDeployedBomb = tagged || null;
+      // NOTE: the deploy happens INSIDE the same evaluate as the tag+recolour
+      // (above), not here. Splitting them left an await gap, and with merges
+      // gated they fire exactly when waitForIdle() returns — landing in that gap
+      // and changing which bomb is on top.
       const left = await this.page.evaluate(
         (c) => !window._nav.getGs().columns[c].shooters.some((b) => b.__deployTag === 'inflight'),
         colIdx,
       );
-      if (left) break;                          // accepted
-      await this.waitForIdle();                 // rejected — almost always a stray in-flight shot
+      this.lastDeployAccepted = left;
+      if (left) { this.lastDeployBlockedReason = null; break; }   // accepted
+      await this.waitForIdle();                 // rejected — wait out whatever blocked it, then retry
     }
     // Wait for the actual event (GameLoop clears firingSlots[laneIdx] once the
     // shot's travel-time timer elapses and combat/advance/refill resolve) rather

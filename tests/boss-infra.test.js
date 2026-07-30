@@ -382,6 +382,14 @@ describe('L10 v2: shooterColorWeights supply bias', () => {
     // Deterministic seeds; use an extreme bias for a margin-proof direction test
     // (the config's 3:1 is intentionally gentle — measured -2pts at 150 seeds).
     //
+    // *** PROVISIONAL THRESHOLD — expires at the next L10 play test. ***
+    // Lowering a gate to accommodate erosion is normally the WRONG move. It is
+    // accepted here only because the erosion is recorded in the open rather than
+    // absorbed silently, and only until L10 is actually played. If L10 plays
+    // wrong, THE FIX IS RESTORING COLOUR-SUPPLY PRESSURE (L10's config), NOT
+    // lowering this threshold again. Do not treat 2pts as a new floor to erode
+    // from — a third reduction would mean the mechanism is gone, not thin.
+    //
     // THRESHOLD LOWERED 5pts -> 2pts, 2026-07-31, AND THAT IS A RECORDED EROSION,
     // NOT A TUNING CONVENIENCE. The BOMB booster became a colour-agnostic LANE
     // clear on this date. A lane clear substitutes for colour supply — it removes

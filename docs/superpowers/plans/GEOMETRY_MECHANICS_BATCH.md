@@ -264,7 +264,26 @@ the merge-trigger description — record the player-vs-system rule above).
 
 ---
 
-## 3. #4 Lane-clear reward at two ×3-kill shots
+## 3. #4 Lane-clear reward at two ×3-kill shots — **CANCELLED 2026-07-30**
+
+> **CANCELLED — superseded by the BOMB booster itself.**
+>
+> **Reason:** this item existed to *add* a lane-clear as a new, separately-earned
+> reward, on the assumption the BOMB would stay a row-clear. Device play on
+> 2026-07-30 rejected the row-clear outright ("bomb combo still hits a vertical
+> left to right line and not a car lane"), so the BOMB is being converted to the
+> lane-clear on branch `feat/bomb-lane-clear`. Shipping both would give the game
+> two independently-earned lane-clears with two different earn rules — the same
+> mechanic charged twice.
+>
+> **Status of the replacement:** built, tested (9 tests) and measured, but NOT
+> merged — `docs/VISION.md` item 8 records the row behaviour and VISION.md is
+> locked, so it needs an owner amendment. If that amendment is declined and the
+> BOMB stays a row-clear, this item becomes live again and should be un-cancelled.
+>
+> The spec below is kept verbatim as a closed decision — it is the reference for
+> how a lane-clear reward would be earned and targeted, and the sim-parity
+> paragraph is the requirement the replacement actually had to satisfy.
 
 **Counter (MAP 3 confirmed nothing existing isolates 3-kill shots):**
 - `GameState`: add `threeKillCount = 0` (declare near multiKillCount ~line 64,
@@ -342,6 +361,24 @@ shipped; only the full visual-smoke suite, run either locally or by CI, caught
 it).
 
 ## 6. Open items ledger
+- **OWNER DECISION NEEDED — BOMB row-clear → lane-clear (2026-07-30).** Branch
+  `feat/bomb-lane-clear` is built, green (9 new tests) and measured, but is
+  **blocked**: `docs/VISION.md` item 8 states "BOMB booster destroys ALL cars in
+  the targeted row, regardless of color", and VISION.md is locked. Merging needs
+  that line amended. What the measurement says, so the decision is informed:
+  - Sim trigger had to change from **yield to threat** — a lane clear's yield is
+    deterministic, so a yield trigger degenerates into "fire at the fullest lane,
+    any time". N=2 rows from breach, derived by sweep and corroborated by the
+    shipped Danger Aura (which warns at exactly 2 rows).
+  - Yield per fire DROPS 3.00 → 2.00 cars, yet win rate RISES 88.3–91.0% →
+    94.5–96.5%. A lane clear removes the breach risk rather than the most cars,
+    and breach is what actually loses levels. **L4 leaves the 85–95 FTUE band**,
+    so merging requires the L4–L8 retune that was *not* needed for the row-clear.
+  - `tests/boss-infra.test.js` L10 supply-bias margin narrows 5pts → 3.3pts
+    (direction intact: 82.0% unbiased vs 78.7% biased). A colour-agnostic lane
+    clear dilutes colour-supply pressure — a boss-band effect outside this batch.
+  - If the amendment is **declined**, §3 (#4 lane-clear reward) should be
+    un-cancelled, since its premise (BOMB stays a row-clear) would hold again.
 - **DEVICE VERDICT PENDING:** the user judges ~1.04–1.05× car size on a phone
   (revised down from the original ~1.09× estimate — see the §0a correction).
   "Good now" → car-size closed. "Not enough" → open PROJECT B (bomb-zone

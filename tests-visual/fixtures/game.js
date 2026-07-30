@@ -231,6 +231,21 @@ export class GamePage {
           // loop / block input, and a pending one is about to.
           const ms = window._nav.getMergeSequencer?.();
           if (ms && (ms.active || ms._pending)) return false;
+          // MODAL / HINT CARD. Earning a colour bomb — and every intro or hint
+          // card — goes through _enqueueModal, and _runNextModal() calls
+          // gameLoop.pause() until the card is dismissed by a real tap. A paused
+          // loop never resolves a shot, so a test that deploys while one is up
+          // sees ZERO damage no matter what the code does. Headless CI has nobody
+          // to dismiss it, so it stays up.
+          // Observable via dragDrop.inputBlocked (set from _modalActive each
+          // frame, GameApp ~2185). This omission is the same class as the merge
+          // omission above: a blocker the wait did not know existed.
+          const dd = window._nav.getDragDrop?.();
+          if (dd && dd.inputBlocked) return false;
+          // Hit-stop: firingSlots clears when TRAVEL ends, but damage is applied
+          // 30-50ms later when the hit-stop expires. "Slot empty" is not "shot
+          // resolved".
+          if ((gs.hitStopRemaining ?? 0) > 0) return false;
           return true;
         },
         null,

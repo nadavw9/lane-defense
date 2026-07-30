@@ -409,7 +409,12 @@ describe('L10 v2: shooterColorWeights supply bias', () => {
     // If L10 plays as a bench-lock puzzle still, accept it; if the lane clear
     // trivialises it, the fix is L10's config, not this threshold.
     expect(run(null)).toBeGreaterThan(run({ Blue: 50, Red: 1 }) + 0.02);
-  });
+  // 600 level sims (2 configs x 300 seeds) does not fit vitest's 5s default on a
+  // CI runner — it passed locally and failed CI, which is the project's recurring
+  // "green locally, red in CI" shape. This is a wall-clock BUDGET, not a loosened
+  // assertion: the seed count is what makes a 2pt margin trustworthy, so the fix
+  // is to fund the work, not to sample less and call the noise a result.
+  }, 30_000);
 });
 
 // ── Config-shape audit: spawnScript weights are { type: weight } OBJECTS ────────

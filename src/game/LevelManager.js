@@ -75,7 +75,7 @@ const PROGRESSION = [
 
   // L4 Hard â€” "Full board": 4 lanes, Red+Blue. First real pressure.
   { id: 4, laneCount: 3, colCount: 3, colors: ['Red', 'Blue'],
-    worldConfig: { hpMultiplier: 0.54, speed: { base: 8.0, variance: 0.3 } }, // 2026-07-25 rows-8 pilot: 0.90→0.54 (= 0.90×0.60) — see the gridRows note below
+    worldConfig: { hpMultiplier: 0.702, speed: { base: 8.0, variance: 0.3 } }, // 2026-07-31 BOMB lane-clear retune: 0.54→0.702 (x1.30), 96.4%→92.3%
     // 2026-07-23 §2a pilot: laneCount 4→3, laneTargetCarCount 2→4 (spawnBudget is
     // vestigial in the sim — no budget gate in _refillLanes).
     // 2026-07-25 ROWS-8 + 2× PILOT: gridRows 16→8 (halved row count doubles the
@@ -89,7 +89,7 @@ const PROGRESSION = [
 
   // L5 Easy (Relief) â€” "Breathe": 4 lanes, R+B, lower pressure. Sets up bench need.
   { id: 5, laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'],
-    worldConfig: { hpMultiplier: 0.36, speed: { base: 5.8, variance: 0.2 } }, // 2026-07-25 rows-8 pilot: 0.86→0.36
+    worldConfig: { hpMultiplier: 0.648, speed: { base: 5.8, variance: 0.2 } }, // 2026-07-31 BOMB lane-clear retune: 0.36→0.648 (x1.80), 94.8%→91.3%
     // 2026-07-23 §2a pilot: laneCount 4→3.
     // 2026-07-25 ROWS-8 + 2× PILOT: gridRows 16→8, density ltc4→ltc2 (ltc4 sims
     // at 0.0% on the shallow board), hp→0.36, goal 33→21. Lands 90.0% — targeted
@@ -109,14 +109,14 @@ const PROGRESSION = [
     // UN-SHARED from the R_2C_MED_100 preset (was the only remaining user, but
     // inlining keeps the preset from silently becoming a one-level alias and
     // matches how L10 was un-shared in §3c) — hp 0.60→0.36 for the shallow board.
-    worldConfig: { hpMultiplier: 0.36, speed: { base: 5.5, variance: 0.3 } },
+    worldConfig: { hpMultiplier: 0.648, speed: { base: 5.5, variance: 0.3 } }, // 2026-07-31 BOMB lane-clear retune: 0.36→0.648 (x1.80), 94.4%→90.3%
     duration: 100, spawnBudget: 16, laneTargetCarCount: 2, gridRows: 8,
     showArrow: false, hintText: 'NEW! Bench — store a bomb to use later' ,
     goals: [{"type":"destroyColor","color":"Red","count":9}]}, // 2026-07-25 rows-8: 22→9 (throughput, see above)
 
   // L7 Hard â€” "Green arrives": 3 colors for the first time. Pattern reset.
   { id: 7, laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'],
-    worldConfig: { hpMultiplier: 0.252, speed: { base: 6.5, variance: 0.5 } }, // 2026-07-25 rows-8 pilot: 0.84→0.252
+    worldConfig: { hpMultiplier: 0.63, speed: { base: 6.5, variance: 0.5 } }, // 2026-07-31 BOMB lane-clear retune: 0.252→0.63 (x2.50), 94.6%→90.0%. HP was nearly inert here (94.3% even at x2.3 of the old value) because the two-colour goals are throughput-gated; ltc3 was tried and overshot hard (68.5%), so density stays at 2
     // 2026-07-23 §2a pilot: laneCount 4→3.
     // 2026-07-25 ROWS-8 + 2× PILOT: gridRows 16→8, density ltc4→ltc2, hp→0.252,
     // goals 14→7 each. Lands 88.0%. Two-color goals on a shallow board are
@@ -127,7 +127,7 @@ const PROGRESSION = [
 
   // L8 Boss-Hard â€” "Green boss": all 4 lanes, 3 colors, full density. Rescue moment.
   { id: 8, laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'],
-    worldConfig: { hpMultiplier: 0.43, speed: { base: 7.5, variance: 0.5 } }, // 2026-07-25 rows-8 pilot: 0.86→0.43 (= 0.86×0.50)
+    worldConfig: { hpMultiplier: 0.688, speed: { base: 7.5, variance: 0.5 } }, // 2026-07-31 BOMB lane-clear retune: 0.43→0.688 (x1.60), 94.2%→89.8%
     // 2026-07-23 §2a pilot: laneCount 4→3.
     // 2026-07-25 ROWS-8 + 2× PILOT: gridRows 16→8, density ltc4→ltc2, hp×0.50
     // and goals ×0.75 (12→9 each). Lands 87.5% in-band.

@@ -121,37 +121,49 @@ export class GameLoop {
     this._startFiring(shooter, laneIdx, -1);
   }
 
-  // Called by GameApp when the player places a BOMB booster on the road. Destroys
-  // EVERY car in `targetRow` across all lanes, regardless of colour (the caller maps
-  // the tap Y → row). Refunds the charge if no car occupies that row.
-  placeBombOnRow(targetRow) {
+  // Called by GameApp when the player places a BOMB booster on the road.
+  //
+  // LANE-CLEAR, not row-clear (locked 2026-07-30). The bomb travels to the car the
+  // player tapped and destroys every car in THAT CAR'S LANE, any colour, any row.
+  // It used to clear a ROW — a horizontal band across all lanes — which read on
+  // device as "a vertical left-to-right line, not a car lane" and never matched the
+  // one thing the player is actually tracking: the lane about to breach.
+  //
+  // `tapRow` only picks WHICH car is the travel target (the tapped car, so the blast
+  // starts where the finger landed); the clear itself is the whole lane. Refunds the
+  // charge if the lane is empty or out of play.
+  placeBombOnLane(laneIdx, tapRow = null) {
     const gs = this._gs;
     const bs = this._boosterState;
     if (!bs?.consumeBomb()) return;
 
-    // Valid only if at least one car occupies this row somewhere on the board.
-    const hasCar = gs.activeLanes.some(l => l.cars.some(c => c.row === targetRow));
-    if (!hasCar) {
+    const lane = (laneIdx >= 0 && laneIdx < gs.activeLaneCount) ? gs.lanes[laneIdx] : null;
+    if (!lane || lane.cars.length === 0) {
       // Nothing to hit — refund the bomb so the player isn't penalized.
       bs.bombs = Math.min(bs.bombsMax ?? 3, bs.bombs + 1);
       return;
     }
 
-    // Destroy every car in the row, regardless of colour.
-    for (let li = 0; li < gs.lanes.length; li++) {
-      const l = gs.lanes[li];
-      for (let ci = l.cars.length - 1; ci >= 0; ci--) {
-        const car = l.cars[ci];
-        if (car.row !== targetRow) continue;
-        l.cars.splice(ci, 1);
-        const combo = gs.recordKill(false);
-        this._onKill(combo);
-        if (bs && gs.killsTowardBomb % KILLS_PER_BOMB === 0 && bs.bombs < BOMB_MAX_CHARGES) {
-          bs.bombs++;
-          this._onBombEarned?.();
-        }
-        this._onBombExplode?.(car.position, 1);
+    // Travel target: the tapped car, else the front car. Its position seeds the
+    // first explosion so the blast visibly starts under the finger.
+    const target = (tapRow == null ? null
+      : lane.cars.reduce((best, c) =>
+          (best == null || Math.abs(c.row - tapRow) < Math.abs(best.row - tapRow)) ? c : best, null))
+      ?? lane.cars[0];
+
+    // Destroy every car in the lane, regardless of colour. Front-to-back from the
+    // target so the cascade reads outward from the hit rather than in list order.
+    const doomed = [...lane.cars].sort(
+      (a, b) => Math.abs(a.row - target.row) - Math.abs(b.row - target.row));
+    lane.cars.length = 0;
+    for (const car of doomed) {
+      const combo = gs.recordKill(false);
+      this._onKill(combo);
+      if (bs && gs.killsTowardBomb % KILLS_PER_BOMB === 0 && bs.bombs < BOMB_MAX_CHARGES) {
+        bs.bombs++;
+        this._onBombEarned?.();
       }
+      this._onBombExplode?.(car.position, 1);
     }
 
     // Brief freeze on all remaining cars.

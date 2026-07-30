@@ -320,6 +320,27 @@ export function bombBallScreenRadius() {
 export const SOCKET_RIM_RATIO    = 21 / 16.0;
 export const SOCKET_SHADOW_RATIO = 23 / 16.0;
 
+// THE canonical bottom edge of a rendered queue slot, in stage pixels.
+//
+// A slot is NOT just its ball: the socket's outer shadow ring is drawn around it
+// at SOCKET_SHADOW_RATIO, so the slot occupies 1.4375x the ball radius below its
+// centre. Anything that has to sit BELOW the queue — the bench tray, a panel
+// bottom, a boundary line — must clear THIS, never `bombSlotScreenY(i) + ball`.
+//
+// 2026-07-31: BenchRenderer.benchY() used the ball radius, so the bench tray was
+// positioned to clear a circle 5px smaller than what is actually drawn and slid
+// over the third row's socket ring — 0.95px on 3-lane/band-600, 3.01px on 4-lane.
+// The clip was WORSE on 4-lane, which is what proves it was never the band-600
+// vertical squeeze: the ball->socket gap scales with the radius, so the damage is
+// largest where the balls are biggest, not where the room is tightest.
+//
+// This is the complement of the 2026-07-26 socket fix above. That pass re-derived
+// the socket RINGS from the ball; it did not update the things that must clear
+// those rings. Deriving both from one function is what stops the third instance.
+export function bombSlotRenderedBottom(rowIdx) {
+  return bombSlotScreenY(rowIdx) + bombBallScreenRadius() * SOCKET_SHADOW_RATIO;
+}
+
 export function bombSlotZ(rowIdx) {
   return (rowIdx + 0.5) * BOMB_SLOT_PITCH_WU + BOMB_SLOT_CLEARANCE_Z;
 }

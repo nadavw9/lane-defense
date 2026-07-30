@@ -10,7 +10,7 @@
 //   setHighlight  — which slot to blue-highlight as a drop target
 import { Sprite, Graphics, Text, Assets } from 'pixi.js';
 import { COL_W } from './ShooterRenderer.js';
-import { PX_PER_WU, BOMB_R, MERGE_SCALE, bombSlotScreenY } from '../renderer3d/projection.js';
+import { PX_PER_WU, BOMB_R, MERGE_SCALE, bombSlotScreenY, bombSlotRenderedBottom } from '../renderer3d/projection.js';
 import { BAR_Y } from './BoosterBar.js';
 
 // ── Live bench geometry ───────────────────────────────────────────────────────
@@ -27,9 +27,13 @@ const BENCH_BAR_GAP    = 2;    // px between tray bottom and the booster bar
 const BENCH_SLOT_H_MAX = 50;   // the original design height (4-lane levels keep it)
 const BENCH_SLOT_H_MIN = 28;   // touch-target floor — never flex below this
 
+// The tray must clear the queue's LAST SLOT AS RENDERED, which includes the
+// socket's outer shadow ring — not just the ball. Using the ball radius here put
+// the tray 0.95px (3-lane) / 3.01px (4-lane) over the third row's socket, which
+// is the "third bomb row is clipped" the 2026-07-31 device play reported.
+// bombSlotRenderedBottom() is the canonical extent; do not re-derive it here.
 export function benchY() {
-  const row2Bottom = bombSlotScreenY(2) + BOMB_R * PX_PER_WU;
-  return row2Bottom + BENCH_QUEUE_GAP + BENCH_TRAY_PAD;
+  return bombSlotRenderedBottom(2) + BENCH_QUEUE_GAP + BENCH_TRAY_PAD;
 }
 export function benchSlotH() {
   const room = BAR_Y - BENCH_BAR_GAP - BENCH_TRAY_PAD - benchY();

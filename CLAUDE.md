@@ -220,6 +220,21 @@ user's own device observation is legitimate evidence** — he reported the merge
 bomb shot, and that report was never in doubt while six sessions went into trying to reproduce it
 synthetically.
 
+**Bounded is not the same as cheap — FUND a budget, don't shrink the sample (2026-07-31).**
+Two CI failures in a row on `boss-infra.test.js` were `Test timed out in 5000ms` — vitest's
+default — not assertion failures. Both were fixed by giving the test an explicit budget, and
+both are deliberate:
+
+| test | cost | budget | why not just sample less |
+|------|------|--------|--------------------------|
+| L10 supply-bias | 600 sims (2 configs x 300 seeds) | `30_000` | seeds were raised 150→300 precisely so a 2pt margin is signal rather than noise; cutting them back would make the number untrustworthy and the gate meaningless |
+| L20 crest/lull   | 300 sims (2 scripts x 150 seeds) | `30_000` | **always** unfunded — it sat just under the 5s default and only tipped over once the L10 test in the same file grew. Not a new cost, a pre-existing one that surfaced |
+
+The distinction that matters: shrinking a sample to fit a timeout **changes the measurement**
+and calls the resulting noise a result. Raising the budget changes only how long CI waits.
+When a heavy sim test times out, fund it. This is also the third instance of the project's
+"green locally, red in CI" shape — a dev box absorbs the cost, a loaded runner does not.
+
 #### ASSERT THE REAL STATE, NEVER A PROXY — and wait on signals, not intervals
 Five diagnostic instruments in this arc produced wrong readings. Two mistakes, every time:
 

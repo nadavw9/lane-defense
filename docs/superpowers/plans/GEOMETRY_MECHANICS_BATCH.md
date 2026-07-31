@@ -361,6 +361,35 @@ shipped; only the full visual-smoke suite, run either locally or by CI, caught
 it).
 
 ## 6. Open items ledger
+- **SIM/LIVE PARITY GAP — the simulator does not model CARRY-OVER (found 2026-07-31).**
+  VISION rule 6 makes the sim the balance gate, so this affects every band number ever
+  measured. The live game overflows excess damage into the next same-colour car
+  (`CombatResolver._applyDamage`, verified: 8 damage into a stack of 3 HP same-colour cars
+  kills 2 and deals all 8). The sim does **not**: its real damage path is inline —
+  `car.hp -= dmg; if (car.hp <= 0) { lane.cars.shift(); ... }` (`SimulationRunner` ~line 453)
+  — and excess damage is **discarded**. `SimulationRunner._applyDamage()`, which *does*
+  implement carry-over correctly, is **dead code: defined, never called.** Its `carryOvers`
+  stat is therefore always 0, which is what exposed this (a probe read 0.0% carry-overs on
+  every level and the number was too clean to be true).
+  Measured chain-kill rate with the REAL resolver over each level's own type/colour
+  distributions: **L4 29.3% · L8 16.9% · L13 12.6% · L20 2.0% · L30 4.1%** of connecting
+  shots. So the sim is running a strictly weaker damage model than ships, and most on the
+  FTUE levels — win rates are understated there. **Not fixed: changing the sim's damage model
+  moves every band on all 40 levels, which is a balance decision, not a bug fix.**
+- **HP-SPREAD COLLAPSE — `hpMultiplier` is doing two jobs that pull opposite ways
+  (measured 2026-07-31, report only).** It is both the difficulty lever and the
+  car-type-legibility lever: `hp = max(2, round(base x m))`, so a low `m` crushes distinct
+  car types onto identical integer HP and the board stops communicating that a Van is tougher
+  than a Car. Not pilot-specific — it recurs wherever `m` is low:
+  L8 (m 0.69) big+jeep both 3 · L13 (0.58) small+big both 2 · L30 (0.32) jeep+truck both 2 ·
+  **L20 (0.90) is the only clean level — 6 types, 6 distinct HP.**
+  Adjacent-pair separation thresholds: small/big m>=0.63 · big/jeep m>=0.50 **but re-collides
+  across 0.63–0.68, exactly the range the pilot shipped in** · jeep/truck m>=0.36 ·
+  truck/bigrig m>=0.23 · bigrig/tank m>=0.13.
+  **The useful part: a uniform m = 0.70 fully separates the pilot's small/big/jeep (2/3/4 HP)
+  AND keeps every FTUE level in the 85–95 band unretuned** — L4 92.6 · L5 89.0 · L6 87.6 ·
+  L7 86.4 · L8 86.4. So legibility here costs no difficulty moves to density/speed/duration.
+  User's call; nothing changed.
 - **OWNER DECISION NEEDED — BOMB row-clear → lane-clear (2026-07-30).** Branch
   `feat/bomb-lane-clear` is built, green (9 new tests) and measured, but is
   **blocked**: `docs/VISION.md` item 8 states "BOMB booster destroys ALL cars in

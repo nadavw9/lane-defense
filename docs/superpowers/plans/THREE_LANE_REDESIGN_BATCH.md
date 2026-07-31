@@ -406,12 +406,34 @@ its 28px touch floor (true room: 22.85px), so the layout was at zero slack befor
   against a 0.45 legibility floor; costs the "bombs look small" complaint again.
 - **The band itself** (600) — i.e. H4.
 
-**Related, unverified, do NOT act on without isolating it first:** the queue-scale solver
-`_worstCaseSlot3BottomEdge()` still solves for **slot 3.5** — the retired stash slot. At 3
-lanes its own constraint reads as overshot by 14.90px (slot-3.5 bottom 754.90 vs its 740
-limit). If that is genuinely reserving a phantom slot's worth of vertical space, fixing it
-frees real room and may dissolve this blocker outright — but it changes ball size, which is
-bomb-zone layout, i.e. H4. Measure before touching.
+**CORRECTION (2026-07-31) — the "phantom slot" does NOT free room; it is load-bearing.**
+An earlier note here claimed the queue-scale solver overshot its own limit by 14.90px and
+might dissolve this blocker for free. **That was wrong and is retracted.** The `3.5 * pitchWu`
+in `_worstCaseSlot3BottomEdge()` is `(3 + 0.5) * pitch` — slot index **3**'s CENTRE, i.e.
+`bombSlotZ(3)`, not a slot at position 3.5. The earlier figure came from measuring
+`bombSlotScreenY(3.5)`, which the solver never uses. Measured correctly, the solver binds
+**exactly** at its 740 limit: no overshoot.
+
+It IS still targeting the retired stash slot (`Shooter3D.SLOT_COUNT = 3`, so indices 0–2 are
+all that render). But that phantom is acting as accidental safety margin, and removing it
+makes things dramatically worse:
+
+| solver targets | scale | ball radius | slot-2 socket bottom | vs booster bar 752 |
+|----------------|-------|-------------|----------------------|--------------------|
+| **shipped** — phantom slot 3, ball edge | 0.5223 | 11.33px | 715.15 | overflow **5.15px** |
+| slot 2 (real last slot), ball edge | 0.7059 | 15.31px | 746.70 | overflow **36.70px** |
+| slot 2 SOCKET edge vs real bench need | 0.4923 | 10.68px | 710.00 | **fits, 0.00px slack** |
+
+Removing the phantom lets the solver grow the ball to 15.31px and makes the overflow **7x
+worse**. The genuinely-correct constraint (bottom row) resolves it only by SHRINKING the ball
+11.33 → 10.68px (−5.7%), landing at exactly zero slack, at scale 0.4923 against the 0.45
+`MIN_LEGIBLE_SCALE` floor — which re-opens the "bombs look small" complaint the 2026-07-26
+socket work was addressing. **Not free.** Ball size is bomb-zone layout, i.e. H4. Not started.
+
+**STATUS: LIVE KNOWN DEFECT, currently masked by the clip.** The third queue row's socket ring
+is drawn 0.95px (3-lane) / 3.01px (4-lane) under the bench tray. Nothing crashes and nothing
+mis-hit-tests; it reads as a slightly flattened bottom row. It stays until H4 decides which of
+the five levers above gives.
 
 **H4 IMPACT — re-check before restarting.** H4's max-band solve was computed against a budget
 that did not account for this: it treated the top chrome as overlay and the road viewport as

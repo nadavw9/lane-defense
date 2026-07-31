@@ -18,6 +18,9 @@ import { CarDirector }     from '../director/CarDirector.js';
 import { ShooterDirector } from '../director/ShooterDirector.js';
 import { IntensityPhase }  from '../director/IntensityPhase.js';
 import { Lane }            from '../models/Lane.js';
+// THE damage model. The sim must not own a second one — see the carry-over note
+// in _fire(). Any change to combat rules belongs in CombatResolver, not here.
+import { CombatResolver }  from '../game/CombatResolver.js';
 import { Column }          from '../models/Column.js';
 import {
   WORLD_CONFIG,
@@ -31,6 +34,26 @@ import { CAR_TYPES } from '../director/CarTypes.js';
 import { openingRowsForLevel, clampInitialCarsToDepth } from '../game/LevelManager.js';
 
 const DT = 1 / 60; // seconds per simulation tick (used for fire cooldowns only)
+
+// ── CombatResolver adapter ────────────────────────────────────────────────────
+// The sim's discrete lanes are plain {row,hp,type,color} records (allocation-cheap,
+// millions per balance sweep), not Lane/Car model instances. CombatResolver — the
+// SHIPPED damage model — expects the model interface. These present the records
+// through it so the sim can call the real resolver instead of owning a second copy
+// of the damage rules, which is exactly how the 2026-07-31 carry-over divergence
+// happened: the sim silently discarded overflow the game carries over.
+// Writes go straight through to the underlying record.
+export const carView = (rec) => ({
+  get hp()    { return rec.hp; },
+  get color() { return rec.color; },
+  get type()  { return rec.type; },
+  takeDamage(amount) { rec.hp = Math.max(0, rec.hp - amount); },
+  isDead()           { return rec.hp <= 0; },
+});
+export const laneView = (lane) => ({
+  frontCar()      { const c = lane.cars[0]; return c ? carView(c) : null; },
+  removeFrontCar() { lane.cars.shift(); },
+});
 
 // Simulated-player accuracy and behavior profiles.
 // 'optimal' preserves the original perfect-play baseline; all others model
@@ -133,6 +156,8 @@ export class SimulationRunner {
       spawnScript:        levelConfig.spawnScript        ?? null,   // INFRA-C staged waves
       shooterColorWeights: levelConfig.shooterColorWeights ?? null, // §3c L10 v2 supply bias
     };
+    // Stateless — one instance per runner is fine and keeps runLevel() allocation-free.
+    this._combat = new CombatResolver();
   }
 
   // Simulate one complete level deterministically using the given seed.
@@ -451,11 +476,29 @@ export class SimulationRunner {
           if (boosterIQ > 0 && powerReady && rng.next() < boosterIQ) {
             dmg *= 2; powerReady = false; streakCount = 0;
           }
-          car.hp -= dmg;
-          if (car.hp <= 0) {
-            lane.cars.shift();
+
+          // CARRY-OVER: resolved by the GAME'S OWN CombatResolver (fixed 2026-07-31).
+          //
+          // This used to be `car.hp -= dmg; if (car.hp <= 0) shift()`, which THREW
+          // AWAY all overflow damage. The shipped game carries overflow into the next
+          // same-colour car, so the sim was scoring every level on a strictly weaker
+          // damage model than ships — and the sim is the balance gate (VISION rule 6),
+          // so every band number was measured against a game that does not exist.
+          //
+          // The file's own _applyDamage() was NOT the fix: it implements carry-over
+          // but omits the per-car colour re-check, so it chains THROUGH mismatched
+          // cars — the same divergence in the opposite direction. It is now deleted
+          // rather than left as a second, subtly-wrong implementation to drift from.
+          //
+          // Calling the real resolver is the point: there is now ONE damage model.
+          // Shooter colour is the front car's because `isCorrect` already decided this
+          // is a matching shot; the resolver's per-car re-check is what stops the chain
+          // at the first car of a different colour, exactly as the game does.
+          const res = this._combat.resolve({ color: car.color, damage: dmg }, laneView(lane));
+          carryOvers += res.carryOverKills;
+          for (const dead of res.destroyed) {
             carsKilled++;
-            applyKillToGoals(car.color, car.type);   // credit the level's goals
+            applyKillToGoals(dead.color, dead.type);   // credit the level's goals
             currentCombo = (totalAdvances - lastKillTime <= COMBO_WINDOW) ? currentCombo + 1 : 1;
             lastKillTime = totalAdvances;
             if (currentCombo > maxCombo) maxCombo = currentCombo;
@@ -596,29 +639,4 @@ export class SimulationRunner {
     };
   }
 
-  // Apply `damage` to the front car of `lane`; any overflow propagates to the
-  // next car (carry-over).  Returns the number of kills and carry-over kills.
-  _applyDamage(damage, lane) {
-    let kills          = 0;
-    let carryOverKills = 0;
-    let remaining      = damage;
-
-    while (remaining > 0 && lane.frontCar()) {
-      const car = lane.frontCar();
-      const hp  = car.hp; // capture before mutation
-
-      car.takeDamage(remaining);
-
-      if (car.isDead()) {
-        if (kills > 0) carryOverKills++; // 2nd+ kill in this shot = carry-over
-        kills++;
-        lane.removeFrontCar();
-        remaining = Math.max(0, remaining - hp);
-      } else {
-        break; // car survived; no overflow
-      }
-    }
-
-    return { kills, carryOverKills };
-  }
 }

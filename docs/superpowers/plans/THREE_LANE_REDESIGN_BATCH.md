@@ -657,6 +657,42 @@ All updated — see each file's inline 2026-07-23 comments for specifics.
 
 ## 8. Open items ledger
 
+### DEFERRED BY DECISION — L9–L40 read TOO EASY; retune AFTER conversion, not now (2026-08-01)
+
+The 2026-07-31 sim carry-over fix (the sim was discarding overflow damage the game
+carries over) raised **37 of 40 levels**. L9–L40 now read TOO EASY against the corrected
+sim. **This is deliberately NOT being retuned**, and the reason is sequencing, not
+neglect: those levels are still 4-lane / 16-row and are slated for 3-lane / 8-row
+conversion, which moves every number again. Retuning now means retuning twice.
+
+**Retune once, after conversion, against final geometry.** The numbers below are
+recorded so the next session does not have to re-measure the "before".
+
+Important context: **the TOO EASY flag predates the sim fix** on every one of these
+levels — the fix enlarged an existing problem, it did not create one. L4–L8 were the
+only levels in band beforehand.
+
+Corrected-sim win rates, 300 runs, skill=average / boosterIQ 0.70:
+
+| level | band  | before fix | after fix | delta |
+|-------|-------|-----------|-----------|-------|
+| L9    | 85-95 | 99.3 | 99.0 | −0.3 |
+| L11–L19 | 70-82 | 86.0–93.3 | 92.3–99.0 | +0.4 … +8.3 |
+| L21–L29 | 70-82 | 91.0–93.3 | 94.7–97.0 | +2.4 … +5.3 |
+| L31–L39 | 60-75 | 80.3–94.0 | 84.0–97.0 | +1.6 … +3.7 |
+| **L10 boss** | 40-55 | 76.7 | **90.7** | **+14.0** |
+| **L20 boss** | 40-55 | 61.0 | **71.0** | **+10.0** |
+| **L30 boss** | 40-55 | 77.0 | **89.0** | **+12.0** |
+| **L40 boss** | 40-55 | 83.3 | **89.7** | **+6.4** |
+
+**The bosses moved most** — carry-over chains hardest where lanes are deep and cars
+stack. All four now sit 16–36 points above their 40–55 band. **Per the boss-identity
+rule they must be PLAYED, not simmed, before any retune lands** (CLAUDE.md §0): a boss
+is a designed challenge, and a sim number alone is not grounds to change one. When
+their turn comes, play them first.
+
+
+
 - **STATUS as of 2026-07-24 (supersedes the 2026-07-23 entry):** Phases 1–2 shipped
   (commits f0df553/63092fd/4dc75be/5d80ebd) — but 730 shipped with the bomb queue off-screen
   on every 3-lane level (see §1's corrected RESULT), confirmed broken on the live site. The

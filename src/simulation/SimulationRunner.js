@@ -43,14 +43,20 @@ const DT = 1 / 60; // seconds per simulation tick (used for fire cooldowns only)
 // of the damage rules, which is exactly how the 2026-07-31 carry-over divergence
 // happened: the sim silently discarded overflow the game carries over.
 // Writes go straight through to the underlying record.
-export const carView = (rec) => ({
+// MEMOISED PER RECORD — do not make this allocate per call. CombatResolver calls
+// lane.frontCar() twice per carry-over iteration (once in the while condition,
+// once for the body), and a balance sweep runs millions of shots. Allocating a
+// fresh wrapper each call made tests/boss-infra.test.js go 2.9s -> 32s and blew
+// its 30s budget. One wrapper per car, reused, restores it.
+export const carView = (rec) => (rec.__view ??= {
   get hp()    { return rec.hp; },
   get color() { return rec.color; },
   get type()  { return rec.type; },
   takeDamage(amount) { rec.hp = Math.max(0, rec.hp - amount); },
   isDead()           { return rec.hp <= 0; },
 });
-export const laneView = (lane) => ({
+// Memoised for the same reason as carView — one adapter per lane, reused.
+export const laneView = (lane) => (lane.__view ??= {
   frontCar()      { const c = lane.cars[0]; return c ? carView(c) : null; },
   removeFrontCar() { lane.cars.shift(); },
 });

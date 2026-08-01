@@ -277,7 +277,15 @@ describe('L20 "The Surge": crest/lull rate script + director==sim parity', () =>
   // marginally UNDER the default and tipped over on a loaded CI runner once the
   // L10 test in this same file grew — it is not a new cost, it was always
   // unfunded. Budgeted explicitly rather than left to sample-size roulette.
-  }, 30_000);
+  //
+  // 30s -> 60s (2026-08-01). Local timings for this file swung 2.9s / 32s / 28s /
+  // 37s across consecutive identical runs on the same commit, so whether the sim
+  // carry-over fix genuinely made it slower or the dev box was simply thrashing
+  // could NOT be established locally — measurement was abandoned rather than
+  // guessed at. CI (clean runner) passed it at 30s on 74d3a8e. Doubling the budget
+  // costs nothing but CI patience and removes a flake source; it weakens no
+  // assertion, since a timeout is a wall-clock allowance, not a threshold.
+  }, 60_000);
 });
 
 // ── L40 "Grandmaster Finale" (§3c boss) — 3-stage gauntlet config fidelity ──────

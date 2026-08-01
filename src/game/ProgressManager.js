@@ -533,7 +533,10 @@ export class ProgressManager {
         // mid-progression players were re-introduced to types they met long ago.
         // Merge the legacy key, then backfill from progression — anyone past a
         // type's historical intro level has already met that type.
-        const INTRO_LEVEL = { small: 1, big: 2, jeep: 5, truck: 9, bigrig: 13, tank: 15 };
+        // truck moved 9 -> 6 (2026-08-01): pulled forward into L6-L8 so a car exists that
+        // the bomb pool cannot reliably one-shot. Must match CarTypes.bandWeights and
+        // tests/regression-level-start.test.js LEVEL_INTRO_TYPE — three-way contract.
+        const INTRO_LEVEL = { small: 1, big: 2, jeep: 5, truck: 6, bigrig: 13, tank: 15 };
         const introduced  = new Set(saved.introducedCarTypes ?? []);
         try {
           for (const t of JSON.parse(localStorage.getItem('lane_defense_seen_car_types') ?? '[]')) {

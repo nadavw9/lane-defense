@@ -112,6 +112,24 @@ Before any design, level, or gameplay change, read these in full:
 
 Files this applies to: `LevelManager.js`, `GameLoop.js`, `ThemeRegistry.js`, `LevelSelectScreen.js`, `CarTypes.js`.
 
+### External tooling (installed OUTSIDE this repo — NOT dependencies of Traffic Bomb)
+
+These live in `C:\Users\dalit\tools\` and are deliberately **not** in this project's
+`package.json`. **Traffic Bomb does not depend on either** — do not add them, and do not
+conclude from their presence that it does.
+
+| tool | location | invoke | when it's actually relevant |
+|------|----------|--------|------------------------------|
+| **OmniRoute** v3.8.50 | `C:\Users\dalit\tools\omniroute` | `node C:\Users\dalit\tools\omniroute\bin\omniroute.mjs` | An AI **gateway/router**: one endpoint in front of many providers, with auto-fallback and token compression. Relevant only when a task needs a NON-Claude model or must survive a provider outage — the existing routing (Claude.ai plans, Claude Code executes, sub-agents on haiku) already covers orchestration and model choice inside Claude. Adds provider breadth and fallback, not agent coordination. |
+| **CrewAI** | **NOT INSTALLED** | — | Blocked: no working Python on this machine (see below). Would add multi-agent role/task orchestration; note the existing Task-tool sub-agents already cover most of what it offers here, so the case for it is narrow. |
+
+**Python status (verified 2026-08-03):** `python`, `python3` on PATH are Microsoft Store
+stubs that error on invocation; `py` and `pip` are absent. The ONLY real CPython on the
+machine is `C:\Program Files\QGIS 3.42.2\apps\Python312\python.exe` (3.12.10), bundled with
+QGIS. **Do not install packages into the QGIS interpreter** — polluting a GIS application's
+runtime to host unrelated tooling breaks QGIS and hides the dependency. A standalone Python
+install is the correct fix and is the user's call.
+
 ---
 
 ## 5. Architecture
@@ -183,6 +201,31 @@ Always `${import.meta.env.BASE_URL}sprites/...`. Hardcoded `/sprites/...` causes
 ### Tests
 **1186 passing**, 5 todo — 47 test files. Run: `npx vitest run`. All headless (no render tests).
 Visual smoke (`npm run test:visual`, Playwright) is separate and is a blocking CI gate.
+
+#### SCREENSHOT REVIEW LOOP — MANDATORY before reporting ANY visual change
+**Not optional. Not conditional on the change seeming small.** Before reporting any change
+that alters what the player sees:
+
+1. **Clear `docs/review/`** of prior screenshots — a stale image next to a fresh one is worse
+   than no image.
+2. Place the **BEFORE and AFTER** images for whatever changed this session. **The pair is the
+   point** — the user needs to see what CHANGED, not just what the current state is. An
+   "after" alone hides regressions; it also hides the case where nothing actually moved.
+3. Write **`00-labels.txt`**: for every file, what it shows and **what to look for**.
+4. **Present them for review**, with the full paths, and stop for the user's eyes.
+
+**Why this is load-bearing, not ceremony.** Several defects in this project were caught ONLY
+because the user looked at actual pixels, after headless gates and measurements had passed
+clean: cars sliced by the goal band, socket rings 41% oversized at band 600, and bombs
+rendering out of their slots after a band transition. Each had green tests either side of it.
+
+It is also the loop that keeps long autonomous runs honest — without it those sessions drift
+into measurement churn and instrument-building instead of shipped, verified work. If a change
+is genuinely invisible (docs, tests, sim-only), say so explicitly instead of skipping silently.
+
+**Capture the condition that reproduces the bug, not a convenient one.** The 2026-08-02
+ball/socket misalignment does NOT appear on a fresh level load — only after a band transition
+(L13 -> L5). A rest screenshot of L5 alone would have "proved" a bug-free queue.
 
 #### READ THE CALL SITE — don't infer a sequence from a symptom
 **Verify WHERE a callback fires before building a fix around WHEN it fires.** Two diagnoses in

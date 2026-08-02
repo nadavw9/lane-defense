@@ -1,36 +1,61 @@
-BOTTOM-CHROME RECLAIM — before/after (2026-08-02)
-Region: screen Y 560..844 (queue rows, bench, booster row), deviceScaleFactor 3.
+REVIEW BATCH — 2026-08-03
+Two visual changes shipped this session. Each is a BEFORE/AFTER pair.
+All crops: screen Y 560..844 (queue rows, bench, booster row), deviceScaleFactor 3.
 
-bottom-1-before-L5.png   L5 BEFORE — queue scale 0.4923, ball r 11.33px.
-                         Third row's socket rings meet the bench strip (0.95px clip).
-                         Booster row 752..820, 24px dead strip below it.
-bottom-1-before-L8.png   L8 BEFORE — same geometry (both 3-lane, band 600).
+===============================================================================
+PAIR A — BOTTOM-CHROME RECLAIM  (shipped, master 4c01e92)
+===============================================================================
+01-reclaim-BEFORE-L5.png    L5 before
+02-reclaim-AFTER-L5.png     L5 after
+03-reclaim-BEFORE-L8.png    L8 before
+04-reclaim-AFTER-L8.png     L8 after
 
-bottom-2-after-L5.png    L5 AFTER  — queue scale 0.6553, ball r 14.21px (+25%).
-                         Sockets fully clear the bench (overlap 0.00px).
-                         Bench merged against the queue; booster row 776..844, flush.
-bottom-2-after-L8.png    L8 AFTER  — same.
+WHAT CHANGED: reclaimed 32px of bottom chrome (24px dead strip below the booster
+row + 8px of bench gap/padding) and spent all of it on bomb size.
+    queue scale  0.4923 -> 0.6553
+    ball radius  11.33px -> 14.21px   (+25%)
 
-Reclaim: +24px dead strip, +8px bench gap/pad = 32px, spent on queue scale.
-Band unchanged at 600. gridRows unchanged at 8. FIT unchanged.
+WHAT TO LOOK FOR:
+  - The bombs are visibly BIGGER in the AFTER shots. This is the "bombs look
+    small" complaint, raised twice.
+  - The booster row (COLOR / FREEZE / BOMB) sits LOWER and now runs flush to the
+    bottom edge. The empty strip beneath it in BEFORE is gone.
+  - The bench strip sits directly under the queue with no separating gap.
+  - Third row of bombs clears the bench cleanly in AFTER.
 
-CHECK ON DEVICE: booster cards now end 2px above the screen bottom (was 26px).
-There is no safe-area handling in the source, so on a phone with a gesture bar /
-home indicator the lower part of the cards may fall inside the system gesture
-zone. One constant reverts it: BoosterBar.BAR_Y (and its projection mirror).
+>>> STILL NEEDS YOUR DEVICE: the booster cards now end 2px above the screen
+    bottom (was 26px), and there is NO safe-area handling in the source. On a
+    phone with a gesture bar / home indicator, the lower part of the cards —
+    including BOMB — may fall inside the system gesture zone. Please check
+    whether the boosters feel reliable to tap. Revert is two constants
+    (BoosterBar.BAR_Y + its projection mirror) if they don't.
 
---- BALL/SOCKET ALIGNMENT (2026-08-02) ---
-transition-1-buggy-L13toL5.png   THE REPORTED BUG. Load L13 (4-lane, band 540) then
-                                 L5 (3-lane, band 600). Empty socket rings sit at their
-                                 correct band-600 positions while the BALLS stay at
-                                 band-540 spacing (pitch 2.296 vs correct 1.835). Error
-                                 grows with row index; bottom row cut by the bench strip.
-                                 A fresh L5 load does NOT reproduce it — the stale value
-                                 latches from the FIRST level of the session.
-transition-2-fixed-L13toL5.png   AFTER: every ball centred in its socket, all three rows,
-                                 bottom row clearing the bench with visible margin.
-                                 pitch 1.8348 = correct for band 600.
+===============================================================================
+PAIR B — BALL/SOCKET ALIGNMENT  (shipped, master e7b4720)
+===============================================================================
+05-alignment-BEFORE-L13toL5.png   the reported bug
+06-alignment-AFTER-L13toL5.png    fixed
 
-Cause: Shooter3D.update() lazily latched g._baseZ once and then pinned position.z to
-it every frame. setLaneCount() assigns the new band's slotZ, and the next update tick
-silently undid it. Fix: read slotZ(si) live; the cache is gone.
+HOW THESE WERE CAPTURED — this matters: load L13 (4-lane, band 540) FIRST, then
+L5 (3-lane, band 600). A fresh L5 load does NOT reproduce the bug, because the
+stale value latches from the FIRST level of the session. A rest screenshot of L5
+alone would have shown a perfectly clean queue.
+
+WHAT TO LOOK FOR IN 05 (BEFORE) — this is your "bombs stuck out of their slots":
+  - Empty socket RINGS are visible sitting at their correct positions, with the
+    BALLS floating between them rather than inside them.
+  - The misalignment GROWS down the column: row 0 nearly right, row 2 badly off.
+  - The bottom row's balls are cut off by the bench strip.
+
+WHAT TO LOOK FOR IN 06 (AFTER):
+  - Every ball centred in its socket, all three rows, both compared side by side.
+  - Bottom row clears the bench strip with visible margin.
+
+CAUSE: Shooter3D.update() latched the slot Z once and then pinned position to it
+every frame. setLaneCount() assigned the new band's slot Z and the next update
+tick silently undid it — so the balls used the pitch of the session's FIRST level
+forever, while the Pixi sockets recomputed live. Fix: read slotZ() live, no cache.
+
+>>> STILL NEEDS YOUR DEVICE: please confirm alignment holds when you actually
+    cross a band boundary in play (e.g. finish L8 -> L9, or L13 -> L5 via level
+    select), not just on a fresh level load.

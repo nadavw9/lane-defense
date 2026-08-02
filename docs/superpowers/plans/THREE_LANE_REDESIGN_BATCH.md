@@ -657,6 +657,39 @@ All updated — see each file's inline 2026-07-23 comments for specifics.
 
 ## 8. Open items ledger
 
+### SETTLED — SPACING CANNOT COME FROM BAND OR CHROME. IT IS A gridRows DECISION. (2026-08-02)
+
+The original ask was **2x cars with a full car-length gap**. The pilot delivers 2.00x at
+~0.49-car gap, and every session since has looked for the missing spacing in the band or
+in bottom-chrome reclaim. **Neither can ever supply it**, and this is arithmetic, not a
+tuning shortfall — stop re-deriving it:
+
+```
+gap/car = (1 - FIT) / FIT          <- depends ONLY on FIT
+car_body_px = FIT x rowPitchWu(gridRows) x pxPerWu(band)
+rowPitchWu  = (ROAD_Z_NEAR - ROAD_Z_FAR) / gridRows = 26 / gridRows
+```
+
+Band moves `pxPerWu`, which scales car length and row pitch **together** — so it changes
+how BIG everything is and leaves the ratio between car and gap untouched. No chrome
+reclaim, at any size, can move spacing.
+
+- A full car-length gap (gap/car = 1.00) requires **FIT 0.500**, which SHRINKS cars to
+  33.1px — **0.75x** what ships today. Size and spacing trade directly against each other
+  at fixed gridRows.
+- Getting both means raising `rowPitchWu`, i.e. **fewer gridRows**. At gridRows 6 the row
+  pitch goes 3.25 -> 4.33 wu, so cars grow **1.33x at the same FIT** and the freed pitch
+  can be spent on gap instead.
+- That is a **board-depth decision with gameplay consequences** — fewer rows means fewer
+  turns from spawn to breach, which moves every level's difficulty and the whole L4-L8
+  band. It is not chrome, and it is not free.
+
+Also settled, same date: the maximum band the bottom-chrome reclaim permits is **628**
+(queue scale 0.4504, at the 0.45 legibility floor) — worth only **1.045x** car growth.
+Band 730 collapses the queue scale to 0.02. Band stays 600.
+
+
+
 ### DEFERRED BY DECISION — L9–L40 read TOO EASY; retune AFTER conversion, not now (2026-08-01)
 
 The 2026-07-31 sim carry-over fix (the sim was discarding overflow damage the game

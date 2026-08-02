@@ -10,7 +10,7 @@
 //   setHighlight  — which slot to blue-highlight as a drop target
 import { Sprite, Graphics, Text, Assets } from 'pixi.js';
 import { COL_W } from './ShooterRenderer.js';
-import { PX_PER_WU, BOMB_R, MERGE_SCALE, bombSlotScreenY } from '../renderer3d/projection.js';
+import { PX_PER_WU, BOMB_R, MERGE_SCALE, bombSlotScreenY, bombSlotRenderedBottom } from '../renderer3d/projection.js';
 import { BAR_Y } from './BoosterBar.js';
 
 // ── Live bench geometry ───────────────────────────────────────────────────────
@@ -21,15 +21,20 @@ import { BAR_Y } from './BoosterBar.js';
 // booster bar everywhere, a latent overlap the original layout shipped with).
 // The bench now derives its band: it hugs the queue's bottom edge and flexes
 // its slot height to whatever room remains above the booster bar.
-const BENCH_QUEUE_GAP  = 4;    // px between row-2 ball bottom and tray top
+// 2026-08-02 RECLAIM: 4 -> 0. The bench is MERGED against the queue panel now —
+// the tray top sits exactly on the last slot socket edge, no separating strip.
+const BENCH_QUEUE_GAP  = 0;    // px between row-2 SOCKET bottom and tray top
 const BENCH_TRAY_PAD   = 4;    // tray extends this far above/below the slots
 const BENCH_BAR_GAP    = 2;    // px between tray bottom and the booster bar
 const BENCH_SLOT_H_MAX = 50;   // the original design height (4-lane levels keep it)
 const BENCH_SLOT_H_MIN = 28;   // touch-target floor — never flex below this
 
+// The tray must clear the queue's last slot AS RENDERED — socket ring included,
+// not just the ball. Using the ball radius put the tray 0.95px (3-lane) / 3.01px
+// (4-lane) INSIDE the third row's socket ring: the "bombs clipping their sockets"
+// defect. bombSlotRenderedBottom() is the canonical extent; never re-derive it.
 export function benchY() {
-  const row2Bottom = bombSlotScreenY(2) + BOMB_R * PX_PER_WU;
-  return row2Bottom + BENCH_QUEUE_GAP + BENCH_TRAY_PAD;
+  return bombSlotRenderedBottom(2) + BENCH_QUEUE_GAP + BENCH_TRAY_PAD;
 }
 export function benchSlotH() {
   const room = BAR_Y - BENCH_BAR_GAP - BENCH_TRAY_PAD - benchY();
@@ -155,7 +160,7 @@ export class BenchRenderer {
     // Solid tray panel spanning the full bench band — drawn first, behind slots,
     // so the storage area is always distinct from the road.
     this._trayG.clear();
-    this._trayG.roundRect(2, BENCH_Y - 4, this._colW * 4 - 4, BENCH_SLOT_H + 8, 9);
+    this._trayG.roundRect(2, BENCH_Y - BENCH_TRAY_PAD, this._colW * 4 - 4, BENCH_SLOT_H + BENCH_TRAY_PAD * 2, 9);
     this._trayG.fill({ color: 0x1a1a2e, alpha: 0.85 });
 
     for (let i = 0; i < 4; i++) {

@@ -113,6 +113,48 @@ describe('BOMB booster affects the target lane and nothing else', () => {
     }
   });
 
+  it('an AMBIGUOUS tap between two cars still clears exactly one lane', () => {
+    // The reported condition: "pressed exactly between two cars in the same lane".
+    // tapRow only selects the blast's travel target; it must never change WHICH
+    // lane dies, nor leak into a neighbour.
+    for (const tapRow of [2, 3, 4, 2.5, 3.5, 99, -5]) {
+      const { lanes, loop } = build();
+      loop.placeBombOnLane(1, tapRow);
+      expect(lanes[1].cars, `tapRow=${tapRow}: target lane not cleared`).toHaveLength(0);
+      expect(lanes[0].cars.length, `tapRow=${tapRow}: leaked into lane 0`).toBe(4);
+      expect(lanes[2].cars.length, `tapRow=${tapRow}: leaked into lane 2`).toBe(4);
+    }
+  });
+
+  it('a tap on EMPTY ROAD in a lane with cars still clears that lane', () => {
+    // Empty road between rows is a real tap target now that cars are 2x with
+    // ~half-car gaps. A row with no car under the finger must not abort the bomb.
+    const { lanes, loop, bs } = build();
+    const before = bs.bombs;
+    loop.placeBombOnLane(2, 7);          // row 7 holds no car; the LANE is the payload
+    expect(lanes[2].cars, 'empty-row tap failed to clear the lane').toHaveLength(0);
+    expect(bs.bombs, 'charge should be spent, not refunded').toBe(before - 1);
+  });
+
+  it('DragDrop clamps Y into the road before resolving the lane', () => {
+    // The reproduced defect: onPointerDown accepts taps up to
+    // ROAD_BOTTOM_Y + frontRowTapMargin (31px at gridRows 8) so the frontmost row
+    // is tappable, but _hitTestLane returns -1 above ROAD_BOTTOM_Y — so the whole
+    // margin was a dead zone over the most urgent cars.
+    const src = require('fs').readFileSync('src/input/DragDrop.js', 'utf8');
+    const branch = src.slice(src.indexOf('bombMode'), src.indexOf('bombMode') + 1400);
+    expect(branch, 'bomb lane lookup must clamp Y into the road, or the front-row margin is dead')
+      .toMatch(/_hitTestLane\(\s*x\s*,\s*Math\.min\(\s*y\s*,\s*ROAD_BOTTOM_Y\s*\)\s*\)/);
+  });
+
+  it('an out-of-play lane index is refunded, never silently eaten', () => {
+    const { lanes, loop, bs } = build();
+    const before = bs.bombs;
+    loop.placeBombOnLane(-1, 3);
+    expect(bs.bombs, 'a missed tap must refund the charge').toBe(before);
+    expect(lanes.reduce((n, l) => n + l.cars.length, 0), 'nothing should die on a missed tap').toBe(12);
+  });
+
   it('no row-clear entry point exists in the codebase', () => {
     // The 2026-07-30 switch removed placeBombOnRow. If it ever returns alongside
     // placeBombOnLane, both could run and reproduce the reported cross shape.

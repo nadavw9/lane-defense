@@ -51,7 +51,17 @@ describe('bomb socket radius tracks the real ball radius', () => {
     setActiveLaneCount(3);
     const ball = bombBallScreenRadius();
     const rim  = ball * SOCKET_RIM_RATIO;
-    expect(ball, '3-lane ball is genuinely smaller (band 600)').toBeLessThan(13);
+    // RELATIVE, not a frozen literal (2026-08-02). This asserted `ball < 13`, a
+    // snapshot of the band-600 ball at the time. The bottom-chrome reclaim
+    // deliberately grew it 11.33 -> 14.21px, which broke the snapshot while the
+    // property being guarded was never in doubt. The real invariant is that the
+    // 3-lane band compresses the queue MORE than the 4-lane band does — express
+    // that, so a future legitimate size change doesn't trip a stale number.
+    setActiveLaneCount(4);
+    const ball4 = bombBallScreenRadius();
+    setActiveLaneCount(3);
+    expect(ball, '3-lane ball must stay smaller than 4-lane (band 600 compresses the queue)')
+      .toBeLessThan(ball4);
     expect(rim, 'rim must come DOWN from the old hardcoded 21').toBeLessThan(21);
     // And it must land at the intended proportion, not a hand-matched number.
     expect(rim / ball).toBeCloseTo(21 / 16.0, 6);

@@ -13,6 +13,7 @@
 // win is goal-driven now (see GoalCounterUI).
 
 import { Graphics, Text } from 'pixi.js';
+import { BAR_Y } from './BoosterBar.js';
 import { uiIcon } from './UIIcon.js';
 
 // ── Booster-row flank geometry ──────────────────────────────────────────────────
@@ -20,7 +21,7 @@ import { uiIcon } from './UIIcon.js';
 // full-width bg at BAR_Y=752..820; its three 64px cards are centred at x=89..301).
 // We flank that: volume + level badge in the LEFT gutter (x<89), coin score + pause
 // in the RIGHT gutter (x>301). All vertically centred on the booster card centre.
-const ROW_MID = 786;   // booster card centre Y (CARD_Y 754 + CARD_H/2 32)
+const ROW_MID = BAR_Y + 34;   // booster card centre; derived, not frozen (was 786 @ BAR_Y 752)
 
 // Combo celebration sits over the upper road (transient; goals own the very top).
 const COMBO_Y        = 150;

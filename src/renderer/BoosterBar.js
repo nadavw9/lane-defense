@@ -6,7 +6,12 @@ import { Graphics, Text, Sprite, Assets } from 'pixi.js';
 const _B = import.meta.env.BASE_URL;
 function boosterUrl(name) { return `${_B}sprites/designed/booster-${name}.png`; }
 
-export const BAR_Y   = 752;
+// 2026-08-02 BOTTOM-CHROME RECLAIM: 752 -> 776. BAR_Y + BAR_H = 776 + 68 = 844 =
+// APP_H exactly, so the booster row now sits FLUSH to the bottom edge and the
+// 24px dead strip below it is reclaimed. Mirrored by projection.BOOSTER_BAR_TOP_Y
+// (guard: tests/bomb-slot-position-sync.test.js) and consumed by CityEdges and
+// HUDRenderer, which derive from it.
+export const BAR_Y   = 776;
 export const BAR_H = 68;
 
 // ── Icon card layout ──────────────────────────────────────────────────────────

@@ -258,7 +258,17 @@ export class DragDrop {
       if (y >= ROAD_TOP_Y && y <= ROAD_BOTTOM_Y + frontRowTapMargin(this._gridRows)) {
         // The BOMB clears the tapped car's LANE, so the lane is the payload; x,y
         // still travel through for the tapped row (the blast's travel target).
-        this._onBombPlaced(x, y, this._hitTestLane(x, y));
+        //
+        // CLAMP Y FOR THE LANE LOOKUP (2026-08-02). The band above deliberately
+        // extends frontRowTapMargin BELOW ROAD_BOTTOM_Y so the frontmost row is
+        // fully tappable — but _hitTestLane returns -1 for exactly that region, so
+        // every tap in the margin resolved to "no lane" and the bomb did nothing
+        // (charge refunded, no feedback). The dead zone sat directly over the most
+        // urgent cars, and the rows-8 pilot more than doubled it: 14px at gridRows
+        // 16 -> 31px at gridRows 8. Lane is chosen by X (nearest lane centre), so
+        // clamping Y into the road costs nothing and makes the margin work as
+        // intended. GEOMETRY_MECHANICS_BATCH #2 (bomb hit-testing precision).
+        this._onBombPlaced(x, y, this._hitTestLane(x, Math.min(y, ROAD_BOTTOM_Y)));
       }
       return;
     }

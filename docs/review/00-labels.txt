@@ -1,20 +1,20 @@
-Review batch — 2026-07-25 — ROWS-8 + 2x PILOT (L4-L8), STAGED FOR REVIEW, NOT COMMITTED
+BOTTOM-CHROME RECLAIM — before/after (2026-08-02)
+Region: screen Y 560..844 (queue rows, bench, booster row), deviceScaleFactor 3.
 
-08-rows8-pilot-vs-current.png   <-- THE COMPARISON
-    A = current live (rows 16, ~1.11x, ~6px gap)
-    B = rows-8 pilot (rows 8, 1.83x MEASURED, ~26px gap)
-    Cars are measurably 1.83x taller (42px body vs 22.93px baseline) with ~4x
-    the empty road between them. Same level (L5), true 1:1 pixels, both live.
+bottom-1-before-L5.png   L5 BEFORE — queue scale 0.4923, ball r 11.33px.
+                         Third row's socket rings meet the bench strip (0.95px clip).
+                         Booster row 752..820, 24px dead strip below it.
+bottom-1-before-L8.png   L8 BEFORE — same geometry (both 3-lane, band 600).
 
-    OPEN QUESTION I want your call on: with the density drop to 2 cars/lane
-    (required — ltc4 on 8 rows sims at 0-1% win, it floods), the opening board
-    is 2 cars per lane on an 8-row road, so it READS sparse. The cars really
-    are ~2x bigger; the empty road around them makes them feel smaller than the
-    number suggests. See "the density question" in my report.
+bottom-2-after-L5.png    L5 AFTER  — queue scale 0.6553, ball r 14.21px (+25%).
+                         Sockets fully clear the bench (overlap 0.00px).
+                         Bench merged against the queue; booster row 776..844, flush.
+bottom-2-after-L8.png    L8 AFTER  — same.
 
-pilot-L4.png / pilot-L5.png / pilot-L8.png
-    Full-screen pilot renders. Check: no cars cut at road top or breach line,
-    bomb queue fully legible above the booster bar, bench/queue separated.
+Reclaim: +24px dead strip, +8px bench gap/pad = 32px, spent on queue scale.
+Band unchanged at 600. gridRows unchanged at 8. FIT unchanged.
 
-01-current-live-board-L5-band600.png    the current live board, for scale
-06 / 07                                  earlier probes (spacing extreme, 2x candidates)
+CHECK ON DEVICE: booster cards now end 2px above the screen bottom (was 26px).
+There is no safe-area handling in the source, so on a phone with a gesture bar /
+home indicator the lower part of the cards may fall inside the system gesture
+zone. One constant reverts it: BoosterBar.BAR_Y (and its projection mirror).

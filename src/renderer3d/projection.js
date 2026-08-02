@@ -214,13 +214,31 @@ const BREACH_MARGIN_PX      = 6;
 // "BOOSTER_BAR_TOP_Y mirrors BoosterBar.BAR_Y" check. If BoosterBar.js's
 // BAR_Y ever changes, update this to match or the queue-fit solver below will
 // silently target the wrong boundary.
-export const BOOSTER_BAR_TOP_Y = 752;
-const QUEUE_BOTTOM_MARGIN_PX = 12;    // clearance above the booster bar
+export const BOOSTER_BAR_TOP_Y = 776;   // mirrors BoosterBar.BAR_Y (flush-to-bottom, 2026-08-02)
+// Vertical space the bench + booster-bar gap need BELOW the queue's last socket.
+// Mirrors BenchRenderer's constants (BENCH_QUEUE_GAP 0 + BENCH_TRAY_PAD 4 above,
+// BENCH_SLOT_H_MIN 28, BENCH_TRAY_PAD 4 below, BENCH_BAR_GAP 2). projection.js is
+// Pixi/DOM-free so it cannot import them; tests/queue-slot-containment.test.js
+// asserts the two agree.
+const QUEUE_BOTTOM_RESERVE_PX = 0 + 4 + 28 + 4 + 2;   // = 38
 const MIN_LEGIBLE_SCALE      = 0.45;  // ≈10px ball radius / ≈11px digit height — hard floor
+
+// Highest real slot index. Mirrors Shooter3D.SLOT_COUNT-1 (= 2 since the stash
+// was retired); tests/column-capacity.test.js pins SLOT_COUNT to COLUMN_CAPACITY.
+const LAST_SLOT_INDEX = 2;
 
 export const BOMB_ZONE_SCALE_AT_540 = 0.82;   // the 2026-07-13-approved ceiling — never scale up past this
 
-function _worstCaseSlot3BottomEdge(scale) {
+// Bottom edge of the LAST REAL slot, socket ring included.
+//
+// 2026-08-02: this used to solve for slot index 3 — the RETIRED stash slot — and
+// against the bare ball edge. Both were wrong once the stash went away and
+// SLOT_COUNT became 3 (indices 0-2):
+//   - reserving a phantom 4th slot shrank the queue for space nothing occupies
+//   - measuring to the ball let the bench tray sit inside the socket ring
+// It now solves for slot 2's SOCKET bottom, which is the real rendered extent,
+// against the real space the bench + booster bar need below it.
+function _lastSlotRenderedBottomEdge(scale) {
   const bombR    = CELL * 0.266 * scale;
   const pitchWu  = CELL * 0.70  * scale;
   const stripeBottomY     = BREACH_LINE_Y + BREACH_STRIPE_HALF_PX;
@@ -229,8 +247,8 @@ function _worstCaseSlot3BottomEdge(scale) {
   const slot0ZMin         = screenYToZ(slot0CenterYMin);
   const baseSlot0Z        = 0.5 * pitchWu;
   const clearanceZ        = Math.max(0, slot0ZMin - baseSlot0Z);
-  const slot3Z            = 3.5 * pitchWu + clearanceZ;
-  return zToScreenY(slot3Z) + bombR * PX_PER_WU;
+  const lastSlotZ         = (LAST_SLOT_INDEX + 0.5) * pitchWu + clearanceZ;
+  return zToScreenY(lastSlotZ) + bombR * PX_PER_WU * SOCKET_SHADOW_RATIO;
 }
 
 // Largest BOMB_ZONE_SCALE (capped at the approved 0.82 ceiling) whose queue
@@ -240,7 +258,7 @@ function _maxQueueScaleForBand() {
   let lo = 0.02, hi = BOMB_ZONE_SCALE_AT_540;
   for (let i = 0; i < 40; i++) {
     const mid = (lo + hi) / 2;
-    if (_worstCaseSlot3BottomEdge(mid) <= BOOSTER_BAR_TOP_Y - QUEUE_BOTTOM_MARGIN_PX) lo = mid;
+    if (_lastSlotRenderedBottomEdge(mid) <= BOOSTER_BAR_TOP_Y - QUEUE_BOTTOM_RESERVE_PX) lo = mid;
     else hi = mid;
   }
   return lo;
@@ -319,6 +337,21 @@ export function bombBallScreenRadius() {
 // where it already looked right, and tracks the ball everywhere else.
 export const SOCKET_RIM_RATIO    = 21 / 16.0;
 export const SOCKET_SHADOW_RATIO = 23 / 16.0;
+
+// THE canonical bottom edge of a rendered queue slot, in stage pixels.
+//
+// A slot is NOT its ball: the socket's outer shadow ring draws around it at
+// SOCKET_SHADOW_RATIO, so the slot occupies 1.4375x the ball radius below its
+// centre. Anything that must sit BELOW the queue — the bench tray, a panel edge,
+// a boundary line — has to clear THIS, never `bombSlotScreenY(i) + ball`.
+//
+// Using the ball radius is what put the bench tray 0.95px (3-lane) / 3.01px
+// (4-lane) OVER the third row's socket ring — the "bombs clipping their sockets"
+// defect. This is the complement of the 2026-07-26 socket fix: that pass derived
+// the RINGS from the ball but not the things that must clear them.
+export function bombSlotRenderedBottom(rowIdx) {
+  return bombSlotScreenY(rowIdx) + bombBallScreenRadius() * SOCKET_SHADOW_RATIO;
+}
 
 export function bombSlotZ(rowIdx) {
   return (rowIdx + 0.5) * BOMB_SLOT_PITCH_WU + BOMB_SLOT_CLEARANCE_Z;

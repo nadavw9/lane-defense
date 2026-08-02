@@ -347,8 +347,24 @@ export class Shooter3D {
         // digit with it. Liveliness comes from alpha effects (merge halo pulse,
         // merge-ready ball pulse) and event motion (punch spring, shake), which
         // read smoothly because they don't crawl geometry across pixels.
-        if (g._baseZ == null) g._baseZ = g.position.z;
-        g.position.z = g._baseZ;
+        // LIVE, never latched (2026-08-02). This was:
+        //     if (g._baseZ == null) g._baseZ = g.position.z;
+        //     g.position.z = g._baseZ;
+        // — a lazy one-time latch that then pinned position every frame. Nothing
+        // ever cleared it, INCLUDING setLaneCount(), which correctly assigns
+        // position.z = slotZ(si) for the new band and was then silently undone by
+        // the next update() tick. Net effect: the bomb balls used the pitch of the
+        // FIRST level loaded in the session, for the whole session, while the Pixi
+        // sockets recomputed per frame from the live projection. Measured: after
+        // L13 (band 540, pitch 2.296) -> L5 (band 600, pitch 1.835) the balls
+        // stayed at 2.296, so the error grew with row index and row 2 sat visibly
+        // out of its socket. The bottom-chrome reclaim widened the gap by moving
+        // the sockets again.
+        //
+        // slotZ(si) IS the canonical position and it is a multiply — there is no
+        // reason to cache it. Reading it live makes ball and socket share one
+        // source of truth by construction, which is what the guard test pins.
+        g.position.z = slotZ(si);
       }
       const sg = this._stashSlots[li]?.group;
       if (sg && sg._baseX != null) sg.position.x = sg._baseX + shakeX;

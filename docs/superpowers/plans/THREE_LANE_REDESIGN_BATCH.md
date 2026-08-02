@@ -657,6 +657,37 @@ All updated — see each file's inline 2026-07-23 comments for specifics.
 
 ## 8. Open items ledger
 
+### PENDING DEVICE CONFIRMATION — the reclaimed 24px may have been a safe-area allowance (2026-08-02)
+
+The bottom-chrome reclaim moved `BoosterBar.BAR_Y` 752 -> 776, so `BAR_Y + BAR_H`
+= 776 + 68 = 844 = `APP_H` exactly and the booster row is FLUSH to the screen bottom.
+Booster cards now span 778..842 — **2px above the bottom edge, down from 26px**.
+
+**There is no safe-area handling anywhere in the source** (no `env(safe-area-inset-*)`,
+no `viewport-fit=cover`; the only matches are inside Android build artefacts). So the
+24px strip that was reclaimed as "dead" may in fact have been an unlabelled allowance
+for the system gesture bar / home indicator, which occupies roughly the bottom 24-34px
+on modern phones. If so, the lower part of the booster cards — **including BOMB** — now
+sits inside the system gesture zone and may be unreliable to tap.
+
+Card height is 64px, comfortably over the 44px touch minimum, so this is purely about
+WHERE the cards sit, not how big they are.
+
+**Status: left as-is, awaiting device play.** The user has not yet reported whether the
+boosters feel reliable. If they do not:
+
+**REVERT IS ONE EDIT (two mirrored constants):**
+
+- `src/renderer/BoosterBar.js` -> `BAR_Y` (776 -> 752, or e.g. 768 to keep half the gain)
+- `src/renderer3d/projection.js` -> `BOOSTER_BAR_TOP_Y` (must match; guarded by
+  `tests/bomb-slot-position-sync.test.js`)
+
+Everything else derives: `CityEdges.BOMB_ZONE_BOTTOM`, `HUDRenderer.ROW_MID`, the bench
+band, and the queue-fit solver all read from those two. Lowering `BAR_Y` costs queue
+scale (and therefore ball radius) proportionally — that is the trade being made.
+
+
+
 ### SETTLED — SPACING CANNOT COME FROM BAND OR CHROME. IT IS A gridRows DECISION. (2026-08-02)
 
 The original ask was **2x cars with a full car-length gap**. The pilot delivers 2.00x at

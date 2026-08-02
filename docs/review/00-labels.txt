@@ -18,3 +18,19 @@ CHECK ON DEVICE: booster cards now end 2px above the screen bottom (was 26px).
 There is no safe-area handling in the source, so on a phone with a gesture bar /
 home indicator the lower part of the cards may fall inside the system gesture
 zone. One constant reverts it: BoosterBar.BAR_Y (and its projection mirror).
+
+--- BALL/SOCKET ALIGNMENT (2026-08-02) ---
+transition-1-buggy-L13toL5.png   THE REPORTED BUG. Load L13 (4-lane, band 540) then
+                                 L5 (3-lane, band 600). Empty socket rings sit at their
+                                 correct band-600 positions while the BALLS stay at
+                                 band-540 spacing (pitch 2.296 vs correct 1.835). Error
+                                 grows with row index; bottom row cut by the bench strip.
+                                 A fresh L5 load does NOT reproduce it — the stale value
+                                 latches from the FIRST level of the session.
+transition-2-fixed-L13toL5.png   AFTER: every ball centred in its socket, all three rows,
+                                 bottom row clearing the bench with visible margin.
+                                 pitch 1.8348 = correct for band 600.
+
+Cause: Shooter3D.update() lazily latched g._baseZ once and then pinned position.z to
+it every frame. setLaneCount() assigns the new band's slotZ, and the next update tick
+silently undid it. Fix: read slotZ(si) live; the cache is gone.

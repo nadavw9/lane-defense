@@ -2369,6 +2369,10 @@ async function main() {
       // rest of this block.
       getDragDrop: () => dragDrop,
       getMergeSequencer: () => mergeSequencer,
+      // Bomb-queue 3D slot groups. Balls are Three meshes, sockets are Pixi
+      // circles — two renderers, so their alignment can only be checked by
+      // reading BOTH, which needs this handle.
+      getShooter3D: () => gameRenderer3D?._shooters ?? null,
       // ── Harness observability (dev-only, see the block guard above) ─────────
       // THE REAL PAUSE STATE, not a proxy. Four things pause the loop:
       //   1. _modalActive (hint / colour-bomb cards)   -> sets dragDrop.inputBlocked

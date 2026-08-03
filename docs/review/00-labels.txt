@@ -59,3 +59,52 @@ forever, while the Pixi sockets recomputed live. Fix: read slotZ() live, no cach
 >>> STILL NEEDS YOUR DEVICE: please confirm alignment holds when you actually
     cross a band boundary in play (e.g. finish L8 -> L9, or L13 -> L5 via level
     select), not just on a fresh level load.
+
+===============================================================================
+PAIR C — THE "BOMBS OUT OF THEIR SLOTS" YOU REPORTED AT L8  (DIAGNOSIS ONLY,
+         nothing changed — the fix is a feel decision and it is yours)
+===============================================================================
+07-drop-AT-REST.png          L8 at rest: every ball centred in its socket.
+08-drop-MID-ANIMATION.png    L8 caught DURING the post-fire refill: this is your
+                             screenshot. Bottom-row balls sit low/overshot with
+                             their socket rings visibly EMPTY above them.
+
+WHAT IT IS: the refill DROP-IN animation, not a position bug. Refilling slots are
+_animLock'd, and Shooter3D.update() skips locked slots entirely, so the ball sits
+wherever the tween puts it. Balls fly in from a HARDCODED world Z (DROP_START_Z
+= -1.0) over 150ms with a 50ms per-row stagger, easing with easeOutBack — which
+deliberately OVERSHOOTS past the slot before settling.
+
+MEASURED (L8, column 0, one shot): lock set t=553ms, released t=1284ms — 731ms
+locked, with the visible excursion in the last ~161ms, peaking 3.43 world units
+off rest (~1.9 slot pitches). The "snap-back a second later" is the sequence
+ending: _finish() -> clearBombAnimLocks().
+
+WHY IT GOT WORSE: DROP_START_Z is a fixed world Z that does NOT track the queue
+geometry. The bottom-chrome reclaim moved slot 2 from z~3.44 to z~5.21, so the
+drop now travels ~6.2 world units instead of ~4.4 (+40%) in the SAME 150ms —
+faster streak, bigger overshoot, far more noticeable. Same stale-constant class
+as the _baseZ latch fixed in e7b4720.
+
+>>> YOUR CALL: this is animation feel, so nothing was changed. Options are to
+    derive DROP_START_Z from the queue (constant travel distance at any band),
+    lengthen the 150ms, or reduce the easeOutBack overshoot.
+
+===============================================================================
+VIEWPORT CHECKS — could NOT reproduce the "cut top and bottom"
+===============================================================================
+09-viewport-desktop-1920x1080.png    full window, desktop 16:9
+10-viewport-laptop-1440x900.png      full window, laptop 16:10
+11-viewport-short-android-360x640.png full window, shorter-than-design ratio
+
+These are FULL-WINDOW captures, so letterboxing and any clipping would show.
+Measured lowest/topmost lit pixel row in each — content never touches either
+edge (desktop rows 37..1052 of 1080; laptop 33..877 of 900; short-android
+64..1872 of 1920). Canvas fit is Math.min(w/390, h/844), centred, and both the
+Pixi and Three canvases stay the same size on every resize including shrink.
+Verified on the dev server AND on the deployed site at 1920x1080, 1440x900,
+1366x768 — clipped=false everywhere, no page scroll, no errors.
+
+Please tell me: browser, window size, and OS/browser zoom level — and whether it
+is the live URL. Something specific to your setup is doing this and I cannot see
+it from here.

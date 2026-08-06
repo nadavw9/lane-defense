@@ -252,6 +252,35 @@ Always `${import.meta.env.BASE_URL}sprites/...`. Hardcoded `/sprites/...` causes
 **1186 passing**, 5 todo — 47 test files. Run: `npx vitest run`. All headless (no render tests).
 Visual smoke (`npm run test:visual`, Playwright) is separate and is a blocking CI gate.
 
+#### DELEGATE SEARCH AND MAPPING TO A HAIKU SUBAGENT — this is a rule, not a suggestion
+
+`CLAUDE_CODE_SUBAGENT_MODEL=haiku` has been set in `~/.claude/settings.json` for a long
+time and **has been saving nothing**, because sessions kept doing search-and-map work
+inline on Opus. Audited 2026-08-06: a full session that mapped 216 stash references across
+10 files, swept the tree for stale constants, and inventoried dead code spawned **zero**
+subagents. The config was never the problem. Not invoking it was.
+
+**Spawn a haiku subagent when ANY of these is true — do not deliberate, just do it:**
+
+1. The step needs **reading or grepping more than 3 files** to answer one question.
+2. It is a **pure search / map / inventory** step whose output is a LIST, and no edit
+   happens inside it (find every reference to X; which files define Y; does Z appear
+   anywhere).
+3. It is a **pre-edit survey** — establishing blast radius before touching code.
+4. It is **auditing docs against code** across more than 2 documents.
+
+**Do NOT delegate:** anything that edits files, anything needing this session's accumulated
+context to interpret, measurement whose *method* is the hard part (the harness, the
+projection probes — those failed repeatedly on subtle instrument bugs that a cold subagent
+would repeat), or a judgement call the user asked ME for.
+
+**Why a threshold instead of "consider delegating":** a soft reminder is exactly what was in
+place, and it produced zero delegations across a very long session. Inline always feels
+cheaper in the moment — the context is already loaded and the grep is two seconds. The cost
+is invisible per-step and only shows up on the bill. A number removes the judgement call.
+
+Report which steps were delegated when summarising work, so this stays visible.
+
 #### STALE-VALUE REGISTER — the project's most-repeated bug class (7 shipped instances)
 
 **A value copied from, or captured before, its canonical source.** Every instance passed

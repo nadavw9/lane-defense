@@ -121,15 +121,20 @@ conclude from their presence that it does.
 | tool | location | invoke | when it's actually relevant |
 |------|----------|--------|------------------------------|
 | **OmniRoute** v3.8.50 | `C:\Users\dalit\tools\omniroute` | `node C:\Users\dalit\tools\omniroute\bin\omniroute.mjs` | An AI **gateway/router**: one endpoint in front of many providers, with auto-fallback and token compression. Relevant only when a task needs a NON-Claude model or must survive a provider outage — the existing routing (Claude.ai plans, Claude Code executes, sub-agents on haiku) already covers orchestration and model choice inside Claude. Adds provider breadth and fallback, not agent coordination. |
-| **CrewAI** | **NOT INSTALLED** | — | Blocked: no working Python on this machine (see below). Would add multi-agent role/task orchestration; note the existing Task-tool sub-agents already cover most of what it offers here, so the case for it is narrow. |
+| **CrewAI** v1.15.12 | `C:\Users\dalit\tools\crewai-venv` (dedicated venv) | `C:\Users\dalit\tools\crewai-venv\Scripts\python.exe` or `...\Scripts\crewai.exe` | Multi-agent role/task orchestration. Verified: imports, constructs a real Agent/Task/Crew, CLI reports its version. **Needs an LLM API key to actually RUN a crew** — construction alone was smoke-tested, nothing executed. Be specific about when it earns its place: the Task-tool sub-agents already cover most orchestration inside Claude, so CrewAI is for multi-agent workflows that must run OUTSIDE a Claude session or against non-Claude models. |
 | **ponytail** v4.8.4 | five on-demand skills live in `~/.claude/skills/`; the always-on ruleset is **staged, NOT active**, at `C:\Users\dalit\tools\ponytail-staged\ponytail` | `/ponytail-review`, `/ponytail-audit`, `/ponytail-debt`, `/ponytail-gain`, `/ponytail-help` — all verified loading and running | Over-engineering review: finds what to DELETE (reinvented stdlib, unneeded deps, speculative abstractions, dead flexibility). **The always-on `ponytail` skill is deliberately NOT installed.** Its description is "use on ANY coding task", so copying it into `~/.claude/skills/` IS activation — there is no separate off switch for a skill. **Rule: ON for implementation and feature work, OFF for investigation and audit work**, where the goal is complete findings rather than a small diff; running it mid-audit biases toward under-reporting. **To activate:** copy `ponytail-staged\ponytail` into `~/.claude/skills/`. **To deactivate:** delete it again. `%APPDATA%\ponytail\config.json` is set to `{"defaultMode":"off"}` so it will not auto-activate at session start even once installed — turn it on per session with `/ponytail`. |
 
-**Python status (verified 2026-08-03):** `python`, `python3` on PATH are Microsoft Store
-stubs that error on invocation; `py` and `pip` are absent. The ONLY real CPython on the
-machine is `C:\Program Files\QGIS 3.42.2\apps\Python312\python.exe` (3.12.10), bundled with
-QGIS. **Do not install packages into the QGIS interpreter** — polluting a GIS application's
-runtime to host unrelated tooling breaks QGIS and hides the dependency. A standalone Python
-install is the correct fix and is the user's call.
+**Python status (RESOLVED 2026-08-06).** A standalone CPython is now installed:
+`C:\Users\dalit\AppData\Local\Programs\Python\Python312\python.exe` — 3.12.10, pip 25.0.1,
+installed user-scope with `winget install Python.Python.3.12 --scope user` (no admin needed).
+
+**The Microsoft Store stubs are still first on PATH**, so bare `python` / `python3` in a
+plain shell still error out. Call the interpreter by FULL PATH, or use a venv's
+`Scripts\python.exe`. Don't be misled by the stub's error into concluding Python is absent.
+
+**The QGIS-bundled Python (`C:\Program Files\QGIS 3.42.2\apps\Python312`) was NOT used and
+must not be** — installing unrelated packages into a GIS application's runtime breaks QGIS
+and hides the dependency. Verified clean: `crewai` is absent from the QGIS interpreter.
 
 ---
 

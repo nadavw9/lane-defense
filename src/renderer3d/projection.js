@@ -207,7 +207,7 @@ const BREACH_MARGIN_PX      = 6;
 // this, or the queue becomes readable-fit but illegible. Don't raise
 // BAND_3_LANE without re-running this tradeoff and confirming the resulting
 // scale against a real render, not just the math.
-// Mirrors BoosterBar.js's BAR_Y=752 (fixed, band-independent screen Y where
+// Mirrors BoosterBar.js's BAR_Y (fixed, band-independent screen Y where
 // the booster bar starts). projection.js must stay Pixi/Three/DOM-free (see
 // file header), so this can't be a live import — it's a duplicated constant,
 // guarded against drift by tests/bomb-slot-position-sync.test.js's

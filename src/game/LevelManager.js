@@ -38,7 +38,6 @@ const B1_FTUE = { hpMultiplier: 0.30, speed: { base: 3.0, variance: 0.0 } };
 const B2_EASY = { hpMultiplier: 0.45, speed: { base: 4.6, variance: 0.4 } }; // rebalanced for post-Batch-A road length
 
 // â”€â”€ Realistic player balance presets (Phase 3) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const R_2C_MED_100  = { hpMultiplier: 0.60, speed: { base: 5.5, variance: 0.3 } }; // L6 (goals-only retune) â€” L10 un-shared 2026-07-15 (Â§3c boss)
 // L2 is 2-lane/2-col in-game but the sim always uses 4 lanes/4 cols, giving 2Ã— extra
 // firepower vs real. Compensate with higher speed/HP so the sim is harder.
 const R_L2          = { hpMultiplier: 0.90, speed: { base: 7.5, variance: 0.3 } }; // L2 2-col sim bias

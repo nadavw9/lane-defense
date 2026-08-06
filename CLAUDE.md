@@ -122,6 +122,7 @@ conclude from their presence that it does.
 |------|----------|--------|------------------------------|
 | **OmniRoute** v3.8.50 | `C:\Users\dalit\tools\omniroute` | `node C:\Users\dalit\tools\omniroute\bin\omniroute.mjs` | An AI **gateway/router**: one endpoint in front of many providers, with auto-fallback and token compression. Relevant only when a task needs a NON-Claude model or must survive a provider outage — the existing routing (Claude.ai plans, Claude Code executes, sub-agents on haiku) already covers orchestration and model choice inside Claude. Adds provider breadth and fallback, not agent coordination. |
 | **CrewAI** | **NOT INSTALLED** | — | Blocked: no working Python on this machine (see below). Would add multi-agent role/task orchestration; note the existing Task-tool sub-agents already cover most of what it offers here, so the case for it is narrow. |
+| **ponytail** v4.8.4 | cloned to `C:\Users\dalit\tools\ponytail`; **NOT installed as a plugin** | needs the user to run `/plugin marketplace add DietrichGebert/ponytail` then `/plugin install ponytail@ponytail` (two separate prompts) | Always-on ruleset pushing minimal-diff / reuse-before-write / stdlib-before-dependency, plus `/ponytail-review` for hunting over-engineering in a diff. **KEEP IT OFF DURING AUDITS.** Its posture ("does this need to exist at all") is the opposite of an exhaustive contradiction/stale-value sweep, and running it mid-audit risks under-reporting findings to keep the diff small. Rule: **ON for implementation and feature work, OFF (`/ponytail off`) for investigation and audit work where the goal is complete findings, not a small diff.** |
 
 **Python status (verified 2026-08-03):** `python`, `python3` on PATH are Microsoft Store
 stubs that error on invocation; `py` and `pip` are absent. The ONLY real CPython on the
@@ -201,6 +202,42 @@ Always `${import.meta.env.BASE_URL}sprites/...`. Hardcoded `/sprites/...` causes
 ### Tests
 **1186 passing**, 5 todo — 47 test files. Run: `npx vitest run`. All headless (no render tests).
 Visual smoke (`npm run test:visual`, Playwright) is separate and is a blocking CI gate.
+
+#### STALE-VALUE REGISTER — the project's most-repeated bug class (7 shipped instances)
+
+**A value copied from, or captured before, its canonical source.** Every instance passed
+tests, because tests asserted the value against itself. Shipped so far:
+
+| # | where | what drifted |
+|---|-------|--------------|
+| 1 | `Car3D._breachRow` | captured before configure |
+| 2 | `goalCounterUI.setGoals` | called before `setActiveLaneCount` |
+| 3 | `setActiveColCount` | not re-applied on rebuild |
+| 4 | `BenchRenderer.benchY` | derived from ball radius, not socket extent |
+| 5 | `Shooter3D._baseZ` | lazy latch, never cleared — survived every band change |
+| 6 | queue-fit solver | solved for slot 3, the RETIRED stash slot |
+| 7 | `DROP_START_Z` | absolute world Z; travel varied per row AND per band |
+
+**Audited 2026-08-06. Still present, CORRECT today but fragile — check these first when
+something looks misplaced:**
+
+- **`CameraFX._baseP`** (`CameraFX.js:33`) — captured in the constructor; refreshed only by
+  the explicit `setLaneCount()` hook. Correct today. Breaks the moment another path moves
+  the camera without calling it. Its own comment records this bug being caught in the pilot.
+- **`Shooter3D:507` stash `_baseScale`** — the same `== null` latch shape as `_baseZ`, on the
+  dead stash path (see below). Harmless only because the code it serves is unreachable.
+- **`APP_W = 390` / `APP_H = 844`** — hand-copied into `GameApp`, `CityEdges`,
+  `TutorialOrchestrator`, `ShooterRenderer`, `SettingsScreen` rather than imported from
+  `projection.js`. Stable in practice; a stage-size change would need all of them.
+- **`projection.BOOSTER_BAR_TOP_Y` ↔ `BoosterBar.BAR_Y`** — a deliberate duplicate
+  (projection.js must stay Pixi/DOM-free), guarded by `tests/bomb-slot-position-sync.test.js`.
+
+**KNOWN DEAD, NOT YET REMOVED — the stash.** `DragDrop._hitTestStashArea()` returns `false`
+unconditionally, so the stash is unreachable in play. But `Column.stash`/`stashBomb`, three
+DragDrop paths, per-level Shooter3D stash meshes, `ShooterRenderer`, `PositionRegistry` and
+`projection.stashZ` are all still wired. **This remnant has already caused two bugs** (#6
+above, and `SLOT_COUNT` being 4). Removing it spans ~10 files and is a feature-removal
+decision — it needs the owner's approval, not a cleanup commit.
 
 #### SCREENSHOT REVIEW LOOP — MANDATORY before reporting ANY visual change
 **Not optional. Not conditional on the change seeming small.** Before reporting any change

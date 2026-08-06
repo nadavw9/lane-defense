@@ -1,110 +1,51 @@
-REVIEW BATCH — 2026-08-03
-Two visual changes shipped this session. Each is a BEFORE/AFTER pair.
-All crops: screen Y 560..844 (queue rows, bench, booster row), deviceScaleFactor 3.
+REVIEW BATCH — 2026-08-06
+One visual change: the refill DROP-IN animation.
+Crops: screen Y 560..844 (queue rows, bench, booster row), deviceScaleFactor 3.
 
 ===============================================================================
-PAIR A — BOTTOM-CHROME RECLAIM  (shipped, master 4c01e92)
+DROP ANIMATION — BEFORE / AFTER
 ===============================================================================
-01-reclaim-BEFORE-L5.png    L5 before
-02-reclaim-AFTER-L5.png     L5 after
-03-reclaim-BEFORE-L8.png    L8 before
-04-reclaim-AFTER-L8.png     L8 after
+01-drop-BEFORE-at-rest.png        before, at rest (baseline — should look fine)
+02-drop-BEFORE-mid-animation.png  before, MID-REFILL  <-- this is your screenshot
+03-drop-AFTER-at-rest.png         after, at rest (must be unchanged)
+04-drop-AFTER-mid-animation.png   after, MID-REFILL
 
-WHAT CHANGED: reclaimed 32px of bottom chrome (24px dead strip below the booster
-row + 8px of bench gap/padding) and spent all of it on bomb size.
-    queue scale  0.4923 -> 0.6553
-    ball radius  11.33px -> 14.21px   (+25%)
+THE COMPARISON THAT MATTERS is 02 vs 04. Both are caught at the same point in a
+post-fire refill. At rest (01 vs 03) nothing should differ — that pair is there to
+prove the change touched only the animation.
 
-WHAT TO LOOK FOR:
-  - The bombs are visibly BIGGER in the AFTER shots. This is the "bombs look
-    small" complaint, raised twice.
-  - The booster row (COLOR / FREEZE / BOMB) sits LOWER and now runs flush to the
-    bottom edge. The empty strip beneath it in BEFORE is gone.
-  - The bench strip sits directly under the queue with no separating gap.
-  - Third row of bombs clears the bench cleanly in AFTER.
+WHAT TO LOOK FOR IN 02 (BEFORE):
+  - Bottom-row balls sit LOW, below their sockets, with the socket rings visibly
+    EMPTY above them. Middle column's ball is high in its ring.
+  - This is what "bombs stuck out of their slots" looked like.
 
->>> STILL NEEDS YOUR DEVICE: the booster cards now end 2px above the screen
-    bottom (was 26px), and there is NO safe-area handling in the source. On a
-    phone with a gesture bar / home indicator, the lower part of the cards —
-    including BOMB — may fall inside the system gesture zone. Please check
-    whether the boosters feel reliable to tap. Revert is two constants
-    (BoosterBar.BAR_Y + its projection mirror) if they don't.
+WHAT TO LOOK FOR IN 04 (AFTER):
+  - Every ball sits inside its socket ring even mid-flight. No empty rings.
 
-===============================================================================
-PAIR B — BALL/SOCKET ALIGNMENT  (shipped, master e7b4720)
-===============================================================================
-05-alignment-BEFORE-L13toL5.png   the reported bug
-06-alignment-AFTER-L13toL5.png    fixed
+WHAT CHANGED — two separate faults, one symptom:
 
-HOW THESE WERE CAPTURED — this matters: load L13 (4-lane, band 540) FIRST, then
-L5 (3-lane, band 600). A fresh L5 load does NOT reproduce the bug, because the
-stale value latches from the FIRST level of the session. A rest screenshot of L5
-alone would have shown a perfectly clean queue.
+1. Travel was measured from a HARDCODED world Z (DROP_START_Z = -1.0), so distance
+   was `target.z - (-1.0)` — different for every row AND every band:
+       row 0 travelled 1.4 slot pitches, row 2 travelled 3.4 — in the SAME 150ms
+       and the bottom-chrome reclaim stretched the far rows another 40%
+   Now each bomb starts a fixed 1.5 SLOT PITCHES above its own slot, so travel is
+   identical for every row, at every lane count and band.
 
-WHAT TO LOOK FOR IN 05 (BEFORE) — this is your "bombs stuck out of their slots":
-  - Empty socket RINGS are visible sitting at their correct positions, with the
-    BALLS floating between them rather than inside them.
-  - The misalignment GROWS down the column: row 0 nearly right, row 2 badly off.
-  - The bottom row's balls are cut off by the bench strip.
+2. The drop reused the merge pop's easeOutBack (~10.2% overshoot). Across the old
+   long travel that threw the ball ~5.7px past its slot — far enough to clear the
+   socket ring, which is exactly the "out of the slot" read. The drop now uses a
+   softer curve (~5.4%, ~3px); the merge POP is unchanged, since that is a scale
+   bounce, not a position move.
 
-WHAT TO LOOK FOR IN 06 (AFTER):
-  - Every ball centred in its socket, all three rows, both compared side by side.
-  - Bottom row clears the bench strip with visible margin.
-
-CAUSE: Shooter3D.update() latched the slot Z once and then pinned position to it
-every frame. setLaneCount() assigned the new band's slot Z and the next update
-tick silently undid it — so the balls used the pitch of the session's FIRST level
-forever, while the Pixi sockets recomputed live. Fix: read slotZ() live, no cache.
-
->>> STILL NEEDS YOUR DEVICE: please confirm alignment holds when you actually
-    cross a band boundary in play (e.g. finish L8 -> L9, or L13 -> L5 via level
-    select), not just on a fresh level load.
+Guarded by tests/drop-animation-geometry.test.js (6 tests): travel identical
+across rows, identical in pitch units across bands, bounded to <=2 pitches, and
+the peak overshoot proven to stay INSIDE the socket ring at every lane count.
 
 ===============================================================================
-PAIR C — THE "BOMBS OUT OF THEIR SLOTS" YOU REPORTED AT L8  (DIAGNOSIS ONLY,
-         nothing changed — the fix is a feel decision and it is yours)
+NOT PICTURED — still open on your side
 ===============================================================================
-07-drop-AT-REST.png          L8 at rest: every ball centred in its socket.
-08-drop-MID-ANIMATION.png    L8 caught DURING the post-fire refill: this is your
-                             screenshot. Bottom-row balls sit low/overshot with
-                             their socket rings visibly EMPTY above them.
-
-WHAT IT IS: the refill DROP-IN animation, not a position bug. Refilling slots are
-_animLock'd, and Shooter3D.update() skips locked slots entirely, so the ball sits
-wherever the tween puts it. Balls fly in from a HARDCODED world Z (DROP_START_Z
-= -1.0) over 150ms with a 50ms per-row stagger, easing with easeOutBack — which
-deliberately OVERSHOOTS past the slot before settling.
-
-MEASURED (L8, column 0, one shot): lock set t=553ms, released t=1284ms — 731ms
-locked, with the visible excursion in the last ~161ms, peaking 3.43 world units
-off rest (~1.9 slot pitches). The "snap-back a second later" is the sequence
-ending: _finish() -> clearBombAnimLocks().
-
-WHY IT GOT WORSE: DROP_START_Z is a fixed world Z that does NOT track the queue
-geometry. The bottom-chrome reclaim moved slot 2 from z~3.44 to z~5.21, so the
-drop now travels ~6.2 world units instead of ~4.4 (+40%) in the SAME 150ms —
-faster streak, bigger overshoot, far more noticeable. Same stale-constant class
-as the _baseZ latch fixed in e7b4720.
-
->>> YOUR CALL: this is animation feel, so nothing was changed. Options are to
-    derive DROP_START_Z from the queue (constant travel distance at any band),
-    lengthen the 150ms, or reduce the easeOutBack overshoot.
-
-===============================================================================
-VIEWPORT CHECKS — could NOT reproduce the "cut top and bottom"
-===============================================================================
-09-viewport-desktop-1920x1080.png    full window, desktop 16:9
-10-viewport-laptop-1440x900.png      full window, laptop 16:10
-11-viewport-short-android-360x640.png full window, shorter-than-design ratio
-
-These are FULL-WINDOW captures, so letterboxing and any clipping would show.
-Measured lowest/topmost lit pixel row in each — content never touches either
-edge (desktop rows 37..1052 of 1080; laptop 33..877 of 900; short-android
-64..1872 of 1920). Canvas fit is Math.min(w/390, h/844), centred, and both the
-Pixi and Three canvases stay the same size on every resize including shrink.
-Verified on the dev server AND on the deployed site at 1920x1080, 1440x900,
-1366x768 — clipped=false everywhere, no page scroll, no errors.
-
-Please tell me: browser, window size, and OS/browser zoom level — and whether it
-is the live URL. Something specific to your setup is doing this and I cannot see
-it from here.
+- Desktop "cut top and bottom": BLOCKED, cannot reproduce. Nine viewports, dev and
+  live, content never touches either edge. Need your browser, window size,
+  OS/browser zoom, and whether it is the live URL.
+- Boosters 2px above the screen bottom: still unconfirmed on device.
+- Ball/socket alignment across a real band transition (L8 -> L9 in play).

@@ -88,7 +88,7 @@ import { DailyChallengeManager }  from '../game/DailyChallengeManager.js';
 import { CarTypeIntroCard, hasIntroCard } from '../screens/CarTypeIntroCard.js';
 import { bandWeights } from '../director/CarTypes.js';
 import { ComboFX } from './ComboFX.js';
-import { MERGE_SCALE } from '../renderer3d/projection.js';
+import { MERGE_SCALE, bombSlotZ } from '../renderer3d/projection.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const APP_W       = 390;
@@ -1811,6 +1811,21 @@ async function main() {
   // ever locked — every other queue bomb renders normally throughout.
   const EB1 = 1.70158, EB3 = EB1 + 1;
   const easeOutBack = (p) => 1 + EB3 * Math.pow(p - 1, 3) + EB1 * Math.pow(p - 1, 2);  // 0 → overshoot → 1
+
+  // ── Drop-in tuning (2026-08-06) ─────────────────────────────────────────────
+  // How far above its own slot a refilling bomb starts, measured in SLOT PITCHES
+  // so it is identical at every row, lane count and band. 1.5 matches what row 0
+  // already travelled (1.4 pitches) — the rows that change are 1 and 2, which used
+  // to streak 2.4 and 3.4 pitches in the same 150ms.
+  const DROP_TRAVEL_PITCHES = 1.5;
+  // SOFTER overshoot for the drop than the merge pop uses. The standard easeOutBack
+  // (EB1 1.70158) overshoots ~10.2%; across 1.5 pitches that throws the ball ~0.15
+  // pitch past its slot, which at band 600 is ~5.7px — enough for the ball to visibly
+  // clear its socket ring and read as "stuck out of the slot". 0.9 overshoots ~5.4%
+  // (~3px), which still reads as a landing without leaving the socket.
+  // The merge POP keeps easeOutBack: that is a scale bounce, not a position move.
+  const DROP_BACK = 0.9, DROP_BACK3 = DROP_BACK + 1;
+  const easeOutBackSoft = (p) => 1 + DROP_BACK3 * Math.pow(p - 1, 3) + DROP_BACK * Math.pow(p - 1, 2);
   const mergeSequencer = {
     active: false, phase: null, t: 0, plan: null, drops: null, chain: 0, _prevBlocked: false, _pending: false,
     // Entry point for ALL merge triggers (player action + auto-fill). If a sequence
@@ -1939,16 +1954,29 @@ async function main() {
         for (const m of this.plan) gameRenderer3D.setBombSlotScale(m.dest.col, m.dest.row, MERGE_SCALE * easeOutBack(p));
         if (this.t >= 0.12) this._beginFill();
       } else if (this.phase === 'fill') {                     // new bombs fall in from above, overshoot
-        const DROP_START_Z = -1.0;                            // above the queue's front row
+        // DROP GEOMETRY IS DERIVED, NOT A FIXED WORLD Z (2026-08-06).
+        //
+        // This was `const DROP_START_Z = -1.0`, an absolute world Z, so travel was
+        // `target.z - (-1.0)` — different for every row AND every band:
+        //   row 0 travelled 1.4 slot pitches, row 2 travelled 3.4, in the SAME 150ms
+        //   the bottom-chrome reclaim moved slot 2 from z~3.44 to ~5.21, +40% travel
+        // The result is what the device report called "bombs stuck out of their
+        // slots": the far rows streak in from way off, and easeOutBack then throws
+        // them visibly PAST the socket before settling.
+        //
+        // Starting each bomb a fixed number of SLOT PITCHES above its own target
+        // makes travel identical for every row and immune to band/scale changes.
+        const pitch = bombSlotZ(1) - bombSlotZ(0);
         let done = true;
         for (const d of this.drops) {
           const lt = this.t - d.delay;
-          let z = DROP_START_Z;
+          const startZ = d.target.z - DROP_TRAVEL_PITCHES * pitch;
+          let z = startZ;
           if (lt < 0) { done = false; }
           else {
             const p = Math.min(1, lt / 0.15);
             if (p < 1) done = false;
-            z = DROP_START_Z + (d.target.z - DROP_START_Z) * easeOutBack(p);   // overshoot past slot, settle
+            z = startZ + (d.target.z - startZ) * easeOutBackSoft(p);   // gentle overshoot, settle
           }
           gameRenderer3D.setBombSlotWorld(d.c, d.row, d.target.x, d.target.y, z);
           gameRenderer3D.setBombSlotScale(d.c, d.row, 1);

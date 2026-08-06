@@ -1,6 +1,5 @@
 // Column — one of the 4 shooter columns in the bottom half of the screen.
 // Holds up to 3 visible queue slots; the top shooter (index 0) is the active one.
-// One stash slot per column holds a temporarily set-aside bomb.
 // THE canonical queue depth. Must equal the rendered slot count
 // (Shooter3D.SLOT_COUNT) and the hit-test depth (DragDrop._hitTestQueueSlot) —
 // tests/column-capacity.test.js asserts they agree. When the stash was retired
@@ -13,7 +12,6 @@ export class Column {
   constructor({ id } = {}) {
     this.id = id;
     this.shooters = [];
-    this.stash = null;
   }
 
   // The active (top) shooter, or null if empty.
@@ -36,20 +34,4 @@ export class Column {
     return this.shooters.length < COLUMN_CAPACITY;
   }
 
-  // Move the top shooter into the stash slot.
-  // Returns false if the stash is already occupied or the queue is empty.
-  stashBomb() {
-    if (this.stash !== null || this.shooters.length === 0) return false;
-    this.stash = this.shooters.shift();
-    return true;
-  }
-
-  // Return the stashed bomb to the front of the queue.
-  // Returns false if there is nothing in the stash.
-  retrieveStash() {
-    if (this.stash === null) return false;
-    this.shooters.unshift(this.stash);
-    this.stash = null;
-    return true;
-  }
 }

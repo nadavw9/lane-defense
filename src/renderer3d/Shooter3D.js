@@ -43,12 +43,6 @@ const BOMB_CX  = 0;
 const BOMB_CZ  = 0;
 
 function slotZ(s) { return bombSlotZ(s); }
-
-// Stash slot sits directly below the 3 queue slots (same position as old slot 3).
-// Function, not a frozen const: bombSlotZ() depends on the LIVE camera
-// (THREE_LANE_REDESIGN_BATCH.md §1 follow-up — the queue's screen position is
-// now band-invariant, but only if re-read per level, not cached at import time).
-function stashZ() { return slotZ(3); }
 // Plane size: sprite is 1254×1254 with bomb body ~72% of image → scale up so
 // body diameter matches the original sphere's visual size.
 // Function, not a frozen const: BOMB_R is now live (band-compensated to keep
@@ -192,16 +186,10 @@ export class Shooter3D {
       );
     }
 
-    // One stash slot per column — positioned at stashZ() (below the 3 queue slots).
-    this._stashSlots = [];
-    for (let li = 0; li < LANE_COUNT; li++) {
-      this._stashSlots.push(this._createStashSlot(li, stashZ()));
-    }
 
     this._activeColCount = LANE_COUNT;
     this._shakeT = 0;   // bomb-zone shake timer (wrong-shot feedback, 1D)
     this._selectedCol = -1;                              // 3B: grabbed-bomb column
-    this._stashPulse  = new Array(LANE_COUNT).fill(0);   // 3D: per-column stash pulse
   }
 
   // ── Public API ─────────────────────────────────────────────────────────────────
@@ -213,11 +201,6 @@ export class Shooter3D {
         this._slots[li][si].group.position.x = x;
         this._slots[li][si].group.position.z = slotZ(si);
         this._slots[li][si].group._baseX      = x;   // shake/bob offset from this
-      }
-      if (this._stashSlots[li]) {
-        this._stashSlots[li].group.position.x = x;
-        this._stashSlots[li].group.position.z = stashZ();
-        this._stashSlots[li].group._baseX     = x;
       }
     }
     this._refreshSlotSizes();
@@ -240,11 +223,6 @@ export class Shooter3D {
         if (slot.cbOverlayMesh) slot.cbOverlayMesh.scale.set(plane * 0.518, plane * 0.518, 1);
       }
     }
-    for (const stash of this._stashSlots) {
-      if (!stash) continue;
-      stash.sphereMesh.scale.set(plane * 0.80, plane * 0.80, 1);
-      stash.badgeMesh.scale.set(bw * 0.80, bh * 0.80, 1);
-    }
   }
 
   setActiveColCount(n) { this._activeColCount = n; }
@@ -265,8 +243,6 @@ export class Shooter3D {
   // that column pops to 1.15x and the bombs behind it dim, for a focus effect.
   setSelectedColumn(colIdx) { this._selectedCol = colIdx ?? -1; }
 
-  // 3D: pulse a column's stash slot (scale 1→1.2→1) to confirm a place/retrieve.
-  pulseStash(colIdx) { if (colIdx >= 0 && colIdx < this._stashPulse.length) this._stashPulse[colIdx] = 0.2; }
 
   triggerPunch(colIdx) {
     const slot = this._slots[colIdx]?.[0];
@@ -366,8 +342,6 @@ export class Shooter3D {
         // source of truth by construction, which is what the guard test pins.
         g.position.z = slotZ(si);
       }
-      const sg = this._stashSlots[li]?.group;
-      if (sg && sg._baseX != null) sg.position.x = sg._baseX + shakeX;
     }
 
     for (let li = 0; li < LANE_COUNT; li++) {
@@ -376,7 +350,6 @@ export class Shooter3D {
 
       if (li >= this._activeColCount) {
         for (const slot of slots) slot.group.visible = false;
-        if (this._stashSlots[li]) this._stashSlots[li].group.visible = false;
         continue;
       }
 
@@ -498,45 +471,6 @@ export class Shooter3D {
         }
       }
 
-      // ── Stash slot ──────────────────────────────────────────────────────────
-      const stash = this._stashSlots[li];
-      if (!stash) continue;
-      stash.group.visible = true;
-
-      // 3D: receipt pulse (scale 1→1.2→1) on place/retrieve.
-      if (stash._baseScale == null) stash._baseScale = stash.group.scale.x || 1;
-      if (this._stashPulse[li] > 0) {
-        this._stashPulse[li] = Math.max(0, this._stashPulse[li] - dt);
-        const p = 1 - this._stashPulse[li] / 0.2;
-        stash.group.scale.setScalar((1 + 0.2 * Math.sin(Math.PI * p)) * stash._baseScale);
-        if (this._stashPulse[li] === 0) stash.group.scale.setScalar(stash._baseScale);
-      }
-
-      const stashedShooter = col.stash ?? null;
-      if (!stashedShooter) {
-        stash.sphereMesh.visible = false;
-        stash.badgeMesh.visible  = false;
-        stash.ringMesh.visible   = false;   // RETIRED: stash drawing removed (bench is the sole storage)
-      } else {
-        stash.sphereMesh.visible = true;
-        stash.badgeMesh.visible  = true;
-        stash.ringMesh.visible   = false;
-
-        const hex    = COLOR_HEX[stashedShooter.color] ?? 0x888888;
-        const damage = stashedShooter.damage ?? 1;
-
-        if (stash.lastColor !== stashedShooter.color || stash.lastDamage !== damage) {
-          stash.lastColor  = stashedShooter.color;
-          stash.lastDamage = damage;
-          stash.sphereMesh.material.map = _getPowerballTex(stashedShooter.color);
-          stash.sphereMesh.material.needsUpdate = true;
-          drawDamageBadge(stash.badgeCtx, stash.badgeCanvas.width, stash.badgeCanvas.height, damage, hex);
-          stash.badgeTex.needsUpdate = true;
-          // Dim the stash bomb slightly to distinguish from queue bombs
-          stash.sphereMesh.material.opacity = 0.72;
-          stash.sphereMesh.material.needsUpdate = true;
-        }
-      }
     }
   }
 
@@ -565,16 +499,6 @@ export class Shooter3D {
       }
     }
     this._slots = [];
-    for (const stash of this._stashSlots) {
-      stash.badgeTex.dispose();
-      stash.sphereMesh.geometry.dispose();
-      stash.sphereMesh.material.dispose();
-      stash.ringMesh.geometry.dispose();
-      stash.ringMat.dispose();
-      stash.badgeMat.dispose();
-      this._scene.remove(stash.group);
-    }
-    this._stashSlots = [];
   }
 
   // ── Private ─────────────────────────────────────────────────────────────────
@@ -800,74 +724,4 @@ export class Shooter3D {
     slot.cbSparkTex    = spkTex;
   }
 
-  // Creates the stash slot at worldZ. Uses a dashed ring for empty state instead
-  // of the queue's dim sphere, so the player can visually distinguish it.
-  _createStashSlot(laneIdx, worldZ) {
-    const group = new THREE.Group();
-
-    // ── Bomb plane — same as queue slots but 80% scale ─────────────────────────
-    const sphereMesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(1, 1),
-      new THREE.MeshBasicMaterial({
-        transparent: true,
-        alphaTest:   0.05,
-        opacity:     0.72,
-        color:       new THREE.Color(0xffffff),
-        side:        THREE.DoubleSide,
-        depthWrite:  false,
-      }),
-    );
-    sphereMesh.rotation.x = -Math.PI / 2;
-    sphereMesh.position.set(BOMB_CX, 0.05, BOMB_CZ);
-    sphereMesh.scale.set(bombPlaneSize() * 0.80, bombPlaneSize() * 0.80, 1);
-    sphereMesh.visible = false;
-    group.add(sphereMesh);
-
-    // ── Damage badge — canvas at 2× the stash's 0.80-scaled on-screen size ─────
-    const badgeCanvas = document.createElement('canvas');
-    badgeCanvas.width  = Math.round(this._badgeW * 0.80);
-    badgeCanvas.height = Math.round(this._badgeH * 0.80);
-    const badgeCtx = badgeCanvas.getContext('2d');
-    const badgeTex = new THREE.CanvasTexture(badgeCanvas);
-    badgeTex.generateMipmaps = false;
-    badgeTex.minFilter = THREE.LinearFilter;
-    const badgeMat = new THREE.SpriteMaterial({
-      map: badgeTex, transparent: true, depthTest: false,
-      alphaTest:  0.04,   // same dark-quad guard as the queue-slot badge
-      toneMapped: false,  // pure-white digits (see queue-slot badge)
-    });
-    const badgeMesh = new THREE.Sprite(badgeMat);
-    badgeMesh.scale.set(badgeWorldW() * 0.80, badgeWorldH() * 0.80, 1);
-    badgeMesh.position.set(BOMB_CX, BOMB_R * 0.80 + 0.50, BOMB_CZ);
-    badgeMesh.visible = false;
-    group.add(badgeMesh);
-
-    // ── Empty state: dashed ring (TorusGeometry seen from top looks like a circle)
-    const ringMat = new THREE.MeshBasicMaterial({
-      color:       0x556677,
-      transparent: true,
-      opacity:     0.55,
-      side:        THREE.DoubleSide,
-      depthWrite:  false,
-    });
-    const ringMesh = new THREE.Mesh(
-      new THREE.TorusGeometry(BOMB_R * 0.80, 0.07, 6, 16),
-      ringMat,
-    );
-    ringMesh.rotation.x = -Math.PI / 2;
-    ringMesh.position.set(BOMB_CX, 0.02, BOMB_CZ);
-    group.add(ringMesh);
-
-    group.traverse(obj => { if (obj.isMesh || obj.isSprite) obj.layers.set(0); });
-    group.scale.setScalar(1.0);
-    group.position.set(laneToX(laneIdx), 0, worldZ);
-    group.visible = false;
-    this._scene.add(group);
-
-    return {
-      group, sphereMesh, ringMesh, ringMat,
-      badgeCanvas, badgeCtx, badgeTex, badgeMesh, badgeMat,
-      lastColor: '', lastDamage: -1,
-    };
-  }
 }

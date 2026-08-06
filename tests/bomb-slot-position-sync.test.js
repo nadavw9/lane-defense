@@ -14,7 +14,7 @@ import {
   BOOSTER_BAR_TOP_Y, setActiveLaneCount,
 } from '../src/renderer3d/projection.js';
 import { getColumnSlotScreenY, getColumnScreenY, setActiveCounts } from '../src/renderer/PositionRegistry.js';
-import { TOP_Y, SECOND_Y, STASH_Y } from '../src/renderer/ShooterRenderer.js';
+import { TOP_Y, SECOND_Y } from '../src/renderer/ShooterRenderer.js';
 import { bombPlaneSize } from '../src/renderer3d/Shooter3D.js';
 import { benchSpriteSize, SPRITE_PAD_RATIO, bombUrl as benchBombUrl } from '../src/renderer/BenchRenderer.js';
 import { BAR_Y as BOOSTER_BAR_ACTUAL_Y } from '../src/renderer/BoosterBar.js';
@@ -39,20 +39,18 @@ describe('bomb-slot position sync (drift guard)', () => {
     expect(getColumnScreenY()).toBeCloseTo(bombSlotScreenY(0), 6);
   });
 
-  it('ShooterRenderer TOP_Y/SECOND_Y/STASH_Y — the touch-target positions DragDrop hit-tests against — match the canonical source', () => {
+  it('ShooterRenderer TOP_Y/SECOND_Y — the touch-target positions DragDrop hit-tests against — match the canonical source', () => {
     expect(TOP_Y).toBeCloseTo(bombSlotScreenY(0), 6);
-    expect(SECOND_Y).toBeCloseTo(bombSlotScreenY(1), 6);
-    expect(STASH_Y).toBeCloseTo(bombSlotScreenY(3), 6);
+    expect(SECOND_Y).toBeCloseTo(bombSlotScreenY(1), 6);
   });
 
   it('every consumer agrees with every other consumer, not just with the source (transitive check)', () => {
     expect(getColumnSlotScreenY(0)).toBeCloseTo(TOP_Y, 6);
-    expect(getColumnSlotScreenY(1)).toBeCloseTo(SECOND_Y, 6);
-    expect(getColumnSlotScreenY(3)).toBeCloseTo(STASH_Y, 6);
+    expect(getColumnSlotScreenY(1)).toBeCloseTo(SECOND_Y, 6);
   });
 
   it('slot Z is strictly increasing (rows never overlap or invert)', () => {
-    const zs = [0, 1, 2, 3].map(bombSlotZ);
+    const zs = [0, 1, 2].map(bombSlotZ);   // stash slot 3 retired 2026-08-06
     for (let i = 1; i < zs.length; i++) expect(zs[i]).toBeGreaterThan(zs[i - 1]);
   });
 

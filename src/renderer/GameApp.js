@@ -2202,7 +2202,6 @@ async function main() {
   });
 
   // ── Render ticker (variable rate) ────────────────────────────────────────
-  const _prevStash = [false, false, false, false];   // 3D: per-column stash presence
   app.ticker.add((ticker) => {
     const dt = Math.min(ticker.deltaMS / 1000, 0.05);
 
@@ -2230,11 +2229,6 @@ async function main() {
 
     // 3B: reflect the grabbed bomb (tracked by the 2D drag layer) into the 3D bombs.
     gameRenderer3D.setSelectedBomb(shooterRenderer.draggingColumn ?? -1);
-    // 3D: pulse a stash slot whenever its contents change (place or retrieve).
-    for (let c = 0; c < gs.activeColCount; c++) {
-      const has = gs.columns[c]?.stash != null;
-      if (has !== _prevStash[c]) { gameRenderer3D.pulseStash(c); _prevStash[c] = has; }
-    }
 
     gameRenderer3D.render();
 
@@ -2390,7 +2384,6 @@ async function main() {
         boosterState.setColorChangeCar(gs.colors[0]);
         _showColorPicker(gs.colors[0]);
       },
-      stashBomb: (colIdx = 0) => gs?.columns[colIdx]?.stashBomb() ?? false,
       getGs: () => gs,
       // Profiling handle: lets a harness wrap DragDrop's handlers to attribute
       // input-path cost (see scripts/_perf-handlers.mjs). Dev-only, like the

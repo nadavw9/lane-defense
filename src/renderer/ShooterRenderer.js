@@ -47,7 +47,6 @@ const        THIRD_RADIUS  = 17;
 export let TOP_Y    = bombSlotScreenY(0);
 export let SECOND_Y = bombSlotScreenY(1);
 let        THIRD_Y  = bombSlotScreenY(2);
-export let STASH_Y  = bombSlotScreenY(3);
 
 function recomputeShooterLayout() {
   SHOOTER_AREA_Y = Math.round(BREACH_LINE_Y);
@@ -55,7 +54,6 @@ function recomputeShooterLayout() {
   TOP_Y    = bombSlotScreenY(0);
   SECOND_Y = bombSlotScreenY(1);
   THIRD_Y  = bombSlotScreenY(2);
-  STASH_Y  = bombSlotScreenY(3);
 }
 
 // Target rendered diameters (diameter, not radius) at 1× scale
@@ -201,9 +199,6 @@ export class ShooterRenderer {
     this._thirdTexts    = [];
 
     // Stash slot — one Graphics + Sprite + Text per column
-    this._stashGraphics = [];
-    this._stashSprites  = [];
-    this._stashTexts    = [];
 
     // Queue depth badge: shows "+N" in 3D mode below front slot
     this._queueBadges = [];
@@ -252,23 +247,6 @@ export class ShooterRenderer {
       t3.visible = false;
       colContainer.addChild(t3);
       this._thirdTexts.push(t3);
-
-      // ── Stash slot ──────────────────────────────────────────────────────────
-      const stashG = new Graphics();
-      colContainer.addChild(stashG);
-      this._stashGraphics.push(stashG);
-
-      const stashSp = new Sprite();
-      stashSp.anchor.set(0.5);
-      stashSp.visible = false;
-      colContainer.addChild(stashSp);
-      this._stashSprites.push(stashSp);
-
-      const stashT = new Text({ text: '', style: SECOND_TEXT_STYLE });
-      stashT.anchor.set(0.5);
-      stashT.visible = false;
-      colContainer.addChild(stashT);
-      this._stashTexts.push(stashT);
 
       // ── Top shooter ─────────────────────────────────────────────────────────
       const topContainer = new Container();
@@ -321,10 +299,6 @@ export class ShooterRenderer {
     const yOffsets = [TOP_Y, SECOND_Y, THIRD_Y];
     const y = yOffsets[rowIdx] ?? TOP_Y;
     return { x, y };
-  }
-
-  getStashCenter(colIdx) {
-    return { x: getColumnScreenX(colIdx), y: STASH_Y };
   }
 
   // Reorder / bench-return drop-target highlight, set by DragDrop during a drag.
@@ -484,54 +458,6 @@ export class ShooterRenderer {
         qb.bg.visible = false;
       }
 
-      // ── Stash slot — always rendered (visible in both 2D and 3D modes) ────────
-      const stashG  = this._stashGraphics[i];
-      const stashSp = this._stashSprites[i];
-      const stashT  = this._stashTexts[i];
-      const stashed = col.stash ?? null;
-      const stashR  = SECOND_RADIUS;   // same radius as slot-1 bomb
-
-      stashG.clear();
-
-      // Stash RETIRED (bench is the sole storage). The 2D fallback no longer draws
-      // the separator or the empty dashed ring. sepCX kept for the (now-inert)
-      // occupied branch below.
-      const sepCX = cx;
-
-      if (stashed) {
-        // Occupied: solid border circle tinted with shooter color
-        const col3 = COLOR_MAP[stashed.color] ?? 0x888888;
-        stashG.circle(sepCX, STASH_Y, stashR + 3);
-        stashG.fill({ color: col3, alpha: 0.18 });
-        stashG.circle(sepCX, STASH_Y, stashR + 3);
-        stashG.stroke({ color: col3, width: 2, alpha: 0.70 });
-
-        if (!this._mode3D) {
-          const url = idleUrl(stashed.color);
-          const tex = Assets.get(url);
-          if (tex) {
-            if (stashSp.texture !== tex) { stashSp.texture = tex; fitSprite(stashSp, stashR * 2); }
-            stashSp.x       = sepCX;
-            stashSp.y       = STASH_Y;
-            stashSp.alpha   = 0.80;
-            stashSp.visible = true;
-          } else {
-            stashSp.visible = false;
-          }
-          stashT.text    = String(stashed.damage);
-          stashT.x       = sepCX;
-          stashT.y       = STASH_Y + stashR + 8;
-          stashT.alpha   = 0.80;
-          stashT.visible = true;
-        } else {
-          stashSp.visible = false;
-          stashT.visible  = false;
-        }
-      } else {
-        // Stash RETIRED: empty dashed ring no longer drawn (bench is the sole storage).
-        stashSp.visible = false;
-        stashT.visible  = false;
-      }
 
       // In 3D mode: panels transparent, Shooter3D renders ALL visuals including
       // damage numbers as canvas sprites attached to each turret mesh.

@@ -299,8 +299,6 @@ export class GameRenderer3D {
   /** 3B: highlight the grabbed column's bomb (-1 = none). */
   setSelectedBomb(colIdx) { this._shooters?.setSelectedColumn(colIdx); }
 
-  /** 3D: pulse a column's stash slot on place/retrieve. */
-  pulseStash(colIdx) { this._shooters?.pulseStash(colIdx); }
 
   // Project a queue slot's bomb (3D) to 2D screen pixels (stage coords) by running
   // its world position through the actual camera — the ground-truth on-screen

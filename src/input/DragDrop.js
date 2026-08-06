@@ -25,7 +25,6 @@ import {
 import {
   COL_W, COL_COUNT, TOP_RADIUS, TOP_Y,
   SHOOTER_AREA_Y, SHOOTER_AREA_H,
-  STASH_Y,
 } from '../renderer/ShooterRenderer.js';
 import {
   getLaneScreenX, getLaneFromScreenX, getLaneScreenBounds, getTopLaneScreenBounds,
@@ -308,15 +307,6 @@ export class DragDrop {
       }
     }
 
-    // Stash slot hit test — drag the stashed bomb back toward the queue or to a lane
-    const stashCol = this._hitTestStashSlot(x, y);
-    if (stashCol !== -1 && this._columns[stashCol].stash !== null) {
-      const shooter = this._columns[stashCol].stash;
-      const { x: scx, y: scy } = this._shooterRenderer.getStashCenter(stashCol);
-      this._startDrag('stash', stashCol, -1, shooter, scx, scy, x, y);
-      return;
-    }
-
     const slot = this._benchRenderer?.hitTestSlot(x, y) ?? -1;
     if (slot !== -1 && this._benchStorage?.getSlot(slot)) {
       const shooter = this._benchStorage.getSlot(slot);
@@ -333,7 +323,7 @@ export class DragDrop {
     this._updateHighlights(x, y);
   }
 
-  // True while a queue/bench/stash bomb is being held. The merge sequencer defers
+  // True while a queue/bench bomb is being held. The merge sequencer defers
   // its checks while this is true (drag/merge mutual exclusion).
   isDragging() { return this._state === 'dragging'; }
 
@@ -356,32 +346,6 @@ export class DragDrop {
     this._clearHighlights();
     this._benchRenderer?.setHighlight(-1);
 
-    // ── Stash: drag column top DOWN to stash slot ────────────────────────────
-    if (this._dragSource === 'column' && this._hitTestStashArea(x, y)) {
-      this._handleStashDrop();
-      return;
-    }
-
-    // ── Retrieve: drag stash bomb UP (to queue zone or anywhere not a lane) ──
-    if (this._dragSource === 'stash') {
-      const laneIdx = this._hitTestLane(x, y);
-      if (laneIdx !== -1) {
-        // Allow deploying directly from stash to a lane (convenient shortcut)
-        if (!this._checkColorMatch(laneIdx)) {
-          this._onColorMismatch();
-          this._handleStashRetrieve(/* silent */ true);
-          return;
-        }
-        if (this._firingSlots?.[laneIdx]) {
-          this._handleStashRetrieve(/* silent */ true);
-          return;
-        }
-        this._handleStashDeployToLane(laneIdx);
-      } else {
-        this._handleStashRetrieve(false);
-      }
-      return;
-    }
 
     // ── Reorder (L5+): drag queue slot to another queue slot ────────────────
     if (this._dragSource === 'column' && this._mergeEnabled && this._dragSourceRow >= 0) {
@@ -478,7 +442,6 @@ export class DragDrop {
     } else if (source === 'bench') {
       if (this._benchRenderer) this._benchRenderer.draggingSlot = sourceIdx;
     }
-    // 'stash' source: no dragging marker needed — ShooterRenderer reads col.stash directly
 
     // Rainbow ghost is driven by the dragged shooter itself now (the color bomb
     // is a real queue item, not a global armed state). A merge color bomb
@@ -648,9 +611,6 @@ export class DragDrop {
     if (this._dragSource === 'column') {
       ({ x: cx, y: cy } = this._shooterRenderer.getQueueSlotCenter(this._dragSourceIdx, this._dragSourceRow));
       this._shooterRenderer.draggingColumn = -1;
-    } else if (this._dragSource === 'stash') {
-      ({ x: cx, y: cy } = this._shooterRenderer.getStashCenter(this._dragSourceIdx));
-      // stash is still occupied — bomb was never removed since snap means failed drop
     } else {
       ({ x: cx, y: cy } = this._benchRenderer.getSlotCenter(this._dragSourceIdx));
       if (this._benchRenderer) this._benchRenderer.draggingSlot = -1;
@@ -702,17 +662,6 @@ export class DragDrop {
       return;
     }
 
-    if (this._dragSource === 'stash') {
-      const laneIdx = this._hitTestLane(x, y);
-      if (laneIdx !== -1) {
-        const isOccupied = this._firingSlots?.[laneIdx] != null;
-        const isMatch    = this._checkColorMatch(laneIdx);
-        const _glow = (isMatch && !isOccupied) ? HIGHLIGHT_GREEN : HIGHLIGHT_RED;
-        this._showLaneHighlight(laneIdx, _glow);
-        this._onLaneHover(laneIdx, _glow);   // 3C: green = valid drop, red = invalid
-      }
-      return;
-    }
 
     // Column drag from a queue slot (reorder)
     if (this._dragSource === 'column' && this._mergeEnabled && this._dragSourceRow >= 0) {
@@ -726,15 +675,6 @@ export class DragDrop {
       }
     }
 
-    // Column drag: highlight stash slot if hovering over stash area
-    if (this._hitTestStashArea(x, y)) {
-      const colIdx  = this._dragSourceIdx;
-      const col     = this._columns[colIdx];
-      if (col && col.stash === null) {
-        // stash is free — show subtle glow (handled by ShooterRenderer; nothing to do here)
-      }
-      return;
-    }
 
     if (y > benchY() - 50) {
       const slot = this._benchRenderer?.hitTestSlot(x, y) ?? -1;
@@ -853,87 +793,6 @@ export class DragDrop {
     return y >= queueBenchBoundaryY() && y <= benchY() + benchSlotH() + 10;
   }
 
-  _hitTestStashArea(x, y) {
-    // Stash RETIRED — the bench (BenchRenderer) is the sole bomb-storage mechanic.
-    // Returning false here neutralises the whole stash path in one place: the
-    // column→stash drop (onPointerUp), stash-slot retrieval, and stash drag-start.
-    // _handleStashDrop is intentionally left defined (now unreachable) for reference
-    // in case the stash mechanic is ever revived.
-    return false;
-    // Original hit-test (kept for reference):
-    // return y >= STASH_Y - TOP_RADIUS - 12 && y <= STASH_Y + TOP_RADIUS + 12;
-  }
-
-  _hitTestStashSlot(x, y) {
-    if (!this._hitTestStashArea(x, y)) return -1;
-    // Find which stash slot (any column with a stashed bomb) is being hovered.
-    for (let i = 0; i < getActiveColCount(); i++) {
-      if (this._columns[i].stash !== null && Math.abs(x - getColumnScreenX(i)) <= COL_W / 2) {
-        return i;
-      }
-    }
-    return -1;
-  }
-
-  _handleStashDrop() {
-    const col = this._columns[this._dragSourceIdx];
-    if (!col.stashBomb()) {
-      // Stash already occupied or queue empty
-      this._snapBack();
-      return;
-    }
-    this._shooterRenderer.draggingColumn = -1;
-    // Find the first empty stash slot across all columns (shared reserve).
-    let targetStashCol = -1;
-    for (let i = 0; i < this._columns.length; i++) {
-      if (this._columns[i].stash === null) {
-        targetStashCol = i;
-        break;
-      }
-    }
-    // If no empty stash slot found, snap back.
-    if (targetStashCol === -1) {
-      col.retrieveStash();  // undo the stashBomb() call
-      this._snapBack();
-      return;
-    }
-    // Move the stashed bomb to the empty stash slot.
-    const shooter = col.stash;
-    col.stash = null;
-    this._columns[targetStashCol].stash = shooter;
-    const { x: tx, y: ty } = this._shooterRenderer.getStashCenter(targetStashCol);
-    this._startAnim(this._ghost.x, this._ghost.y, tx, ty, FLY_DURATION, () => this._destroyGhost());
-    this._state = 'flying';
-  }
-
-  // Retrieve the stash bomb (make it disappear from the stash without deploying).
-  // The stash slot simply empties; no bomb returns to any queue.
-  // When snapOnly=true the ghost just snaps back without clearing stash (caller already
-  // handled the state, e.g. a failed color-match deploy attempt).
-  _handleStashRetrieve(snapOnly = false) {
-    if (!snapOnly) {
-      const col = this._columns[this._dragSourceIdx];
-      col.stash = null;  // Clear the stash slot; bomb is consumed
-    }
-    const { x: tx, y: ty } = this._shooterRenderer.getStashCenter(this._dragSourceIdx);
-    this._startAnim(this._ghost.x, this._ghost.y, tx, ty, SNAP_DURATION, () => this._destroyGhost());
-    this._state = 'snapping';
-  }
-
-  // Deploy directly from stash to a lane (shortcut: avoids a two-step retrieve → deploy).
-  // Removes from col.stash and uses the bench-deploy pathway so the queue is untouched.
-  _handleStashDeployToLane(laneIdx) {
-    const col     = this._columns[this._dragSourceIdx];
-    const shooter = col.stash;
-    col.stash = null;
-    this._onDeployFromBench(shooter, laneIdx);
-
-    const targetX = getLaneScreenX(laneIdx);
-    const targetY = ROAD_BOTTOM_Y;
-    if (this._ghost) this._ghost.scale.set(1.0);
-    this._startAnim(this._ghost.x, this._ghost.y, targetX, targetY, FLY_DURATION, () => this._destroyGhost());
-    this._state = 'flying';
-  }
 
   // ── Ghost creation ─────────────────────────────────────────────────────────
   // Returns a PIXI Container with a static bomb sprite + animated spark child.

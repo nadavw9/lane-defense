@@ -254,11 +254,21 @@ Visual smoke (`npm run test:visual`, Playwright) is separate and is a blocking C
 
 #### DELEGATE SEARCH AND MAPPING TO A HAIKU SUBAGENT — this is a rule, not a suggestion
 
-`CLAUDE_CODE_SUBAGENT_MODEL=haiku` has been set in `~/.claude/settings.json` for a long
-time and **has been saving nothing**, because sessions kept doing search-and-map work
-inline on Opus. Audited 2026-08-06: a full session that mapped 216 stash references across
-10 files, swept the tree for stale constants, and inventoried dead code spawned **zero**
-subagents. The config was never the problem. Not invoking it was.
+**FIRST, CHECK WHETHER DISPATCH IS EVEN ALLOWED — these are TWO switches, not one.**
+
+`CLAUDE_CODE_SUBAGENT_MODEL=haiku` only names **which model a subagent would use if one
+were started**. It does not grant permission to start one. If the session config carries an
+instruction like *"do not call the Agent tool unless the user requested it"*, dispatch is
+blocked outright and every threshold below silently never fires — the rule then looks
+broken when it is actually gated.
+
+That is exactly what happened on 2026-08-06. A long session mapped 216 stash references
+across 10 files, swept the tree for stale constants and inventoried dead code, and spawned
+**zero** subagents. The first diagnosis written here — "habit, not task shape" — was WRONG,
+asserted without checking whether dispatch was permitted. It was permission, not habit.
+
+So: if delegation never seems to trigger, **verify the permission switch before tuning the
+threshold**. When dispatch IS available, the triggers below apply.
 
 **Spawn a haiku subagent when ANY of these is true — do not deliberate, just do it:**
 
@@ -274,7 +284,7 @@ context to interpret, measurement whose *method* is the hard part (the harness, 
 projection probes — those failed repeatedly on subtle instrument bugs that a cold subagent
 would repeat), or a judgement call the user asked ME for.
 
-**Why a threshold instead of "consider delegating":** a soft reminder is exactly what was in
+**Why a threshold rather than "consider delegating" — ONCE dispatch is permitted:** a soft reminder is exactly what was in
 place, and it produced zero delegations across a very long session. Inline always feels
 cheaper in the moment — the context is already loaded and the grep is two seconds. The cost
 is invisible per-step and only shows up on the bill. A number removes the judgement call.

@@ -1893,9 +1893,10 @@ async function main() {
       this.plan = plan; this.phase = 'highlight'; this.t = 0;
       for (const m of plan) {
         for (const sl of [m.dest, ...m.travelers]) gameRenderer3D.lockBombSlot(sl.col, sl.row, true);
-        m._destW = gameRenderer3D.getBombSlotWorld(m.dest.col, m.dest.row);
-        for (const tr of m.travelers) tr._w = gameRenderer3D.getBombSlotWorld(tr.col, tr.row);
       }
+      // The per-slot world positions this used to cache (m._destW / tr._w) existed
+      // ONLY to interpolate the outers across the queue during 'travel'. That
+      // flight is gone (see the phase below), so caching them would be dead state.
     },
     update(dt) {
       if (!this.active) {
@@ -1913,14 +1914,26 @@ async function main() {
         const s = 1.0 + 0.15 * Math.min(1, this.t / 0.10);
         for (const m of this.plan) for (const sl of [m.dest, ...m.travelers]) gameRenderer3D.setBombSlotScale(sl.col, sl.row, s);
         if (this.t >= 0.10) { this.phase = 'travel'; this.t = 0; }
-      } else if (this.phase === 'travel') {                   // 150ms — 2 outers fly to dest, shrink
+      } else if (this.phase === 'travel') {                   // 150ms — outers shrink out IN PLACE
+        // NO CROSS-SLOT FLIGHT (2026-08-07). This phase used to lerp each outer
+        // bomb's world position to the destination slot. Bomb SOCKETS are Pixi
+        // circles at fixed screen positions while the BALLS are Three meshes, so a
+        // ball in flight is a ball drawn outside every socket. Measured on the live
+        // build: up to 2.00 SLOT PITCHES — two whole sockets — from its own socket,
+        // visible for ~120ms per merge.
+        //
+        // That is the "balls floating outside their sockets" device report. It
+        // survived two prior fixes because both targeted the refill DROP; the merge
+        // was never the suspect. Re-tuning the travel curve would not have helped:
+        // any visible path between two sockets is wrong at every point along it.
+        //
+        // The rule is now structural — a ball is either seated in a socket or not
+        // drawn. The outers shrink out where they already sit, and the merged bomb
+        // pops in AT the destination ('pop', below), so no ball can be caught
+        // between slots in any state, by this path or a future one.
+        // Guarded by tests/merge-animation-geometry.test.js.
         const p = Math.min(1, this.t / 0.15);
         for (const m of this.plan) for (const tr of m.travelers) {
-          if (!tr._w || !m._destW) continue;
-          gameRenderer3D.setBombSlotWorld(tr.col, tr.row,
-            tr._w.x + (m._destW.x - tr._w.x) * p,
-            tr._w.y + (m._destW.y - tr._w.y) * p,
-            tr._w.z + (m._destW.z - tr._w.z) * p);
           gameRenderer3D.setBombSlotScale(tr.col, tr.row, 1.15 * (1 - p));
         }
         if (this.t >= 0.15) {

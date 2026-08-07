@@ -1,51 +1,94 @@
-REVIEW BATCH — 2026-08-06
-One visual change: the refill DROP-IN animation.
-Crops: screen Y 560..844 (queue rows, bench, booster row), deviceScaleFactor 3.
+REVIEW BATCH — 2026-08-07
+Two changes: the merge animation (your ball/socket bug) and booster-card clearance.
+Crops at deviceScaleFactor 3.
 
 ===============================================================================
-DROP ANIMATION — BEFORE / AFTER
+01 / 02  BEFORE          03 / 04  AFTER
 ===============================================================================
-01-drop-BEFORE-at-rest.png        before, at rest (baseline — should look fine)
-02-drop-BEFORE-mid-animation.png  before, MID-REFILL  <-- this is your screenshot
-03-drop-AFTER-at-rest.png         after, at rest (must be unchanged)
-04-drop-AFTER-mid-animation.png   after, MID-REFILL
+01-boosterbar-BEFORE.png   bottom chrome at rest      (stage Y 700..844)
+02-merge-BEFORE.png        caught mid-merge, 'travel' (stage Y 560..780)
+03-boosterbar-AFTER.png    same crop, after
+04-merge-AFTER.png         same crop, after
 
-THE COMPARISON THAT MATTERS is 02 vs 04. Both are caught at the same point in a
-post-fire refill. At rest (01 vs 03) nothing should differ — that pair is there to
-prove the change touched only the animation.
+THE ONE THAT MATTERS IS 02 vs 04.
 
-WHAT TO LOOK FOR IN 02 (BEFORE):
-  - Bottom-row balls sit LOW, below their sockets, with the socket rings visibly
-    EMPTY above them. Middle column's ball is high in its ring.
-  - This is what "bombs stuck out of their slots" looked like.
+-------------------------------------------------------------------------------
+02 (BEFORE) — this is your screenshot, reproduced
+-------------------------------------------------------------------------------
+Bottom row: two small green balls ("3" and "5") float BETWEEN sockets, and the
+sockets they belong to sit visibly EMPTY on either side. That is the whole defect.
 
-WHAT TO LOOK FOR IN 04 (AFTER):
-  - Every ball sits inside its socket ring even mid-flight. No empty rings.
+04 (AFTER): both balls shrink out INSIDE their own sockets. No empty rings, no
+ball between slots.
 
-WHAT CHANGED — two separate faults, one symptom:
+-------------------------------------------------------------------------------
+WHY TWO PRIOR FIXES MISSED IT
+-------------------------------------------------------------------------------
+Both earlier fixes are live in production — verified against the deployed bundle's
+ancestry, not git log (e7b4720 and c35d40f are both ancestors of the deployed
+091d9e9). They were not the wrong fixes; they were fixes to the wrong path. Both
+targeted the refill DROP. The actual trigger is the MERGE.
 
-1. Travel was measured from a HARDCODED world Z (DROP_START_Z = -1.0), so distance
-   was `target.z - (-1.0)` — different for every row AND every band:
-       row 0 travelled 1.4 slot pitches, row 2 travelled 3.4 — in the SAME 150ms
-       and the bottom-chrome reclaim stretched the far rows another 40%
-   Now each bomb starts a fixed 1.5 SLOT PITCHES above its own slot, so travel is
-   identical for every row, at every lane count and band.
+The merge's 'travel' phase spent 150ms interpolating each outer bomb's world
+position across the queue to the destination slot. Sockets are Pixi circles at
+fixed screen positions; balls are Three meshes. So a ball in flight is a ball drawn
+outside every socket — measured on the live build at up to 2.00 SLOT PITCHES, two
+entire sockets, from its own.
 
-2. The drop reused the merge pop's easeOutBack (~10.2% overshoot). Across the old
-   long travel that threw the ball ~5.7px past its slot — far enough to clear the
-   socket ring, which is exactly the "out of the slot" read. The drop now uses a
-   softer curve (~5.4%, ~3px); the merge POP is unchanged, since that is a scale
-   bounce, not a position move.
+Measured with a per-frame trace (scripts/_ball-timeseries.mjs) rather than a
+before/after snapshot, which is what finally separated the merge from the refill.
 
-Guarded by tests/drop-animation-geometry.test.js (6 tests): travel identical
-across rows, identical in pitch units across bands, bounded to <=2 pitches, and
-the peak overshoot proven to stay INSIDE the socket ring at every lane count.
+ONE CORRECTION TO WHAT I TOLD YOU EARLIER: I first reported ~370ms of visible
+displacement. That was wrong — it counted spent travellers parked at the
+destination with scale 0, which are invisible. The genuinely visible window is
+~120ms. The magnitude, not the duration, is what makes it screenshot-able: a ball
+two full sockets away from where it belongs is obvious in any single frame.
+
+-------------------------------------------------------------------------------
+THE FIX IS STRUCTURAL, NOT A RE-TUNE
+-------------------------------------------------------------------------------
+Per your decision: a ball is now either seated in a socket or not drawn at all.
+The outers shrink out where they already sit; the merged bomb pops in AT the
+destination. Nothing travels between slots.
+
+This kills the class, not just this instance — no easing curve makes a path
+between two sockets correct, because every point along it is outside both.
+Guarded by tests/merge-animation-geometry.test.js (4 tests): the travel, highlight
+and pop phases may not translate a slot; exactly ONE slot translation may exist in
+GameApp (the refill drop, separately bounded); and the cross-slot interpolation
+caches must stay deleted rather than merely unused.
+
+-------------------------------------------------------------------------------
+01 vs 03 — booster clearance
+-------------------------------------------------------------------------------
+BoosterBar.BAR_Y 776 -> 768, BAR_H 68 -> 76, so the bar still ENDS at 844 and stays
+flush — the reclaimed dead strip is not coming back. The 8px goes to the cards,
+which had only 2px of clearance above the stage bottom (labels 5px). At desktop
+stage scale ~0.7 that was 1.4 and 3.5 CSS px, which reads as cut off.
+Label clearance roughly triples (5 -> 9px).
+
+Cost, as flagged: 8px less room above for the bomb queue, so the solved ball radius
+drops slightly from the reclaim's peak.
 
 ===============================================================================
-NOT PICTURED — still open on your side
+DESKTOP CLIPPING — WHAT I FOUND, AND WHAT I STILL CANNOT REPRODUCE
 ===============================================================================
-- Desktop "cut top and bottom": BLOCKED, cannot reproduce. Nine viewports, dev and
-  live, content never touches either edge. Need your browser, window size,
-  OS/browser zoom, and whether it is the live URL.
-- Boosters 2px above the screen bottom: still unconfirmed on device.
-- Ball/socket alignment across a real band transition (L8 -> L9 in play).
+Tested real browser-window heights WITH chrome, at DPR 1 / 1.25 / 1.5 (Windows 125%
+and 150% display scaling), on both the dev server and the LIVE build — 14
+configurations. The fitted box is exact in every one, e.g. 1280x595 @ DPR 1.5 gives
+a 275x595 canvas against an expected 275x595, top 0, bottom 595.
+
+So it is NEITHER of the two options you named: not CSS overflow past the box, and
+not a mis-sized box. Both are ruled out.
+
+What IS real is the bottom tightness above, and that is now addressed.
+
+The top HUD "9 9" being cut I could NOT reproduce — the goal cards render complete
+at every size and DPR I tested. I am not claiming it does not happen. To close it I
+need: your window size (or just F11-fullscreen vs windowed), your browser zoom
+level (Ctrl+0 resets to 100%), and whether the screenshot was the live URL.
+
+METHOD NOTE WORTH KEEPING: every prior automated measurement of this bug ran
+against the DEV SERVER, because the harness waits on window._nav, which is behind
+import.meta.env.DEV and does not exist in production. The probes silently timed out
+on live and I had been reading dev-only evidence. Fixed.

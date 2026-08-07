@@ -11,6 +11,28 @@ An approved 3-workstream master plan is in progress (WS1 testing DONE → WS2 UI
 Route mechanical spec-execution to cheaper models; reserve Fable/Opus for design judgment
 (playbook §2). Every task: vitest green (1193+) + `npm run test:visual` green (18) before commit.
 
+### OPEN, BLOCKED ON OWNER INPUT — do not investigate further until it arrives
+
+**Desktop "top of the HUD is cut off" (2026-08-07). STOP INVESTIGATING.** Reported twice from
+real screenshots; **not reproduced in 14 configurations** — real browser-window heights *with*
+browser chrome (955/880/760/739/625/600/595/500), DPR 1 / 1.25 / 1.5 (Windows 125% and 150%
+display scaling), against **both** the dev server and the live Pages build. The fitted canvas box
+is exact in every one (e.g. 1280×595 @ DPR 1.5 → 275×595 against an expected 275×595, top 0,
+bottom 595), and the goal cards render complete. So it is **neither** candidate cause: not CSS
+overflow past the fitted box, and not a mis-sized box. Both are ruled out, not merely untested.
+
+The *bottom* half of the same report was real and is fixed (`d804019`): booster cards had 2px of
+clearance above the stage bottom, labels 5px — at desktop stage scale ~0.7 that is 1.4 and 3.5
+CSS px, which reads as cut off without anything being clipped.
+
+**Needed to proceed, and nothing else will do:** the owner's window size (or simply
+fullscreen-vs-windowed), **browser zoom level** (Ctrl+0 = 100% — the one environment variable
+never modelled), and whether the screenshot was the live URL. Probes are committed and ready
+(`scripts/_desktop-clip-probe.mjs`, `_dpr-clip-probe.mjs`, `_live-clip-probe.mjs`, `_l8-edges.mjs`)
+— re-deriving them is the expensive part, so re-run them with the real numbers rather than
+rebuilding. A 15th blind configuration is not evidence; see the two 2026-08-07 probe failures in
+§6, which is *why* the earlier sweeps looked clean.
+
 ### BRANCH-FIRST FOR THE DEPLOY / MERGE PATH — local green proves nothing there
 **Anything touching the deploy → auto-fill → merge path goes to a BRANCH and waits for CI
 before it reaches master.** Do not validate locally and push to master.
@@ -377,6 +399,32 @@ undismissed colour-bomb screen.
 2. **"4/5 shots lose damage" with no pause at all** — a raw lane-hp total, where refill spawns a
    replacement and hides the kill. Caught only because the number was absurd.
 3. **"gate suppresses damage"** — modal-paused loop, above.
+
+**Two more, 2026-08-07 — both silently voided a whole investigation, not one sample:**
+
+4. **`window._nav` DOES NOT EXIST IN PRODUCTION.** The hook block is wrapped in
+   `if (import.meta.env.DEV)` (`GameApp.js`). Every probe that waits on `_nav` therefore times
+   out against the live Pages build — and a `waitForFunction` timeout reads as "the live site is
+   broken / unreachable", not as "wrong instrument". The desktop-clipping investigation ran
+   **nine viewport sweeps that were all dev-server-only** while being reported as covering the
+   build the player actually runs. **If a probe targets the live URL, it may not depend on
+   `_nav`;** wait on `canvas:not(#three-canvas)` and read the DOM. (`canvas` alone matches
+   `#three-canvas` first, which is `display:none` on the title screen — so even the wait selector
+   has a wrong-thing-shaped trap in it.)
+5. **`_nav.dismissTutorial()` is not sufficient to unpause a level.** Measured at L8: `paused`
+   stayed `true` through 15 calls, refills stopped, and a ball-position time-series recorded
+   **zero displacement** — reported as "no bug" when in truth nothing had fired. Six real canvas
+   taps cleared it. This does not contradict the tutorial rule above; it means the pauser was a
+   different one of the four (a modal, which `_runNextModal` holds until a **real tap**), and
+   `dismissTutorial()` cannot tell you that it was not the blocker. **Assert
+   `!_nav.getGameLoop().paused` after attempting dismissal — never assume one dismissal API
+   cleared whatever is actually holding the loop.**
+
+**The shared lesson in 4 and 5:** both probes returned a clean, plausible, *quantitative* result
+(`clipped=false` everywhere; `0` displacement samples). Neither could distinguish "measured the
+thing and it is fine" from "never measured the thing". **A zero is not evidence until the probe
+has proven its stimulus fired** — verify the deploy landed, the queue depth changed, the loop is
+running. Three of this project's void measurements were zeros of exactly this shape.
 
 **Rules:**
 - Assert preconditions before sampling, and **exclude contaminated samples explicitly** rather

@@ -214,7 +214,7 @@ const BREACH_MARGIN_PX      = 6;
 // "BOOSTER_BAR_TOP_Y mirrors BoosterBar.BAR_Y" check. If BoosterBar.js's
 // BAR_Y ever changes, update this to match or the queue-fit solver below will
 // silently target the wrong boundary.
-export const BOOSTER_BAR_TOP_Y = 776;   // mirrors BoosterBar.BAR_Y (flush-to-bottom, 2026-08-02)
+export const BOOSTER_BAR_TOP_Y = 768;   // mirrors BoosterBar.BAR_Y (card clearance, 2026-08-07)
 // Vertical space the bench + booster-bar gap need BELOW the queue's last socket.
 // Mirrors BenchRenderer's constants (BENCH_QUEUE_GAP 0 + BENCH_TRAY_PAD 4 above,
 // BENCH_SLOT_H_MIN 28, BENCH_TRAY_PAD 4 below, BENCH_BAR_GAP 2). projection.js is

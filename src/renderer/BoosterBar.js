@@ -6,13 +6,23 @@ import { Graphics, Text, Sprite, Assets } from 'pixi.js';
 const _B = import.meta.env.BASE_URL;
 function boosterUrl(name) { return `${_B}sprites/designed/booster-${name}.png`; }
 
-// 2026-08-02 BOTTOM-CHROME RECLAIM: 752 -> 776. BAR_Y + BAR_H = 776 + 68 = 844 =
-// APP_H exactly, so the booster row now sits FLUSH to the bottom edge and the
-// 24px dead strip below it is reclaimed. Mirrored by projection.BOOSTER_BAR_TOP_Y
-// (guard: tests/bomb-slot-position-sync.test.js) and consumed by CityEdges and
+// 2026-08-02 BOTTOM-CHROME RECLAIM: 752 -> 776. BAR_Y + BAR_H = 844 = APP_H
+// exactly, so the booster row sits FLUSH to the bottom edge and the 24px dead
+// strip below it is reclaimed. Mirrored by projection.BOOSTER_BAR_TOP_Y (guard:
+// tests/bomb-slot-position-sync.test.js) and consumed by CityEdges and
 // HUDRenderer, which derive from it.
-export const BAR_Y   = 776;
-export const BAR_H = 68;
+//
+// 2026-08-07: 776 -> 768, with BAR_H 68 -> 76 so the bar still ENDS at 844. The
+// reclaim is what makes the bar flush, and flush is correct for the bar's
+// background — but it left the 64px cards only 2px above the stage bottom and
+// their name labels 5px, which on a desktop window (stage scale ~0.7) is 1.4 and
+// 3.5 CSS px. Nothing was clipped, but it reads as cut off, which is what the
+// device report described. Giving the 8px back to the bar rather than to a dead
+// strip keeps the flush edge and roughly triples the label clearance (5 -> 9px).
+// Cost, accepted by the owner: 8px less vertical room above for the bomb queue,
+// so the solved ball radius drops slightly from the reclaim's peak.
+export const BAR_Y = 768;
+export const BAR_H = 76;
 
 // ── Icon card layout ──────────────────────────────────────────────────────────
 // 64px cards: generous tap target and room for a readable 18px label.

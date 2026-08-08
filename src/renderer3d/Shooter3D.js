@@ -10,17 +10,16 @@
 
 import * as THREE from 'three';
 import { laneToX, CELL } from './Scene3D.js';
-import { BOMB_R, MERGE_SCALE, BOMB_ZONE_SCALE, bombSlotZ } from './projection.js';
+import { BOMB_R, BOMB_ZONE_SCALE, bombSlotZ } from './projection.js';
 
 // ── Powerball texture cache (one loader shared across all slots) ───────────────
 const _texLoader  = new THREE.TextureLoader();
 const _texCache   = {};
-// merged=true → the special lightning-crack merged-bomb sprite for that colour.
-function _getPowerballTex(colorName, merged = false) {
+function _getPowerballTex(colorName) {
   const color = colorName.toLowerCase();
-  const key   = merged ? `merged-${color}` : color;
+  const key   = color;
   if (!_texCache[key]) {
-    const file = merged ? `powerball-merged-${color}.png` : `powerball-${color}.png`;
+    const file = `powerball-${color}.png`;
     const tex  = _texLoader.load(`${import.meta.env.BASE_URL}sprites/designed/${file}`);
     tex.colorSpace = THREE.SRGBColorSpace;
     _texCache[key] = tex;
@@ -33,7 +32,7 @@ const LANE_COUNT = 4;
 const SLOT_COUNT = 3;   // visible queue depth (was 4; 4th slot is now the stash)
 
 // ── Bomb geometry ──────────────────────────────────────────────────────────────
-// BOMB_R, MERGE_SCALE, and slot Z positions (bombSlotZ) are imported from
+// BOMB_R and slot Z positions (bombSlotZ) are imported from
 // projection.js — the SINGLE canonical source for bomb-slot geometry.
 // Formerly duplicated here (own slotZ formula + breach-clearance derivation);
 // PositionRegistry and ShooterRenderer each carried their OWN independent
@@ -252,56 +251,6 @@ export class Shooter3D {
     slot._punching = true;
   }
 
-  // World position of a queue slot's bomb. The bomb plane sits at the group origin
-  // in X/Z, so the group's world position is the bomb's on-screen centre once
-  // projected. GameRenderer3D projects this so 2D overlays (the merge halo) land
-  // exactly on the 3D bomb.
-  getSlotWorldPosition(col, row) {
-    const slot = this._slots[col]?.[row];
-    return slot ? slot.group.getWorldPosition(new THREE.Vector3()) : null;
-  }
-
-  // ── Merge-animation hooks (driven by the GameApp merge sequencer) ─────────────
-  // While a slot is anim-locked, update() leaves its position/scale/opacity alone
-  // so the sequencer can drive them; texture/visibility still sync from data.
-  setSlotAnimLock(col, row, locked) {
-    const slot = this._slots[col]?.[row];
-    if (slot) slot._animLock = !!locked;
-  }
-  setSlotScale(col, row, s) {
-    const slot = this._slots[col]?.[row];
-    if (slot) slot.group.scale.setScalar(s * (slot._baseScale ?? 1));
-  }
-  setSlotWorldXYZ(col, row, x, y, z) {
-    const slot = this._slots[col]?.[row];
-    if (slot) slot.group.position.set(x, y, z);
-  }
-  // Called the instant a merge/refill animation releases a slot (still inside
-  // the SAME synchronous call as setSlotAnimLock(false) — see GameApp's
-  // _beginFill). Must land on the FINAL resting scale immediately: a merged
-  // dest slot's resting scale is MERGE_SCALE, not the generic _baseScale
-  // (1.0) — landing on 1.0 here and relying on the next update() tick to
-  // correct it to MERGE_SCALE produced a one-frame shrink-then-regrow after
-  // every merge (visible as a glitch, 2026-07-13).
-  resetSlotTransform(col, row) {
-    const slot = this._slots[col]?.[row];
-    if (!slot) return;
-    const shooter = this._columns[col]?.shooters?.[row];
-    const scale = (row === 0 && shooter?.isMerged) ? MERGE_SCALE : 1;
-    slot.group.scale.setScalar(scale * (slot._baseScale ?? 1));  // position restored by idle bob once unlocked
-  }
-  // CANONICAL resting world position of a slot (NOT the live group, which may be
-  // mid-animation) — the drop-in target for a freshly spawned bomb.
-  getSlotBaseWorld(col, row) {
-    const slot = this._slots[col]?.[row];
-    if (!slot) return null;
-    const x = slot.group._baseX ?? slot.group.position.x;
-    return new THREE.Vector3(x, 0, slotZ(row));
-  }
-  clearAllAnimLocks() {
-    for (const col of this._slots) for (const slot of col) slot._animLock = false;
-  }
-
   update(dt, elapsed, colorBombArmed = false) {
     this._elapsed = elapsed;
 
@@ -313,15 +262,12 @@ export class Shooter3D {
       shakeX = Math.sin(this._shakeT * 80) * 0.22 * (this._shakeT / 0.18);
     }
     for (let li = 0; li < this._slots.length; li++) {
-      for (let si = 0; si < this._slots[li].length; si++) {
-        if (this._slots[li][si]._animLock) continue;   // merge sequencer drives this slot
-        const g = this._slots[li][si].group;
+      for (let si = 0; si < this._slots[li].length; si++) {        const g = this._slots[li][si].group;
         if (g._baseX != null) g.position.x = g._baseX + shakeX;
         // Bombs rest STILL. The old idle bob spanned only ±0.12 wu ≈ ±2.4 device
         // px — a sine that small renders as discrete 1px steps with ~0.5s dwells
         // at its extremes ("stuck then jumps"), and it dragged the big damage
-        // digit with it. Liveliness comes from alpha effects (merge halo pulse,
-        // merge-ready ball pulse) and event motion (punch spring, shake), which
+        // digit with it. Liveliness comes from event motion (punch spring, shake), which
         // read smoothly because they don't crawl geometry across pixels.
         // LIVE, never latched (2026-08-02). This was:
         //     if (g._baseZ == null) g._baseZ = g.position.z;
@@ -353,16 +299,6 @@ export class Shooter3D {
         continue;
       }
 
-      // Merge-ready preview: a column exactly one swap from a vertical merge —
-      // i.e. exactly 2 non-merged bombs share a colour — pulses those bombs so the
-      // player can spot the play. 600ms opacity cycle, 0.7→1.0.
-      const previewRows = new Set();
-      if (col.shooters?.length) {
-        const byColor = {};
-        col.shooters.forEach((s, idx) => { if (s && !s.isMerged) (byColor[s.color] ??= []).push(idx); });
-        for (const idxs of Object.values(byColor)) if (idxs.length === 2) idxs.forEach(idx => previewRows.add(idx));
-      }
-      const previewPulse = 0.7 + 0.3 * (0.5 + 0.5 * Math.sin(elapsed * (2 * Math.PI / 0.6)));
 
       for (let si = 0; si < SLOT_COUNT; si++) {
         const slot    = slots[si];
@@ -385,29 +321,21 @@ export class Shooter3D {
         const damage = shooter.damage ?? 1;
 
         // Sync sprite texture + badge on color/damage change
-        const isCB = shooter.isColorBomb === true && !shooter.mergeColorBomb;
-        const isMerged = shooter.isMerged === true;
-        if (slot.lastColor !== shooter.color || slot.lastDamage !== damage || slot.lastMerged !== isMerged) {
+        const isCB = shooter.isColorBomb === true;
+        if (slot.lastColor !== shooter.color || slot.lastDamage !== damage) {
           slot.lastColor  = shooter.color;
           slot.lastDamage = damage;
-          slot.lastMerged = isMerged;
           if (isCB) {
             // Rainbow: keep the prior powerball as a base; the rainbow swirl
             // overlay (below) dominates. Badge shows a gold star, not a number.
             drawColorBombBadge(slot.badgeCtx, slot.badgeCanvas.width, slot.badgeCanvas.height);
           } else {
-            // Merged bombs use the dedicated lightning-crack sprite; the 2D halo
-            // ring (ShooterRenderer.drawMergeOverlay) still layers on top.
-            slot.sphereMesh.material.map = _getPowerballTex(shooter.color, isMerged);
+            slot.sphereMesh.material.map = _getPowerballTex(shooter.color);
             slot.sphereMesh.material.needsUpdate = true;
             drawDamageBadge(slot.badgeCtx, slot.badgeCanvas.width, slot.badgeCanvas.height, damage, hex);
           }
           slot.badgeTex.needsUpdate = true;
         }
-
-        // Merge sequencer owns this slot's scale/opacity while locked.
-        if (slot._animLock) continue;
-
         // Punch scale spring (front slot only)
         if (si === 0 && slot._punching) {
           slot._punchT += dt;
@@ -421,30 +349,15 @@ export class Shooter3D {
           }
         }
 
-        // Merged bomb visual: enlarged, STATIC. MERGE_SCALE is the exact value
-        // slotZ()'s breach clearance was derived against, so the ball body is
-        // guaranteed to clear the hazard stripe at this scale — the old
-        // 1.30±15% pulse (up to 1.50×) exceeded what any fixed clearance could
-        // absorb and pushed the ball under the stripe every cycle. No scale
-        // pulse either: ±4% on the crisp digit smeared it sub-pixel every
-        // frame; the 2D halo's alpha pulse carries the glow instead.
-        if (si === 0 && !slot._punching && isMerged) {
-          slot.group.scale.setScalar(MERGE_SCALE * slot._baseScale);
-        } else if (si === 0 && !slot._punching) {
+        if (si === 0 && !slot._punching) {
           // 3B: the grabbed column's front bomb pops to 1.15x (focus); others rest.
           const sel = (li === this._selectedCol) ? 1.15 : 1.0;
           slot.group.scale.setScalar(sel * slot._baseScale);
         }
 
-        // Opacity: dim bombs queued behind the grabbed column (0.7); pulse bombs
-        // one swap from a vertical merge (merge-ready preview, 600ms cycle).
-        // The damage NUMBER never pulses — flashing the big white digit every
-        // 0.6 s read as jitter; the hint lives on the ball alone (soft 0.85→1.0).
+        // Opacity: dim bombs queued behind the grabbed column (0.7).
         let ballOpacity = 1.0;
         if (si > 0 && li === this._selectedCol) ballOpacity = 0.7;
-        else if (previewRows.has(si) && li !== this._selectedCol) {
-          ballOpacity = 0.85 + 0.15 * (previewPulse - 0.7) / 0.3;
-        }
         slot.sphereMesh.material.transparent = ballOpacity < 1.0;
         slot.sphereMesh.material.opacity     = ballOpacity;
         if (slot.badgeMesh.material) {
@@ -454,10 +367,8 @@ export class Shooter3D {
 
         // Color-bomb indicator — front slot only. Driven by the shooter itself
         // now (the rainbow is a real queue item), not a global armed flag.
-        // Rainbow swirl overlay and gold-star badge apply only to earned rainbow bombs,
-        // not merge color bombs (which render as solid colour + damage number).
         if (si === 0 && slot.cbOverlayMesh) {
-          const armed = shooter.isColorBomb === true && !shooter.mergeColorBomb;
+          const armed = shooter.isColorBomb === true;
           slot.cbOverlayMesh.visible = armed;
           slot.cbSparkMesh.visible   = armed;
           if (armed) {
@@ -623,9 +534,7 @@ export class Shooter3D {
       emptyMesh,  emptyMat,
       badgeCanvas, badgeCtx, badgeTex, badgeMesh, badgeMat,
       lastColor:  '',
-      lastDamage: -1,
-      lastMerged: false,
-      _punching: false, _punchT: 0,
+      lastDamage: -1,      _punching: false, _punchT: 0,
       _baseScale: 1.0,
     };
   }

@@ -88,7 +88,6 @@ import { DailyChallengeManager }  from '../game/DailyChallengeManager.js';
 import { CarTypeIntroCard, hasIntroCard } from '../screens/CarTypeIntroCard.js';
 import { bandWeights } from '../director/CarTypes.js';
 import { ComboFX } from './ComboFX.js';
-import { MERGE_SCALE, bombSlotZ } from '../renderer3d/projection.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const APP_W       = 390;
@@ -606,9 +605,7 @@ async function main() {
   let breachCam = null;       // null | { laneIdx, t, done }
 
   // ── Game-loop flag — start() called only once ─────────────────────────────
-  let gameLoopStarted = false;
-  let _startSettleToken = 0;   // invalidates a pending level-start merge settle if the level changes
-
+  let gameLoopStarted = false;
   // ── Renderers ────────────────────────────────────────────────────────────
   const carRenderer     = new CarRenderer(layers, lanes);
   const shooterRenderer = new ShooterRenderer(layers, columns, boosterState);
@@ -700,10 +697,10 @@ async function main() {
     adManager.resetForLevel();
 
     applyLevelConfig(cfg);
-    // Merge unlock gate (L5+): set the 1-indexed level on GameState. Daily uses a
-    // high id so the advanced daily challenge always has merges enabled.
+    // Queue-reorder unlock gate (L5+): set the 1-indexed level on GameState. Daily
+    // uses a high id so the advanced daily challenge always has reorder enabled.
     gs.levelId = (typeof levelId === 'number') ? levelId : 99;
-    dragDrop.setMergeEnabled((typeof levelId === 'number' ? levelId : 99) >= 5);
+    dragDrop.setReorderEnabled((typeof levelId === 'number' ? levelId : 99) >= 5);
     dragDrop.setGridRows(gs.gridRows);   // board depth drives the BOMB front-row tap margin
     // Use levelNumber for normal levels; 'D' label for daily challenge.
     hudRenderer.setLevel(currentLevelIsDaily ? 'D' : levelManager.levelNumber);
@@ -800,26 +797,6 @@ async function main() {
     }
     gameLoop.resume();   // un-pause if coming from a Quit
     gameLoop.restart();
-
-    // Drop any merge sequence left running by the PREVIOUS level so it can't (a) make
-    // this level's start() early-return — silently dropping the settle until the
-    // first swap — or (b) apply a stale merge to the freshly-filled board.
-    mergeSequencer.abort();
-
-    // Animated level-start settle (Candy-Crush "board settles before first move"):
-    // the board renders fully first, then the merge sequence plays on any pre-made
-    // merges. The queue is filled SYNCHRONOUSLY in restart() above, so it is ready
-    // immediately; we still defer ~1s so all bombs are visibly on the board before
-    // anything animates. Gated to L5+ via peekMerges() (no-op otherwise). Retries on a
-    // short interval if the sequencer is momentarily busy, so the settle is never
-    // dropped; token-guarded so a level change cancels it.
-    const _settleToken = ++_startSettleToken;
-    const _trySettle = () => {
-      if (_settleToken !== _startSettleToken || !gameLoopStarted || gs.isOver) return;  // superseded / over
-      if (mergeSequencer.active) { setTimeout(_trySettle, 150); return; }                // busy — wait, don't drop
-      mergeSequencer.start();   // no-op if there are no pre-made merges
-    };
-    setTimeout(_trySettle, 1000);
 
     // Level-start car-type intros (Bug A): every type this level can spawn that
     // the player has never been introduced to gets its card now — nothing fires
@@ -1792,274 +1769,7 @@ async function main() {
   // Color bomb EARNED after 3 multi-kills. Edge flash + queued "3 MULTI-KILLS!"
   // notification + SFX; rainbow is now in the queue. The first time ever, show the
   // one-time COLOR BOMB intro card (FIX 5), routed through the modal queue.
-  gameLoop._onMerge = (descriptor) => {
-    // Burst at the merged bomb's ACTUAL screen position (camera-projected), + SFX.
-    // Fired from evaluateMerges(), which the sequencer calls at the burst+pop step.
-    const col = descriptor.midCol ?? descriptor.column ?? 0;
-    const screen = gameRenderer3D.getBombSlotScreenXY(col, 0);
-    if (screen) particles.spawnBurstAt(screen.x, screen.y, descriptor.color, 8);
-    audio.play('combo_milestone', { combo: 4 });
-    haptics.medium();
-  };
 
-  // ── Merge animation sequencer ─────────────────────────────────────────────────
-  // Full Candy-Crush sequence: HIGHLIGHT → TRAVEL → BURST+POP → DROP-IN, then
-  // re-peek and CHAIN (up to 5×) before resuming. Merge DATA stays synchronous
-  // (evaluateMerges at the burst step, refillQueue at the drop-in step — tests and
-  // economy unchanged); this only animates the 3D bombs around it. Game is paused
-  // and queue input blocked for the whole sequence. Only the merging/new bombs are
-  // ever locked — every other queue bomb renders normally throughout.
-  const EB1 = 1.70158, EB3 = EB1 + 1;
-  const easeOutBack = (p) => 1 + EB3 * Math.pow(p - 1, 3) + EB1 * Math.pow(p - 1, 2);  // 0 → overshoot → 1
-
-  // ── Drop-in tuning (2026-08-06) ─────────────────────────────────────────────
-  // How far above its own slot a refilling bomb starts, measured in SLOT PITCHES
-  // so it is identical at every row, lane count and band. 1.5 matches what row 0
-  // already travelled (1.4 pitches) — the rows that change are 1 and 2, which used
-  // to streak 2.4 and 3.4 pitches in the same 150ms.
-  const DROP_TRAVEL_PITCHES = 1.5;
-  // SOFTER overshoot for the drop than the merge pop uses. The standard easeOutBack
-  // (EB1 1.70158) overshoots ~10.2%; across 1.5 pitches that throws the ball ~0.15
-  // pitch past its slot, which at band 600 is ~5.7px — enough for the ball to visibly
-  // clear its socket ring and read as "stuck out of the slot". 0.9 overshoots ~5.4%
-  // (~3px), which still reads as a landing without leaving the socket.
-  // The merge POP keeps easeOutBack: that is a scale bounce, not a position move.
-  const DROP_BACK = 0.9, DROP_BACK3 = DROP_BACK + 1;
-  const easeOutBackSoft = (p) => 1 + DROP_BACK3 * Math.pow(p - 1, 3) + DROP_BACK * Math.pow(p - 1, 2);
-  const mergeSequencer = {
-    active: false, phase: null, t: 0, plan: null, drops: null, chain: 0, _prevBlocked: false, _pending: false,
-    // Entry point for ALL merge triggers (player action + auto-fill). If a sequence
-    // is mid-play, queue a re-check for when it finishes rather than dropping it
-    // (would re-introduce DEFECT 1) or overlapping it (visual chaos).
-    // DRAG/MERGE MUTUAL EXCLUSION: never start while the player is holding a bomb —
-    // starting mid-drag set inputBlocked under the player's finger, swallowing the
-    // release into a zombie drag (leaked draggingColumn = invisible merged bomb;
-    // stale next-tap resolution = double-count corruption). Deferred checks are
-    // drained by update() the frame after the drag resolves.
-    // SHOT/MERGE ORDERING (2026-07-27, user-reported): "when there is both a bomb
-    // shooting and a merge following it, the bomb shot should appear first on the
-    // screen, and only then all the merge."
-    // Firing consumes a bomb; the refill that follows fires _onAutoFill ->
-    // requestCheck() while the bomb is still travelling, so the merge animation
-    // began on top of the shot. Measured with an edge-triggered instrument
-    // (sampling at the instant start() fires, BEFORE pause() can freeze
-    // anything): 2 of 2 merges on an L8 run began mid-flight.
-    //
-    // A shot is in flight exactly while its lane's firingSlot is occupied; the
-    // slot clears when travel + impact resolve, which is the moment we want.
-    // NOTE this is a pure read — the gate must never write game state.
-    // "Is a shot still RESOLVING?" — not "is a bomb still travelling".
-    //
-    // firingSlots clears when TRAVEL ends (GameLoop ~941), but the damage is
-    // applied 30-80ms later: _beginHitStop sets gs.hitStopRemaining and stashes
-    // the shot, and _resolveShot only runs when that countdown expires
-    // (GameLoop ~880-884). A paused loop never advances the countdown.
-    //
-    // Reading firingSlots alone therefore reports "not in flight" during the
-    // hit-stop, and the gate would start a merge — which pauses the loop —
-    // inside the window where the shot has landed but done nothing yet.
-    // Measured with a strict instrument: 1/1 clean merges started inside that
-    // window with the narrow predicate.
-    //
-    // Same shape as the wait-condition rule in CLAUDE.md §6, applied to the
-    // product rather than a test: a condition that is already true before the
-    // thing you care about has happened.
-    _shotInFlight() {
-      const slots = gs.firingSlots;
-      if (slots) for (const k in slots) if (slots[k] != null) return true;
-      if ((gs.hitStopRemaining ?? 0) > 0) return true;          // landed, damage pending
-      if (gameLoop?._pendingShot) return true;                  // stashed, awaiting hit-stop expiry
-      return false;
-    },
-    requestCheck() {
-      // Deferral only — this gates WHEN THE ANIMATION STARTS, never when state is
-      // written. gameLoop applies merges on its own schedule; start() re-peeks
-      // fresh state via peekMerges(), so a deferred check can never act on a
-      // stale snapshot (the bug class the hardening pass fixed).
-      if (this.active || dragDrop.isDragging() || this._shotInFlight()) { this._pending = true; return; }
-      this.start();
-    },
-    start() {
-      if (this.active) return;
-      const plan = gameLoop.peekMerges();
-      if (!plan.length) return;                 // nothing to merge — don't pause
-      this.active = true; this.chain = 0;
-      gameLoop.pause();
-      this._prevBlocked = dragDrop.inputBlocked;   // no queue input mid-sequence
-      dragDrop.inputBlocked = true;
-      this._beginBatch(plan);
-    },
-    _beginBatch(plan) {
-      this.plan = plan; this.phase = 'highlight'; this.t = 0;
-      for (const m of plan) {
-        for (const sl of [m.dest, ...m.travelers]) gameRenderer3D.lockBombSlot(sl.col, sl.row, true);
-      }
-      // The per-slot world positions this used to cache (m._destW / tr._w) existed
-      // ONLY to interpolate the outers across the queue during 'travel'. That
-      // flight is gone (see the phase below), so caching them would be dead state.
-    },
-    update(dt) {
-      if (!this.active) {
-        // Drain a deferred check once idle AND no drag is in flight (fresh state
-        // is re-peeked inside start(), so the deferral never acts on a snapshot).
-        // Mirror of requestCheck's condition — the two MUST agree, or a merge is
-        // either released early or deferred forever.
-        if (this._pending && !dragDrop.isDragging() && !this._shotInFlight()) {
-          this._pending = false; this.start();
-        }
-        return;
-      }
-      this.t += dt;
-      if (this.phase === 'highlight') {                       // 100ms — pulse the 3 sources
-        const s = 1.0 + 0.15 * Math.min(1, this.t / 0.10);
-        for (const m of this.plan) for (const sl of [m.dest, ...m.travelers]) gameRenderer3D.setBombSlotScale(sl.col, sl.row, s);
-        if (this.t >= 0.10) { this.phase = 'travel'; this.t = 0; }
-      } else if (this.phase === 'travel') {                   // 150ms — outers shrink out IN PLACE
-        // NO CROSS-SLOT FLIGHT (2026-08-07). This phase used to lerp each outer
-        // bomb's world position to the destination slot. Bomb SOCKETS are Pixi
-        // circles at fixed screen positions while the BALLS are Three meshes, so a
-        // ball in flight is a ball drawn outside every socket. Measured on the live
-        // build: up to 2.00 SLOT PITCHES — two whole sockets — from its own socket,
-        // visible for ~120ms per merge.
-        //
-        // That is the "balls floating outside their sockets" device report. It
-        // survived two prior fixes because both targeted the refill DROP; the merge
-        // was never the suspect. Re-tuning the travel curve would not have helped:
-        // any visible path between two sockets is wrong at every point along it.
-        //
-        // The rule is now structural — a ball is either seated in a socket or not
-        // drawn. The outers shrink out where they already sit, and the merged bomb
-        // pops in AT the destination ('pop', below), so no ball can be caught
-        // between slots in any state, by this path or a future one.
-        // Guarded by tests/merge-animation-geometry.test.js.
-        const p = Math.min(1, this.t / 0.15);
-        for (const m of this.plan) for (const tr of m.travelers) {
-          gameRenderer3D.setBombSlotScale(tr.col, tr.row, 1.15 * (1 - p));
-        }
-        if (this.t >= 0.15) {
-          // APPLY EXACTLY WHAT WAS ANIMATED: pass the peeked plan; each entry is
-          // re-verified against fresh state inside evaluateMerges(plan) (stale →
-          // skipped, no phantom merged bomb). Fires _onMerge per applied (burst+SFX).
-          const applied = gameLoop.evaluateMerges(this.plan);
-          const survivors = applied.map(d => d.planEntry).filter(Boolean);
-          // Any dropped entries (stale by verify): release their slots untouched.
-          for (const m of this.plan) {
-            if (survivors.includes(m)) continue;
-            for (const sl of [m.dest, ...m.travelers]) {
-              gameRenderer3D.resetBombSlot(sl.col, sl.row);
-              gameRenderer3D.lockBombSlot(sl.col, sl.row, false);
-            }
-          }
-          this.plan = survivors;
-          if (!this.plan.length) { this._afterFill(); return; }   // nothing applied → re-check/finish
-          for (const m of this.plan) {
-            for (const tr of m.travelers) gameRenderer3D.setBombSlotScale(tr.col, tr.row, 0);
-            gameRenderer3D.setBombSlotScale(m.dest.col, m.dest.row, 0);   // pop from 0
-          }
-          this.phase = 'pop'; this.t = 0;
-        }
-      } else if (this.phase === 'pop') {                      // 120ms — merged bomb springs in
-        // Pop peak MUST land on MERGE_SCALE (the merged bomb's actual resting
-        // scale) — a stale hardcoded peak here that doesn't match the resting
-        // scale _beginFill lands on produces a visible extra jump/shrink
-        // right after the spring settles (2026-07-13).
-        const p = Math.min(1, this.t / 0.12);
-        for (const m of this.plan) gameRenderer3D.setBombSlotScale(m.dest.col, m.dest.row, MERGE_SCALE * easeOutBack(p));
-        if (this.t >= 0.12) this._beginFill();
-      } else if (this.phase === 'fill') {                     // new bombs fall in from above, overshoot
-        // DROP GEOMETRY IS DERIVED, NOT A FIXED WORLD Z (2026-08-06).
-        //
-        // This was `const DROP_START_Z = -1.0`, an absolute world Z, so travel was
-        // `target.z - (-1.0)` — different for every row AND every band:
-        //   row 0 travelled 1.4 slot pitches, row 2 travelled 3.4, in the SAME 150ms
-        //   the bottom-chrome reclaim moved slot 2 from z~3.44 to ~5.21, +40% travel
-        // The result is what the device report called "bombs stuck out of their
-        // slots": the far rows streak in from way off, and easeOutBack then throws
-        // them visibly PAST the socket before settling.
-        //
-        // Starting each bomb a fixed number of SLOT PITCHES above its own target
-        // makes travel identical for every row and immune to band/scale changes.
-        const pitch = bombSlotZ(1) - bombSlotZ(0);
-        let done = true;
-        for (const d of this.drops) {
-          const lt = this.t - d.delay;
-          const startZ = d.target.z - DROP_TRAVEL_PITCHES * pitch;
-          let z = startZ;
-          if (lt < 0) { done = false; }
-          else {
-            const p = Math.min(1, lt / 0.15);
-            if (p < 1) done = false;
-            z = startZ + (d.target.z - startZ) * easeOutBackSoft(p);   // gentle overshoot, settle
-          }
-          gameRenderer3D.setBombSlotWorld(d.c, d.row, d.target.x, d.target.y, z);
-          gameRenderer3D.setBombSlotScale(d.c, d.row, 1);
-        }
-        if (done) {
-          for (const d of this.drops) { gameRenderer3D.resetBombSlot(d.c, d.row); gameRenderer3D.lockBombSlot(d.c, d.row, false); }
-          this._afterFill();
-        }
-      }
-    },
-    _beginFill() {
-      // Unlock the merge slots so the merged bomb (+ any data-compacted bombs) render.
-      for (const m of this.plan) for (const sl of [m.dest, ...m.travelers]) {
-        gameRenderer3D.resetBombSlot(sl.col, sl.row);
-        gameRenderer3D.lockBombSlot(sl.col, sl.row, false);
-      }
-      // Refill the gaps; the newly appended bombs (rows >= old length) drop in.
-      const preLen = [];
-      for (let c = 0; c < gs.activeColCount; c++) preLen[c] = gs.columns[c].shooters.length;
-      gameLoop.refillQueue();
-      this.drops = [];
-      for (let c = 0; c < gs.activeColCount; c++) {
-        const len = gs.columns[c].shooters.length;
-        for (let row = preLen[c]; row < len && row < 3; row++) {
-          gameRenderer3D.lockBombSlot(c, row, true);
-          const target = gameRenderer3D.getBombSlotBaseWorld(c, row);
-          if (target) this.drops.push({ c, row, target, delay: (row - preLen[c]) * 0.05 });   // 50ms stagger per column
-          else gameRenderer3D.lockBombSlot(c, row, false);
-        }
-      }
-      this.t = 0;
-      if (this.drops.length) this.phase = 'fill';
-      else this._afterFill();
-    },
-    _afterFill() {
-      this.chain++;
-      if (this.chain < 5) {                       // cap cascades
-        const next = gameLoop.peekMerges();
-        if (next.length) { this._beginBatch(next); return; }
-      }
-      this._finish();
-    },
-    _finish() {
-      gameRenderer3D.clearBombAnimLocks();         // safety: release any remaining locks
-      this.active = false; this.phase = null; this.plan = null; this.drops = null;
-      dragDrop.inputBlocked = this._prevBlocked ?? false;
-      gameLoop.resume();
-      // Absorb any auto-fill merge that was requested WHILE this sequence played:
-      // evaluate the settled board now that we're idle (no-op if no lines remain).
-      if (this._pending) { this._pending = false; this.start(); }
-    },
-    // Hard-stop a sequence at a LEVEL CHANGE: drop all animation state WITHOUT
-    // applying any pending merge (the board it was animating is gone). Without this
-    // a sequence left active from the previous level (a) makes the new level's
-    // start() early-return — silently dropping its settle until the first swap — and
-    // (b) would call evaluateMerges() on the NEW board at its burst step. Cheap no-op
-    // when idle.
-    abort() {
-      this._pending = false;   // a queued re-check must not leak into the next level
-      if (!this.active) return;
-      gameRenderer3D.clearBombAnimLocks();
-      this.active = false; this.phase = null; this.plan = null; this.drops = null;
-      dragDrop.inputBlocked = false;
-    },
-  };
-  // DEFECT 1+2 FIX: an auto-fill that added bombs (post-fire refill, bench refill,
-  // crisis inject) routes through the SAME sequencer as player-action merges — so
-  // mid-game merges both FIRE and play the full highlight→travel→pop→drop-in cascade,
-  // with position/isMerged/cascade all inherited from the one path.
-  gameLoop._onAutoFill = () => mergeSequencer.requestCheck();
   gameLoop._onColorBombEarned = () => {
     comboFX.triggerColorBomb('Rainbow');
     popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildFlashText(w, '3 MULTI-KILLS!', 0xffe14a), 1.6);
@@ -2115,10 +1825,6 @@ async function main() {
         // Column refills automatically via ShooterDirector next tick.
       },
       onReorder: (_srcCol, _srcRow, _tgtCol, _tgtRow) => {
-        // After a reorder/bench-return, play the animated merge sequence (which
-        // applies the merge at its burst step). No merge → no pause, just the SFX.
-        audio.play('tap_generic');
-        mergeSequencer.start();
       },
       onColorMismatch: () => {
         audio.play('hit_miss');
@@ -2236,9 +1942,6 @@ async function main() {
                              comboFreezeShots: gs.comboFreezeShots,
                              colorBombArmed: gs.colorBombArmed }, fxDt, gs.elapsed);
 
-    // Merge sequence drives locked 3D bomb slots (after Shooter3D.update skipped them,
-    // before render). Real-time dt so the animation isn't slowed by bullet-time.
-    mergeSequencer.update(dt);
 
     // 3B: reflect the grabbed bomb (tracked by the 2D drag layer) into the 3D bombs.
     gameRenderer3D.setSelectedBomb(shooterRenderer.draggingColumn ?? -1);
@@ -2284,7 +1987,6 @@ async function main() {
     carRenderer.update(dt, boosterState.isFrozen());
     shooterRenderer.update(gs.elapsed, dt);
     // Project bomb slots through the 3D camera so the halo lands exactly on the bomb.
-    shooterRenderer.drawMergeOverlay(gs.elapsed, (c, r) => gameRenderer3D.getBombSlotScreenXY(c, r));
     benchRenderer.update();
 
     // Disable lane hover tints while any tutorial / combo / achievement overlay
@@ -2402,7 +2104,6 @@ async function main() {
       // input-path cost (see scripts/_perf-handlers.mjs). Dev-only, like the
       // rest of this block.
       getDragDrop: () => dragDrop,
-      getMergeSequencer: () => mergeSequencer,
       // Bomb-queue 3D slot groups. Balls are Three meshes, sockets are Pixi
       // circles — two renderers, so their alignment can only be checked by
       // reading BOTH, which needs this handle.
@@ -2522,71 +2223,6 @@ async function main() {
           freeze:      boosterBar._freezeBtn?.scale?.x,
           bomb:        boosterBar._bombBtn?.scale?.x,
         }),
-        // ── Merge visual setup hooks (L5+ only) ───────────────────────────────
-        // Each setup PAUSES the loop (so the director can't refill the columns we
-        // clear) and zeroes ALL columns before staging only the intended pattern,
-        // so before/after captures show exactly one merge with no contamination.
-        mergeSetupVertical: () => {
-          if (!gameLoopStarted || gs.levelId < 5) return 'Not in a level >= L5';
-          gameLoop.pause();
-          gs.columns.forEach(c => { c.shooters = []; });
-          gs.columns[0].shooters = [
-            { color: 'Red', damage: 2, isMerged: false, isColorBomb: false },
-            { color: 'Red', damage: 2, isMerged: false, isColorBomb: false },
-            { color: 'Red', damage: 2, isMerged: false, isColorBomb: false },
-          ];
-          return 'Vertical staged: col0=[R,R,R], cols 1-3 empty (loop paused)';
-        },
-        // Stage col0=[R,R,R] over the FULL board (cols 1-3 keep their bombs) — to
-        // verify the merge animation leaves non-merge bombs fully visible.
-        mergeSetupVerticalKeep: () => {
-          if (!gameLoopStarted || gs.levelId < 5) return 'Not in a level >= L5';
-          gameLoop.pause();
-          gs.columns[0].shooters = [
-            { color: 'Red', damage: 5, isMerged: false, isColorBomb: false },
-            { color: 'Red', damage: 6, isMerged: false, isColorBomb: false },
-            { color: 'Red', damage: 7, isMerged: false, isColorBomb: false },
-          ];
-          return 'col0=[R,R,R] over full board (loop paused)';
-        },
-        mergeSetupHorizontal: () => {
-          if (!gameLoopStarted || gs.levelId < 5) return 'Not in a level >= L5';
-          gameLoop.pause();
-          gs.columns.forEach(c => { c.shooters = []; });
-          // Row 0 of cols 0,1,2 = Red (the triple); col 3 = a different color so no
-          // col1-2-3 triple forms; each column has 1 bomb so no vertical fires.
-          for (let i = 0; i < 3; i++) gs.columns[i].shooters = [{ color: 'Red', damage: 2, isMerged: false, isColorBomb: false }];
-          gs.columns[3].shooters = [{ color: 'Blue', damage: 2, isMerged: false, isColorBomb: false }];
-          return 'Horizontal staged: row0 col0-2=R, col3=B, rows 1-2 empty (loop paused)';
-        },
-        mergeFire: () => {
-          if (!gameLoopStarted || gs.levelId < 5) return 'Not in a level >= L5';
-          const applied = gameLoop.evaluateMerges();
-          return `Merges applied: ${applied.length} (${applied.map(m => m.type).join(', ')})`;
-        },
-        // Play the ANIMATED merge sequence (highlight→travel→burst+pop) for whatever
-        // is currently staged — used to capture the sequence frames.
-        mergeAnimate: () => {
-          if (!gameLoopStarted || gs.levelId < 5) return 'Not in a level >= L5';
-          gameLoop.resume();             // undo the setup-hook pause so the merge applies cleanly
-          mergeSequencer.start();
-          return mergeSequencer.active ? 'animating' : 'no merges';
-        },
-        mergeResume: () => { gameLoop.resume(); return 'resumed'; },
-        // Faithful mid-game auto-fill demo: stage a 3-line over the LIVE full board
-        // (loop NOT paused, cols 1-3 keep their bombs), then fire the real _onAutoFill
-        // signal — the exact production path (refill → re-check → same sequencer +
-        // visible drop-in cascade). Used to screenshot DEFECT 2.
-        mergeAutoFillDemo: () => {
-          if (!gameLoopStarted || gs.levelId < 5) return 'Not in a level >= L5';
-          gs.columns[0].shooters = [
-            { color: 'Red', damage: 5, isMerged: false, isColorBomb: false },
-            { color: 'Red', damage: 6, isMerged: false, isColorBomb: false },
-            { color: 'Red', damage: 7, isMerged: false, isColorBomb: false },
-          ];
-          gameLoop._onAutoFill();
-          return mergeSequencer.active ? 'auto-fill merge animating' : 'no merge';
-        },
       },
     };
   }

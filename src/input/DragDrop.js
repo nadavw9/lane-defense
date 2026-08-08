@@ -49,7 +49,7 @@ const HIT_RADIUS      = TOP_RADIUS + 14;
 // Queue/bench zone boundary — the midpoint of the visual gap between the
 // row-2 ball's bottom edge and the bench tray's top edge (tray rect starts at
 // benchY() - 4, see BenchRenderer.update). Above it, drops belong to the queue
-// (reorder/merge); at or below it, to the bench. Without this cut the row-2
+// (reorder); at or below it, to the bench. Without this cut the row-2
 // slot's circular HIT_RADIUS (48px) reached into the visible tray, and since
 // reorder resolves before bench in onPointerUp, releases in the upper tray
 // became SILENT reorders — fatal for L10 "The Bench Test", whose designed
@@ -186,11 +186,11 @@ export class DragDrop {
     this._onColumnPickup    = onColumnPickup     ?? (() => false);
 
     this._firingSlots = firingSlots;
-    this._mergeEnabled = false;   // L5+ reorder gate
+    this._reorderEnabled = false;   // L5+ queue-reorder / bench-return gate
     // Board depth for the current level — drives the BOMB-booster front-row tap
     // margin (frontRowTapMargin), which is half a ROW interval and therefore
     // depends on how many rows the board has. Set per level by GameApp
-    // (setGridRows), same pattern as setMergeEnabled. Defaults to the 16-row
+    // (setGridRows), same pattern as setReorderEnabled. Defaults to the 16-row
     // standard so any un-set path behaves exactly as before.
     this._gridRows = 16;
 
@@ -236,8 +236,8 @@ export class DragDrop {
 
   // ── Public API ─────────────────────────────────────────────────────────────
 
-  setMergeEnabled(enabled) {
-    this._mergeEnabled = !!enabled;
+  setReorderEnabled(enabled) {
+    this._reorderEnabled = !!enabled;
   }
 
   // Board depth for the current level — see this._gridRows in the constructor.
@@ -293,7 +293,7 @@ export class DragDrop {
     }
 
     // Queue reorder (L5+): hit-test any queue slot
-    if (this._mergeEnabled) {
+    if (this._reorderEnabled) {
       const queueHit = this._hitTestQueueSlot(x, y);
       if (queueHit !== null) {
         const { col: qCol, row: qRow } = queueHit;
@@ -323,8 +323,7 @@ export class DragDrop {
     this._updateHighlights(x, y);
   }
 
-  // True while a queue/bench bomb is being held. The merge sequencer defers
-  // its checks while this is true (drag/merge mutual exclusion).
+  // True while a queue/bench bomb is being held.
   isDragging() { return this._state === 'dragging'; }
 
   onPointerUp(x, y) {
@@ -332,7 +331,7 @@ export class DragDrop {
       // Input got blocked MID-DRAG (a modal/sequence started while holding).
       // The release must still RESOLVE the drag — swallowing it leaves a zombie:
       // _state stuck 'dragging', ghost orphaned, draggingColumn render-marker
-      // leaked (the column top — where a merged bomb lands — never renders),
+      // leaked (the column top never renders),
       // and the NEXT tap resolves the stale drag against a changed board.
       // Safe resolution: visual-only snap-back (no state writes).
       if (this._state === 'dragging') {
@@ -348,7 +347,7 @@ export class DragDrop {
 
 
     // ── Reorder (L5+): drag queue slot to another queue slot ────────────────
-    if (this._dragSource === 'column' && this._mergeEnabled && this._dragSourceRow >= 0) {
+    if (this._dragSource === 'column' && this._reorderEnabled && this._dragSourceRow >= 0) {
       const targetQueue = this._hitTestQueueSlot(x, y);
       if (targetQueue !== null) {
         const { col: tCol, row: tRow } = targetQueue;
@@ -370,7 +369,7 @@ export class DragDrop {
     }
 
     // ── Bench → Queue return (L5+): drag bench bomb to a queue column ────────
-    if (this._dragSource === 'bench' && this._mergeEnabled) {
+    if (this._dragSource === 'bench' && this._reorderEnabled) {
       const queueHit = this._hitTestQueueSlot(x, y);
       if (queueHit !== null) {
         const { col: tCol } = queueHit;
@@ -444,10 +443,9 @@ export class DragDrop {
     }
 
     // Rainbow ghost is driven by the dragged shooter itself now (the color bomb
-    // is a real queue item, not a global armed state). A merge color bomb
-    // (mergeColorBomb) is single-target — it renders as a normal coloured bomb,
+    // is a real queue item, not a global armed state).
     // NOT the rainbow "★ALL" ghost.
-    const isCB = shooter?.isColorBomb === true && !shooter?.mergeColorBomb;
+    const isCB = shooter?.isColorBomb === true;
     this._ghost = this._createGhost(shooter, px + this._offsetX, py + this._offsetY, isCB);
     this._ghost.scale.set(1.12);  // lifted-off feel during drag
   }
@@ -565,7 +563,7 @@ export class DragDrop {
       tgtColumn.shooters.push(draggedShooter);
       destRow = tgtColumn.shooters.length - 1;
     }
-    // Defensive invariant: no holes, ever (a sparse array crashes _findMerges /
+    // Defensive invariant: no holes, ever (a sparse array crashes
     // the renderer on undefined.color). Repair + log instead of corrupting.
     for (const colArr of [srcColumn.shooters, tgtColumn.shooters]) {
       if (colArr.includes(undefined)) {
@@ -580,7 +578,7 @@ export class DragDrop {
 
     // Fly the ghost to where the dragged bomb ACTUALLY landed (the target slot).
     // It used to snap back to the SOURCE slot, so the player watched their bomb
-    // "return" while a merge simultaneously consumed it at the target (S2-B).
+    // "return" while something simultaneously consumed it at the target (S2-B).
     const { x: tx, y: ty } = this._shooterRenderer.getQueueSlotCenter(tgtCol, destRow);
     if (this._ghost) this._ghost.scale.set(1.0);
     this._startAnim(
@@ -618,7 +616,7 @@ export class DragDrop {
     targetColumn.pushBottom(shooter);
     if (this._benchRenderer) this._benchRenderer.draggingSlot = -1;
 
-    // Trigger merges by invoking the onReorder callback (same as queue reorder merge trigger)
+    // Notify via the onReorder callback (same as the queue-reorder path)
     this._onReorder(-1, -1, targetColIdx, -1);
 
     // Fly the ghost to the bottom of the target column
@@ -664,7 +662,7 @@ export class DragDrop {
 
     if (this._dragSource === 'bench') {
       // Bench→Queue return (L5+): highlight valid queue columns with green, full ones with red
-      if (this._mergeEnabled) {
+      if (this._reorderEnabled) {
         const queueHit = this._hitTestQueueSlot(x, y);
         if (queueHit !== null) {
           const { col: tCol } = queueHit;
@@ -691,7 +689,7 @@ export class DragDrop {
 
 
     // Column drag from a queue slot (reorder)
-    if (this._dragSource === 'column' && this._mergeEnabled && this._dragSourceRow >= 0) {
+    if (this._dragSource === 'column' && this._reorderEnabled && this._dragSourceRow >= 0) {
       const queueTarget = this._hitTestQueueSlot(x, y);
       if (queueTarget !== null) {
         const { col: tCol, row: tRow } = queueTarget;
@@ -766,10 +764,9 @@ export class DragDrop {
     // Empty lane — no car to hit. Reject the drop so the bomb bounces back to the
     // queue (same path as a wrong-colour drop) instead of being silently consumed.
     if (!frontCar) return false;
-    // Only the earned RAINBOW color bomb matches any lane that HAS a car. A merge
-    // color bomb (mergeColorBomb) is single-target → it must colour-match like a
+    // Only the earned RAINBOW color bomb matches any lane that HAS a car.
     // regular bomb and bounces on mismatch.
-    if (this._dragShooter.isColorBomb && !this._dragShooter.mergeColorBomb) return true;
+    if (this._dragShooter.isColorBomb) return true;
     return this._dragShooter.color === frontCar.color;
   }
 

@@ -10,7 +10,7 @@
 //   setHighlight  — which slot to blue-highlight as a drop target
 import { Sprite, Graphics, Text, Assets } from 'pixi.js';
 import { COL_W } from './ShooterRenderer.js';
-import { PX_PER_WU, BOMB_R, MERGE_SCALE, bombSlotScreenY, bombSlotRenderedBottom } from '../renderer3d/projection.js';
+import { PX_PER_WU, BOMB_R, bombSlotScreenY, bombSlotRenderedBottom } from '../renderer3d/projection.js';
 import { BAR_Y } from './BoosterBar.js';
 
 // ── Live bench geometry ───────────────────────────────────────────────────────
@@ -54,11 +54,10 @@ export const SPRITE_PAD_RATIO = 2.8;
 export function benchSpriteSize() { return BOMB_R * SPRITE_PAD_RATIO * PX_PER_WU; }
 
 // Stored bombs use the powerball sprite (same art as the live bomb queue) so the
-// bench matches the game — was the old shooter-idle sprite. Merged bombs use the
-// same special lightning-crack texture the queue shows (Shooter3D._getPowerballTex).
-export function bombUrl(color, isMerged = false) {
+// bench matches the game — was the old shooter-idle sprite.
+export function bombUrl(color) {
   const c    = color.toLowerCase();
-  const file = isMerged ? `powerball-merged-${c}.png` : `powerball-${c}.png`;
+  const file = `powerball-${c}.png`;
   return `${import.meta.env.BASE_URL}sprites/designed/${file}`;
 }
 const SLOT_BG    = 0x0d0d1a;
@@ -202,14 +201,11 @@ export class BenchRenderer {
         g.roundRect(sx, BENCH_Y, sw, BENCH_SLOT_H, 7);
         g.stroke({ color: glowCol, width: 1.5, alpha: 0.45 });
 
-        // Idle sprite left-of-center, damage number right-of-center. Merged bombs
-        // get the queue's special texture AND its MERGE_SCALE enlargement — a
-        // benched merged bomb must look identical to how it looks in the queue.
+        // Idle sprite left-of-center, damage number right-of-center.
         const sp        = this._sprites[i];
-        const isMerged  = shooter.isMerged === true;
-        const tex       = Assets.get(bombUrl(shooter.color, isMerged));
+        const tex       = Assets.get(bombUrl(shooter.color));
         if (tex) {
-          const targetSize = benchSpriteSize() * (isMerged ? MERGE_SCALE : 1);
+          const targetSize = benchSpriteSize();
           if (sp.texture !== tex || sp._benchTargetSize !== targetSize) {
             sp.texture = tex;
             const max = Math.max(tex.width, tex.height);

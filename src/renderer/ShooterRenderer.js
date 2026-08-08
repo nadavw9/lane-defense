@@ -13,7 +13,7 @@ import { getColumnScreenX, getColumnScreenY, getColumnSlotScreenY, getColScreenW
 import { BAR_Y as BOOSTER_BAR_Y } from './BoosterBar.js';
 import {
   worldXToScreenX, roadHalfWPure, BREACH_LINE_Y, PX_PER_WU,
-  BOMB_R, MERGE_SCALE, bombSlotScreenY,
+  BOMB_R, bombSlotScreenY,
   bombBallScreenRadius, SOCKET_RIM_RATIO, SOCKET_SHADOW_RATIO,
 } from '../renderer3d/projection.js';
 
@@ -175,9 +175,8 @@ export class ShooterRenderer {
     this._columnsGroup = new Container();
     this._layer.addChild(this._columnsGroup);
 
-    // Merge overlays (2D), drawn each frame ON the layer (NOT inside _columnsGroup,
+    // Overlays (2D), drawn each frame ON the layer (NOT inside _columnsGroup,
     // which GameApp hides during 3D gameplay — container.visible = false):
-    //   • merged-bomb halos — soft color-matched rings around merged bombs
     //   • reorder / bench-return target highlight — bright green/red on the column
     this._overlayG = new Graphics();
     this._layer.addChild(this._overlayG);   // added after _columnsGroup → renders on top
@@ -305,81 +304,12 @@ export class ShooterRenderer {
   setReorderTarget(col, row, valid) { this._reorderTarget = { col, row, valid }; }
   clearReorderTarget() { this._reorderTarget = null; }
 
-  // Soft color-matched halos around merged bombs + the reorder/bench drop-target
+  // The reorder/bench drop-target
   // highlight. Halos are stroked rings (no centre fill) so they ring the 3D bomb
   // without occluding it. Also draws a dim overlay when queue actions are locked.
   // Called once per frame by GameApp after update().
   // projectSlot(col,row) → {x,y} screen px of the 3D bomb (camera projection), so
   // the halo lands exactly concentric on it; falls back to slot constants if absent.
-  drawMergeOverlay(elapsed, projectSlot = null) {
-    const g = this._overlayG;
-    g.clear();
-
-    // Ring radius per row = the bomb's ACTUAL rendered on-screen radius, not
-    // TOP/SECOND/THIRD_RADIUS (hit-test constants from an earlier 2D-only ball
-    // render, ~1.8-2x too big for the current 3D sprite). Only row 0 merged
-    // bombs enlarge to MERGE_SCALE (see Shooter3D.update()); rows 1-2 stay at
-    // the base radius. Using the true size is what keeps the ring — at the
-    // SAME 1.18x/1.08x/1.00x multipliers already tuned to hug the ball — from
-    // bleeding above the breach stripe.
-    const ballR = bombBallScreenRadius();   // same canonical source as the sockets
-    const slotR = [ballR * MERGE_SCALE, ballR, ballR];
-    const pulse = 0.5 + 0.5 * Math.sin(elapsed * 3);   // 0..1
-
-    for (let c = 0; c < COL_COUNT; c++) {
-      const col = this._columns[c];
-      if (!col?.shooters) continue;
-      for (let r = 0; r < col.shooters.length && r < 3; r++) {
-        const s = col.shooters[r];
-        if (!s?.isMerged) continue;
-        // Centre on the bomb's ACTUAL projected screen position (the 3D bomb run
-        // through the camera) so the halo is exactly concentric with it; fall back
-        // to the slot projection only if the 3D projector isn't available.
-        const proj = projectSlot?.(c, r);
-        const x = proj ? proj.x : getColumnScreenX(c);
-        const y = proj ? proj.y : getColumnSlotScreenY(r);
-        const R     = slotR[r] ?? TOP_RADIUS;
-        const color = COLOR_MAP[s.color] ?? 0xffffff;
-        const a     = 0.30 + 0.14 * pulse;             // ~0.30..0.44
-        // Tight rings that hug the bomb so the halo stays concentric with the
-        // number and doesn't bleed up into the breach stripe on the front slot.
-        g.circle(x, y, R * 1.18); g.stroke({ color, width: 7, alpha: a * 0.45 });
-        g.circle(x, y, R * 1.08); g.stroke({ color, width: 6, alpha: a * 0.78 });
-        g.circle(x, y, R * 1.00); g.stroke({ color, width: 5, alpha: a });
-
-        // Merge color bomb: a small color-matched ★ micro-label tucked into the
-        // ball's upper-right, INSIDE its silhouette — at y−0.92R the star landed
-        // on the hazard stripe for front-slot bombs.
-        if (s.mergeColorBomb) {
-          g.star(x + R * 0.58, y - R * 0.58, 5, 5, 2.2);
-          g.fill({ color, alpha: 0.90 });
-        }
-      }
-    }
-
-    const t = this._reorderTarget;
-    if (t) {
-      // Highlight centred ON THE SLOT (concentric circles at the slot centre), not
-      // the whole column. Centre on the bomb's ACTUAL projected screen position (the
-      // 3D bomb run through the camera) — same projection as the merge halo — so the
-      // ring is exactly concentric; fall back to slot constants if no projector.
-      const proj = projectSlot?.(t.col, t.row);
-      const { x, y } = proj ?? this.getQueueSlotCenter(t.col, t.row);
-      const R     = (slotR[t.row] ?? TOP_RADIUS) * 1.45;
-      const color = t.valid ? 0x44ff88 : 0xff4444;
-      const tp    = 0.55 + 0.45 * pulse;
-      g.circle(x, y, R * 1.12); g.fill({ color, alpha: 0.16 * tp });   // soft outer glow
-      g.circle(x, y, R);        g.fill({ color, alpha: 0.20 * tp });
-      g.circle(x, y, R);        g.stroke({ color, width: 4, alpha: 0.95 });
-    }
-
-    // Queue action locked visual: subtle dim overlay when free action has been used.
-    // Spans the entire queue zone (SHOOTER_AREA_Y to SHOOTER_AREA_Y + SHOOTER_AREA_H).
-    if (this._boosterState?.queueActionUsed) {
-      g.roundRect(0, SHOOTER_AREA_Y, 390, SHOOTER_AREA_H, 8);
-      g.fill({ color: 0x000000, alpha: 0.25 });
-    }
-  }
 
   // Call with true during gameplay so Shooter3D handles the visuals.
   // Panels become transparent; 2D circles are hidden.

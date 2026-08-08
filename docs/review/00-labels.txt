@@ -1,99 +1,86 @@
 REVIEW BATCH — 2026-08-08
-BOMB booster: the blast was still ROW-SHAPED. Captured from real play at L8,
-3 lanes, tapping a car in LANE 0 (leftmost). Frames are the top 560px of the stage
-at deviceScaleFactor 3.
+BOMB MERGE MECHANIC REMOVED. L8, after 10 real deploys so the queue has cycled
+through refill and auto-fill. deviceScaleFactor 3.
 
 ===============================================================================
-01 / 03  BEFORE          02 / 04  AFTER          05  kills
+01-queue-BEFORE.png    bomb queue + bench, merge code present
+02-queue-AFTER.png     same view, merge removed
+03-board-BEFORE.png    whole board, before
+04-board-AFTER.png     whole board, after
 ===============================================================================
-01-blast-BEFORE-070ms.png   blast 70ms after the tap, before the fix
-02-blast-AFTER-070ms.png    same moment, after
-03-blast-BEFORE-150ms.png   150ms, before
-04-blast-AFTER-150ms.png    150ms, after
-05-kills-lane-only-AFTER.png board after the blast
 
-THE PAIR THAT MATTERS IS 01 vs 02.
-
-Lane centres in these images (1170px wide = 390 stage px x 3):
-    lane 0 -> x 340      lane 1 -> x 585      lane 2 -> x 831
-The tap was in LANE 0. Only x~340 should light up.
-
-01 (BEFORE): bright bursts at ALL THREE lane centres — a horizontal band of light
-across the full road width at the tapped row.
-02 (AFTER):  one burst at x~340. Lanes 1 and 2 are dark.
+WHAT TO LOOK FOR IN 02:
+  - Nine balls, 3x3, every one seated inside its socket ring.
+  - Correct per-colour texture and damage number on each.
+  - The front row is now the SAME SIZE as rows 1-2. Previously a merged bomb in
+    row 0 rendered at MERGE_SCALE (1.22x) with a pulsing halo ring; both are gone
+    because nothing produces a merged bomb any more.
+  - Column 0 holds red-6 / blue-4 / red-6 and column 2 red-7 / red-6 / green-2.
+    Under the old rules three same-colour bombs in a column would have merged.
+    They now simply sit there, which is the point of the change.
 
 ===============================================================================
-REGRESSION, OR NEVER FIXED? --> NEVER FIXED. No bisect was needed.
+BALL / SOCKET MISALIGNMENT — FOURTH REPORT, NOW STRUCTURALLY IMPOSSIBLE
 ===============================================================================
-The KILLS were already correct and have been all along. Verified again here through
-the real input path (a real click on the real BOMB button, then a real click on a
-real car — no programmatic fire): tapping lane 0 killed 2/2 cars in lane 0, and the
-WITNESS car in lane 1 on the SAME ROW survived, as did all of lane 2.
+Time-series probe after removal (scripts/_ball-timeseries.mjs), 18 VERIFIED
+deploys, sampling every frame:
 
-What was never converted is the BLAST. Git history is unambiguous:
-  - 20593cd  "fix: BOMB booster clears entire ROW ... via tap Y->row"
-      the VFX was authored here, for a bomb that really did clear a row
-  - the lane-clear change converted the kill model
-  - bd2348d  "test: pin BOMB to lane-only"
-      touched SimulationRunner.js and two test files. NO renderer files.
-  - Particles3D.spawnBombExplosion has not changed since 888e415, long before.
+    frames with a VISIBLE ball off its slot: 0
 
-So the row-shaped explosion is the ORIGINAL row-clear visual, simply left behind.
-Its docstring still said so in plain text: "Covers all 4 lanes with a wide
-shockwave + concussion freeze ring."
+That is a real zero, not an unfired-stimulus zero — the probe asserts its deploys
+landed (18 landed, 0 skipped) precisely because an earlier version of it reported
+"no bug" while nothing had actually fired.
 
-Root cause, upstream of both effects: GameLoop.placeBombOnLane called
-    this._onBombExplode(car.position, 1)
-`position` is a ROW scalar. The LANE was never passed, so no downstream effect
-could draw itself in the right place even in principle:
-  - Particles3D looped every lane, 80ms apart, left to right (the sweep)
-  - Road3D's ring was centred at x=0, road centre, and grew to radius 3.0 world
-    units on a lane only 4.0 wide
+The reason it is now zero is structural rather than tuned. The ONLY code that
+could move a ball independently of its socket was the merge sequencer, and the
+refill drop-in animation lived INSIDE it as its 'fill' phase — it never ran except
+as the tail of a merge cascade. With the sequencer gone, the whole slot-animation
+API became unreachable and was deleted with it:
 
-Fix: thread the lane through, then bound every element to it — one lane's burst,
-ring and light flashes centred on laneToX(lane), radius CELL/2 instead of 3.0/6.3.
+  Shooter3D:       setSlotAnimLock, setSlotScale, setSlotWorldXYZ,
+                   resetSlotTransform, getSlotBaseWorld, getSlotWorldPosition,
+                   clearAllAnimLocks, and the _animLock field + its skip branches
+  GameRenderer3D:  lockBombSlot, setBombSlotScale, setBombSlotWorld,
+                   getBombSlotWorld, getBombSlotBaseWorld, resetBombSlot,
+                   clearBombAnimLocks, getBombSlotScreenXY
 
-===============================================================================
-WHY THE EXISTING TESTS AND THE DEVICE CHECK BOTH PASSED
-===============================================================================
-tests/bomb-lane-only.test.js had 9 tests, all green, all about WHICH CARS DIE.
-None looked at the explosion. The earlier "verified 4/4 kills in-lane / 0 outside"
-device confirmation measured the same thing. A suite that only counts survivors
-cannot fail on a purely visual defect, and neither can a reviewer who is counting
-kills — so the report stayed valid for weeks against green evidence.
+A ball's position is now written in exactly one place — setLaneCount, from
+bombSlotZ(row), the same canonical function the Pixi socket derives from. There is
+no longer any code path that can put a ball anywhere other than its socket, so the
+two cannot disagree by construction. Four incremental fixes failed at this; the
+fifth was not another fix, it was deleting the thing that moved the ball.
 
-Four tests added (13 total). All four FAIL against the old code and pass against
-the new — verified by stashing the fix and re-running:
-  x passes the target lane to the explosion callback for EVERY kill
-  x carries the right lane at every lane count and target
-  x the particle blast does not sweep every lane when given a target
-  x the blast geometry is bounded by the LANE, not the road
-The first is the one whose absence let this ship: the callback was always stubbed
-in that file, its arguments were simply never asserted.
+Cost, stated plainly: refilling bombs no longer animate in, they appear. The
+drop-in polish went with the mechanic that owned it. If that reads as abrupt in
+play, re-adding it should be a deliberate decision with the socket-derived
+positioning discussed below — not a revival of the old independent animator.
 
 ===============================================================================
-SEPARATE — the "can't put another one next to him" report (NO CODE CHANGED)
+SIM BALANCE — NO SHIFT, AND THE REASON MATTERS
 ===============================================================================
-Confirmed: deploys are turn-based, one shot at a time, and this is enforced twice
-with the two guards DISAGREEING.
+The 40-level table after removal is BYTE-IDENTICAL to before it. Not "close" —
+identical, including the three flagged levels (L4 95.3%, L30 37.0%, L39 58.0%).
 
-  DragDrop.js:394   if (this._firingSlots[laneIdx]) snapBack()   <- SAME lane only
-  GameLoop.js:108   if (ANY firingSlot is set) return            <- bare return
+SimulationRunner never modelled merging at all. It has no peekMerges /
+evaluateMerges / isMerged reference anywhere; the balance bands were always
+measured on merge-free play. So the sim needed no change and no level needs a
+retune from this.
 
-Measured: deploy(col0,lane0) is accepted (slot 0 taken, column 3->2); then
-deploy(col1,lane1) and deploy(col2,lane2) during that flight are BOTH refused,
-with no slot taken and no bomb consumed.
+Worth noting for the record: this means the sim and the live game had DIVERGED for
+any player who used merging, and removing the mechanic brings live behaviour back
+in line with what the balance gate has always been measuring.
 
-Player-visible difference between the two cases:
-  - dropping into the SAME lane -> DragDrop snaps the bomb back. Clear feedback.
-  - dropping into a DIFFERENT lane -> DragDrop's guard does not fire, so
-    _handleLaneDrop runs the full fly-into-the-lane animation and destroys the
-    ghost (DragDrop.js:470-474) BEFORE GameLoop silently refuses. The bomb flies
-    in, vanishes, nothing happens, and it is still sitting in the queue.
-
-That second case is a FALSE SUCCESS, and "next to him" is exactly it — an adjacent
-lane. Left unchanged as instructed; flagging it because a silent refusal that also
-plays the success animation reads as broken even though the restriction is intended.
-
-Shot window is SHOT_TRAVEL_TIME = 0.18s, shortened by the combo multiplier to
-~0.06s at 2x — brief, but it is precisely the window a fast player is tapping in.
+===============================================================================
+DELIBERATELY KEPT — do not mistake these for leftovers
+===============================================================================
+- QUEUE REORDER and BENCH-RETURN survive untouched. They were gated behind a flag
+  named `_mergeEnabled` because setting up merges was their original purpose, but
+  they are independent mechanics. The flag is now `_reorderEnabled`; the L5 unlock
+  and both behaviours are unchanged, and the removal guard asserts they still work
+  so a future cleanup cannot delete them by association.
+- projection.QUEUE_CLEARANCE_MARGIN (1.22) — this WAS MERGE_SCALE, the worst-case
+  bomb radius the queue-fit solver and breach clearance were sized against. The
+  VALUE IS UNCHANGED on purpose: dropping it to the now-true 1.0 would let the
+  solver grow every bomb, which is a size/FIT decision for the owner, not a side
+  effect of deleting a mechanic. Recorded with the queue-depth question in
+  THREE_LANE_REDESIGN_BATCH.md §8.

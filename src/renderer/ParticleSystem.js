@@ -58,7 +58,7 @@ export class ParticleSystem {
     }
   }
 
-  // Generic burst at an explicit SCREEN position (px) — used by the merge sequence,
+  // Generic burst at an explicit SCREEN position (px) — used by
   // whose bombs live in the queue zone (not on the road, so laneIdx+gameX can't place it).
   spawnBurstAt(x, y, color, count = 7) {
     const c = COLOR_MAP[color] ?? 0xffffff;

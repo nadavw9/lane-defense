@@ -63,13 +63,7 @@ export class GameLoop {
     this._onComboFreeze  = null;  // set by GameApp; () → visual FX
     this._onColorBombEarned = null;  // set by GameApp; (colIdx) → color-bomb earned flash + intro card + SFX
     this._onMultiKill       = null;  // set by GameApp; (count, needed) → "MULTI-KILL n/3" notification
-    this._onMerge        = null;  // set by GameApp; (descriptor) → merge animation/SFX
-    this._onNearMiss     = null;  // set by GameApp; () → near-miss drama (slow-mo + heartbeat + red pulse)
-    this._onAutoFill     = null;  // set by GameApp; () → re-check merges after an auto-fill that ADDED
-                                  // bombs (post-fire refill, bench refill, crisis inject). Fires once
-                                  // per real refill event, never on steady-state ticks. GameApp routes
-                                  // it through the SAME mergeSequencer the player-action path uses, so
-                                  // DEFECT 1 (no merge on auto-fill) + DEFECT 2 (instant fill) share one path.
+    this._onNearMiss        = null;  // set by GameApp; () → near-miss drama (slow-mo + heartbeat + red pulse)
 
     // Base level duration — used to reset gs.duration on restart.
     this._baseDuration = gameState.duration;
@@ -203,7 +197,7 @@ export class GameLoop {
     const gs       = this._gs;
     const lane     = gs.lanes[laneIdx];
     const frontCar = lane?.frontCar();
-    const colorBomb = !!shooter.isColorBomb && !shooter.mergeColorBomb;
+    const colorBomb = !!shooter.isColorBomb;
 
     let dur = 0;
     if (colorBomb) {
@@ -231,8 +225,7 @@ export class GameLoop {
     const frontCar = lane.frontCar();
 
     // Rainbow color bombs (AoE): clear all cars of a colour across all lanes.
-    // Merge color bombs are single-target and fall through to regular resolution.
-    if (shooter.isColorBomb && !shooter.mergeColorBomb) {
+    if (shooter.isColorBomb) {
       const targetColor = frontCar?.color;
       // Earned rainbows need a frontCar to determine target color.
       if (!targetColor) return;
@@ -351,249 +344,6 @@ export class GameLoop {
     this._onColorBombEarned?.(bestCol);
   }
 
-  // Evaluate and apply bomb merges. Unlocked at level 5 (levels 0-4 are gates).
-  // Merge rules:
-  //   VERTICAL: 3 shooters of the same color in one column → single color bomb (isMerged)
-  //   HORIZONTAL: 3 adjacent columns at the same row with same color → strong bomb at middle column
-  //
-  // TWO MODES:
-  //   evaluateMerges()      — headless: detect on current state, apply, up to 2
-  //                           passes (chain merges, capped). Tests/settle path.
-  //   evaluateMerges(plan)  — PLANNED (the animation sequencer): apply EXACTLY the
-  //                           peeked plan it animated — each entry re-verified
-  //                           against FRESH state first (slots + colors + !isMerged),
-  //                           stale entries skipped. One pass, no re-detection: any
-  //                           new lines formed by compaction/refill are picked up
-  //                           by the sequencer's animated cascade re-peek, so a
-  //                           merge can never apply without having been animated.
-  // Returns the applied merge descriptors (renderer animation / test assertions).
-  evaluateMerges(plan = null) {
-    const gs = this._gs;
-    // Gate: merges unlock at level 5 (levelId is 1-indexed; daily uses a high id).
-    if (gs.levelId < 5) return [];
-    if (plan == null) return this._evaluateMerges();
-
-    const applied = [];
-    for (const entry of plan) {
-      if (!entry?.src || !this._verifyPlannedMerge(entry.src, entry.color)) continue;
-      const descriptor = this._applyMerge(entry.src);
-      if (descriptor) { descriptor.planEntry = entry; applied.push(descriptor); }
-    }
-    for (const desc of applied) this._onMerge?.(desc);
-    return applied;
-  }
-
-  // Read-only merge PREVIEW for the animation sequencer. Returns the merges that
-  // WOULD fire (same L5 gate, same detection), each enriched with: `dest` (the slot
-  // the merged bomb actually lands in — column top for vertical, mid-column front
-  // for horizontal) and `travelers` (the two source slots that animate into it).
-  // Does NOT mutate the queue — the sequencer animates, then calls evaluateMerges().
-  peekMerges() {
-    const gs = this._gs;
-    if (gs.levelId < 5) return [];
-    return this._findMerges(gs.activeColCount).map(m => {
-      if (m.type === 'vertical') {
-        return { type: 'vertical', color: gs.columns[m.col].shooters[0].color,
-                 src: m,   // raw detection coords — evaluateMerges(plan) re-verifies + applies exactly this
-                 dest: { col: m.col, row: 0 },
-                 travelers: [{ col: m.col, row: 1 }, { col: m.col, row: 2 }] };
-      }
-      const mid = m.startCol + 1;
-      // Animate the THREE actual source bombs only: the mid source is the convergence
-      // point (dest), the outer two travel into it. (For the common front-row merge
-      // m.row===0 this is also exactly where the merged bomb lands.)
-      return { type: 'horizontal', color: gs.columns[m.startCol].shooters[m.row].color,
-               src: m,
-               dest: { col: mid, row: m.row },
-               travelers: [{ col: m.startCol, row: m.row }, { col: m.startCol + 2, row: m.row }] };
-    });
-  }
-
-  // Refill any short columns from the director — used by the merge sequencer to fill
-  // the gaps a merge leaves so it can animate the new bombs dropping in.
-  refillQueue() {
-    const gs = this._gs;
-    this._sDir.fillColumns(gs.activeCols, gs.asDirectorState(), gs.phaseMan.getParams());
-  }
-
-  _evaluateMerges() {
-    const gs = this._gs;
-    const activeColCount = gs.activeColCount;
-    const applied = [];
-    let passes = 0;
-
-    while (passes < 2) {
-      const merges = this._findMerges(activeColCount);
-      if (merges.length === 0) break;
-
-      for (const merge of merges) {
-        const descriptor = this._applyMerge(merge);
-        if (descriptor) applied.push(descriptor);
-      }
-
-      passes++;
-    }
-
-    // Fire callback for each merge so renderer can animate.
-    for (const desc of applied) {
-      this._onMerge?.(desc);
-    }
-
-    return applied;
-  }
-
-  // Find all eligible merges: VERTICAL first, then HORIZONTAL — with OVERLAP
-  // RESOLUTION built in: once a candidate claims a slot, later candidates that
-  // share any of its slots are skipped. Detection therefore returns exactly the
-  // set that application will perform — peekMerges (the animation plan) and
-  // evaluateMerges can never disagree about WHICH merges fire (the old apply-time
-  // guard silently skipped overlaps the plan had already animated = "effect
-  // without result"). It also prevents a same-pass horizontal from consuming
-  // row-shifted bombs after an earlier splice (which skipped the color re-check).
-  //
-  // DESIGN (user-confirmed 2026-07-10): the merge window is the 3 VISIBLE rows
-  // (indices 0-2), and vertical detection requires EXACTLY 3 shooters. A crisis
-  // inject can temporarily hold a 4th bomb in a column; that column does not
-  // vertical-merge until it returns to 3 (the extra slides up as bombs consume).
-  _findMerges(activeColCount) {
-    const gs = this._gs;
-    const merges = [];
-    const used = new Set();                    // slots claimed by an accepted candidate
-    const key = (c, r) => c * 10 + r;
-
-    // VERTICAL: each column with exactly 3 same-color shooters (none already merged)
-    for (let c = 0; c < activeColCount; c++) {
-      const col = gs.columns[c];
-      if (col.shooters.length === 3 &&
-          col.shooters[0].color === col.shooters[1].color &&
-          col.shooters[1].color === col.shooters[2].color &&
-          !col.shooters[0].isMerged &&
-          !col.shooters[1].isMerged &&
-          !col.shooters[2].isMerged) {
-        merges.push({ type: 'vertical', col: c });
-        used.add(key(c, 0)); used.add(key(c, 1)); used.add(key(c, 2));
-      }
-    }
-
-    // HORIZONTAL: for each row (0-2), runs of 3 adjacent columns — skipping any
-    // window that overlaps a slot already claimed (by a vertical or an earlier
-    // horizontal window sharing columns).
-    for (let row = 0; row <= 2; row++) {
-      for (let startCol = 0; startCol <= activeColCount - 3; startCol++) {
-        if (used.has(key(startCol, row)) || used.has(key(startCol + 1, row)) || used.has(key(startCol + 2, row))) continue;
-        const cols = [gs.columns[startCol], gs.columns[startCol + 1], gs.columns[startCol + 2]];
-        const shooters = [cols[0].shooters[row], cols[1].shooters[row], cols[2].shooters[row]];
-        if (shooters[0] && shooters[1] && shooters[2]) {
-          if (shooters[0].color === shooters[1].color &&
-              shooters[1].color === shooters[2].color &&
-              !shooters[0].isMerged &&
-              !shooters[1].isMerged &&
-              !shooters[2].isMerged) {
-            merges.push({ type: 'horizontal', row, startCol });
-            used.add(key(startCol, row)); used.add(key(startCol + 1, row)); used.add(key(startCol + 2, row));
-          }
-        }
-      }
-    }
-
-    return merges;
-  }
-
-  // Re-verify a PLANNED merge against CURRENT state (slots exist, colors still
-  // match the plan, nothing already merged). Used by evaluateMerges(plan) so an
-  // animated plan is only applied if the board still matches what was animated.
-  _verifyPlannedMerge(src, color) {
-    const gs = this._gs;
-    if (src.type === 'vertical') {
-      const s = gs.columns[src.col]?.shooters;
-      return !!s && s.length >= 3 &&
-        s[0]?.color === color && s[1]?.color === color && s[2]?.color === color &&
-        !s[0].isMerged && !s[1].isMerged && !s[2].isMerged;
-    }
-    const { row, startCol } = src;
-    const t = [0, 1, 2].map(i => gs.columns[startCol + i]?.shooters[row]);
-    return t.every(s => s && s.color === color && !s.isMerged);
-  }
-
-  // Apply a single merge and return a descriptor for animation.
-  _applyMerge(merge) {
-    const gs = this._gs;
-
-    if (merge.type === 'vertical') {
-      const col = gs.columns[merge.col];
-      const shooters = col.shooters;
-      const color = shooters[0].color;
-      const damage = shooters[0].damage + shooters[1].damage + shooters[2].damage;
-
-      // Replace the 3 merged shooters with one merged color bomb at the TOP.
-      // PRESERVE any extras beyond index 2 (a crisis inject can hold a 4th bomb
-      // in the column — it must never be silently deleted; D-1, 2026-07-10).
-      const merged = new Shooter({
-        color, damage,
-        column: merge.col,
-        isColorBomb: true,
-        isMerged: true,
-        mergeColorBomb: true,
-      });
-      col.shooters = [merged, ...shooters.slice(3)];
-
-      const descriptor = {
-        type: 'vertical',
-        column: merge.col,
-        color,
-        damage,
-        position: 0,  // front of column
-      };
-      return descriptor;
-    }
-
-    if (merge.type === 'horizontal') {
-      const { row, startCol } = merge;
-      // Guard: verify all 3 shooters still exist (merges can modify column contents)
-      const s0 = gs.columns[startCol].shooters[row];
-      const s1 = gs.columns[startCol + 1].shooters[row];
-      const s2 = gs.columns[startCol + 2].shooters[row];
-      if (!s0 || !s1 || !s2) return null;  // merge is no longer valid
-      // A vertical merge applied earlier in this same pass may have replaced one of
-      // these cells with a merged bomb; never consume an already-merged bomb (it
-      // would double-merge and exceed the 3-bomb damage cap).
-      if (s0.isMerged || s1.isMerged || s2.isMerged) return null;
-
-      const color = s0.color;
-      const damage = s0.damage + s1.damage + s2.damage;
-      const midCol = startCol + 1;
-
-      // Remove the bomb at row from each of the 3 columns (splice backward to preserve indices)
-      for (let i = 2; i >= 0; i--) {
-        gs.columns[startCol + i].shooters.splice(row, 1);
-      }
-
-      // Insert merged bomb at the front of the middle column
-      const merged = new Shooter({
-        color, damage,
-        column: midCol,
-        isColorBomb: false,  // strong single-target, not a color bomb
-        isMerged: true,
-      });
-      gs.columns[midCol].shooters.unshift(merged);
-      // No capacity truncation here: normal flow is 3-1+1=3; with a crisis 4th
-      // bomb it's 4-1+1=4, which is within the crisis tolerance — truncating
-      // would silently DELETE a bomb (same loss class as D-1).
-
-      const descriptor = {
-        type: 'horizontal',
-        row,
-        startCol,
-        midCol,
-        color,
-        damage,
-        position: 0,  // front of middle column
-      };
-      return descriptor;
-    }
-
-    return null;
-  }
 
   // Color bomb power shot: instantly remove all cars matching `color` from every lane.
   // Kills are registered (combo, coins, bomb charge) but the grid does NOT advance.
@@ -638,28 +388,8 @@ export class GameLoop {
     this._carDir.setProgress?.(0);      // spawnScript stage back to stage 1 (§3c)
     this._primeInitialCars();
     this._sDir.fillColumns(gs.activeCols, gs.asDirectorState(), gs.phaseMan.getParams());
-    // NOTE: pre-made merges are NOT settled here — GameApp plays the ANIMATED merge
-    // sequence on them shortly after the board renders (so all 12 bombs are visible
-    // first, then only the merging bombs animate). _settleStartingMerges() remains
-    // for the headless/sync path used by tests.
   }
 
-  // Candy-Crush start: settle the freshly-primed queue so the player never starts
-  // with a pre-made, unmerged match. Each merge leaves gaps; refill them and
-  // re-evaluate until none remain (guarded against loops). Settles SILENTLY —
-  // _onMerge bursts/SFX are suppressed before the first move; the merged bombs
-  // still render via the per-frame queue draw. evaluateMerges() is L5-gated, so on
-  // L1-L4 the first call returns [] and this is a no-op (queue fills do NOT auto-
-  // merge during play — this exception is only the initial board settle).
-  _settleStartingMerges() {
-    const gs = this._gs;
-    const onMerge = this._onMerge;
-    this._onMerge = null;
-    for (let guard = 0; guard < 12 && this.evaluateMerges().length > 0; guard++) {
-      this._sDir.fillColumns(gs.activeCols, gs.asDirectorState(), gs.phaseMan.getParams());
-    }
-    this._onMerge = onMerge;
-  }
 
   // ── Private ────────────────────────────────────────────────────────────────
 
@@ -719,9 +449,7 @@ export class GameLoop {
       const dirState = gs.asDirectorState();
       const phaseParams = gs.phaseMan.getParams();
       this._sDir.fillColumns(gs.activeCols, dirState, phaseParams);
-      this._enforceViableMove(gs);
-      this._onAutoFill?.();   // queue settled after a frozen advance → re-check merges
-      return;
+      this._enforceViableMove(gs);      return;
     }
 
     // 1. Move all cars forward one row.
@@ -779,11 +507,7 @@ export class GameLoop {
     // 6. Viability guard.
     this._enforceViableMove(gs);
 
-    // 7. Queue changed (a shot consumed a bomb and it refilled) → re-check merges.
-    // Fires once per shot resolution (this method is per-shot, not per render tick).
-    this._onAutoFill?.();
-
-    // 8. Near-miss drama check on the settled post-advance board.
+    // 7. Near-miss drama check on the settled post-advance board.
     this._checkNearMiss();
   }
 
@@ -936,10 +660,7 @@ export class GameLoop {
     // Car movement is turn-based; cars only move when _advanceGrid() is called
     // (after each shot resolves). No continuous movement here.
 
-    // Refill active shooter columns. Snapshot the queue size first so we can tell
-    // whether THIS tick actually added bombs (a bench refill lands here, not in
-    // _advanceGrid) → fire _onAutoFill only then, never on steady-state full-queue ticks.
-    let _qBefore = 0; for (const c of gs.activeCols) _qBefore += c.shooters.length;
+    // Refill active shooter columns.
     this._sDir.fillColumns(gs.activeCols, dirState, phaseParams);
 
     // 6. Viability guard: ensure the player always has at least one valid move.
@@ -962,8 +683,7 @@ export class GameLoop {
         // retired (the bench is sole storage) and the rendered depth became 3,
         // but this capacity never followed. The bomb at index 3 was therefore
         // rendered nowhere (Shooter3D.SLOT_COUNT = 3), hit-tested nowhere
-        // (DragDrop._hitTestQueueSlot loops row < 3) and merge-ineligible (the
-        // merge window is the 3 visible rows) — it reappeared only after a fire
+        // (DragDrop._hitTestQueueSlot loops row < 3) — it reappeared only after a fire
         // shifted the column up. On the band-600 pilot, where the queue is
         // compressed and the bench sits at its 28px floor, it visibly clipped
         // through the bench strip: "still got to a phase were bombs are out of
@@ -1016,12 +736,6 @@ export class GameLoop {
       }
     }
 
-    // A non-shot refill grew the queue this tick (bench store refills here; crisis
-    // inject also adds) → re-check merges once. Shot-driven refills are already
-    // signalled from _advanceGrid, and this tick returns early during a hit-stop,
-    // so this fires only for the bench/crisis case, never per steady-state tick.
-    let _qAfter = 0; for (const c of gs.activeCols) _qAfter += c.shooters.length;
-    if (_qAfter > _qBefore) this._onAutoFill?.();
   }
 
   // After a rescue, force at least 2 column tops to match a front car color,

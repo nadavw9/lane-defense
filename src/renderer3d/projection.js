@@ -163,10 +163,18 @@ export let PX_PER_WU = zToScreenY(1) - zToScreenY(0);
 // (Shooter3D's 3D ball, PositionRegistry, ShooterRenderer, DragDrop) must
 // call bombSlotZ/bombSlotScreenY — never re-derive this elsewhere. ─────────
 
-// Merged-bomb group enlargement (front slot only, see Shooter3D.update()) — a
-// multiplier ON TOP of BOMB_R, not itself scaled by BOMB_ZONE_SCALE (it's a
-// relative "how much bigger than a normal bomb", independent of base size).
-export const MERGE_SCALE = 1.22;
+
+// Queue-fit clearance margin. This WAS MERGE_SCALE (1.22) — the front-slot
+// enlargement a merged bomb rendered at — and the queue solver and breach
+// clearance were both sized against it as the worst-case bomb radius.
+//
+// Merging was removed 2026-08-08, so no bomb is ever drawn at 1.22x any more and
+// the true worst case is 1.0. The NUMBER IS DELIBERATELY UNCHANGED: dropping it to
+// 1.0 would let the solver grow every bomb, which is a size/FIT change and needs
+// the owner's decision, not a side effect of a removal. Retained as a pure safety
+// margin; reclaiming it is recorded with the queue-depth question in
+// THREE_LANE_REDESIGN_BATCH.md §8.
+const QUEUE_CLEARANCE_MARGIN = 1.22;
 
 const BREACH_STRIPE_HALF_PX = 8;
 const BREACH_MARGIN_PX      = 6;
@@ -242,7 +250,7 @@ function _lastSlotRenderedBottomEdge(scale) {
   const bombR    = CELL * 0.266 * scale;
   const pitchWu  = CELL * 0.70  * scale;
   const stripeBottomY     = BREACH_LINE_Y + BREACH_STRIPE_HALF_PX;
-  const worstCaseRadiusPx = bombR * MERGE_SCALE * PX_PER_WU;
+  const worstCaseRadiusPx = bombR * QUEUE_CLEARANCE_MARGIN * PX_PER_WU;
   const slot0CenterYMin   = stripeBottomY + BREACH_MARGIN_PX + worstCaseRadiusPx;
   const slot0ZMin         = screenYToZ(slot0CenterYMin);
   const baseSlot0Z        = 0.5 * pitchWu;
@@ -270,11 +278,11 @@ export let BOMB_SLOT_PITCH_WU = CELL * 0.70 * BOMB_ZONE_SCALE;
 
 // BOMB_SLOT_CLEARANCE_Z pushes every row a fixed extra distance from the
 // breach line so the front slot's ball, AT ITS LARGEST rendered size (a
-// merged bomb, MERGE_SCALE), never crosses under the 2D hazard stripe —
+// QUEUE_CLEARANCE_MARGIN), never crosses under the 2D hazard stripe —
 // derived from the stripe's actual screen geometry, not eyeballed.
 function _computeBombSlotClearanceZ() {
   const stripeBottomY     = BREACH_LINE_Y + BREACH_STRIPE_HALF_PX;
-  const worstCaseRadiusPx = BOMB_R * MERGE_SCALE * PX_PER_WU;
+  const worstCaseRadiusPx = BOMB_R * QUEUE_CLEARANCE_MARGIN * PX_PER_WU;
   const slot0CenterYMin   = stripeBottomY + BREACH_MARGIN_PX + worstCaseRadiusPx;
   const slot0ZMin         = screenYToZ(slot0CenterYMin);
   const baseSlot0Z        = 0.5 * BOMB_SLOT_PITCH_WU;

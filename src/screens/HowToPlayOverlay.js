@@ -14,10 +14,8 @@ const SLIDES = [
     body: 'Destroy the required cars shown at the top.\n\nMeet all targets before any car reaches the breach line!' },
   { title: 'HOW TO PLAY', img: '02-shot.png',
     body: "Drag a bomb to a lane — it must match the car's color.\n\nEvery shot advances ALL cars one step forward. Plan carefully!" },
-  { title: 'MERGE COMBOS', img: '03-merge.png',
-    body: 'Line up 3 same-color bombs in a row or column to create a powerful merged bomb!\n\nUse your 1 free swap per shot to set up merges.' },
   { title: 'BOOSTERS', img: '04-boosters.png',
-    body: 'COLOR: Tap a car then pick a color — all matching cars transform!\n\nFREEZE: Earned by a 3-car chain kill.\n\nBOMB: Clears an entire row!' },
+    body: 'COLOR: Tap a car then pick a color — all matching cars transform!\n\nFREEZE: Earned by a 3-car chain kill.\n\nBOMB: Clears an entire lane!' },
 ];
 
 const PW = 320, PH = 440;

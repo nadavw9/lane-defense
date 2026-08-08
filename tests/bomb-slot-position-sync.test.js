@@ -10,7 +10,7 @@
 // again.
 import { describe, it, expect, afterAll } from 'vitest';
 import {
-  bombSlotScreenY, bombSlotZ, BOMB_ZONE_SCALE, BOMB_R, PX_PER_WU, MERGE_SCALE,
+  bombSlotScreenY, bombSlotZ, BOMB_ZONE_SCALE, BOMB_R, PX_PER_WU,
   BOOSTER_BAR_TOP_Y, setActiveLaneCount,
 } from '../src/renderer3d/projection.js';
 import { getColumnSlotScreenY, getColumnScreenY, setActiveCounts } from '../src/renderer/PositionRegistry.js';
@@ -41,12 +41,12 @@ describe('bomb-slot position sync (drift guard)', () => {
 
   it('ShooterRenderer TOP_Y/SECOND_Y — the touch-target positions DragDrop hit-tests against — match the canonical source', () => {
     expect(TOP_Y).toBeCloseTo(bombSlotScreenY(0), 6);
-    expect(SECOND_Y).toBeCloseTo(bombSlotScreenY(1), 6);
+    expect(SECOND_Y).toBeCloseTo(bombSlotScreenY(1), 6);
   });
 
   it('every consumer agrees with every other consumer, not just with the source (transitive check)', () => {
     expect(getColumnSlotScreenY(0)).toBeCloseTo(TOP_Y, 6);
-    expect(getColumnSlotScreenY(1)).toBeCloseTo(SECOND_Y, 6);
+    expect(getColumnSlotScreenY(1)).toBeCloseTo(SECOND_Y, 6);
   });
 
   it('slot Z is strictly increasing (rows never overlap or invert)', () => {
@@ -100,17 +100,12 @@ describe('bomb-slot position sync (drift guard)', () => {
       expect(benchSpriteSize()).toBeCloseTo(bombPlaneSize() * PX_PER_WU, 6);
     });
 
-    it('a benched merged bomb is enlarged by the same MERGE_SCALE the queue applies', () => {
-      const benchedSize = benchSpriteSize() * MERGE_SCALE;
-      expect(benchedSize).toBeCloseTo(benchSpriteSize() * 1.22, 6);
-      expect(benchedSize).toBeGreaterThan(benchSpriteSize());
-    });
-
-    it('bombUrl resolves the merged texture for merged bombs and the plain texture otherwise, for every color', () => {
+    it('bombUrl resolves the plain powerball texture for every colour', () => {
+      // The merged-bomb texture variant went with the merge mechanic (2026-08-08);
+      // bombUrl no longer takes an isMerged argument.
       for (const color of ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange']) {
-        expect(benchBombUrl(color, true)).toMatch(new RegExp(`powerball-merged-${color.toLowerCase()}\\.png$`));
-        expect(benchBombUrl(color, false)).toMatch(new RegExp(`powerball-${color.toLowerCase()}\\.png$`));
-        expect(benchBombUrl(color, true)).not.toBe(benchBombUrl(color, false));
+        expect(benchBombUrl(color)).toMatch(new RegExp(`powerball-${color.toLowerCase()}\\.png$`));
+        expect(benchBombUrl(color)).not.toMatch(/merged/);
       }
     });
   });

@@ -22,7 +22,7 @@ export class GameState {
     this.activeColCount  = colCount  ?? columns.length;
 
     // ── Level config ───────────────────────────────────────────────────────
-    this.levelId  = levelId ?? 0;     // 1-based level number (daily uses a high id); gates merge unlock at L5
+    this.levelId  = levelId ?? 0;     // 1-based level number (daily uses a high id); gates reorder unlock at L5
     this.colors   = colors;
     this.world    = world;
     this.duration = duration;

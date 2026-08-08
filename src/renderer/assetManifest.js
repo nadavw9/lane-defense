@@ -78,15 +78,14 @@ export const BOOSTER_URLS = ['colorchange', 'freeze', 'bomb'].map(b => `${_B}spr
 
 // Powerball bomb sprites — filenames are lowercase on disk and the 3D loader
 // requests them lowercase too; preload must match or it 404s on case-sensitive
-// hosts (Pages). Includes the merged-bomb variants used when isMerged.
+// hosts (Pages).
 export const POWERBALL_URLS = [
   ...COLORS.map(c => `${_B}sprites/designed/powerball-${c.toLowerCase()}.png`),
-  ...COLORS.map(c => `${_B}sprites/designed/powerball-merged-${c.toLowerCase()}.png`),
 ];
 
 // Tutorial screenshots shown in HowToPlayOverlay (real-gameplay captures from L22).
 // Cosmetic — the overlay degrades to a blank frame if one fails to load.
-export const TUTORIAL_URLS = ['01-goal', '02-shot', '03-merge', '04-boosters']
+export const TUTORIAL_URLS = ['01-goal', '02-shot', '04-boosters']
   .map(n => `${_B}sprites/tutorial/${n}.png`);
 
 // AI-generated background art: full-screen title background + logo, and the three

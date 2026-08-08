@@ -305,7 +305,7 @@ export class GameRenderer3D {
 
   // Project a queue slot's bomb (3D) to 2D screen pixels (stage coords) by running
   // its world position through the actual camera — the ground-truth on-screen
-  // centre. Used by 2D overlays (the merge halo) so they land exactly on the bomb.
+  // centre. Used by 2D overlays so they land exactly on the bomb.
   getBombSlotScreenXY(col, row) {
     const world = this._shooters?.getSlotWorldPosition(col, row);
     const cam   = this._scene3d?.camera;
@@ -317,14 +317,6 @@ export class GameRenderer3D {
     };
   }
 
-  // ── Merge-sequence passthroughs to Shooter3D (3D bomb-group control) ──────────
-  lockBombSlot(col, row, locked)      { this._shooters?.setSlotAnimLock(col, row, locked); }
-  setBombSlotScale(col, row, s)       { this._shooters?.setSlotScale(col, row, s); }
-  setBombSlotWorld(col, row, x, y, z) { this._shooters?.setSlotWorldXYZ(col, row, x, y, z); }
-  getBombSlotWorld(col, row)          { return this._shooters?.getSlotWorldPosition(col, row) ?? null; }
-  getBombSlotBaseWorld(col, row)      { return this._shooters?.getSlotBaseWorld(col, row) ?? null; }
-  resetBombSlot(col, row)             { this._shooters?.resetSlotTransform(col, row); }
-  clearBombAnimLocks()                { this._shooters?.clearAllAnimLocks(); }
 
   /** Set the world {x,z} the next bomb in this lane should travel FROM (release point). */
   setDropStart(laneIdx, world) { this._projectiles?.setNextStart(laneIdx, world); }

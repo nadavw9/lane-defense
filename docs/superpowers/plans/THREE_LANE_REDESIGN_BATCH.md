@@ -949,3 +949,44 @@ their turn comes, play them first.
 - If the pilot verdict is "still not enough," the next investigation (2-lane, or something
   structurally different) is explicitly NOT scoped by this document and needs its own
   render-first investigation before any spec gets written for it.
+
+### OPEN — IS 3 QUEUE ROWS STILL THE RIGHT DEPTH? (2026-08-08, RECORDED NOT ACTED ON)
+
+The bomb MERGE mechanic was removed on owner decision (it spent three bombs to
+overkill one 2–5 HP car — strictly worse than firing them separately, and worse
+than the BOMB booster's lane clear on a crowded lane). That removal invalidates
+one of the reasons the queue is 3 rows deep, so the depth is now an open question.
+
+**Why 3 existed.** Partly ordinary lookahead, but partly because a vertical merge
+needed three same-colour bombs *in a line* — the queue had to be at least 3 deep
+for a column merge to be expressible at all. With merging gone, that constraint
+is gone with it. Nothing now requires depth 3 specifically.
+
+**Why this is not a free change.** Queue depth is entangled with two other live
+constraints, and moving it touches both:
+
+1. **The vertical budget.** §2c: the queue, the bench and the booster bar share a
+   fixed vertical budget below the road. Fewer rows frees pitch, which the solver
+   would spend on ball radius unless told otherwise — i.e. depth is a SIZE lever,
+   not just an information lever.
+2. **The 5.15px overflow.** The known queue-fit overflow is measured against the
+   3-row solve. Any depth change re-derives it and the number stops meaning what
+   it means today.
+
+**And one more, now inert but connected:** `projection.QUEUE_CLEARANCE_MARGIN`
+(1.22) was `MERGE_SCALE` — the enlarged front-slot radius a merged bomb rendered
+at, which the queue-fit solver and the breach clearance were both sized against.
+No bomb is drawn at 1.22× any more, so the true worst case is 1.0. The value was
+deliberately left unchanged during the removal: dropping it would let the solver
+grow every bomb, which is a size/FIT decision, not a side effect of deleting a
+mechanic. **Reclaiming that 22% headroom and re-deciding queue depth are the same
+conversation** and should be answered together.
+
+**What is NOT being claimed here:** that 3 is wrong. Depth 3 still shows the
+player two bombs of lookahead behind the active one, which is a real planning aid
+independent of merging. This is only the record that its *justification* changed.
+
+**Needs, before anyone changes it:** a play verdict on whether 2 rows of lookahead
+reads as enough on the 3-lane board, and an owner decision on whether freed pitch
+should become bigger balls or more bottom clearance. Do not change queue depth,
+band, gridRows or FIT to answer it — measure first.

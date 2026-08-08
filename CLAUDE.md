@@ -266,6 +266,38 @@ DragDrop paths, per-level Shooter3D stash meshes, `ShooterRenderer`, `PositionRe
 above, and `SLOT_COUNT` being 4). Removing it spans ~10 files and is a feature-removal
 decision — it needs the owner's approval, not a cleanup commit.
 
+#### TESTS THAT ASSERT OUTCOMES CAN MISS PRESENTATION ENTIRELY
+**A suite that only checks state cannot fail on a defect the player can see.** This shipped,
+and then survived six weeks of the owner re-reporting it against green evidence.
+
+The BOMB booster was converted from a ROW clear to a LANE clear. The kill model was converted
+correctly and pinned by `tests/bomb-lane-only.test.js` — nine tests, all green, plus a device
+check confirming "4/4 kills in-lane, 0 outside". **Every one of them asked which cars die.**
+
+The explosion was never converted. `Particles3D.spawnBombExplosion` still fired a burst in
+*every* lane, 80ms apart, left to right, and `Road3D.spawnBombRing` was centred at road centre
+with a radius wider than a lane. So the player kept seeing a blast sweep the full road width and
+kept reporting, correctly, "it hits 2 rows, not 1 lane" — while every test passed and every
+kill-counting verification agreed the fix was in. The reviewer and the suite were measuring the
+same half of the change.
+
+Root cause was the recurring one: `placeBombOnLane` called `_onBombExplode(car.position, 1)`.
+`position` is a **row scalar**. The lane was never passed, so no downstream effect *could* draw
+itself in the right place — same shape as every other entry in the register above, one layer out.
+
+**Rules when converting a mechanic:**
+- Check what the PLAYER SEES, not only what the state records. Capture the frame; a kill count
+  is not a picture. The screenshot loop below exists for this and is not optional.
+- **Grep the VFX for the old behaviour, and read the docstrings.** `spawnBombExplosion`'s
+  docstring still said *"Covers all 4 lanes with a wide shockwave"* — the bug described itself
+  in plain English for six weeks and nobody grepped for it.
+- A mechanic change that touches no renderer file is a red flag, not a clean diff. `bd2348d`
+  ("pin BOMB to lane-only") touched `SimulationRunner.js` and two test files and no renderer at
+  all. That is exactly what a half-converted mechanic looks like in `--stat`.
+- When the owner keeps reporting something the tests say is fixed, **believe the owner and ask
+  what the tests are not looking at.** Three separate "fixed" reports on the ball/socket bug and
+  this one all had the same root shape: the assertion and the complaint were about different things.
+
 #### SCREENSHOT REVIEW LOOP — MANDATORY before reporting ANY visual change
 **Not optional. Not conditional on the change seeming small.** Before reporting any change
 that alters what the player sees:

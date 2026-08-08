@@ -391,7 +391,7 @@ export class DragDrop {
         this._snapBack();
         return;
       }
-      if (this._firingSlots?.[laneIdx]) {
+      if (this._deployWouldBeRefused(laneIdx)) {
         this._snapBack();
         return;
       }
@@ -450,6 +450,33 @@ export class DragDrop {
     const isCB = shooter?.isColorBomb === true && !shooter?.mergeColorBomb;
     this._ghost = this._createGhost(shooter, px + this._offsetX, py + this._offsetY, isCB);
     this._ghost.scale.set(1.12);  // lifted-off feel during drag
+  }
+
+  // WILL THE GameLoop ENTRY POINT FOR THIS DRAG REFUSE THE DEPLOY? (2026-08-08)
+  //
+  // This guard used to ask only `firingSlots[laneIdx]` — whether the TARGET lane
+  // was busy. GameLoop.deploy() additionally refuses while ANY lane has a shot in
+  // flight (the turn-based rule). So a drop into a DIFFERENT lane during a shot
+  // passed this check, `_handleLaneDrop` ran the full fly-into-the-lane animation
+  // and destroyed the ghost, and only THEN did GameLoop silently refuse with a bare
+  // `return`. The player saw a launch that never happened and found the bomb still
+  // sitting in the queue — reported as "I can't put another one next to him",
+  // "next to" being exactly the adjacent-lane case this missed.
+  //
+  // The turn-based rule itself is correct and unchanged. What was wrong was the
+  // input layer disagreeing with it, so this mirrors GameLoop's condition instead.
+  //
+  // It is deliberately SOURCE-DEPENDENT, because the two entry points genuinely
+  // differ and a blanket global check would silently make bench drops stricter:
+  //   deploy()          → refuses if ANY lane is in flight, or the target is busy
+  //   deployFromBench() → refuses only if the TARGET lane is busy
+  // Predicates are written to match GameLoop's character-for-character.
+  // tests/deploy-guard-parity.test.js asserts the two never drift apart again.
+  _deployWouldBeRefused(laneIdx) {
+    const slots = this._firingSlots ?? [];
+    if (slots[laneIdx]) return true;                       // GameLoop, both paths
+    if (this._dragSource === 'bench') return false;        // deployFromBench stops here
+    return Object.values(slots).some((s) => s !== null);   // GameLoop.deploy, turn-based
   }
 
   _handleLaneDrop(laneIdx) {

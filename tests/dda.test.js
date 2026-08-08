@@ -172,10 +172,12 @@ describe('AUDIT: the sim can never see DDA', () => {
   it('a fresh sim run reads BASE hpMultiplier regardless of any recorded streak', () => {
     // The sim instantiates from LevelManager configs and never consults
     // ProgressManager — so a recorded streak cannot reach it. Prove L10 sims at
-    // its base 0.60 (§3c v2 value), the number the balance band was tuned to.
+    // its base 0.811, the number the balance band was tuned to. (0.60 until the
+    // 2026-08-08 conversion floored every L9-L40 hpMultiplier at 0.70 so the car
+    // types keep distinct integer HP.)
     const lm = new LevelManager(); lm.goToLevel(10);
     const cfg = lm.current;
-    expect(cfg.worldConfig.hpMultiplier).toBe(0.60);
+    expect(cfg.worldConfig.hpMultiplier).toBe(0.811);
     const runner = new SimulationRunner({
       duration: cfg.duration, colors: cfg.colors, worldConfig: cfg.worldConfig,
       levelId: 10, skill: 'average', laneCount: cfg.laneCount, colCount: cfg.colCount,
@@ -184,7 +186,7 @@ describe('AUDIT: the sim can never see DDA', () => {
       shooterColorWeights: cfg.shooterColorWeights,
     });
     // The runner copies its config; the base hpMultiplier it holds is unchanged.
-    expect(runner._cfg.worldConfig.hpMultiplier).toBe(0.60);
+    expect(runner._cfg.worldConfig.hpMultiplier).toBe(0.811);   // 2026-08-08 conversion retune
     expect(runner.runLevel(1)).toHaveProperty('won');   // and it still runs
   });
 });

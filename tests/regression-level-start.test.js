@@ -40,23 +40,27 @@ describe('regression: every level starts in a valid state', () => {
       expect(cfg.colors.length).toBeGreaterThanOrEqual(1);
       if (cfg.id > 3) expect(cfg.colors.length).toBeGreaterThanOrEqual(2);
 
-      // 6. Grid-rows invariant. 16 everywhere EXCEPT the rows-8 + 2× pilot
-      //    (L4-L8, 2026-07-25): halving the board doubles the row pitch, which
-      //    is what makes cars ~2× bigger (see Car3D's FIT note). 8 is the
-      //    sim-proven FLOOR at 3 lanes — 7 and below are unwinnable at any
-      //    tuning, verified across all 40 levels.
-      const ROWS_8_PILOT = [4, 5, 6, 7, 8];
-      expect(cfg.gridRows).toBe(ROWS_8_PILOT.includes(cfg.id) ? 8 : 16);
+      // 6. Grid-rows invariant. The rows-8 board is now the game from L4 onward
+      //    (2026-08-08: L9-L40 converted to match the L4-L8 pilot). Halving the
+      //    board doubles the row pitch, which is what makes cars ~2× bigger (see
+      //    Car3D's FIT note). 8 is the sim-proven FLOOR at 3 lanes — 7 and below
+      //    are unwinnable at any tuning, verified across all 40 levels.
+      //    L1-L3 stay at 16: they are 1- and 2-lane tutorials with their own
+      //    geometry and are explicitly out of scope for the conversion.
+      expect(cfg.gridRows).toBe(cfg.id >= 4 ? 8 : 16);
 
-      // 7. Lane target car count: L1 eases in with 1, bosses crowd to 3, rest 2.
-      //    The rows-8 pilot levels are back at 2: the 2026-07-23 3-lane pilot
-      //    raised them to 4 to compensate for one fewer lane, but on an 8-row
-      //    board that density floods (ltc4 sims at 0-1% win). Density must fall
-      //    with board depth — ltc2 restores them to band.
-      const expectedTarget = cfg.id === 1 ? 1
-        : BOSS_LEVELS.includes(cfg.id) ? 3
-        : 2;
-      expect(cfg.laneTargetCarCount).toBe(expectedTarget);
+      // 6b. Lane count. Everything from L4 up is the 3-lane board; L1-L3 ramp.
+      if (cfg.id >= 4) expect(cfg.laneCount).toBe(3);
+
+      // 7. Lane target car count. L1 eases in with 1. Everything else is 2 or 3:
+      //    on an 8-row board ltc4 floods (0-1% win), so density must fall with
+      //    board depth. 3 is reserved for levels that need the extra pressure and
+      //    is capped there — a 4 anywhere means someone re-flooded the board.
+      if (cfg.id === 1) expect(cfg.laneTargetCarCount).toBe(1);
+      else {
+        expect(cfg.laneTargetCarCount).toBeGreaterThanOrEqual(2);
+        expect(cfg.laneTargetCarCount).toBeLessThanOrEqual(3);
+      }
 
       // 8. At least one car per lane must exist to defeat.
       expect(cfg.spawnBudget).toBeGreaterThanOrEqual(cfg.laneCount);

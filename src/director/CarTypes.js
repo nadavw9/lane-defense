@@ -139,9 +139,27 @@ const WEIGHTS_FULL = {
   RELIEF:   [{ value: 'small', weight: 30 }, { value: 'big', weight: 40 }, { value: 'jeep', weight: 20 }, { value: 'truck', weight: 10 }],
 };
 
+// RARE-TYPE GOAL LEVELS — L31, L32, L36, L39 (2026-08-08).
+//
+// These four carry destroyType goals for bigrig or tank. Those types gate on
+// minSpawnRow (bigrig 3, tank 4), and pickCarType filters by availableRows — so on
+// the 8-row board the L9-L40 conversion introduced, they clear the gate far less
+// often than they did at 16 rows. A goal asking for 3 bigrigs on a board that
+// rarely spawns one is not "hard", it is a level waiting on the RNG.
+//
+// bigrig and tank weights x2.5 in the phases that carry them, so the goal stays
+// reachable. Applied ONLY to these four levels rather than to WEIGHTS_FULL, which
+// L33/34/35/37/38/40 also use and which must keep its existing type mix.
+const scaleRare = (phases, k) => Object.fromEntries(
+  Object.entries(phases).map(([phase, ws]) => [phase, ws.map((w) =>
+    (w.value === 'bigrig' || w.value === 'tank') ? { ...w, weight: Math.round(w.weight * k) } : w)]));
+const WEIGHTS_RARE_GOAL = scaleRare(WEIGHTS_FULL, 2.5);
+const RARE_GOAL_LEVELS = new Set([31, 32, 36, 39]);
+
 // Exported for the level-config audit (tests/audit-level-config.test.js), which
 // verifies every destroyType goal targets a car type actually spawnable at that level.
 export function bandWeights(level) {
+  if (RARE_GOAL_LEVELS.has(level)) return WEIGHTS_RARE_GOAL;
   if (level === 1)  return WEIGHTS_L1;
   if (level <= 4)   return WEIGHTS_FTUE;
   if (level <= 5)   return WEIGHTS_MID;

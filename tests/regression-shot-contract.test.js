@@ -222,8 +222,11 @@ describe('regression: FR-1 viability holds across consecutive shots (L9)', () =>
     }
 
     // FR-1 held as the precondition of every shot taken across a solid consecutive
-    // run. The dense uniform opening breaches boosterless around shot 10 by design,
-    // so we don't require the board to survive — only that the invariant never broke.
-    expect(shots).toBeGreaterThanOrEqual(8);
+    // run. The dense uniform opening breaches boosterless by design, so we do not
+    // require the board to survive — only that the invariant never broke.
+    // 2026-08-08: floor 8 -> 5. L9 became a 3-lane/8-row board, which breaches
+    // several shots sooner; the run now ends at 6. The invariant itself never
+    // failed — only the number of shots available before the board is lost.
+    expect(shots).toBeGreaterThanOrEqual(5);
   });
 });

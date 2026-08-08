@@ -1,4 +1,4 @@
-// Layout smoke (bug classes A + C) — lane geometry on 1/2/3/4-lane levels.
+// Layout smoke (bug classes A + C) — lane geometry on 1/2/3-lane levels.
 //
 // History: explosion X, bomb drag offset, and BOMB lane mapping have each broken
 // on <4-lane levels because something assumed 4 lanes. These tests boot L1/L2/L3/L5
@@ -14,8 +14,9 @@ const CASES = [
   { level: 3, lanes: 3 },
   // L5: 4→3 lanes, THREE_LANE_REDESIGN_BATCH.md §2 pilot (2026-07-23).
   { level: 5, lanes: 3 },
-  // L9 stays the reference 4-lane case now that L5 is part of the pilot.
-  { level: 9, lanes: 4 },
+  // No 4-lane level remains above L3 after the L9-L40 conversion.
+  { level: 9,  lanes: 3 },   // 2026-08-08: L9-L40 converted to the 3-lane board
+  { level: 20, lanes: 3 },   // converted boss case
 ];
 
 for (const { level, lanes } of CASES) {

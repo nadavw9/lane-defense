@@ -11,25 +11,46 @@ An approved 3-workstream master plan is in progress (WS1 testing DONE → WS2 UI
 Route mechanical spec-execution to cheaper models; reserve Fable/Opus for design judgment
 (playbook §2).
 
-### VALIDATION RECIPE — local gate is vitest + ONE visual-smoke run (2026-08-08)
+### VALIDATION — the gates cost more than they caught; these are the rules (2026-08-08)
 
-**Local, before commit:** `npx vitest run` green, then **one** `npm run test:visual` run. That is the
-whole local gate.
+**1. Docs-only changes go straight to master.** No branch, no CI wait. A markdown file cannot
+break the game. Includes handoffs, plan docs, register updates, and this file.
 
-**Do NOT run `CI=true` + SwiftShader locally.** CI runs that exact suite, under SwiftShader, on
-GitHub's runners for every branch push. Running it here as well is the same ~15-minute job twice
-and was the single biggest source of wall-clock waiting in the sessions that used it.
-**Branch CI is the authority on SwiftShader** — push and let it judge.
+**2. Never run visual smoke locally. `npm run test:visual` is CI's job.** It does not attribute
+failures on this machine and produces noise rather than signal — measured across three
+consecutive clean runs with nothing else executing: a feature branch failed `layout.spec.js:77`
+and `transitions.spec.js:63` twice, `master` failed three *different* specs
+(`layout.spec.js:22`, `viewport-fit`, `worlds` L20) plus five flaky, and **every one of them
+passes in isolation**, including both of the branch's when the two spec files are run together.
+CI runs the same suite properly on clean runners. **The local gate for code is `npx vitest run`,
+nothing else.**
 
-This replaces the older recipe (full vitest + full visual-smoke + `CI=true` × 3 repeats). The
-branch-first rule below is unchanged and still governs the deploy/merge path.
+**3. Never `gh run watch`.** Push, move to the next task, read the result when you start the
+task after it. Sitting in a watch loop burns session time for no information.
 
-**The local visual-smoke suite is unstable on the dev machine and its failures do not attribute
-cleanly.** Measured 2026-08-08 across three consecutive clean runs with nothing else executing:
-a feature branch failed `layout.spec.js:77` + `transitions.spec.js:63` twice, while `master`
-failed three *different* specs (`layout.spec.js:22`, `viewport-fit`, `worlds` L20) plus five
-flaky — and every one of them passes in isolation. Treat a local smoke failure as a prompt to
-re-run and check CI, not as a result. **CI green on the branch outranks a local red.**
+**4. Branch + CI only for the deploy/merge path** — `GameLoop`, `DragDrop`, the merge sequencer,
+`CombatResolver`. That surface is genuinely CI-sensitive (see below). Everything else commits to
+master; if CI goes red, fix forward.
+
+**5. Two-attempt rule.** After two failed attempts at the same thing, stop, write down what is
+confirmed and what is not, move on. No third instrument, no third fix.
+
+`CI=true` + SwiftShader ×3 locally is **retired** — it was the same ~15-minute job CI already
+does, was the largest single source of wall-clock waiting, and never once caught what CI caught.
+
+**Pages deploys are cancelled by ANY branch push** (`concurrency: group: pages,
+cancel-in-progress: true` is repo-wide). Push master, then leave the remote alone until the
+deploy finishes, or it dies half-way and the live bundle silently stays on the old hash.
+
+### KNOWN LOCAL ISSUE — not a code defect
+
+**`layout.spec.js:77` and `transitions.spec.js:63` fail in local full-suite runs.** Attributed
+2026-08-08 and confirmed NOT to be a regression: they failed twice on `fix/bomb-blast-lane-shape`
+(including at `a716040`, before the DragDrop guard change existed, which rules that change out),
+did **not** fail on `master` — which failed three unrelated specs instead — and **both pass when
+their two spec files are run together**, 9/9. Branch CI's `visual-smoke` was green on the same
+commits. This is local full-suite instability under parallel workers, not a defect. Do not
+"fix" it by changing game code.
 
 ### OPEN, BLOCKED ON OWNER INPUT — do not investigate further until it arrives
 

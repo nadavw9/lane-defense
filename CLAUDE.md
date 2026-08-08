@@ -9,7 +9,27 @@ An approved 3-workstream master plan is in progress (WS1 testing DONE → WS2 UI
 2. **Per-task HOW + work guidelines + model routing + art prompts:** `docs/superpowers/plans/IMPLEMENTATION_PLAYBOOK.md`
 
 Route mechanical spec-execution to cheaper models; reserve Fable/Opus for design judgment
-(playbook §2). Every task: vitest green (1193+) + `npm run test:visual` green (18) before commit.
+(playbook §2).
+
+### VALIDATION RECIPE — local gate is vitest + ONE visual-smoke run (2026-08-08)
+
+**Local, before commit:** `npx vitest run` green, then **one** `npm run test:visual` run. That is the
+whole local gate.
+
+**Do NOT run `CI=true` + SwiftShader locally.** CI runs that exact suite, under SwiftShader, on
+GitHub's runners for every branch push. Running it here as well is the same ~15-minute job twice
+and was the single biggest source of wall-clock waiting in the sessions that used it.
+**Branch CI is the authority on SwiftShader** — push and let it judge.
+
+This replaces the older recipe (full vitest + full visual-smoke + `CI=true` × 3 repeats). The
+branch-first rule below is unchanged and still governs the deploy/merge path.
+
+**The local visual-smoke suite is unstable on the dev machine and its failures do not attribute
+cleanly.** Measured 2026-08-08 across three consecutive clean runs with nothing else executing:
+a feature branch failed `layout.spec.js:77` + `transitions.spec.js:63` twice, while `master`
+failed three *different* specs (`layout.spec.js:22`, `viewport-fit`, `worlds` L20) plus five
+flaky — and every one of them passes in isolation. Treat a local smoke failure as a prompt to
+re-run and check CI, not as a result. **CI green on the branch outranks a local red.**
 
 ### OPEN, BLOCKED ON OWNER INPUT — do not investigate further until it arrives
 
@@ -38,7 +58,9 @@ rebuilding. A 15th blind configuration is not evidence; see the two 2026-08-07 p
 before it reaches master.** Do not validate locally and push to master.
 
 Three changes have now failed CI on the same two L5 deploy tests after passing *everything*
-locally — full vitest, full visual-smoke, and `CI=true` + SwiftShader across 3 repeats. Two of
+locally — full vitest, full visual-smoke, and (under the retired recipe) `CI=true` + SwiftShader
+across 3 repeats. **That local SwiftShader triple never once caught what CI caught**, which is
+the other half of why it was dropped; see the validation recipe above. Two of
 them reached master and had to be reverted; the third was caught on a branch, which is the
 whole point. That path is the most CI-sensitive surface in the project: it is timing-dependent,
 and CI's software renderer runs the game loop ~12× slower than a dev GPU, so windows that never

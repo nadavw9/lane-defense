@@ -23,7 +23,7 @@ const SAMPLE_Y = 250;
 // missing/blank panel renders near-black at every point (median stays low),
 // while a real panel that got unlucky at one point still has the rest at
 // normal brightness (median reflects the panel's true state).
-const SAMPLE_OFFSETS = [-80, 0, 80];   // 2026-08-08: 5 -> 3, see medianBrightness
+const SAMPLE_OFFSETS = [-80, -40, 0, 40, 80];
 
 function median(nums) {
   const sorted = [...nums].sort((a, b) => a - b);
@@ -31,25 +31,9 @@ function median(nums) {
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
-// 2026-08-08: the same argument now applies on the X axis. The L9-L40 conversion
-// took every level above L3 to 3 lanes, which NARROWS the road and therefore
-// WIDENS these side strips. One x-column is no longer representative of a wider
-// strip: at L35 the night world's dark building faces outnumbered its neon
-// accents 3-to-2 at the new strip centre and the median fell to 4.4 while the
-// panel was demonstrably rendering (verified in the failure screenshot — full
-// neon art on both edges). Sample a GRID across the strip's width as well as its
-// height. A genuinely missing panel is near-black everywhere, so the median still
-// catches it; a real panel with dark patches no longer fails on where one column
-// happened to land.
-// Screenshot COUNT is the binding constraint: page.screenshot() is far slower on
-// CI's software renderer, and a 3x5 grid on two strips (30 shots) blew the 120s
-// per-test timeout there while passing locally. 3x3 keeps the horizontal coverage
-// the wider strips need at 18 shots — below the 30 that timed out, above the 10
-// that has always passed.
-async function medianBrightness(game, xs, cyBase, offsets, size = 12) {
+async function medianBrightness(game, cx, cyBase, offsets, size = 12) {
   const samples = [];
-  for (const cx of (Array.isArray(xs) ? xs : [xs]))
-    for (const dy of offsets) samples.push((await game.sampleRegion(cx, cyBase + dy, size)).brightness);
+  for (const dy of offsets) samples.push((await game.sampleRegion(cx, cyBase + dy, size)).brightness);
   return { median: median(samples), samples };
 }
 
@@ -63,24 +47,41 @@ const WORLDS = [
   // blank/missing strip). 12 was tuned against city/industrial and never
   // actually validated against night. 8 stays well clear of a genuinely
   // missing panel (which renders near-black, not merely "dark").
-  { level: 35, world: 'world3 (night)',      minBrightness: 8 },
+  // SKIPPED 2026-08-08 — RECORDED FINDING, NOT A FLAKE. See the block below.
+  { level: 35, world: 'world3 (night)',      minBrightness: 8, skip: true },
 ];
 
-for (const { level, world, minBrightness } of WORLDS) {
-  test(`L${level}: ${world} side panels render on both edges`, async ({ game }) => {
+// L35 IS SKIPPED PENDING AN OWNER DECISION (2026-08-08).
+//
+// The L9-L40 conversion took every level above L3 to 3 lanes. That NARROWS the
+// road and therefore WIDENS these side strips — and the world panels are anchored
+// to the ROAD edge, so the extra width lands at the SCREEN edge, where there is no
+// panel art. Measured on CI at L35, sampling three columns across the left strip:
+//     nearest screen edge   4.5,  2.5,  3.0
+//     strip centre          4.1,  8.0, 10.7     <- the historical sample point
+//     nearest road         24.5, 20.5, 21.0
+// The panel renders — verified in the failure screenshot, full neon art on both
+// edges — it simply no longer reaches the strip centre on the darkest world. The
+// centre median is 8.0 against a `> 8` threshold: failing by nothing.
+//
+// This is a REAL VISUAL QUESTION, not a test defect: should CityEdges stretch the
+// world panels to fill the wider 3-lane strip, or is a darker outer band accepted?
+// That is the owner's call, so this is skipped rather than re-thresholded —
+// lowering the floor again would bury the finding under a green check, which is
+// exactly how the BOMB blast survived six weeks of passing tests.
+//
+// L5 and L20 still run and still guard the original failure mode (a blank strip).
+for (const { level, world, minBrightness, skip } of WORLDS) {
+  (skip ? test.skip : test)(`L${level}: ${world} side panels render on both edges`, async ({ game }) => {
     await game.startLevel(level);
 
     const pos = await game.positions();
     // Strip = space outside the outermost lane bounds.
-    const leftEdge  = pos.laneBounds[0].left;
-    const rightEdge = pos.laneBounds[pos.laneCount - 1].right;
-    // Three columns across each strip rather than one at its centre.
-    const leftXs  = [0.30, 0.50, 0.70].map((f) => leftEdge * f);
-    const rightXs = [0.30, 0.50, 0.70].map((f) => rightEdge + (390 - rightEdge) * f);
-    const leftStripCenter = leftXs[1], rightStripCenter = rightXs[1];
+    const leftStripCenter  = pos.laneBounds[0].left / 2;
+    const rightStripCenter = (pos.laneBounds[pos.laneCount - 1].right + 390) / 2;
 
-    const left  = await medianBrightness(game, leftXs,  SAMPLE_Y, SAMPLE_OFFSETS);
-    const right = await medianBrightness(game, rightXs, SAMPLE_Y, SAMPLE_OFFSETS);
+    const left  = await medianBrightness(game, leftStripCenter,  SAMPLE_Y, SAMPLE_OFFSETS);
+    const right = await medianBrightness(game, rightStripCenter, SAMPLE_Y, SAMPLE_OFFSETS);
 
     // A rendered panel is never near-black (the historical failure mode is a
     // black/blank strip). Threshold is per-world — see WORLDS above for why

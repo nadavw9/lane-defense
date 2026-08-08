@@ -164,3 +164,73 @@ describe('BOMB booster affects the target lane and nothing else', () => {
     expect(app, 'GameApp routes a bomb tap to a row clear').not.toMatch(/placeBombOnRow/);
   });
 });
+
+// THE BLAST MUST BE DRAWN WHERE THE KILLS HAPPEN.
+//
+// Everything above passed continuously while the player kept reporting, correctly,
+// that the BOMB "hits 2 rows, not 1 lane" — for six weeks. The kills WERE lane-only.
+// The EXPLOSION was not: Particles3D.spawnBombExplosion looped every lane on an
+// 80ms left-to-right cascade and Road3D.spawnBombRing was centred at road centre
+// with a radius wider than a lane, because both were authored when BOMB cleared a
+// row (20593cd) and neither was touched when the mechanic changed.
+//
+// The root cause was upstream of both: placeBombOnLane called
+// _onBombExplode(car.position, 1) — position is a ROW scalar, so the lane was never
+// sent and no downstream effect COULD draw itself in the right place.
+//
+// The lesson for this file: asserting which cars die is not the same as asserting
+// what the player sees. A test suite that only counts survivors cannot fail on a
+// purely visual defect, and "verified on device" does not close that gap either if
+// the verifier is also counting kills.
+describe('the BOMB blast is drawn in the target lane, not across the row', () => {
+  it('passes the target lane to the explosion callback for EVERY kill', () => {
+    // This is the assertion whose absence let the bug ship. The callback was always
+    // stubbed here; its arguments were simply never checked.
+    const { loop } = build();
+    loop.placeBombOnLane(1, 3);
+
+    expect(loop._onBombExplode.mock.calls.length,
+      'one explosion per car in the cleared lane').toBe(4);
+    for (const call of loop._onBombExplode.mock.calls) {
+      expect(call.length,
+        'the explosion callback is missing an argument — if the lane is not passed, '
+        + 'every downstream effect defaults to road centre and spans all lanes')
+        .toBeGreaterThanOrEqual(3);
+      expect(call[2], 'explosion reported for the wrong lane').toBe(1);
+    }
+  });
+
+  it('carries the right lane at every lane count and target', () => {
+    for (const laneCount of [2, 3, 4]) {
+      for (let target = 0; target < laneCount; target++) {
+        const { loop } = build({ laneCount });
+        loop.placeBombOnLane(target, 2);
+        const lanesSeen = new Set(loop._onBombExplode.mock.calls.map((c) => c[2]));
+        expect([...lanesSeen], `lanes=${laneCount} target=${target}: blast drawn in the wrong lane(s)`)
+          .toEqual([target]);
+      }
+    }
+  });
+
+  it('the particle blast does not sweep every lane when given a target', () => {
+    const src = require('fs').readFileSync('src/renderer3d/Particles3D.js', 'utf8');
+    const fn  = src.slice(src.indexOf('spawnBombExplosion('), src.indexOf('_spawnBombLaneBurst(laneIdx, z)'));
+    expect(fn, 'spawnBombExplosion must accept the lane to detonate').toMatch(/spawnBombExplosion\s*\([^)]*laneIdx/);
+    // The old shape: `for (let li = 0; li < nLanes; li++)` firing a burst per lane.
+    expect(fn, 'the all-lanes cascade is back — this is the row sweep the player sees')
+      .not.toMatch(/for\s*\(\s*let\s+li\s*=\s*0\s*;\s*li\s*<\s*nLanes/);
+  });
+
+  it('the blast geometry is bounded by the LANE, not the road', () => {
+    // A ring centred correctly but grown to road width still reads as a row.
+    const parts = require('fs').readFileSync('src/renderer3d/Particles3D.js', 'utf8');
+    const road  = require('fs').readFileSync('src/renderer3d/Road3D.js', 'utf8');
+    const fn    = parts.slice(parts.indexOf('spawnBombExplosion('), parts.indexOf('_spawnBombLaneBurst(laneIdx, z)'));
+    expect(fn, 'blast radius must derive from CELL (lane width), not a literal')
+      .toMatch(/CELL\s*\/\s*2/);
+    expect(fn, 'shockwave rings must not use the old road-wide rates of 20 and 14')
+      .not.toMatch(/scaleRate:\s*(20|14)\b/);
+    expect(road, 'the road decal must be bounded by lane width').toMatch(/CELL\s*\/\s*2/);
+    expect(road, 'the bomb ring must be positioned by lane').toMatch(/spawnBombRing\s*\([^)]*laneIdx/);
+  });
+});

@@ -454,25 +454,45 @@ export class Particles3D {
   }
 
   /**
-   * Spawn a large bomb explosion at road position bombPos (0-100).
-   * Covers all 4 lanes with a wide shockwave + concussion freeze ring.
+   * Spawn a bomb explosion at road position bombPos (0-100) in ONE lane.
+   *
+   * THIS USED TO COVER EVERY LANE, and its docstring said so: "Covers all 4 lanes
+   * with a wide shockwave". That was correct for the original BOMB, which cleared a
+   * ROW. When the booster became lane-clear, the KILL MODEL was converted and pinned
+   * by tests, but this blast was never touched — so the player kept seeing a
+   * left-to-right sweep across all lanes and kept reporting "it hits a row, not a
+   * lane". Verified 2026-08-08: the kills were already lane-correct; only the
+   * picture was wrong, which is why kill-counting tests and a device check both
+   * passed while the complaint stayed valid.
+   *
+   * Everything here is therefore centred on the lane and bounded to its width.
    * @param {number} bombPos  road-position 0-100
+   * @param {number|null} laneIdx  lane to detonate; null = legacy road-wide shape
    */
-  spawnBombExplosion(bombPos) {
+  spawnBombExplosion(bombPos, laneIdx = null) {
     const z      = posToZ(bombPos);
     const nLanes = this._lanes.length || 4;
+    const lanes  = laneIdx == null ? Array.from({ length: nLanes }, (_, i) => i) : [laneIdx];
 
-    // Left-to-right cascade: fire each lane 80ms apart at 2× particle size
-    for (let li = 0; li < nLanes; li++) {
-      const delay = li * 80;
+    // One burst per targeted lane. With a single lane there is nothing to cascade,
+    // so the 80ms-per-lane stagger — the sweep the player read as a row — is gone.
+    lanes.forEach((li, i) => {
+      const delay = lanes.length === 1 ? 0 : i * 80;
       setTimeout(() => {
         if (this._disposed) return;
         this._spawnBombLaneBurst(li, z);
       }, delay);
-    }
+    });
 
-    // Global shockwave + light flashes after all lanes have fired
-    const finalDelay = nLanes * 80;
+    // Shockwave rings, sized from the LANE, not the road. A ring's outer radius is
+    // _ringGeo's 0.3 × (1 + scaleRate), so the old rates of 20 and 14 reached 6.3
+    // and 4.5 world units — on a 3-lane road only 12 wide. Half a lane is CELL/2.
+    const RING_OUTER_R = 0.3;                       // _ringGeo outer radius
+    const maxR    = laneIdx == null ? CELL * 1.5 : CELL / 2;
+    const rateFor = () => maxR / RING_OUTER_R - 1;
+    const x       = laneIdx == null ? 0 : laneToX(laneIdx);
+
+    const finalDelay = lanes.length === 1 ? 0 : nLanes * 80;
     setTimeout(() => {
       if (this._disposed) return;
 
@@ -481,22 +501,22 @@ export class Particles3D {
       });
       const bigRing = new THREE.Mesh(_ringGeo, waveMatAmber);
       bigRing.rotation.x = -Math.PI / 2;
-      bigRing.position.set(0, 0.02, z);
+      bigRing.position.set(x, 0.02, z);
       this._scene.add(bigRing);
-      this._shockwaves.push({ mesh: bigRing, mat: waveMatAmber, life: 0.5, maxLife: 0.5, scaleRate: 20 });
+      this._shockwaves.push({ mesh: bigRing, mat: waveMatAmber, life: 0.5, maxLife: 0.5, scaleRate: rateFor() });
 
       const waveMatBlue = new THREE.MeshBasicMaterial({
         color: 0x44ccff, transparent: true, opacity: 0.45, side: THREE.DoubleSide,
       });
       const iceRing = new THREE.Mesh(_ringGeo, waveMatBlue);
       iceRing.rotation.x = -Math.PI / 2;
-      iceRing.position.set(0, 0.04, z);
+      iceRing.position.set(x, 0.04, z);
       this._scene.add(iceRing);
-      this._shockwaves.push({ mesh: iceRing, mat: waveMatBlue, life: 0.7, maxLife: 0.7, scaleRate: 14 });
+      this._shockwaves.push({ mesh: iceRing, mat: waveMatBlue, life: 0.7, maxLife: 0.7, scaleRate: rateFor() });
 
-      this._lighting?.explosionFlash(0xff8800, 0, PARTICLE_Y + 0.5, z);
-      setTimeout(() => { if (!this._disposed) this._lighting?.explosionFlash(0xffffff, 0, PARTICLE_Y + 0.5, z); }, 80);
-      setTimeout(() => { if (!this._disposed) this._lighting?.explosionFlash(0x44ccff, 0, PARTICLE_Y + 0.5, z); }, 200);
+      this._lighting?.explosionFlash(0xff8800, x, PARTICLE_Y + 0.5, z);
+      setTimeout(() => { if (!this._disposed) this._lighting?.explosionFlash(0xffffff, x, PARTICLE_Y + 0.5, z); }, 80);
+      setTimeout(() => { if (!this._disposed) this._lighting?.explosionFlash(0x44ccff, x, PARTICLE_Y + 0.5, z); }, 200);
     }, finalDelay);
   }
 

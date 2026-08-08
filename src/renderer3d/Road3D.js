@@ -6,7 +6,7 @@
 // Call setLaneCount(n) to rebuild geometry for 1–4 active lanes.
 
 import * as THREE from 'three';
-import { ROAD_Z_FAR, ROAD_Z_NEAR, ROAD_Z_VANISHING, laneToX, roadHalfW, posToZ } from './Scene3D.js';
+import { ROAD_Z_FAR, ROAD_Z_NEAR, ROAD_Z_VANISHING, laneToX, roadHalfW, posToZ, CELL } from './Scene3D.js';
 import { computeFrustum, screenYToZ, BREACH_LINE_Y } from './projection.js';
 
 // ── Road tile texture (loaded once, shared across rebuilds) ───────────────────
@@ -216,7 +216,11 @@ export class Road3D {
 
 
   // ── Bomb ring ────────────────────────────────────────────────────────────────
-  spawnBombRing(bombPos, colorHex = 0xff8800) {
+  // laneIdx null keeps the legacy road-centre ring (used by nothing now); the BOMB
+  // booster passes its lane so the decal sits under the blast instead of spanning
+  // the road. The old ring was centred at x=0 and grew to radius 3.0 world units —
+  // wider than a 4.0-wide lane — so it read as a horizontal band across every lane.
+  spawnBombRing(bombPos, colorHex = 0xff8800, laneIdx = null) {
     const z   = posToZ(bombPos);
     const mat = new THREE.MeshBasicMaterial({
       color:       0xffffff,
@@ -228,12 +232,15 @@ export class Road3D {
     const geo  = new THREE.RingGeometry(0.92, 1.0, 32);
     const mesh = new THREE.Mesh(geo, mat);
     mesh.rotation.x = -Math.PI / 2;
-    mesh.position.set(0, 0.012, z);
+    mesh.position.set(laneIdx == null ? 0 : laneToX(laneIdx), 0.012, z);
     this._group.add(mesh);
     this._bombRings.push({
       mesh, mat,
       elapsed:     0,
       duration:    0.30,
+      // Ring outer radius is 1.0, so maxScale IS the final radius in world units.
+      // Bound it to half a lane when targeted; keep the old 3.0 when it is not.
+      maxScale:    laneIdx == null ? 3.0 : CELL / 2,
       targetColor: new THREE.Color(colorHex),
     });
   }
@@ -302,7 +309,7 @@ export class Road3D {
       const ring = this._bombRings[i];
       ring.elapsed += dt;
       const prog  = Math.min(1, ring.elapsed / ring.duration);
-      const scale = 1 + prog * 2;
+      const scale = 1 + prog * ((ring.maxScale ?? 3.0) - 1);
       ring.mesh.scale.set(scale, scale, scale);
       ring.mat.opacity = 0.90 * (1 - prog);
       ring.mat.color.lerpColors(new THREE.Color(0xffffff), ring.targetColor, prog);

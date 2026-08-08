@@ -163,7 +163,12 @@ export class GameLoop {
         bs.bombs++;
         this._onBombEarned?.();
       }
-      this._onBombExplode?.(car.position, 1);
+      // PASS THE LANE (2026-08-08). This used to send only the car's road position
+      // — a row scalar — so every downstream effect was lane-agnostic and defaulted
+      // to road centre / full width. The kill model became lane-only in the
+      // lane-clear change, but the BLAST kept the row-clear shape it was authored
+      // with, which is what the player was still seeing and reporting.
+      this._onBombExplode?.(car.position, 1, laneIdx);
     }
 
     // Brief freeze on all remaining cars.

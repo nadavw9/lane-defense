@@ -242,14 +242,17 @@ export class GameRenderer3D {
    * @param {number} bombPos  road-position 0-100 where bomb was placed
    * @param {number} carsHit  number of cars damaged
    */
-  onBombExplode(bombPos, carsHit) {
-    this._particles?.spawnBombExplosion(bombPos);
+  // laneIdx is REQUIRED for the blast to land in the right place. The BOMB booster
+  // clears one lane, so its explosion must be one lane wide; a null lane falls back
+  // to the old road-wide shape, which is the bug, so callers must pass it.
+  onBombExplode(bombPos, carsHit, laneIdx = null) {
+    this._particles?.spawnBombExplosion(bombPos, laneIdx);
     const shakeMag = 0.30 + Math.min(carsHit, 6) * 0.04;
     this._cameraFX?.shake(shakeMag, 0.55);
     this._scene3d?.setBloomStrength(1.5);
     this._postFX?.triggerChroma(0.05, 0.60);
     // Expanding ring decal on road surface + white screen flash
-    this._road?.spawnBombRing(bombPos);
+    this._road?.spawnBombRing(bombPos, 0xff8800, laneIdx);
     this._postFX?.setFlash(0.4, 0.05);
   }
 

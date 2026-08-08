@@ -1,94 +1,99 @@
-REVIEW BATCH — 2026-08-07
-Two changes: the merge animation (your ball/socket bug) and booster-card clearance.
-Crops at deviceScaleFactor 3.
+REVIEW BATCH — 2026-08-08
+BOMB booster: the blast was still ROW-SHAPED. Captured from real play at L8,
+3 lanes, tapping a car in LANE 0 (leftmost). Frames are the top 560px of the stage
+at deviceScaleFactor 3.
 
 ===============================================================================
-01 / 02  BEFORE          03 / 04  AFTER
+01 / 03  BEFORE          02 / 04  AFTER          05  kills
 ===============================================================================
-01-boosterbar-BEFORE.png   bottom chrome at rest      (stage Y 700..844)
-02-merge-BEFORE.png        caught mid-merge, 'travel' (stage Y 560..780)
-03-boosterbar-AFTER.png    same crop, after
-04-merge-AFTER.png         same crop, after
+01-blast-BEFORE-070ms.png   blast 70ms after the tap, before the fix
+02-blast-AFTER-070ms.png    same moment, after
+03-blast-BEFORE-150ms.png   150ms, before
+04-blast-AFTER-150ms.png    150ms, after
+05-kills-lane-only-AFTER.png board after the blast
 
-THE ONE THAT MATTERS IS 02 vs 04.
+THE PAIR THAT MATTERS IS 01 vs 02.
 
--------------------------------------------------------------------------------
-02 (BEFORE) — this is your screenshot, reproduced
--------------------------------------------------------------------------------
-Bottom row: two small green balls ("3" and "5") float BETWEEN sockets, and the
-sockets they belong to sit visibly EMPTY on either side. That is the whole defect.
+Lane centres in these images (1170px wide = 390 stage px x 3):
+    lane 0 -> x 340      lane 1 -> x 585      lane 2 -> x 831
+The tap was in LANE 0. Only x~340 should light up.
 
-04 (AFTER): both balls shrink out INSIDE their own sockets. No empty rings, no
-ball between slots.
-
--------------------------------------------------------------------------------
-WHY TWO PRIOR FIXES MISSED IT
--------------------------------------------------------------------------------
-Both earlier fixes are live in production — verified against the deployed bundle's
-ancestry, not git log (e7b4720 and c35d40f are both ancestors of the deployed
-091d9e9). They were not the wrong fixes; they were fixes to the wrong path. Both
-targeted the refill DROP. The actual trigger is the MERGE.
-
-The merge's 'travel' phase spent 150ms interpolating each outer bomb's world
-position across the queue to the destination slot. Sockets are Pixi circles at
-fixed screen positions; balls are Three meshes. So a ball in flight is a ball drawn
-outside every socket — measured on the live build at up to 2.00 SLOT PITCHES, two
-entire sockets, from its own.
-
-Measured with a per-frame trace (scripts/_ball-timeseries.mjs) rather than a
-before/after snapshot, which is what finally separated the merge from the refill.
-
-ONE CORRECTION TO WHAT I TOLD YOU EARLIER: I first reported ~370ms of visible
-displacement. That was wrong — it counted spent travellers parked at the
-destination with scale 0, which are invisible. The genuinely visible window is
-~120ms. The magnitude, not the duration, is what makes it screenshot-able: a ball
-two full sockets away from where it belongs is obvious in any single frame.
-
--------------------------------------------------------------------------------
-THE FIX IS STRUCTURAL, NOT A RE-TUNE
--------------------------------------------------------------------------------
-Per your decision: a ball is now either seated in a socket or not drawn at all.
-The outers shrink out where they already sit; the merged bomb pops in AT the
-destination. Nothing travels between slots.
-
-This kills the class, not just this instance — no easing curve makes a path
-between two sockets correct, because every point along it is outside both.
-Guarded by tests/merge-animation-geometry.test.js (4 tests): the travel, highlight
-and pop phases may not translate a slot; exactly ONE slot translation may exist in
-GameApp (the refill drop, separately bounded); and the cross-slot interpolation
-caches must stay deleted rather than merely unused.
-
--------------------------------------------------------------------------------
-01 vs 03 — booster clearance
--------------------------------------------------------------------------------
-BoosterBar.BAR_Y 776 -> 768, BAR_H 68 -> 76, so the bar still ENDS at 844 and stays
-flush — the reclaimed dead strip is not coming back. The 8px goes to the cards,
-which had only 2px of clearance above the stage bottom (labels 5px). At desktop
-stage scale ~0.7 that was 1.4 and 3.5 CSS px, which reads as cut off.
-Label clearance roughly triples (5 -> 9px).
-
-Cost, as flagged: 8px less room above for the bomb queue, so the solved ball radius
-drops slightly from the reclaim's peak.
+01 (BEFORE): bright bursts at ALL THREE lane centres — a horizontal band of light
+across the full road width at the tapped row.
+02 (AFTER):  one burst at x~340. Lanes 1 and 2 are dark.
 
 ===============================================================================
-DESKTOP CLIPPING — WHAT I FOUND, AND WHAT I STILL CANNOT REPRODUCE
+REGRESSION, OR NEVER FIXED? --> NEVER FIXED. No bisect was needed.
 ===============================================================================
-Tested real browser-window heights WITH chrome, at DPR 1 / 1.25 / 1.5 (Windows 125%
-and 150% display scaling), on both the dev server and the LIVE build — 14
-configurations. The fitted box is exact in every one, e.g. 1280x595 @ DPR 1.5 gives
-a 275x595 canvas against an expected 275x595, top 0, bottom 595.
+The KILLS were already correct and have been all along. Verified again here through
+the real input path (a real click on the real BOMB button, then a real click on a
+real car — no programmatic fire): tapping lane 0 killed 2/2 cars in lane 0, and the
+WITNESS car in lane 1 on the SAME ROW survived, as did all of lane 2.
 
-So it is NEITHER of the two options you named: not CSS overflow past the box, and
-not a mis-sized box. Both are ruled out.
+What was never converted is the BLAST. Git history is unambiguous:
+  - 20593cd  "fix: BOMB booster clears entire ROW ... via tap Y->row"
+      the VFX was authored here, for a bomb that really did clear a row
+  - the lane-clear change converted the kill model
+  - bd2348d  "test: pin BOMB to lane-only"
+      touched SimulationRunner.js and two test files. NO renderer files.
+  - Particles3D.spawnBombExplosion has not changed since 888e415, long before.
 
-What IS real is the bottom tightness above, and that is now addressed.
+So the row-shaped explosion is the ORIGINAL row-clear visual, simply left behind.
+Its docstring still said so in plain text: "Covers all 4 lanes with a wide
+shockwave + concussion freeze ring."
 
-The top HUD "9 9" being cut I could NOT reproduce — the goal cards render complete
-at every size and DPR I tested. I am not claiming it does not happen. To close it I
-need: your window size (or just F11-fullscreen vs windowed), your browser zoom
-level (Ctrl+0 resets to 100%), and whether the screenshot was the live URL.
+Root cause, upstream of both effects: GameLoop.placeBombOnLane called
+    this._onBombExplode(car.position, 1)
+`position` is a ROW scalar. The LANE was never passed, so no downstream effect
+could draw itself in the right place even in principle:
+  - Particles3D looped every lane, 80ms apart, left to right (the sweep)
+  - Road3D's ring was centred at x=0, road centre, and grew to radius 3.0 world
+    units on a lane only 4.0 wide
 
-METHOD NOTE WORTH KEEPING: every prior automated measurement of this bug ran
-against the DEV SERVER, because the harness waits on window._nav, which is behind
-import.meta.env.DEV and does not exist in production. The probes silently timed out
-on live and I had been reading dev-only evidence. Fixed.
+Fix: thread the lane through, then bound every element to it — one lane's burst,
+ring and light flashes centred on laneToX(lane), radius CELL/2 instead of 3.0/6.3.
+
+===============================================================================
+WHY THE EXISTING TESTS AND THE DEVICE CHECK BOTH PASSED
+===============================================================================
+tests/bomb-lane-only.test.js had 9 tests, all green, all about WHICH CARS DIE.
+None looked at the explosion. The earlier "verified 4/4 kills in-lane / 0 outside"
+device confirmation measured the same thing. A suite that only counts survivors
+cannot fail on a purely visual defect, and neither can a reviewer who is counting
+kills — so the report stayed valid for weeks against green evidence.
+
+Four tests added (13 total). All four FAIL against the old code and pass against
+the new — verified by stashing the fix and re-running:
+  x passes the target lane to the explosion callback for EVERY kill
+  x carries the right lane at every lane count and target
+  x the particle blast does not sweep every lane when given a target
+  x the blast geometry is bounded by the LANE, not the road
+The first is the one whose absence let this ship: the callback was always stubbed
+in that file, its arguments were simply never asserted.
+
+===============================================================================
+SEPARATE — the "can't put another one next to him" report (NO CODE CHANGED)
+===============================================================================
+Confirmed: deploys are turn-based, one shot at a time, and this is enforced twice
+with the two guards DISAGREEING.
+
+  DragDrop.js:394   if (this._firingSlots[laneIdx]) snapBack()   <- SAME lane only
+  GameLoop.js:108   if (ANY firingSlot is set) return            <- bare return
+
+Measured: deploy(col0,lane0) is accepted (slot 0 taken, column 3->2); then
+deploy(col1,lane1) and deploy(col2,lane2) during that flight are BOTH refused,
+with no slot taken and no bomb consumed.
+
+Player-visible difference between the two cases:
+  - dropping into the SAME lane -> DragDrop snaps the bomb back. Clear feedback.
+  - dropping into a DIFFERENT lane -> DragDrop's guard does not fire, so
+    _handleLaneDrop runs the full fly-into-the-lane animation and destroys the
+    ghost (DragDrop.js:470-474) BEFORE GameLoop silently refuses. The bomb flies
+    in, vanishes, nothing happens, and it is still sitting in the queue.
+
+That second case is a FALSE SUCCESS, and "next to him" is exactly it — an adjacent
+lane. Left unchanged as instructed; flagging it because a silent refusal that also
+plays the success animation reads as broken even though the restriction is intended.
+
+Shot window is SHOT_TRAVEL_TIME = 0.18s, shortened by the combo multiplier to
+~0.06s at 2x — brief, but it is precisely the window a fast player is tapping in.

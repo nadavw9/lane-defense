@@ -1727,8 +1727,8 @@ async function main() {
       pauseGame: true,
     });
   };
-  gameLoop._onBombExplode = (bombPos, carsHit) => {
-    gameRenderer3D.onBombExplode(bombPos, carsHit);
+  gameLoop._onBombExplode = (bombPos, carsHit, laneIdx = null) => {
+    gameRenderer3D.onBombExplode(bombPos, carsHit, laneIdx);
     // 2D particle fallback: explosion at each hit car position.
     // (GameRenderer3D handles 3D; we fire audio and 2D haptics here.)
     audio.play('car_destroy');
@@ -2444,6 +2444,16 @@ async function main() {
       // The game's OWN source of truth for where things render — tests assert
       // pixels/taps against these instead of re-deriving frustum math (which
       // would just duplicate-and-drift, the exact bug class being tested).
+      // Every car with BOTH its logical slot (lane/row) and its screen point, read
+      // from the app's OWN projection instance. A probe that imports LaneRenderer or
+      // projection.js from page context gets a SECOND module instance stuck at
+      // band-540 defaults (CLAUDE.md §6) and taps the wrong pixels — which is how a
+      // BOMB probe could "miss" and report the wrong blast shape.
+      getCarScreenPositions: () => gs.lanes.flatMap((lane, li) =>
+        lane.cars.map(c => ({
+          lane: li, row: c.row, position: c.position, color: c.color, hp: c.hp,
+          x: getLaneScreenX(li), y: posToScreenY(c.position),
+        }))),
       getPositions: () => ({
         laneCount: getActiveLaneCount(),
         colCount:  getActiveColCount(),

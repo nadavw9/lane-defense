@@ -23,7 +23,7 @@ const SAMPLE_Y = 250;
 // missing/blank panel renders near-black at every point (median stays low),
 // while a real panel that got unlucky at one point still has the rest at
 // normal brightness (median reflects the panel's true state).
-const SAMPLE_OFFSETS = [-80, -40, 0, 40, 80];
+const SAMPLE_OFFSETS = [-80, 0, 80];   // 2026-08-08: 5 -> 3, see medianBrightness
 
 function median(nums) {
   const sorted = [...nums].sort((a, b) => a - b);
@@ -41,6 +41,11 @@ function median(nums) {
 // height. A genuinely missing panel is near-black everywhere, so the median still
 // catches it; a real panel with dark patches no longer fails on where one column
 // happened to land.
+// Screenshot COUNT is the binding constraint: page.screenshot() is far slower on
+// CI's software renderer, and a 3x5 grid on two strips (30 shots) blew the 120s
+// per-test timeout there while passing locally. 3x3 keeps the horizontal coverage
+// the wider strips need at 18 shots — below the 30 that timed out, above the 10
+// that has always passed.
 async function medianBrightness(game, xs, cyBase, offsets, size = 12) {
   const samples = [];
   for (const cx of (Array.isArray(xs) ? xs : [xs]))

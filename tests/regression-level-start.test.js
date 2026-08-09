@@ -45,9 +45,12 @@ describe('regression: every level starts in a valid state', () => {
       //    board doubles the row pitch, which is what makes cars ~2× bigger (see
       //    Car3D's FIT note). 8 is the sim-proven FLOOR at 3 lanes — 7 and below
       //    are unwinnable at any tuning, verified across all 40 levels.
-      //    L1-L3 stay at 16: they are 1- and 2-lane tutorials with their own
-      //    geometry and are explicitly out of scope for the conversion.
-      expect(cfg.gridRows).toBe(cfg.id >= 4 ? 8 : 16);
+      //    2026-08-09: L1-L3 converted too. They were the last levels left at 16,
+      //    and that is exactly why the owner reported "the motorbikes are tiny" on
+      //    L1 — car size is FIT x rowPitchWu x pxPerWu and rowPitchWu is 26/gridRows,
+      //    so 16 rows renders every car at HALF the size the rest of the game uses.
+      //    The whole game is now one board depth.
+      expect(cfg.gridRows).toBe(8);
 
       // 6b. Lane count. Everything from L4 up is the 3-lane board; L1-L3 ramp.
       if (cfg.id >= 4) expect(cfg.laneCount).toBe(3);

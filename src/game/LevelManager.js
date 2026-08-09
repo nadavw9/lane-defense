@@ -55,20 +55,20 @@ const PROGRESSION = [
   // L1 Easy â€” "Learn to shoot": 1 lane, 1 col, Red only. Near-impossible to lose.
   { id: 1, laneCount: 1, colCount: 1, colors: ['Red'],
     worldConfig: B1_FTUE, duration: 60, targetKills: 5, spawnBudget: 5,
-    laneTargetCarCount: 1, gridRows: 16, showArrow: true,
+    laneTargetCarCount: 1, gridRows: 8, showArrow: true,
     hintText: 'Drag the matching bomb to the lane' ,
     goals: [{"type":"destroyTotal","count":13}]},
 
   // L2 Medium â€” "Color matching": 2 lanes, Red+Blue. Learn color mismatch cost.
   { id: 2, laneCount: 2, colCount: 2, colors: ['Red', 'Blue'],
-    worldConfig: R_L2, duration: 70, spawnBudget: 10, laneTargetCarCount: 2, gridRows: 16,
+    worldConfig: R_L2, duration: 70, spawnBudget: 10, laneTargetCarCount: 2, gridRows: 8,
     showArrow: false, hintText: 'Color must match! Wrong color = no damage' ,
     goals: [{"type":"destroyTotal","count":25}]},
 
   // L3 Medium â€” "Third lane": 3 lanes, same 2 colors. Multi-lane management.
   { id: 3, laneCount: 3, colCount: 3, colors: ['Red', 'Blue'],
     worldConfig: { hpMultiplier: 0.90, speed: { base: 6.5, variance: 0.3 } }, // 2026-07-10 retune: 0.72→0.90, tutorial-exempt like L1/L2 — 3 lanes + 2 colors has no losing mechanism at brisk HP (~100% by design; transition marker is L4)
-    duration: 90, spawnBudget: 12, laneTargetCarCount: 2, gridRows: 16,
+    duration: 90, spawnBudget: 12, laneTargetCarCount: 2, gridRows: 8,
     showArrow: false, hintText: null, showAreaLabels: true,
     goals: [{"type":"destroyTotal","count":26}] },
 

@@ -1,110 +1,67 @@
 REVIEW BATCH — 2026-08-09
-CAR HP manual now shows the level's ACTUAL car HP. deviceScaleFactor 3.
+L1 defects. deviceScaleFactor 3, full stage.
 
 ===============================================================================
-01-carhp-L5-BEFORE.png    the panel on L5, before
-02-carhp-L30-BEFORE.png   the panel on L30, before  (identical to 01 — that IS the bug)
-03-carhp-L5-AFTER.png     L5, after
-04-carhp-L30-AFTER.png    L30, after
+01-L1-BEFORE.png   L1 before — motorbikes tiny
+02-L1-AFTER.png    L1 after  — motorbikes at the same scale as the rest of the game
+03-icon-hand-inspect.png   the FTUE hand ASSET at 3x, on a flat background
 ===============================================================================
 
-01 vs 02 is the whole problem in one comparison: the old panel is BYTE-IDENTICAL
-on L5 and L30, because it was a hardcoded table that knew nothing about the level.
-
-03 vs 04 is the fix: the same panel now differs per level.
-
-  L5  (03)   Motorbike 2 · Car 3 · Van 4 · Tender/Big Rig/Tank greyed "not here"
-  L30 (04)   Motorbike 2 · Van 4 · Tender 5 · Big Rig 8 · Tank 14 · Car "not here"
-             (a real Tank is visible on the road behind the panel)
-
-Footer now reads "Actual HP on level N" instead of "Base values — actual HP
-scales by level".
+TWO DEFECTS. ONE IS FIXED, ONE IS AN ART PROBLEM I CANNOT FIX WITHOUT NEW ART.
 
 ===============================================================================
-WHERE THE OLD NUMBERS CAME FROM, AND WHETHER THEY WERE EVER CANONICAL
+1. TINY MOTORBIKES — FIXED
 ===============================================================================
-They were canonical — for one commit.
+Cause: L1, L2 and L3 were still gridRows 16. Every other level in the game is 8.
 
-The panel showed 3 / 6 / 8 / 10 / 15 / 30. Those are EXACTLY CAR_TYPES' base HP
-values as of 0f4b7fa, the commit that added the panel:
+Car size is FIT x rowPitchWu x pxPerWu, and rowPitchWu is 26/gridRows. So:
+    gridRows 16 -> rowPitch 1.625 wu
+    gridRows  8 -> rowPitch 3.250 wu
+Exactly double. L1-L3 were rendering every car at HALF the size the rest of the
+game uses, which is precisely what "the motorbikes are tiny" describes.
 
-    small 3 · big 6 · jeep 8 · truck 10 · bigrig 15 · tank 30
+This is fallout from the L9-L40 conversion: L4-L8 were the pilot, L9-L40 were
+converted on 2026-08-08, and L1-L3 were explicitly held back as out of scope both
+times. They were the last levels on the old board. The whole game is now one depth.
 
-A later balance pass took them to 2 / 4 / 5 / 7 / 11 / 20 and the panel's copy
-never followed. So this was not an invented third set — it was a correct snapshot
-that went stale. The file even carried the instruction:
+Sim after the change (400 runs), all still in band:
+    L1  100.0%   (85-100)
+    L2   97.3%   (85-100)
+    L3   92.3%   (85-100)
+The 40-level flag set is unchanged: L4 TOO EASY, L30 BOSS, L39 TOO HARD — the same
+three as before, so nothing else moved.
 
-    "Keep the HP numbers in sync with src/director/CarTypes.js"
-
-That is the whole failure. A comment is not a mechanism. This is the same
-stale-copy class as the bomb-slot desync (three copies of "where is slot N") and
-the merged-bomb sprite table.
-
-The second problem was independent of the drift: "base values, scales by level" is
-not usable information even when the base values are right. A player looking at a
-4 HP van cannot derive it from an 8, because hpMultiplier is never shown anywhere
-in the game.
-
-===============================================================================
-THE FIX
-===============================================================================
-CarTypes gains two canonical exports:
-
-  carHpFor(type, hpMultiplier)
-      Math.max(HP_MINIMUM, Math.round(base * mult)) — the exact expression the
-      spawner used. It existed as FOUR copies (CarDirector._buildCar,
-      GameLoop._primeInitialCars, SimulationRunner's initialCars path, and the
-      panel's table). All four now call this one function.
-
-  spawnableTypesFor(level, gridRows, cfg)
-      Union of the band-weight table, spawnScript stage weights, initialCars, and
-      the carry-over bait pair — then filtered by minSpawnRow against board depth.
-      GameApp._levelCarTypes (the level-start intro cards) delegates to it, so the
-      manual and the intro cards cannot disagree about what a level spawns.
-
-The panel reads live level context at open time (levelId, gs.world.hpMultiplier —
-the DDA-adjusted value actually being spawned from, not the base config —
-gridRows, and the level cfg).
-
-REACHABILITY, since it was asked: the panel CANNOT be opened outside a level. Its
-🚗 button lives on the goal bar and its visibility is tied to the pause button, so
-it only exists during gameplay. No main-menu or level-select entry point exists.
-The no-level branch is therefore defensive only, and it shows "Start a level to
-see its car HP" rather than falling back to base values — which would reintroduce
-exactly the number the player cannot use.
+tests/regression-level-start.test.js's gridRows invariant is now simply
+"expect(cfg.gridRows).toBe(8)" for every level, instead of carrying an exception.
 
 ===============================================================================
-ONE HONEST LIMITATION, NOT FIXED
+2. THE FTUE HAND IS CUT — NOT A CODE BUG. THE ASSET IS CLIPPED.
 ===============================================================================
-Carry-over bait/reward cars (CarDirector._buildCarryOverCar) are type 'small' with
-hp 1-2 REGARDLESS of hpMultiplier, and carry no flag distinguishing them. So an
-occasional bike on the road has 1 HP while the manual's Motorbike row says 2.
+This is NOT a mask, a container bound, or a layout error. The source PNG is
+already cropped, and the renderer is faithfully drawing a clipped texture.
 
-This is the bait mechanic, not manual drift — those cars deliberately sit below
-HP_MINIMUM so a dmg>=2 shot can chain-kill the pair. The manual documents TYPES,
-and a bait car is a type-'small' car with off-table hp. Flagging it because it is
-the one case where the panel and the board can still disagree, and closing it
-would mean either giving bait cars their own manual row or tagging them in the
-model — both design decisions, not fixes.
+    public/sprites/ui/icon-hand.png   128x128
+    opaque bounding box:  x 3..123,  y 0..127
+    gaps:  top 0   bottom 0   left 3   right 4
 
-===============================================================================
-GUARD TEST — tests/car-manual-hp.test.js (6 tests)
-===============================================================================
-Asserts the panel against ACTUALLY SPAWNED CARS, not against CAR_TYPES. Checking
-the panel against CAR_TYPES is what the old comment already promised; it is the
-mirror-checks-mirror shape that let this ship.
+The artwork touches the top and bottom edges with ZERO padding. See 03: the index
+fingertip ends in a flat horizontal edge with no dark outline across it, while the
+outline wraps every other side of the hand. Same at the bottom, where the blue
+cuff is sliced. A complete sprite would have its stroke closing around the
+fingertip. Those pixels are not in the file.
 
-  - spawns real cars through CarDirector across 8 levels x 6 hpMultipliers
-    (0.70/0.81/0.89/0.90/1.0/1.5) x gridRows 8 and 16, and asserts every spawned
-    car's hp equals what the manual would print for its type
-  - asserts no type SPAWNS while being listed unavailable (this caught a real
-    hole: L30's weight table has no 'small', but bait bikes appear there anyway)
-  - pins L9 not listing Tank and L30 listing it
-  - pins the HP_MINIMUM clamp
-  - asserts the overlay contains no `hp: <number>` literal and no "base values"
-    footer, so the hardcoded table cannot come back
-  - asserts every CAR_TYPES entry has a row, so a new type cannot render blank
+I searched the repo for an unclipped source. There is none — the only hand art is
+this file. Padding the canvas would not help: the tip is missing, not merely flush.
 
-The bait-car exclusion in that test is deliberately ONE-DIRECTIONAL: it skips only
-smalls whose hp is BELOW the computed value, so a car with MORE hp than the manual
-shows still fails.
+TWO WAYS FORWARD, BOTH NEEDING YOUR CALL:
+  a) Re-author icon-hand.png with the fingertip intact and ~10% padding, matching
+     the other icons (icon-car and icon-book carry 13-15px gaps).
+  b) Point this one call site at the emoji fallback that uiIcon already supports
+     ('hand', 48, U+1F446), which renders a complete hand — but it will not match
+     the rest of the designed icon set.
+
+I did not pick one, because replacing or bypassing game art is a design decision,
+not a bug fix. Nothing about the hand was changed in this batch.
+
+NOTE: the same icon is used by TutorialOrchestrator at size 28, so whichever way
+this goes, it fixes both call sites at once.

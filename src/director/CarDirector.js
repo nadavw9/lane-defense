@@ -3,7 +3,7 @@
 // randomness is deterministic and testable.
 import { PHASE_CONFIG, HP_MINIMUM } from './DirectorConfig.js';
 import { Car } from '../models/Car.js';
-import { CAR_TYPES, pickCarType } from './CarTypes.js';
+import { CAR_TYPES, pickCarType, carHpFor } from './CarTypes.js';
 
 export class CarDirector {
   constructor(config, rng) {
@@ -175,7 +175,7 @@ export class CarDirector {
     // Apply the level's hpMultiplier (carried on worldConfig, same value the
     // balance sim uses) so difficulty actually scales by level in live play.
     const multiplier = worldConfig?.hpMultiplier ?? 1.0;
-    const hp   = Math.max(HP_MINIMUM, Math.round(CAR_TYPES[type].hp * multiplier));
+    const hp   = carHpFor(type, multiplier);   // canonical — see CarTypes.carHpFor
 
     const speed = worldConfig.speed.base +
       this._rng.nextFloat(-worldConfig.speed.variance, worldConfig.speed.variance);

@@ -30,7 +30,7 @@ import {
   DEPLOY_DILATION,
   HP_MINIMUM,
 } from '../director/DirectorConfig.js';
-import { CAR_TYPES } from '../director/CarTypes.js';
+import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { openingRowsForLevel, clampInitialCarsToDepth } from '../game/LevelManager.js';
 
 const DT = 1 / 60; // seconds per simulation tick (used for fire cooldowns only)
@@ -286,7 +286,7 @@ export class SimulationRunner {
         // hp for a named type: base × mult with the live HP_MINIMUM clamp — the
         // SAME formula as GameLoop._primeInitialCars / CarDirector._buildCar.
         const hp = (def.type && CAR_TYPES[def.type])
-          ? Math.max(HP_MINIMUM, Math.round(CAR_TYPES[def.type].hp * worldConfig.hpMultiplier))
+          ? carHpFor(def.type, worldConfig.hpMultiplier)
           : car.hp;
         discreteLanes[li].cars.push({ row: def.row ?? 0, hp, type, color });
       }

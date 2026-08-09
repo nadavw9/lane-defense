@@ -1,3 +1,5 @@
+import { HP_MINIMUM } from './DirectorConfig.js';
+
 // CarTypes — HP values for each car type.
 // CarDirector uses pickCarType() to assign a type to each normal car spawn.
 // Car3D uses TYPE_SCALES (in Car3D.js) for visual sizing; the GLB asset for
@@ -179,4 +181,73 @@ export function pickCarType(rng, level, phase, availableRows) {
     if (filtered.length > 0) weights = filtered;
   }
   return rng.weightedPick(weights);
+}
+
+// ── Canonical per-level HP ─────────────────────────────────────────────────────
+//
+// THE ONE PLACE THAT TURNS A CAR TYPE INTO THE HP IT ACTUALLY SPAWNS WITH.
+//
+// This formula existed as FOUR independent copies — CarDirector._buildCar,
+// GameLoop._primeInitialCars, SimulationRunner's initialCars path, and a
+// hand-maintained table in HpGuideOverlay. The overlay's copy is why the car
+// manual shipped wrong: its numbers (3/6/8/10/15/30) were CAR_TYPES' real base
+// values when it was written (0f4b7fa) and were never updated when the balance
+// pass took them to 2/4/5/7/11/20. A comment there said "keep in sync with
+// CarTypes.js"; a comment is not a mechanism.
+//
+// Every caller now routes through this, so the manual cannot disagree with the
+// board again. HP_MINIMUM lives in DirectorConfig; importing it here would make
+// CarTypes depend on the director config, so it is passed by the single import
+// site below instead — no, it is imported: CarTypes is already config-layer.
+export function carHpFor(type, hpMultiplier = 1.0) {
+  const base = CAR_TYPES[type]?.hp;
+  if (base == null) return null;
+  return Math.max(HP_MINIMUM, Math.round(base * (hpMultiplier ?? 1.0)));
+}
+
+// Which car types can actually appear on a level, so the manual never lists a
+// Tank on a level that cannot spawn one.
+//
+// UNION of three sources, because CarDirector draws from all three:
+//   1. the level's band-weight table  (pickCarType)
+//   2. spawnScript stage weights      (_pickScriptedType, the §3c bosses) — these
+//      do NOT replace the band table: _buildCar picks the scripted type OR falls
+//      back to pickCarType, so a stage that yields nothing falls through to the
+//      weights and both can appear on the same level
+//   3. the scripted opening board     (initialCars)
+// then filtered by minSpawnRow against the board depth, which is what pickCarType
+// itself filters on.
+//
+// GameApp._levelCarTypes (the level-start intro cards) delegates here so the
+// manual and the intro cards can never disagree about what a level spawns.
+export function spawnableTypesFor(level, gridRows = 16, cfg = null) {
+  const out  = new Set();
+  const fits = (t) => CAR_TYPES[t] && (CAR_TYPES[t].minSpawnRow ?? 0) <= gridRows;
+
+  for (const phase of Object.values(bandWeights(level ?? 1))) {
+    for (const w of phase) if (fits(w.value)) out.add(w.value);
+  }
+  // spawnScript weights are a { type: weight } OBJECT, not [{value,weight}].
+  for (const stage of cfg?.spawnScript ?? []) {
+    for (const t of Object.keys(stage.weights ?? {})) if (fits(t)) out.add(t);
+  }
+  for (const car of cfg?.initialCars ?? []) {
+    if (car.type && fits(car.type)) out.add(car.type);
+  }
+
+  // 4. THE CARRY-OVER BAIT/REWARD PAIR, which is type 'small' on EVERY level and
+  //    ignores the weight table completely (CarDirector._buildCarryOverCar, reached
+  //    from the per-lane carry-over counter, which is not level-gated). L30's table
+  //    is jeep/truck/bigrig/tank with no 'small' at all, yet bikes demonstrably
+  //    appear there — so omitting this would grey out Motorbike in the manual on a
+  //    level where the player can see one on the road.
+  //
+  //    Caveat worth knowing: a bait bike carries hp 1-2 regardless of hpMultiplier,
+  //    so it can have LESS hp than the manual's Motorbike row states. That is the
+  //    bait mechanic, not a drifted number, and it is not something this function
+  //    can express — the manual documents types, and bait cars are a type-'small'
+  //    car with off-table hp.
+  if (fits('small')) out.add('small');
+
+  return out;
 }

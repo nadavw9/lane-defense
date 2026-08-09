@@ -86,7 +86,7 @@ import { AutoTuner }             from '../analytics/AutoTuner.js';
 import { AchievementManager }     from '../game/AchievementManager.js';
 import { DailyChallengeManager }  from '../game/DailyChallengeManager.js';
 import { CarTypeIntroCard, hasIntroCard } from '../screens/CarTypeIntroCard.js';
-import { bandWeights } from '../director/CarTypes.js';
+import { spawnableTypesFor } from '../director/CarTypes.js';
 import { ComboFX } from './ComboFX.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -517,6 +517,11 @@ async function main() {
 
   // ── Per-level daily/no-rescue flags ───────────────────────────────────────
   let currentLevelIsDaily  = false;
+  // The level config currently in play. The CAR HP manual reads spawnScript /
+  // initialCars off this to decide which types the level can actually produce;
+  // GameState does not carry them, and a stale copy here is exactly the drift the
+  // manual was fixed for, so it is assigned on every level start.
+  let currentLevelCfg      = null;
   let noRescueThisLevel    = false;
   let dailyDateKey         = '';
   let coinsAtLevelStart    = 0;
@@ -605,7 +610,7 @@ async function main() {
   let breachCam = null;       // null | { laneIdx, t, done }
 
   // ── Game-loop flag — start() called only once ─────────────────────────────
-  let gameLoopStarted = false;
+  let gameLoopStarted = false;
   // ── Renderers ────────────────────────────────────────────────────────────
   const carRenderer     = new CarRenderer(layers, lanes);
   const shooterRenderer = new ShooterRenderer(layers, columns, boosterState);
@@ -679,6 +684,7 @@ async function main() {
 
     logEvent('level_started', { levelId });
 
+    currentLevelCfg     = cfg;
     currentLevelIsDaily = cfg.isDaily  ?? false;
     noRescueThisLevel   = cfg.noRescue ?? false;
     dailyDateKey        = currentLevelIsDaily ? dailyChallengeManager.getTodayKey() : '';
@@ -941,25 +947,14 @@ async function main() {
     });
   }
 
-  // Every car type a level can put on the road: band-weight table for its level
-  // (same level key CarDirector uses) ∪ spawnScript stage weights ∪ the scripted
-  // opening board. Drives the level-start intro check (Bug A).
+  // Every car type a level can put on the road. Delegates to the canonical
+  // CarTypes.spawnableTypesFor so the level-start intro cards and the CAR HP
+  // manual can never disagree about what a level spawns.
   function _levelCarTypes(cfg) {
-    const types = new Set();
     const level = typeof cfg.id === 'number' ? cfg.id : 1;   // mirrors carDir.setLevel
-    for (const phase of Object.values(bandWeights(level))) {
-      for (const w of phase) types.add(w.value);
-    }
-    // spawnScript weights are a { type: weight } OBJECT (the shape CarDirector's
-    // Object.entries consumes), not a bandWeights-style [{value,weight}] array.
-    for (const stage of cfg.spawnScript ?? []) {
-      for (const t of Object.keys(stage.weights ?? {})) types.add(t);
-    }
-    for (const car of cfg.initialCars ?? []) {
-      if (car.type) types.add(car.type);
-    }
-    return types;
+    return spawnableTypesFor(level, cfg.gridRows ?? 16, cfg);
   }
+
 
   // ── COLOR CHANGE picker (FIX 4B step 2) ──────────────────────────────────
   function _dismissColorPicker() {
@@ -1217,8 +1212,18 @@ async function main() {
   function showHpGuide() {
     if (hpGuideOverlay) return;
     const { restore } = _openGoalOverlay();
+    // LIVE level context, read at open time — not a snapshot from boot. The panel
+    // computes each type's real HP from these, so it cannot drift from the board.
+    // gs.world is the DDA-adjusted copy the loop is actually spawning from, which
+    // is what the player is looking at; the base config would be a different lie.
     hpGuideOverlay = new HpGuideOverlay(app.stage, APP_W, APP_H, {
       onClose: () => { hpGuideOverlay?.destroy(); hpGuideOverlay = null; restore(); },
+      level: {
+        levelId:      gs.levelId,
+        hpMultiplier: gs.world?.hpMultiplier ?? 1.0,
+        gridRows:     gs.gridRows,
+        cfg:          currentLevelCfg,
+      },
     });
   }
 

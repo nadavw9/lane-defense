@@ -6,7 +6,7 @@
 //   deploy(colIdx, laneIdx) — called by DragDrop; resolves combat immediately
 //   restart()               — full level reset + reprime; called by screens
 import { PHASE_CONFIG, HP_MINIMUM } from '../director/DirectorConfig.js';
-import { CAR_TYPES } from '../director/CarTypes.js';
+import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { Shooter } from '../models/Shooter.js';
 import { COLUMN_CAPACITY } from '../models/Column.js';
 
@@ -876,7 +876,7 @@ export class GameLoop {
         if (def.type && CAR_TYPES[def.type]) {
           car.type = def.type;
           const mult = gs.world?.hpMultiplier ?? 1.0;
-          car.hp    = Math.max(HP_MINIMUM, Math.round(CAR_TYPES[def.type].hp * mult));
+          car.hp    = carHpFor(def.type, mult);   // canonical — see CarTypes.carHpFor
           car.maxHp = car.hp;
         }
         if (def.color && gs.colors.includes(def.color)) car.color = def.color;

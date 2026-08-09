@@ -1,86 +1,110 @@
-REVIEW BATCH — 2026-08-08
-BOMB MERGE MECHANIC REMOVED. L8, after 10 real deploys so the queue has cycled
-through refill and auto-fill. deviceScaleFactor 3.
+REVIEW BATCH — 2026-08-09
+CAR HP manual now shows the level's ACTUAL car HP. deviceScaleFactor 3.
 
 ===============================================================================
-01-queue-BEFORE.png    bomb queue + bench, merge code present
-02-queue-AFTER.png     same view, merge removed
-03-board-BEFORE.png    whole board, before
-04-board-AFTER.png     whole board, after
+01-carhp-L5-BEFORE.png    the panel on L5, before
+02-carhp-L30-BEFORE.png   the panel on L30, before  (identical to 01 — that IS the bug)
+03-carhp-L5-AFTER.png     L5, after
+04-carhp-L30-AFTER.png    L30, after
 ===============================================================================
 
-WHAT TO LOOK FOR IN 02:
-  - Nine balls, 3x3, every one seated inside its socket ring.
-  - Correct per-colour texture and damage number on each.
-  - The front row is now the SAME SIZE as rows 1-2. Previously a merged bomb in
-    row 0 rendered at MERGE_SCALE (1.22x) with a pulsing halo ring; both are gone
-    because nothing produces a merged bomb any more.
-  - Column 0 holds red-6 / blue-4 / red-6 and column 2 red-7 / red-6 / green-2.
-    Under the old rules three same-colour bombs in a column would have merged.
-    They now simply sit there, which is the point of the change.
+01 vs 02 is the whole problem in one comparison: the old panel is BYTE-IDENTICAL
+on L5 and L30, because it was a hardcoded table that knew nothing about the level.
+
+03 vs 04 is the fix: the same panel now differs per level.
+
+  L5  (03)   Motorbike 2 · Car 3 · Van 4 · Tender/Big Rig/Tank greyed "not here"
+  L30 (04)   Motorbike 2 · Van 4 · Tender 5 · Big Rig 8 · Tank 14 · Car "not here"
+             (a real Tank is visible on the road behind the panel)
+
+Footer now reads "Actual HP on level N" instead of "Base values — actual HP
+scales by level".
 
 ===============================================================================
-BALL / SOCKET MISALIGNMENT — FOURTH REPORT, NOW STRUCTURALLY IMPOSSIBLE
+WHERE THE OLD NUMBERS CAME FROM, AND WHETHER THEY WERE EVER CANONICAL
 ===============================================================================
-Time-series probe after removal (scripts/_ball-timeseries.mjs), 18 VERIFIED
-deploys, sampling every frame:
+They were canonical — for one commit.
 
-    frames with a VISIBLE ball off its slot: 0
+The panel showed 3 / 6 / 8 / 10 / 15 / 30. Those are EXACTLY CAR_TYPES' base HP
+values as of 0f4b7fa, the commit that added the panel:
 
-That is a real zero, not an unfired-stimulus zero — the probe asserts its deploys
-landed (18 landed, 0 skipped) precisely because an earlier version of it reported
-"no bug" while nothing had actually fired.
+    small 3 · big 6 · jeep 8 · truck 10 · bigrig 15 · tank 30
 
-The reason it is now zero is structural rather than tuned. The ONLY code that
-could move a ball independently of its socket was the merge sequencer, and the
-refill drop-in animation lived INSIDE it as its 'fill' phase — it never ran except
-as the tail of a merge cascade. With the sequencer gone, the whole slot-animation
-API became unreachable and was deleted with it:
+A later balance pass took them to 2 / 4 / 5 / 7 / 11 / 20 and the panel's copy
+never followed. So this was not an invented third set — it was a correct snapshot
+that went stale. The file even carried the instruction:
 
-  Shooter3D:       setSlotAnimLock, setSlotScale, setSlotWorldXYZ,
-                   resetSlotTransform, getSlotBaseWorld, getSlotWorldPosition,
-                   clearAllAnimLocks, and the _animLock field + its skip branches
-  GameRenderer3D:  lockBombSlot, setBombSlotScale, setBombSlotWorld,
-                   getBombSlotWorld, getBombSlotBaseWorld, resetBombSlot,
-                   clearBombAnimLocks, getBombSlotScreenXY
+    "Keep the HP numbers in sync with src/director/CarTypes.js"
 
-A ball's position is now written in exactly one place — setLaneCount, from
-bombSlotZ(row), the same canonical function the Pixi socket derives from. There is
-no longer any code path that can put a ball anywhere other than its socket, so the
-two cannot disagree by construction. Four incremental fixes failed at this; the
-fifth was not another fix, it was deleting the thing that moved the ball.
+That is the whole failure. A comment is not a mechanism. This is the same
+stale-copy class as the bomb-slot desync (three copies of "where is slot N") and
+the merged-bomb sprite table.
 
-Cost, stated plainly: refilling bombs no longer animate in, they appear. The
-drop-in polish went with the mechanic that owned it. If that reads as abrupt in
-play, re-adding it should be a deliberate decision with the socket-derived
-positioning discussed below — not a revival of the old independent animator.
+The second problem was independent of the drift: "base values, scales by level" is
+not usable information even when the base values are right. A player looking at a
+4 HP van cannot derive it from an 8, because hpMultiplier is never shown anywhere
+in the game.
 
 ===============================================================================
-SIM BALANCE — NO SHIFT, AND THE REASON MATTERS
+THE FIX
 ===============================================================================
-The 40-level table after removal is BYTE-IDENTICAL to before it. Not "close" —
-identical, including the three flagged levels (L4 95.3%, L30 37.0%, L39 58.0%).
+CarTypes gains two canonical exports:
 
-SimulationRunner never modelled merging at all. It has no peekMerges /
-evaluateMerges / isMerged reference anywhere; the balance bands were always
-measured on merge-free play. So the sim needed no change and no level needs a
-retune from this.
+  carHpFor(type, hpMultiplier)
+      Math.max(HP_MINIMUM, Math.round(base * mult)) — the exact expression the
+      spawner used. It existed as FOUR copies (CarDirector._buildCar,
+      GameLoop._primeInitialCars, SimulationRunner's initialCars path, and the
+      panel's table). All four now call this one function.
 
-Worth noting for the record: this means the sim and the live game had DIVERGED for
-any player who used merging, and removing the mechanic brings live behaviour back
-in line with what the balance gate has always been measuring.
+  spawnableTypesFor(level, gridRows, cfg)
+      Union of the band-weight table, spawnScript stage weights, initialCars, and
+      the carry-over bait pair — then filtered by minSpawnRow against board depth.
+      GameApp._levelCarTypes (the level-start intro cards) delegates to it, so the
+      manual and the intro cards cannot disagree about what a level spawns.
+
+The panel reads live level context at open time (levelId, gs.world.hpMultiplier —
+the DDA-adjusted value actually being spawned from, not the base config —
+gridRows, and the level cfg).
+
+REACHABILITY, since it was asked: the panel CANNOT be opened outside a level. Its
+🚗 button lives on the goal bar and its visibility is tied to the pause button, so
+it only exists during gameplay. No main-menu or level-select entry point exists.
+The no-level branch is therefore defensive only, and it shows "Start a level to
+see its car HP" rather than falling back to base values — which would reintroduce
+exactly the number the player cannot use.
 
 ===============================================================================
-DELIBERATELY KEPT — do not mistake these for leftovers
+ONE HONEST LIMITATION, NOT FIXED
 ===============================================================================
-- QUEUE REORDER and BENCH-RETURN survive untouched. They were gated behind a flag
-  named `_mergeEnabled` because setting up merges was their original purpose, but
-  they are independent mechanics. The flag is now `_reorderEnabled`; the L5 unlock
-  and both behaviours are unchanged, and the removal guard asserts they still work
-  so a future cleanup cannot delete them by association.
-- projection.QUEUE_CLEARANCE_MARGIN (1.22) — this WAS MERGE_SCALE, the worst-case
-  bomb radius the queue-fit solver and breach clearance were sized against. The
-  VALUE IS UNCHANGED on purpose: dropping it to the now-true 1.0 would let the
-  solver grow every bomb, which is a size/FIT decision for the owner, not a side
-  effect of deleting a mechanic. Recorded with the queue-depth question in
-  THREE_LANE_REDESIGN_BATCH.md §8.
+Carry-over bait/reward cars (CarDirector._buildCarryOverCar) are type 'small' with
+hp 1-2 REGARDLESS of hpMultiplier, and carry no flag distinguishing them. So an
+occasional bike on the road has 1 HP while the manual's Motorbike row says 2.
+
+This is the bait mechanic, not manual drift — those cars deliberately sit below
+HP_MINIMUM so a dmg>=2 shot can chain-kill the pair. The manual documents TYPES,
+and a bait car is a type-'small' car with off-table hp. Flagging it because it is
+the one case where the panel and the board can still disagree, and closing it
+would mean either giving bait cars their own manual row or tagging them in the
+model — both design decisions, not fixes.
+
+===============================================================================
+GUARD TEST — tests/car-manual-hp.test.js (6 tests)
+===============================================================================
+Asserts the panel against ACTUALLY SPAWNED CARS, not against CAR_TYPES. Checking
+the panel against CAR_TYPES is what the old comment already promised; it is the
+mirror-checks-mirror shape that let this ship.
+
+  - spawns real cars through CarDirector across 8 levels x 6 hpMultipliers
+    (0.70/0.81/0.89/0.90/1.0/1.5) x gridRows 8 and 16, and asserts every spawned
+    car's hp equals what the manual would print for its type
+  - asserts no type SPAWNS while being listed unavailable (this caught a real
+    hole: L30's weight table has no 'small', but bait bikes appear there anyway)
+  - pins L9 not listing Tank and L30 listing it
+  - pins the HP_MINIMUM clamp
+  - asserts the overlay contains no `hp: <number>` literal and no "base values"
+    footer, so the hardcoded table cannot come back
+  - asserts every CAR_TYPES entry has a row, so a new type cannot render blank
+
+The bait-car exclusion in that test is deliberately ONE-DIRECTIONAL: it skips only
+smalls whose hp is BELOW the computed value, so a car with MORE hp than the manual
+shows still fails.

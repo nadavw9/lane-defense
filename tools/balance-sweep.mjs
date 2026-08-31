@@ -46,7 +46,7 @@ function verifyDiscreteModel() {
 // ── Car types present per level (sampled from the weight bands) ───────────────
 function carTypesForLevel(levelId, gridRows, colors) {
   const rng = new SeededRandom(99);
-  const avail = (gridRows ?? 11) - 1;
+  const avail = (gridRows ?? 8) - 1;
   const seen = new Set();
   for (const phase of PHASES) {
     for (let i = 0; i < 300; i++) seen.add(pickCarType(rng, levelId, phase, avail));
@@ -62,7 +62,9 @@ function runProfile(cfg, levelId, skill) {
     duration: cfg.duration, colors: cfg.colors, worldConfig: cfg.worldConfig,
     levelId, skill, laneCount: cfg.laneCount, colCount: cfg.colCount,
     laneTargetCarCount: cfg.laneTargetCarCount, spawnBudget: cfg.spawnBudget,
-    gridRows: cfg.gridRows,
+    gridRows: cfg.gridRows, goals: cfg.goals ?? [],
+    initialCars: cfg.initialCars ?? null, spawnScript: cfg.spawnScript ?? null,
+    shooterColorWeights: cfg.shooterColorWeights ?? null,
   });
   const a = mk().runBatch(RUNS, 1);
   const b = mk().runBatch(RUNS, 1 + RUNS * 7);   // disjoint seed range
@@ -74,15 +76,16 @@ function runProfile(cfg, levelId, skill) {
   };
 }
 
-// ── Target bands (from the sweep request) ─────────────────────────────────────
+// ── Target bands (same reference bands as tools/balance-sim.js) ────────────────
 // Returns array of { profile, lo, hi } for the level.
 function bandsFor(levelId) {
-  if (levelId <= 5)  return [{ p: 'beginner', lo: 85, hi: 100 }, { p: 'average', lo: 80, hi: 100 }];
-  if (levelId <= 15) return [{ p: 'average', lo: 60, hi: 80 }, { p: 'skilled', lo: 70, hi: 85 }];
-  if (levelId <= 30) return [{ p: 'average', lo: 45, hi: 65 }, { p: 'skilled', lo: 55, hi: 70 }];
-  return [{ p: 'skilled', lo: 35, hi: 55 }];   // expert 30-45 has no sim profile
+  if (levelId <= 3)  return [{ p: 'average', lo: 85, hi: 100 }];
+  if (levelId <= 9)  return [{ p: 'average', lo: 85, hi: 95 }];
+  if ([10, 20, 30, 40].includes(levelId)) return [{ p: 'average', lo: 40, hi: 55 }];
+  if (levelId <= 26) return [{ p: 'average', lo: 70, hi: 82 }];
+  return [{ p: 'average', lo: 60, hi: 75 }];
 }
-function primaryProfile(levelId) { return levelId <= 30 ? 'average' : 'skilled'; }
+function primaryProfile(_levelId) { return 'average'; }
 
 // ── Run sweep ─────────────────────────────────────────────────────────────────
 const modelIssues = verifyDiscreteModel();
@@ -129,7 +132,7 @@ else { console.log('FAIL — issues:'); modelIssues.forEach(i => console.log('  
 if (errors.length) { console.log('\nSIM ERRORS:'); errors.forEach(e => console.log('  ! ' + e)); }
 else console.log('All level sims completed without error.');
 
-console.log('\n--- TABLE: win rate by profile (gridRows=11) ---');
+console.log('\n--- TABLE: win rate by profile (gridRows=per-level config) ---');
 console.log('Lvl | ln | beg | avg | skl | opt | spd | bgt | ltcc | car types');
 console.log('----+----+-----+-----+-----+-----+-----+-----+------+----------------------------');
 for (const r of rows) {

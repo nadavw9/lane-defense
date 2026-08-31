@@ -1,5 +1,9 @@
 # THREE-LANE REDESIGN — execution spec (Fable exit, 2026-07-22, amended 2026-07-23)
 
+> **STATUS: EXECUTION COMPLETE; HISTORICAL RECORD (2026-08-31).** The three-lane/rows-8 work is
+> in the current code, but old 4-lane measurements, commands, and checklist wording below are
+> not current truth. Read the root `SESSION_HANDOFF.md` before acting on this document.
+
 Written for a Sonnet-class session to execute WITHOUT re-deriving design judgment. Same
 contract as `GEOMETRY_MECHANICS_BATCH.md`: this is an EXECUTABLE spec (what to build, which
 files, how to verify, what NOT to touch) — the design decision is made and closed. Read

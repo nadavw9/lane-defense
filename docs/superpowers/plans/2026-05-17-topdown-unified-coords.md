@@ -1,5 +1,8 @@
 # Top-Down Unified Coordinate System Implementation Plan
 
+> **HISTORICAL / COMPLETE (2026-08-31):** This plan records the earlier camera/bomb/terminus
+> implementation. Its old slot counts and test totals are not current instructions.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the perspective gameplay camera with one orthographic top-down camera over the existing `laneToX`/`posToZ` coordinate system, render bombs through that same camera, and give the road a real far terminus — fixing bomb misalignment, car size variance, and the missing road end with zero hand-tuned constants.

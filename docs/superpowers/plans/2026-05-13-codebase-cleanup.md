@@ -1,5 +1,9 @@
 # Codebase Cleanup Implementation Plan
 
+> **HISTORICAL / COMPLETE (2026-08-31):** This plan records an earlier GLB/geometry cleanup.
+> Normal car rendering is now billboard-based; use the root `SESSION_HANDOFF.md` for current
+> cleanup priorities.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Nuclear cleanup of Car3D.js and Shooter3D.js dead geometry, verify all tutorial systems work, clean GameApp.js dead references, then commit four focused patches.

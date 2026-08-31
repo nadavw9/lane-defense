@@ -1,5 +1,8 @@
 # Fable Exit Brief — read this before touching WS3
 
+> **HISTORICAL / RECONCILED (2026-08-31):** This brief contains earlier WS3 findings. Current
+> executable state, open defects, and measurements are maintained in the root `SESSION_HANDOFF.md`.
+
 Written by Fable, 2026-07-08, for whichever model continues this session. Not a tutorial —
 watch-outs and decisions a cheaper model will not derive from the code alone.
 

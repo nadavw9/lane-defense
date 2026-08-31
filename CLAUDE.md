@@ -224,7 +224,7 @@ PixiJS canvas (z-front) overlays the Three.js canvas (z-behind). They share no W
 
 ### Camera — single top-down orthographic
 
-One `OrthographicCamera` in `Scene3D.js` renders everything. No perspective camera, no dual-camera setup. `CameraFX.js` wraps the camera for transient juice only (shake, breach zoom pulse, combo zoom-out, level-intro zoom) — steady-state zoom is 1.
+One `OrthographicCamera` in `Scene3D.js` renders everything. There is no perspective or dual-camera setup. `CameraFX.js` wraps the orthographic camera for transient juice only (shake, breach zoom pulse, combo zoom-out, level-intro zoom) — steady-state zoom is 1.
 
 ### 3D Scene Coordinate System — SINGLE SOURCE: `src/renderer3d/projection.js`
 
@@ -232,7 +232,7 @@ One `OrthographicCamera` in `Scene3D.js` renders everything. No perspective came
 Z = -26  ROAD_Z_FAR   — car spawn line (far/top of screen)
 Z = -2.6 POS_NEAR_Z   — position-100 car stop line (front car anchor)
 Z =   0  ROAD_Z_NEAR  — breach line (3D stripe anchor)
-Z = +1.4 to +7.0      — bomb queue slots (Shooter3D slotZ = (s+0.5)·CELL·0.70)
+Z = bombSlotZ(0..2)     — three visible queue slots, computed from breach clearance and pitch
 Z = -65  ROAD_Z_VANISHING — visual road extension (no gameplay)
 ```
 
@@ -270,7 +270,8 @@ Always `${import.meta.env.BASE_URL}sprites/...`. Hardcoded `/sprites/...` causes
 ## 6. Current State
 
 ### Tests
-**1186 passing**, 5 todo — 47 test files. Run: `npx vitest run`. All headless (no render tests).
+**1232 passing**, 2 skipped, 5 todo — 56 test files. Run: `npx vitest run`. All headless (no
+render tests).
 Visual smoke (`npm run test:visual`, Playwright) is separate and is a blocking CI gate.
 
 #### DELEGATE SEARCH AND MAPPING TO A HAIKU SUBAGENT — this is a rule, not a suggestion
@@ -341,14 +342,12 @@ something looks misplaced:**
 - **`projection.BOOSTER_BAR_TOP_Y` ↔ `BoosterBar.BAR_Y`** — a deliberate duplicate
   (projection.js must stay Pixi/DOM-free), guarded by `tests/bomb-slot-position-sync.test.js`.
 
-**KNOWN DEAD, NOT YET REMOVED — the stash.** `DragDrop._hitTestStashArea()` returns `false`
-unconditionally, so the stash is unreachable in play. But `Column.stash`/`stashBomb`, three
-DragDrop paths, per-level Shooter3D stash meshes, `ShooterRenderer`, `PositionRegistry` and
-`projection.stashZ` are all still wired. **This remnant has already caused two bugs** (#6
-above, and `SLOT_COUNT` being 4). Removing it spans ~10 files and is a feature-removal
-decision — it needs the owner's approval, not a cleanup commit.
+**HISTORICAL DEAD SURFACE — stash retirement is complete.** The stash was unreachable and caused
+the queue-fit and slot-capacity drift recorded above. Its runtime code was removed in the
+stash-retirement work; `Shooter3D.SLOT_COUNT` is now 3 and the bench is a separate four-slot
+storage area. Remaining stash references in this incident log are provenance, not live code.
 
-#### TESTS THAT ASSERT OUTCOMES CAN MISS PRESENTATION ENTIRELY
+#### HISTORICAL INCIDENT — tests that assert outcomes can miss presentation entirely
 **A suite that only checks state cannot fail on a defect the player can see.** This shipped,
 and then survived six weeks of the owner re-reporting it against green evidence.
 
@@ -356,7 +355,10 @@ The BOMB booster was converted from a ROW clear to a LANE clear. The kill model 
 correctly and pinned by `tests/bomb-lane-only.test.js` — nine tests, all green, plus a device
 check confirming "4/4 kills in-lane, 0 outside". **Every one of them asked which cars die.**
 
-The explosion was never converted. `Particles3D.spawnBombExplosion` still fired a burst in
+This incident is closed in the current renderer: the lane-targeted explosion path is also
+implemented. The old all-lanes visual behavior described below is retained as provenance only.
+
+At that time, the explosion had not been converted. `Particles3D.spawnBombExplosion` still fired a burst in
 *every* lane, 80ms apart, left to right, and `Road3D.spawnBombRing` was centred at road centre
 with a radius wider than a lane. So the player kept seeing a blast sweep the full road width and
 kept reporting, correctly, "it hits 2 rows, not 1 lane" — while every test passed and every
@@ -620,11 +622,13 @@ inferring rejection from an unchanged board.
 ### What is done
 - **40 levels** configured in `LevelManager.js` (L1–L40, three worlds)
 - **Car type intro cards** (`src/screens/CarTypeIntroCard.js`) — fires at: L1 small, L2 big, L5 jeep, L9 truck, L13 bigrig, L15 tank
-- **Streak Shot** — `streakCount` + `streakActive` in `GameState.js`; 3 consecutive correct hits → double-damage power shot
+- **Streak Shot** — open implementation gap. The simulator has a partial model, but live
+  `GameLoop` does not yet apply the locked double-damage + one-shot slow behavior.
 - **AdMob** — `src/ads/AdManager.js` with Google **test** IDs for rewarded video and interstitial
 - **Signed release keystore** — `android/lane-defense-release.keystore` (gitignored). **Never delete.**
 - **Balance simulator** — `tools/balance-sim.js`
-- **Car rendering** — flat `PlaneGeometry` + `CanvasTexture` + `MeshBasicMaterial`. No GLB models.
+- **Car rendering** — normal cars use designed PNG sprite billboards on flat
+  `PlaneGeometry` + `MeshBasicMaterial`; the boss uses a procedural `CanvasTexture`.
 - **Danger Aura** — red pulse on cars within 2 rows of breach gate
 - **Fairness rules** (FR-1 through FR-5) enforced in `GameLoop._enforceViableMove()`
 - **Wrong-color shot = no advance** (shipped — never revert)
@@ -644,13 +648,16 @@ inferring rejection from an unchanged board.
 - Play Store listing (screenshots, feature graphic, privacy policy, Data Safety form)
 - Closed test track ≥ 12 testers × 14 days
 - World 2 / World 3 themes exist in ThemeRegistry; their visuals have not been art-directed
-- City repair meta loop (city visible on level select, state saved to ProgressManager — see VISION.md)
+- **City repair meta loop** — implemented through `ProgressManager` city state, level-select
+  damage states, and the repair animation. Final W2/W3 art direction remains open.
 
 ---
 
 ## 7. Mandatory Self-Audit Before Every Commit
 
-Take screenshots from: **L5** (4-lane afternoon), **L9** (sunset), **L13** (misty), **L17** (industrial / World 2).  
+Take screenshots from: **L5+** (L5 is the 3-lane afternoon reference), **L9** (sunset), **L13**
+(misty), **L17** (industrial / World 2). Four-lane compatibility remains a structural benchmark,
+not the production geometry of L5.
 **Never use L1** as a visual benchmark (single lane, no representative load).
 
 Check each frame:
@@ -672,7 +679,7 @@ Before committing any change to `LevelManager.js` or `CarTypes.js`:
 
 ## 8. What NOT to Touch
 
-- `src/director/` — 633 tests cover it; changes need matching test updates
+- `src/director/` — changes need matching test updates
 - `src/models/` — data classes; shape changes cascade everywhere
 - Vite config base-path logic
 - `BASE_URL` sprite path patterns
@@ -829,4 +836,8 @@ Password: `lanedefense2024`
 
 ---
 
-*Last updated: 2026-05-25 — added Tooling section (screenshot standard, PixiJS coords, active skills), commit scope rule.*
+*Historical incident and merge logs in this file are provenance; the active sections above are
+the current source-of-truth summary.*
+
+*Last updated: 2026-08-31 — reconciled against the executable level, renderer, loop, and balance
+tool state.*

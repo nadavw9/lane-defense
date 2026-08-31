@@ -1,5 +1,9 @@
 # Batch S V2 — CALM strip panels (top-tier hierarchy pass)
 
+> **HISTORICAL ART PROMPT (2026-08-31):** The dimensions below were written for an earlier
+> 4-lane layout. Keep the visual principles, but derive current strip dimensions from
+> `src/renderer3d/projection.js` before generating new assets.
+
 User benchmarked against Clash Royale / Kingdom Rush: V1 strips read "crowded".
 Root cause analysis (encode in ALL future art): in top-tier games the DECOR layer
 is calm — big flat shapes, muted palette, low contrast — so gameplay pops. V1 art

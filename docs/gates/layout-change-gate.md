@@ -1,5 +1,9 @@
 # Layout/geometry change gate
 
+> **CURRENT GEOMETRY (2026-08-31):** Production levels use 1/2/3 lanes and 8 rows. The
+> renderer still supports 4 lanes for compatibility checks. The live queue has slots 0–2; the
+> former stash slot 3 is retired, and the separate bench has four storage slots.
+
 Mandatory checks for any change that touches `band` (or `bandForLaneCount`),
 active lane count, stage geometry (`APP_W`/`APP_H`/`DESIGN_ROAD_*`), or the
 booster bar (`BAR_Y`/`BOOSTER_BAR_TOP_Y`).
@@ -68,9 +72,10 @@ panel-visibility signal that's actually measured. Don't invent a second
 number to satisfy the word if one isn't backed by a real measurement.
 
 ### 4. `bombQueueVerticalFit`
-The regression this gate exists for. Stash slot's (row 3) bottom edge —
-`bombSlotScreenY(3) + BOMB_R * PX_PER_WU` — must clear `BOOSTER_BAR_TOP_Y`
-(752, mirrors `BoosterBar.BAR_Y`) at **every lane count the game ships (1–4)**,
+The regression this gate exists for. The last live queue slot's (row 2) bottom edge —
+`bombSlotRenderedBottom(2)` — including its socket ring — must clear
+`BOOSTER_BAR_TOP_Y` (768, mirrors the current `BoosterBar.BAR_Y`) at **every lane count the game
+ships (1–4)**,
 not just the one being changed (`tests/bomb-slot-position-sync.test.js`).
 Growing `band` pushes the breach line — and the queue anchored below it —
 down toward the fixed booster bar; past band=730 the queue had nowhere left

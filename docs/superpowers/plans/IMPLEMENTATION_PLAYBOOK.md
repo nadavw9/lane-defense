@@ -1,5 +1,11 @@
 # Traffic Bomb — Implementation Playbook (model-agnostic)
 
+> **CURRENT STATUS (2026-08-31):** This playbook is an historical execution aid and must be
+> reconciled with `CLAUDE.md` and `SESSION_HANDOFF.md` before use. Current production geometry is
+> 1/2/3 lanes with 8 rows, the visible queue has 3 slots plus a 4-slot bench, city repair is
+> implemented, and live Streak Shot remains open. Local visual smoke is CI-owned; do not run it
+> locally unless the project rules explicitly change.
+
 > Companion to `2026-07-02-master-plan-testing-ui-difficulty.md` (strategy + EXECUTION STATUS
 > tracker). THIS file is the how: per-task specs detailed enough that a Sonnet-class session
 > executes them without re-deriving design decisions. Fable-class judgment is already encoded
@@ -11,8 +17,7 @@
 
 1. **Session start:** read CLAUDE.md → SESSION_HANDOFF.md → master-plan EXECUTION STATUS →
    the task's section here. Nothing else up front.
-2. **Loop per task:** implement → `npx vitest run` (1062+ must pass) → `npm run test:visual`
-   (17+ must pass; REQUIRED for any change under src/renderer*, src/screens, src/input) →
+2. **Loop per task:** implement → `npx vitest run` → CI visual smoke for renderer/UI changes →
    for visual changes capture `docs/review/` screenshots (wipe first, `01.png…` + `00-labels.txt`,
    end response with full paths) → commit → push → tick the tracker checkbox in the master plan.
 3. **Commits:** small, one concern each, descriptive conventional message, end with

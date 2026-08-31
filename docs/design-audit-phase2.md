@@ -1,4 +1,7 @@
 # Lane Defense — Design Audit Phase 2
+
+> **HISTORICAL SNAPSHOT (2026-08-31):** Generated against an earlier renderer and layout. Keep
+> for visual-audit provenance; verify every finding against current code before acting on it.
 > Generated 2026-05-14. Standard: "Would Royal Match / Color Block Jam / Toon Blast ship this screen?"
 > Rubric: SYMMETRY · HIERARCHY · COLOR · TYPOGRAPHY · JUICE · CLUTTER · CONSISTENCY
 

@@ -19,6 +19,24 @@
 > The difficulty MODEL, design pillars, and per-level design *intent* below are still the
 > reference — it is the specific numbers that go stale.
 
+## Current Implementation Snapshot (2026-08-31)
+
+The executable source is authoritative for values. `LevelManager.js` currently ships 40
+goal-based, turn-based levels across W1 L1–15, W2 L16–30, and W3 L31–40. Production geometry is
+L1 = 1 lane/column, L2 = 2, L3–L40 = 3, and every production level uses 8 rows. The live theme
+schedule is morning L1–4, afternoon L5–8, sunset L9–12, misty L13–15, industrial L16–30, and
+nightHighway L31–40.
+
+The visible bomb queue has three slots; the bench is a separate fixed four-slot storage area.
+A queue bomb damages a front car only when its color matches that car. The BOMB booster clears
+every car in the targeted lane regardless of color or row. City repair state is persisted by
+`ProgressManager` and shown on level select. The locked Streak Shot behavior is still an open
+live-loop implementation gap; the simulator's partial model is not proof that the player-facing
+mechanic exists.
+
+The latest measured evidence is in `docs/balance-report-realistic.md`. Do not use the historical
+table below as executable level data.
+
 **Goal:** Define the design pillars, known bugs, difficulty model, and level master doc so every code change reinforces — not undermines — the player's core skill loop.
 
 **Architecture:** Turn-based grid. Color-recognition is the skill. The meta loop is why players return.
@@ -44,7 +62,9 @@
 **WRONG COLOR SHOT** *(fixed 2026-05-14)*: A missed shot (color mismatch) no longer advances cars. Color mismatch = wasted bomb slot, no ground lost.
 - Files: `src/game/GameLoop.js` (`_resolveShot`)
 
-**ROW BOMB COLOR BLINDNESS** *(fixed 2026-05-14)*: Row bomb now only kills cars in the row that match the front car's color. Strategic skill — wait for same-color row alignment.
+**BOMB TARGETING** *(fixed 2026-07-31)*: The BOMB booster clears every car in the targeted lane,
+regardless of color or row. This replaced the historical row-clear behavior after device play
+showed that a horizontal clear did not match the player's tracked lane threat.
 - Files: `src/game/GameLoop.js` (`placeBombOnLane`)
 
 ### HIGH — reduces strategic depth
@@ -83,12 +103,15 @@ Pattern per 8-level block:
 ## Level Master Document
 
 > ⚠️ **The old L1–20 "Level Master Document" table was STALE** (wrong lanes/colors/tiers vs
-> shipped code) and has been replaced by the **Canonical 40-Level Design Table** below,
-> derived directly from `src/game/LevelManager.js` PROGRESSION on 2026-07-08 (WS3 §3a).
-> **Code is the source of truth.** This table is the new design contract; where an earlier doc
-> disagreed, this wins. Proposed changes are in "§3a Proposed Deltas" — NOT yet applied.
+> shipped code). The table below is retained as a historical WS3 §3a snapshot, not as a new
+> executable contract. **Code is the source of truth.** Current values are summarized above and
+> live in `src/game/LevelManager.js`. The old §3a proposals were either shipped or superseded;
+> do not execute them from this document.
 
-## Canonical 40-Level Design Table (code-derived — WS3 §3a)
+## Historical 40-Level Design Table (WS3 §3a snapshot)
+
+> This table preserves design provenance. It is not current executable data. Use the current
+> implementation snapshot above and `src/game/LevelManager.js` for lanes, rows, goals, and values.
 
 Legend: **Tier** = wave-slot role from the block pattern. **hp/spd** = `worldConfig.hpMultiplier`
 / `speed.base` (the preset each level uses; presets are shared by reference — see FABLE_EXIT_BRIEF
@@ -138,19 +161,11 @@ L2 (2×2), L3 (3×3). Colors: R B G Y P O.
 | 39 | Hard | R B G Y P O | Blue×3, Green×3, tank×3 | 0.54/4.0 | 2×11 | 85 | Pre-finale, no mercy | |
 | **40** | **Boss-Hard — BOSS** | R B G Y P O | Red×4, bigrig×1, truck×1 | 0.51/4.0 | 3×24 | 120 | "Grandmaster Finale" — all mechanics | ⚠ VISION-boss: no scripted wave; design = budget+duration+goal only |
 
-### VISION-rule-5 violation flags (boss levels "MUST have designed challenges, not just hp bumps")
+### Historical VISION-rule-5 flags (superseded by the shipped §3c implementation)
 
-- **The 4 canonical VISION bosses (L10, L20, L30, L40)** all currently rely on SHARED difficulty
-  presets + high `laneTargetCarCount`/`spawnBudget` + a goal-shape twist. That is *more* than an
-  hp bump, but **none has a scripted wave or boss-specific mechanic** — which is what VISION rule 5
-  and WS3 §3c intend. **This is exactly Task 3's scope.**
-- **L30's "~40% tanks" design comment is not visible in its config** (it uses the shared
-  `R_5C_MED` preset; any tank weighting must come from CarTypes band weights). Verify against
-  `CarDirector`/`CarTypes` before designing L30's boss wave — the intent may currently be unrealized.
-- **L35 "Night Rush" is a config/design mismatch**: the code comment promises a reflex speed-boss
-  ("cars die in 1-2 shots but advance every second") but the config is a plain medium (`R_6C_MED`,
-  0.47/3.5). It is NOT one of the 4 VISION bosses, so this is optional flavor — but it currently
-  delivers none of its stated identity.
+The flags below describe the pre-§3c state. The current code includes per-level boss data and
+scripted-wave inputs for L10, L20, L30, and L40. The remaining live contract gap is Streak Shot,
+which is still modeled only partially by the simulator.
 
 ### Structural conflicts — RESOLVED (user decision 2026-07-08)
 
@@ -161,7 +176,7 @@ L2 (2×2), L3 (3×3). Colors: R B G Y P O.
 2. **Relief cadence → 8-block (VISION updated).** VISION.md rule updated to the shipped 8-block
    cadence (relief at L5/13/21/29/37). L15/25/35 are explicitly mini-bosses, not relief.
 
-### §3a Proposed Deltas (current → proposed → why → expected sim effect) — NOT APPLIED
+### Historical §3a Proposed Deltas (current → proposed → why → expected sim effect)
 
 > Deliberately minimal + design-anchored. I am NOT proposing a blind numeric retune across levels —
 > that is the §3b booster-aware sim loop's job (the current sim can't model boosters, so its numbers
@@ -185,13 +200,15 @@ L2 (2×2), L3 (3×3). Colors: R B G Y P O.
 
 ---
 
-## Boss Design — Scripted Waves (WS3 §3c) — executable specs for L10/20/30/40
+## Boss Design — Scripted Waves (WS3 §3c) — historical design-intent record
 
-Written for a Sonnet-class session to implement WITHOUT re-deriving design. VISION rule 5: bosses
-are *designed challenges with a named intended solution the player discovers*, not hp bumps. Each
-boss below states its identity, the exact wave script, the code hooks, and what must NOT change.
-**Every numeric change re-runs `node tools/balance-sim.js --level=<N> --runs=500` before commit.**
-Mini-bosses L15/25/35 are OUT of scope.
+This section records the original WS3 §3c design intent and implementation plan. VISION rule 5:
+bosses are *designed challenges with a named intended solution the player discovers*, not hp
+bumps. The executable boss inputs now live in `src/game/LevelManager.js`, `CarTypes.js`, and the
+simulation/game consumers; the dimensions, goals, and illustrative snippets below are historical
+authoring notes and are not a current numeric contract. **Every numeric change re-runs
+`node tools/balance-sim.js --level=<N> --runs=500` before commit.** Mini-bosses L15/25/35 remain
+outside the canonical four-boss set.
 
 > **BOSS TARGET BAND (2026-07-10, supersedes the "20–35%" numbers below): 40–55% at the
 > booster-aware reference profile (skill=average, boosterIQ 0.70) — equivalently ~20–35%
@@ -201,33 +218,27 @@ Mini-bosses L15/25/35 are OUT of scope.
 > (`bandFor`). Do not re-litigate: a boss at 45% booster-aware IS the designed 25%-ish
 > tool-less boss.
 >
-> **SIM PARITY IS PART OF INFRA-B/C'S DEFINITION (hard requirement).** `SimulationRunner`
-> must consume `spawnScript` + per-level `bandWeights` identically to the live game (it
-> already instantiates the real `CarDirector`, so implement the logic INSIDE CarDirector —
-> parity by construction, like `bandWeights`), with tests asserting director == sim.
-> Same precedent as the byte-aligned `_refillLanes`. Without it the sim cannot measure
-> bosses and VISION rule 6 breaks. The L20 surge uses an optional `rate` field on the
-> stage table ({ untilPct, weights?, rate? }) — rate = per-stage lane-fill target;
-> do NOT fake density via type weights.
+> **SIM PARITY IS PART OF INFRA-B/C'S DEFINITION (shipped).** `SimulationRunner` now consumes
+> `spawnScript`, per-level `bandWeights`, and the current level inputs used by the live game. The
+> L20 surge uses its optional `rate` field as a per-stage lane-fill target; do not fake density
+> with type weights. The parity tests and current balance report are the evidence for this path.
 
-### Shared infrastructure these specs need (build once, three small testable changes)
+### Shared infrastructure shipped for these specs
 
-- **INFRA-A — fix the `initialCars` consumer.** `GameLoop._primeInitialCars` (≈L945) currently
-  only places `initialCars` in **lane 0** and ignores `def.lane`/`def.color` (honors only
-  `row`/`type`). To script a per-lane opening board, make it honor `{ lane, row, type, color }`
-  per entry (place into `gs.lanes[def.lane]`, set `car.color = def.color` from `gs.colors`, keep
-  the "no budget decrement" rule). Unit-test: a 4-entry `initialCars` lands one car in each named
-  lane with the named color/type. Needed by: L10, L40 stage-1 seed.
-- **INFRA-B — per-level car-type weights.** `CarTypes.bandWeights(level)` (CarTypes.js:89) already
-  keys on level. Add explicit level branches for boss mixes (e.g. L30 tank-heavy). Pure data, no
-  new plumbing. Needed by: L30.
-- **INFRA-C — `spawnScript` (staged/timed waves).** New optional level field consumed by
-  `CarDirector` BEFORE its `weightedPick` (CarDirector.js:80). Simplest testable form: a
-  **stage table keyed on kill-progress** — `spawnScript: [{ untilPct: 0.33, weights:{bike:…} },
-  { untilPct: 0.66, weights:{truck:…} }, { untilPct: 1.0, weights:{tank:…, bigrig:…} }]`. On each
-  spawn, pick the first stage whose `untilPct ≥ goalProgress/goalTotal` and use its weights instead
-  of `bandWeights`. (An ordered per-car queue also works but the stage table is fewer moving parts
-  and deterministic for the sim.) Needed by: L20 (surge crests), L40 (bike→truck→tank stages).
+> The implementation notes below describe the pre-implementation gaps that motivated §3c. The
+> current consumers are in `GameLoop`, `CarDirector`, and `SimulationRunner`; do not reapply the
+> old fixes blindly.
+
+- **INFRA-A — initial-car placement shipped.** `GameLoop._primeInitialCars` honors the scripted
+  lane, row, type, and color fields used by the boss openings.
+- **INFRA-B — per-level car-type weights shipped.** `CarTypes.bandWeights(level)` carries the
+  explicit boss-mix branches, including the L30 heavy-car weighting.
+- **INFRA-C — staged-wave inputs shipped.** `GameLoop`, `CarDirector`, and `SimulationRunner`
+  consume the scripted boss stages; current balance evidence is in
+  `docs/balance-report-realistic.md`.
+- **Historical INFRA-C implementation sketch.** The original plan proposed a `spawnScript`
+  stage table keyed on goal progress for L20 and L40. The shipped consumers and exact scripts are
+  defined by the executable source; do not copy the illustrative values below as a new contract.
 
 ### L10 — "The Bench Test" (canonical boss · Medium tier · R+B only · 3×17)
 
@@ -311,15 +322,19 @@ Mini-bosses L15/25/35 are OUT of scope.
 
 ---
 
-## The Meta Loop (not yet built — required before App Store)
+## The Meta Loop (city repair implemented; remaining retention features are open)
 
-Players need a reason to return tomorrow. Options in priority order:
+City repair is live: each level win updates persisted `cityState`, and level select renders
+damaged/repaired building states plus the repair animation. The implementation lives in
+`src/game/ProgressManager.js`, `src/renderer/GameApp.js`, and `src/screens/LevelSelectScreen.js`.
+Remaining ideas are not shipped requirements:
 
 1. **City repair**: each level win repairs a damaged city building visible on the level select screen. Visual progress = emotional investment.
 2. **Daily challenge**: one specially designed hard level per day, leaderboard score. Creates daily habit.
 3. **Collection**: unlock car skins or bomb skins. Even cosmetic progression drives return visits.
 
-**Minimum viable**: option 1 (city repair) with 20 buildings matching 20 levels.
+**Current gap:** level-select pagination still exposes two 20-level pages, while the locked world
+structure is 15 / 15 / 10. Reconcile that UI before calling the meta loop production-ready.
 
 ---
 
@@ -341,7 +356,8 @@ node tools/balance-sim.js --level=N --runs=500
 
 If any target fails, adjust level config (`LevelManager.js`) — not the simulator.
 
-**Current results:** See `docs/balance-report.md`
+**Current results:** See `docs/balance-report-realistic.md` (generated from
+`tools/balance-sim.js`, not the historical `balance-report-gen.js`).
 
 ---
 

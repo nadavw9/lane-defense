@@ -1,5 +1,8 @@
 # Session Handoff — car-size/spacing complaint arc (2026-07-17 → 2026-07-22)
 
+> **HISTORICAL / SUPERSEDED (2026-08-31):** This handoff records an earlier top-down conversion
+> stage. Use the root `SESSION_HANDOFF.md` for current runtime truth; this file is provenance only.
+
 Written for whichever session picks this up next — human or model. There is also a live
 Claude Code conversation (Sonnet 5) that did all the work described here and can be resumed
 directly if available; it has full working memory of every investigation, every render, every

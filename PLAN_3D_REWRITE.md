@@ -1,5 +1,10 @@
 # Plan: Full 3D Renderer Rewrite — Lane Defense
 
+> **HISTORICAL / SUPERSEDED (2026-08-31):** This plan describes the original perspective-camera
+> rewrite. The current runtime uses one top-down orthographic camera, active gameplay remains a
+> hybrid PixiJS/Three.js stack, and car visuals are billboard sprites. Keep this file for
+> provenance only; do not execute its old camera, HUD, or asset instructions.
+
 ## Architecture Decision
 
 **Two-renderer strategy (pragmatic, production-grade):**

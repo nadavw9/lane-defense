@@ -1,117 +1,91 @@
 # Lane Defense — Realistic Balance Report
 
-**Generated:** 2026-05-15
-**Tool:** `node tools/balance-report-gen.js --runs=200`
-**Method:** SimulationRunner with 3 skill profiles. 200 seeds per level.
-**Baseline:** Phase 2 report (`docs/balance-report-phase2.md`) — optimal AI, 100% all levels.
+**Generated:** 2026-08-31
+**Command:** `node tools/balance-sim.js --level=all --runs=500 --skill=average`
+**Model:** discrete, turn-based, goal-based simulation with the booster-aware average profile
+(`boosterIQ = 0.70`).
 
----
+## Current Rules
 
-## Key Findings
+The simulator models the current production shape: 40 levels, 1/2/3 lanes, 8 rows, goal
+completion as the win condition, and the current BOMB lane-clear behavior. It receives each
+level's `goals`, `initialCars`, `spawnScript`, and `shooterColorWeights` from `LevelManager.js`.
+The simulator is evidence for balance, not a substitute for real-device boss play.
 
-Switching from an optimal AI (100% accuracy, perfect cycling) to an average human
-player model (82% accuracy, streak-aware, cycling enabled) reveals the actual
-difficulty experienced by a typical player. Levels that were "balanced" under
-optimal play may need adjustment.
+Reference bands at the average profile:
 
-**Target bands (AVERAGE player):**
-- Easy: 75–92% win rate
-- Medium: 50–72%
-- Hard: 28–50%
-- Boss-Hard: 15–32%
+| Levels | Target |
+|--------|--------|
+| L1–L3 tutorial | 85–100%; tutorial results are expected to be near 100% |
+| L4–L9 FTUE | 85–95% |
+| L10/L20/L30/L40 bosses | 40–55%; boss outliers are flagged `BOSS §3c` |
+| L11–L26 non-boss | 70–82% |
+| L27–L39 non-boss | 60–75% |
 
----
+## Full Run
 
-## Per-Level Results
+| Level | Lanes | Grid rows | Average win | Status |
+|------:|------:|----------:|------------:|--------|
+| 1 | 1 | 8 | 100.0% | OK |
+| 2 | 2 | 8 | 97.2% | OK |
+| 3 | 3 | 8 | 93.0% | OK |
+| 4 | 3 | 8 | 95.0% | OK |
+| 5 | 3 | 8 | 92.2% | OK |
+| 6 | 3 | 8 | 91.0% | OK |
+| 7 | 3 | 8 | 90.4% | OK |
+| 8 | 3 | 8 | 88.6% | OK |
+| 9 | 3 | 8 | 90.0% | OK |
+| 10 | 3 | 8 | 45.6% | OK; boss band |
+| 11 | 3 | 8 | 74.8% | OK |
+| 12 | 3 | 8 | 79.6% | OK |
+| 13 | 3 | 8 | 76.6% | OK |
+| 14 | 3 | 8 | 76.6% | OK |
+| 15 | 3 | 8 | 81.2% | OK |
+| 16 | 3 | 8 | 75.2% | OK |
+| 17 | 3 | 8 | 75.6% | OK |
+| 18 | 3 | 8 | 77.8% | OK |
+| 19 | 3 | 8 | 74.8% | OK |
+| 20 | 3 | 8 | 52.4% | OK; boss band |
+| 21 | 3 | 8 | 73.0% | OK |
+| 22 | 3 | 8 | 73.4% | OK |
+| 23 | 3 | 8 | 80.2% | OK |
+| 24 | 3 | 8 | 72.2% | OK |
+| 25 | 3 | 8 | 79.6% | OK |
+| 26 | 3 | 8 | 81.0% | OK |
+| 27 | 3 | 8 | 71.4% | OK |
+| 28 | 3 | 8 | 69.8% | OK |
+| 29 | 3 | 8 | 65.6% | OK |
+| 30 | 3 | 8 | 36.6% | BOSS §3c; below 40–55% |
+| 31 | 3 | 8 | 66.4% | OK |
+| 32 | 3 | 8 | 62.8% | OK |
+| 33 | 3 | 8 | 65.2% | OK |
+| 34 | 3 | 8 | 72.2% | OK |
+| 35 | 3 | 8 | 66.0% | OK |
+| 36 | 3 | 8 | 64.2% | OK |
+| 37 | 3 | 8 | 65.6% | OK |
+| 38 | 3 | 8 | 73.4% | OK |
+| 39 | 3 | 8 | 57.8% | TOO HARD; below 60–75% |
+| 40 | 3 | 8 | 49.4% | OK; boss band |
 
-| L | Tier | Colors | Budget | Beginner | Average | Skilled | Status |
-|---|------|--------|--------|----------|---------|---------|--------|
-| 1 | Easy | Red | 5 | 100.0% | 100.0% | 100.0% | ⚠️  WARN: too easy |
-| 2 | Medium | Red+Blue | 10 | 7.0% | 68.0% | 100.0% | ✅ PASS |
-| 3 | Medium | Red+Blue | 12 | 3.0% | 56.5% | 100.0% | ✅ PASS |
-| 4 | Hard | Red+Blue | 14 | 0.5% | 36.0% | 100.0% | ✅ PASS |
-| 5 | Easy | Red+Blue | 12 | 1.5% | 89.5% | 100.0% | ✅ PASS |
-| 6 | Medium | Red+Blue | 14 | 2.5% | 62.5% | 100.0% | ✅ PASS |
-| 7 | Hard | R+B+G | 14 | 0.0% | 32.0% | 100.0% | ✅ PASS |
-| 8 | Boss-Hard | R+B+G | 16 | 0.0% | 20.5% | 100.0% | ✅ PASS |
-| 9 | Easy | R+B+G | 14 | 2.0% | 92.5% | 100.0% | ⚠️  WARN: too easy |
-| 10 | Medium | Red+Blue | 18 | 2.5% | 62.5% | 100.0% | ✅ PASS |
-| 11 | Medium | R+B+G | 16 | 0.0% | 60.5% | 100.0% | ✅ PASS |
-| 12 | Hard | R+B+G | 18 | 0.0% | 32.5% | 100.0% | ✅ PASS |
-| 13 | Easy | R+B+G | 14 | 0.5% | 87.5% | 100.0% | ✅ PASS |
-| 14 | Medium | R+B+G | 18 | 0.0% | 60.5% | 100.0% | ✅ PASS |
-| 15 | Hard | R+B+G | 18 | 0.0% | 32.0% | 100.0% | ✅ PASS |
-| 16 | Boss-Hard | R+B+G | 20 | 0.0% | 20.5% | 100.0% | ✅ PASS |
-| 17 | Easy | R+B+G | 22 | 1.0% | 92.0% | 100.0% | ✅ PASS |
-| 18 | Medium | R+B+G | 18 | 0.0% | 60.5% | 100.0% | ✅ PASS |
-| 19 | Medium | R+B+G | 20 | 0.5% | 66.0% | 100.0% | ✅ PASS |
-| 20 | Hard | R+B+G | 28 | 0.0% | 32.0% | 100.0% | ✅ PASS |
-| 21 | Easy | R+B+G+Y | 16 | 0.0% | 89.0% | 100.0% | ✅ PASS |
-| 22 | Medium | R+B+G+Y | 18 | 0.0% | 63.5% | 100.0% | ✅ PASS |
-| 23 | Hard | R+B+G+Y | 20 | 0.0% | 32.0% | 100.0% | ✅ PASS |
-| 24 | Boss-Hard | R+B+G+Y | 22 | 0.0% | 31.5% | 100.0% | ✅ PASS |
-| 25 | Easy | +Purple | 22 | 0.0% | 85.0% | 100.0% | ✅ PASS |
-| 26 | Medium | +Purple | 22 | 0.0% | 63.0% | 100.0% | ✅ PASS |
-| 27 | Medium | +Purple | 22 | 0.0% | 63.0% | 100.0% | ✅ PASS |
-| 28 | Hard | +Purple | 24 | 0.0% | 46.0% | 100.0% | ✅ PASS |
-| 29 | Easy | +Purple | 18 | 0.0% | 85.0% | 100.0% | ✅ PASS |
-| 30 | Medium | +Purple | 28 | 0.0% | 63.0% | 100.0% | ✅ PASS |
-| 31 | Hard | All 6 | 26 | 0.0% | 45.5% | 100.0% | ✅ PASS |
-| 32 | Boss-Hard | All 6 | 28 | 0.0% | 29.5% | 100.0% | ✅ PASS |
-| 33 | Easy | All 6 | 22 | 0.0% | 88.5% | 100.0% | ✅ PASS |
-| 34 | Medium | All 6 | 24 | 0.0% | 74.0% | 100.0% | ⚠️  WARN: too easy |
-| 35 | Medium | All 6 | 30 | 0.0% | 70.0% | 100.0% | ✅ PASS |
-| 36 | Hard | All 6 | 28 | 0.0% | 45.5% | 100.0% | ✅ PASS |
-| 37 | Easy | All 6 | 22 | 0.0% | 88.5% | 100.0% | ✅ PASS |
-| 38 | Medium | All 6 | 28 | 0.0% | 70.0% | 100.0% | ✅ PASS |
-| 39 | Hard | All 6 | 30 | 0.0% | 48.5% | 100.0% | ✅ PASS |
-| 40 | Boss-Hard | All 6 | 35 | 0.0% | 27.0% | 100.0% | ✅ PASS |
+**Mean win rate:** 74.3% across all 40 levels.
+**Flagged:** L30 is a boss-band exception at 36.6%; L39 is below its late-game band at 57.8%.
+These are balance follow-ups, not reasons to falsify the report or widen the bands.
 
----
+## What This Does Not Prove
 
-## Flagged Levels (1)
+- It does not prove the player-facing Streak Shot exists. The current simulator has a partial
+  streak model; the live `GameLoop` still needs the locked double-damage plus one-shot slow
+  mechanic.
+- It does not replace real-device play of L10, L20, L30, and L40. Boss identity and intended
+  solutions must be played, not only measured.
+- It does not measure emotional response, learning across attempts, quit behavior, or final art
+  quality.
 
-- **L1** (Easy): beginner trivial (>95%)
+## Follow-Up
 
----
+Investigate L30 and L39 against the named design intent before changing numbers. Any level-data
+change must be re-run with `node tools/balance-sim.js --level=all --runs=500` and reviewed against
+the locked rules in `docs/VISION.md`.
 
-## What This Simulator Cannot Measure
-
-The sim models a stateless, single-decision AI. Real players have context and emotion
-the sim cannot replicate:
-
-1. **Booster timing.** SWAP, BENCH, FREEZE, PEEK are not modeled. Real players use
-   these in crisis moments; the sim AI never does. Hard/Boss-Hard win rates will be
-   higher in practice because boosters provide escape valves.
-
-2. **Panic and tunnel vision.** Under pressure, real players fixate on the most
-   advanced lane and ignore others. The sim's Pass B (focus-fire) approximates
-   this only at position ≥ 75.
-
-3. **Learning across attempts.** Losing L8 five times teaches the player to
-   manage three colors under density. The sim has no memory between seeds.
-
-4. **Streak Shot skill.** The sim applies 82% chance of triggering a streak shot
-   when at streak=2 via streakBoost=0.70. Real players who haven't discovered
-   the mechanic never deliberately build streaks. Players who have discovered it
-   actively farm it.
-
-5. **Emotional quit vs. actual lose.** A player frustrated after 3 losses may
-   quit before finishing the level. Sim counts only breach, not frustration.
-
-6. **Turn-based vs. continuous time.** The sim advances cars continuously
-   (every tick). The real game advances the grid only on correct hits. A wrong
-   shot in the real game wastes a slot but does NOT advance enemies — so real
-   misfires are less punishing than the sim models.
-
----
-
-## Required Human Playtest Before Phase 3 Ship
-
-| Test | Method | Pass Criteria |
-|------|--------|---------------|
-| L4 (Hard) difficulty feel | 5 new players, no coaching | 2–4 of 5 win on ≤3rd attempt |
-| L8 (Boss-Hard) rescue rate | Firebase rescueWouldSave event | 30–60% of L8 attempts trigger rescue prompt |
-| L17 (Easy★) streak discovery | Session replay sampling | ≥60% of players fire ≥1 streak shot in L17 |
-| L24 (Boss-Hard) quit rate | Firebase level_quit event | <25% quit before first attempt completes |
-| L33–40 (Night Highway) | 10 players who completed L32 | Median first-clear at L36–38 |
+The 2026-05-15 `balance-report-gen.js` report is historical and superseded. It used stale
+continuous-model assumptions and must not be used as current difficulty ground truth.

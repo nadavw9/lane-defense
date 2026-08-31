@@ -1,5 +1,9 @@
 # Top-Down Unified Coordinate System — Design
 
+> **HISTORICAL / SUPERSEDED (2026-08-31):** This approved design records the earlier coordinate
+> conversion and its retired queue/camera values. Current geometry is defined by
+> `src/renderer3d/projection.js`; use the root handoff for current values.
+
 _Date: 2026-05-17 · Status: APPROVED (design) · Author: Claude (brainstorming session)_
 
 ## Problem

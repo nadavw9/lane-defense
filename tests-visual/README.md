@@ -16,10 +16,14 @@ via sharp). Catches the bug classes the 1000+ headless vitest tests cannot see:
 
 Class E (unwinnable configs) lives in vitest: `tests/audit-*.test.js`.
 
+The production smoke set covers the shipped 1-lane, 2-lane, and 3-lane cases. L5 is a 3-lane
+afternoon level; four-lane checks remain compatibility coverage rather than production level
+geometry.
+
 ## Running
 
-    npm run test:visual        # smoke set (~3-4 min) — run before pushing UI/geometry changes
-    npm run test:visual:full   # + all-40-level sweep (nightly / manual)
+    npm run test:visual        # CI smoke set; do not run locally per CLAUDE.md
+    npm run test:visual:full   # CI/nightly all-40-level sweep
 
 The dev server auto-starts (or is reused if already running on :5173).
 Failure screenshots/traces land in `tests-visual/failures/`.

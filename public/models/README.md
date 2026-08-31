@@ -1,5 +1,9 @@
 # Lane Defense — 3D Model Assets
 
+> **Current runtime note (2026-08-31):** normal cars are rendered by `Car3D` as designed PNG
+> sprite billboards on flat planes. The car GLBs listed below are legacy assets and are not the
+> active car renderer. Environment GLBs remain available to `Environment3D`.
+
 All models are CC0 (public domain) from [Kenney.nl](https://kenney.nl).
 No attribution required.
 
@@ -14,14 +18,14 @@ It is placed in 4 locations to cover all relative-path resolutions:
 
 | Path | Covers |
 |------|--------|
-| `public/models/cars/Textures/colormap.png` | car GLBs (primary) |
+| `public/models/cars/Textures/colormap.png` | legacy car GLBs |
 | `public/models/environment/Textures/colormap.png` | env GLBs |
 | `public/models/Textures/colormap.png` | root-relative fallback |
 | `public/Textures/colormap.png` | absolute-path fallback |
 
 Source: `Car Kit/Models/GLB format/Textures/colormap.png` (12 KB, palette PNG)
 
-## cars/
+## Legacy cars/
 
 | File | Source (Kenney Car Kit) | Maps to CarType |
 |------|------------------------|-----------------|
@@ -31,10 +35,11 @@ Source: `Car Kit/Models/GLB format/Textures/colormap.png` (12 KB, palette PNG)
 | van.glb | van.glb | jeep (Van) |
 | truck.glb | truck.glb | truck (Truck) |
 | bigrig.glb | garbage-truck.glb | bigrig (Big Rig) |
-| *(tank)* | *no Kenney 3D tank exists* | tank — rendered procedurally in Car3D.js |
+| *(tank)* | *no Kenney 3D tank exists* | legacy procedural mapping; active tank visuals are billboard/canvas based |
 
-The Kenney "Tanks" pack (https://kenney.nl/assets/tanks) is **2D sprites only** — no GLB.
-The tank type uses Car3D._buildTank() (procedural Three.js geometry with turret + tracks).
+The Kenney "Tanks" pack (https://kenney.nl/assets/tanks) is **2D sprites only** — no GLB. The
+old procedural `Car3D._buildTank()` mapping is historical; active tank visuals are billboard or
+canvas based.
 
 Download: https://kenney.nl/assets/car-kit
 
@@ -56,3 +61,6 @@ Download: https://kenney.nl/assets/nature-kit
 - environment GLBs: ~67 KB
 - colormap.png (×4 copies): ~48 KB
 - **total: ~1.3 MB**
+
+The payload is retained for environment and legacy compatibility. Removing unused car preloads is
+a separate cleanup task and must not be confused with the current billboard renderer.

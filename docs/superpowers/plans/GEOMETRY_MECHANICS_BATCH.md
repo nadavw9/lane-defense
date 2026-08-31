@@ -1,5 +1,9 @@
 # GEOMETRY + MECHANICS BATCH — execution spec (Fable exit, 2026-07-19)
 
+> **STATUS: HISTORICAL / SUPERSEDED (2026-08-31).** This record contains pre-rows-8 geometry and
+> retired queue/merge assumptions. Current values live in `src/renderer3d/projection.js` and the
+> root `SESSION_HANDOFF.md`.
+
 Written for an Opus/Sonnet session to execute WITHOUT re-deriving design. Same
 contract as FABLE_EXIT_BRIEF.md: these are EXECUTABLE specs (what to build,
 which files, how to verify, what NOT to touch) — the design judgment is done.

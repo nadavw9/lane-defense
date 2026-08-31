@@ -1,5 +1,11 @@
 # Traffic Bomb — Master Plan: Testing → UI → Difficulty
 
+> **STATUS RECONCILIATION (2026-08-31):** The checklist and detailed plan below are the original
+> execution record and contain historical counts, lane assumptions, and pre-implementation
+> wording. Current truth is the code plus `SESSION_HANDOFF.md`; the active snapshot is 40 levels,
+> worlds 15/15/10, production geometry 1/2/3 lanes with 8 rows, city repair implemented, and
+> live Streak Shot still open. Do not execute an unchecked item here without reconciling it first.
+
 > **HANDOFF DOCUMENT.** If this session dies (token limit, crash), a fresh session continues from here.
 > Read CLAUDE.md + SESSION_HANDOFF.md first, then this file. Work top-to-bottom through EXECUTION STATUS;
 > the full design rationale for every step is in the plan body below. User pre-approved all work in this
@@ -11,6 +17,12 @@
 > reserve Fable/Opus for design judgment), and ready-to-paste art prompts (§6).
 
 ## EXECUTION STATUS (update after every completed step)
+
+> **Current workstream state:** WS1 is complete. WS2 infrastructure and city-repair wiring are
+> present, while final icon/screen art remains incomplete. WS3 difficulty data, booster-aware
+> simulation, scripted boss inputs, DDA, and city repair are present in the executable code; the
+> live Streak Shot contract is still open. The original checkboxes below are retained as the
+> historical execution record and are not a fresh task queue.
 
 - [x] Step 0 — baseline commit `05e146e` (thin-ribbon panels + aspect-preserving processing), pushed
 - [x] WS1-1a — CI gate: tests block deploy (`4d0bfe9`)
@@ -30,7 +42,11 @@
 - [ ] WS3-3e — City Repair meta-loop (World 1 first)
 - [ ] WS3-3f — full validation sweep, update balance-report-realistic.md
 
-**Key session facts a fresh session needs:** tests must stay green (`npx vitest run`, currently 778); dev server usually already running on :5173 (`reuseExistingServer`); Bash cwd resets between calls — always `cd /c/Users/dalit/lane-defense` first; screenshots reviewed via `docs/review/` (wipe first, numbered + 00-labels.txt, full path at end of response); never touch `android/lane-defense-release.keystore`; sprite paths always `${import.meta.env.BASE_URL}sprites/...`.
+**Key session facts a fresh session needs:** tests must stay green (`npx vitest run`; latest
+snapshot 1232 passed, 2 skipped, 5 todo across 56 files); local visual smoke is a CI gate per
+`CLAUDE.md`; screenshots reviewed via `docs/review/` (wipe first, numbered + 00-labels.txt, full
+path at end of response); never touch `android/lane-defense-release.keystore`; sprite paths always
+`${import.meta.env.BASE_URL}sprites/...`.
 
 ---
 

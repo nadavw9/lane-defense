@@ -2,7 +2,9 @@
 
 **Play it on your phone:** https://nadavw9.github.io/lane-defense/
 
-A hybrid-casual mobile tower-defense game. Drag color-coded shooters into lanes to destroy advancing cars before they breach. Survive the timer to win.
+A hybrid-casual mobile puzzle-defense game. Drag color-coded shooters into lanes to damage
+advancing cars before they breach. Complete the level's goal before the breach threshold is
+reached.
 
 ---
 
@@ -111,13 +113,17 @@ src/
 ├── models/        Car, Lane, Column, Shooter — pure data
 ├── game/          GameLoop, GameState, CombatResolver, LevelManager, Achievements
 ├── renderer/      PixiJS 2D renderer (meta-screens: title, win, lose, shop…)
-├── renderer3d/    Three.js 3D renderer (active during gameplay)
+├── renderer3d/    Three.js top-down gameplay renderer (active during gameplay)
 ├── input/         DragDrop, InputManager
 ├── audio/         Synthesized Web Audio API sounds (no asset files needed)
 ├── screens/       All UI screens
 └── analytics/     Firebase anonymous session tracking + AutoTuner
-tests/             Vitest test suite (414 test cases)
+tests/             Vitest unit and audit suite
 ```
+
+Current production levels use 1, 2, or 3 lanes and 8 rows. The renderer retains four-lane
+compatibility for structural testing. Normal cars are flat PNG sprite billboards; the boss uses
+a procedural canvas texture. The visible bomb queue has three slots and the bench has four.
 
 ## Tech Stack
 
@@ -125,5 +131,5 @@ tests/             Vitest test suite (414 test cases)
 - **Three.js** — 3D gameplay renderer
 - **Howler.js** / **Web Audio API** — synthesized audio
 - **Vite** — build tool
-- **Vitest** — tests
+- **Vitest** — 1232 passing tests, 2 skipped, 5 todo across 56 files at the latest audit
 - **Capacitor** — Android packaging (see `android/`)

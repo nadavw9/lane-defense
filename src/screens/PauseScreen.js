@@ -1,108 +1,76 @@
-// PauseScreen — modal overlay shown when the player taps the pause button
-// during gameplay.
+// PauseScreen — modal overlay shown when the player taps pause during gameplay
+// (premium pass, 2026-09-28).
 //
 // Buttons:
-//   RESUME      — close overlay, unpause game
-//   CAR INFO    — open car encyclopedia
-//   SETTINGS    — open settings (game stays paused)
-//   SHARE       — copy/share the game URL
-//   QUIT TO MENU — end the current attempt, go to level select
-import { Container, Graphics, Text } from 'pixi.js';
-
-const GAME_URL = 'https://nadavw9.github.io/lane-defense/';
+//   RESUME     — close overlay, unpause game
+//   RESTART    — restart this level (only when the caller supplies onRestart)
+//   CAR GUIDE  — open the car encyclopedia
+//   SETTINGS   — open settings (game stays paused)
+//   QUIT       — two-step: the first tap arms it ("TAP AGAIN TO QUIT"), a second
+//                tap within 2.5s ends the attempt. A stray tap never throws a
+//                level away.
+import { Container } from 'pixi.js';
+import { panel, ribbon, button, backdrop } from '../renderer/PremiumUI.js';
+import { uiIcon } from '../renderer/UIIcon.js';
 
 export class PauseScreen {
-  // callbacks: { onResume, onCarManual, onSettings, onQuit }
-  constructor(stage, appW, appH, { onResume, onCarManual, onSettings, onQuit, audio }) {
+  // callbacks: { onResume, onRestart?, onCarManual, onSettings, onQuit, audio }
+  constructor(stage, appW, appH, { onResume, onRestart = null, onCarManual, onSettings, onQuit, audio }) {
     this._container = new Container();
     stage.addChild(this._container);
-    this._build(appW, appH, onResume, onCarManual, onSettings, onQuit, audio);
+    this._quitTimer = null;
+    this._build(appW, appH, { onResume, onRestart, onCarManual, onSettings, onQuit, audio });
   }
 
   destroy() {
+    clearTimeout(this._quitTimer);
     this._container.destroy({ children: true });
   }
 
-  // ── Private ────────────────────────────────────────────────────────────────
-
-  _build(w, h, onResume, onCarManual, onSettings, onQuit, audio) {
-    // Semi-transparent backdrop — blocks clicks to game layers.
-    const backdrop = new Graphics();
-    backdrop.rect(0, 0, w, h);
-    backdrop.fill({ color: 0x000011, alpha: 0.78 });
-    backdrop.eventMode = 'static';
-    this._container.addChild(backdrop);
-
-    // Panel — tall enough for 5 buttons
-    const panelW = 290, panelH = 418;
-    const px = (w - panelW) / 2;
-    const py = (h - panelH) / 2 - 30;
-
-    const panel = new Graphics();
-    panel.roundRect(px, py, panelW, panelH, 18);
-    panel.fill({ color: 0x0d1a2e, alpha: 0.97 });
-    panel.roundRect(px, py, panelW, panelH, 18);
-    panel.stroke({ color: 0x44aaff, width: 2, alpha: 0.35 });
-    this._container.addChild(panel);
-
-    const cx = w / 2;
-    let y    = py + 44;
-
-    // Title
-    const title = new Text({
-      text: '⏸ PAUSED',
-      style: { fontSize: 28, fontWeight: 'bold', fill: 0xffffff },
-    });
-    title.anchor.set(0.5, 0.5);
-    title.x = cx;
-    title.y = y;
-    this._container.addChild(title);
-    y += 56;
+  _build(w, h, { onResume, onRestart, onCarManual, onSettings, onQuit, audio }) {
+    this._container.addChild(backdrop(w, h));
+    const rows = onRestart ? 5 : 4;
+    const PW = 310, PH = 90 + rows * 74 + 20;
+    const px = (w - PW) / 2, py = (h - PH) / 2 - 10;
+    const pnl = panel(PW, PH);
+    pnl.x = px; pnl.y = py;
+    this._container.addChild(pnl);
+    const rb = ribbon('PAUSED', 220);
+    rb.x = w / 2; rb.y = py + 2;
+    this._container.addChild(rb);
 
     const tap = (fn) => () => { audio?.play('button_tap'); fn?.(); };
-    this._btn('RESUME',       cx, y, 0x1a5a2a, 0x55ff99, tap(onResume));     y += 58;
-    this._btn('📖 CAR INFO',  cx, y, 0x1a2040, 0xaaccff, tap(onCarManual));  y += 58;
-    this._btn('SETTINGS',     cx, y, 0x1a2a4a, 0x55aaff, tap(onSettings));   y += 58;
+    let y = py + 88;
+    const add = (label, variant, fn, icon = null) => {
+      const b = button(label, { variant, w: 236, h: 60, size: 24, icon, onTap: fn });
+      b.x = w / 2; b.y = y;
+      this._container.addChild(b);
+      y += 74;
+      return b;
+    };
+    add('RESUME', 'green', tap(onResume), uiIcon('play', 22, '▶'));
+    if (onRestart) add('RESTART', 'purple', tap(onRestart));
+    add('CAR GUIDE', 'blue', tap(onCarManual), uiIcon('book', 24, '📖'));
+    add('SETTINGS', 'dark', tap(onSettings), uiIcon('gear', 24, '⚙'));
 
-    // Share button — uses Web Share API on mobile, clipboard fallback on desktop.
-    const shareBtn = this._btn('SHARE GAME', cx, y, 0x1a1a3a, 0xaaaaff, tap(async () => {
-      if (navigator.share) {
-        try { await navigator.share({ title: 'Traffic Bomb', text: 'Can you beat my score?', url: GAME_URL }); } catch {}
-      } else {
-        try {
-          await navigator.clipboard.writeText(GAME_URL);
-          // Briefly update label to confirm the copy.
-          const lbl = shareBtn?.getChildAt(0);
-          if (lbl) {
-            const prev = lbl.text;
-            lbl.text = 'LINK COPIED!';
-            setTimeout(() => { if (lbl && !lbl.destroyed) lbl.text = prev; }, 1800);
-          }
-        } catch {}
-      }
-    }));
-    y += 58;
-
-    this._btn('QUIT TO MENU', cx, y, 0x2a0d0d, 0xff6666, tap(onQuit));
+    // Two-step quit.
+    let armed = false;
+    const quit = add('QUIT LEVEL', 'red', () => {
+      audio?.play('button_tap');
+      if (armed) { onQuit?.(); return; }
+      armed = true;
+      this._setLabel(quit, 'TAP AGAIN TO QUIT');
+      this._quitTimer = setTimeout(() => { armed = false; if (!quit.destroyed) this._setLabel(quit, 'QUIT LEVEL'); }, 2500);
+    });
   }
 
-  _btn(label, cx, y, bg, fg, onClick) {
-    const W = 220, H = 48;
-    const b = new Graphics();
-    b.roundRect(-W / 2, -H / 2, W, H, 12);
-    b.fill(bg);
-    b.x = cx;
-    b.y = y;
-    b.eventMode = 'static';
-    b.cursor    = 'pointer';
-    b.on('pointerdown', onClick);
-    b.on('pointerover',  () => { b.alpha = 0.78; });
-    b.on('pointerout',   () => { b.alpha = 1.00; });
-
-    const t = new Text({ text: label, style: { fontSize: 18, fontWeight: 'bold', fill: fg } });
-    t.anchor.set(0.5, 0.5);
-    b.addChild(t);
-    this._container.addChild(b);
-    return b;
+  // The button's title Text is the last child of its body container.
+  _setLabel(btn, text) {
+    const body = btn.children[0];
+    const t = body?.children[body.children.length - 1];
+    if (t && 'text' in t) {
+      t.text = text;
+      t.scale.set(text.length > 12 ? 0.72 : 1);
+    }
   }
 }

@@ -159,7 +159,15 @@ export const BUTTON_PLATE_URLS = ['button-primary', 'button-secondary'].map(n =>
 // duplicates/contradicts the animated earned-star row) → not preloaded.
 export const FRAME_URLS = ['win-burst', 'lose-frame'].map(n => `${_B}sprites/ui/${n}.png`);
 
+// Level map (2026-09-28): one baked background per world page + the city-repair
+// buildings in three states (rubble / scaffold / repaired) × three variants.
+export const MAP_URLS = [
+  ...['world1', 'world2', 'world3'].map(t => `${_B}sprites/designed/map-${t}.png`),
+  ...['world1', 'world2', 'world3'].flatMap(t => [0, 1, 2].flatMap(st => [0, 1, 2].map(v => `${_B}sprites/designed/repair-${t}-${st}-${v}.png`))),
+];
+
 export const ALL_SPRITE_URLS = [
+  ...MAP_URLS,
   ...CAR_URLS, ...SHOOTER_URLS, ...POWERBALL_URLS, ...BUILDING_URLS, ...TREE_URLS,
   ...ENV_URLS, ...BOOSTER_URLS, ...TUTORIAL_URLS, ...TITLE_ART_URLS, ...WORLD_PANEL_URLS,
   ...STRIP_PANEL_URLS, ...SCENE_STRIP_URLS, ...ZONE_FLOOR_URLS, ...UI_ICON_URLS,

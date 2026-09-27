@@ -13,6 +13,7 @@
 import { chromium } from 'playwright';
 import sharp from 'sharp';
 import { writeFileSync } from 'node:fs';
+import { MAP_WORLDS, mapNodes, mapRoadPath } from '../src/screens/levelMapLayout.js';
 
 const [mode = 'sheet', outArg] = process.argv.slice(2);
 const OUT = 'public/sprites/designed';
@@ -112,6 +113,23 @@ if (mode === 'verges') {
       `// light panel rectangle (fractions of the image) where Car3D draws the sequence.\n` +
       `export const BOSS_SPRITE_GEOMETRY = ${JSON.stringify(geo, null, 2)};\n`);
     console.log('v2 sprites written; boss geometry', geo);
+  }
+} else if (mode === 'map' || mode === 'mappreview') {
+  // Level-map backgrounds (one per world page) + repair building sprites.
+  //   map-<world>.png (780×1688), repair-<world>-<state>-<variant>.png (300×300)
+  for (const w of MAP_WORLDS) {
+    const road = mapRoadPath(w.page), nodes = mapNodes(w.page);
+    const url = await page.evaluate(([t, road, nodes]) => window.studio.map(t, 1, { road, nodes }), [w.theme, road, nodes]);
+    const out = mode === 'map' ? `${OUT}/map-${w.theme}.png` : `${outArg ?? '.'}/map-${w.theme}.png`;
+    await sharp(decode(url)).toFile(out);
+    console.log('map', w.theme);
+  }
+  if (mode === 'map') {
+    for (const t of ['world1', 'world2', 'world3']) for (const st of [0, 1, 2]) for (const v of [0, 1, 2]) {
+      const url = await page.evaluate(([t, st, v]) => window.studio.repair(t, st, v), [t, st, v]);
+      await sharp(decode(url)).toFile(`${OUT}/repair-${t}-${st}-${v}.png`);
+    }
+    console.log('repair buildings written');
   }
 } else if (mode === 'preview') {
   // Quick look while modelling: listed types (default all) in Red, Blue, Yellow, big.

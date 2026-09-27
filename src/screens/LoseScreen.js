@@ -6,6 +6,7 @@
 //   • Hearts display: shows remaining lives
 import { Container, Graphics, Text, Sprite, Assets } from 'pixi.js';
 import { uiIcon } from '../renderer/UIIcon.js';
+import { panel as premiumPanel, ribbon, button as premiumButton, well } from '../renderer/PremiumUI.js';
 
 const _B = import.meta.env.BASE_URL;
 import { ROAD_BOTTOM_Y } from '../renderer/LaneRenderer.js';
@@ -89,15 +90,15 @@ export class LoseScreen {
 
     this._generateCrackLines();
 
-    // Near-miss detection
-    const timeUsedRatio = gs && gs.timeRemaining != null
-      ? gs.elapsed / Math.max(1, gs.elapsed + gs.timeRemaining)
-      : 0;
-    const isNearMiss = timeUsedRatio >= 0.80;
+    // Near-miss detection — the turn-based game has no clock, so "close" means
+    // the goals were at least 80% done when the car broke through.
+    const goalTotal = gs?.goals?.reduce((a, g) => a + g.count, 0) ?? 0;
+    const goalLeft  = gs?.goalProgress?.reduce((a, r) => a + r, 0) ?? 0;
+    const isNearMiss = goalTotal > 0 && goalLeft > 0 && goalLeft <= goalTotal * 0.2;
 
     const hasStats = gs !== null;
-    const panelH   = hasStats ? (heartsRemaining !== null ? 390 : 360) : 250;
-    const panelW   = 310;
+    const panelH   = hasStats ? (heartsRemaining !== null ? 420 : 392) : 270;
+    const panelW   = 330;
     const px = (w - panelW) / 2;
     const py = (h - panelH) / 2 - 20;
     const cx = w / 2;
@@ -107,66 +108,41 @@ export class LoseScreen {
     this._panelGroup.y = this._appH;   // start off the bottom edge
     this._container.addChild(this._panelGroup);
 
-    const panel = new Graphics();
-    panel.roundRect(px, py, panelW, panelH, 18);
-    panel.fill({ color: 0x1a0505, alpha: 0.97 });
-    panel.roundRect(px, py, panelW, panelH, 18);
-    panel.stroke({ color: 0xdd2222, width: 2, alpha: 0.60 });
-    this._panelGroup.addChild(panel);
+    const pnl = premiumPanel(panelW, panelH, { face: 0x4A2440 });
+    pnl.x = px; pnl.y = py;
+    this._panelGroup.addChild(pnl);
 
-    // Ornamental bronze frame bordering the panel (additive). Its open centre is
-    // landscape (≈77%×57% of the art), so we SIZE IT FROM the laid-out content
-    // bounds at the end — see the finalize block after the buttons — so every
-    // element (header, stats, buttons) sits inside the open centre, not over the
-    // border art. Added here (behind the content) but sized later.
-    const frameTex = Assets.get(`${_B}sprites/ui/lose-frame.png`);
-    const frameSprite = frameTex ? new Sprite(frameTex) : null;
-    if (frameSprite) { frameSprite.anchor.set(0.5); this._panelGroup.addChild(frameSprite); }
-    const FRAME_OPEN_W = 0.769, FRAME_OPEN_H = 0.566;   // measured hole fraction
+    const rb = ribbon(isNearMiss ? 'SO CLOSE!' : 'GAME OVER', 250, { color: isNearMiss ? 0xF08A24 : 0xE8453C });
+    rb.x = cx; rb.y = py + 2;
+    this._panelGroup.addChild(rb);
+    let cy = py + 62;
 
-    let cy = py + 44;
-
-    // Header — clamped so it fits inside the frame's open-centre width.
-    const header = isNearMiss ? 'SO CLOSE!' : 'GAME OVER';
-    const hColor = isNearMiss ? 0xff8844 : 0xff4444;
-    const hdr = this._text(header, cx, cy,
-      { fontSize: isNearMiss ? 34 : 32, fill: hColor,
-        dropShadow: { color: isNearMiss ? 0xff4400 : 0x880000, blur: 12, distance: 0, alpha: 0.7 } });
-    const HDR_MAXW = 250;
-    if (hdr.width > HDR_MAXW) hdr.scale.set(HDR_MAXW / hdr.width);
-    cy += 36;
-
-    let subMsg = 'Car breached the end zone.';
-    if (isNearMiss && gs) {
-      const s = Math.round(gs.timeRemaining ?? 0);
-      subMsg = s > 0 ? `${s}s left when the car broke through!` : 'Just seconds away!';
-    }
-    this._text(subMsg, cx, cy, { fontSize: 13, fill: 0xbbbbbb, fontWeight: 'normal' });
-    cy += 28;
+    let subMsg = 'A car broke through!';
+    if (isNearMiss) subMsg = goalLeft === 1 ? 'Just ONE car to go!' : `Only ${goalLeft} cars to go!`;
+    this._text(subMsg, cx, cy, { fontSize: 17, fill: 0xFFD9A0, fontWeight: '700' });
+    cy += 26;
 
     // Stats
     if (hasStats) {
       cy += 8;
-      const rowW = panelW - 28, rowH = 38;
+      const rowW = panelW - 44, rowH = 42;
 
-      this._statRow(px + 14, cy, rowW, rowH,
-        'Cars Destroyed', String(gs.totalKills ?? 0), 0xff8844, { name: 'car', emoji: '🚗' });
-      cy += rowH + 6;
+      this._statRow(px + 22, cy, rowW, rowH,
+        'Cars destroyed', String(gs.totalKills ?? 0), 0xff8844, { name: 'car', emoji: '🚗' });
+      cy += rowH + 8;
 
-      const m = Math.floor((gs.elapsed ?? 0) / 60);
-      const s = Math.floor((gs.elapsed ?? 0) % 60);
-      this._statRow(px + 14, cy, rowW, rowH,
-        'Time Survived', m > 0 ? `${m}m ${s}s` : `${s}s`, 0x66aaff, { name: 'timer', emoji: '⏱' });
-      cy += rowH + 6;
+      this._statRow(px + 22, cy, rowW, rowH,
+        'Goal left', String(goalLeft), 0x66aaff, { name: 'target', emoji: '🎯' });
+      cy += rowH + 8;
 
       // Guard the 0-shot case: 0/0 must not read as a misleading "100%".
       const tot = gs.totalDeploys ?? 0;
       const acc = tot > 0 ? Math.round(((gs.correctDeploys ?? 0) / tot) * 100) : null;
-      this._statRow(px + 14, cy, rowW, rowH,
+      this._statRow(px + 22, cy, rowW, rowH,
         'Accuracy', acc === null ? '—' : `${acc}%`,
         acc === null ? 0x99aabb : acc >= 80 ? 0x44ff88 : acc >= 50 ? 0xffcc00 : 0xff6666,
-        { name: 'target', emoji: '🎯' });
-      cy += rowH + 16;
+        { name: 'star-filled', emoji: '★' });
+      cy += rowH + 22;
     }
 
     // Hearts
@@ -177,24 +153,10 @@ export class LoseScreen {
       cy += 36;
     }
 
-    cy += 6;
-    this._button('RETRY', cx, cy, 0x3a1010, 0xff7777, onRetry, audio);
-    cy += 58;
-    this._button('LEVEL SELECT', cx, cy, 0x1a2a3a, 0x88bbdd, onMenu, audio);
-
-    // Size the frame so its open centre wraps the content (header→buttons) with a
-    // margin — nothing crosses the ornamental border. Capped to the screen width.
-    if (frameSprite) {
-      const contentTop = py + 22;
-      const contentBot = cy + 30;                 // below the LEVEL SELECT button
-      const contentW   = panelW - 20;             // widest element = the stat rows
-      const fw = Math.min(this._appW - 6, contentW / FRAME_OPEN_W);
-      const fh = (contentBot - contentTop) / FRAME_OPEN_H;
-      frameSprite.width  = fw;
-      frameSprite.height = fh;
-      frameSprite.x = cx;
-      frameSprite.y = (contentTop + contentBot) / 2;
-    }
+    cy += 12;
+    this._button('TRY AGAIN', cx, cy, 'green', onRetry, audio);
+    cy += 70;
+    this._button('LEVEL MAP', cx, cy, 'blue', onMenu, audio, 52);
 
     // 5C: brief red "breach" flash over everything (fades in update).
     this._flashG = new Graphics();
@@ -220,26 +182,25 @@ export class LoseScreen {
   }
 
   _statRow(x, y, w, h, label, value, color, icon = null) {
-    const bg = new Graphics();
-    bg.roundRect(x, y, w, h, 7);
-    bg.fill({ color: 0x0d0808, alpha: 0.85 });
+    const bg = well(w, h);
+    bg.x = x; bg.y = y;
     this._panelGroup.addChild(bg);
 
     let lblX = x + 10;
     if (icon) {   // [icon] label
-      const sp = uiIcon(icon.name, 16, icon.emoji, { emojiFill: 0xaabbcc });
-      sp.x = x + 10 + 8; sp.y = y + h / 2;
+      const sp = uiIcon(icon.name, 24, icon.emoji, { emojiFill: 0xaabbcc });
+      sp.x = x + 14 + 12; sp.y = y + h / 2;
       this._panelGroup.addChild(sp);
-      lblX = x + 10 + 20;
+      lblX = x + 14 + 30;
     }
-    const lbl = new Text({ text: label, style: { fontSize: 12, fontWeight: 'bold', fill: 0xaabbcc } });
+    const lbl = new Text({ text: label, style: { fontSize: 15, fontWeight: '700', fill: 0xF0D6E6 } });
     lbl.anchor.set(0, 0.5);
     lbl.x = lblX; lbl.y = y + h / 2;
     this._panelGroup.addChild(lbl);
 
-    const val = new Text({ text: value, style: { fontSize: 16, fontWeight: 'bold', fill: color } });
+    const val = new Text({ text: value, style: { fontSize: 22, fontWeight: '700', fill: color, stroke: { color: 0x1F1A33, width: 4, join: 'round' } } });
     val.anchor.set(1, 0.5);
-    val.x = x + w - 10; val.y = y + h / 2;
+    val.x = x + w - 14; val.y = y + h / 2;
     this._panelGroup.addChild(val);
   }
 
@@ -251,20 +212,11 @@ export class LoseScreen {
     return t;
   }
 
-  _button(label, cx, y, bgCol, lblCol, onClick, audio) {
-    const btnW = 210, btnH = 48;
-    const btn  = new Graphics();
-    btn.roundRect(-btnW / 2, -btnH / 2, btnW, btnH, 12);
-    btn.fill(bgCol);
+  _button(label, cx, y, variant, onClick, audio, h = 64) {
+    const btn = premiumButton(label, { variant, w: 240, h, size: h > 56 ? 28 : 22,
+      icon: variant === 'green' ? uiIcon('play', 24, '▶') : null,
+      onTap: () => { audio?.play('button_tap'); onClick(); } });
     btn.x = cx; btn.y = y;
-    btn.eventMode = 'static';
-    btn.cursor    = 'pointer';
-    btn.on('pointerdown', () => { audio?.play('button_tap'); onClick(); });
-    btn.on('pointerover',  () => { btn.alpha = 0.78; });
-    btn.on('pointerout',   () => { btn.alpha = 1.00; });
-    const t = new Text({ text: label, style: { fontSize: 20, fontWeight: 'bold', fill: lblCol } });
-    t.anchor.set(0.5, 0.5);
-    btn.addChild(t);
     this._panelGroup.addChild(btn);
   }
 

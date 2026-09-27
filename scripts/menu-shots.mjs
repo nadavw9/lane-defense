@@ -21,6 +21,8 @@ await p.evaluate(() => window._nav.startLevel(12)); await p.waitForTimeout(3000)
 await p.evaluate(() => window._nav.showWin()); await shot('win');
 await p.evaluate(() => window._nav.startLevel(12)); await p.waitForTimeout(3000);
 await p.evaluate(() => window._nav.showLose()); await shot('lose');
+await p.evaluate(() => window._nav.startLevel(12)); await p.waitForTimeout(3000);
+await p.evaluate(() => window._nav.showPause()); await shot('pause');
 await p.evaluate(() => window._nav.showShop()); await shot('shop');
 await p.evaluate(() => window._nav.showSettings()); await shot('settings');
 await b.close();

@@ -2,8 +2,10 @@
 //
 // Shows four booster rows plus a daily-gift banner that fills the lower third.
 // Coin balance and booster counts update immediately on purchase.
-import { Container, Graphics, Text, TilingSprite, Assets } from 'pixi.js';
-import { uiIcon } from '../renderer/UIIcon.js';
+import { Container, Graphics, Text, FillGradient } from 'pixi.js';
+import { uiIcon, boosterIcon } from '../renderer/UIIcon.js';
+import { ribbon, roundButton, button, bodyText, titleText, well, GOLD_DEEP } from '../renderer/PremiumUI.js';
+import { INK } from '../renderer/ToyStyle.js';
 
 // Unified card background — all cards share one dark navy base.
 const CARD_BG     = 0x0d1525;
@@ -70,81 +72,42 @@ export class ShopScreen {
     const h = this._appH;
     const p = this._progress;
 
-    // Full-screen background
     const bg = new Graphics();
-    bg.rect(0, 0, w, h);
-    bg.fill(0x060610);
+    bg.rect(0, 0, w, h).fill(new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, textureSpace: 'local',
+      colorStops: [{ offset: 0, color: 0x3A2F7A }, { offset: 1, color: 0x17143A }] }));
     bg.eventMode = 'static';
     this._container.addChild(bg);
 
-    // ── Header ─────────────────────────────────────────────────────────────
-    const backBtn = new Text({
-      text: '← BACK',
-      style: { fontSize: 16, fontWeight: 'bold', fill: 0x44aaff },
-    });
-    backBtn.anchor.set(0, 0.5);
-    backBtn.x = 14;
-    backBtn.y = 34;
-    backBtn.eventMode = 'static';
-    backBtn.cursor    = 'pointer';
-    backBtn.on('pointerdown', () => { this._audio?.play('button_tap'); this._onBack(); });
-    this._container.addChild(backBtn);
-
-    const title = new Text({
-      text: 'BOOSTER SHOP',
-      style: { fontSize: 24, fontWeight: 'bold', fill: 0xffffff },
-    });
-    title.anchor.set(0.5, 0.5);
-    title.x = w / 2;
-    title.y = 34;
-    this._container.addChild(title);
-
-    const coinsTxt = new Text({
-      text: `◆ ${p.coins}`,
-      style: { fontSize: 18, fontWeight: 'bold', fill: 0xf5c842 },
-    });
-    coinsTxt.anchor.set(1, 0.5);
-    coinsTxt.x = w - 14;
-    coinsTxt.y = 34;
+    // ── Header: ribbon, back, coin balance ─────────────────────────────────
+    const rb = ribbon('SHOP', 170, { size: 28 });
+    rb.x = w / 2; rb.y = 38;
+    this._container.addChild(rb);
+    const back = roundButton(uiIcon('back', 22, '←'), { r: 22, color: 0x2F7FE0, onTap: () => { this._audio?.play('button_tap'); this._onBack(); } });
+    back.x = 32; back.y = 38;
+    this._container.addChild(back);
+    const pill = new Graphics();
+    pill.roundRect(w - 96, 22, 84, 32, 16).fill(0x14112F).stroke({ color: GOLD_DEEP, width: 2.5 });
+    this._container.addChild(pill);
+    const coin = uiIcon('coin', 26, '◆'); coin.x = w - 92 + 13; coin.y = 38;
+    this._container.addChild(coin);
+    const coinsTxt = bodyText(String(p.coins), 17, 0xFFE08A);
+    coinsTxt.anchor.set(1, 0.5); coinsTxt.x = w - 22; coinsTxt.y = 38;
     this._container.addChild(coinsTxt);
-
-    const sep = new Graphics();
-    sep.rect(0, 58, w, 1.5);
-    sep.fill({ color: 0x224466, alpha: 0.7 });
-    this._container.addChild(sep);
 
     // ── Booster cards ──────────────────────────────────────────────────────
     const boosters  = p.getBoosters();
-    const CARD_PAD  = 12;
-    const CARD_H    = 118;
-    const CARD_GAP  = 10;
-    let   cardY     = 72;
-
+    const CARD_PAD  = 16;
+    const CARD_H    = 116;
+    const CARD_GAP  = 14;
+    let   cardY     = 92;
     for (const def of BOOSTER_DEFS) {
       this._buildCard(def, boosters, cardY, CARD_PAD, CARD_H, w);
       cardY += CARD_H + CARD_GAP;
     }
 
-    // ── Daily Gift banner — compact (a huge near-empty banner read as dead
-    //    space; design-audit CLUTTER item) ────────────────────────────────────
-    const bannerY = cardY + 8;
-    const bannerH = Math.min(170, h - bannerY - 16);
-    if (bannerH >= 72) {
-      this._buildDailyBanner(CARD_PAD, bannerY, w - CARD_PAD * 2, bannerH);
-    }
-
-    // Themed floor texture fills whatever remains below, so the lower zone reads
-    // designed rather than empty black. Skipped silently if the texture is absent.
-    const floorY = bannerY + bannerH + 10;
-    const floorTex = Assets.get(`${import.meta.env.BASE_URL}sprites/designed/panel-workshop-surface.png`);
-    if (floorTex && h - floorY > 48) {
-      const floor = new TilingSprite({ texture: floorTex, width: w - CARD_PAD * 2, height: h - floorY - 12 });
-      const s = 132 / floorTex.width;
-      floor.tileScale.set(s, s);
-      floor.position.set(CARD_PAD, floorY);
-      floor.alpha = 0.22;
-      this._container.addChild(floor);
-    }
+    const bannerY = cardY + 6;
+    const bannerH = Math.min(120, h - bannerY - 20);
+    if (bannerH >= 72) this._buildDailyBanner(CARD_PAD, bannerY, w - CARD_PAD * 2, bannerH);
   }
 
   _buildCard(def, boosters, cardY, PAD, CARD_H, w) {
@@ -152,102 +115,54 @@ export class ShopScreen {
     const CARD_W   = w - PAD * 2;
     const canAfford = p.coins >= def.cost;
 
-    // Card background — unified dark navy for all cards
     const card = new Graphics();
-    card.roundRect(PAD, cardY, CARD_W, CARD_H, CARD_RADIUS);
-    card.fill(CARD_BG);
-    card.roundRect(PAD, cardY, CARD_W, CARD_H, CARD_RADIUS);
-    card.stroke({ color: def.border, width: 1.5, alpha: 0.75 });
+    card.roundRect(PAD + 2, cardY + 6, CARD_W, CARD_H, 18).fill({ color: 0x000000, alpha: 0.3 });
+    card.roundRect(PAD, cardY, CARD_W, CARD_H, 18).fill(new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, textureSpace: 'local',
+      colorStops: [{ offset: 0, color: 0x3A3580 }, { offset: 1, color: 0x221F58 }] }));
+    card.roundRect(PAD, cardY, CARD_W, CARD_H, 18).stroke({ color: GOLD_DEEP, width: 2.5 });
+    card.roundRect(PAD + 3, cardY + 3, CARD_W - 6, CARD_H - 6, 15).stroke({ color: 0xffffff, width: 1, alpha: 0.12 });
     this._container.addChild(card);
 
-    // Left accent strip using border color
-    const accentBar = new Graphics();
-    accentBar.roundRect(PAD, cardY, 4, CARD_H, CARD_RADIUS);
-    accentBar.fill({ color: def.border, alpha: 0.9 });
-    this._container.addChild(accentBar);
+    // Icon in a well on the left.
+    const wl = well(84, 84, { r: 18 });
+    wl.x = PAD + 14; wl.y = cardY + (CARD_H - 84) / 2;
+    this._container.addChild(wl);
+    const ic = def.key === 'shield' ? uiIcon('shield', 56, '🛡') : boosterIcon(def.key === 'colorChange' ? 'colorchange' : def.key, 58, def.icon);
+    ic.x = PAD + 14 + 42; ic.y = cardY + CARD_H / 2;
+    this._container.addChild(ic);
 
-    // Booster label
-    const label = new Text({
-      text: def.label,
-      style: { fontSize: 19, fontWeight: 'bold', fill: 0xffffff },
-    });
+    const label = titleText(def.label, 20);
     label.anchor.set(0, 0.5);
-    label.x = PAD + 18;
-    label.y = cardY + 28;
+    label.x = PAD + 112; label.y = cardY + 30;
     this._container.addChild(label);
-
-    // Description
-    const desc = new Text({
-      text: def.desc,
-      style: { fontSize: 13, fill: 0x99bbcc, fontWeight: 'normal' },
-    });
+    const desc = bodyText(def.desc.replace('\n', ' '), 13, 0xC9C3F0, { outline: false, align: 'left', wrap: 130, weight: '600' });
     desc.anchor.set(0, 0.5);
-    desc.x = PAD + 18;
-    desc.y = cardY + 72;
-    desc.alpha = 0.90;
+    desc.x = PAD + 112; desc.y = cardY + 70;
     this._container.addChild(desc);
 
-    // Owned count badge
     const countKey = def.key;
     const ownedCt  = countKey === 'shield'
       ? (p.streakShields ?? 0)
       : countKey === 'colorChange'
       ? (this._boosterState?.colorChange ?? 0)
       : (boosters[countKey] ?? 0);
-    const countTxt = new Text({
-      text: `×${ownedCt} owned`,
-      style: { fontSize: 13, fontWeight: 'bold', fill: 0x99bbcc },
-    });
-    countTxt.anchor.set(1, 0.5);
-    countTxt.x = PAD + CARD_W - 104;
-    countTxt.y = cardY + 20;
-    this._container.addChild(countTxt);
+    const chip = new Graphics();
+    chip.roundRect(PAD + 70, cardY + 8, 32, 22, 11).fill(0xE8453C).stroke({ color: INK, width: 2 });
+    this._container.addChild(chip);
+    const ct = bodyText(String(ownedCt), 13, 0xffffff);
+    ct.x = PAD + 86; ct.y = cardY + 19;
+    this._container.addChild(ct);
 
-    // BUY button — vivid colored background + white text
-    const BTN_W = 90, BTN_H = 40;
-    const btnX  = PAD + CARD_W - BTN_W - 10;
-    const btnY  = cardY + (CARD_H - BTN_H) / 2;
-
-    const btn = new Graphics();
-    btn.roundRect(btnX, btnY, BTN_W, BTN_H, 10);
-    btn.fill(canAfford ? def.btnBg : 0x1a1a2a);
-    btn.roundRect(btnX, btnY, BTN_W, BTN_H, 10);
-    btn.stroke({ color: canAfford ? 0xffffff : 0x333355, width: 1.5, alpha: canAfford ? 0.35 : 0.20 });
+    // BUY: gold button with the coin cost. Always tappable — can't-afford shakes.
+    const btnX = PAD + CARD_W - 60, btnY = cardY + CARD_H / 2;
+    const btn = button(String(def.cost), { variant: canAfford ? 'gold' : 'dark', w: 96, h: 50, size: 22,
+      icon: uiIcon('coin', 22, '◆'),
+      onTap: () => {
+        if (canAfford) this._purchase(def);
+        else { this._audio?.play('button_tap'); this._shake([btn], btn.x); this._toast('Not enough coins!'); }
+      } });
+    btn.x = btnX; btn.y = btnY;
     this._container.addChild(btn);
-
-    const btnLabelTxt = new Text({
-      text: `◆ ${def.cost}`,
-      style: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        fill: canAfford ? 0xffffff : 0x555577,
-      },
-    });
-    btnLabelTxt.anchor.set(0.5, 0.5);
-    btnLabelTxt.x = btnX + BTN_W / 2;
-    btnLabelTxt.y = btnY + BTN_H / 2;
-    this._container.addChild(btnLabelTxt);
-
-    // Buttons are ALWAYS interactive (design-audit JUICE item: with 0 coins every
-    // button was inert — taps gave zero feedback). Afford → press-pop + purchase;
-    // can't afford → shake + red flash + toast, so the tap always answers.
-    btn.eventMode = 'static';
-    btn.cursor    = 'pointer';
-    const group = [btn, btnLabelTxt];
-    btn.on('pointerdown', () => {
-      if (canAfford) {
-        // Quick press-pop (scale via y-nudge on Graphics: redraw-free squash).
-        for (const o of group) { o.alpha = 0.65; }
-        setTimeout(() => { for (const o of group) o.alpha = 1; }, 90);
-        this._purchase(def);
-      } else {
-        this._audio?.play('button_tap');
-        this._shake(group, btnX);
-        this._toast('Not enough coins!');
-      }
-    });
-    btn.on('pointerover',  () => { btn.alpha = 0.80; });
-    btn.on('pointerout',   () => { btn.alpha = 1.00; });
   }
 
   // Horizontal shake for rejected purchases (denied feedback).
@@ -272,7 +187,7 @@ export class ShopScreen {
         dropShadow: { color: 0x000000, blur: 4, distance: 0, alpha: 0.9 } },
     });
     t.anchor.set(0.5, 0.5);
-    t.x = this._appW / 2; t.y = 48;
+    t.x = this._appW / 2; t.y = 80;
     this._container.addChild(t);
     this._toastTxt = t;
     setTimeout(() => { if (this._toastTxt === t) { t.destroy(); this._toastTxt = null; } }, 1400);
@@ -280,36 +195,20 @@ export class ShopScreen {
 
   _buildDailyBanner(x, y, w, h) {
     const banner = new Graphics();
-    banner.roundRect(x, y, w, h, CARD_RADIUS);
-    banner.fill(0x0d1a10);
-    banner.roundRect(x, y, w, h, CARD_RADIUS);
-    banner.stroke({ color: 0x336622, width: 1.5, alpha: 0.7 });
+    banner.roundRect(x + 2, y + 6, w, h, 18).fill({ color: 0x000000, alpha: 0.3 });
+    banner.roundRect(x, y, w, h, 18).fill(new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, textureSpace: 'local',
+      colorStops: [{ offset: 0, color: 0x3FAE4A }, { offset: 1, color: 0x237A33 }] }));
+    banner.roundRect(x, y, w, h, 18).stroke({ color: INK, width: 3 });
+    banner.roundRect(x + 8, y + 6, w - 16, h * 0.28, 10).fill({ color: 0xffffff, alpha: 0.18 });
     this._container.addChild(banner);
-
-    const accentBar = new Graphics();
-    accentBar.roundRect(x, y, 4, h, CARD_RADIUS);
-    accentBar.fill({ color: 0x44aa44, alpha: 0.9 });
-    this._container.addChild(accentBar);
-
-    const headline = new Text({
-      text: 'DAILY GIFT',
-      style: { fontSize: 17, fontWeight: 'bold', fill: 0x66dd66 },
-    });
-    headline.anchor.set(0, 0.5);
-    const giftIco = uiIcon('gift', 20, '🎁');
-    const hlTot = 20 + 6 + headline.width;
-    giftIco.x = x + w / 2 - hlTot / 2 + 10;     giftIco.y = y + h / 2 - 12;
-    headline.x = x + w / 2 - hlTot / 2 + 20 + 6; headline.y = y + h / 2 - 12;
-    this._container.addChild(giftIco);
-    this._container.addChild(headline);
-
-    const sub = new Text({
-      text: 'Free coins every day — come back tomorrow!',
-      style: { fontSize: 12, fill: 0x99bbaa },
-    });
-    sub.anchor.set(0.5, 0.5);
-    sub.x = x + w / 2;
-    sub.y = y + h / 2 + 14;
+    const gift = uiIcon('gift', 64, '🎁');
+    gift.x = x + 52; gift.y = y + h / 2;
+    this._container.addChild(gift);
+    const hl = titleText('DAILY GIFT', 24);
+    hl.anchor.set(0, 0.5); hl.x = x + 96; hl.y = y + h / 2 - 14;
+    this._container.addChild(hl);
+    const sub = bodyText('Free coins every day!', 14, 0xEFFFE8, { outline: false, weight: '600' });
+    sub.anchor.set(0, 0.5); sub.x = x + 96; sub.y = y + h / 2 + 16;
     this._container.addChild(sub);
   }
 

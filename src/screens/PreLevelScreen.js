@@ -1,70 +1,75 @@
-// PreLevelScreen — optional "Power Up?" offer shown between the level-select tap
-// and the level start. The player can watch rewarded ads to begin the level with
-// boosters, or skip and start with none (FIX 4D).
+// PreLevelScreen — the level card shown between the map tap and the level
+// (premium pass, 2026-09-28). Replaces the old "POWER UP? watch 1/2/3 ads" gate:
+// the card's job is to tell the player what this level IS — its name, its goals,
+// and anything new (a special car, a boss) — with one big PLAY button. Boosters
+// are an optional side offer: one rewarded ad starts the level with that booster.
 //
-//   Watch 1 ad  → 1 COLOR CHANGE
-//   Watch 2 ads → COLOR CHANGE + FREEZE
-//   Watch 3 ads → all 3 (COLOR CHANGE + FREEZE + BOMB)
-//   Skip        → start with 0 boosters
+// §3d DDA mercy: when the caller passes `freeBooster` (fail streak ≥ 2) that
+// booster is marked FREE — no ad — and PLAY includes it. It never mentions the
+// player's losses; it reads as a gift.
 //
-// §3d DDA mercy: when the caller passes `freeBooster` (only at failStreak ≥ 2),
-// a green "ON THE HOUSE" gift row appears above the ad tiers granting 1 booster
-// for FREE (no ad). It NEVER references the player's failure — it reads as a
-// gift, not charity (the invisible-assist principle: the player should not clock
-// it's tied to their losses). The booster is COLOR CHANGE, matching the paid
-// tier-1 value so "free" never out-values a paid ad tier.
-//
-// The screen is decoupled from AdManager: it reports the player's choice via
-// onSelect(adCount, bundle); the caller runs the ads, then starts the level with
-// the bundle. One tap on SKIP (or the choice button) dismisses it.
-import { Container, Graphics, Text } from 'pixi.js';
-import { boosterIcon } from '../renderer/UIIcon.js';
+// Decoupled from AdManager: onSelect(adCount, bundle) reports the choice; the
+// caller runs the ad(s) and starts the level with the bundle.
+import { Container, Graphics, Sprite, Assets } from 'pixi.js';
+import { boosterIcon, uiIcon } from '../renderer/UIIcon.js';
+import { panel, ribbon, button, roundButton, bodyText, titleText, backdrop, well, GOLD } from '../renderer/PremiumUI.js';
+import { INK, WHITE } from '../renderer/ToyStyle.js';
 
-// Linear interpolate between two 0xRRGGBB colors. t=0 → a, t=1 → b.
-function _lerpHex(a, b, t) {
-  const ar = (a >> 16) & 255, ag = (a >> 8) & 255, ab = a & 255;
-  const br = (b >> 16) & 255, bg = (b >> 8) & 255, bb = b & 255;
-  const r = Math.round(ar + (br - ar) * t);
-  const g = Math.round(ag + (bg - ag) * t);
-  const bl = Math.round(ab + (bb - ab) * t);
-  return (r << 16) | (g << 8) | bl;
+const _B = import.meta.env.BASE_URL;
+const BOOSTERS = [
+  { key: 'colorchange', label: 'Recolor', bundle: { colorChange: 1, freeze: 0, bombs: 0 } },
+  { key: 'freeze',      label: 'Freeze',  bundle: { colorChange: 0, freeze: 1, bombs: 0 } },
+  { key: 'bomb',        label: 'Bomb',    bundle: { colorChange: 0, freeze: 0, bombs: 1 } },
+];
+
+function spriteFit(path, size) {
+  const tex = Assets.get(`${_B}${path}`);
+  if (!tex) return null;
+  const s = new Sprite(tex);
+  s.anchor.set(0.5);
+  s.scale.set(size / Math.max(tex.width, tex.height));
+  return s;
+}
+
+function goalIcon(goal) {
+  if (goal.type === 'destroyColor') return spriteFit(`sprites/designed/car-${goal.color.toLowerCase()}-processed.png`, 44);
+  if (goal.type === 'defeatBoss')   return spriteFit('sprites/designed/boss.png', 48);
+  if (goal.type === 'destroyType') {
+    const f = { small: 'bike', big: 'car', jeep: 'van', truck: 'truck', bigrig: 'bigrig', tank: 'tank' }[goal.carType] ?? 'car';
+    return spriteFit(`sprites/designed/${f}-red${f === 'car' ? '-processed' : ''}.png`, 44);
+  }
+  return uiIcon('explosion', 40, '💥');
 }
 
 export class PreLevelScreen {
-  // callbacks: { onSelect(adCount, bundle), audio, freeBooster }
-  //   bundle      = { colorChange, freeze, bombs }
-  //   freeBooster = null | { key, emoji, desc, bundle } — §3d mercy gift row
-  constructor(stage, appW, appH, levelLabel, { onSelect, audio, freeBooster = null }) {
-    this._container   = new Container();
+  // opts: { onSelect(adCount, bundle), onClose, audio, freeBooster, level }
+  //   level = { id, name, goals, hintText } (the level config)
+  constructor(stage, appW, appH, levelLabel, { onSelect, onClose = null, audio, freeBooster = null, level = null }) {
+    this._container = new Container();
     stage.addChild(this._container);
-    this._onSelect    = onSelect;
-    this._audio       = audio;
-    this._freeBooster = freeBooster;
-    this._done        = false;
-    this._t           = 0;
-    this._jackpot     = null;   // tier-3 row container (animated shimmer)
-    this._glow        = null;   // header radial glow (animated pulse)
-    this._gift        = null;   // mercy gift row container (animated pulse)
+    this._onSelect = onSelect;
+    this._onClose = onClose;
+    this._audio = audio;
+    this._free = freeBooster;
+    this._level = level;
+    this._done = false;
+    this._t = 0;
+    this._play = null;
+    this._card = null;
     this._build(appW, appH, levelLabel);
   }
 
   destroy() { this._container.destroy({ children: true }); }
 
-  // Driven by GameApp's render ticker. Gentle jackpot shimmer + header-glow pulse.
   update(dt = 1 / 60) {
     this._t += dt;
-    if (this._jackpot) {
-      // scale 1.0 → 1.02 → 1.0 over ~1.5s
-      const s = 1.0 + 0.01 * (1 + Math.sin(this._t * (Math.PI * 2 / 1.5)));
-      this._jackpot.scale.set(s);
-    }
-    if (this._gift) {
-      // gentle gift-row pulse (offset phase from the jackpot so they don't sync)
-      this._gift.scale.set(1.0 + 0.012 * (1 + Math.sin(this._t * (Math.PI * 2 / 1.7) + 1)));
-    }
-    if (this._glow) {
-      this._glow.alpha = 0.55 + 0.20 * Math.sin(this._t * 2.2);
-    }
+    if (this._card && this._t < 0.35) {             // pop-in
+      const p = this._t / 0.35;
+      const e = 1 + 0.12 * Math.sin(Math.PI * p) * (1 - p);
+      this._card.scale.set(Math.min(1, 0.7 + 0.3 * p) * e);
+      this._card.alpha = Math.min(1, p * 2);
+    } else if (this._card) { this._card.scale.set(1); this._card.alpha = 1; }
+    if (this._play) this._play.scale.set(1 + 0.035 * Math.sin(this._t * 4.2));
   }
 
   _choose(adCount, bundle) {
@@ -75,191 +80,116 @@ export class PreLevelScreen {
   }
 
   _build(w, h, levelLabel) {
-    const bg = new Graphics();
-    bg.rect(0, 0, w, h);
-    bg.fill({ color: 0x0a0a18, alpha: 0.92 });
-    bg.eventMode = 'static';
-    this._container.addChild(bg);
+    this._container.addChild(backdrop(w, h));
+    const lv = this._level ?? {};
+    const goals = lv.goals ?? [];
+    const intro = (lv.hintText && /^(NEW!|BOSS!|FINAL BOSS!)/.test(lv.hintText)) ? lv.hintText : null;
 
-    // The mercy gift row (when present) adds a block above the ad tiers; grow the
-    // panel and shift the ad section down by the same amount so nothing overlaps.
-    const GIFT_BLOCK = this._freeBooster ? 76 : 0;
-    const panelW = 340, panelH = 436 + GIFT_BLOCK;
-    const px = (w - panelW) / 2;
-    const py = (h - panelH) / 2;
-    const cx = w / 2;
+    const PW = 344, PH = 470 + (intro ? 74 : 0);
+    const card = new Container();
+    card.x = w / 2; card.y = h / 2 + 10;
+    card.pivot.set(PW / 2, PH / 2);
+    this._container.addChild(card);
+    this._card = card;
+    card.addChild(panel(PW, PH));
 
-    // ── Panel with a vertical dark gradient (top darker → bottom lighter) ──────
-    const mask = new Graphics();
-    mask.roundRect(px, py, panelW, panelH, 20);
-    mask.fill(0xffffff);
-    this._container.addChild(mask);
+    const rb = ribbon(levelLabel ?? 'LEVEL', 250);
+    rb.x = PW / 2; rb.y = 2;
+    card.addChild(rb);
 
-    const grad = new Graphics();
-    const BANDS = 24;
-    for (let i = 0; i < BANDS; i++) {
-      const t = i / (BANDS - 1);
-      grad.rect(px, py + (panelH * i) / BANDS, panelW, panelH / BANDS + 1);
-      grad.fill({ color: _lerpHex(0x0d0d22, 0x1d1d44, t) });
+    let y = 58;
+    if (lv.name) {
+      const nm = bodyText(lv.name, 22, GOLD);
+      nm.x = PW / 2; nm.y = y;
+      card.addChild(nm);
     }
-    grad.mask = mask;
-    this._container.addChild(grad);
+    y += 34;
 
-    const border = new Graphics();
-    border.roundRect(px, py, panelW, panelH, 20);
-    border.stroke({ color: 0x9a55ee, width: 2, alpha: 0.55 });
-    this._container.addChild(border);
-
-    // ── Header: warm radial glow behind a big gold "POWER UP?" ────────────────
-    const headY = py + 50;
-    this._glow = this._headerGlow(cx, headY);
-    this._text('POWER UP?', cx, headY, {
-      fontSize: 36, fill: 0xFFD700,
-      dropShadow: { color: 0x6a3000, blur: 10, distance: 0, alpha: 0.9 },
+    // Goals.
+    const gl = bodyText(goals.length && goals[0].type === 'defeatBoss' ? 'DEFEAT' : 'GOALS', 15, 0xC9C3F0, { outline: false });
+    gl.x = PW / 2; gl.y = y;
+    card.addChild(gl);
+    y += 18;
+    const gw = 92, gh = 92, gap = 12;
+    const total = goals.length * gw + (goals.length - 1) * gap;
+    goals.forEach((g, i) => {
+      const gx = (PW - total) / 2 + i * (gw + gap);
+      const bg = well(gw, gh);
+      bg.x = gx; bg.y = y;
+      card.addChild(bg);
+      const ic = goalIcon(g);
+      if (ic) { ic.x = gx + gw / 2; ic.y = y + 38; card.addChild(ic); }
+      const n = titleText(String(g.count), 24);
+      n.x = gx + gw / 2; n.y = y + gh - 16;
+      card.addChild(n);
     });
-    this._text(levelLabel != null ? `Before ${levelLabel}` : 'Before you start', cx, py + 84,
-      { fontSize: 13, fill: 0xaab4cc, fontWeight: 'normal' });
+    y += gh + 18;
 
-    const RECOLOR = { key: 'colorchange', emoji: '🎨', desc: 'Recolor' };
-    const FREEZE  = { key: 'freeze',      emoji: '❄️', desc: 'Freeze' };
-    const BOMB    = { key: 'bomb',        emoji: '💣', desc: 'Bomb' };
-
-    // ── Mercy gift row (§3d) — green "ON THE HOUSE", FREE, no ad ───────────────
-    // Reads as a gift, never as pity: no reference to the player's losses. Placed
-    // above the ad tiers as the most inviting option; a struggling player takes
-    // the free help. The ad tiers below still sell bigger BUNDLES, so the paid
-    // economy is intact (free grants exactly the tier-1 booster).
-    if (this._freeBooster) {
-      const fb = this._freeBooster;
-      this._gift = this._tierRow(cx, py + 108, 308, 64, {
-        leftLabel: 'FREE', boosters: [{ key: fb.key, emoji: fb.emoji, desc: fb.desc }],
-        accent: 0x3ddc84, bgColor: 0x0e2418, shadow: 5,
-        badge: { text: 'ON THE HOUSE', fill: 0x3ddc84, textFill: 0x06331d },
-        onClick: () => this._choose(0, fb.bundle),
-      });
-    }
-
-    // ── Tier rows — escalating visual weight ──────────────────────────────────
-    // Tier 1: standard, blue/purple border.
-    this._tierRow(cx, py + 112 + GIFT_BLOCK, 300, 62, {
-      ads: 1, boosters: [RECOLOR], accent: 0x8a7bff, bgColor: 0x12122a, shadow: 4,
-      onClick: () => this._choose(1, { colorChange: 1, freeze: 0, bombs: 0 }),
-    });
-    // Tier 2: slightly larger, cyan border, more elevated.
-    this._tierRow(cx, py + 190 + GIFT_BLOCK, 308, 68, {
-      ads: 2, boosters: [RECOLOR, FREEZE], accent: 0x44ccff, bgColor: 0x101a2a, shadow: 5,
-      onClick: () => this._choose(2, { colorChange: 1, freeze: 1, bombs: 0 }),
-    });
-    // Tier 3: jackpot — gold border, warmer bg, BEST VALUE badge, animated shimmer.
-    this._jackpot = this._tierRow(cx, py + 274 + GIFT_BLOCK, 316, 76, {
-      ads: 3, boosters: [RECOLOR, FREEZE, BOMB], accent: 0xFFD700, bgColor: 0x241a08,
-      shadow: 7, best: true,
-      onClick: () => this._choose(3, { colorChange: 1, freeze: 1, bombs: 1 }),
-    });
-
-    // ── Skip — secondary, muted ───────────────────────────────────────────────
-    this._skip('SKIP — START NOW', cx, py + 372 + GIFT_BLOCK, 200,
-      () => this._choose(0, { colorChange: 0, freeze: 0, bombs: 0 }));
-  }
-
-  // Warm radial burst (same palette as the multi-kill popup) behind the header.
-  _headerGlow(cx, cy) {
-    const g = new Graphics();
-    const R = 80, RINGS = 14;
-    for (let i = RINGS; i >= 1; i--) {
-      const f = i / RINGS;                       // 1 outer … →0 center
-      const col = _lerpHex(0xFFF2B0, 0xE0531A, f);
-      const a   = 0.05 + (1 - f) * 0.30;
-      g.circle(cx, cy, R * f);
-      g.fill({ color: col, alpha: a });
-    }
-    this._container.addChild(g);
-    return g;
-  }
-
-  // One offer row, drawn in a self-contained Container pivoted at its centre so
-  // the tier-3 jackpot can shimmer (scale) about its centre.
-  _tierRow(cx, top, rw, rh, { ads, boosters, accent, bgColor, shadow, best = false, leftLabel = null, badge = null, onClick }) {
-    const row = new Container();
-    row.x = cx; row.y = top + rh / 2;
-    row.pivot.set(rw / 2, rh / 2);   // local (0..rw, 0..rh); scale about centre
-
-    const card = new Graphics();
-    card.roundRect(0, 0, rw, rh, 12);
-    card.fill({ color: bgColor });
-    card.roundRect(0, 0, rw, rh, 12);
-    card.stroke({ color: accent, width: best ? 2.5 : 1.5, alpha: best ? 0.95 : 0.6 });
-    card.roundRect(0, rh - shadow, rw, shadow, 12);     // solid bottom = "elevation"
-    card.fill({ color: accent, alpha: best ? 0.5 : 0.35 });
-    card.eventMode = 'static';
-    card.cursor = 'pointer';
-    card.on('pointerdown', onClick);
-    card.on('pointerover', () => { row.alpha = 0.85; });
-    card.on('pointerout',  () => { row.alpha = 1.0; });
-    row.addChild(card);
-
-    const lbl = new Text({ text: leftLabel ?? `WATCH ${ads} AD${ads > 1 ? 'S' : ''}`,
-      style: { fontSize: 15, fontWeight: '900', fill: 0xffffff, letterSpacing: 0.5 } });
-    lbl.anchor.set(0, 0.5); lbl.x = 14; lbl.y = rh / 2;
-    row.addChild(lbl);
-
-    // Booster icons (large emoji + small description). Multi-icon groups stay
-    // right-aligned; a single icon is centred in the right portion (matching where
-    // the Tier 2/3 groups sit) instead of being pinned to the edge.
-    const itemW = 50;
-    const startX = boosters.length === 1
-      ? rw - 12 - 2 * itemW                     // centre the lone icon in the right region
-      : rw - 12 - boosters.length * itemW;      // right-aligned for 2+ icons
-    boosters.forEach((bk, i) => {
-      const icx = startX + i * itemW + itemW / 2;
-      const em = boosterIcon(bk.key, best ? 26 : 23, bk.emoji);   // glossy booster sprite (glyph fallback)
-      em.x = icx; em.y = rh * 0.36;
-      row.addChild(em);
-      const d = new Text({ text: bk.desc, style: { fontSize: 9, fontWeight: 'bold', fill: accent } });
-      d.anchor.set(0.5); d.x = icx; d.y = rh * 0.74;
-      row.addChild(d);
-    });
-
-    // Corner pill badge: BEST VALUE for the jackpot tier, or a caller-supplied
-    // badge (the mercy gift's "ON THE HOUSE"). Same shape, different palette.
-    const pill = badge ?? (best ? { text: 'BEST VALUE', fill: 0xFFD700, textFill: 0x3a2a00 } : null);
-    if (pill) {
-      const bt0 = new Text({ text: pill.text,
-        style: { fontSize: 9, fontWeight: '900', fill: pill.textFill, letterSpacing: 0.5 } });
-      const bw = Math.max(72, bt0.width + 16), bh = 17, bx = rw - bw - 4, by = -9;
-      const bg2 = new Graphics();
-      bg2.roundRect(bx, by, bw, bh, 8);
-      bg2.fill({ color: pill.fill });
-      row.addChild(bg2);
-      bt0.anchor.set(0.5); bt0.x = bx + bw / 2; bt0.y = by + bh / 2;
-      row.addChild(bt0);
+    // New this level.
+    if (intro) {
+      const iw = PW - 48;
+      const box = new Graphics();
+      box.roundRect(24, y, iw, 60, 14).fill({ color: 0xFFC93C, alpha: 0.16 }).stroke({ color: GOLD, width: 2 });
+      card.addChild(box);
+      const txt = intro.replace(/^(NEW!|BOSS!|FINAL BOSS!)\s*/, '');
+      const tag = intro.match(/^(NEW!|BOSS!|FINAL BOSS!)/)[1];
+      const tg = titleText(tag, 18, GOLD);
+      tg.x = 24 + 14 + tg.width / 2; tg.y = y + 30;
+      card.addChild(tg);
+      const t = bodyText(txt, 14, WHITE, { outline: false, align: 'left', wrap: iw - tg.width - 40 });
+      t.anchor.set(0, 0.5);
+      t.x = 24 + 28 + tg.width; t.y = y + 30;
+      card.addChild(t);
+      y += 74;
     }
 
-    this._container.addChild(row);
-    return row;
-  }
+    // Booster offer.
+    const bl = bodyText('START WITH A BOOSTER', 14, 0xC9C3F0, { outline: false });
+    bl.x = PW / 2; bl.y = y;
+    card.addChild(bl);
+    y += 16;
+    const bw = 90, bh = 104, bgap = 12;
+    const bt = BOOSTERS.length * bw + (BOOSTERS.length - 1) * bgap;
+    BOOSTERS.forEach((b, i) => {
+      const bx = (PW - bt) / 2 + i * (bw + bgap);
+      const isFree = this._free?.key === b.key;
+      const tile = new Container();
+      tile.x = bx + bw / 2; tile.y = y + bh / 2;
+      const g = well(bw, bh);
+      g.x = -bw / 2; g.y = -bh / 2;
+      tile.addChild(g);
+      const ic = boosterIcon(b.key, 50, '?');
+      ic.y = -18;
+      tile.addChild(ic);
+      const chip = new Graphics();
+      chip.roundRect(-36, 20, 72, 26, 13).fill(isFree ? 0x3DBB3A : 0x2F7FE0).stroke({ color: INK, width: 2.5 });
+      tile.addChild(chip);
+      if (isFree) {
+        const ft = titleText('FREE', 16); ft.y = 33; tile.addChild(ft);
+      } else {
+        const play = uiIcon('play', 14, '▶'); play.x = -14; play.y = 33; tile.addChild(play);
+        const at = titleText('AD', 16); at.x = 8; at.y = 33; tile.addChild(at);
+      }
+      tile.eventMode = 'static';
+      tile.cursor = 'pointer';
+      tile.on('pointerdown', () => tile.scale.set(0.94));
+      tile.on('pointerupoutside', () => tile.scale.set(1));
+      tile.on('pointerup', () => { tile.scale.set(1); this._choose(isFree ? 0 : 1, b.bundle); });
+      card.addChild(tile);
+    });
+    y += bh + 30;
 
-  _skip(label, cx, y, wdt, onClick) {
-    const hh = 38;
-    const btn = new Graphics();
-    btn.roundRect(cx - wdt / 2, y, wdt, hh, 10);
-    btn.fill({ color: 0x14141f, alpha: 0.9 });   // muted, no bright border
-    btn.eventMode = 'static';
-    btn.cursor = 'pointer';
-    btn.on('pointerdown', onClick);
-    btn.on('pointerover', () => { btn.alpha = 0.8; });
-    btn.on('pointerout',  () => { btn.alpha = 1.0; });
-    this._container.addChild(btn);
+    // PLAY (includes the free gift when there is one).
+    const playBundle = this._free?.bundle ?? { colorChange: 0, freeze: 0, bombs: 0 };
+    const play = button('PLAY', { variant: 'green', w: 230, h: 70, size: 34, onTap: () => this._choose(0, playBundle) });
+    play.x = PW / 2; play.y = PH - 58;
+    card.addChild(play);
+    this._play = play;
 
-    const t = new Text({ text: label, style: { fontSize: 14, fontWeight: 'bold', fill: 0x7d8699 } });
-    t.anchor.set(0.5, 0.5); t.x = cx; t.y = y + hh / 2;
-    this._container.addChild(t);
-  }
-
-  _text(str, x, y, style) {
-    const t = new Text({ text: str, style: { fontWeight: 'bold', ...style } });
-    t.anchor.set(0.5, 0.5); t.x = x; t.y = y;
-    this._container.addChild(t);
-    return t;
+    if (this._onClose) {
+      const close = roundButton(uiIcon('close', 22, '✕'), { r: 22, color: 0xE8453C, onTap: () => { if (!this._done) { this._done = true; this._onClose(); } } });
+      close.x = PW - 14; close.y = 14;
+      card.addChild(close);
+    }
   }
 }

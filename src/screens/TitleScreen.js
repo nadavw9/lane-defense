@@ -8,6 +8,7 @@
 //   • Secondary buttons in pastel colors
 import { Container, Graphics, Text, Sprite, Assets, Rectangle } from 'pixi.js';
 import { uiIcon, uiPlate } from '../renderer/UIIcon.js';
+import { button as premiumButton, roundButton, bodyText } from '../renderer/PremiumUI.js';
 
 const CAR_COLORS  = [0xFF3D3D, 0x2F8CFF, 0x2FCC55, 0xFFD42A, 0xA35CFF, 0xFF8A1C];
 const SKY_TOP     = 0x4FC3F7;   // light sky blue
@@ -125,13 +126,14 @@ export class TitleScreen {
       const dispH = logoTex.height * scale;
       const cx = w / 2, cy = h * 0.24;                  // upper third, centred
 
-      // Dark rounded backdrop behind the logo ONLY (~20px larger on all sides), so
-      // the logo stays readable over any part of the busy AI city background.
-      const pad = 30, bw = dispW + pad * 2, bh = dispH + pad * 2;
-      const backdrop = new Graphics();
-      backdrop.roundRect(cx - bw / 2, cy - bh / 2, bw, bh, 24);
-      backdrop.fill({ color: 0x000000, alpha: 0.65 });
-      this._container.addChild(backdrop);
+      // Soft vignette behind the logo (a radial falloff, not a box) so it reads
+      // over the busy city without a hard-edged panel.
+      const vg = new Graphics();
+      for (let i = 14; i >= 1; i--) {
+        const f = i / 14;
+        vg.ellipse(cx, cy, dispW * 0.62 * (0.55 + 0.45 * f) + 40, dispH * 0.62 * (0.55 + 0.45 * f) + 36).fill({ color: 0x0B0A1E, alpha: 0.06 });
+      }
+      this._container.addChild(vg);
 
       const logo = new Sprite(logoTex);
       logo.anchor.set(0.5, 0.5);
@@ -164,108 +166,49 @@ export class TitleScreen {
     this._playGlowBox = { cx: btnCX, cy: btnCY + btnH / 2, w: btnW, h: btnH };
     this._playPulse   = 0;
 
-    const btn  = new Graphics();
-    // 9-slice green plate (art), with the procedural roundRects as fallback.
-    const playPlate = uiPlate('button-primary', btnW, btnH);
-    if (playPlate) {
-      playPlate.x = -btnW / 2; playPlate.y = 0;
-      btn.addChild(playPlate);
-      btn.hitArea = new Rectangle(-btnW / 2, 0, btnW, btnH);
-    } else {
-      btn.roundRect(-btnW / 2 + 3, 3, btnW, btnH, 24);
-      btn.fill({ color: 0x1B5E20, alpha: 0.6 });
-      btn.roundRect(-btnW / 2, 0, btnW, btnH, 24);
-      btn.fill(0x43A047);
-      btn.roundRect(-btnW / 2 + 6, 4, btnW - 12, btnH / 2 - 4, 18);
-      btn.fill({ color: 0xFFFFFF, alpha: 0.18 });
-      btn.roundRect(-btnW / 2, 0, btnW, btnH, 24);
-      btn.stroke({ color: 0x81C784, width: 3, alpha: 0.9 });
-    }
-    btn.x = btnCX; btn.y = btnCY;
-    btn.eventMode = 'static'; btn.cursor = 'pointer';
-    btn.on('pointerdown', () => { audio?.play('button_tap'); onPlay(); });
-    btn.on('pointerover',  () => { btn.scale.set(1.05); });
-    btn.on('pointerout',   () => { btn.scale.set(1.00); });
-    const btnTxt = new Text({
-      text: 'PLAY!',
-      style: { fontSize: 34, fontWeight: 'bold', fill: 0xFFFFFF,
-        dropShadow: { color: 0x1B5E20, blur: 6, distance: 2, alpha: 0.8 } },
-    });
-    btnTxt.anchor.set(0.5, 0.5);
-    // [play icon]  PLAY! — centered group (was '▶  PLAY!' one glyph run)
-    const playIco = uiIcon('play', 34, '▶');
-    const grpW = 34 + 10 + btnTxt.width;
-    playIco.x = -grpW / 2 + 17;         playIco.y = btnH / 2;
-    btnTxt.x  = -grpW / 2 + 34 + 10 + btnTxt.width / 2; btnTxt.y = btnH / 2;
-    btn.addChild(playIco);
-    btn.addChild(btnTxt);
+    const btn = premiumButton('PLAY', { variant: 'green', w: btnW, h: btnH, size: 42,
+      icon: uiIcon('play', 36, '▶'), onTap: () => { audio?.play('button_tap'); onPlay(); } });
+    btn.x = btnCX; btn.y = btnCY + btnH / 2;
     this._container.addChild(btn);
     this._playBtn = btn;
     // Hidden until the intro bomb-drop finishes (CHANGE 2).
     btn.visible = false; playGlow.visible = false;
 
-    // ── Secondary row ──────────────────────────────────────────────────────
-    // All secondary buttons share one neutral dark color — avoids 4-color chaos.
-    const SEC_BG  = 0x1E3A5F;
-    const SEC_TXT = 0xE8F0FF;
-
-    let rowY = h * 0.51 + btnH + 12;
-    const CX = w / 2;
-    const BTN_W2 = 150, GAP = 10;
-
-    if (onDaily) {
-      // Daily reward keeps its own accent color — it's the secondary hero CTA.
-      this._addPillBtn(CX, rowY, hasDailyReward ? 'DAILY REWARD!' : '📅 Daily Reward',
-        hasDailyReward ? 0xF9A825 : SEC_BG, hasDailyReward ? 0xFFF9C4 : SEC_TXT,
-        () => { audio?.play('button_tap'); onDaily(); }, 200,
-        hasDailyReward ? { name: 'star-filled', emoji: '⭐' } : null);   // 📅 has no Batch-1 icon
-      if (loginStreak >= 2) {
-        const flame = uiIcon('fire', 18, '🔥');   // icon + number (was one 🔥N glyph run)
-        flame.x = CX + 100 + 9; flame.y = rowY;    // centre-anchored, left edge ≈ CX+100
-        this._container.addChild(flame);
-        const badge = new Text({ text: `${loginStreak}`, style: { fontSize: 14, fontWeight: 'bold', fill: 0xFF6F00 } });
-        badge.anchor.set(0, 0.5); badge.x = CX + 100 + 20; badge.y = rowY;
-        this._container.addChild(badge);
+    // ── Secondary: a row of round icon buttons with captions ───────────────
+    const items = [];
+    if (onDaily) items.push({ icon: 'gift', emoji: '🎁', label: hasDailyReward ? 'DAILY!' : 'DAILY', color: hasDailyReward ? 0xF0A020 : 0x2F7FE0, fn: onDaily, badge: hasDailyReward });
+    if (onDailyChallenge) items.push({ icon: 'lightning', emoji: '⚡', label: 'CHALLENGE', color: 0x8B4FE0, fn: onDailyChallenge });
+    if (onAchievements) items.push({ icon: 'trophy', emoji: '🏆', label: 'TROPHIES', color: 0x2F7FE0, fn: onAchievements });
+    if (onStats) items.push({ icon: 'chart', emoji: '📊', label: 'STATS', color: 0x2F7FE0, fn: onStats });
+    const rowY = btnCY + btnH + 70, gapX = 84;
+    items.forEach((it, i) => {
+      const x = w / 2 + (i - (items.length - 1) / 2) * gapX;
+      const rbtn = roundButton(uiIcon(it.icon, 34, it.emoji), { r: 30, color: it.color, onTap: () => { audio?.play('button_tap'); it.fn(); } });
+      rbtn.x = x; rbtn.y = rowY;
+      this._container.addChild(rbtn);
+      const cap = bodyText(it.label, 13, 0xFFFFFF);
+      cap.x = x; cap.y = rowY + 44;
+      this._container.addChild(cap);
+      if (it.badge) {
+        const dot = new Graphics();
+        dot.circle(x + 22, rowY - 22, 8).fill(0xE8453C).stroke({ color: 0x1F1A33, width: 2 });
+        this._container.addChild(dot);
       }
+    });
+    if (onDaily && loginStreak >= 2) {
+      const flame = uiIcon('fire', 18, '🔥');
+      const x0 = w / 2 + (0 - (items.length - 1) / 2) * gapX;
+      flame.x = x0 - 18; flame.y = rowY + 64;
+      this._container.addChild(flame);
+      const badge = bodyText(`${loginStreak} day streak`, 12, 0xFFB35A);
+      badge.anchor.set(0, 0.5); badge.x = x0 - 8; badge.y = rowY + 64;
+      this._container.addChild(badge);
     }
 
-    rowY += 52;
-
-    // 2×2 grid — Row 1: CHALLENGE | TROPHIES
-    if (onDailyChallenge) {
-      this._addPillBtn(CX - BTN_W2 / 2 - GAP / 2, rowY, 'CHALLENGE',
-        SEC_BG, SEC_TXT, () => { audio?.play('button_tap'); onDailyChallenge(); }, BTN_W2,
-        { name: 'lightning', emoji: '⚡' });
-    }
-    if (onAchievements) {
-      this._addPillBtn(CX + BTN_W2 / 2 + GAP / 2, rowY, 'TROPHIES',
-        SEC_BG, SEC_TXT, () => { audio?.play('button_tap'); onAchievements(); }, BTN_W2,
-        { name: 'star-filled', emoji: '★' });
-    }
-
-    rowY += 52;
-
-    // 2×2 grid — Row 2: STATS | ACHIEVEMENTS
-    if (onStats) {
-      this._addPillBtn(CX - BTN_W2 / 2 - GAP / 2, rowY, 'STATS',
-        SEC_BG, SEC_TXT, () => { audio?.play('button_tap'); onStats(); }, BTN_W2,
-        { name: 'chart', emoji: '📊' });
-    }
-    this._addPillBtn(CX + BTN_W2 / 2 + GAP / 2, rowY, 'ACHIEVEMENTS',
-      SEC_BG, SEC_TXT, () => { audio?.play('button_tap'); this._showComingSoon(); }, BTN_W2,
-      { name: 'trophy', emoji: '🏆' });
-
-    // ── Settings gear (top-right) — 44px hit area for reliable finger tap ───
+    // ── Settings (top-right) ────────────────────────────────────────────────
     if (onSettings) {
-      const gearHit = new Graphics();
-      gearHit.rect(w - 52, 4, 48, 48);
-      gearHit.fill({ color: 0, alpha: 0 });
-      gearHit.eventMode = 'static'; gearHit.cursor = 'pointer';
-      gearHit.on('pointerdown', onSettings);
-      this._container.addChild(gearHit);
-
-      const gear = uiIcon('gear', 30, '⚙️');   // was top-right anchored (1,0) → centre it
-      gear.x = w - 10 - 15; gear.y = 10 + 15;
+      const gear = roundButton(uiIcon('gear', 26, '⚙'), { r: 22, color: 0x3A3662, onTap: () => { audio?.play('button_tap'); onSettings(); } });
+      gear.x = w - 32; gear.y = 34;
       this._container.addChild(gear);
     }
 

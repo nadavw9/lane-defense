@@ -1,855 +1,282 @@
-// LevelSelectScreen — Car-themed world map + Candy Crush pre-level popup.
-import { Container, Graphics, Text } from 'pixi.js';
-import { adManager, AD_COSTS } from '../ads/AdManager.js';
-import { uiIcon, boosterIcon } from '../renderer/UIIcon.js';
+// LevelSelectScreen — the world map (premium pass, 2026-09-28).
+//
+// One page per game world (15 / 15 / 10 levels, levelMapLayout.js). Each page is
+// a baked 3D diorama (scripts/render-3d-sprites.mjs map) with the road running
+// through the level nodes; the city-repair building for every level stands on
+// its plot beside the road — rubble until the level is beaten, repaired after
+// (VISION: City Repair meta loop, persisted in ProgressManager cityState).
+//
+// Tapping an unlocked node calls onSelectLevel(levelId) — the level card
+// (PreLevelScreen) is the one popup; the old in-map popup is gone.
+import { Container, Graphics, Sprite, Assets, FillGradient } from 'pixi.js';
+import { uiIcon } from '../renderer/UIIcon.js';
+import { ribbon, roundButton, titleText, bodyText, GOLD, GOLD_DEEP } from '../renderer/PremiumUI.js';
+import { INK, WHITE, shade, tint } from '../renderer/ToyStyle.js';
+import { MAP_WORLDS, mapNodes, worldForLevel } from './levelMapLayout.js';
 
-const HEADER_H = 88;
-const NODE_R   = 26;
-const COLS_X   = [52, 150, 240, 338];
-const ROWS_Y   = [138, 302, 466, 630, 794];
+const _B = import.meta.env.BASE_URL;
+const NODE_R = 27;
+const BOSS_LEVELS = new Set([10, 20, 30, 40]);
+const ACCENT = { world1: 0x2F7FE0, world2: 0xF08A24, world3: 0x8B4FE0 };
 
-// Per-level colour palette — cycles through vivid hues.
-const LEVEL_COLORS = [
-  0xe74c3c, 0x3498db, 0x2ecc71, 0xf39c12,
-  0x9b59b6, 0x1abc9c, 0xe91e63, 0xff5722,
-  0x00bcd4, 0x8bc34a, 0xff9800, 0x673ab7,
-  0x4caf50, 0xf44336, 0x2196f3, 0xffeb3b,
-  0x9c27b0, 0x009688, 0xff5722, 0x03a9f4,
-];
+const _faceGrads = new Map();
+function faceGrad(color) {
+  let g = _faceGrads.get(color);
+  if (!g) {
+    g = new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, textureSpace: 'local',
+      colorStops: [{ offset: 0, color: tint(color, 0.35) }, { offset: 0.6, color }, { offset: 1, color: shade(color, 0.75) }] });
+    _faceGrads.set(color, g);
+  }
+  return g;
+}
 
-function levelColor(levelId) { return LEVEL_COLORS[(levelId - 1) % LEVEL_COLORS.length]; }
-
-// Difficulty indicators: easy → nothing, medium → orange dot, hard → double red dot,
-// boss (L10/20/30/40) → skull.
-const LEVEL_DIFFICULTY = {
-  2:'medium', 3:'medium', 4:'hard',
-  6:'medium', 7:'hard',   8:'hard',
-  10:'boss',
-  11:'medium', 12:'hard',  14:'medium', 15:'hard', 16:'hard',
-  18:'medium', 19:'medium',
-  20:'boss',
-  22:'medium', 23:'hard',  24:'hard',
-  26:'medium', 27:'medium', 28:'hard',
-  30:'boss',
-  31:'hard',   32:'hard',  34:'medium', 35:'medium', 36:'hard',
-  38:'medium', 39:'hard',
-  40:'boss',
-};
-
-function nodePos(levelId) {
-  const i = levelId - 1;
-  const dataRow   = Math.floor(i / 4);
-  const posInRow  = i % 4;
-  const visualRow = 4 - dataRow;
-  const isRTL     = dataRow % 2 === 1;
-  const col       = isRTL ? (3 - posInRow) : posInRow;
-  return { x: COLS_X[col], y: ROWS_Y[visualRow] };
+function sprite(path, w = null) {
+  const tex = Assets.get(`${_B}${path}`);
+  if (!tex) return null;
+  const s = new Sprite(tex);
+  s.anchor.set(0.5);
+  if (w) s.scale.set(w / tex.width);
+  return s;
 }
 
 export class LevelSelectScreen {
   constructor(stage, appW, appH, progress,
     { onSelectLevel, onBack, onShop, onAchievements, audio, weeklyLevels = [], cityAnim = null }) {
-
-    this._container    = new Container();
+    this._container = new Container();
     stage.addChild(this._container);
-    this._stage        = stage;
-    this._glowNode     = null;
-    this._glowTime     = 0;
-    this._worldPage    = 1;
-    this._progress     = progress;
-    this._appW         = appW;
-    this._appH         = appH;
+    this._appW = appW;
+    this._appH = appH;
+    this._progress = progress;
     this._weeklyLevels = weeklyLevels;
-    this._callbacks    = { onSelectLevel, onBack, onShop, onAchievements, audio, weeklyLevels };
-    this._revealAnims  = [];
-    this._repairAnims  = [];     // §3e active building repair pops
-    this._cityAnim     = cityAnim;   // §3e { building, prior } — consumed once in _build
-    this._skipCatcher  = null;   // full-screen tap-to-skip while a repair pops
-    this._popup        = null;   // active pre-level popup
-    // Open the world page that owns the just-repaired building so the pop is visible.
-    if (cityAnim && typeof cityAnim.building === 'number') {
-      this._worldPage = Math.min(2, Math.floor((cityAnim.building - 1) / 20) + 1);
-    }
-    this._build(appW, appH, progress, onSelectLevel, onBack, onShop, onAchievements, audio);
+    this._callbacks = { onSelectLevel, onBack, onShop, onAchievements, audio };
+    this._cityAnim = cityAnim;
+    this._t = 0;
+    this._current = null;       // { node, marker } of the next level to play
+    this._repairAnims = [];
+    const unlocked = progress.unlockedLevel ?? 1;
+    const focus = (cityAnim && typeof cityAnim.building === 'number') ? cityAnim.building : Math.min(40, unlocked);
+    this._page = worldForLevel(focus).page;
+    this._build();
   }
 
-  destroy() {
-    this._popup?.destroy({ children: true });
-    this._container.destroy({ children: true });
-  }
+  destroy() { this._container.destroy({ children: true }); }
 
   update(dt) {
-    if (this._glowNode) {
-      this._glowTime += dt;
-      const t = (this._glowTime % 1.2) / 1.2;
-      const pulse = Math.abs(Math.sin(t * Math.PI));
-      this._glowNode.alpha = 0.45 + 0.55 * pulse;
-      const sc = 1 + 0.18 * pulse;
-      this._glowNode.scale.set(sc);
+    this._t += dt;
+    if (this._current) {
+      const k = 0.5 + 0.5 * Math.sin(this._t * 4);
+      this._current.node.scale.set(1 + 0.06 * k);
+      this._current.ring.alpha = 0.35 + 0.5 * k;
+      this._current.ring.scale.set(1 + 0.12 * k);
+      this._current.marker.y = this._current.baseY - 6 * Math.abs(Math.sin(this._t * 3.2));
     }
-    // 5D: completed-level star ratings gently pulse so the map feels alive.
-    if (this._completedStars && this._completedStars.length) {
-      this._idleT = (this._idleT ?? 0) + dt;
-      const sp = 1 + 0.08 * Math.sin(this._idleT * 2.2);
-      for (const st of this._completedStars) st.scale.set(sp);
-    }
-    // 6A: subtle "heartbeat" low tone synced to the next-level "play me" pulse.
-    if (this._glowNode && this._callbacks?.audio) {
-      this._hbT = (this._hbT ?? 0) + dt;
-      if (this._hbT >= 1.6) { this._hbT = 0; this._callbacks.audio.play('heartbeat'); }
-    }
-    for (let i = this._revealAnims.length - 1; i >= 0; i--) {
-      const a  = this._revealAnims[i];
-      a.t      = Math.min(a.t + dt / a.duration, 1);
-      const e  = 1 - Math.pow(1 - a.t, 3);
-      const ov = a.t < 0.7 ? Math.sin(a.t / 0.7 * Math.PI) * 0.35 : 0;
-      a.node.scale.set(e * (1 + ov));
-      a.node.alpha = Math.min(1, a.t * 3);
-      if (a.t >= 1) this._revealAnims.splice(i, 1);
-    }
-    // §3e repair pop: old state fades out in the first ~40%, repaired building rises
-    // in with a slight overshoot (grows from the ground line). ~0.7s, then finalize.
     for (let i = this._repairAnims.length - 1; i >= 0; i--) {
       const a = this._repairAnims[i];
-      a.t     = Math.min(a.t + dt / a.duration, 1);
-      a.gPrior.alpha = Math.max(0, 1 - a.t / 0.4);
-      const e  = 1 - Math.pow(1 - a.t, 3);
-      const ov = a.t < 0.7 ? Math.sin(a.t / 0.7 * Math.PI) * 0.26 : 0;
-      a.gNew.scale.set(e * (1 + ov));
-      a.gNew.alpha = Math.min(1, a.t * 3);
-      if (a.t >= 1) {
-        a.gPrior.destroy();
-        a.gNew.scale.set(1); a.gNew.alpha = 1;
-        this._repairAnims.splice(i, 1);
-      }
+      a.t = Math.min(1, a.t + dt / 0.75);
+      a.prior.alpha = Math.max(0, 1 - a.t / 0.4);
+      const e = 1 - Math.pow(1 - a.t, 3);
+      const ov = a.t < 0.7 ? Math.sin(a.t / 0.7 * Math.PI) * 0.22 : 0;
+      a.next.scale.set(a.base * e * (1 + ov));
+      a.next.alpha = Math.min(1, a.t * 3);
+      if (a.t >= 1) { a.prior.destroy(); a.next.scale.set(a.base); this._repairAnims.splice(i, 1); }
     }
   }
 
-  // ── Private ────────────────────────────────────────────────────────────────
+  // ── Build ──────────────────────────────────────────────────────────────────
 
-  _build(w, h, progress, onSelectLevel, onBack, onShop, onAchievements, audio) {
-    this._drawBackground(w, h);
-    const unlocked = progress.unlockedLevel ?? 1;
-    this._drawRoadPath(unlocked);
-    this._drawCars();
+  _build() {
+    const w = this._appW, h = this._appH, p = this._progress;
+    const world = MAP_WORLDS[this._page - 1];
+    const unlocked = p.unlockedLevel ?? 1;
+    const accent = ACCENT[world.theme];
 
-    const worldBase  = (this._worldPage - 1) * 20;
-    const firstId    = worldBase + 1;
-    const lastId     = worldBase + 20;
-    const nextToPlay = (unlocked >= firstId && unlocked <= lastId && progress.getStars(unlocked) === 0)
-      ? unlocked : null;
+    const bg = sprite(`sprites/designed/map-${world.theme}.png`);
+    if (bg) { bg.anchor.set(0); bg.width = w; bg.height = h; this._container.addChild(bg); }
+    else { const g = new Graphics(); g.rect(0, 0, w, h).fill(0x3A6B3A); this._container.addChild(g); }
+    // Catch taps that miss a node (so nothing underneath reacts).
+    bg && (bg.eventMode = 'static');
 
-    // City repair buildings — drawn before nodes so they sit behind level circles.
-    // State comes from the PERSISTED cityState (§3e), not a stars proxy: 2 repaired
-    // (any win), 1 scaffolding (a beaten level replayed-and-lost — damage), 0 rubble
-    // (never beaten). buildingForLevel is identity, so the key is the global levelId.
-    const city = progress.getCityState();
+    const nodes = mapNodes(this._page);
+    const city = p.getCityState();
     const anim = this._cityAnim;
-    for (let levelId = firstId; levelId <= lastId; levelId++) {
-      const localId     = levelId - worldBase;
-      const { x, y }    = nodePos(localId);
-      const bId         = progress.buildingForLevel(levelId);
-      const repairState = city[String(bId)] ?? 0;
-      // §3e: the just-repaired building (state actually changed) plays the pop; the
-      // rest render static. buildingForLevel is identity, so anim.building === bId.
+    this._cityAnim = null;
+
+    // Buildings first (behind nodes), in back-to-front order for overlap.
+    for (const n of [...nodes].sort((a, b) => a.plotY - b.plotY)) {
+      const bId = p.buildingForLevel(n.levelId);
+      const state = city[String(bId)] ?? 0;
+      const variant = n.levelId % 3;
       if (anim && anim.building === bId && anim.prior !== 2) {
-        this._startRepairAnim(x, y - 50, anim.prior);
+        const prior = this._building(world.theme, anim.prior, variant, n);
+        const next = this._building(world.theme, 2, variant, n);
+        const base = next.scale.x;
+        next.scale.set(0); next.alpha = 0;
+        this._repairAnims.push({ prior, next, base, t: 0 });
+        this._callbacks.audio?.play('coin_collect');
       } else {
-        this._buildCityBuilding(x, y - 50, repairState); // centered above node, 50px above node center
-      }
-    }
-    this._cityAnim = null;   // consume once — never re-fire on a _switchWorld rebuild
-
-    for (let levelId = firstId; levelId <= lastId; levelId++) {
-      const localId    = levelId - worldBase;
-      const { x, y }  = nodePos(localId);
-      const stars      = progress.getStars(levelId);
-      const isUnlocked = levelId <= unlocked;
-      const isWeekly   = this._weeklyLevels.includes(levelId);
-      const isNew      = (levelId === unlocked && stars === 0);
-
-      const node = this._buildNode(levelId, x, y, stars, isUnlocked, isWeekly, () => {
-        if (isUnlocked) {
-          audio?.play('button_tap');
-          this._showLevelPopup(levelId, stars, isWeekly, audio, onSelectLevel);
-        }
-      });
-
-      if (isNew && isUnlocked) {
-        node.scale.set(0); node.alpha = 0;
-        this._revealAnims.push({ node, t: 0, duration: 0.45 });
+        this._building(world.theme, state, variant, n);
       }
     }
 
-    if (nextToPlay !== null) {
-      const localId = nextToPlay - worldBase;
-      const { x, y } = nodePos(localId);
-      const glow = new Graphics();
-      glow.circle(x, y, NODE_R + 12);
-      glow.stroke({ color: 0xffffff, width: 3.5, alpha: 1 });
-      this._container.addChild(glow);
-      this._glowNode = glow;
+    for (const n of nodes) {
+      const stars = p.getStars(n.levelId);
+      const open = n.levelId <= unlocked;
+      const isNext = n.levelId === unlocked && stars === 0;
+      this._node(n, { stars, open, isNext, accent, boss: BOSS_LEVELS.has(n.levelId), weekly: this._weeklyLevels.includes(n.levelId) });
     }
 
-    this._buildHeader(w, progress, onBack, onShop, onAchievements, audio);
+    this._header(world, accent);
   }
 
-  // ── Level popup (Candy Crush style) ──────────────────────────────────────
-
-  _showLevelPopup(levelId, stars, isWeekly, audio, onSelectLevel) {
-    if (this._popup) { this._popup.destroy({ children: true }); this._popup = null; }
-
-    const w = this._appW, h = this._appH;
-    const popup = new Container();
-    this._stage.addChild(popup);
-    this._popup = popup;
-
-    // Dim overlay
-    const dim = new Graphics();
-    dim.rect(0, 0, w, h);
-    dim.fill({ color: 0x000000, alpha: 0.65 });
-    dim.eventMode = 'static';   // block taps through overlay
-    popup.addChild(dim);
-
-    // Card
-    const CW = 310, CH = 340, CX = (w - CW) / 2, CY = (h - CH) / 2 - 30;
-    const color = levelColor(levelId);
-
-    const card = new Graphics();
-    // Shadow
-    card.roundRect(CX + 5, CY + 8, CW, CH, 22);
-    card.fill({ color: 0x000000, alpha: 0.45 });
-    // Card bg
-    card.roundRect(CX, CY, CW, CH, 20);
-    card.fill(0x0d1525);
-    // Coloured top bar
-    card.roundRect(CX, CY, CW, 56, 20);
-    card.fill(color);
-    card.rect(CX, CY + 36, CW, 20);
-    card.fill(color);
-    popup.addChild(card);
-
-    // Level label
-    const lbl = new Text({ text: `LEVEL ${levelId}`, style: {
-      fontSize: 26, fontWeight: 'bold', fill: 0xffffff,
-      dropShadow: { color: 0x000000, blur: 6, distance: 0, alpha: 0.7 },
-    }});
-    lbl.anchor.set(0.5, 0.5); lbl.x = w / 2; lbl.y = CY + 28;
-    popup.addChild(lbl);
-
-    if (isWeekly) {
-      const wb = new Text({ text: 'WEEKLY', style: { fontSize: 11, fill: 0xffee44, fontWeight: 'bold' } });
-      wb.anchor.set(0, 0.5);
-      const wstar = uiIcon('star-filled', 14, '⭐');
-      const wtot = 14 + 3 + wb.width;
-      wstar.x = w / 2 - wtot / 2 + 7;  wstar.y = CY + 54;
-      wb.x    = w / 2 - wtot / 2 + 17; wb.y    = CY + 54;
-      popup.addChild(wstar); popup.addChild(wb);
-    }
-
-    // Stars row
-    const starY = CY + 88;
-    for (let s = 0; s < 3; s++) {
-      const filled = s < stars;
-      const sc = filled
-        ? uiIcon('star-filled', 30, '★', { emojiFill: 0xffcc00 })
-        : uiIcon('star-empty', 30, '☆', { emojiFill: 0x445566 });
-      sc.x = w / 2 - 28 + s * 28; sc.y = starY;
-      popup.addChild(sc);
-    }
-
-    // START button (primary CTA — appears right after stars)
-    const sx = CX + 20, sy = CY + 110;
-    const startBg = new Graphics();
-    startBg.roundRect(sx, sy, CW - 40, 56, 14);
-    startBg.fill(color);
-    startBg.roundRect(sx + 2, sy + 2, CW - 44, 26, 12);
-    startBg.fill({ color: 0xffffff, alpha: 0.18 });
-    popup.addChild(startBg);
-
-    const startTxt = new Text({ text: 'START LEVEL', style: {
-      fontSize: 20, fontWeight: 'bold', fill: 0xffffff,
-      dropShadow: { color: 0x000000, blur: 4, distance: 2, alpha: 0.6 },
-    }});
-    startTxt.anchor.set(0, 0.5);
-    const startIco = uiIcon('play', 22, '▶');
-    const stot = 22 + 6 + startTxt.width;
-    startIco.x = w / 2 - stot / 2 + 11;      startIco.y = sy + 28;
-    startTxt.x = w / 2 - stot / 2 + 22 + 6;  startTxt.y = sy + 28;
-    popup.addChild(startIco);
-    startBg.eventMode = 'static'; startBg.cursor = 'pointer';
-    startBg.on('pointerdown', () => {
-      audio?.play('button_tap');
-      clearInterval(rafId);
-      popup.destroy({ children: true }); this._popup = null;
-      onSelectLevel(levelId);
-    });
-    startBg.on('pointerover',  () => { startBg.alpha = 0.85; });
-    startBg.on('pointerout',   () => { startBg.alpha = 1.00; });
-    popup.addChild(startTxt);
-
-    // Divider between START and optional ad section
-    const div = new Graphics();
-    div.moveTo(CX + 20, CY + 178); div.lineTo(CX + CW - 20, CY + 178);
-    div.stroke({ color: 0x223355, width: 1, alpha: 0.50 });
-    popup.addChild(div);
-
-    // Muted ad boosters label
-    const bh = new Text({ text: 'OPTIONAL AD BOOSTERS', style: {
-      fontSize: 14, fill: 0x5588aa, fontWeight: 'bold',
-    }});
-    bh.anchor.set(0.5, 0.5); bh.x = w / 2; bh.y = CY + 192;
-    popup.addChild(bh);
-
-    // Ad booster buttons — driven by AdManager
-    const boosterDefs = [
-      { key: 'colorchange', label: 'BRUSH',  emoji: '🎨', color: 0x7a44cc, glow: 0x9a55ee },
-      { key: 'freeze',      label: 'FREEZE', emoji: '❄',  color: 0x0a3a5a, glow: 0x44ccff },
-      { key: 'bomb',        label: 'BOMB',   emoji: '💣', color: 0x3a1a00, glow: 0xffaa00 },
-    ];
-    boosterDefs.forEach((b, idx) => {
-      const bx = CX + 16 + idx * 92, by = CY + 204;
-      const unlocked = adManager.isUnlocked(b.key);
-      const prog     = adManager.progressLabel(b.key);
-      const cost     = adManager.getCost(b.key);
-
-      const bg = new Graphics();
-      bg.roundRect(bx, by, 84, 44, 10);
-      bg.fill(unlocked ? 0x1a3a1a : b.color);
-      bg.roundRect(bx, by, 84, 44, 10);
-      bg.stroke({ color: unlocked ? 0x44ff66 : b.glow, width: unlocked ? 2.5 : 1.5, alpha: 0.80 });
-      popup.addChild(bg);
-
-      // [booster sprite] LABEL — composed centered (was a '🎨 BRUSH' glyph run)
-      const bt = new Text({ text: unlocked ? '✓ ' + b.label : b.label,
-        style: { fontSize: 10, fill: unlocked ? 0x88ff88 : 0xffffff, fontWeight: 'bold' } });
-      bt.anchor.set(0, 0.5);
-      const bIco = boosterIcon(b.key, 14, b.emoji);
-      const bTot = 14 + 3 + bt.width;
-      bIco.x = bx + 42 - bTot / 2 + 7;      bIco.y = by + 14;
-      bt.x   = bx + 42 - bTot / 2 + 14 + 3; bt.y   = by + 14;
-      popup.addChild(bIco);
-      popup.addChild(bt);
-
-      // Progress sub-label: "1 / 3 ads" or "✓ Unlocked"
-      const sub = new Text({ text: unlocked ? '✓ Unlocked' : `${prog} ads`,
-        style: { fontSize: 9, fill: unlocked ? 0x66ee66 : 0xaaaaaa } });
-      sub.anchor.set(0.5, 0.5); sub.x = bx + 42; sub.y = by + 32;
-      popup.addChild(sub);
-
-      if (!unlocked) {
-        bg.eventMode = 'static'; bg.cursor = 'pointer';
-        bg.on('pointerdown', () => {
-          audio?.play('button_tap');
-          adManager.showRewardedAd(b.key,
-            (type) => {
-              // Reward: update progress label and check if fully unlocked.
-              const newProg = adManager.progressLabel(type);
-              const nowUnlocked = adManager.isUnlocked(type);
-              sub.text = nowUnlocked ? '✓ Unlocked' : `${newProg} ads`;
-              if (nowUnlocked) {
-                bt.style.fill = 0x88ff88;
-                bt.text = '✓ ' + b.label;
-                bg.clear();
-                bg.roundRect(bx, by, 84, 44, 10);
-                bg.fill(0x1a3a1a);
-                bg.roundRect(bx, by, 84, 44, 10);
-                bg.stroke({ color: 0x44ff66, width: 2.5, alpha: 0.80 });
-                sub.style.fill = 0x66ee66;
-              }
-            },
-            null,   // onDismissed — do nothing
-          );
-        });
-        bg.on('pointerover', () => { bg.alpha = 0.80; });
-        bg.on('pointerout',  () => { bg.alpha = 1.00; });
-      }
-    });
-
-    // ← BACK button with pill chrome (F-10)
-    const backBg = new Graphics();
-    const bBtnW = 140, bBtnH = 38;
-    backBg.roundRect(w / 2 - bBtnW / 2, CY + 288, bBtnW, bBtnH, 19);
-    backBg.fill({ color: 0x1a2a44, alpha: 0.95 });
-    backBg.roundRect(w / 2 - bBtnW / 2, CY + 288, bBtnW, bBtnH, 19);
-    backBg.stroke({ color: 0x44aaff, width: 1.5, alpha: 0.5 });
-    backBg.eventMode = 'static'; backBg.cursor = 'pointer';
-    backBg.on('pointerdown', () => {
-      audio?.play('button_tap');
-      clearInterval(rafId);
-      popup.destroy({ children: true }); this._popup = null;
-    });
-    backBg.on('pointerover', () => { backBg.alpha = 0.8; });
-    backBg.on('pointerout',  () => { backBg.alpha = 1.0; });
-    popup.addChild(backBg);
-
-    const backTxt = new Text({ text: '← BACK', style: { fontSize: 15, fontWeight: 'bold', fill: 0x88ccff } });
-    backTxt.anchor.set(0.5, 0.5); backTxt.x = w / 2; backTxt.y = CY + 288 + bBtnH / 2;
-    popup.addChild(backTxt);
-
-    // Animate card entrance: slide up from below.
-    // rafId is in outer scope so all close paths can clear it.
-    popup.y = 80; popup.alpha = 0;
-    let t = 0;
-    let rafId = null;
-    rafId = setInterval(() => {
-      if (!popup.parent) { clearInterval(rafId); return; }  // popup already destroyed
-      t += 1 / 60;
-      const prog = Math.min(1, t / 0.22);
-      const ease = 1 - Math.pow(1 - prog, 3);
-      popup.y     = 80 * (1 - ease);
-      popup.alpha = ease;
-      if (prog >= 1) { clearInterval(rafId); rafId = null; }
-    }, 1000 / 60);
+  _building(theme, state, variant, n) {
+    const s = sprite(`sprites/designed/repair-${theme}-${state}-${variant}.png`, 150);
+    if (!s) return new Container();
+    s.x = n.plotX; s.y = n.plotY + 1;
+    this._container.addChild(s);
+    return s;
   }
 
-  // ── Background drawing ────────────────────────────────────────────────────
-
-  _drawBackground(w, h) {
+  _node(n, { stars, open, isNext, accent, boss, weekly }) {
+    const node = new Container();
+    node.x = n.x; node.y = n.y;
     const g = new Graphics();
-    // Deep gradient: navy → dark blue-purple
-    for (let i = 0; i < 20; i++) {
-      const t = i / 19;
-      const r = Math.round(4 + t * 15);
-      const gr = Math.round(5 + t * 10);
-      const b  = Math.round(20 + t * 40);
-      g.rect(0, HEADER_H + i * ((h - HEADER_H) / 20), w, (h - HEADER_H) / 20 + 1);
-      g.fill((r << 16) | (gr << 8) | b);
-    }
-    this._container.addChild(g);
-    this._drawSkyline(w, h);
-    this._drawStarField(w);
-    this._drawStreetLights(w);
-    this._drawGridOverlay(w, h);
-  }
+    const face = !open ? 0x77738F : boss ? 0xE8453C : accent;
+    g.circle(2, 6, NODE_R + 4).fill({ color: 0x000000, alpha: 0.35 });
+    g.circle(0, 3, NODE_R + 4).fill(open ? GOLD_DEEP : 0x4A475E);
+    g.circle(0, 0, NODE_R + 4).fill(open ? faceGrad(GOLD) : faceGrad(0x9A97AE));
+    g.circle(0, 0, NODE_R + 4).stroke({ color: INK, width: 3 });
+    g.circle(0, 0, NODE_R - 1).fill(faceGrad(face));
+    g.circle(0, 0, NODE_R - 1).stroke({ color: shade(face, 0.55), width: 2 });
+    g.ellipse(0, -NODE_R * 0.45, NODE_R * 0.62, NODE_R * 0.3).fill({ color: WHITE, alpha: 0.3 });
+    node.addChild(g);
 
-  _drawStarField(w) {
-    const g = new Graphics();
-    const positions = [
-      [18,78],[65,92],[108,74],[150,86],[198,70],[238,90],[285,76],
-      [335,84],[372,74],[42,104],[185,108],[318,100],[88,118],[260,116],
-      [370,108],[12,130],[155,122],[295,132],[50,140],[220,136],
-    ];
-    for (const [sx, sy] of positions) {
-      const r = (sx % 3 === 0) ? 1.5 : 1.0;
-      const a = 0.4 + ((sx + sy) % 4) * 0.15;
-      g.circle(sx, sy, r);
-      g.fill({ color: 0xffffff, alpha: a });
-    }
-    // Coloured accent stars
-    for (const [sx, sy, col] of [[72,82,0xffd700],[188,96,0x88ccff],[330,72,0xff88cc]]) {
-      g.circle(sx, sy, 2); g.fill({ color: col, alpha: 0.60 });
-    }
-    this._container.addChild(g);
-  }
-
-  _drawSkyline(w, h) {
-    const g = new Graphics();
-    const baseY = HEADER_H + 110;
-    const buildings = [
-      [0,30,68,0x0c1226,true],[30,20,46,0x0e1430,false],[50,36,82,0x0a0f22,true],
-      [86,24,54,0x0d1228,false],[110,14,38,0x0c1124,false],[124,44,72,0x0b1020,true],
-      [168,22,50,0x0d1228,false],[190,32,88,0x090e1e,true],[222,18,44,0x0c1226,false],
-      [240,38,62,0x0b1122,true],[278,26,74,0x0a1020,false],[304,20,48,0x0d1328,true],
-      [324,44,92,0x090e1e,true],[368,24,52,0x0c1126,false],[
-        392,32,68,0x0b1020,true],
-    ];
-    for (const [bx, bw, bh, bgc, hasWin] of buildings) {
-      g.rect(bx, baseY - bh, bw, bh); g.fill(bgc);
-      if (hasWin) {
-        for (let wy = baseY - bh + 8; wy < baseY - 8; wy += 10) {
-          for (let wx = bx + 4; wx < bx + bw - 4; wx += 8) {
-            if ((wx * 3 + wy * 2) % 5 < 3) {
-              const wc = (wx + wy) % 3 === 0 ? 0xffee66 : 0x88ccff;
-              g.rect(wx, wy, 3, 5); g.fill({ color: wc, alpha: 0.55 });
-            }
-          }
-        }
-      }
-    }
-    this._container.addChild(g);
-  }
-
-  _drawStreetLights(w) {
-    const g = new Graphics();
-    // Pairs of street lights between node rows
-    const lightPositions = [
-      [0, 210], [w, 210], [0, 380], [w, 380],
-      [0, 545], [w, 545], [0, 710], [w, 710],
-    ];
-    for (const [lx, ly] of lightPositions) {
-      const side = lx === 0 ? 1 : -1;
-      const px = lx === 0 ? 8 : w - 8;
-      // Pole
-      g.rect(px - 2, ly - 30, 4, 30); g.fill(0x334466);
-      // Arm
-      g.rect(px, ly - 30, side * 20, 3); g.fill(0x334466);
-      // Lamp
-      const lampX = px + side * 20;
-      g.circle(lampX, ly - 30, 5); g.fill({ color: 0xffee88, alpha: 0.85 });
-      // Glow halo
-      g.circle(lampX, ly - 30, 10); g.fill({ color: 0xffee88, alpha: 0.18 });
-    }
-    this._container.addChild(g);
-  }
-
-  _drawGridOverlay(w, h) {
-    const g = new Graphics();
-    const top = HEADER_H + 120;
-    for (let gx = 40; gx < w; gx += 50) {
-      g.moveTo(gx, top); g.lineTo(gx, h);
-      g.stroke({ color: 0x1a2548, width: 1, alpha: 0.20 });
-    }
-    for (let gy = top; gy < h; gy += 50) {
-      g.moveTo(0, gy); g.lineTo(w, gy);
-      g.stroke({ color: 0x1a2548, width: 1, alpha: 0.20 });
-    }
-    this._container.addChild(g);
-  }
-
-  // ── Road path ─────────────────────────────────────────────────────────────
-
-  _drawRoadPath(unlockedLevel) {
-    const worldBase = (this._worldPage - 1) * 20;
-    for (let localId = 1; localId < 20; localId++) {
-      const levelId = worldBase + localId;
-      const { x: ax, y: ay } = nodePos(localId);
-      const { x: bx, y: by } = nodePos(localId + 1);
-      const reached = levelId < unlockedLevel;
-      const c = levelColor(levelId);
-
-      // Soft glow underlay so the route reads clearly against the dark map.
-      const glow = new Graphics();
-      glow.moveTo(ax, ay); glow.lineTo(bx, by);
-      glow.stroke({ color: reached ? c : 0x4a5590, width: 22, alpha: reached ? 0.22 : 0.16, cap: 'round' });
-      this._container.addChild(glow);
-
-      // Road base — brighter/thicker than before (was 0x1a2040 @0.50, easy to miss).
-      const road = new Graphics();
-      road.moveTo(ax, ay); road.lineTo(bx, by);
-      road.stroke({ color: reached ? c : 0x3a4470, width: 15, alpha: reached ? 0.70 : 0.66, cap: 'round' });
-      this._container.addChild(road);
-
-      // Road edge lines
-      if (reached) {
-        const edge = new Graphics();
-        edge.moveTo(ax, ay); edge.lineTo(bx, by);
-        edge.stroke({ color: 0xffffff, width: 14, alpha: 0.10, cap: 'round' });
-        this._container.addChild(edge);
-      }
-
-      // Dashed centre line
-      if (reached) {
-        const dash = new Graphics();
-        for (let d = 0; d < 5; d++) {
-          const t0 = (d + 0.15) / 5, t1 = (d + 0.55) / 5;
-          dash.moveTo(ax + (bx - ax) * t0, ay + (by - ay) * t0);
-          dash.lineTo(ax + (bx - ax) * t1, ay + (by - ay) * t1);
-          dash.stroke({ color: 0xffffff, width: 2, alpha: 0.60, cap: 'round' });
-        }
-        this._container.addChild(dash);
-      }
-    }
-  }
-
-  // ── Decorative cars ───────────────────────────────────────────────────────
-
-  _drawCars() {
-    const carPositions = [
-      { localId: 2, t: 0.50 }, { localId: 5, t: 0.35 }, { localId: 8, t: 0.60 },
-      { localId: 11, t: 0.45 }, { localId: 14, t: 0.55 }, { localId: 17, t: 0.40 },
-    ];
-    for (let ci = 0; ci < carPositions.length; ci++) {
-      const { localId, t } = carPositions[ci];
-      const { x: ax, y: ay } = nodePos(localId);
-      const { x: bx, y: by } = nodePos(localId + 1);
-      const cx = ax + (bx - ax) * t, cy = ay + (by - ay) * t;
-      this._drawMiniCar(cx, cy, Math.atan2(by - ay, bx - ax),
-        LEVEL_COLORS[(localId + ci) % LEVEL_COLORS.length]);
-    }
-  }
-
-  _drawMiniCar(cx, cy, angle, color) {
-    const g = new Graphics();
-    g.rect(-9, -5, 18, 10); g.fill({ color, alpha: 0.92 });
-    g.rect(-5, -3, 10, 6);  g.fill({ color: 0x111122, alpha: 0.75 });
-    g.circle(-9, -3, 1.5);  g.fill({ color: 0xffffcc, alpha: 0.90 });
-    g.circle(-9,  3, 1.5);  g.fill({ color: 0xffffcc, alpha: 0.90 });
-    g.x = cx; g.y = cy; g.rotation = angle;
-    this._container.addChild(g);
-  }
-
-  // ── Level nodes ───────────────────────────────────────────────────────────
-
-  _buildNode(levelId, x, y, stars, isUnlocked, isWeekly, onClick) {
-    const color = levelColor(levelId);
-    const node  = new Container();
-    node.x = x; node.y = y;
-    this._container.addChild(node);
-
-    // Shadow
-    const shadow = new Graphics();
-    shadow.circle(3, 5, NODE_R + 3); shadow.fill({ color: 0x000000, alpha: 0.40 });
-    node.addChild(shadow);
-
-    if (isUnlocked) {
-      // Outer coloured glow ring
-      const glow = new Graphics();
-      glow.circle(0, 0, NODE_R + 7);
-      glow.fill({ color, alpha: 0.30 });
-      node.addChild(glow);
-
-      // White border
-      const border = new Graphics();
-      border.circle(0, 0, NODE_R + 3);
-      border.fill({ color: 0xffffff, alpha: 0.85 });
-      node.addChild(border);
-
-      // Coloured disc
-      const disc = new Graphics();
-      disc.circle(0, 0, NODE_R);
-      disc.fill(color);
-      // Shine overlay
-      disc.arc(0, 0, NODE_R - 2, Math.PI * 1.1, Math.PI * 1.75);
-      disc.stroke({ color: 0xffffff, width: 4, alpha: 0.30 });
-      node.addChild(disc);
-
-      // Stars completed: show star count or level number
-      if (stars > 0) {
-        const starStr = '★'.repeat(stars) + '☆'.repeat(3 - stars);
-        const st = new Text({ text: starStr, style: { fontSize: 11, fill: 0xffee00 } });
-        st.anchor.set(0.5, 0.5); st.y = 9;
-        node.addChild(st);
-        (this._completedStars ??= []).push(st);   // 5D: gentle idle pulse
-
-        const num = new Text({ text: String(levelId), style: { fontSize: 13, fontWeight: 'bold', fill: 0xffffff } });
-        num.anchor.set(0.5, 0.5); num.y = -7;
-        node.addChild(num);
-      } else {
-        const num = new Text({ text: String(levelId), style: { fontSize: 16, fontWeight: 'bold', fill: 0xffffff,
-          dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 0.6 },
-        }});
-        num.anchor.set(0.5, 0.5);
-        node.addChild(num);
-      }
-
-      if (isWeekly) {
-        const wk = uiIcon('star-filled', 14, '⭐');
-        wk.x = NODE_R - 3; wk.y = -NODE_R + 4;
-        node.addChild(wk);
-      }
-
-      // Difficulty indicator — sits just below the node disc
-      const diff = LEVEL_DIFFICULTY[levelId];
-      if (diff === 'boss') {
-        const skull = uiIcon('skull', 15, '💀');
-        skull.x = 0; skull.y = NODE_R + 10;
-        node.addChild(skull);
-      } else if (diff === 'hard') {
-        const dg = new Graphics();
-        dg.circle(-5, NODE_R + 10, 4); dg.fill({ color: 0xff3333, alpha: 0.95 });
-        dg.circle( 5, NODE_R + 10, 4); dg.fill({ color: 0xff3333, alpha: 0.95 });
-        node.addChild(dg);
-      } else if (diff === 'medium') {
-        const dg = new Graphics();
-        dg.circle(0, NODE_R + 10, 4); dg.fill({ color: 0xff8800, alpha: 0.95 });
-        node.addChild(dg);
-      }
-
-      disc.eventMode = 'static'; disc.cursor = 'pointer';
-      disc.on('pointerdown', onClick);
-      disc.on('pointerover',  () => { node.scale.set(1.10); });
-      disc.on('pointerout',   () => { node.scale.set(1.00); });
-    } else {
-      // Locked node — dim tinted with level color, number visible but muted
-      const disc = new Graphics();
-      disc.circle(0, 0, NODE_R + 3);
-      disc.fill({ color: 0x0d1a2e, alpha: 0.90 });
-      disc.circle(0, 0, NODE_R);
-      disc.fill({ color, alpha: 0.22 });
-      // Dim ring border in level color
-      disc.circle(0, 0, NODE_R);
-      disc.stroke({ color, width: 2, alpha: 0.35 });
-      node.addChild(disc);
-
-      // Level number — visible but muted
-      const num = new Text({ text: String(levelId), style: {
-        fontSize: 14, fontWeight: 'bold', fill: color,
-      }});
-      num.anchor.set(0.5, 0.5);
-      num.alpha = 0.40;
+    if (open) {
+      const num = titleText(String(n.levelId), n.levelId >= 10 ? 22 : 24);
+      num.y = 1;
       node.addChild(num);
-
-      // Small lock icon below number
+    } else {
       const lock = new Graphics();
-      lock.arc(0, -NODE_R + 9, 4, Math.PI, 0, false);
-      lock.stroke({ color: 0x3a5070, width: 1.5, alpha: 0.55 });
-      lock.roundRect(-4, -NODE_R + 12, 8, 7, 2);
-      lock.fill({ color: 0x1a2a38, alpha: 0.70 });
+      lock.roundRect(-9, -3, 18, 14, 3).fill(0xE9E6F2).stroke({ color: INK, width: 2 });
+      lock.arc(0, -3, 6, Math.PI, 0).stroke({ color: INK, width: 5 });
+      lock.arc(0, -3, 6, Math.PI, 0).stroke({ color: 0xE9E6F2, width: 2.5 });
       node.addChild(lock);
     }
 
-    return node;
+    if (boss) {
+      const sk = uiIcon('skull', 20, '💀');
+      sk.x = NODE_R - 2; sk.y = -NODE_R + 4;
+      node.addChild(sk);
+    } else if (weekly && open) {
+      const wk = uiIcon('star-filled', 18, '⭐');
+      wk.x = NODE_R - 2; wk.y = -NODE_R + 4;
+      node.addChild(wk);
+    }
+
+    // Stars plaque under completed levels.
+    if (open && stars > 0) {
+      const pl = new Graphics();
+      pl.roundRect(-30, NODE_R - 2, 60, 20, 10).fill(0x1F1A33).stroke({ color: GOLD_DEEP, width: 2 });
+      node.addChild(pl);
+      for (let i = 0; i < 3; i++) {
+        const st = uiIcon(i < stars ? 'star-filled' : 'star-empty', 17, i < stars ? '★' : '☆', i < stars ? {} : { tint: 0x4A4660 });
+        st.x = -18 + i * 18; st.y = NODE_R + 8;
+        node.addChild(st);
+      }
+    }
+
+    if (open) {
+      node.eventMode = 'static';
+      node.cursor = 'pointer';
+      node.hitArea = { contains: (x, y) => x * x + y * y <= (NODE_R + 10) * (NODE_R + 10) };
+      node.on('pointerdown', () => node.scale.set(0.92));
+      node.on('pointerupoutside', () => node.scale.set(1));
+      node.on('pointerup', () => {
+        node.scale.set(1);
+        this._callbacks.audio?.play('button_tap');
+        this._callbacks.onSelectLevel?.(n.levelId);
+      });
+    }
+
+    if (isNext) {
+      const ring = new Graphics();
+      ring.circle(0, 0, NODE_R + 12).stroke({ color: WHITE, width: 4 });
+      ring.x = n.x; ring.y = n.y;
+      this._container.addChild(ring);
+      // A gold arrow bobs above the node: "play me".
+      const marker = new Graphics();
+      marker.poly([-13, -12, 13, -12, 13, -2, 22, -2, 0, 18, -22, -2, -13, -2]).fill(GOLD).stroke({ color: INK, width: 3 });
+      marker.poly([-9, -9, 9, -9, 9, -4, -9, -4]).fill({ color: WHITE, alpha: 0.45 });
+      marker.x = n.x; marker.y = n.y - NODE_R - 30;
+      this._container.addChild(node);
+      this._container.addChild(marker);
+      this._current = { node, ring, marker, baseY: marker.y };
+    } else {
+      this._container.addChild(node);
+    }
   }
 
-  // ── Header ────────────────────────────────────────────────────────────────
+  _header(world, accent) {
+    const w = this._appW;
+    const band = new Graphics();
+    band.rect(0, 0, w, 96).fill(new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, textureSpace: 'local',
+      colorStops: [{ offset: 0, color: 0x17143A }, { offset: 1, color: 0x2B2760 }] }));
+    band.rect(0, 94, w, 4).fill(GOLD_DEEP);
+    band.rect(0, 98, w, 3).fill({ color: 0x000000, alpha: 0.25 });
+    this._container.addChild(band);
 
-  _buildHeader(w, progress, onBack, onShop, onAchievements, audio) {
-    const hg = new Graphics();
-    hg.rect(0, 0, w, HEADER_H); hg.fill({ color: 0x060c18, alpha: 0.96 });
-    hg.moveTo(0, HEADER_H); hg.lineTo(w, HEADER_H);
-    hg.stroke({ color: 0x2a4a7a, width: 1.5, alpha: 0.70 });
-    this._container.addChild(hg);
+    const rb = ribbon(world.name.toUpperCase(), 240, { size: 22, color: accent === ACCENT.world1 ? 0xE8453C : shade(accent, 0.95) });
+    rb.x = w / 2; rb.y = 34;
+    rb.scale.set(0.92);
+    this._container.addChild(rb);
 
-    const mkBtn = (txt, x, anchorX, y, color, cb) => {
-      const t = new Text({ text: txt, style: { fontSize: 18, fontWeight: 'bold', fill: color } });
-      t.anchor.set(anchorX, 0.5); t.x = x; t.y = y;
-      t.eventMode = 'static'; t.cursor = 'pointer';
-      t.on('pointerdown', () => { audio?.play('button_tap'); cb(); });
-      t.on('pointerover', () => { t.alpha = 0.70; });
-      t.on('pointerout',  () => { t.alpha = 1.00; });
-      this._container.addChild(t);
-      return t;
-    };
+    const cb = this._callbacks;
+    const back = roundButton(uiIcon('back', 20, '←'), { r: 20, color: 0x2F7FE0, onTap: () => { cb.audio?.play('button_tap'); cb.onBack?.(); } });
+    back.x = 28; back.y = 34;
+    this._container.addChild(back);
+    const shop = roundButton(uiIcon('coin', 26, '◆'), { r: 20, color: 0xF0A020, onTap: () => { cb.audio?.play('button_tap'); cb.onShop?.(); } });
+    shop.x = w - 28; shop.y = 34;
+    this._container.addChild(shop);
 
-    // Row 1 — navigation buttons (y=16, font 18 → text half-height≈9px → bottom≈25px)
-    mkBtn('← BACK', 14,   0, 16, 0x66aaff, onBack);
-    mkBtn('SHOP',   w-14, 1, 16, 0xf5c842, () => onShop?.());
-
-    // Row 2 — world title + world-switch chevrons (y=44, font 22 → top≈33px, gap≈8px ✓)
-    const title = new Text({ text: `WORLD ${this._worldPage}`, style: {
-      fontSize: 22, fontWeight: 'bold', fill: 0xffffff,
-      dropShadow: { color: 0x3399ff, blur: 10, distance: 0, alpha: 0.7 },
-    }});
-    title.anchor.set(0.5, 0.5); title.x = w / 2; title.y = 44;
-    this._container.addChild(title);
-
-    // World-switch chevrons anchored to the screen EDGES, clear of the centered
-    // title (previously ±70px from center → the "1" collided with the arrow).
-    if (this._worldPage === 1) {
-      mkBtn('W2 ▶', w - 14, 1, 44, 0x66aaff, () => this._switchWorld(2));
-    }
-    if (this._worldPage === 2) {
-      mkBtn('◀ W1', 14, 0, 44, 0x66aaff, () => this._switchWorld(1));
-    }
-
-    // Row 3 — coins and achievements (y=76, font 14 → top≈69px, gap≈14px ✓)
-    const coinIco = uiIcon('coin', 18, '🏅');   // medal → coin (this is the coin count)
-    coinIco.x = 14 + 9; coinIco.y = 76;
-    this._container.addChild(coinIco);
-    const coins = new Text({ text: `${progress.coins ?? 0}`, style: { fontSize: 14, fontWeight: 'bold', fill: 0xf5c842 } });
-    coins.anchor.set(0, 0.5); coins.x = 14 + 22; coins.y = 76;
+    // Row 2: coins · world dots / arrows · trophies.
+    const pill = new Graphics();
+    pill.roundRect(12, 62, 86, 26, 13).fill(0x14112F).stroke({ color: GOLD_DEEP, width: 2 });
+    this._container.addChild(pill);
+    const coin = uiIcon('coin', 22, '◆'); coin.x = 26; coin.y = 75;
+    this._container.addChild(coin);
+    const coins = bodyText(String(this._progress.coins ?? 0), 15, 0xFFE08A);
+    coins.anchor.set(0, 0.5); coins.x = 42; coins.y = 75;
     this._container.addChild(coins);
 
-    if (onAchievements) mkBtn('★ ACHIEVEMENTS', w - 14, 1, 76, 0x99bbcc, onAchievements);
-  }
-
-  // Draw a city building beside a level node — part of the "rebuild the city"
-  // meta-loop. cx/cy is the building BASE (ground line). 46×40px above it.
-  // state 0=damaged ruin, 1=under construction (scaffolding), 2=restored.
-  _buildCityBuilding(cx, cy, state) {
-    const g  = new Graphics();
-    const bw = 46, bh = 40;
-    const bx = cx - bw / 2;
-    const by = cy - bh;          // building top; base sits on the ground line at cy
-
-    // Ground shadow — anchors the building to the map so it reads as PLACED,
-    // not a rectangle floating between nodes.
-    g.ellipse(cx, cy + 2, bw * 0.52, 5);
-    g.fill({ color: 0x000000, alpha: 0.30 });
-
-    if (state === 0) {
-      // RUBBLE — a collapsed building AWAITING repair. Against the dark night-city
-      // backdrop the bare silhouette read as scenery, so a subtle amber rim-light
-      // (warm light catching the broken edge) lifts it off the background: it reads
-      // as "pending, yours to rebuild" — not scenery, but not an alert/quest marker.
-      // The meta-loop's payoff needs the player to first SEE the city is broken.
-      const jaggedTop = () => {
-        g.moveTo(bx,       by + 16);
-        g.lineTo(bx + 9,   by + 7);
-        g.lineTo(bx + 17,  by + 13);
-        g.lineTo(bx + 25,  by + 3);
-        g.lineTo(bx + 33,  by + 11);
-        g.lineTo(bx + bw,  by + 7);
-        g.lineTo(bx + bw,  by + bh);
-        g.lineTo(bx,       by + bh);
-        g.closePath();
-      };
-      // Warm ground glow — a faint amber pool under the ruin (drawn over the neutral
-      // shadow) says "a spot is waiting here".
-      g.ellipse(cx, cy + 2, bw * 0.5, 5);
-      g.fill({ color: 0xFFB347, alpha: 0.12 });
-      // Amber rim: two soft strokes on the silhouette BEHIND the dark body, so warm
-      // light peeks along the broken edge (wider = softer outer halo).
-      jaggedTop(); g.stroke({ color: 0xFFB347, width: 5,   alpha: 0.10 });
-      jaggedTop(); g.stroke({ color: 0xFFB347, width: 2.5, alpha: 0.24 });
-      // Dark body on top of the rim.
-      jaggedTop();
-      g.fill({ color: 0x2b2f3e, alpha: 0.96 });
-      g.stroke({ color: 0x12141f, width: 2, alpha: 0.9 });
-      for (const [wx, wy] of [[9, 22], [27, 25], [15, 33]]) {
-        g.rect(bx + wx, by + wy, 6, 7);
-        g.fill({ color: 0x0c0e16, alpha: 0.92 });   // empty window holes
-      }
-      g.circle(bx + 6, cy, 3); g.circle(bx + bw - 8, cy, 4);
-      g.fill({ color: 0x20232f, alpha: 0.9 });        // rubble at base
-    } else if (state === 1) {
-      // UNDER CONSTRUCTION — facade + scaffold poles + a couple of lit windows.
-      g.rect(bx, by + 4, bw, bh - 4);
-      g.fill({ color: 0x3f4459, alpha: 0.96 });
-      g.stroke({ color: 0x12141f, width: 2, alpha: 0.9 });
-      for (const [wx, wy, lit] of [[8, 13, 1], [27, 13, 0], [8, 27, 1], [27, 27, 1]]) {
-        g.rect(bx + wx, by + wy, 9, 8);
-        g.fill({ color: lit ? 0xFFE08A : 0x20242f, alpha: lit ? 0.95 : 0.9 });
-      }
-      g.rect(bx + 2, by, 2.5, bh); g.rect(bx + bw - 4.5, by, 2.5, bh);   // vertical poles
-      g.fill({ color: 0xF0A020, alpha: 0.92 });
-      for (let i = 0; i < 3; i++) {                                       // horizontal scaffolds
-        g.rect(bx - 2, by + 7 + i * 12, bw + 4, 2.5);
-        g.fill({ color: 0xF0A020, alpha: 0.85 });
-      }
-    } else {
-      // RESTORED — bright facade, roof cap, all windows lit warm.
-      g.rect(bx - 2, by + 3, bw + 4, 5);
-      g.fill({ color: 0x6b7ac0, alpha: 0.96 });        // roof cap
-      g.rect(bx, by + 7, bw, bh - 7);
-      g.fill({ color: 0x5563a0, alpha: 0.97 });
-      g.stroke({ color: 0x2a3360, width: 2, alpha: 0.9 });
-      for (let col = 0; col < 3; col++) {
-        for (let row = 0; row < 2; row++) {
-          g.rect(bx + 8 + col * 13, by + 14 + row * 12, 8, 8);
-          g.fill({ color: 0xFFF1C0, alpha: 0.96 });
-        }
-      }
+    const cx = w / 2;
+    for (let i = 0; i < MAP_WORLDS.length; i++) {
+      const d = new Graphics();
+      const on = i + 1 === this._page;
+      d.circle(cx + (i - 1) * 20, 75, on ? 6.5 : 5).fill(on ? GOLD : 0x5E5A80).stroke({ color: INK, width: 2 });
+      this._container.addChild(d);
     }
-    this._container.addChild(g);
-    return g;
+    if (this._page > 1) {
+      const prev = roundButton(uiIcon('back', 16, '◀'), { r: 14, color: 0x3A3662, onTap: () => this._switch(this._page - 1) });
+      prev.x = cx - 58; prev.y = 75;
+      this._container.addChild(prev);
+    }
+    if (this._page < MAP_WORLDS.length) {
+      const next = roundButton(uiIcon('back', 16, '▶', { flipX: true }), { r: 14, color: 0x3A3662, onTap: () => this._switch(this._page + 1) });
+      next.x = cx + 58; next.y = 75;
+      this._container.addChild(next);
+    }
+    if (cb.onAchievements) {
+      const tr = roundButton(uiIcon('trophy', 20, '🏆'), { r: 15, color: 0x8B4FE0, onTap: () => { cb.audio?.play('button_tap'); cb.onAchievements(); } });
+      tr.x = w - 28; tr.y = 75;
+      this._container.addChild(tr);
+    }
   }
 
-  // §3e repair pop: the building at (cx, cyBld) rises from its PRIOR state into
-  // repaired over ~0.7s — the meta-loop payoff, played on level-select entry after
-  // a win that CHANGED the building (first clear, or re-repair after a replay-loss).
-  // Deliberately BRIEF and NON-BLOCKING: it's cosmetic, taps pass straight through,
-  // so tapping a level to leave the map naturally ends it (skippable for free, with
-  // no swallowed taps). prior===2 wins never reach here (GameApp gates on change).
-  _startRepairAnim(cx, cyBld, prior) {
-    const gPrior = this._buildCityBuilding(cx, cyBld, prior);   // old state, fades out
-    const gNew   = this._buildCityBuilding(cx, cyBld, 2);       // repaired, pops in
-    // Scale about the ground line (cx, cyBld) so it grows UP like construction.
-    gNew.pivot.set(cx, cyBld);
-    gNew.position.set(cx, cyBld);
-    gNew.scale.set(0);
-    gNew.alpha = 0;
-    this._repairAnims.push({ gPrior, gNew, t: 0, duration: 0.7 });
-    this._callbacks?.audio?.play('coin_collect');   // one soft sparkle, not a fanfare
-  }
-
-  _switchWorld(page) {
-    this._worldPage = page;
-    this._container.removeChildren();
-    this._glowNode = null; this._glowTime = 0; this._revealAnims = [];
-    const { onSelectLevel, onBack, onShop, onAchievements, audio } = this._callbacks;
-    this._build(this._appW, this._appH, this._progress,
-      onSelectLevel, onBack, onShop, onAchievements, audio);
+  _switch(page) {
+    this._callbacks.audio?.play('button_tap');
+    this._page = page;
+    this._container.removeChildren().forEach(c => c.destroy({ children: true }));
+    this._current = null;
+    this._repairAnims = [];
+    this._build();
   }
 }

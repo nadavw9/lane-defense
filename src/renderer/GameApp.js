@@ -11,7 +11,13 @@
 // Data flow:
 //   InputManager → DragDrop → GameLoop.deploy() → GameState mutation
 //   GameState → CarRenderer / ShooterRenderer / HUDRenderer / ParticleSystem
-import { Application, Assets, Container, Graphics, Text, Ticker } from 'pixi.js';
+import { Application, Assets, Container, Graphics, Text, Ticker, TextStyle } from 'pixi.js';
+// Display fonts, bundled (no network needed on device): Fredoka for all UI
+// text, Luckiest Guy for big titles (PremiumUI.TITLE_FONT).
+import '@fontsource/fredoka/500.css';
+import '@fontsource/fredoka/600.css';
+import '@fontsource/fredoka/700.css';
+import '@fontsource/luckiest-guy/400.css';
 
 import { GameRenderer3D }  from '../renderer3d/GameRenderer3D.js';
 import { assetLoader }     from '../renderer3d/AssetLoader.js';
@@ -173,6 +179,16 @@ import { App as CapApp } from '@capacitor/app';
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 
 async function main() {
+  // Every Pixi Text without an explicit family uses Fredoka. Load the faces
+  // first: Pixi rasterises text once, so text drawn before the font arrives
+  // would stay in the fallback face.
+  TextStyle.defaultTextStyle.fontFamily = 'Fredoka, Arial, sans-serif';
+  try {
+    await Promise.race([
+      Promise.all(['500 20px Fredoka', '600 20px Fredoka', '700 20px Fredoka', '20px "Luckiest Guy"'].map(f => document.fonts.load(f))),
+      new Promise(r => setTimeout(r, 2500)),
+    ]);
+  } catch { /* fall back to Arial */ }
   const app = new Application();
   await app.init({
     width:           APP_W,
@@ -1015,11 +1031,14 @@ async function main() {
 
   // ── Pre-level "Power Up?" ad offer (FIX 4D) ──────────────────────────────
   function _showPreLevel(levelId) {
-    const label = typeof levelId === 'number' ? `Level ${levelId}` : null;
+    const label = typeof levelId === 'number' ? `LEVEL ${levelId}` : null;
+    const levelCfg = (() => { if (typeof levelId !== 'number') return null; const lm = new LevelManager(); lm.goToLevel(levelId); return lm.current; })();
     const start = (bundle) => {
       _pendingBoosterGrant = bundle;
       preLevelScreen?.destroy();
       preLevelScreen = null;
+      levelSelectScreen?.destroy();
+      levelSelectScreen = null;
       transition.fadeOut(0.25, () => { _startLevel(levelId); transition.fadeIn(0.25, null); });
     };
     // §3d DDA mercy: after 2 consecutive fails, offer 1 free COLOR CHANGE (no ad)
@@ -1041,8 +1060,10 @@ async function main() {
         };
         showOne();
       },
+      onClose: () => { preLevelScreen?.destroy(); preLevelScreen = null; if (!levelSelectScreen) showLevelSelect(); },
       audio,
       freeBooster,
+      level: levelCfg,
     });
   }
 
@@ -1108,9 +1129,7 @@ async function main() {
     levelSelectScreen = new LevelSelectScreen(app.stage, APP_W, APP_H, progress, {
       onSelectLevel: (levelId) => {
         // Hearts/energy gate removed (FIX 3) — levels are always startable.
-        levelSelectScreen.destroy();
-        levelSelectScreen = null;
-        // FIX 4D: offer the optional "Power Up?" ad screen before the level starts.
+        // The level card opens OVER the map (the map is torn down on PLAY).
         _showPreLevel(levelId);
       },
       onBack: _closers.levelSelect = () => {
@@ -1276,6 +1295,12 @@ async function main() {
         pauseBtn.visible = true;
         bookBtn.visible  = false;  // in-game manual button hidden; reachable via pause screen
         gameLoop.resume();
+      },
+      onRestart: () => {
+        pauseScreen.destroy();
+        pauseScreen = null;
+        const id = currentLevelIsDaily ? currentLevelCfg : levelManager.levelNumber;
+        transition.fadeOut(0.25, () => { _startLevel(id); transition.fadeIn(0.25, null); });
       },
       onCarManual: () => {
         pauseScreen.destroy();
@@ -1978,7 +2003,7 @@ async function main() {
     if (preLevelScreen) {
       preLevelScreen.destroy();
       preLevelScreen = null;
-      showLevelSelect();
+      if (!levelSelectScreen) showLevelSelect();
       return;
     }
     if (close(levelSelectScreen, 'levelSelect')) return;
@@ -2193,6 +2218,7 @@ async function main() {
       showPreLevel: (n) => { _dbgCleanAll(); _showPreLevel(n); },
       showRescue:   () => { showRescue(); },
       showShop:     () => { showShop(); },
+      showPause:    () => { showPause(); },
       showTitle:    () => { showTitle(); },
       showSettings: () => { showSettings(() => showTitle()); },
       showDaily:    () => { showDailyReward(); },

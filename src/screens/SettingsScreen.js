@@ -12,6 +12,8 @@
 import { Container, Graphics, Text } from 'pixi.js';
 import { setColorblindMode } from '../game/ColorblindMode.js';
 import { uiIcon } from '../renderer/UIIcon.js';
+import { ribbon, roundButton, GOLD, GOLD_DEEP } from '../renderer/PremiumUI.js';
+import { FillGradient } from 'pixi.js';
 import { Capacitor } from '@capacitor/core';
 import { adManager } from '../ads/AdManager.js';
 
@@ -38,15 +40,16 @@ const SLIDES = [
 ];
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
-const C_BG     = 0x060610;   // --hud-bg
-const C_PANEL  = 0x0d1a2e;   // --panel-bg
-const C_ROW    = 0x081420;   // --row-bg
-const C_LABEL  = 0x7799aa;   // muted section header
-const C_SEP    = 0x1a2a3a;   // inner card divider
+// Premium pass (2026-09-28): indigo cards with a gold rim on a deep gradient.
+const C_BG     = 0x17143A;
+const C_PANEL  = 0x2B2760;
+const C_ROW    = 0x1C1946;
+const C_LABEL  = 0xFFC93C;   // section header (gold)
+const C_SEP    = 0x3E3980;   // inner card divider
 const C_TEXT   = 0xffffff;
-const C_SUB    = 0x556677;
-const C_BLUE   = 0x44aaff;   // slider fill, back button
-const C_GREEN  = 0x276b27;   // toggle ON track
+const C_SUB    = 0xA9A3D6;
+const C_BLUE   = 0xFFC93C;   // slider fill
+const C_GREEN  = 0x3DBB3A;   // toggle ON track
 
 const CARD_MX  = 14;   // horizontal margin
 const CARD_R   = 14;   // corner radius
@@ -89,16 +92,14 @@ export class SettingsScreen {
 
     // Full-screen dark background
     const bg = new Graphics();
-    bg.rect(0, 0, w, this._appH);
-    bg.fill(C_BG);
-    bg.rect(0, 0, w, 160);
-    bg.fill({ color: 0x08081a, alpha: 0.55 });
+    bg.rect(0, 0, w, this._appH).fill(new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, textureSpace: 'local',
+      colorStops: [{ offset: 0, color: 0x3A2F7A }, { offset: 1, color: C_BG }] }));
     bg.eventMode = 'static';
     this._container.addChild(bg);
 
     this._buildHeader();
 
-    let y = 76;
+    let y = 90;
     y = this._buildSoundCard(y);       y += 10;
     y = this._buildAccessCard(y);      y += 10;
     y = this._buildControlsCard(y);    y += 10;
@@ -110,43 +111,12 @@ export class SettingsScreen {
 
   _buildHeader() {
     const w  = this._appW;
-    const cx = w / 2;
-
-    const hdr = new Graphics();
-    hdr.rect(0, 0, w, 64);
-    hdr.fill({ color: 0x08081a, alpha: 0.95 });
-    hdr.rect(0, 63, w, 1);
-    hdr.fill({ color: 0xffffff, alpha: 0.07 });
-    this._container.addChild(hdr);
-
-    // Back pill button
-    const backPill = new Graphics();
-    backPill.roundRect(10, 14, 82, 36, 18);
-    backPill.fill({ color: 0xffffff, alpha: 0.07 });
-    backPill.roundRect(10, 14, 82, 36, 18);
-    backPill.stroke({ color: C_BLUE, width: 1, alpha: 0.45 });
-    backPill.eventMode = 'static'; backPill.cursor = 'pointer';
-    this._container.addChild(backPill);
-    backPill.on('pointerdown', () => { this._audio?.play('button_tap'); this._onClose(); });
-    backPill.on('pointerover',  () => { backPill.alpha = 0.70; });
-    backPill.on('pointerout',   () => { backPill.alpha = 1.00; });
-
-    const backTxt = new Text({ text: '← BACK', style: { fontSize: 15, fontWeight: 'bold', fill: C_BLUE, letterSpacing: 0.4 } });
-    backTxt.anchor.set(0.5, 0.5); backTxt.x = 51; backTxt.y = 32;
-    backTxt.eventMode = 'static'; backTxt.cursor = 'pointer';
-    backTxt.on('pointerdown', () => { this._audio?.play('button_tap'); this._onClose(); });
-    this._container.addChild(backTxt);
-
-    // Title centered — [gear] SETTINGS
-    const title = new Text({ text: 'SETTINGS', style: { fontSize: 20, fontWeight: 'bold', fill: C_TEXT, letterSpacing: 0.5,
-      dropShadow: { color: 0x000000, blur: 6, distance: 0, alpha: 0.6 } } });
-    title.anchor.set(0, 0.5);
-    const gearIco = uiIcon('gear', 22, '⚙');
-    const tTot = 22 + 6 + title.width;
-    gearIco.x = cx - tTot / 2 + 11;      gearIco.y = 32;
-    title.x   = cx - tTot / 2 + 22 + 6;  title.y   = 32;
-    this._container.addChild(gearIco);
-    this._container.addChild(title);
+    const rb = ribbon('SETTINGS', 220, { size: 26 });
+    rb.x = w / 2; rb.y = 36;
+    this._container.addChild(rb);
+    const back = roundButton(uiIcon('back', 22, '←'), { r: 22, color: 0x2F7FE0, onTap: () => { this._audio?.play('button_tap'); this._onClose(); } });
+    back.x = 32; back.y = 36;
+    this._container.addChild(back);
   }
 
   // ── Sound card ────────────────────────────────────────────────────────────
@@ -282,28 +252,24 @@ export class SettingsScreen {
 
   _drawCard(y, h) {
     const g = new Graphics();
-    // Base fill
-    g.roundRect(CARD_MX, y, CARD_W, h, CARD_R);
-    g.fill({ color: C_PANEL, alpha: 0.97 });
-    // Inset top highlight strip (top 2px of card)
-    g.roundRect(CARD_MX, y, CARD_W, 2, 0);
-    g.fill({ color: 0xffffff, alpha: 0.05 });
-    // Border
-    g.roundRect(CARD_MX, y, CARD_W, h, CARD_R);
-    g.stroke({ color: 0xffffff, width: 1, alpha: 0.07 });
+    g.roundRect(CARD_MX + 2, y + 5, CARD_W, h, CARD_R).fill({ color: 0x000000, alpha: 0.3 });
+    g.roundRect(CARD_MX, y, CARD_W, h, CARD_R).fill(new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, textureSpace: 'local',
+      colorStops: [{ offset: 0, color: 0x3A3580 }, { offset: 1, color: C_PANEL }] }));
+    g.roundRect(CARD_MX, y, CARD_W, h, CARD_R).stroke({ color: GOLD_DEEP, width: 2.5 });
+    g.roundRect(CARD_MX + 3, y + 3, CARD_W - 6, h - 6, CARD_R - 3).stroke({ color: 0xffffff, width: 1, alpha: 0.12 });
     this._container.addChild(g);
   }
 
   // iconName (optional): render a sprite + label; else keep the emoji prefix.
   _addSectionLabel(icon, label, cy, iconName = null) {
     const x = CARD_MX + CARD_P;
-    const style = { fontSize: 11, fontWeight: 'bold', fill: C_LABEL, letterSpacing: 0.6 };
+    const style = { fontSize: 13, fontWeight: '700', fill: C_LABEL, letterSpacing: 0.8 };
     if (iconName) {
-      const sp = uiIcon(iconName, 15, icon);
-      sp.x = x + 7; sp.y = cy;
+      const sp = uiIcon(iconName, 20, icon);
+      sp.x = x + 10; sp.y = cy;
       this._container.addChild(sp);
       const t = new Text({ text: label, style });
-      t.anchor.set(0, 0.5); t.x = x + 18; t.y = cy;
+      t.anchor.set(0, 0.5); t.x = x + 26; t.y = cy;
       this._container.addChild(t);
       return;
     }

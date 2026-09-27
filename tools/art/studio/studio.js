@@ -828,6 +828,159 @@ function setLight(l) {
 const DEFAULT_LIGHT = { hemi: 0.85, key: 2.1, keyColor: 0xfff4e0, env: 0.4 };
 
 // Public API for the driver. Returns a PNG data URL.
+
+// ── Level map (2026-09-28) ─────────────────────────────────────────────────────
+// A top-down diorama per world with the road running through the level nodes.
+// Map px ↔ ground: X = (px - W/2)/S, Z = (py - H/2)/(S·cos TILT) (the tilted
+// ortho camera maps ground z linearly to screen y). Same light and tilt as the
+// verges and the vehicles, so the map is the same toy world.
+const MAP_THEME = {
+  world1: { ground: ['#6FB24E', '#86C763'], road: 0x5B5F6E, kerb: 0xEDE7D6, dash: 0xFFFFFF, pad: 0xE6DCC6, padEdge: 0x3F9A4E },
+  world2: { ground: ['#9C978B', '#B1AC9F'], road: 0x4E525C, kerb: 0xF2C230, dash: 0xF2C230, pad: 0xC9C4B8, padEdge: 0xF2C230 },
+  world3: { ground: ['#1E2340', '#2A3052'], road: 0x2B2F45, kerb: 0x39E6FF, dash: 0xFF4FD8, pad: 0x363C5C, padEdge: 0x39E6FF },
+};
+
+function ribbon(points, width, mat, y) {
+  // points: [[X, Z], ...] world units; flat strip of `width` at height y.
+  const pos = [], idx = [];
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i], a = points[Math.max(0, i - 1)], b = points[Math.min(points.length - 1, i + 1)];
+    let dx = b[0] - a[0], dz = b[1] - a[1];
+    const L = Math.hypot(dx, dz) || 1; dx /= L; dz /= L;
+    const nx = -dz * width / 2, nz = dx * width / 2;
+    pos.push(p[0] + nx, y, p[1] + nz, p[0] - nx, y, p[1] - nz);
+    if (i > 0) { const k = i * 2; idx.push(k - 2, k - 1, k, k - 1, k + 1, k); }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  mat.side = THREE.DoubleSide;
+  const m = new THREE.Mesh(g, mat);
+  m.receiveShadow = true;
+  return m;
+}
+
+function distToPolyline(p, pts) {
+  let best = Infinity;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i];
+    const vx = b[0] - a[0], vz = b[1] - a[1], L2 = vx * vx + vz * vz || 1;
+    let t = ((p[0] - a[0]) * vx + (p[1] - a[1]) * vz) / L2;
+    t = Math.max(0, Math.min(1, t));
+    best = Math.min(best, Math.hypot(p[0] - (a[0] + t * vx), p[1] - (a[1] + t * vz)));
+  }
+  return best;
+}
+
+function buildMap(theme, seed, { W, H, S, road, nodes }) {
+  const T = MAP_THEME[theme], r = rng(seed * 131 + 7);
+  const cz = Math.cos(TILT);
+  const toW = ([x, y]) => [(x - W / 2) / S, (y - H / 2) / (S * cz)];
+  const Wu = W / S, Lu = H / (S * cz);
+  const g = new THREE.Group();
+  const tex = noiseTex(T.ground[0], T.ground[1], seed, 2600);
+  tex.repeat.set(Wu / 5, Lu / 5);
+  g.add(slab(Wu + 4, Lu + 8, std(0xffffff, 0.95, { map: tex }), 0, 0));
+  const path = road.map(toW);
+  const roadW = 30 / S;
+  g.add(ribbon(path, roadW + 0.5, theme === 'world3' ? basic(T.kerb) : std(T.kerb, 0.7), 0.03));
+  g.add(ribbon(path, roadW, std(T.road, 0.85), 0.05));
+  // Centre dashes along the path.
+  let acc = 0;
+  for (let i = 1; i < path.length; i++) {
+    const a = path[i - 1], b = path[i], L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    for (let d = 0; d < L; d += 0.1) {
+      acc += 0.1;
+      if (acc % 1.6 < 0.8) continue;
+      const t = d / L, x = a[0] + (b[0] - a[0]) * t, z = a[1] + (b[1] - a[1]) * t;
+      const m = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.01, 0.1), theme === 'world3' ? basic(T.dash) : std(T.dash, 0.6));
+      m.position.set(x, 0.07, z);
+      g.add(m);
+    }
+  }
+  // Plots under the repair buildings.
+  const plots = nodes.map(n => toW([n.plotX, n.plotY + 14]));
+  for (const [x, z] of plots) {
+    g.add(rbox(2.9, 0.08, 2.4, 0.3, std(T.padEdge, 0.7), x, 0.04, z));
+    g.add(rbox(2.6, 0.1, 2.1, 0.25, std(T.pad, 0.9), x, 0.06, z));
+  }
+  // Node pads (round) under the level buttons.
+  for (const n of nodes) {
+    const [x, z] = toW([n.x, n.y]);
+    const pad = new THREE.Mesh(new THREE.CylinderGeometry(1.45, 1.55, 0.1, 40), std(T.pad, 0.85));
+    pad.scale.z = 1 / cz;
+    pad.position.set(x, 0.07, z);
+    g.add(pad);
+  }
+  // Props: rejection-sampled away from the road, plots and nodes.
+  const nodesW = nodes.map(n => toW([n.x, n.y]));
+  const clear = (x, z, rad) => distToPolyline([x, z], path) > roadW / 2 + rad + 0.3
+    && plots.every(([px, pz]) => Math.hypot(px - x, pz - z) > 2.2 + rad)
+    && nodesW.every(([px, pz]) => Math.hypot(px - x, pz - z) > 1.9 + rad);
+  const placed = [];
+  const free = (x, z, rad) => placed.every(([a, b, rr]) => Math.hypot(a - x, b - z) > rr + rad);
+  for (let k = 0; k < 900 && placed.length < 70; k++) {
+    const x = (r() - 0.5) * (Wu + 1), z = (r() - 0.5) * (Lu + 2);
+    const p = r();
+    let obj = null, rad = 0.6;
+    if (theme === 'world1') {
+      if (p < 0.55) { rad = 0.7; obj = tree(x, z, 0.75 + r() * 0.35, r); }
+      else if (p < 0.8) { rad = 0.6; obj = bush(x, z, 0.9, r); }
+      else { rad = 0.6; obj = flowers(x, z, r); }
+    } else if (theme === 'world2') {
+      if (p < 0.35) { rad = 1.6; obj = container(x, z, r); obj.rotation.y = r() < 0.5 ? 0 : Math.PI / 2; }
+      else if (p < 0.65) { rad = 0.6; obj = new THREE.Group(); const dc = [0x2F8CFF, 0xE0574A, 0x2FA36B][Math.floor(r() * 3)]; obj.add(drum(-0.3, 0, dc), drum(0.25, 0.15, dc)); obj.position.set(x, 0, z); }
+      else if (p < 0.85) { rad = 0.35; obj = cone(x, z); }
+      else { rad = 0.9; obj = tree(x, z, 0.65, r, [0x6E8B4E, 0x7C9A57, 0x5F7A45]); }
+    } else {
+      if (p < 0.45) { rad = 0.4; obj = lampPost(x, z, true); obj.scale.setScalar(0.7); }
+      else if (p < 0.8) { rad = 1.4; obj = tower(x, z, 1.8 + r() * 0.6, 1.6 + r() * 0.5, 0.9 + r() * 0.9, r); }
+      else { rad = 0.7; obj = tree(x, z, 0.7, r, [0x2F6B6A, 0x3A7C7A, 0x285E5D]); }
+    }
+    if (!clear(x, z, rad) || !free(x, z, rad)) continue;
+    placed.push([x, z, rad]);
+    g.add(obj);
+  }
+  return g;
+}
+
+// A repair building on its plot: 2 = repaired, 1 = scaffolding, 0 = rubble.
+function buildRepair(theme, state, variant) {
+  const r = rng(variant * 977 + (theme === 'world2' ? 3 : theme === 'world3' ? 5 : 1));
+  const g = new THREE.Group();
+  let full;
+  if (theme === 'world1') { house.k = [0, 1, 2][variant % 3]; full = house(0, 0, 2.3, 1.9, r); }   // k+1 → roof purple / orange / brick
+  else if (theme === 'world2') full = warehouse(0, 0, 2.4, 1.9, r);
+  else full = tower(0, 0, 2.2, 1.8, 2.2 + (variant % 3) * 0.4, r);
+  if (state === 2) { g.add(full); return g; }
+  // Wall colour of the full building, for the broken versions.
+  let wallMat = std(0xCFC6B8, 0.85);
+  full.traverse(o => { if (o.isMesh && o.geometry?.type === 'BoxGeometry' && !wallMat.__set) { wallMat = o.material; wallMat.__set = true; } });
+  const H = theme === 'world3' ? 1.6 : 1.3;
+  if (state === 1) {
+    g.add(rbox(2.2, H * 0.6, 1.8, 0.06, wallMat, 0, H * 0.3, 0));
+    const pole = std(0xF0A020, 0.6), plank = std(0xB07A3A, 0.8);
+    for (const x of [-1.2, 1.2]) for (const z of [-1.0, 1.0]) g.add(rbox(0.07, H * 1.2, 0.07, 0.02, pole, x, H * 0.6, z));
+    for (const y of [H * 0.45, H * 0.95]) {
+      g.add(rbox(2.5, 0.06, 0.08, 0.02, pole, 0, y, 1.0), rbox(2.5, 0.06, 0.08, 0.02, pole, 0, y, -1.0));
+      g.add(rbox(2.4, 0.05, 0.3, 0.02, plank, 0, y + 0.05, 1.12));
+    }
+    g.add(rbox(0.5, 0.5, 0.5, 0.05, std(0x8A6A45, 0.9), 0.9, 0.25, 1.3));   // crate
+    return g;
+  }
+  // Rubble: a broken wall stub and a heap of blocks.
+  g.add(rbox(0.9, H * 0.55, 0.2, 0.04, wallMat, -0.6, H * 0.27, -0.7));
+  for (let i = 0; i < 14; i++) {
+    const s = 0.25 + r() * 0.35;
+    const b = rbox(s, s * 0.6, s * 0.8, 0.05, i % 3 ? wallMat : std(0x8A8378, 0.9), (r() - 0.5) * 2.0, s * 0.3 + r() * 0.2, (r() - 0.5) * 1.6);
+    b.rotation.set(r() * 0.6, r() * 3, r() * 0.6);
+    g.add(b);
+  }
+  g.add(cone(1.1, 1.0));
+  return g;
+}
+
 window.studio = {
   types: Object.keys(BUILD),
   colors: Object.keys(PALETTE),
@@ -961,6 +1114,50 @@ window.studio = {
     const W = renderer.domElement.width, H = renderer.domElement.height;
     const out = compose(renderPasses(obj, W, H), W, H, outline, false);
     clearObj(obj);
+    return out.toDataURL('image/png');
+  },
+  // Level-map background for one world page (W×H map px at `scale`×).
+  map(theme, seed, { W = 390, H = 844, S = 22, scale = 2, road, nodes } = {}) {
+    house.k = undefined;
+    setLight(theme === 'world3' ? { ...WORLD.world3.light, hemi: 0.8, key: 1.5 } : WORLD[theme].light);   // map: night, but readable
+    const cz = Math.cos(TILT);
+    const Wu = W / S, Hu = H / S;
+    const obj = place(buildMap(theme, seed, { W, H, S, road, nodes }));
+    camera.position.set(0, Math.cos(TILT) * 40, Math.sin(TILT) * 40);
+    camera.up.set(0, 0, -1);
+    camera.lookAt(0, 0, 0);
+    Object.assign(camera, { left: -Wu / 2, right: Wu / 2, top: Hu / 2, bottom: -Hu / 2 });
+    camera.updateProjectionMatrix();
+    renderer.setSize(W * scale, H * scale, false);
+    ground.visible = false;
+    const L = H / (S * cz);
+    Object.assign(key.shadow.camera, { left: -L, right: L, top: L, bottom: -L });
+    key.shadow.camera.updateProjectionMatrix();
+    const out = snapshot(W * scale, H * scale);
+    Object.assign(key.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8 });
+    key.shadow.camera.updateProjectionMatrix();
+    ground.visible = true;
+    clearObj(obj);
+    setLight(DEFAULT_LIGHT);
+    return out.toDataURL('image/png');
+  },
+  // One repair building sprite, framed at a fixed scale so all states align.
+  repair(theme, state, variant, { S = 22, scale = 2, px = 150 } = {}) {
+    setLight(theme === 'world3' ? { ...WORLD.world3.light, hemi: 0.8, key: 1.5 } : WORLD[theme].light);
+    const obj = place(buildRepair(theme, state, variant));
+    camera.position.set(0, Math.cos(TILT) * 30, Math.sin(TILT) * 30);
+    camera.up.set(0, 0, -1);
+    camera.lookAt(0, 0, 0);
+    camera.updateMatrixWorld(true);
+    // Fixed frame centred on the plot's ground centre, a bit above for height.
+    const hw = px / S / 2;
+    const c = new THREE.Vector3(0, 1.0, 0).applyMatrix4(camera.matrixWorldInverse);
+    Object.assign(camera, { left: c.x - hw, right: c.x + hw, top: c.y + hw, bottom: c.y - hw });
+    camera.updateProjectionMatrix();
+    renderer.setSize(px * scale * 2, px * scale * 2, false);
+    const out = snapshot(px * scale, px * scale);
+    clearObj(obj);
+    setLight(DEFAULT_LIGHT);
     return out.toDataURL('image/png');
   },
   ready: true,

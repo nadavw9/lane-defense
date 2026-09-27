@@ -627,8 +627,9 @@ inferring rejection from an unchanged board.
 - **AdMob** — `src/ads/AdManager.js` with Google **test** IDs for rewarded video and interstitial
 - **Signed release keystore** — `android/lane-defense-release.keystore` (gitignored). **Never delete.**
 - **Balance simulator** — `tools/balance-sim.js`
-- **Car rendering** — normal cars use designed PNG sprite billboards on flat
-  `PlaneGeometry` + `MeshBasicMaterial`; the boss uses a procedural `CanvasTexture`.
+- **Car rendering** — normal cars use pre-rendered 3D toy sprites (see §10 Art
+  pipeline) as billboards on flat `PlaneGeometry` + `MeshBasicMaterial`; the boss
+  uses a procedural `CanvasTexture`.
 - **Danger Aura** — red pulse on cars within 2 rows of breach gate
 - **Fairness rules** (FR-1 through FR-5) enforced in `GameLoop._enforceViableMove()`
 - **Wrong-color shot = no advance** (shipped — never revert)
@@ -707,17 +708,39 @@ Before committing any change to `LevelManager.js` or `CarTypes.js`:
 
 ## 10. Color Palette
 
+Toy Town palette (2026-09-27, owner-approved direction A). Re-picked for
+separation: the old red/orange/yellow sat within ~25° of hue and green was olive.
+
 ```
-Red:    #E24B4A   (0xE24B4A)
-Blue:   #378ADD   (0x378ADD)
-Green:  #639922   (0x639922)
-Yellow: #EF9F27   (0xEF9F27)
-Purple: #7F77DD   (0x7F77DD)
-Orange: #D85A30   (0xD85A30)
+Red:    #FF3D3D   (0xFF3D3D)
+Blue:   #2F8CFF   (0x2F8CFF)
+Green:  #2FCC55   (0x2FCC55)
+Yellow: #FFD42A   (0xFFD42A)
+Purple: #A35CFF   (0xA35CFF)
+Orange: #FF8A1C   (0xFF8A1C)
 Boss:   #CC44CC   (0xCC44CC)
 ```
 
-Duplicated in: `Car3D.js`, `Shooter3D.js`, `Projectile3D.js`, `src/input/DragDrop.js`. Update all four if changing any color.
+Duplicated across renderer/screen files (grep any value to find them all) and in
+`tools/art/studio/studio.js` (PALETTE) + `tools/art/vehicles.mjs`. Update all if
+changing any colour, then re-bake the sprites.
+
+### Art pipeline (Toy Town, 2026-09-27)
+
+The art is GENERATED, never hand-painted PNGs:
+
+| what | source | bake command |
+|------|--------|--------------|
+| vehicles, bombs, booster icons | 3D toy models in `tools/art/studio/` (Three.js, rendered offline, ink outline composited in 2D) | `node scripts/render-3d-sprites.mjs ship` |
+| side verges (all worlds, scene variants a/b/c) | 3D dioramas in the same studio, same camera tilt + light | `node scripts/render-3d-sprites.mjs scenery` |
+| road tiles, bomb-zone floors | SVG in `tools/art/worlds.mjs` | `node scripts/render-world-tiles.mjs` |
+| HUD chrome | `src/renderer/ToyStyle.js` helpers (ink outline, lip, gloss) | — |
+
+The 3D bakes need the Vite dev server on :5173 (it serves the studio page).
+Previews: `render-3d-sprites.mjs sheet <png>` / `verges <png>`. `ship` also
+GENERATES `src/renderer3d/carSpriteGeometry.js` (aspect + body bbox) — Car3D
+imports it; never hand-copy those numbers. Legacy file names are kept, so every
+screen picks up new art without path changes.
 
 ---
 

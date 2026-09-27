@@ -292,9 +292,10 @@ export class CityEdges {
       ts.x = x0;
       ts.y = top;
       // Visual hierarchy (Royal Match rule): decor must RECEDE so gameplay pops.
-      // Dim the panels ~30% — the brightest/most saturated pixels on screen must
-      // be the cars and bombs, never the background buildings.
-      ts.tint = 0xb2b2b8;
+      // The 3D diorama strips are authored calmer than the old painted panels
+      // (no ink outline, softer greens), so they need only a light ~15% dim —
+      // the old 30% turned the lit scenery muddy.
+      ts.tint = 0xd8d8de;
       this._container.addChild(ts);
       return true;
     }

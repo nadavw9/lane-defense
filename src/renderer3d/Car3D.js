@@ -14,6 +14,7 @@
 import * as THREE from 'three';
 import { CELL, posToZ, laneToX } from './Scene3D.js';
 import { ROAD_Z_FAR, POS_NEAR_Z } from './projection.js';
+import { CAR_SPRITE_GEOMETRY } from './carSpriteGeometry.js';
 
 // ── Canvas size for programmatic textures ────────────────────────────────────
 const CVS    = 256;
@@ -45,18 +46,14 @@ const SPRITE_SCALE     = 0.43;   // boss/fallback only — real types use sprite
 // FIT × row pitch — nothing touches its lane neighbour, and the size ordering
 // (bike < sedan < van < truck < tank < bigrig) is preserved.
 // BODY_FRAC (alpha-bbox fractions of the sprite image) and cx (body-center X
-// offset, + = right of image center) are MEASURED — since the Toy Town art
-// (2026-09-27) by scripts/render-toy-sprites.mjs, which rasterises the vector
-// source and prints this table. Every colour shares one geometry, so the
-// per-type table is valid for every colour. Re-run it after any art change.
-const BODY_FRAC = {
-  small:  { w: 0.724, h: 0.875, cx:  0.000 },
-  big:    { w: 0.873, h: 0.891, cx:  0.000 },
-  jeep:   { w: 0.881, h: 0.896, cx:  0.000 },
-  truck:  { w: 0.818, h: 0.911, cx:  0.000 },
-  bigrig: { w: 0.809, h: 0.919, cx:  0.000 },
-  tank:   { w: 0.846, h: 0.852, cx:  0.000 },
-};
+// offset, + = right of image center) are MEASURED — since the 3D toy art
+// (2026-09-27) by scripts/render-3d-sprites.mjs, which bakes the models in
+// tools/art/studio and GENERATES carSpriteGeometry.js (solid body + outline
+// only; the soft baked shadow is excluded). Every colour shares one geometry,
+// so the per-type table is valid for every colour.
+const BODY_FRAC = Object.fromEntries(
+  Object.entries(CAR_SPRITE_GEOMETRY).map(([t, g]) => [t, { w: g.w, h: g.h, cx: g.cx }]),
+);
 // Body length as a fraction of the row pitch. The first pass targeted a ~1.9px
 // worst gap — it perceptually FUSED (antialiased sprite edges eat ~1px each side,
 // and any screenshot downscale erases the rest). Revised 2026-07-11: worst stacked
@@ -139,16 +136,13 @@ const COLOR_HEX = {
 
 // ── Per-type plane dimensions (fractions of CELL) ───────────────────────────
 // PlaneGeometry = CELL*wF × CELL*hF.
-// hF is the length basis; wF = hF × the sprite image's aspect (printed by
-// scripts/render-toy-sprites.mjs) so the art is never stretched. The old
-// painted sprites were square-ish canvases squeezed onto these planes.
+// hF is the length basis; wF = hF × the sprite image's measured aspect
+// (carSpriteGeometry.js) so the art is never stretched. The old painted sprites
+// were square-ish canvases squeezed onto these planes.
+const HF = { small: 0.77, big: 0.77, jeep: 0.81, truck: 0.98, bigrig: 1.26, tank: 1.01 };
 const TYPE_DIMS = {
-  small:  { wF: 0.393, hF: 0.77 },   // motorbike — 196×384 art
-  big:    { wF: 0.504, hF: 0.77 },   // sedan     — 251×384
-  jeep:   { wF: 0.531, hF: 0.81 },   // van       — 252×384
-  truck:  { wF: 0.617, hF: 0.98 },   // tanker    — 242×384
-  bigrig: { wF: 0.685, hF: 1.26 },   // semi      — 209×384
-  tank:   { wF: 0.715, hF: 1.01 },   // tank      — 272×384
+  ...Object.fromEntries(Object.entries(HF).map(([t, hF]) =>
+    [t, { wF: hF * (CAR_SPRITE_GEOMETRY[t]?.aspect ?? 0.6), hF }])),
   boss:   { wF: 1.33, hF: 1.33 },
 };
 

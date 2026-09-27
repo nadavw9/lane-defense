@@ -28,6 +28,7 @@ import {
   TOP_RADIUS,
 } from '../renderer/ShooterRenderer.js';
 import { BAR_Y } from '../renderer/BoosterBar.js';
+import { INK, WHITE, toyPanel } from '../renderer/ToyStyle.js';
 import { getColumnScreenX, getColumnScreenY, getLaneScreenX } from '../renderer/PositionRegistry.js';
 
 // FTUE hint banner sits just above the booster bar (its documented anchor).
@@ -502,19 +503,16 @@ export class FeatureBanners {
     const PW = 210, PH = 38;
     const PX = w - PW - 10;   // right-aligned, 10px from edge
 
+    // Toy Town speech card: white face, ink outline, lip (ToyStyle).
     const bg = new Graphics();
-    bg.roundRect(PX, 0, PW, PH, 10);
-    bg.fill({ color: 0x081830, alpha: 0.88 });
-    bg.roundRect(PX, 0, PW, PH, 10);
-    bg.stroke({ color: 0x44aaff, width: 1.5, alpha: 0.85 });
+    toyPanel(bg, PX, 0, PW, PH - 3, 12, WHITE, { lip: 3, stroke: 2.5, gloss: 0 });
     grp.addChild(bg);
 
     const txt = new Text({
       text,
       style: {
-        fontSize: 12, fontWeight: 'bold', fill: 0xeef4ff, align: 'right',
+        fontSize: 12, fontWeight: '800', fill: INK, align: 'right',
         wordWrap: true, wordWrapWidth: PW - 16,
-        dropShadow: { color: 0x000000, blur: 4, distance: 0, alpha: 0.60 },
       },
     });
     txt.anchor.set(1.0, 0.5);   // right-aligned anchor

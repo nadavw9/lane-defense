@@ -100,7 +100,6 @@ export class Road3D {
     this._bombRings      = [];
     this._sweeps         = [];   // grid-advance light sweeps
     this._dividers       = [];
-    this._noiseTex       = null;
     // Road surface materials — updated by setTheme() without rebuild.
     this._roadMats      = [];
 
@@ -353,8 +352,6 @@ export class Road3D {
         else obj.material.dispose();
       }
     });
-    this._noiseTex?.dispose();
-    this._noiseTex = null;
     this._scene.remove(this._group);
   }
 
@@ -364,7 +361,6 @@ export class Road3D {
     this._built = true;
     this._buildZoneFloor();
     this._buildRoadSurface();
-    this._buildNoiseOverlay();
     this._buildLaneDividers();
     this._buildBarriers();
     this._buildReflectionStrips();
@@ -428,17 +424,9 @@ export class Road3D {
     mesh.position.set(0, -0.01, ROAD_CENTER_Z);
     this._group.add(mesh);
 
-    // Expansion joints — subtle white lines across full road width
-    const jointMat = new THREE.MeshBasicMaterial({
-      color: 0xffffff, transparent: true, opacity: 0.06,
-    });
-    for (let i = 1; i <= 12; i++) {
-      const z     = ROAD_Z_FAR + (i / 13) * ROAD_LENGTH;
-      const joint = new THREE.Mesh(new THREE.PlaneGeometry(W, 0.06), jointMat);
-      joint.rotation.x = -Math.PI / 2;
-      joint.position.set(0, 0.001, z);
-      this._group.add(joint);
-    }
+    // (No overlay grain or expansion joints: each world tile carries its own
+    // surface detail, and those uniform white/grey overlays washed the dark
+    // night-highway asphalt out to mid-grey.)
 
     // ── Visual background extension: road continues to vanishing point ─────
     const VANISH_LEN    = ROAD_Z_FAR - ROAD_Z_VANISHING;
@@ -702,40 +690,4 @@ export class Road3D {
     return tex;
   }
 
-  _buildNoiseOverlay() {
-    if (!this._noiseTex) this._noiseTex = this._makeNoiseTexture();
-
-    const n       = this._laneCount;
-    const hw      = roadHalfW(n);
-    const W       = hw * 2;
-    const fullLen = ROAD_Z_NEAR - ROAD_Z_VANISHING;
-    const ctrZ    = ROAD_Z_VANISHING + fullLen / 2;
-
-    this._noiseTex.repeat.set(W * 0.55, fullLen * 0.38);
-    this._noiseTex.needsUpdate = true;
-
-    const mat  = new THREE.MeshBasicMaterial({
-      map: this._noiseTex, transparent: true, opacity: 0.11, depthWrite: false,
-    });
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(W, fullLen), mat);
-    mesh.rotation.x = -Math.PI / 2;
-    mesh.position.set(0, 0.001, ctrZ);
-    this._group.add(mesh);
-  }
-
-  _makeNoiseTexture() {
-    const size = 256;
-    const cv   = document.createElement('canvas');
-    cv.width = cv.height = size;
-    const img = cv.getContext('2d').createImageData(size, size);
-    for (let i = 0; i < img.data.length; i += 4) {
-      const v = Math.floor(Math.random() * 256);
-      img.data[i] = img.data[i+1] = img.data[i+2] = v;
-      img.data[i+3] = 255;
-    }
-    cv.getContext('2d').putImageData(img, 0, 0);
-    const tex = new THREE.CanvasTexture(cv);
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    return tex;
-  }
 }

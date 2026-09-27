@@ -4,39 +4,39 @@
 // centre offset, + = right). The soft baked shadow is excluded.
 export const CAR_SPRITE_GEOMETRY = {
   "small": {
-    "aspect": 0.482,
-    "w": 0.862,
-    "h": 0.638,
+    "aspect": 0.461,
+    "w": 0.874,
+    "h": 0.687,
     "cx": 0
   },
   "big": {
-    "aspect": 0.693,
-    "w": 0.926,
-    "h": 0.781,
+    "aspect": 0.695,
+    "w": 0.941,
+    "h": 0.814,
     "cx": 0
   },
   "jeep": {
-    "aspect": 0.642,
-    "w": 0.926,
-    "h": 0.844,
+    "aspect": 0.635,
+    "w": 0.941,
+    "h": 0.868,
     "cx": 0
   },
   "truck": {
-    "aspect": 0.554,
-    "w": 0.926,
-    "h": 0.807,
+    "aspect": 0.556,
+    "w": 0.943,
+    "h": 0.837,
     "cx": 0
   },
   "bigrig": {
-    "aspect": 0.497,
-    "w": 0.925,
-    "h": 0.879,
+    "aspect": 0.495,
+    "w": 0.943,
+    "h": 0.846,
     "cx": 0
   },
   "tank": {
-    "aspect": 0.682,
-    "w": 0.934,
-    "h": 0.735,
+    "aspect": 0.647,
+    "w": 0.951,
+    "h": 0.699,
     "cx": 0
   }
 };

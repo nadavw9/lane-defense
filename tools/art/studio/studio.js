@@ -13,6 +13,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { BUILD_HD, buildBossHD, BOSS_PANEL_HD } from './vehicles-hd.js';
 
 export const PALETTE = {
   Red: 0xFF3D3D, Orange: 0xFF8A1C, Yellow: 0xFFD42A,
@@ -35,7 +36,7 @@ document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-scene.environmentIntensity = 0.35;
+scene.environmentIntensity = 0.4;
 
 scene.add(new THREE.HemisphereLight(0xffffff, 0x5a5578, 0.85));
 const key = new THREE.DirectionalLight(0xfff4e0, 2.1);
@@ -47,6 +48,9 @@ key.shadow.blurSamples = 16;
 Object.assign(key.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8, near: 0.5, far: 40 });
 key.shadow.bias = -0.0004;
 scene.add(key);
+const fill = new THREE.DirectionalLight(0xffffff, 0.35);   // soft front-right fill for the glass and grille
+fill.position.set(6, 5, 10);
+scene.add(fill);
 const rim = new THREE.DirectionalLight(0xcfe3ff, 0.9);
 rim.position.set(4, 6, -8);
 scene.add(rim);
@@ -215,13 +219,15 @@ const STEELD = new THREE.MeshStandardMaterial({ color: 0x6E7788, roughness: 0.4,
 const HAZARD_Y = new THREE.MeshStandardMaterial({ color: 0xFFD42A, roughness: 0.5 });
 const HAZARD_K = new THREE.MeshStandardMaterial({ color: 0x24212C, roughness: 0.6 });
 
-// Top-surface extents per type: [halfWidth, roofY, zFront, zBack, hoodY, hoodZ0, hoodZ1].
+// Surface landmarks of the premium models (tools/art/studio/vehicles-hd.js),
+// read off the model code: body half-width, nose/tail z, hood top and its z
+// span, roof top and its z span, and the boot/tail deck height.
 const DECK = {
-  small:  [0.26, 0.9, 0.7, -0.7, 0.9, 0.2, 0.7],
-  big:    [0.95, 1.5, 1.9, -1.9, 0.94, 0.9, 1.9],
-  jeep:   [1.0, 1.82, 2.05, -2.05, 1.82, -1.9, 1.6],
-  truck:  [0.98, 1.8, 2.2, -2.3, 1.8, 1.0, 2.1],
-  bigrig: [1.02, 2.45, 2.7, -2.5, 2.45, -2.4, 1.0],
+  small:  { hw: 0.25, zF: 0.95, zB: -0.95, hoodY: 1.0,  hood: [0.3, 0.85],  roofY: 1.0,  roof: [-0.7, -0.2],  tailY: 0.98 },
+  big:    { hw: 0.98, zF: 2.12, zB: -2.1,  hoodY: 0.9,  hood: [1.05, 1.95], roofY: 1.46, roof: [-0.72, 0.34], tailY: 0.9 },
+  jeep:   { hw: 1.02, zF: 2.22, zB: -2.2,  hoodY: 1.12, hood: [1.55, 2.1],  roofY: 1.9,  roof: [-1.86, 1.0],  tailY: 1.9 },
+  truck:  { hw: 1.0,  zF: 2.42, zB: -2.4,  hoodY: 1.42, hood: [1.95, 2.35], roofY: 2.12, roof: [1.0, 1.7],    tailY: 2.35 },
+  bigrig: { hw: 1.05, zF: 2.82, zB: -2.72, hoodY: 1.5,  hood: [2.45, 2.75], roofY: 2.62, roof: [-2.5, 0.9],   tailY: 2.62 },
 };
 
 function bolts(g, xs, y, zs) {
@@ -233,80 +239,63 @@ function bolts(g, xs, y, zs) {
 }
 
 const VARIANT = {
-  // Bolted steel plates over the body, a ram bar on the nose, hazard chevrons.
+  // Bolted steel plates on hood and roof, side skirts, a hazard ram on the nose.
   armored(g, type) {
-    const [hw, roofY, zF, zB, hoodY, h0, h1] = DECK[type] ?? DECK.big;
-    const len = (h1 - h0) * 0.9, zc = (h0 + h1) / 2;
-    g.add(rbox(hw * 1.7, 0.08, len, 0.04, STEEL, 0, hoodY + 0.04, zc));
-    bolts(g, [-hw * 0.72, hw * 0.72], hoodY + 0.1, [zc - len * 0.4, zc + len * 0.4]);
-    if (type !== 'small' && Math.abs(roofY - hoodY) > 0.05) {
-      g.add(rbox(hw * 1.5, 0.08, 1.2, 0.04, STEEL, 0, roofY + 0.04, (zF + zB) / 2 - 0.3));
-      bolts(g, [-hw * 0.6, hw * 0.6], roofY + 0.1, [(zF + zB) / 2 - 0.8, (zF + zB) / 2 + 0.2]);
-    }
-    // Side skirts, flush with the body.
-    for (const sd of [-1, 1]) g.add(rbox(0.1, 0.42, (zF - zB) * 0.78, 0.04, STEEL, sd * (hw + 0.02), 0.7, (zF + zB) / 2));
-    // Ram bar with hazard chevrons across the nose.
+    const D = DECK[type] ?? DECK.big, hw = D.hw;
+    const hl = (D.hood[1] - D.hood[0]) * 0.85, hz = (D.hood[0] + D.hood[1]) / 2;
+    g.add(rbox(hw * 1.35, 0.07, hl, 0.04, STEEL, 0, D.hoodY + 0.03, hz));
+    bolts(g, [-hw * 0.58, hw * 0.58], D.hoodY + 0.08, [hz - hl * 0.38, hz + hl * 0.38]);
+    const rl = (D.roof[1] - D.roof[0]) * 0.8, rz = (D.roof[0] + D.roof[1]) / 2;
+    g.add(rbox(hw * 1.2, 0.07, rl, 0.04, STEEL, 0, D.roofY + 0.03, rz));
+    bolts(g, [-hw * 0.5, hw * 0.5], D.roofY + 0.08, [rz - rl * 0.4, rz + rl * 0.4]);
+    for (const sd of [-1, 1]) g.add(rbox(0.1, 0.34, (D.zF - D.zB) * 0.7, 0.04, STEEL, sd * (hw + 0.03), 0.62, (D.zF + D.zB) / 2));
     const ram = new THREE.Group();
-    ram.add(rbox(hw * 2.05, 0.3, 0.2, 0.08, HAZARD_K, 0, 0, 0));
-    for (let i = -2; i <= 2; i++) {
-      const c = rbox(hw * 0.3, 0.31, 0.21, 0.03, HAZARD_Y, i * hw * 0.42, 0, 0);
-      c.rotation.z = 0.5;
-      ram.add(c);
-    }
-    ram.position.set(0, 0.5, zF - 0.02);
+    ram.add(rbox(hw * 2.05, 0.28, 0.2, 0.08, HAZARD_K, 0, 0, 0));
+    for (let i = -2; i <= 2; i++) { const c = rbox(hw * 0.3, 0.29, 0.21, 0.03, HAZARD_Y, i * hw * 0.42, 0, 0); c.rotation.z = 0.5; ram.add(c); }
+    ram.position.set(0, 0.42, D.zF + 0.04);
     g.add(ram);
   },
-  // Street racer: spoiler, bonnet scoop, chrome side pipes, lightning bolt.
+  // Street racer: lightning bolt on the hood, a wing over the tail, side pipes.
   speeder(g, type, c) {
-    const [hw, roofY, zF, zB, hoodY, h0, h1] = DECK[type] ?? DECK.big;
+    const D = DECK[type] ?? DECK.big, hw = D.hw;
     const bolt = new THREE.Shape();
-    const s = type === 'small' ? 0.28 : 0.55;
+    const s = type === 'small' ? 0.22 : 0.42;
     bolt.moveTo(0.1 * s, 1 * s); bolt.lineTo(-0.45 * s, -0.05 * s); bolt.lineTo(-0.05 * s, -0.05 * s);
     bolt.lineTo(-0.2 * s, -1 * s); bolt.lineTo(0.45 * s, 0.12 * s); bolt.lineTo(0.05 * s, 0.12 * s); bolt.closePath();
-    const bg = new THREE.ExtrudeGeometry(bolt, { depth: 0.03, bevelEnabled: false });
-    const bm = new THREE.Mesh(bg, M.white);
+    const bm = new THREE.Mesh(new THREE.ExtrudeGeometry(bolt, { depth: 0.03, bevelEnabled: false }), M.white);
     bm.rotation.x = -Math.PI / 2;
-    bm.position.set(0, hoodY + 0.04, (h0 + h1) / 2);
+    bm.position.set(0, D.hoodY + 0.02, (D.hood[0] + D.hood[1]) / 2);
     g.add(bm);
-    if (type === 'small') {                       // bike: twin exhausts + tail fin
-      for (const sd of [-1, 1]) {
-        const p = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 0.7, 12), M.chrome);
-        p.rotation.x = Math.PI / 2; p.position.set(sd * 0.3, 0.45, -0.55); g.add(p);
-      }
-      g.add(rbox(0.08, 0.3, 0.4, 0.03, paint(shadeHex(c, 0.7)), 0, 1.0, -0.6));
+    if (type === 'small') {
+      for (const sd of [-1, 1]) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 0.7, 12), M.chrome); p.rotation.x = Math.PI / 2; p.position.set(sd * 0.3, 0.5, -0.6); g.add(p); }
       return;
     }
-    // Spoiler over the tail.
-    const wingM = paint(shadeHex(c, 0.7));
-    g.add(rbox(hw * 2.0, 0.07, 0.42, 0.03, wingM, 0, roofY + 0.18, zB + 0.35));
-    for (const sd of [-1, 1]) g.add(rbox(0.08, 0.3, 0.12, 0.03, M.trim, sd * hw * 0.7, roofY + 0.02, zB + 0.35));
-    // Bonnet scoop.
-    g.add(rbox(hw * 0.7, 0.14, 0.5, 0.06, M.trim, 0, hoodY + 0.08, h0 + 0.25));
-    // Chrome side pipes.
-    for (const sd of [-1, 1]) {
-      const p = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, (zF - zB) * 0.55, 14), M.chrome);
-      p.rotation.x = Math.PI / 2; p.position.set(sd * (hw + 0.06), 0.4, (zF + zB) / 2 - 0.2); g.add(p);
-    }
+    const wingM = paint(shadeHex(c, 0.6));
+    g.add(rbox(hw * 2.0, 0.07, 0.4, 0.03, wingM, 0, D.tailY + 0.3, D.zB + 0.35));
+    for (const sd of [-1, 1]) g.add(rbox(0.07, 0.3, 0.1, 0.03, M.trim, sd * hw * 0.62, D.tailY + 0.14, D.zB + 0.35));
+    for (const sd of [-1, 1]) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, (D.zF - D.zB) * 0.5, 14), M.chrome); p.rotation.x = Math.PI / 2; p.position.set(sd * (hw + 0.07), 0.4, (D.zF + D.zB) / 2 - 0.2); g.add(p); }
   },
-  // Shape-shifter: a crest of fins down the roof and a glass roof dome (the
-  // game lights the dome with the colour it will turn into next).
+  // Shape-shifter: a crest of fins along the roof and a glass dome in its middle
+  // (the game lights the dome with the colour it will turn into next).
   chameleon(g, type, c) {
-    const [hw, roofY, zF, zB] = DECK[type] ?? DECK.big;
-    const fin = paint(shadeHex(c, 0.72));
-    const n = type === 'small' ? 3 : 5;
-    const domeZ = (zF + zB) / 2 - (type === 'small' ? 0.1 : 0.3);
+    const D = DECK[type] ?? DECK.big;
+    const fin = paint(shadeHex(c, 0.68));
+    const small = type === 'small';
+    const domeZ = small ? -0.45 : (D.roof[0] + D.roof[1]) / 2;
+    const n = small ? 2 : 3;
     for (let i = 0; i < n; i++) {
-      const z = zB + 0.25 + (i / (n - 1)) * (domeZ - 0.55 - zB - 0.25);
-      const s = (type === 'small' ? 0.12 : 0.2) * (0.7 + 0.3 * (i / (n - 1)));
-      const f = new THREE.Mesh(new THREE.ConeGeometry(s, s * 2.2, 4), fin);
-      f.position.set(0, roofY + s, z);
+      const z = D.roof[0] + 0.12 + (i / Math.max(1, n - 1)) * Math.max(0, domeZ - 0.5 - D.roof[0] - 0.12);
+      const sz = (small ? 0.1 : 0.16) * (0.7 + 0.3 * (i / Math.max(1, n - 1)));
+      const f = new THREE.Mesh(new THREE.ConeGeometry(sz, sz * 2.2, 4), fin);
+      f.position.set(0, D.roofY + sz, z);
       f.rotation.y = Math.PI / 4;
       g.add(f);
     }
-    const dome = new THREE.Mesh(new THREE.SphereGeometry(type === 'small' ? 0.2 : 0.42, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2),
+    const r = small ? 0.18 : 0.36;
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(r, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2),
       new THREE.MeshPhysicalMaterial({ color: 0xF4F1FF, roughness: 0.05, clearcoat: 1, metalness: 0.1 }));
-    dome.position.set(0, roofY + 0.03, domeZ);
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(type === 'small' ? 0.21 : 0.44, 0.05, 8, 28), M.chrome);
+    dome.position.set(0, (small ? 1.02 : D.roofY) + 0.02, small ? -0.62 : domeZ);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(r + 0.01, 0.045, 8, 28), M.chrome);
     ring.rotation.x = Math.PI / 2;
     ring.position.copy(dome.position);
     g.add(dome, ring);
@@ -445,6 +434,12 @@ const CHUNK = {
   truck: [1.18, 1.03, 0.9], bigrig: [1.16, 1.02, 0.9], tank: [1.06, 1.05, 0.95],
 };
 
+// Premium models are already built chunky; only a light widening on top.
+const CHUNK_HD = {
+  small: [1.5, 1, 1], big: [1.32, 1, 0.95], jeep: [1.26, 1, 0.95],
+  truck: [1.26, 1, 0.95], bigrig: [1.24, 1, 0.95], tank: [1.2, 1, 1],
+};
+
 // ── Rendering ────────────────────────────────────────────────────────────────
 function place(obj) {
   obj.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
@@ -478,13 +473,20 @@ function frame(obj, pxPerUnit, marginPx, forcedPx = null) {
   return { W, H };
 }
 
+// Renders and copies to a W×H canvas. When the renderer is larger (a
+// supersampled vehicle render), the copy downsamples with high-quality
+// filtering — that is the anti-aliasing.
 function snapshot(W, H) {
   renderer.render(scene, camera);
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
-  c.getContext('2d').drawImage(renderer.domElement, 0, 0);
+  const x = c.getContext('2d');
+  x.imageSmoothingEnabled = true;
+  x.imageSmoothingQuality = 'high';
+  x.drawImage(renderer.domElement, 0, 0, W, H);
   return c;
 }
+const SS = 3;   // vehicle supersampling factor
 
 // Two passes: the object alone (for colour + silhouette) and its shadow alone.
 function renderPasses(obj, W, H) {
@@ -823,18 +825,19 @@ function setLight(l) {
   key.color.set(l.keyColor);
   scene.environmentIntensity = l.env;
 }
-const DEFAULT_LIGHT = { hemi: 0.85, key: 2.1, keyColor: 0xfff4e0, env: 0.35 };
+const DEFAULT_LIGHT = { hemi: 0.85, key: 2.1, keyColor: 0xfff4e0, env: 0.4 };
 
 // Public API for the driver. Returns a PNG data URL.
 window.studio = {
   types: Object.keys(BUILD),
   colors: Object.keys(PALETTE),
-  vehicle(type, color, { pxPerUnit = 92, outline = 5, variant = null } = {}) {
-    const obj = place(BUILD[type](PALETTE[color]));
-    obj.scale.set(...(CHUNK[type] ?? [1, 1, 1]));
+  vehicle(type, color, { pxPerUnit = 110, outline = 3, variant = null, hd = true } = {}) {
+    const obj = place((hd ? BUILD_HD : BUILD)[type](PALETTE[color]));
+    obj.scale.set(...((hd ? CHUNK_HD : CHUNK)[type] ?? [1, 1, 1]));
     // Frame on the BASE vehicle, then decorate: a variant keeps the base sprite's
     // canvas size and body position, so the game can swap between them freely.
     const { W, H } = frame(obj, pxPerUnit, outline + 10);
+    renderer.setSize(W * SS, H * SS, false);
     if (variant) {
       const deco = new THREE.Group();
       VARIANT[variant](deco, type, PALETTE[color]);
@@ -849,11 +852,11 @@ window.studio = {
   // Boss vehicle. Returns { url, panel } — panel is the roof light panel's
   // rectangle as fractions of the image (cx, cy, w, h), for the game's overlay.
   boss({ pxPerUnit = 92, outline = 6, armored = false } = {}) {
-    const obj = place(buildBoss({ armored }));
+    const obj = place(buildBossHD({ armored }));
     const { W, H } = frame(obj, pxPerUnit, outline + 10);
     obj.updateMatrixWorld(true);
     const inv = camera.matrixWorldInverse;
-    const P = BOSS_PANEL;
+    const P = { ...BOSS_PANEL_HD, y: BOSS_PANEL_HD.y + 0.02 };
     let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
     for (const dx of [-1, 1]) for (const dz of [-1, 1]) {
       const p = new THREE.Vector3(P.x + dx * P.w / 2, P.y + 0.05, P.z + dz * P.d / 2).applyMatrix4(obj.matrixWorld).applyMatrix4(inv);

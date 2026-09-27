@@ -113,6 +113,21 @@ if (mode === 'verges') {
       `export const BOSS_SPRITE_GEOMETRY = ${JSON.stringify(geo, null, 2)};\n`);
     console.log('v2 sprites written; boss geometry', geo);
   }
+} else if (mode === 'preview') {
+  // Quick look while modelling: listed types (default all) in Red, Blue, Yellow, big.
+  const list = (process.argv[4] ?? types.join(',')).split(',');
+  const tiles = [];
+  for (const t of list) for (const c of ['Red', 'Blue', 'Yellow']) tiles.push(await vehicle(t, c));
+  const CELL = 360, GAP = 16, cols = 3;
+  const comps = [];
+  for (let i = 0; i < tiles.length; i++) {
+    const img = await sharp(tiles[i]).resize(CELL, CELL, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).toBuffer();
+    comps.push({ input: img, left: GAP + (i % cols) * (CELL + GAP), top: GAP + Math.floor(i / cols) * (CELL + GAP) });
+  }
+  const rows = Math.ceil(tiles.length / cols);
+  await sharp({ create: { width: GAP + cols * (CELL + GAP), height: GAP + rows * (CELL + GAP), channels: 4, background: '#8A8577' } })
+    .composite(comps).png().toFile(outArg ?? 'preview.png');
+  console.log('preview ->', outArg);
 } else if (mode === 'sheet') {
   // Row 1: every type in Red. Row 2: the sedan in all six colours. Row 3: bombs.
   const tiles = [];

@@ -7,7 +7,7 @@
 // a native wrapper.
 //
 import { Capacitor } from '@capacitor/core';
-import { AdMob, RewardAdPluginEvents, InterstitialAdPluginEvents } from '@capacitor-community/admob';
+import { AdMob, RewardAdPluginEvents, InterstitialAdPluginEvents, AdmobConsentStatus } from '@capacitor-community/admob';
 
 const REWARDED_AD_ID     = 'ca-app-pub-3492310681731275/5674269166';
 const INTERSTITIAL_AD_ID = 'ca-app-pub-3492310681731275/5734968591';
@@ -30,6 +30,7 @@ export class AdManager {
     this._overlay          = null;
     this._native           = false;
     this._lastInterstitial = 0;
+    this._privacyOptions   = false;   // UMP says the player must be able to reopen consent
   }
 
   static getInstance() {
@@ -72,9 +73,40 @@ export class AdManager {
       // puts the production ad unit IDs above into test mode in the release APK:
       // test ads, no revenue. `vite build` sets DEV=false, so release is live.
       await AdMob.initialize({ testingDevices: [], initializeForTesting: import.meta.env.DEV });
-      this._native = true;
+      // Consent (Google UMP) BEFORE any ad request. Where the law requires it
+      // (EEA / UK / Switzerland) the form shows on first launch; elsewhere the
+      // status comes back NOT_REQUIRED and nothing is shown. The form itself is
+      // the GDPR message configured in the AdMob console (Privacy & messaging).
+      const info = await this._resolveConsent();
+      this._native = info.canRequestAds;
     } catch (e) {
       console.warn('[AdManager] AdMob init failed:', e);
+    }
+  }
+
+  async _resolveConsent() {
+    let info = await AdMob.requestConsentInfo();
+    if (info.isConsentFormAvailable && info.status === AdmobConsentStatus.REQUIRED) {
+      info = await AdMob.showConsentForm();
+    }
+    // (Compared as a string: the plugin declares PrivacyOptionsRequirementStatus
+    // but its package index does not export the enum.)
+    this._privacyOptions = info.privacyOptionsRequirementStatus === 'REQUIRED';
+    return info;
+  }
+
+  /** True when Settings must offer a way to review ad consent (UMP rule). */
+  get hasPrivacyOptions() { return this._privacyOptions; }
+
+  /** Reopen the consent choices (Settings → Ad privacy choices). */
+  async showPrivacyOptions() {
+    if (!Capacitor.isNativePlatform()) return;
+    try {
+      await AdMob.showPrivacyOptionsForm();
+      const info = await AdMob.requestConsentInfo();
+      this._native = info.canRequestAds;
+    } catch (e) {
+      console.warn('[AdManager] privacy options failed:', e);
     }
   }
 
@@ -83,7 +115,11 @@ export class AdManager {
   // onDismissed() — called if dismissed/failed before reward (optional).
   showRewarded(onComplete, onDismissed) {
     if (!this._native) {
-      this._showPlatformAd(onComplete, onDismissed);
+      // Web: the timed mock keeps the flow playable. On device with ads
+      // unavailable (no consent yet, init failed) there is nothing to show —
+      // never the mock, which would look like a fake ad.
+      if (Capacitor.isNativePlatform()) onDismissed?.();
+      else this._showPlatformAd(onComplete, onDismissed);
       return;
     }
     let rewarded = false;
@@ -147,7 +183,10 @@ export class AdManager {
   //   onDismissed()            — called if the player skips before completion.
   showRewardedAd(boosterType, onRewarded, onDismissed) {
     if (this._overlay) return;   // already showing an ad
-    this._showPlatformAd(
+    // A REAL rewarded ad on device. This used to call the web mock directly, so
+    // on Android the booster unlocks played a fake 5-second "WATCHING AD" card:
+    // no ad, no revenue, and a screen that looks like a scam.
+    this.showRewarded(
       () => {
         // Record progress.
         const next = this.getProgress(boosterType) + 1;

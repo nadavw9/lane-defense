@@ -165,6 +165,9 @@ import {
 } from './assetManifest.js';
 import { uiIcon } from './UIIcon.js';
 import { INK, SUN, toyPanel } from './ToyStyle.js';
+import { fitToSafeArea } from './SafeArea.js';
+import { Capacitor } from '@capacitor/core';
+import { App as CapApp } from '@capacitor/app';
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 
@@ -182,18 +185,24 @@ async function main() {
 
   // ── Fit canvas to viewport ────────────────────────────────────────────────
   // (Declared early so the loading screen is already correctly sized.)
+  // Letterboxed into the SAFE area (clear of notch, status and gesture bars —
+  // see SafeArea.js); the 3D canvas copies this size and position.
   const _fitCanvas = () => {
-    const scale = Math.min(window.innerWidth / APP_W, window.innerHeight / APP_H);
-    app.canvas.style.width     = `${APP_W * scale}px`;
-    app.canvas.style.height    = `${APP_H * scale}px`;
-    // Match THREE.js canvas positioning (position:absolute, centred via transform).
+    const box = fitToSafeArea(APP_W, APP_H);
+    app.canvas.style.width     = box.width;
+    app.canvas.style.height    = box.height;
     app.canvas.style.position  = 'absolute';
-    app.canvas.style.top       = '50%';
-    app.canvas.style.left      = '50%';
+    app.canvas.style.top       = box.top;
+    app.canvas.style.left      = box.left;
     app.canvas.style.transform = 'translate(-50%, -50%)';
   };
   _fitCanvas();
   window.addEventListener('resize', _fitCanvas);
+  // Capacitor publishes the insets shortly AFTER load (and again when the bars
+  // change) without a resize event. Re-run every resize listener a few times
+  // during start-up so the fit, the 3D canvas and the cached pointer rect all
+  // pick the real insets up together.
+  for (const ms of [300, 1000, 2500]) setTimeout(() => window.dispatchEvent(new Event('resize')), ms);
 
   // ── Loading screen ────────────────────────────────────────────────────────
   // Branded loading screen: dark gradient backdrop, the TRAFFIC BOMB title in the
@@ -510,6 +519,10 @@ async function main() {
   let howToPlayOverlay   = null;
   let achievementsScreen = null;
   let statsScreen        = null;
+  // Back-action per open screen, registered where each screen is created, so the
+  // Android back button (and Escape on desktop) does exactly what that screen's
+  // own Back / Close button does. See _handleBack().
+  const _closers = {};
 
   // ── Achievement system ────────────────────────────────────────────────────
   const achievementManager    = new AchievementManager(progress);
@@ -1050,7 +1063,7 @@ async function main() {
   // ── Screen: Daily Reward ──────────────────────────────────────────────────
   function showDailyReward() {
     dailyRewardScreen = new DailyRewardScreen(app.stage, APP_W, APP_H, progress, {
-      onClose: () => {
+      onClose: _closers.daily = () => {
         dailyRewardScreen.destroy();
         dailyRewardScreen = null;
         // Check if the daily_claim achievement was just earned.
@@ -1082,7 +1095,7 @@ async function main() {
         // FIX 4D: offer the optional "Power Up?" ad screen before the level starts.
         _showPreLevel(levelId);
       },
-      onBack: () => {
+      onBack: _closers.levelSelect = () => {
         levelSelectScreen.destroy();
         levelSelectScreen = null;
         showTitle();
@@ -1109,7 +1122,7 @@ async function main() {
   }
   function showShop() {
     shopScreen = new ShopScreen(app.stage, APP_W, APP_H, progress, boosterState, {
-      onBack: () => {
+      onBack: _closers.shop = () => {
         shopScreen.destroy();
         shopScreen = null;
         showLevelSelect();
@@ -1126,6 +1139,7 @@ async function main() {
   function showAchievements(onBack) {
     pauseBtn.visible = false;
     audio.playMusic('title');
+    _closers.achievements = onBack;
     achievementsScreen = new AchievementsScreen(app.stage, APP_W, APP_H, progress, {
       onBack,
       audio,
@@ -1141,7 +1155,7 @@ async function main() {
     statsScreen = new StatsScreen(app.stage, APP_W, APP_H, {
       app,
       progressManager: progress,
-      onBack: () => {
+      onBack: _closers.stats = () => {
         statsScreen?.destroy();
         statsScreen = null;
         showTitle();
@@ -1166,6 +1180,7 @@ async function main() {
   // onClose is provided by the caller so the same screen works from both
   // the title gear and the in-game pause menu.
   function showSettings(onClose) {
+    _closers.settings = onClose;
     settingsScreen = new SettingsScreen(app.stage, APP_W, APP_H, audio, { onClose }, progress, haptics);
   }
 
@@ -1177,7 +1192,7 @@ async function main() {
     pauseBtn.visible = false;
     carManualScreen = new CarManualScreen(app.stage, APP_W, APP_H, {
       seenTypes: progress.getIntroducedCarTypes(),
-      onClose: () => {
+      onClose: _closers.carManual = () => {
         carManualScreen?.destroy();
         carManualScreen = null;
         if (fromPause) {
@@ -1212,7 +1227,7 @@ async function main() {
     // gs.world is the DDA-adjusted copy the loop is actually spawning from, which
     // is what the player is looking at; the base config would be a different lie.
     hpGuideOverlay = new HpGuideOverlay(app.stage, APP_W, APP_H, {
-      onClose: () => { hpGuideOverlay?.destroy(); hpGuideOverlay = null; restore(); },
+      onClose: _closers.hpGuide = () => { hpGuideOverlay?.destroy(); hpGuideOverlay = null; restore(); },
       level: {
         levelId:      gs.levelId,
         hpMultiplier: gs.world?.hpMultiplier ?? 1.0,
@@ -1227,7 +1242,7 @@ async function main() {
     const { restore } = _openGoalOverlay();
     howToPlayOverlay = new HowToPlayOverlay(app.stage, APP_W, APP_H, {
       ticker: app.ticker,
-      onClose: () => { howToPlayOverlay?.destroy(); howToPlayOverlay = null; restore(); },
+      onClose: _closers.howToPlay = () => { howToPlayOverlay?.destroy(); howToPlayOverlay = null; restore(); },
     });
   }
 
@@ -1237,7 +1252,7 @@ async function main() {
     pauseBtn.visible = false;
     bookBtn.visible  = false;
     pauseScreen = new PauseScreen(app.stage, APP_W, APP_H, {
-      onResume: () => {
+      onResume: _closers.pause = () => {
         pauseScreen.destroy();
         pauseScreen      = null;
         pauseBtn.visible = true;
@@ -1891,6 +1906,31 @@ async function main() {
   //      stutter spike (both tickers already cap dt at 50 ms, but pausing
   //      removes the issue entirely).
   let _hiddenWhilePlaying = false;
+  // ── Back button (Android hardware/gesture back, Escape on desktop) ──────────
+  // Mirrors each screen's own Back/Close button, top-most first. Without this the
+  // Android default applies: back exits the app, even in the middle of a level.
+  function _handleBack() {
+    const close = (open, key) => { if (open && _closers[key]) { _closers[key](); return true; } return false; };
+    if (close(settingsScreen, 'settings') || close(carManualScreen, 'carManual')
+      || close(hpGuideOverlay, 'hpGuide') || close(howToPlayOverlay, 'howToPlay')
+      || close(dailyRewardScreen, 'daily') || close(achievementsScreen, 'achievements')
+      || close(statsScreen, 'stats') || close(shopScreen, 'shop') || close(pauseScreen, 'pause')) return;
+    if (preLevelScreen) {
+      preLevelScreen.destroy();
+      preLevelScreen = null;
+      showLevelSelect();
+      return;
+    }
+    if (close(levelSelectScreen, 'levelSelect')) return;
+    // Mid-level: back pauses (the pause menu then offers resume / quit).
+    if (gameLoopStarted && !gs.isOver && pauseBtn.visible && !colorPicker) { showPause(); return; }
+    // Title: leave the app. Everywhere else (win / lose / continue offer, colour
+    // picker, intro cards) back is swallowed — those need an explicit choice.
+    if (titleScreen && Capacitor.isNativePlatform()) CapApp.exitApp();
+  }
+  if (Capacitor.isNativePlatform()) CapApp.addListener('backButton', _handleBack);
+  window.addEventListener('keydown', (e) => { if (e.key === 'Escape') _handleBack(); });
+
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       // Pause logic tick when tab is hidden (only if actively playing).

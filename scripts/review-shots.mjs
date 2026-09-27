@@ -1,11 +1,20 @@
 // Capture review screenshots of given levels (dev server on :5173, container Chromium).
 //   node scripts/review-shots.mjs <outDir> <prefix> 5 9 13 17
+// Env: CB=1 turns colour-blind mode on; NOTCH=1 simulates a phone with a 44 px
+// camera cutout and a 24 px gesture bar (the insets Capacitor publishes).
 import { chromium } from 'playwright';
 const [out, prefix, ...levels] = process.argv.slice(2);
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
 for (const lv of levels.map(Number)) {
   const p = await b.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
-  await p.addInitScript(() => localStorage.setItem('ftue_banners', JSON.stringify(['multi_lane', 'first_shot', 'bench', 'merge'])));
+  await p.addInitScript(({ cb, notch }) => {
+    localStorage.setItem('ftue_banners', JSON.stringify(['multi_lane', 'first_shot', 'bench', 'merge', 'first_car']));
+    if (cb) localStorage.setItem('lane-defense-v1', JSON.stringify({ colorblindMode: true }));
+    if (notch) document.addEventListener('DOMContentLoaded', () => {
+      document.documentElement.style.setProperty('--safe-area-inset-top', '44px');
+      document.documentElement.style.setProperty('--safe-area-inset-bottom', '24px');
+    });
+  }, { cb: !!process.env.CB, notch: !!process.env.NOTCH });
   await p.goto('http://localhost:5173/', { waitUntil: 'networkidle' });
   await p.waitForFunction(() => !!window._nav, null, { timeout: 90000 });
   await p.evaluate((l) => window._nav.startLevel(l), lv);

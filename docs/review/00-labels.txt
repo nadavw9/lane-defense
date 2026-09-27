@@ -1,10 +1,7 @@
-01=BEFORE L5 (original painted art, this morning)
-02=AFTER  L5 - 3D-rendered toy vehicles and bombs (real shading, clear-coat shine, soft shadows, ink outline), 3D town diorama verges (houses, trees, flower beds, hedge), plum bomb floor, 3D booster icons. Look at: do cars pop off the road? can you tell every colour at a glance?
-03=BEFORE L9
-04=AFTER  L9 - verge layout changes per level (scene variants a/b/c)
-05=BEFORE L13
-06=AFTER  L13
-07=BEFORE L17 (World 2)
-08=AFTER  L17 - World 2 industrial diorama: warehouses, stacked shipping containers, oil drums, traffic cones, concrete road with yellow dashes, steel-plate bomb floor
-09=AFTER  L35 (World 3, no before shot) - night diorama: lit tower windows, neon rooftop signs, glowing cyan kerb, dark asphalt with glowing dashes, neon-grid bomb floor
-10=SPRITE SHEET - every vehicle type (red), the sedan in all six colours, the six bombs
+01=BEFORE L8, phone with a camera notch simulated (44 px top, 24 px gesture bar) and colour-blind mode ON: the goal cards sit under the notch area, and colour-blind mode shows nothing
+02=AFTER  L8, same simulated phone: the whole game fits inside the safe area (plum strips above and below), and every car and bomb carries its shape (circle red, triangle blue, square green, star yellow, diamond purple, down-triangle orange). Look at: are the shapes readable at a glance?
+03=AFTER  L35 (night world), colour-blind ON: shapes stay readable on the dark road
+04=AFTER  close-up of the bomb queue with shapes (lower right of each bomb, clear of the number)
+05=BEFORE / AFTER app icon: default Capacitor placeholder -> lit red bomb on a blue toy car, plum background
+06=BEFORE / AFTER splash screen
+07=AFTER  Settings: "Privacy Policy" link at the bottom (an "Ad privacy choices" link also appears on phones where Google's consent rules apply)

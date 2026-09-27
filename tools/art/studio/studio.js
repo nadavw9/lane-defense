@@ -713,6 +713,46 @@ window.studio = {
     setLight(DEFAULT_LIGHT);
     return out.toDataURL('image/png');
   },
+  // App icon subject (transparent): a big red bomb, fuse lit, in front of a
+  // blue toy sedan heading at the viewer. Composited onto the plum tile by
+  // scripts/render-app-icons.mjs.
+  appIcon({ px = 1024, outline = 14 } = {}) {
+    const g = new THREE.Group();
+    const car = BUILD.big(PALETTE.Blue);
+    car.scale.set(1.2, 1.05, 0.9);
+    car.rotation.y = 0.32;
+    car.position.set(0.75, 0, -1.1);
+    const bomb = buildBomb(PALETTE.Red);
+    bomb.scale.setScalar(1.5);
+    bomb.position.set(-0.35, 0, 0.9);
+    // A starburst spark (rays + hot core) reads at launcher size; the round
+    // in-game spark would read as a blob.
+    bomb.traverse(o => { if (o.isMesh && o.material === M.spark) o.visible = false; });
+    const burst = new THREE.Group();
+    const rayM = new THREE.MeshBasicMaterial({ color: 0xFFC53A });
+    for (let i = 0; i < 8; i++) {
+      const ray = rbox(0.07, 0.07, i % 2 ? 0.34 : 0.52, 0.03, rayM);
+      ray.position.z = (i % 2 ? 0.34 : 0.52) / 2;
+      const arm = new THREE.Group();
+      arm.add(ray);
+      arm.rotation.y = (i / 8) * Math.PI * 2;
+      burst.add(arm);
+    }
+    burst.add(new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 8), new THREE.MeshBasicMaterial({ color: 0xFFFBE6 })));
+    burst.rotation.x = TILT;                        // rays lie in a plane facing the camera
+    burst.position.set(0.84, 2.4, -0.42);
+    bomb.add(burst);
+    g.add(car, bomb);
+    const obj = place(g);
+    burst.traverse(o => { o.castShadow = false; });   // light, not a solid — no shadow
+    const box = new THREE.Box3().setFromObject(obj);
+    const span = Math.max(box.max.x - box.min.x, box.max.z - box.min.z);
+    frame(obj, (px - 2 * (outline + 20)) / (span * 1.1), outline + 20, px);
+    const W = renderer.domElement.width, H = renderer.domElement.height;
+    const out = compose(renderPasses(obj, W, H), W, H, outline, true);
+    clearObj(obj);
+    return out.toDataURL('image/png');
+  },
   // Square booster icon, subject fitted with a margin for the outline.
   icon(name, { px = 160, outline = 5 } = {}) {
     const obj = place(ICONS[name]());

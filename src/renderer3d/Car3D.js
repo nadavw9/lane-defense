@@ -15,6 +15,8 @@ import * as THREE from 'three';
 import { CELL, posToZ, laneToX } from './Scene3D.js';
 import { ROAD_Z_FAR, POS_NEAR_Z } from './projection.js';
 import { CAR_SPRITE_GEOMETRY } from './carSpriteGeometry.js';
+import { isColorblind } from '../game/ColorblindMode.js';
+import { drawColorShapeBadge } from './colorShapeCanvas.js';
 
 // ── Canvas size for programmatic textures ────────────────────────────────────
 const CVS    = 256;
@@ -198,6 +200,22 @@ const SPRITE_MAP = {
   },
 };
 
+// Colour-blind roof badge: one shared texture per colour. Stored in _texCache
+// (declared below) under 'shape:<Color>' so _disposeGroup never frees it.
+const SHAPE_BADGE_WU = 0.95;   // on-screen badge diameter in world units (~19 stage px)
+function _getShapeTex(color) {
+  const key = `shape:${color}`;
+  if (!_texCache[key]) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 96;
+    drawColorShapeBadge(c.getContext('2d'), color, 48, 48, 44);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    _texCache[key] = t;
+  }
+  return _texCache[key];
+}
+
 // Module-level texture cache (shared across all Car3D instances)
 const _texLoader = new THREE.TextureLoader();
 const _texCache  = {};
@@ -375,7 +393,12 @@ export class Car3D {
             entry.bodyMat.map = _getSpriteTex(car.type, car.color, import.meta.env.BASE_URL);
             entry.bodyMat.needsUpdate = true;
           }
+          if (entry.shapeBadge) {
+            entry.shapeBadge.material.map = _getShapeTex(car.color);
+            entry.shapeBadge.material.needsUpdate = true;
+          }
         }
+        if (entry.shapeBadge) entry.shapeBadge.visible = isColorblind();
 
         // ── Smooth advance lerp ───────────────────────────────────────────────
         const newTargetZ = posToZ(car.position);
@@ -613,6 +636,23 @@ export class Car3D {
     group.userData.baseScale = spriteScale;
     group.scale.setScalar(spriteScale);
 
+    // Colour-blind roof badge — built for every car, shown only while the
+    // setting is on (update() toggles it, so the Settings switch takes effect
+    // on cars already on the road). Local size cancels the group scale.
+    let shapeBadge = null;
+    if (car.type !== 'boss') {
+      const side = SHAPE_BADGE_WU / spriteScale;
+      shapeBadge = new THREE.Mesh(
+        new THREE.PlaneGeometry(side, side),
+        new THREE.MeshBasicMaterial({ map: _getShapeTex(car.color), transparent: true, depthWrite: false, toneMapped: false }),
+      );
+      shapeBadge.rotation.x = -Math.PI / 2;
+      shapeBadge.position.y = 0.12;
+      shapeBadge.renderOrder = 2;
+      shapeBadge.visible = isColorblind();
+      group.add(shapeBadge);
+    }
+
     // Spawn animation: start off-screen (further from breach) and glide in.
     // EXCEPTION — the opening board (car.isInitial, set by GameLoop._primeInitialCars):
     // there's nothing to "arrive" at level start, so it renders settled immediately
@@ -649,6 +689,7 @@ export class Car3D {
     return {
       group, mesh, bodyMat,
       color: car.color,   // sprite was built for this color; resynced if COLOR CHANGE recolors the car
+      shapeBadge,
       baseHex: 0xffffff,  // always white — all sprites pre-colored, boss canvas bakes color
       lastHp: -1, _prevFrozen: false,
       bossRing, bossRingMat, bossAngle: 0,

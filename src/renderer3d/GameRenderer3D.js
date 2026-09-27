@@ -633,8 +633,12 @@ export class GameRenderer3D {
     if (!this._canvas) return;
     const pixiCanvas = document.querySelector('canvas:not(#three-canvas)');
     if (pixiCanvas) {
+      // Size AND position: the Pixi canvas is centred in the safe area, not the
+      // window, so copying only the size would shift the road off the HUD.
       this._canvas.style.width  = pixiCanvas.style.width;
       this._canvas.style.height = pixiCanvas.style.height;
+      this._canvas.style.top    = pixiCanvas.style.top;
+      this._canvas.style.left   = pixiCanvas.style.left;
     } else {
       const scale = Math.min(window.innerWidth / this._width, window.innerHeight / this._height);
       this._canvas.style.width  = `${this._width  * scale}px`;

@@ -12,6 +12,10 @@
 import { Container, Graphics, Text } from 'pixi.js';
 import { setColorblindMode } from '../game/ColorblindMode.js';
 import { uiIcon } from '../renderer/UIIcon.js';
+import { Capacitor } from '@capacitor/core';
+import { adManager } from '../ads/AdManager.js';
+
+const PRIVACY_URL = 'https://nadavw9.github.io/lane-defense/privacy.html';
 
 const VERSION = 'v1.1.0';
 
@@ -247,6 +251,31 @@ export class SettingsScreen {
     });
     line.anchor.set(0.5, 0); line.x = cx; line.y = y + 8;
     this._container.addChild(line);
+
+    // Privacy links (Play policy: the policy must be reachable in the app; UMP:
+    // players who were asked for ad consent must be able to change it).
+    const links = [['Privacy Policy', () => this._openUrl(PRIVACY_URL)]];
+    if (adManager.hasPrivacyOptions) links.push(['Ad privacy choices', () => adManager.showPrivacyOptions()]);
+    const gap = 28;
+    const texts = links.map(([label]) => new Text({ text: label, style: { fontSize: 14, fontWeight: 'bold', fill: C_BLUE } }));
+    const total = texts.reduce((a, t) => a + t.width, 0) + gap * (texts.length - 1);
+    let x = cx - total / 2;
+    texts.forEach((t, i) => {
+      t.anchor.set(0, 0.5); t.x = x; t.y = y + 46;
+      // 44 px tall tap area around the words.
+      t.hitArea = { contains: (px, py) => px >= -8 && px <= t.width + 8 && py >= -22 && py <= 22 };
+      t.eventMode = 'static'; t.cursor = 'pointer';
+      t.on('pointerdown', () => { this._audio?.play('button_tap'); links[i][1](); });
+      this._container.addChild(t);
+      x += t.width + gap;
+    });
+  }
+
+  // External page: the system browser on device (Capacitor hands off any
+  // navigation outside the app), a new tab on the web.
+  _openUrl(url) {
+    if (Capacitor.isNativePlatform()) window.location.href = url;
+    else window.open(url, '_blank', 'noopener');
   }
 
   // ── Card drawing ──────────────────────────────────────────────────────────

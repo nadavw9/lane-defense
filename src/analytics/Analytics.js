@@ -86,6 +86,7 @@ export class Analytics {
   // POST to a Firebase REST collection. Errors are swallowed at both the
   // Promise level (network failure) and the synchronous level (fetch missing).
   _post(collection, payload) {
+    if (import.meta.env.DEV) return;   // dev and test runs never pollute live data
     try {
       fetch(`${DB_URL}/${collection}.json`, {
         method:  'POST',
@@ -101,6 +102,7 @@ export class Analytics {
 // Fire-and-forget discrete event logger. Wraps every failure so analytics
 // never affect gameplay.
 export function logEvent(eventName, data) {
+  if (import.meta.env.DEV) return;
   try {
     fetch(`${DB_URL}/events.json`, {
       method:  'POST',

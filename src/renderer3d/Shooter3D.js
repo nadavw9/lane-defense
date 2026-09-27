@@ -10,6 +10,8 @@
 
 import * as THREE from 'three';
 import { laneToX, CELL } from './Scene3D.js';
+import { isColorblind } from '../game/ColorblindMode.js';
+import { drawColorShapeBadge } from './colorShapeCanvas.js';
 import { BOMB_R, BOMB_ZONE_SCALE, bombSlotZ } from './projection.js';
 
 // ── Powerball texture cache (one loader shared across all slots) ───────────────
@@ -322,9 +324,11 @@ export class Shooter3D {
 
         // Sync sprite texture + badge on color/damage change
         const isCB = shooter.isColorBomb === true;
-        if (slot.lastColor !== shooter.color || slot.lastDamage !== damage) {
+        const cb = isColorblind();
+        if (slot.lastColor !== shooter.color || slot.lastDamage !== damage || slot.lastCb !== cb) {
           slot.lastColor  = shooter.color;
           slot.lastDamage = damage;
+          slot.lastCb     = cb;
           if (isCB) {
             // Rainbow: keep the prior powerball as a base; the rainbow swirl
             // overlay (below) dominates. Badge shows a gold star, not a number.
@@ -333,6 +337,12 @@ export class Shooter3D {
             slot.sphereMesh.material.map = _getPowerballTex(shooter.color);
             slot.sphereMesh.material.needsUpdate = true;
             drawDamageBadge(slot.badgeCtx, slot.badgeCanvas.width, slot.badgeCanvas.height, damage, hex);
+            // Colour-blind mode: the colour's shape in a white disc at the
+            // ball's lower right, clear of the centred number.
+            if (cb) {
+              const W = slot.badgeCanvas.width, H = slot.badgeCanvas.height;
+              drawColorShapeBadge(slot.badgeCtx, shooter.color, W * 0.72, H * 0.72, H * 0.24);
+            }
           }
           slot.badgeTex.needsUpdate = true;
         }

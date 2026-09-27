@@ -2,6 +2,11 @@
 
 ## Status: LOCKED. Do not modify without explicit user approval.
 
+> **2026-09-27 — V2 redesign, owner-approved.** The owner handed the game over
+> for a redesign ("take the game as if an old designer produced it... do as many
+> changes as you feel are necessary and create a top game store game"). The
+> Hot Streak, Special Cars, Bosses sections and rule 9 below record that redesign.
+
 ## What This Game Is
 A spatial puzzle game where the skill is reading the board 3 moves ahead.
 Players scan 3 lanes, see danger approaching, and sequence their bomb queue
@@ -28,16 +33,40 @@ WORLD 3 — The Highway (L31-40)
 - Each level has a specific designed solution
 - Ends with: Grandmaster Finale L40 — all car types, all 6 colors
 
-## The Signature Mechanic: Streak Shot
-Fire the correct color 3 times in a row without a miss →
-next bomb does double damage AND slows the hit car for 1 shot.
+## The Signature Mechanic: Hot Streak (V2 — owner-approved redesign, 2026-09-27)
+Destroy at least one car on 3 shots in a row → the next bomb is SUPERCHARGED:
+double damage, and its carry-over smashes through cars of ANY colour behind the
+first one (armour and bosses still stop it). A hit that destroys nothing resets
+the streak. Live from L4 (L1-L3 teach the basics).
 
-Visual: bomb queue glows hotter (yellow → orange → red) with each
-consecutive correct hit. On the power shot: dramatic impact flash,
-car briefly shudders.
+Visual: three flame pips on the breach stripe light yellow → orange → red; at
+three the pill reads SUPERCHARGED and a fire ring pulses around every bomb the
+player can fire next. On the power shot: POWER SHOT flash, thump, shake.
 
-This mechanic is discovered naturally at L17 (level designed to reward it),
-never in a tutorial card. The player figures it out.
+*Superseded:* "fire the correct colour 3 times in a row". Wrong-colour drops are
+rejected before they fire, so "correct 3 in a row" was automatic and meant
+nothing. Kills are a real choice. Also superseded: "discovered at L17, never in
+a tutorial card" — it is introduced at L4 with one line, because a hidden rule
+reads as randomness.
+
+## Special Cars (V2)
+Special cars change a RULE, not just HP. One trait per car; each arrives alone,
+then they mix.
+- **Speeder** (L7) — moves 2 rows a turn; never passes the car ahead.
+- **Armoured** (L11) — steel plates take the first hit from ANY colour, no damage.
+  The one time an off-colour bomb is useful.
+- **Chameleon** (L17) — flips between two colours every turn; a roof lamp shows
+  the next colour so the shot can be timed.
+
+## Bosses (V2)
+L10 / L20 / L30 / L40 are boss VEHICLES: one giant truck with a colour sequence
+on its roof. Each bomb of the current colour knocks out one light (a
+supercharged bomb knocks out two); clear the sequence to win. The boss moves a
+row every 2-3 turns and its lane carries no other traffic.
+- L10 The Hauler — learn the sequence while the side lanes keep coming
+- L20 Iron Hauler — re-plates after every light: any bomb, then the colour
+- L30 Chameleon King — the longest sequence, with speeders on both flanks
+- L40 Twin Titans — two bosses at once, one of them armoured
 
 ## The Meta Loop: City Repair
 Level select IS a city viewed from above.
@@ -68,7 +97,7 @@ These cannot be changed to fit existing code. If code needs changing, change the
 1. All 40 levels must be visible and playable on the level select screen
 2. World 2 and World 3 MUST have distinct visual themes — not palette swaps
    of existing themes
-3. Streak Shot must be a real mechanic, not a visual-only effect
+3. Hot Streak must be a real mechanic, not a visual-only effect
 4. City repair meta MUST save state and show visual progress
 5. Boss levels MUST have designed challenges, not just hpMultiplier bumps
 6. The balance simulator MUST pass for every level before it ships
@@ -86,6 +115,8 @@ These cannot be changed to fit existing code. If code needs changing, change the
      cars (yield per fire 3.00 → 2.00, win rate up), so L4–L8 were retuned to hold the
      85–95 FTUE band. Boss colour-scarcity levels are affected too — see the L10/20/30/40
      margins recorded with that work.
+9. No level shows more than FOUR colours (V2, 2026-09-27). With three bomb
+   columns, five and six colours turned play into waiting for the right bomb.
 
 ## How To Use This Document
 Before making ANY change to:

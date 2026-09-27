@@ -319,7 +319,8 @@ const VARIANT = {
 const BOSS_PANEL = { x: 0, y: 2.62, z: -0.45, w: 2.2, d: 2.9 };
 function buildBoss({ armored = false } = {}) {
   const g = new THREE.Group();
-  const body = paint(0x7A2FB8), bodyD = paint(0x4E1D7A);
+  g.scale.set(1.22, 1, 1);   // wide and squat: it owns the lane
+  const body = paint(0x3B3F4E), bodyD = paint(0x262833);
   for (const z of [2.1, 0.2, -1.9]) g.add(wheel(-1.35, z, 0.62, 0.5), wheel(1.35, z, 0.62, 0.5));
   g.add(rbox(2.5, 0.4, 5.6, 0.12, M.trim, 0, 0.72, 0));                       // chassis
   g.add(rbox(2.9, 1.5, 2.0, 0.34, body, 0, 1.55, 1.85));                        // cab
@@ -850,11 +851,12 @@ window.studio = {
   boss({ pxPerUnit = 92, outline = 6, armored = false } = {}) {
     const obj = place(buildBoss({ armored }));
     const { W, H } = frame(obj, pxPerUnit, outline + 10);
+    obj.updateMatrixWorld(true);
     const inv = camera.matrixWorldInverse;
     const P = BOSS_PANEL;
     let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
     for (const dx of [-1, 1]) for (const dz of [-1, 1]) {
-      const p = new THREE.Vector3(P.x + dx * P.w / 2, P.y + 0.05, P.z + dz * P.d / 2).applyMatrix4(inv);
+      const p = new THREE.Vector3(P.x + dx * P.w / 2, P.y + 0.05, P.z + dz * P.d / 2).applyMatrix4(obj.matrixWorld).applyMatrix4(inv);
       x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y);
     }
     const fx = (x) => (x - camera.left) / (camera.right - camera.left);

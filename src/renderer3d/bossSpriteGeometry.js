@@ -2,14 +2,14 @@
 // Boss sprite: image aspect, alpha bbox of the body (fractions), and the roof
 // light panel rectangle (fractions of the image) where Car3D draws the sequence.
 export const BOSS_SPRITE_GEOMETRY = {
-  "aspect": 0.524,
-  "w": 0.935,
+  "aspect": 0.628,
+  "w": 0.946,
   "h": 0.887,
   "cx": 0,
   "panel": {
     "cx": 0.5,
     "cy": 0.341,
-    "w": 0.599,
+    "w": 0.61,
     "h": 0.335
   }
 };

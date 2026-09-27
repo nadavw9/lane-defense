@@ -622,8 +622,12 @@ inferring rejection from an unchanged board.
 ### What is done
 - **40 levels** configured in `LevelManager.js` (L1–L40, three worlds)
 - **Car type intro cards** (`src/screens/CarTypeIntroCard.js`) — fires at: L1 small, L2 big, L5 jeep, L9 truck, L13 bigrig, L15 tank
-- **Streak Shot** — open implementation gap. The simulator has a partial model, but live
-  `GameLoop` does not yet apply the locked double-damage + one-shot slow behavior.
+- **V2 redesign (2026-09-27, branch `feat/v2-design`)** — Hot Streak (3 kill shots →
+  supercharged bomb: x2 damage, carry-over through any colour), special cars (speeder,
+  armoured, chameleon), boss vehicles with colour sequences (L10/20/30/40), a new 40-level
+  table capped at 4 colours. Rules live in `src/director/TrafficRules.js`, shared by
+  GameLoop, DragDrop and SimulationRunner. Tune levels with `node tools/tune-levels.mjs`.
+  V2 art: `node scripts/render-3d-sprites.mjs v2`; review captures: `scripts/v2-shots.mjs`.
 - **AdMob** — `src/ads/AdManager.js` with Google **test** IDs for rewarded video and interstitial
 - **Signed release keystore** — `android/lane-defense-release.keystore` (gitignored). **Never delete.**
 - **Balance simulator** — `tools/balance-sim.js`

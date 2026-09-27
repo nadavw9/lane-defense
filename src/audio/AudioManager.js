@@ -85,6 +85,12 @@ export class AudioManager {
       case 'crisis_assist':    return this._crisisAssist();
       case 'color_bomb':       return this._colorBomb(opts.color ?? 'Red');
       case 'freeze_activate':  return this._freezeActivate();
+      // V2 (TrafficRules): special cars, Hot Streak, bosses
+      case 'armor_clang':      return this._armorClang();
+      case 'supercharge':      return this._supercharge();
+      case 'power_shot':       return this._powerShot();
+      case 'boss_light':       return this._bossLight(opts.left ?? 1);
+      case 'boss_destroyed':   return this._bossDestroyed();
     }
   }
 
@@ -625,6 +631,80 @@ export class AudioManager {
   }
 
   // 6A: color-bomb pip fill — ascending C/E/G; the 3rd (full) blooms into a chord.
+  // ── V2 sounds ──────────────────────────────────────────────────────────────
+  // Metal plate knocked off: two detuned square partials with a fast decay (the
+  // "clang") over a short high noise tick.
+  _armorClang() {
+    const ctx = this._ctx, now = ctx.currentTime;
+    for (const [f, v] of [[880, 0.12], [1318, 0.08], [2093, 0.05]]) {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'square'; o.frequency.setValueAtTime(f, now);
+      o.frequency.exponentialRampToValueAtTime(f * 0.92, now + 0.25);
+      g.gain.setValueAtTime(v, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+      o.connect(g); g.connect(this._master); o.start(now); o.stop(now + 0.3);
+    }
+    this._noiseBurst(0.25, 4000, now, 0.03);
+  }
+
+  // Streak charged: a rising sweep into a bright major chord.
+  _supercharge() {
+    const ctx = this._ctx, now = ctx.currentTime;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sawtooth'; o.frequency.setValueAtTime(220, now);
+    o.frequency.exponentialRampToValueAtTime(880, now + 0.28);
+    g.gain.setValueAtTime(0.0001, now); g.gain.exponentialRampToValueAtTime(0.12, now + 0.2);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.34);
+    o.connect(g); g.connect(this._master); o.start(now); o.stop(now + 0.36);
+    [880, 1108.7, 1318.5].forEach((f, i) => {
+      const oo = ctx.createOscillator(), gg = ctx.createGain();
+      oo.type = 'triangle'; oo.frequency.value = f;
+      const t = now + 0.26 + i * 0.03;
+      gg.gain.setValueAtTime(0.0001, t); gg.gain.exponentialRampToValueAtTime(0.16, t + 0.02);
+      gg.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+      oo.connect(gg); gg.connect(this._master); oo.start(t); oo.stop(t + 0.52);
+    });
+  }
+
+  // Supercharged impact: a deep thump plus the multi-kill explosion.
+  _powerShot() {
+    const ctx = this._ctx, now = ctx.currentTime;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(110, now);
+    o.frequency.exponentialRampToValueAtTime(38, now + 0.3);
+    g.gain.setValueAtTime(0.9, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.34);
+    o.connect(g); g.connect(this._master); o.start(now); o.stop(now + 0.36);
+    this._carDestroy(3);
+  }
+
+  // A boss light knocked out: a descending two-note "down" tone, lower as the
+  // boss nears the end of its sequence.
+  _bossLight(left = 1) {
+    const ctx = this._ctx, now = ctx.currentTime;
+    const base = 330 + Math.min(6, left) * 45;
+    [base, base * 0.75].forEach((f, i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'square'; o.frequency.value = f;
+      const t = now + i * 0.09;
+      g.gain.setValueAtTime(0.1, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+      o.connect(g); g.connect(this._master); o.start(t); o.stop(t + 0.13);
+    });
+    this._hitMatch();
+  }
+
+  // Boss destroyed: big explosion and a triumphant arpeggio.
+  _bossDestroyed() {
+    const ctx = this._ctx, now = ctx.currentTime;
+    this._carDestroy(4);
+    [523.3, 659.3, 784.0, 1046.5].forEach((f, i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'triangle'; o.frequency.value = f;
+      const t = now + 0.18 + i * 0.09;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.2, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+      o.connect(g); g.connect(this._master); o.start(t); o.stop(t + 0.42);
+    });
+  }
+
   _pipFill(index = 0) {
     const ctx = this._ctx, now = ctx.currentTime;
     const notes = [523.3, 659.3, 784.0];

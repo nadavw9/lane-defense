@@ -328,40 +328,45 @@ function _flameTex() {
 // with a tick, the current light is full size with a white ring (and a steel
 // lock ring while the boss is plated), the rest are dimmed previews.
 function _drawBossPanel(ctx, W, H, car) {
+  // One BIG light for the colour to hit now, and the rest of the sequence as a
+  // strip of small pips under it (knocked-out lights dark with a tick). The big
+  // light is what the player reads from across the road; the pips show how far.
   ctx.clearRect(0, 0, W, H);
   const seq = car.sequence ?? [];
   const n = seq.length;
-  const perRow = n <= 4 ? n : Math.ceil(n / 2);
-  const rows = Math.ceil(n / perRow);
-  const cellW = W / perRow, cellH = H / rows;
-  const r = Math.min(cellW, cellH) * 0.36;
-  for (let i = 0; i < n; i++) {
-    const cx = (i % perRow + 0.5) * cellW, cy = (Math.floor(i / perRow) + 0.5) * cellH;
-    const done = i < car.seqIdx, cur = i === car.seqIdx;
-    const hex = cssHex(COLOR_HEX[seq[i]] ?? 0x888888);
-    ctx.beginPath(); ctx.arc(cx, cy, cur ? r * 1.18 : r, 0, Math.PI * 2);
-    if (done) {
-      ctx.fillStyle = '#2A2638'; ctx.fill();
-      ctx.strokeStyle = '#5E587A'; ctx.lineWidth = r * 0.14; ctx.stroke();
-      ctx.strokeStyle = '#8F89AD'; ctx.lineWidth = r * 0.22; ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.moveTo(cx - r * 0.4, cy); ctx.lineTo(cx - r * 0.08, cy + r * 0.32); ctx.lineTo(cx + r * 0.45, cy - r * 0.35); ctx.stroke();
-      continue;
-    }
-    ctx.globalAlpha = cur ? 1 : 0.55;
+  const cur = seq[car.seqIdx];
+  const pipsH = H * 0.26;
+  const bigR = Math.min(W, H - pipsH) * 0.42;
+  const bx = W / 2, by = (H - pipsH) / 2 + H * 0.02;
+  if (cur) {
+    const hex = cssHex(COLOR_HEX[cur] ?? 0x888888);
+    const glow = ctx.createRadialGradient(bx, by, bigR * 0.7, bx, by, bigR * 1.25);
+    glow.addColorStop(0, hex + 'aa'); glow.addColorStop(1, hex + '00');
+    ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H - pipsH);
+    ctx.beginPath(); ctx.arc(bx, by, bigR, 0, Math.PI * 2);
     ctx.fillStyle = hex; ctx.fill();
-    ctx.globalAlpha = 1;
-    ctx.lineWidth = r * (cur ? 0.24 : 0.12);
-    ctx.strokeStyle = cur ? '#FFFFFF' : INK_CSS; ctx.stroke();
-    if (cur) {
-      // Specular dot so the lit light reads as glowing glass.
-      ctx.beginPath(); ctx.arc(cx - r * 0.35, cy - r * 0.35, r * 0.25, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.fill();
-      if ((car.armor ?? 0) > 0) {
-        ctx.beginPath(); ctx.arc(cx, cy, r * 1.45, 0, Math.PI * 2);
-        ctx.strokeStyle = '#B9C1CF'; ctx.lineWidth = r * 0.3; ctx.setLineDash([r * 0.5, r * 0.25]); ctx.stroke();
-        ctx.setLineDash([]);
-      }
+    ctx.lineWidth = bigR * 0.16; ctx.strokeStyle = '#FFFFFF'; ctx.stroke();
+    ctx.lineWidth = bigR * 0.07; ctx.strokeStyle = INK_CSS;
+    ctx.beginPath(); ctx.arc(bx, by, bigR * 1.08, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(bx - bigR * 0.35, by - bigR * 0.35, bigR * 0.22, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.fill();
+    if ((car.armor ?? 0) > 0) {
+      // Plated: steel bars across the light — "knock the armour off first".
+      ctx.save();
+      ctx.beginPath(); ctx.arc(bx, by, bigR * 0.95, 0, Math.PI * 2); ctx.clip();
+      ctx.fillStyle = 'rgba(185,193,207,0.92)';
+      for (let i = -1; i <= 1; i++) ctx.fillRect(bx - bigR, by + i * bigR * 0.55 - bigR * 0.14, bigR * 2, bigR * 0.28);
+      ctx.restore();
     }
+  }
+  const pr = Math.min(pipsH * 0.34, (W / Math.max(1, n)) * 0.36);
+  for (let i = 0; i < n; i++) {
+    const px = (i + 0.5) * (W / n), py = H - pipsH / 2;
+    ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI * 2);
+    if (i < car.seqIdx) { ctx.fillStyle = '#2A2638'; ctx.fill(); ctx.lineWidth = pr * 0.2; ctx.strokeStyle = '#5E587A'; ctx.stroke(); continue; }
+    ctx.fillStyle = cssHex(COLOR_HEX[seq[i]] ?? 0x888888); ctx.fill();
+    ctx.lineWidth = pr * (i === car.seqIdx ? 0.35 : 0.2);
+    ctx.strokeStyle = i === car.seqIdx ? '#FFFFFF' : INK_CSS; ctx.stroke();
   }
 }
 

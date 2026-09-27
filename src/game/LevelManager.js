@@ -1,46 +1,9 @@
-﻿// LevelManager â€” 40-level progression aligned with VISION.md.
+// LevelManager — the 40-level progression (V2 redesign, 2026-09-27; see the
+// table comment below and docs/VISION.md) plus the opening-depth helpers the
+// live game and the simulator share.
 //
-// Difficulty wave per 8-level block (N = block start):
-//   N+0  Easy       relief / onboarding
-//   N+1  Medium
-//   N+2  Medium
-//   N+3  Hard
-//   N+4  Easy       relief (sometimes new mechanic unlock)
-//   N+5  Medium
-//   N+6  Hard
-//   N+7  Boss-Hard  rescue-ad moment
-//
-// Boss levels (designed challenges, not just hp bumps): L10, L15, L20, L25, L30, L35, L40
-//
-// Color introduction schedule:
-//   L1        Red only
-//   L2-L9     Red + Blue
-//   L7-L9     Red + Blue + Green  (Green at L7 per block-1 medium-hard slot)
-//   L10       Red + Blue (bench-test puzzle â€” intentionally stripped)
-//   L11-L20   Red + Blue + Green
-//   L21-L24   Red + Blue + Green + Yellow  (Yellow intro at L21 relief)
-//   L25-L30   + Purple (Color Overload boss at L25)
-//   L31-L40   + Orange (all 6 colors; World 3 opens at L31)
-//
-// Feature unlock thresholds (GameApp reads these from progress):
-//   bench   L6+
-//   swap    L9+
-//   freeze  L14+
-
-// â”€â”€ Shared difficulty presets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// 2026-07-10 booster-aware retune: most levels now carry per-level inline worldConfig;
-// presets that became unreferenced were deleted. Target bands live in tools/balance-sim.js.
-
-// Block 1: Tutorial City â€” morning theme (L1â€“8)
-const B1_FTUE = { hpMultiplier: 0.30, speed: { base: 3.0, variance: 0.0 } };
-
-// Block 2: Tutorial City â€” afternoon/sunset themes (L9â€“16)
-const B2_EASY = { hpMultiplier: 0.45, speed: { base: 4.6, variance: 0.4 } }; // rebalanced for post-Batch-A road length
-
-// â”€â”€ Realistic player balance presets (Phase 3) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// L2 is 2-lane/2-col in-game but the sim always uses 4 lanes/4 cols, giving 2Ã— extra
-// firepower vs real. Compensate with higher speed/HP so the sim is harder.
-const R_L2          = { hpMultiplier: 0.90, speed: { base: 7.5, variance: 0.3 } }; // L2 2-col sim bias
+// Feature unlocks still keyed by level elsewhere: bench L4+ (GameApp), queue
+// reorder L5+ (GameApp), Hot Streak L4+ (streakEnabledFor below).
 
 // ── Level progression (all 40) — V2 redesign, 2026-09-27 ──────────────────────
 //
@@ -239,7 +202,7 @@ const PROGRESSION = [
     duration: 100, spawnBudget: 18, laneTargetCarCount: 2, gridRows: 8,
     traits: { speeder: 0.12, chameleon: 0.10 }, goals: total(30) },
 
-  // L28 "The grinder": tanks.
+  // L28 "The grinder": heavier traffic, armour in the mix.
   { id: 28, laneCount: 3, colCount: 3, colors: ['Red', 'Green', 'Yellow', 'Purple'], worldConfig: W(0.68),
     duration: 110, spawnBudget: 18, laneTargetCarCount: 2, gridRows: 8,
     traits: { armored: 0.08 },
@@ -287,7 +250,7 @@ const PROGRESSION = [
     duration: 100, spawnBudget: 21, laneTargetCarCount: 2, gridRows: 8,
     traits: { chameleon: 0.22 }, goals: total(30) },
 
-  // L36 "Titans": big rigs and tanks.
+  // L36 "Night convoy": heavy traffic at speed.
   { id: 36, laneCount: 3, colCount: 3, colors: ['Orange', 'Red', 'Purple', 'Blue'], worldConfig: W(0.63),
     duration: 110, spawnBudget: 22, laneTargetCarCount: 2, gridRows: 8,
     traits: { armored: 0.10 },

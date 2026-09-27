@@ -1,7 +1,15 @@
-01=BEFORE L8, phone with a camera notch simulated (44 px top, 24 px gesture bar) and colour-blind mode ON: the goal cards sit under the notch area, and colour-blind mode shows nothing
-02=AFTER  L8, same simulated phone: the whole game fits inside the safe area (plum strips above and below), and every car and bomb carries its shape (circle red, triangle blue, square green, star yellow, diamond purple, down-triangle orange). Look at: are the shapes readable at a glance?
-03=AFTER  L35 (night world), colour-blind ON: shapes stay readable on the dark road
-04=AFTER  close-up of the bomb queue with shapes (lower right of each bomb, clear of the number)
-05=BEFORE / AFTER app icon: default Capacitor placeholder -> lit red bomb on a blue toy car, plum background
-06=BEFORE / AFTER splash screen
-07=AFTER  Settings: "Privacy Policy" link at the bottom (an "Ad privacy choices" link also appears on phones where Google's consent rules apply)
+V2 redesign review — BEFORE = feat/toy-town build, AFTER = feat/v2-design. Same level, same 8 auto-played turns.
+01=BEFORE L7 — ordinary traffic only.
+02=AFTER L7 "Rush hour" — speeders (flame exhaust) move 2 rows a turn. Look for: the flames reading as "fast", the NEW! banner.
+03=BEFORE L10 — old "boss" was just a spawn mix; nothing on the road says boss.
+04=AFTER L10 "The Hauler" — boss truck in the middle lane, big light = colour to hit now, pips = the rest of its sequence. Look for: is the big light readable at a glance?
+05=BEFORE L11.
+06=AFTER L11 "Steel plates" — armoured cars (grey plates, hazard ram). Any bomb knocks the plates off.
+07=BEFORE L17.
+08=AFTER L17 "Shape shifters" — chameleon (red bike, middle lane) with a blue lamp + cycle arrows = the colour it turns into next turn. Look for: lamp size on the bike.
+09=BEFORE L40.
+10=AFTER L40 "Twin Titans" — two bosses; the right one is plated (steel bars across its light).
+11=BEFORE L5 — no streak.
+12=AFTER L5 — Hot Streak meter on the breach stripe: 2 of 3 flames lit.
+13=AFTER L5 — SUPERCHARGED: pill turns hot, fire rings around every bomb you can fire next.
+14=New V2 art sheet: armoured (blue), speeder (yellow), chameleon (green) variants, boss and plated boss.

@@ -79,6 +79,7 @@ import { StatsScreen }            from '../screens/StatsScreen.js';
 import { AudioManager }           from '../audio/AudioManager.js';
 import { BoosterBar }             from './BoosterBar.js';
 import { GoalCounterUI }          from './GoalCounterUI.js';
+import { StreakMeter }            from './StreakMeter.js';
 import { adManager }            from '../ads/AdManager.js';
 import { PopupQueue, PRIORITY }  from './PopupQueue.js';
 import { Analytics, logEvent }    from '../analytics/Analytics.js';
@@ -406,6 +407,19 @@ async function main() {
   const goalCounterUI = new GoalCounterUI(layers.get('hudLayer'), APP_W, {
     onComplete: () => audio.play('coin_collect'),   // booster-earned SFX on goal complete
   });
+  // V2 Hot Streak meter (on the breach stripe). Anchors = every bomb the player
+  // could fire next: the column tops and any filled bench slot.
+  const streakMeter = new StreakMeter(layers.get('hudLayer'));
+  streakMeter.setAnchors(() => {
+    const out = [];
+    for (let c = 0; c < gs.activeColCount; c++) {
+      if (gs.columns[c]?.top()) out.push({ x: getColumnScreenX(c), y: getColumnScreenY(), r: 26 });
+    }
+    for (let i = 0; i < benchStorage.size; i++) {
+      if (benchStorage.getSlot(i)) { const p = benchRenderer.getSlotCenter(i); out.push({ x: p.x, y: p.y, r: 22 }); }
+    }
+    return out;
+  });
   const boosterBar    = new BoosterBar(
     layers, boosterState, gs, APP_W,
     () => {
@@ -660,6 +674,8 @@ async function main() {
     carDir.setSpawnScript(cfg.spawnScript ?? null);   // §3c staged boss waves (INFRA-C)
     carDir.setTraits(cfg.traits ?? null, cfg.colors);  // V2 special cars (TrafficRules)
     gs.streakEnabled = streakEnabledFor(cfg);           // V2 Hot Streak
+    streakMeter.setEnabled(gs.streakEnabled);
+    streakMeter.reset();
     shooterDir.setColorBias(cfg.shooterColorWeights ?? null);   // §3c L10 v2 supply bias
   }
 
@@ -1575,8 +1591,15 @@ async function main() {
       haptics.light();
     },
 
-    onHit: (laneIdx, gameX, color, damage, killCount) => {
+    onHit: (laneIdx, gameX, color, damage, killCount, power = false) => {
       const isKill = killCount > 0;
+      if (power) {
+        // Hot Streak supercharged shot landed.
+        audio.play('power_shot');
+        haptics.heavy();
+        shakeTime = Math.max(shakeTime, 0.25);
+        popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildFlashText(w, 'POWER SHOT!', 0xFF7A1F), 1.0);
+      }
       _lastShotKills = killCount;   // for the multi-kill popup (fired next via _onMultiKill)
       particles.spawnHit(laneIdx, gameX, color);
       particles.spawnDamageNumber(laneIdx, gameX, damage);
@@ -1612,7 +1635,8 @@ async function main() {
         _hintShownThisHit = true;
       }
       // Hint A — first time a car SURVIVES a hit (any level): point to the book.
-      if (!_hintShownThisHit && !isKill && damage > 0 && !progress.hintHpMissShown) {
+      const _bossLane = gs.lanes[laneIdx]?.frontCar()?.type === 'boss';   // a boss light is not an HP miss
+      if (!_hintShownThisHit && !isKill && damage > 0 && !_bossLane && !progress.hintHpMissShown) {
         progress.markHintHpMiss();
         _showHintCard((done) => onboardingHints.showHpMiss(done));
       }
@@ -1736,6 +1760,40 @@ async function main() {
         carsHit === 1 ? 'DIRECT HIT!' : `BOOM! ×${carsHit}`,
         0xffdd00,
       ));
+    }
+  };
+
+  // ── V2 callbacks: Hot Streak, armour, bosses (TrafficRules) ───────────────
+  gameLoop._onStreak = (streak, charged, { justCharged }) => {
+    streakMeter.setState(streak, charged);
+    if (streak > 0 && !charged) audio.play('pip_fill', { index: streak - 1 });
+    if (justCharged) {
+      audio.play('supercharge');
+      haptics.medium();
+      popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildFlashText(w, 'SUPERCHARGED!', 0xFF7A1F), 1.2);
+      featureBanners.fire('streak_charged',
+        'SUPERCHARGED! Your next bomb does double damage and smashes through ANY colour behind the first car.');
+    }
+  };
+  gameLoop._onArmorBreak = (laneIdx, gameX) => {
+    audio.play('armor_clang');
+    haptics.medium();
+    particles.spawnHit(laneIdx, gameX, 'Blue');
+    floatingTexts.push(spawnFloatingText(layers.get('particleLayer'),
+      getLaneScreenX(laneIdx), getColumnScreenY() - 90, 'ARMOUR OFF!', 0xC9D2E0));
+    featureBanners.fire('armor_break', 'Armour off! Now hit it with its own colour.');
+  };
+  gameLoop._onBossHit = (laneIdx, boss, dead) => {
+    if (dead) {
+      audio.play('boss_destroyed');
+      haptics.heavy(); setTimeout(() => haptics.heavy(), 160);
+      shakeTime = Math.max(shakeTime, 0.45);
+      popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildFlashText(w, 'BOSS DESTROYED!', 0xFFD42A), 1.6);
+    } else {
+      audio.play('boss_light', { left: boss.hp });
+      haptics.medium();
+      floatingTexts.push(spawnFloatingText(layers.get('particleLayer'),
+        getLaneScreenX(laneIdx), getColumnScreenY() - 110, `${boss.hp} TO GO`, 0xFFD42A));
     }
   };
 
@@ -2021,6 +2079,7 @@ async function main() {
     comboGlow.update(dt, gs.combo);
     boosterBar.update(dt);
     if (gs.goalProgress) goalCounterUI.update(gs.goalProgress, dt);
+    streakMeter.update(dt);
     // Goal-bar help buttons share the pause button's gameplay visibility (overlays
     // hide pauseBtn while open, so these follow suit).
     hpGuideBtn.visible = howToPlayBtn.visible = pauseBtn.visible;

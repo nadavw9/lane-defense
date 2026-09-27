@@ -72,6 +72,8 @@ describe('placeBombOnLane() — BOMB booster lane clear', () => {
     addCar(lanes[1], 'Red',   2);
     addCar(lanes[1], 'Blue',  5);   // different colour AND row — STILL destroyed
     addCar(lanes[1], 'Green', 9);
+    addCar(lanes[0], 'Red',   3);   // another lane holds a car, so the board stays
+                                    // playable and no empty-board refill kicks in
 
     loop.placeBombOnLane(1, 5);
 
@@ -107,6 +109,7 @@ describe('placeBombOnLane() — BOMB booster lane clear', () => {
     loop._onBombExplode = vi.fn();
     addCar(lanes[2], 'Red',  1);
     addCar(lanes[2], 'Blue', 8);
+    addCar(lanes[0], 'Green', 3);  // keeps the board non-empty (see refill test)
 
     loop.placeBombOnLane(2, 5);    // row 5 is empty; the LANE is the payload
 

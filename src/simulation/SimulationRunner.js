@@ -432,6 +432,9 @@ export class SimulationRunner {
             bombsFired++;
             for (const car of bestLane.cars) { carsKilled++; bombKills++; applyKillToGoals(car.color, car.type); }
             bestLane.cars.length = 0;
+            // Parity with GameLoop._settleAfterClear: an empty board refills
+            // (fresh spawns, no advance) so nothing can soft-lock.
+            if (discreteLanes.every(l => l.cars.length === 0)) _refillLanes(phase);
           }
         }
         // COLOR CHANGE — ≥3 front cars share a colour that no column can currently

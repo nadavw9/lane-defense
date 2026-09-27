@@ -151,6 +151,10 @@ export class GameLoop {
       (a, b) => Math.abs(a.row - target.row) - Math.abs(b.row - target.row));
     lane.cars.length = 0;
     for (const car of doomed) {
+      // Credit the level's goals (2026-09-27). Every other kill path does this;
+      // BOMB never did, so on goal levels its kills counted for nothing — while the
+      // simulator credited them, so balance assumed a BOMB players never got.
+      gs.applyKillToGoals(car.color, car.type);
       const combo = gs.recordKill(false);
       this._onKill(combo);
       if (bs && gs.killsTowardBomb % KILLS_PER_BOMB === 0 && bs.bombs < BOMB_MAX_CHARGES) {
@@ -556,10 +560,18 @@ export class GameLoop {
 
     // Win check — mirrors _advanceGrid step 3 (goal-based or legacy kill goal).
     if (gs.goals.length > 0) {
-      if (gs.isGoalMet()) { gs.endGame(true); this._onEnd(true); }
+      if (gs.isGoalMet()) { gs.endGame(true); this._onEnd(true); return; }
     } else if (gs.totalKills >= gs.targetKills) {
-      gs.endGame(true); this._onEnd(true);
+      gs.endGame(true); this._onEnd(true); return;
     }
+
+    // Empty-board soft-lock (2026-09-27). Lanes only refill inside _advanceGrid,
+    // which only runs after a resolved shot — and a shot needs a car to hit. If the
+    // clear left NO car on the board (L1 is a single lane), nothing could ever fire
+    // again. Refill in that case only: fresh spawns at the top, no advance. When
+    // other lanes still hold cars the board is playable and stays exactly as is,
+    // which keeps the live game aligned with the simulator's BOMB model.
+    if (gs.activeLanes.every(l => l.cars.length === 0)) this._refillLanes();
   }
 
   // Refill each active lane up to laneTargetCarCount. Spawns infinitely to support

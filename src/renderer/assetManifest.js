@@ -166,8 +166,11 @@ export const MAP_URLS = [
   ...['world1', 'world2', 'world3'].flatMap(t => [0, 1, 2].flatMap(st => [0, 1, 2].map(v => `${_B}sprites/designed/repair-${t}-${st}-${v}.png`))),
 ];
 
+// V2 intro art shown on the level card.
+export const V2_INTRO_URLS = ['speeder-big-yellow', 'armored-big-blue', 'chameleon-big-green'].map(n => `${_B}sprites/designed/${n}.png`);
+
 export const ALL_SPRITE_URLS = [
-  ...MAP_URLS,
+  ...MAP_URLS, ...V2_INTRO_URLS,
   ...CAR_URLS, ...SHOOTER_URLS, ...POWERBALL_URLS, ...BUILDING_URLS, ...TREE_URLS,
   ...ENV_URLS, ...BOOSTER_URLS, ...TUTORIAL_URLS, ...TITLE_ART_URLS, ...WORLD_PANEL_URLS,
   ...STRIP_PANEL_URLS, ...SCENE_STRIP_URLS, ...ZONE_FLOOR_URLS, ...UI_ICON_URLS,

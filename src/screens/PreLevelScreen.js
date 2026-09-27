@@ -33,12 +33,23 @@ function spriteFit(path, size) {
 
 function goalIcon(goal) {
   if (goal.type === 'destroyColor') return spriteFit(`sprites/designed/car-${goal.color.toLowerCase()}-processed.png`, 44);
-  if (goal.type === 'defeatBoss')   return spriteFit('sprites/designed/boss.png', 48);
+  if (goal.type === 'defeatBoss')   return spriteFit('sprites/designed/boss.png', 60);
   if (goal.type === 'destroyType') {
     const f = { small: 'bike', big: 'car', jeep: 'van', truck: 'truck', bigrig: 'bigrig', tank: 'tank' }[goal.carType] ?? 'car';
     return spriteFit(`sprites/designed/${f}-red${f === 'car' ? '-processed' : ''}.png`, 44);
   }
   return uiIcon('explosion', 40, '💥');
+}
+
+// Which sprite introduces a level's new piece (from its intro line).
+function introSprite(intro, lv) {
+  if (/BOSS/.test(intro)) return 'sprites/designed/boss.png';
+  if (/Speeder/i.test(intro)) return 'sprites/designed/speeder-big-yellow.png';
+  if (/Armour/i.test(intro)) return 'sprites/designed/armored-big-blue.png';
+  if (/Chameleon/i.test(intro)) return 'sprites/designed/chameleon-big-green.png';
+  if (/Bench/i.test(intro)) return 'sprites/designed/powerball-red.png';
+  if (/FREEZE/i.test(intro)) return 'sprites/designed/booster-freeze.png';
+  return 'sprites/designed/car-red-processed.png';
 }
 
 export class PreLevelScreen {
@@ -85,7 +96,7 @@ export class PreLevelScreen {
     const goals = lv.goals ?? [];
     const intro = (lv.hintText && /^(NEW!|BOSS!|FINAL BOSS!)/.test(lv.hintText)) ? lv.hintText : null;
 
-    const PW = 344, PH = 470 + (intro ? 74 : 0);
+    const PW = 344, PH = 470 + (intro ? 100 : 0);
     const card = new Container();
     card.x = w / 2; card.y = h / 2 + 10;
     card.pivot.set(PW / 2, PH / 2);
@@ -125,22 +136,23 @@ export class PreLevelScreen {
     });
     y += gh + 18;
 
-    // New this level.
+    // New this level — the car (or boss) itself, and one line on its rule.
     if (intro) {
-      const iw = PW - 48;
+      const iw = PW - 48, ih = 86;
       const box = new Graphics();
-      box.roundRect(24, y, iw, 60, 14).fill({ color: 0xFFC93C, alpha: 0.16 }).stroke({ color: GOLD, width: 2 });
+      box.roundRect(24, y, iw, ih, 16).fill({ color: 0xFFC93C, alpha: 0.14 }).stroke({ color: GOLD, width: 2 });
       card.addChild(box);
-      const txt = intro.replace(/^(NEW!|BOSS!|FINAL BOSS!)\s*/, '');
+      const pic = spriteFit(introSprite(intro, lv), /BOSS/.test(intro) ? 78 : 66);
+      if (pic) { pic.x = 24 + 44; pic.y = y + ih / 2; card.addChild(pic); }
       const tag = intro.match(/^(NEW!|BOSS!|FINAL BOSS!)/)[1];
       const tg = titleText(tag, 18, GOLD);
-      tg.x = 24 + 14 + tg.width / 2; tg.y = y + 30;
+      tg.anchor.set(0, 0.5); tg.x = 24 + 88; tg.y = y + 20;
       card.addChild(tg);
-      const t = bodyText(txt, 14, WHITE, { outline: false, align: 'left', wrap: iw - tg.width - 40 });
-      t.anchor.set(0, 0.5);
-      t.x = 24 + 28 + tg.width; t.y = y + 30;
+      const txt = intro.replace(/^(NEW!|BOSS!|FINAL BOSS!)\s*/, '');
+      const t = bodyText(txt, 13, WHITE, { outline: false, align: 'left', wrap: iw - 100, weight: '600' });
+      t.anchor.set(0, 0); t.x = 24 + 88; t.y = y + 32;
       card.addChild(t);
-      y += 74;
+      y += ih + 14;
     }
 
     // Booster offer.

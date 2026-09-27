@@ -10,6 +10,7 @@ import { Container, Graphics, Text, Sprite, Assets, Texture } from 'pixi.js';
 import { uiIcon } from './UIIcon.js';
 import { row0CoverY } from '../renderer3d/projection.js';
 import { INK, PLUM, WHITE, toyPanel } from './ToyStyle.js';
+import { FillGradient } from 'pixi.js';
 
 const _B = import.meta.env.BASE_URL;
 
@@ -345,11 +346,13 @@ export class GoalCounterUI {
     // level it was not meant to touch. Only shallow boards move it.
     const cardsH = PANEL_TOP_Y * 2 + totalRowsNeeded * CARD_H + (totalRowsNeeded - 1) * CARD_GAP;
     const bandH  = Math.max(cardsH, row0CoverY(this._gridRows));
+    // Premium pass: indigo gradient band with a gold trim, matching the map header.
     this._band.clear();
-    this._band.rect(0, 0, this._stageWidth, bandH);
-    this._band.fill(BAND_BG_COLOR);
-    this._band.rect(0, bandH - 3, this._stageWidth, 3);
-    this._band.fill(INK);
+    this._band.rect(0, 0, this._stageWidth, bandH).fill(new FillGradient({
+      type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, textureSpace: 'local',
+      colorStops: [{ offset: 0, color: 0x17143A }, { offset: 1, color: 0x2B2760 }] }));
+    this._band.rect(0, bandH - 5, this._stageWidth, 4).fill(0xB9771C);
+    this._band.rect(0, bandH - 1, this._stageWidth, 1).fill(INK);
 
     let cardIndex = 0;
     for (let row = 0; row < totalRowsNeeded; row++) {

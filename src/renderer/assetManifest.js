@@ -41,11 +41,14 @@ export function buildingSetForLevel(levelId) {
 }
 
 // AI world side-panel image, selected by level range (VISION worlds):
-//   World 1 (city) L1–13, World 2 (industrial) L14–26, World 3 (night) L27–40.
+//   World 1 (city) L1–15, World 2 (industrial) L16–30, World 3 (night) L31–40 —
+//   the VISION worlds, matching buildingSetForLevel and ThemeRegistry. (Was 13/26,
+//   so L14–15 showed industrial panels on a misty level and L27–30 night panels on
+//   an industrial road.)
 export function worldPanelForLevel(levelId) {
   if (typeof levelId !== 'number') return 'world1';
-  if (levelId <= 13) return 'world1';
-  if (levelId <= 26) return 'world2';
+  if (levelId <= 15) return 'world1';
+  if (levelId <= 30) return 'world2';
   return 'world3';
 }
 

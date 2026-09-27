@@ -13,6 +13,10 @@ export class Car {
     this.row      = row;
     this.position = 0;       // set externally via setPositionFromRow()
     this.type     = type;
+    // V2 special-car state (see game/TrafficRules.js). null/0 = ordinary car.
+    this.trait    = null;    // 'speeder' | 'armored' | 'chameleon' | null
+    this.armor    = 0;       // armoured: 1 until any bomb knocks the plates off
+    this.altColor = null;    // chameleon: the colour it flips to next
   }
 
   takeDamage(amount) { this.hp = Math.max(0, this.hp - amount); }

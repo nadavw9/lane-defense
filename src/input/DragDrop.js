@@ -17,6 +17,7 @@
 // Bench highlights during drag from column:
 //   • BLUE ring on the hovered empty bench slot
 import { Graphics, Container, Text, Sprite, Texture } from 'pixi.js';
+import { canTarget } from '../director/TrafficRules.js';
 import {
   ROAD_TOP_Y, ROAD_BOTTOM_Y, frontRowTapMargin,
   ROAD_TOP_X, ROAD_TOP_W, ROAD_BOTTOM_W,
@@ -764,10 +765,10 @@ export class DragDrop {
     // Empty lane — no car to hit. Reject the drop so the bomb bounces back to the
     // queue (same path as a wrong-colour drop) instead of being silently consumed.
     if (!frontCar) return false;
-    // Only the earned RAINBOW color bomb matches any lane that HAS a car.
-    // regular bomb and bounces on mismatch.
-    if (this._dragShooter.isColorBomb) return true;
-    return this._dragShooter.color === frontCar.color;
+    // The earned RAINBOW colour bomb matches any lane that HAS a car, and any
+    // bomb can knock the plates off an armoured car; otherwise colours must match
+    // (TrafficRules.canTarget — shared with the game loop and the simulator).
+    return canTarget(frontCar, this._dragShooter.color, !!this._dragShooter.isColorBomb);
   }
 
   _hitTestColumn(x, y) {

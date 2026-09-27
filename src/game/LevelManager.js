@@ -496,6 +496,15 @@ const OPENING_ROWS_SHALLOW   = [0, 1];
  * @param {number|*} id        level id (non-numeric = generic/daily probe config)
  * @param {number}   gridRows  board depth; defaults to the 16-row standard
  */
+// V2 Hot Streak is live from this level on (L1-L3 teach the basics first).
+// A level may override with `streak: true|false`. Daily/generic configs: on.
+// THE single source — GameApp and SimulationRunner both call this.
+export const STREAK_FROM_LEVEL = 4;
+export function streakEnabledFor(cfg) {
+  if (typeof cfg?.streak === 'boolean') return cfg.streak;
+  return typeof cfg?.id === 'number' ? cfg.id >= STREAK_FROM_LEVEL : true;
+}
+
 export function openingRowsForLevel(id, gridRows = 16) {
   // Generic/world-based configs (no numeric level id) and the daily challenge use a
   // light single-car opening — they probe the director engine, not a level's opening

@@ -9,6 +9,8 @@ import { PHASE_CONFIG, HP_MINIMUM } from '../director/DirectorConfig.js';
 import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { Shooter } from '../models/Shooter.js';
 import { COLUMN_CAPACITY } from '../models/Column.js';
+import { canTarget, advanceLaneCars, flipChameleons, nextStreak,
+         isBoss, makeBoss, hitBoss, laneHasBoss, BOMB_BOSS_LIGHTS } from '../director/TrafficRules.js';
 
 const KILLS_PER_BOMB      = 10;    // kills needed to earn one bomb charge
 const MULTI_KILLS_PER_BOMB = 3;    // multi-kills (2+ cars/shot) banked to earn a color bomb
@@ -147,9 +149,15 @@ export class GameLoop {
 
     // Destroy every car in the lane, regardless of colour. Front-to-back from the
     // target so the cascade reads outward from the hit rather than in list order.
-    const doomed = [...lane.cars].sort(
+    // A boss is not erased by a BOMB: it loses BOMB_BOSS_LIGHTS lights and stays
+    // unless that finishes it (TrafficRules.hitBoss). Everything else in the lane goes.
+    const boss = lane.cars.find(isBoss) ?? null;
+    const bossSurvives = boss ? !hitBoss(boss, BOMB_BOSS_LIGHTS) : false;
+    if (boss) this._onBossHit?.(laneIdx, boss, !bossSurvives);
+    const doomed = [...lane.cars].filter(c => !(c === boss && bossSurvives)).sort(
       (a, b) => Math.abs(a.row - target.row) - Math.abs(b.row - target.row));
     lane.cars.length = 0;
+    if (bossSurvives) lane.cars.push(boss);
     for (const car of doomed) {
       // Credit the level's goals (2026-09-27). Every other kill path does this;
       // BOMB never did, so on goal levels its kills counted for nothing — while the
@@ -206,8 +214,10 @@ export class GameLoop {
     let dur = 0;
     if (colorBomb) {
       dur = 0.080;
-    } else if (frontCar && shooter.color === frontCar.color) {
-      dur = frontCar.hp <= shooter.damage ? 0.050 : 0.030;   // kill : non-kill
+    } else if (frontCar && canTarget(frontCar, shooter.color)) {
+      const dmg = shooter.damage * (this._powerShotReady() ? 2 : 1);
+      dur = (frontCar.armor ?? 0) > 0 ? 0.060                 // plates knocked off
+          : frontCar.hp <= dmg ? 0.050 : 0.030;               // kill : non-kill
     }
 
     if (dur > 0) {
@@ -251,11 +261,15 @@ export class GameLoop {
       gs.freezeArmed = false;
     }
 
-    gs.recordDeploy(isCorrectColor);
+    gs.recordDeploy(isCorrectColor || (frontCar.armor ?? 0) > 0);
 
-    const { kills, carryOverKills, damageDealt, destroyed: destroyedFromCombat } = this._combat.resolve(shooter, lane);
+    // Hot Streak: a charged bomb is supercharged (double damage, carry-over
+    // through any colour). The charge is spent by this shot whatever it does.
+    const power = this._powerShotReady();
+    const res = this._combat.resolve(shooter, lane, { power });
+    const { kills, carryOverKills, damageDealt, destroyed: destroyedFromCombat } = res;
 
-    if (damageDealt === 0) {
+    if (!res.hit) {
       this._onMiss(laneIdx, carGameX);
       this._updateColorChangeCombo(0);   // a wasted shot breaks the consecutive-combo streak
       // Color mismatch: wasted bomb slot, grid does NOT advance.
@@ -268,9 +282,23 @@ export class GameLoop {
       this._onComboFreeze?.();
     }
 
-    // Pass the kill COUNT (not just a boolean) so the renderer can escalate the
-    // shake / chroma / explosion size for multi-kills.
-    this._onHit(laneIdx, carGameX, shooter.color, damageDealt, kills);
+    if (res.armorBroken) {
+      // Plates knocked off: no damage, but it is a hit — traffic advances.
+      this._onArmorBreak?.(laneIdx, carGameX, shooter.color);
+    } else {
+      // Pass the kill COUNT (not just a boolean) so the renderer can escalate the
+      // shake / chroma / explosion size for multi-kills.
+      this._onHit(laneIdx, carGameX, shooter.color, damageDealt, kills, power);
+      if (res.bossHit) this._onBossHit?.(laneIdx, frontCar, kills > 0);
+    }
+
+    if (gs.streakEnabled) {
+      const next = nextStreak(gs.streak, gs.streakCharged, kills, power);
+      const justCharged = next.charged && !gs.streakCharged;
+      gs.streak = next.streak;
+      gs.streakCharged = next.charged;
+      this._onStreak?.(gs.streak, gs.streakCharged, { justCharged, usedPower: power });
+    }
 
     // Bullet-time on a big play: a 3+ kill shot briefly drops the renderer to 0.3x.
     if (kills >= 3) {
@@ -329,6 +357,11 @@ export class GameLoop {
     if (!gs.isOver) this._advanceGrid();
   }
 
+  // True when the next resolved shot is the Hot Streak supercharged one.
+  _powerShotReady() {
+    return !!(this._gs.streakEnabled && this._gs.streakCharged);
+  }
+
   // Earn a rainbow color bomb: replace the "next bomb" (top shooter) of the
   // strategically least-costly column — the active column whose top bomb has the
   // LOWEST damage — with a rainbow color-bomb powerball. Picking the lowest-damage
@@ -360,7 +393,7 @@ export class GameLoop {
     for (let li = 0; li < gs.activeLaneCount; li++) {
       const lane = gs.lanes[li];
       for (let ci = lane.cars.length - 1; ci >= 0; ci--) {
-        if (lane.cars[ci].color !== color) continue;
+        if (lane.cars[ci].color !== color || isBoss(lane.cars[ci])) continue;
         const car = lane.cars[ci];
         killed.push({ laneIdx: li, position: car.position });  // capture before removal
         // Apply goal progress before removing the car
@@ -456,10 +489,14 @@ export class GameLoop {
       this._enforceViableMove(gs);      return;
     }
 
-    // 1. Move all cars forward one row.
+    // 1. Move traffic. Ordinary cars move one row, speeders two, and nobody
+    //    passes the car ahead (TrafficRules — the simulator runs the same code).
+    //    Chameleons then flip to their other colour.
     for (let li = 0; li < gs.activeLaneCount; li++) {
-      for (const car of gs.lanes[li].cars) {
-        car.row++;
+      const cars = gs.lanes[li].cars;   // front-first (Lane keeps it sorted)
+      advanceLaneCars(cars);
+      flipChameleons(cars);
+      for (const car of cars) {
         car.position = this._rowToPosition(car.row, ROWS);
         if (car.position > gs.maxCarPosition) gs.maxCarPosition = car.position;
       }
@@ -596,6 +633,7 @@ export class GameLoop {
       const ROWS = gs.gridRows ?? 16;
       for (let li = 0; li < gs.activeLaneCount; li++) {
         const lane = gs.lanes[li];
+        if (laneHasBoss(lane.cars)) continue;   // the boss owns its lane
         while (lane.cars.length < target) {
           let row = 0;
           while (lane.cars.some(c => c.row === row)) row++;
@@ -611,7 +649,7 @@ export class GameLoop {
       const maxNew     = gs.activeLaneCount <= 2 ? 1 : 2;
       const candidates = [];
       for (let li = 0; li < gs.activeLaneCount; li++) {
-        if (!gs.lanes[li].cars.some(c => c.row < 2)) candidates.push(li);
+        if (!gs.lanes[li].cars.some(c => c.row < 2) && !laneHasBoss(gs.lanes[li].cars)) candidates.push(li);
       }
       for (let i = candidates.length - 1; i > 0; i--) {
         const j = Math.floor(this._rng.nextFloat(0, 1) * (i + 1));
@@ -806,7 +844,7 @@ export class GameLoop {
     let changed = 0;
     for (const lane of gs.activeLanes) {
       for (const car of lane.cars) {
-        if (car.color === fromColor) { car.color = toColor; changed++; }
+        if (car.color === fromColor && !isBoss(car)) { car.color = toColor; changed++; }
       }
     }
     if (changed > 0) {
@@ -840,6 +878,7 @@ export class GameLoop {
     const frontColors = new Set();
     for (const lane of gs.activeLanes) {
       const fc = lane.frontCar();
+      if (fc && (fc.armor ?? 0) > 0) return;   // any bomb can hit armour — viable
       if (fc) frontColors.add(fc.color);
     }
     if (frontColors.size === 0) return; // no cars yet — nothing to enforce
@@ -885,13 +924,15 @@ export class GameLoop {
         const li  = Math.min(gs.activeLaneCount - 1, Math.max(0, def.lane ?? 0));
         const car = this._carDir.generateCar(gs.lanes[li], 'CALM', gs.world, gs.colors, ROWS);
         car.row = def.row ?? 0;
-        if (def.type && CAR_TYPES[def.type]) {
+        if (def.sequence) {
+          makeBoss(car, def);                 // V2 boss vehicle (TrafficRules)
+        } else if (def.type && CAR_TYPES[def.type]) {
           car.type = def.type;
           const mult = gs.world?.hpMultiplier ?? 1.0;
           car.hp    = carHpFor(def.type, mult);   // canonical — see CarTypes.carHpFor
           car.maxHp = car.hp;
         }
-        if (def.color && gs.colors.includes(def.color)) car.color = def.color;
+        if (!def.sequence && def.color && gs.colors.includes(def.color)) car.color = def.color;
         car.position = this._rowToPosition(car.row, ROWS);
         // The initial deal has nothing to "arrive" at — render settled immediately
         // (Car3D._createEntry skips the spawn-glide for isInitial cars). Mid-play

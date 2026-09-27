@@ -65,6 +65,11 @@ export class GameState {
     this.maxSingleShotKills = 0;
     // Combo freeze: how many grid advances to skip after a freeze power shot fires.
     this.comboFreezeShots = 0;
+    // V2 Hot Streak (TrafficRules): consecutive kill shots, and whether the next
+    // bomb is supercharged. streakEnabled is set per level by GameApp.
+    this.streakEnabled = false;
+    this.streak        = 0;
+    this.streakCharged = false;
 
     // ── Stats ─────────────────────────────────────────────────────────────
     this.totalKills     = 0;
@@ -200,6 +205,8 @@ export class GameState {
     this.colorBombArmed  = false;
     this.freezeArmed     = false;
     this.comboFreezeShots = 0;
+    this.streak        = 0;
+    this.streakCharged = false;
     this.multiKillCount     = 0;
     this.maxSingleShotKills = 0;
     this.totalKills     = 0;

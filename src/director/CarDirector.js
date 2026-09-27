@@ -4,6 +4,7 @@
 import { PHASE_CONFIG, HP_MINIMUM } from './DirectorConfig.js';
 import { Car } from '../models/Car.js';
 import { CAR_TYPES, pickCarType, carHpFor } from './CarTypes.js';
+import { rollTrait } from './TrafficRules.js';
 
 export class CarDirector {
   constructor(config, rng) {
@@ -180,7 +181,17 @@ export class CarDirector {
     const speed = worldConfig.speed.base +
       this._rng.nextFloat(-worldConfig.speed.variance, worldConfig.speed.variance);
 
-    return new Car({ color, hp, speed, type });
+    const car = new Car({ color, hp, speed, type });
+    return rollTrait(car, this._traits, this._rng, this._palette);
+  }
+
+  // V2 special cars: per-level trait table { speeder?, armored?, chameleon? }
+  // (probability per spawn) and the level palette (chameleon's second colour).
+  // null → no traits and no extra rng draws, so trait-free levels are unchanged.
+  setTraits(table, palette) {
+    const has = table && Object.values(table).some(p => p > 0);
+    this._traits  = has ? table : null;
+    this._palette = palette ?? null;
   }
 
   // Type pick from the active spawnScript stage's weights (null → caller falls

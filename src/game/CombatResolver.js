@@ -1,36 +1,63 @@
 // CombatResolver — pure combat logic, no side effects beyond mutating the cars.
-// Reads only: shooter.color, shooter.damage
-// Writes only: car.hp (via takeDamage), lane.cars (via removeFrontCar)
+// Reads only: shooter.color, shooter.damage, car.hp/color/armor
+// Writes only: car.hp (via takeDamage), car.armor, lane.cars (via removeFrontCar)
 //
 // Rule: CombatResolver never touches game state, renderers, or directors.
+// Shared by GameLoop and SimulationRunner — there is ONE damage model.
+import { isBoss, hitBoss } from '../director/TrafficRules.js';
+const MISS = Object.freeze({ hit: false, kills: 0, carryOverKills: 0, damageDealt: 0, destroyed: [] });
+
 export class CombatResolver {
   // Attempt to fire `shooter` at the front car of `lane`.
   //
-  // World 1-2 rule: wrong color = 0 damage (no interference yet).
-  // Returns { kills, carryOverKills, damageDealt, destroyed }.
+  // Returns { hit, kills, carryOverKills, damageDealt, destroyed, armorBroken? }.
+  //   hit            — the shot connected (a hit advances traffic; a miss does not)
   //   kills          — total cars destroyed by this shot
   //   carryOverKills — kills beyond the first (each = one carry-over)
   //   damageDealt    — total HP removed (useful for partial-damage feedback)
   //   destroyed      — array of { color, type } for each destroyed car
-  resolve(shooter, lane) {
+  //   armorBroken    — the shot knocked the plates off an armoured car (no damage)
+  //
+  // opts.power — the Hot Streak supercharged shot: double damage, and the
+  //              carry-over continues through cars of any colour.
+  resolve(shooter, lane, opts = {}) {
     const frontCar = lane.frontCar();
-    if (!frontCar) return { kills: 0, carryOverKills: 0, damageDealt: 0, destroyed: [] };
+    if (!frontCar) return MISS;
 
-    // Color mismatch → no damage in World 1-2.
-    if (shooter.color !== frontCar.color) {
-      return { kills: 0, carryOverKills: 0, damageDealt: 0, destroyed: [] };
+    // Armour takes the first hit from ANY bomb, and absorbs all of it.
+    if ((frontCar.armor ?? 0) > 0) {
+      frontCar.armor = 0;
+      return { hit: true, armorBroken: true, kills: 0, carryOverKills: 0, damageDealt: 0, destroyed: [] };
     }
 
-    return this._applyDamage(shooter.damage, shooter.color, lane);
+    // Colour mismatch → no damage.
+    if (shooter.color !== frontCar.color) return MISS;
+
+    const power = !!opts.power;
+
+    // A boss loses one light per bomb (two when supercharged); no carry-over.
+    if (isBoss(frontCar)) {
+      const lights = power ? 2 : 1;
+      const before = frontCar.hp;
+      const dead = hitBoss(frontCar, lights);
+      const destroyed = dead ? [{ color: frontCar.color, type: frontCar.type }] : [];
+      if (dead) lane.removeFrontCar();
+      return { hit: true, bossHit: true, kills: dead ? 1 : 0, carryOverKills: 0,
+               damageDealt: before - Math.max(0, frontCar.hp), destroyed };
+    }
+
+    const res = this._applyDamage(shooter.damage * (power ? 2 : 1), shooter.color, lane, power);
+    res.hit = true;
+    return res;
   }
 
   // ── Private ────────────────────────────────────────────────────────────────
 
   // Cascade damage through the front cars of the lane.
-  // Color is re-checked on EVERY car: overflow that reaches a mismatched car
-  // stops dead — the remaining damage is lost.  This is the World 1-2 rule
-  // applied per-car, not just for the initial shot.
-  _applyDamage(damage, shooterColor, lane) {
+  // Colour is re-checked on every car after the first: overflow that reaches a
+  // mismatched car stops dead — unless `pierce` (a supercharged shot). Armour
+  // always stops the cascade.
+  _applyDamage(damage, shooterColor, lane, pierce = false) {
     let remaining      = damage;
     let kills          = 0;
     let carryOverKills = 0;
@@ -40,17 +67,17 @@ export class CombatResolver {
     while (remaining > 0 && lane.frontCar()) {
       const car = lane.frontCar();
 
-      // Color mismatch stops the carry-over chain.
-      if (car.color !== shooterColor) break;
+      if (kills > 0) {
+        if ((car.armor ?? 0) > 0 || isBoss(car)) break;
+        if (!pierce && car.color !== shooterColor) break;
+      }
 
       const hp = car.hp;
       car.takeDamage(remaining);
       damageDealt += Math.min(remaining, hp);
 
       if (car.isDead()) {
-        // Capture destroyed car's color and type for goal progress.
         destroyed.push({ color: car.color, type: car.type });
-        // First kill is a normal kill; every subsequent kill is a carry-over.
         if (kills > 0) carryOverKills++;
         kills++;
         lane.removeFrontCar();

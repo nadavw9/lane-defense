@@ -15,8 +15,10 @@ import * as THREE from 'three';
 import { CELL, posToZ, laneToX } from './Scene3D.js';
 import { ROAD_Z_FAR, POS_NEAR_Z } from './projection.js';
 import { CAR_SPRITE_GEOMETRY } from './carSpriteGeometry.js';
+import { BOSS_SPRITE_GEOMETRY } from './bossSpriteGeometry.js';
 import { isColorblind } from '../game/ColorblindMode.js';
 import { drawColorShapeBadge } from './colorShapeCanvas.js';
+import { TRAIT_TYPES } from '../director/TrafficRules.js';
 
 // ── Canvas size for programmatic textures ────────────────────────────────────
 const CVS    = 256;
@@ -54,7 +56,8 @@ const SPRITE_SCALE     = 0.43;   // boss/fallback only — real types use sprite
 // only; the soft baked shadow is excluded). Every colour shares one geometry,
 // so the per-type table is valid for every colour.
 const BODY_FRAC = Object.fromEntries(
-  Object.entries(CAR_SPRITE_GEOMETRY).map(([t, g]) => [t, { w: g.w, h: g.h, cx: g.cx }]),
+  [...Object.entries(CAR_SPRITE_GEOMETRY), ['boss', BOSS_SPRITE_GEOMETRY]]
+    .map(([t, g]) => [t, { w: g.w, h: g.h, cx: g.cx }]),
 );
 // Body length as a fraction of the row pitch. The first pass targeted a ~1.9px
 // worst gap — it perceptually FUSED (antialiased sprite edges eat ~1px each side,
@@ -83,6 +86,11 @@ const BODY_FRAC = Object.fromEntries(
 // .88 would re-fuse the cars; lowering it further trades car size for more air
 // (FIT .50 = a full car-length gap, but only ~1.79× size — measured, rejected).
 const FIT = { small: 0.656, big: 0.673, jeep: 0.690, truck: 0.707, tank: 0.724, bigrig: 0.740 };
+// The boss spans 1.5 rows: its lane carries no other traffic, so it can't touch
+// a neighbour, and it has to read as the biggest thing on the road. Kept OUT of
+// FIT on purpose: projection.MAX_CAR_FIT sizes the row-0 cover band from FIT, and
+// a boss never sits on row 0 (boss openings start at row 1).
+const BOSS_FIT = 1.5;
 
 // World-unit distance between adjacent rows: cars span ROAD_Z_FAR→POS_NEAR_Z
 // over (gridRows-1) steps. gridRows 16 everywhere today, but derive anyway.
@@ -91,7 +99,7 @@ function rowPitchWu(gridRows) {
 }
 
 function spriteScaleFor(type, gridRows) {
-  const fit = FIT[type], body = BODY_FRAC[type], dims = TYPE_DIMS[type];
+  const fit = type === 'boss' ? BOSS_FIT : FIT[type], body = BODY_FRAC[type], dims = TYPE_DIMS[type];
   if (!fit || !body || !dims) return SPRITE_SCALE;   // boss / unknown types
   return fit * rowPitchWu(gridRows) / (CELL * dims.hF * body.h);
 }
@@ -145,8 +153,22 @@ const HF = { small: 0.77, big: 0.77, jeep: 0.81, truck: 0.98, bigrig: 1.26, tank
 const TYPE_DIMS = {
   ...Object.fromEntries(Object.entries(HF).map(([t, hF]) =>
     [t, { wF: hF * (CAR_SPRITE_GEOMETRY[t]?.aspect ?? 0.6), hF }])),
-  boss:   { wF: 1.33, hF: 1.33 },
+  boss:   { wF: 1.4 * BOSS_SPRITE_GEOMETRY.aspect, hF: 1.4 },
 };
+
+// ── V2 special cars (TrafficRules) — which sprite a car shows right now ───────
+// Variant sprites (armored-/speeder-/chameleon-<type>-<color>.png) share their
+// base sprite's canvas, so a swap is a texture change on the same plane.
+// Armour shows only while plated; a boss shows its armoured body while plated.
+function spritePathFor(car) {
+  if (car.type === 'boss') return (car.armor ?? 0) > 0 ? 'sprites/designed/boss-armored.png' : 'sprites/designed/boss.png';
+  const c = car.color?.toLowerCase();
+  const t = car.trait;
+  if (t && TRAIT_TYPES[t]?.has(car.type) && (t !== 'armored' || (car.armor ?? 0) > 0)) {
+    return `sprites/designed/${t}-${car.type}-${c}.png`;
+  }
+  return SPRITE_MAP[car.type]?.[car.color] ?? null;
+}
 
 // ── Sprite map: nested by type → color (pre-colored PNGs, no material tint) ──
 const SPRITE_MAP = {
@@ -229,6 +251,118 @@ function _getSpriteTex(type, color, base) {
     _texCache[cacheKey] = tex;
   }
   return _texCache[cacheKey];
+}
+
+function _getTexByPath(path, base) {
+  const key = `path:${path}`;
+  if (!_texCache[key]) {
+    const tex = _texLoader.load(`${base}${path}`);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    _texCache[key] = tex;
+  }
+  return _texCache[key];
+}
+
+function _canvasTex(key, size, draw) {
+  if (!_texCache[key]) {
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    draw(c.getContext('2d'), size);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    _texCache[key] = t;
+  }
+  return _texCache[key];
+}
+
+const INK_CSS = '#1F1A33';
+const cssHex = (hex) => `#${hex.toString(16).padStart(6, '0')}`;
+
+// Chameleon "next colour" lamp: a glowing disc of the colour it turns into next,
+// with a white rim and two cycle arrows — reads as "this is coming".
+function _nextColorTex(color) {
+  return _canvasTex(`next:${color}`, 128, (ctx, S) => {
+    const c = S / 2, r = S * 0.30;
+    const glow = ctx.createRadialGradient(c, c, r * 0.6, c, c, S / 2);
+    glow.addColorStop(0, cssHex(COLOR_HEX[color] ?? 0xffffff) + 'cc');
+    glow.addColorStop(1, cssHex(COLOR_HEX[color] ?? 0xffffff) + '00');
+    ctx.fillStyle = glow; ctx.fillRect(0, 0, S, S);
+    ctx.beginPath(); ctx.arc(c, c, r, 0, Math.PI * 2);
+    ctx.fillStyle = cssHex(COLOR_HEX[color] ?? 0xffffff); ctx.fill();
+    ctx.lineWidth = S * 0.05; ctx.strokeStyle = '#FFFFFF'; ctx.stroke();
+    ctx.lineWidth = S * 0.025; ctx.strokeStyle = INK_CSS;
+    ctx.beginPath(); ctx.arc(c, c, r + S * 0.035, 0, Math.PI * 2); ctx.stroke();
+    // Cycle arrows.
+    ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = S * 0.04; ctx.lineCap = 'round';
+    for (const a0 of [0.3, Math.PI + 0.3]) {
+      ctx.beginPath(); ctx.arc(c, c, r * 0.55, a0, a0 + 2.1); ctx.stroke();
+      const ax = c + Math.cos(a0 + 2.1) * r * 0.55, ay = c + Math.sin(a0 + 2.1) * r * 0.55;
+      const t = a0 + 2.1 + Math.PI / 2;
+      ctx.beginPath();
+      ctx.moveTo(ax + Math.cos(t - 0.6) * S * 0.07, ay + Math.sin(t - 0.6) * S * 0.07);
+      ctx.lineTo(ax, ay);
+      ctx.lineTo(ax + Math.cos(t + 2.2) * S * 0.07, ay + Math.sin(t + 2.2) * S * 0.07);
+      ctx.stroke();
+    }
+  });
+}
+
+// Speeder exhaust flame (teardrop, hot core → orange → transparent).
+function _flameTex() {
+  return _canvasTex('flame', 64, (ctx, S) => {
+    const g = ctx.createRadialGradient(S / 2, S * 0.72, 1, S / 2, S * 0.6, S * 0.5);
+    g.addColorStop(0, 'rgba(255,255,230,1)');
+    g.addColorStop(0.3, 'rgba(255,212,42,0.95)');
+    g.addColorStop(0.65, 'rgba(255,110,30,0.7)');
+    g.addColorStop(1, 'rgba(255,60,30,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(S / 2, 0);
+    ctx.bezierCurveTo(S * 0.95, S * 0.5, S * 0.8, S, S / 2, S);
+    ctx.bezierCurveTo(S * 0.2, S, S * 0.05, S * 0.5, S / 2, 0);
+    ctx.fill();
+  });
+}
+
+// Boss roof panel: the colour sequence as a grid of lights. Done lights go dark
+// with a tick, the current light is full size with a white ring (and a steel
+// lock ring while the boss is plated), the rest are dimmed previews.
+function _drawBossPanel(ctx, W, H, car) {
+  ctx.clearRect(0, 0, W, H);
+  const seq = car.sequence ?? [];
+  const n = seq.length;
+  const perRow = n <= 4 ? n : Math.ceil(n / 2);
+  const rows = Math.ceil(n / perRow);
+  const cellW = W / perRow, cellH = H / rows;
+  const r = Math.min(cellW, cellH) * 0.36;
+  for (let i = 0; i < n; i++) {
+    const cx = (i % perRow + 0.5) * cellW, cy = (Math.floor(i / perRow) + 0.5) * cellH;
+    const done = i < car.seqIdx, cur = i === car.seqIdx;
+    const hex = cssHex(COLOR_HEX[seq[i]] ?? 0x888888);
+    ctx.beginPath(); ctx.arc(cx, cy, cur ? r * 1.18 : r, 0, Math.PI * 2);
+    if (done) {
+      ctx.fillStyle = '#2A2638'; ctx.fill();
+      ctx.strokeStyle = '#5E587A'; ctx.lineWidth = r * 0.14; ctx.stroke();
+      ctx.strokeStyle = '#8F89AD'; ctx.lineWidth = r * 0.22; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(cx - r * 0.4, cy); ctx.lineTo(cx - r * 0.08, cy + r * 0.32); ctx.lineTo(cx + r * 0.45, cy - r * 0.35); ctx.stroke();
+      continue;
+    }
+    ctx.globalAlpha = cur ? 1 : 0.55;
+    ctx.fillStyle = hex; ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = r * (cur ? 0.24 : 0.12);
+    ctx.strokeStyle = cur ? '#FFFFFF' : INK_CSS; ctx.stroke();
+    if (cur) {
+      // Specular dot so the lit light reads as glowing glass.
+      ctx.beginPath(); ctx.arc(cx - r * 0.35, cy - r * 0.35, r * 0.25, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.fill();
+      if ((car.armor ?? 0) > 0) {
+        ctx.beginPath(); ctx.arc(cx, cy, r * 1.45, 0, Math.PI * 2);
+        ctx.strokeStyle = '#B9C1CF'; ctx.lineWidth = r * 0.3; ctx.setLineDash([r * 0.5, r * 0.25]); ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+  }
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -328,6 +462,8 @@ export class Car3D {
     this._live.clear();
     for (const d of this._dying) this._disposeDying(d);
     this._dying.length = 0;
+    for (const s of this._shards ?? []) { this._scene.remove(s.mesh); s.mesh.geometry.dispose(); s.mesh.material.dispose(); }
+    if (this._shards) this._shards.length = 0;
   }
 
   // DEV proof helper: current {x,y} mesh scale of the front car in a lane (or null).
@@ -351,7 +487,77 @@ export class Car3D {
     entry._powerSquashing = true;
   }
 
+  // ── V2 trait effects, per car per frame ──────────────────────────────────────
+  _updateTraitFx(entry, car, dt, now) {
+    const fx = entry.traitFx;
+    if (!fx) return;
+    // Armour knocked off → steel shards fly out of the car.
+    const armor = car.armor ?? 0;
+    if (fx.armor > 0 && armor === 0) this._spawnShards(entry);
+    fx.armor = armor;
+    if (fx.lamp) {
+      if (fx.lampColor !== car.altColor) {
+        fx.lampColor = car.altColor;
+        fx.lamp.material.map = _nextColorTex(car.altColor);
+        fx.lamp.material.needsUpdate = true;
+      }
+      const s = 1 + 0.08 * Math.sin(now * 5);
+      fx.lamp.scale.set(s, s, 1);
+    }
+    if (fx.flames) {
+      for (let i = 0; i < fx.flames.length; i++) {
+        const f = fx.flames[i];
+        const flick = 0.8 + 0.35 * Math.abs(Math.sin(now * 23 + i * 1.7)) + 0.15 * Math.sin(now * 41 + i);
+        f.scale.set(0.9 + 0.1 * Math.sin(now * 31 + i), flick, 1);
+        f.material.opacity = 0.75 + 0.25 * Math.sin(now * 17 + i * 2);
+      }
+    }
+    if (fx.panel) {
+      const key = `${car.seqIdx}:${armor}`;
+      if (fx.panelKey !== key) {
+        fx.panelKey = key;
+        _drawBossPanel(fx.panelCanvas.getContext('2d'), fx.panelCanvas.width, fx.panelCanvas.height, car);
+        fx.panelTex.needsUpdate = true;
+      }
+    }
+  }
+
+  _spawnShards(entry) {
+    const g = entry.group;
+    this._shards ??= [];
+    const mat = new THREE.MeshBasicMaterial({ color: 0xB9C1CF, transparent: true, depthWrite: false });
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2 + Math.random() * 0.4;
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.2), mat.clone());
+      m.rotation.x = -Math.PI / 2;
+      m.rotation.z = Math.random() * 3;
+      m.position.set(g.position.x, 0.3, g.position.z);
+      this._scene.add(m);
+      this._shards.push({ mesh: m, vx: Math.cos(a) * 4.5, vz: Math.sin(a) * 4.5, spin: (Math.random() - 0.5) * 14, t: 0 });
+    }
+    mat.dispose();
+  }
+
+  _updateShards(dt) {
+    if (!this._shards?.length) return;
+    for (let i = this._shards.length - 1; i >= 0; i--) {
+      const s = this._shards[i];
+      s.t += dt;
+      const p = s.t / 0.45;
+      if (p >= 1) {
+        this._scene.remove(s.mesh); s.mesh.geometry.dispose(); s.mesh.material.dispose();
+        this._shards.splice(i, 1);
+        continue;
+      }
+      s.mesh.position.x += s.vx * dt * (1 - p);
+      s.mesh.position.z += s.vz * dt * (1 - p);
+      s.mesh.rotation.z += s.spin * dt;
+      s.mesh.material.opacity = 1 - p;
+    }
+  }
+
   update(dt, isFrozen = false) {
+    this._updateShards(dt);
     const liveCars = new Set();
     for (const lane of this._lanes) for (const car of lane.cars) liveCars.add(car);
 
@@ -387,18 +593,23 @@ export class Car3D {
         // in place). Swap its sprite to the new color so the visual matches the
         // logic — without this the car kept its old (e.g. blue) sprite while combat
         // already treated it as the new color.
+        // V2: the sprite also changes when armour comes off, a chameleon flips, or
+        // a boss re-plates — spritePathFor() is the one source of which art shows.
+        const path = spritePathFor(car);
+        if (entry.spritePath !== path && path) {
+          entry.spritePath = path;
+          entry.bodyMat.map = _getTexByPath(path, import.meta.env.BASE_URL);
+          entry.bodyMat.needsUpdate = true;
+        }
         if (entry.color !== car.color) {
           entry.color = car.color;
-          if (SPRITE_MAP[car.type] != null && car.type !== 'boss') {
-            entry.bodyMat.map = _getSpriteTex(car.type, car.color, import.meta.env.BASE_URL);
-            entry.bodyMat.needsUpdate = true;
-          }
           if (entry.shapeBadge) {
             entry.shapeBadge.material.map = _getShapeTex(car.color);
             entry.shapeBadge.material.needsUpdate = true;
           }
         }
         if (entry.shapeBadge) entry.shapeBadge.visible = isColorblind();
+        this._updateTraitFx(entry, car, dt, now);
 
         // ── Smooth advance lerp ───────────────────────────────────────────────
         const newTargetZ = posToZ(car.position);
@@ -577,12 +788,13 @@ export class Car3D {
     const hex        = carHex(car);
     const boostedHex = _boostColor(hex);
 
-    // Pre-colored sprites for all types except boss (which stays programmatic)
-    const hasSprite = SPRITE_MAP[car.type] != null && car.type !== 'boss';
+    // Pre-coloured sprites (V2 variants and the boss included — spritePathFor).
+    const spritePath = spritePathFor(car);
+    const hasSprite = spritePath != null;
     let bodyMat;
 
     if (hasSprite) {
-      const tex = _getSpriteTex(car.type, car.color, import.meta.env.BASE_URL);
+      const tex = _getTexByPath(spritePath, import.meta.env.BASE_URL);
       bodyMat = new THREE.MeshBasicMaterial({
         map:         tex,
         transparent: true,
@@ -621,16 +833,8 @@ export class Car3D {
     mesh.position.x = -(BODY_FRAC[car.type]?.cx ?? 0) * CELL * cfg.wF;
     group.add(mesh);
 
-    // Boss ring
-    let bossRing = null, bossRingMat = null;
-    if (car.type === 'boss') {
-      bossRingMat = new THREE.MeshStandardMaterial({
-        color: hex, emissive: hex, emissiveIntensity: 1.5,
-        transparent: true, opacity: 0.75,
-      });
-      bossRing = new THREE.Mesh(_bossTorusGeo, bossRingMat);
-      this._scene.add(bossRing);
-    }
+    // (The old spinning boss torus is gone — V2 bosses carry their sequence panel.)
+    const bossRing = null, bossRingMat = null;
 
     const spriteScale = spriteScaleFor(car.type, this._breachRow + 1);
     group.userData.baseScale = spriteScale;
@@ -652,6 +856,58 @@ export class Car3D {
       shapeBadge.visible = isColorblind();
       group.add(shapeBadge);
     }
+
+    // ── V2 overlays (children of the group, so they ride, bob and die with it) ─
+    // Positions are in the plane's local frame: image u → x, image v (from the
+    // top) → z; one CELL*wF × CELL*hF plane, offset by the body-centring shift.
+    const planeW = CELL * cfg.wF, planeH = CELL * cfg.hF;
+    const imgToLocal = (u, v) => ({ x: (u - 0.5) * planeW + mesh.position.x, z: (v - 0.5) * planeH });
+    const traitFx = {};
+    if (car.trait === 'chameleon') {
+      // "Next colour" lamp on the roof dome (behind the centre, toward the tail).
+      const side = 1.25 / spriteScale;
+      const lamp = new THREE.Mesh(new THREE.PlaneGeometry(side, side),
+        new THREE.MeshBasicMaterial({ map: _nextColorTex(car.altColor), transparent: true, depthWrite: false, toneMapped: false }));
+      lamp.rotation.x = -Math.PI / 2;
+      const p = imgToLocal(0.5, 0.40);
+      lamp.position.set(p.x, 0.14, p.z);
+      lamp.renderOrder = 3;
+      group.add(lamp);
+      traitFx.lamp = lamp; traitFx.lampColor = car.altColor;
+    }
+    if (car.trait === 'speeder') {
+      // Two exhaust flames off the tail (image top = vehicle rear).
+      const body = BODY_FRAC[car.type] ?? { w: 0.8, h: 0.8 };
+      const fw = planeW * 0.22, fh = planeH * 0.34;
+      traitFx.flames = [-1, 1].map(sd => {
+        const f = new THREE.Mesh(new THREE.PlaneGeometry(fw, fh),
+          new THREE.MeshBasicMaterial({ map: _flameTex(), transparent: true, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending }));
+        f.rotation.x = -Math.PI / 2;
+        const p = imgToLocal(0.5 + sd * body.w * 0.22, 0.5 - body.h / 2 - 0.10);
+        f.position.set(p.x, 0.02, p.z);
+        f.userData.baseZ = p.z;
+        group.add(f);
+        return f;
+      });
+    }
+    if (car.type === 'boss') {
+      // Colour-sequence panel drawn onto the roof light panel.
+      const P = BOSS_SPRITE_GEOMETRY.panel;
+      const cw = 256, ch = Math.max(64, Math.round(256 * (P.h * planeH) / (P.w * planeW)));
+      const canvas = document.createElement('canvas');
+      canvas.width = cw; canvas.height = ch;
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const panel = new THREE.Mesh(new THREE.PlaneGeometry(P.w * planeW, P.h * planeH),
+        new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, toneMapped: false }));
+      panel.rotation.x = -Math.PI / 2;
+      const p = imgToLocal(P.cx, P.cy);
+      panel.position.set(p.x, 0.14, p.z);
+      panel.renderOrder = 3;
+      group.add(panel);
+      traitFx.panel = panel; traitFx.panelCanvas = canvas; traitFx.panelTex = tex; traitFx.panelKey = '';
+    }
+    traitFx.armor = car.armor ?? 0;
 
     // Spawn animation: start off-screen (further from breach) and glide in.
     // EXCEPTION — the opening board (car.isInitial, set by GameLoop._primeInitialCars):
@@ -689,6 +945,8 @@ export class Car3D {
     return {
       group, mesh, bodyMat,
       color: car.color,   // sprite was built for this color; resynced if COLOR CHANGE recolors the car
+      spritePath,         // which art is showing (V2: variants swap on armour/flip)
+      traitFx,
       shapeBadge,
       baseHex: 0xffffff,  // always white — all sprites pre-colored, boss canvas bakes color
       lastHp: -1, _prevFrozen: false,

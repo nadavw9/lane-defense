@@ -206,6 +206,171 @@ const BUILD = {
   },
 };
 
+// ── V2 special-car variants ───────────────────────────────────────────────────
+// Each variant decorates the base vehicle and is framed with the BASE vehicle's
+// bounds (see window.studio.vehicle), so the sprite keeps the type's aspect and
+// body box — Car3D draws both on the same plane.
+const STEEL  = new THREE.MeshStandardMaterial({ color: 0xA7B0BF, roughness: 0.32, metalness: 0.85 });
+const STEELD = new THREE.MeshStandardMaterial({ color: 0x6E7788, roughness: 0.4, metalness: 0.8 });
+const HAZARD_Y = new THREE.MeshStandardMaterial({ color: 0xFFD42A, roughness: 0.5 });
+const HAZARD_K = new THREE.MeshStandardMaterial({ color: 0x24212C, roughness: 0.6 });
+
+// Top-surface extents per type: [halfWidth, roofY, zFront, zBack, hoodY, hoodZ0, hoodZ1].
+const DECK = {
+  small:  [0.26, 0.9, 0.7, -0.7, 0.9, 0.2, 0.7],
+  big:    [0.95, 1.5, 1.9, -1.9, 0.94, 0.9, 1.9],
+  jeep:   [1.0, 1.82, 2.05, -2.05, 1.82, -1.9, 1.6],
+  truck:  [0.98, 1.8, 2.2, -2.3, 1.8, 1.0, 2.1],
+  bigrig: [1.02, 2.45, 2.7, -2.5, 2.45, -2.4, 1.0],
+};
+
+function bolts(g, xs, y, zs) {
+  for (const x of xs) for (const z of zs) {
+    const b = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), STEELD);
+    b.position.set(x, y, z);
+    g.add(b);
+  }
+}
+
+const VARIANT = {
+  // Bolted steel plates over the body, a ram bar on the nose, hazard chevrons.
+  armored(g, type) {
+    const [hw, roofY, zF, zB, hoodY, h0, h1] = DECK[type] ?? DECK.big;
+    const len = (h1 - h0) * 0.9, zc = (h0 + h1) / 2;
+    g.add(rbox(hw * 1.7, 0.08, len, 0.04, STEEL, 0, hoodY + 0.04, zc));
+    bolts(g, [-hw * 0.72, hw * 0.72], hoodY + 0.1, [zc - len * 0.4, zc + len * 0.4]);
+    if (type !== 'small' && Math.abs(roofY - hoodY) > 0.05) {
+      g.add(rbox(hw * 1.5, 0.08, 1.2, 0.04, STEEL, 0, roofY + 0.04, (zF + zB) / 2 - 0.3));
+      bolts(g, [-hw * 0.6, hw * 0.6], roofY + 0.1, [(zF + zB) / 2 - 0.8, (zF + zB) / 2 + 0.2]);
+    }
+    // Side skirts, flush with the body.
+    for (const sd of [-1, 1]) g.add(rbox(0.1, 0.42, (zF - zB) * 0.78, 0.04, STEEL, sd * (hw + 0.02), 0.7, (zF + zB) / 2));
+    // Ram bar with hazard chevrons across the nose.
+    const ram = new THREE.Group();
+    ram.add(rbox(hw * 2.05, 0.3, 0.2, 0.08, HAZARD_K, 0, 0, 0));
+    for (let i = -2; i <= 2; i++) {
+      const c = rbox(hw * 0.3, 0.31, 0.21, 0.03, HAZARD_Y, i * hw * 0.42, 0, 0);
+      c.rotation.z = 0.5;
+      ram.add(c);
+    }
+    ram.position.set(0, 0.5, zF - 0.02);
+    g.add(ram);
+  },
+  // Street racer: spoiler, bonnet scoop, chrome side pipes, lightning bolt.
+  speeder(g, type, c) {
+    const [hw, roofY, zF, zB, hoodY, h0, h1] = DECK[type] ?? DECK.big;
+    const bolt = new THREE.Shape();
+    const s = type === 'small' ? 0.28 : 0.55;
+    bolt.moveTo(0.1 * s, 1 * s); bolt.lineTo(-0.45 * s, -0.05 * s); bolt.lineTo(-0.05 * s, -0.05 * s);
+    bolt.lineTo(-0.2 * s, -1 * s); bolt.lineTo(0.45 * s, 0.12 * s); bolt.lineTo(0.05 * s, 0.12 * s); bolt.closePath();
+    const bg = new THREE.ExtrudeGeometry(bolt, { depth: 0.03, bevelEnabled: false });
+    const bm = new THREE.Mesh(bg, M.white);
+    bm.rotation.x = -Math.PI / 2;
+    bm.position.set(0, hoodY + 0.04, (h0 + h1) / 2);
+    g.add(bm);
+    if (type === 'small') {                       // bike: twin exhausts + tail fin
+      for (const sd of [-1, 1]) {
+        const p = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 0.7, 12), M.chrome);
+        p.rotation.x = Math.PI / 2; p.position.set(sd * 0.3, 0.45, -0.55); g.add(p);
+      }
+      g.add(rbox(0.08, 0.3, 0.4, 0.03, paint(shadeHex(c, 0.7)), 0, 1.0, -0.6));
+      return;
+    }
+    // Spoiler over the tail.
+    const wingM = paint(shadeHex(c, 0.7));
+    g.add(rbox(hw * 2.0, 0.07, 0.42, 0.03, wingM, 0, roofY + 0.18, zB + 0.35));
+    for (const sd of [-1, 1]) g.add(rbox(0.08, 0.3, 0.12, 0.03, M.trim, sd * hw * 0.7, roofY + 0.02, zB + 0.35));
+    // Bonnet scoop.
+    g.add(rbox(hw * 0.7, 0.14, 0.5, 0.06, M.trim, 0, hoodY + 0.08, h0 + 0.25));
+    // Chrome side pipes.
+    for (const sd of [-1, 1]) {
+      const p = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, (zF - zB) * 0.55, 14), M.chrome);
+      p.rotation.x = Math.PI / 2; p.position.set(sd * (hw + 0.06), 0.4, (zF + zB) / 2 - 0.2); g.add(p);
+    }
+  },
+  // Shape-shifter: a crest of fins down the roof and a glass roof dome (the
+  // game lights the dome with the colour it will turn into next).
+  chameleon(g, type, c) {
+    const [hw, roofY, zF, zB] = DECK[type] ?? DECK.big;
+    const fin = paint(shadeHex(c, 0.72));
+    const n = type === 'small' ? 3 : 5;
+    const domeZ = (zF + zB) / 2 - (type === 'small' ? 0.1 : 0.3);
+    for (let i = 0; i < n; i++) {
+      const z = zB + 0.25 + (i / (n - 1)) * (domeZ - 0.55 - zB - 0.25);
+      const s = (type === 'small' ? 0.12 : 0.2) * (0.7 + 0.3 * (i / (n - 1)));
+      const f = new THREE.Mesh(new THREE.ConeGeometry(s, s * 2.2, 4), fin);
+      f.position.set(0, roofY + s, z);
+      f.rotation.y = Math.PI / 4;
+      g.add(f);
+    }
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(type === 'small' ? 0.2 : 0.42, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2),
+      new THREE.MeshPhysicalMaterial({ color: 0xF4F1FF, roughness: 0.05, clearcoat: 1, metalness: 0.1 }));
+    dome.position.set(0, roofY + 0.03, domeZ);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(type === 'small' ? 0.21 : 0.44, 0.05, 8, 28), M.chrome);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.copy(dome.position);
+    g.add(dome, ring);
+  },
+};
+
+// ── Boss vehicle ──────────────────────────────────────────────────────────────
+// A monster hauler: charcoal body, hazard ram, six chunky wheels, exhaust stacks
+// and a black light panel on the roof where the game draws the colour sequence.
+const BOSS_PANEL = { x: 0, y: 2.62, z: -0.45, w: 2.2, d: 2.9 };
+function buildBoss({ armored = false } = {}) {
+  const g = new THREE.Group();
+  const body = paint(0x7A2FB8), bodyD = paint(0x4E1D7A);
+  for (const z of [2.1, 0.2, -1.9]) g.add(wheel(-1.35, z, 0.62, 0.5), wheel(1.35, z, 0.62, 0.5));
+  g.add(rbox(2.5, 0.4, 5.6, 0.12, M.trim, 0, 0.72, 0));                       // chassis
+  g.add(rbox(2.9, 1.5, 2.0, 0.34, body, 0, 1.55, 1.85));                        // cab
+  const ws = rbox(2.5, 0.6, 0.16, 0.08, M.glass, 0, 1.95, 2.84);
+  ws.rotation.x = -0.2;
+  g.add(ws);
+  // Angry brow over the windscreen + yellow eyes (headlights).
+  const brow = rbox(2.7, 0.18, 0.3, 0.06, bodyD, 0, 2.34, 2.78);
+  brow.rotation.x = 0.25;
+  g.add(brow);
+  lights(g, 2.88, 1.25, [-0.85, 0.85], new THREE.MeshBasicMaterial({ color: 0xFFD42A }), 0.5, 0.24);
+  g.add(rbox(3.0, 1.9, 3.7, 0.22, body, 0, 1.75, -0.95));                       // cargo box
+  g.add(rbox(BOSS_PANEL.w, 0.1, BOSS_PANEL.d, 0.06, new THREE.MeshStandardMaterial({ color: 0x15121F, roughness: 0.35 }),
+    BOSS_PANEL.x, BOSS_PANEL.y, BOSS_PANEL.z));                                   // light panel
+  g.add(rbox(BOSS_PANEL.w + 0.2, 0.08, BOSS_PANEL.d + 0.2, 0.05, M.chrome, BOSS_PANEL.x, BOSS_PANEL.y - 0.05, BOSS_PANEL.z));
+  // Hazard ram across the nose.
+  const ram = new THREE.Group();
+  ram.add(rbox(3.2, 0.5, 0.3, 0.1, HAZARD_K, 0, 0, 0));
+  for (let i = -3; i <= 3; i++) { const c = rbox(0.34, 0.51, 0.31, 0.03, HAZARD_Y, i * 0.46, 0, 0); c.rotation.z = 0.55; ram.add(c); }
+  ram.position.set(0, 0.8, 2.95);
+  g.add(ram);
+  // Exhaust stacks behind the cab.
+  for (const sd of [-1, 1]) {
+    const st = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 1.3, 16), M.chrome);
+    st.position.set(sd * 1.2, 2.55, 0.75);
+    g.add(st);
+  }
+  // Hazard trim along the cargo box's top edges, amber beacons on the cab roof,
+  // chrome teeth on the grille: it has to read as THE threat at a glance.
+  for (const sd of [-1, 1]) {
+    const trim = new THREE.Group();
+    trim.add(rbox(0.22, 0.12, 3.7, 0.04, HAZARD_K, 0, 0, 0));
+    for (let i = 0; i < 9; i++) { const c = rbox(0.23, 0.13, 0.2, 0.02, HAZARD_Y, 0, 0, -1.7 + i * 0.425); c.rotation.x = 0.6; trim.add(c); }
+    trim.position.set(sd * 1.42, 2.7, -0.95);
+    g.add(trim);
+  }
+  const beacon = new THREE.MeshBasicMaterial({ color: 0xFF9A1C });
+  for (const x of [-1.1, -0.4, 0.4, 1.1]) {
+    const b = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), beacon);
+    b.position.set(x, 2.3, 2.1);
+    g.add(b);
+  }
+  for (let i = 0; i < 7; i++) g.add(rbox(0.2, 0.55, 0.12, 0.05, M.chrome, -1.05 + i * 0.35, 1.05, 2.86));
+  if (armored) {
+    for (const sd of [-1, 1]) g.add(rbox(0.12, 0.8, 5.0, 0.05, STEEL, sd * 1.52, 1.2, 0));
+    g.add(rbox(2.6, 0.1, 1.2, 0.04, STEEL, 0, 2.33, 1.7));
+    bolts(g, [-1.53, 1.53], 1.55, [-2, -1, 0, 1, 2]);
+  }
+  return g;
+}
+
 // Booster icons — same materials and light as the game pieces.
 const ICONS = {
   // Beach-ball of the six game colours: "change colour".
@@ -663,13 +828,41 @@ const DEFAULT_LIGHT = { hemi: 0.85, key: 2.1, keyColor: 0xfff4e0, env: 0.35 };
 window.studio = {
   types: Object.keys(BUILD),
   colors: Object.keys(PALETTE),
-  vehicle(type, color, { pxPerUnit = 92, outline = 5 } = {}) {
+  vehicle(type, color, { pxPerUnit = 92, outline = 5, variant = null } = {}) {
     const obj = place(BUILD[type](PALETTE[color]));
     obj.scale.set(...(CHUNK[type] ?? [1, 1, 1]));
+    // Frame on the BASE vehicle, then decorate: a variant keeps the base sprite's
+    // canvas size and body position, so the game can swap between them freely.
     const { W, H } = frame(obj, pxPerUnit, outline + 10);
+    if (variant) {
+      const deco = new THREE.Group();
+      VARIANT[variant](deco, type, PALETTE[color]);
+      deco.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+      obj.add(deco);
+    }
     const out = compose(renderPasses(obj, W, H), W, H, outline);
     clearObj(obj);
     return out.toDataURL('image/png');
+  },
+  variants: Object.keys(VARIANT),
+  // Boss vehicle. Returns { url, panel } — panel is the roof light panel's
+  // rectangle as fractions of the image (cx, cy, w, h), for the game's overlay.
+  boss({ pxPerUnit = 92, outline = 6, armored = false } = {}) {
+    const obj = place(buildBoss({ armored }));
+    const { W, H } = frame(obj, pxPerUnit, outline + 10);
+    const inv = camera.matrixWorldInverse;
+    const P = BOSS_PANEL;
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const dx of [-1, 1]) for (const dz of [-1, 1]) {
+      const p = new THREE.Vector3(P.x + dx * P.w / 2, P.y + 0.05, P.z + dz * P.d / 2).applyMatrix4(inv);
+      x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y);
+    }
+    const fx = (x) => (x - camera.left) / (camera.right - camera.left);
+    const fy = (y) => (camera.top - y) / (camera.top - camera.bottom);
+    const panel = { cx: (fx(x0) + fx(x1)) / 2, cy: (fy(y0) + fy(y1)) / 2, w: fx(x1) - fx(x0), h: fy(y0) - fy(y1) };
+    const out = compose(renderPasses(obj, W, H), W, H, outline);
+    clearObj(obj);
+    return { url: out.toDataURL('image/png'), panel, W, H };
   },
   // Square canvas; the ball's diameter lands at `ballFrac` of the side.
   bomb(color, { px = 256, ballFrac = 0.715, outline = 5 } = {}) {

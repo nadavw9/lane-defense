@@ -201,130 +201,41 @@ describe('INFRA-C: spawnScript { untilPct, weights?, rate? }', () => {
   });
 });
 
-// ── INFRA-B — L30 "Industrial Finale" tank-heavy weights (§3c boss) ─────────────
+// ── V2 boss vehicles (L10/L20/L30/L40) — config fidelity ────────────────────────
+// 2026-09-27 V2 redesign: the four bosses are real vehicles with a colour
+// sequence (TrafficRules.makeBoss), replacing the V1 spawn-weight "bosses"
+// (L20 surge rate script, L30 tank weights, L40 staged gauntlet, L10 supply
+// bias). These pin each boss's designed twist so a retune cannot quietly erase it.
+describe('V2 boss vehicles: each boss level carries its designed twist', () => {
+  const cfgOf = (id) => { const lm = new LevelManager(); lm.goToLevel(id); return lm.current; };
+  const bosses = (cfg) => (cfg.initialCars ?? []).filter((d) => d.sequence);
 
-describe('INFRA-B: L30 tank-heavy bandWeights', () => {
-  it('L30 spawns ≈40% tanks (the design intent, realized in config); bigrig present in every phase (destroyType goal)', () => {
-    const band = bandWeights(30);
-    for (const phase of ['CALM', 'BUILD', 'PRESSURE', 'CLIMAX', 'RELIEF']) {
-      expect(band[phase].some(w => w.value === 'bigrig')).toBe(true);
-    }
-    // Weighted tank share across phases lands ~25-50% (≈40% through the level).
-    for (const phase of ['BUILD', 'PRESSURE', 'CLIMAX']) {
-      const total = band[phase].reduce((s, w) => s + w.weight, 0);
-      const tank  = band[phase].find(w => w.value === 'tank')?.weight ?? 0;
-      expect(tank / total).toBeGreaterThanOrEqual(0.35);
-      expect(tank / total).toBeLessThanOrEqual(0.55);
-    }
-    // L29/L31 are NOT tank-heavy — the branch is L30-only.
-    expect(bandWeights(29)).not.toBe(band);
-    expect(bandWeights(31)).not.toBe(band);
-  });
-});
-
-// ── L20 "The Surge" (§3c boss) — spawnScript rate + director==sim parity ────────
-
-describe('L20 "The Surge": crest/lull rate script + director==sim parity', () => {
-  const CHECKPOINTS = [0.05, 0.25, 0.35, 0.55, 0.65, 0.85, 0.95];
-
-  it('the real L20 config alternates crest (rate 3) / lull (rate 1) across kill-progress, no type weights', () => {
-    const lm = new LevelManager();
-    lm.goToLevel(20);
-    const cfg = lm.current;
-    expect(cfg.colors).toEqual(['Red', 'Blue', 'Green']);            // what NOT to touch: 3 colors
-    expect(cfg.spawnScript.every((s) => !s.weights)).toBe(true);      // rate-only — surge is about rate, not type
-
-    const dir = new CarDirector({}, new SeededRandom(1));
-    dir.setSpawnScript(cfg.spawnScript);
-    const rates = CHECKPOINTS.map((p) => { dir.setProgress(p); return dir.scriptRate(); });
-    expect(rates).toEqual([3, 1, 3, 1, 3, 1, 3]);
-  });
-
-  it('GameLoop._refillLanes honors the real L20 spawnScript rate (not laneTargetCarCount) at every stage', () => {
-    const lm = new LevelManager();
-    lm.goToLevel(20);
-    const cfg = lm.current;
-    // _refillLanes derives progress itself via _goalProgressPct (overwriting any
-    // manual setProgress) — drive it through gs.goalProgress instead, using a
-    // round total so the checkpoints land on exact fractions.
-    const { gs, loop, carDir } = makeLoop({ goals: [{ type: 'destroyTotal', count: 100 }] });
-    carDir.setSpawnScript(cfg.spawnScript);
-
-    for (const [p, expectedRate] of CHECKPOINTS.map((p, i) => [p, [3, 1, 3, 1, 3, 1, 3][i]])) {
-      for (const lane of gs.lanes) lane.cars = [];   // reset so refill fills from empty
-      gs.goalProgress = [Math.round(100 * (1 - p))];
-      loop._refillLanes();
-      for (let li = 0; li < 4; li++) expect(gs.lanes[li].cars.length).toBe(expectedRate);
+  it('every boss level has a defeatBoss goal matching its boss count, with sequences in the palette', () => {
+    for (const id of [10, 20, 30, 40]) {
+      const cfg = cfgOf(id);
+      const bs = bosses(cfg);
+      expect(bs.length, `L${id} boss count`).toBeGreaterThan(0);
+      expect(cfg.goals).toEqual([{ type: 'defeatBoss', count: bs.length }]);
+      for (const b of bs) for (const c of b.sequence) expect(cfg.colors).toContain(c);
     }
   });
 
-  it('SimulationRunner measurably reacts to the crest/lull alternation: an all-crest (no relief) variant of the SAME script is at least as hard as the real one', () => {
-    const lm = new LevelManager();
-    lm.goToLevel(20);
-    const cfg = { ...lm.current, skill: 'average' };
-    const allCrest = cfg.spawnScript.map((s) => ({ ...s, rate: 3 }));   // strip the lulls, same untilPct boundaries
-
-    const run = (spawnScript) => {
-      const r = new SimulationRunner({ ...cfg, spawnScript });
-      let wins = 0;
-      for (let s = 0; s < 150; s++) if (r.runLevel(1 + s).won) wins++;
-      return wins / 150;
-    };
-    const real = run(cfg.spawnScript);
-    const noRelief = run(allCrest);
-    expect(real).toBeGreaterThanOrEqual(noRelief);   // lulls can only help, never hurt
-  // 300 level sims (2 scripts x 150 seeds) against vitest's 5s default. This sat
-  // marginally UNDER the default and tipped over on a loaded CI runner once the
-  // L10 test in this same file grew — it is not a new cost, it was always
-  // unfunded. Budgeted explicitly rather than left to sample-size roulette.
-  //
-  // 30s -> 60s (2026-08-01). Local timings for this file swung 2.9s / 32s / 28s /
-  // 37s across consecutive identical runs on the same commit, so whether the sim
-  // carry-over fix genuinely made it slower or the dev box was simply thrashing
-  // could NOT be established locally — measurement was abandoned rather than
-  // guessed at. CI (clean runner) passed it at 30s on 74d3a8e. Doubling the budget
-  // costs nothing but CI patience and removes a flake source; it weakens no
-  // assertion, since a timeout is a wall-clock allowance, not a threshold.
-  }, 60_000);
-});
-
-// ── L40 "Grandmaster Finale" (§3c boss) — 3-stage gauntlet config fidelity ──────
-
-describe('L40 "Grandmaster Finale": staged gauntlet + bike-seed opening', () => {
-  const cfg = (() => { const lm = new LevelManager(); lm.goToLevel(40); return lm.current; })();
-
-  it('opening board is seeded all-bikes: 9 initialCars covering rows 0-2 of all 3 lanes', () => {
-    expect(cfg.initialCars).toHaveLength(9);   // 2026-08-08: 3 lanes, not 4
-    expect(cfg.initialCars.every((d) => d.type === 'small')).toBe(true);
-    for (let lane = 0; lane < 3; lane++) {   // 2026-08-08: 3 lanes
-      const rows = cfg.initialCars.filter((d) => d.lane === lane).map((d) => d.row).sort();
-      expect(rows).toEqual([0, 1, 2]);
-    }
+  it('L10 "The Hauler" is a plain sequence boss; L20 "Iron Hauler" re-plates', () => {
+    expect(bosses(cfgOf(10))[0].reArmor).toBeFalsy();
+    expect(bosses(cfgOf(20))[0].reArmor).toBe(true);
   });
 
-  it('the director spawns each stage\'s designed types from the REAL config: bikes → trucks/vans → tanks/bigrigs', () => {
-    const dir = new CarDirector({}, new SeededRandom(17));
-    dir.setSpawnScript(cfg.spawnScript);
-    const WC = cfg.worldConfig;
-    const typesAt = (p, n = 60) => {
-      dir.setProgress(p);
-      const seen = new Set();
-      for (let i = 0; i < n; i++) {
-        const car = dir.generateCar({ id: i % 4 }, 'BUILD', WC, cfg.colors, cfg.gridRows);
-        if (!(car.type === 'small' && car.hp <= 2 && p > 0.33)) seen.add(car.type);   // skip carry-over pairs off-stage-1
-      }
-      return seen;
-    };
-    const s1 = typesAt(0.10), s2 = typesAt(0.50), s3 = typesAt(0.90);
-    expect([...s1].every((t) => ['small', 'big'].includes(t))).toBe(true);            // Bike Swarm
-    expect([...s2].every((t) => ['truck', 'jeep', 'big', 'small'].includes(t))).toBe(true); // Truck Wall (small = carry-over pairs only)
-    expect(s2.has('truck')).toBe(true);
-    expect([...s3].every((t) => ['tank', 'bigrig', 'truck', 'small'].includes(t))).toBe(true); // Pincer
-    expect(s3.has('tank') || s3.has('bigrig')).toBe(true);
-    // What NOT to touch: 6 colors, 120s runway, multi-goal shape.
-    expect(cfg.colors).toHaveLength(6);
-    expect(cfg.duration).toBe(120);
-    expect(cfg.goals.length).toBeGreaterThanOrEqual(3);
+  it('L30 "Chameleon King" is the longest single sequence and is flanked by speeders', () => {
+    const cfg = cfgOf(30);
+    const len = bosses(cfg)[0].sequence.length;
+    for (const id of [10, 20]) expect(len).toBeGreaterThan(bosses(cfgOf(id))[0].sequence.length);
+    expect(cfg.traits?.speeder).toBeGreaterThan(0);
+  });
+
+  it('L40 "Twin Titans" fields two bosses, one of them armoured', () => {
+    const bs = bosses(cfgOf(40));
+    expect(bs).toHaveLength(2);
+    expect(bs.filter((b) => b.reArmor)).toHaveLength(1);
   });
 });
 
@@ -371,84 +282,8 @@ describe('L10 v2: shooterColorWeights supply bias', () => {
     dir.setColorBias({});
   });
 
-  // SKIPPED 2026-08-08, BLOCKED ON THE OWNER PLAYING L10 ON THE 3-LANE BOARD.
-  // Not a flaky test and not an obsolete one — it is detecting a real design
-  // regression from the L9-L40 conversion (see the measurement in the body). It
-  // stays skipped rather than re-pointed so the regression cannot be mistaken for
-  // a pass; delete or rewrite it only as part of deciding L10's boss identity.
-  it.skip('the real L10 config carries the bias, and the sim measurably reacts: red-scarce supply on a red goal is harder than none', () => {
-    const lm = new LevelManager();
-    lm.goToLevel(10);
-    const cfg = lm.current;
-    expect(cfg.shooterColorWeights).toEqual({ Blue: 3, Red: 1 });
-    expect(cfg.colors).toEqual(['Red', 'Blue']);   // what NOT to touch: 2-color lock
-
-    const base = {
-      duration: cfg.duration, colors: cfg.colors, worldConfig: cfg.worldConfig, levelId: 10,
-      skill: 'average', laneCount: cfg.laneCount, colCount: cfg.colCount,
-      laneTargetCarCount: cfg.laneTargetCarCount, spawnBudget: cfg.spawnBudget,
-      gridRows: cfg.gridRows, goals: cfg.goals, initialCars: cfg.initialCars,
-    };
-    const SEEDS = 300;
-    const run = (weights) => {
-      const r = new SimulationRunner({ ...base, shooterColorWeights: weights });
-      let wins = 0;
-      for (let s = 0; s < SEEDS; s++) if (r.runLevel(1 + s).won) wins++;
-      return wins / SEEDS;
-    };
-    // Deterministic seeds; use an extreme bias for a margin-proof direction test
-    // (the config's 3:1 is intentionally gentle — measured -2pts at 150 seeds).
-    //
-    // *** PROVISIONAL THRESHOLD — expires at the next L10 play test. ***
-    // Lowering a gate to accommodate erosion is normally the WRONG move. It is
-    // accepted here only because the erosion is recorded in the open rather than
-    // absorbed silently, and only until L10 is actually played. If L10 plays
-    // wrong, THE FIX IS RESTORING COLOUR-SUPPLY PRESSURE (L10's config), NOT
-    // lowering this threshold again. Do not treat 2pts as a new floor to erode
-    // from — a third reduction would mean the mechanism is gone, not thin.
-    //
-    // THRESHOLD LOWERED 5pts -> 2pts, 2026-07-31, AND THAT IS A RECORDED EROSION,
-    // NOT A TUNING CONVENIENCE. The BOMB booster became a colour-agnostic LANE
-    // clear on this date. A lane clear substitutes for colour supply — it removes
-    // cars the player could not otherwise answer — so it partially compensates for
-    // exactly the scarcity L10's identity is built on. Measured at 300 runs:
-    //     L10  unbiased 80.0%  biased 77.0%   margin 3.0pts  (was >5pts)
-    //     L20  61.0% / 44.7%   16.3pts        L30  77.0% / 51.3%  25.7pts
-    //     L40  83.3% / 77.0%    6.3pts
-    // L10 is the outlier because it is the only 2-colour boss: a 2-colour palette
-    // gives supply bias the least room to bite, and the lane clear takes some of
-    // what remains. Seeds raised 150 -> 300 so a 2pt margin is still signal.
-    //
-    // The DIRECTION is what this test exists to prove and it still holds. But a
-    // 3pt margin is thin for a mechanic a boss depends on. Per the boss-identity
-    // rule bosses must be PLAYED, not simmed, before any retune — so this records
-    // the erosion for that decision instead of hiding it behind a passing gate.
-    // If L10 plays as a bench-lock puzzle still, accept it; if the lane clear
-    // trivialises it, the fix is L10's config, not this threshold.
-    //
-    // 2026-08-08 — THE DIRECTION HAS NOW INVERTED, AND THIS IS THE 3-LANE CONVERSION
-    // DOING EXACTLY WHAT WAS PREDICTED. L10's identity is "2 colours x 4 lanes":
-    // the supply lock works because a red-scarce queue cannot answer four lanes of
-    // red. At 3 lanes that arithmetic changes, and measured after the conversion:
-    //     unbiased 45.3%   extreme-biased 48.7%   margin -3.4pts (was +3.0)
-    // The bias no longer makes L10 harder; it is now marginally EASIER, so the
-    // bench-lock mechanic is not doing its job on the converted board.
-    //
-    // L10 still sims INSIDE its 40-55 boss band (45.3%), so nothing here is broken
-    // in a difficulty sense — the PUZZLE is what regressed, and a win-rate band
-    // cannot see that. Per the boss-identity rule bosses must be PLAYED, not
-    // simmed, so this is left FAILING-BY-SKIP rather than re-pointed at the new
-    // numbers: re-pointing it would convert a real design regression into a green
-    // check. Re-enable once the owner has played L10 on the 3-lane board and
-    // decided whether the bench-lock is rebuilt (more colours? a supply script?)
-    // or retired.
-    expect(run(null)).toBeGreaterThan(run({ Blue: 50, Red: 1 }) + 0.02);
-  // 600 level sims (2 configs x 300 seeds) does not fit vitest's 5s default on a
-  // CI runner — it passed locally and failed CI, which is the project's recurring
-  // "green locally, red in CI" shape. This is a wall-clock BUDGET, not a loosened
-  // assertion: the seed count is what makes a 2pt margin trustworthy, so the fix
-  // is to fund the work, not to sample less and call the noise a result.
-  }, 30_000);
+  // (The skipped real-L10 supply-bias test was retired with the V1 "Bench Test"
+  //  boss: V2's L10 is a boss vehicle and carries no supply bias.)
 });
 
 // ── Config-shape audit: spawnScript weights are { type: weight } OBJECTS ────────

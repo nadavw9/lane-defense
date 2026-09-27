@@ -15,7 +15,7 @@ export const COLORS = ['red', 'blue', 'green', 'yellow', 'purple', 'orange'];
 
 export const CAR_URLS = [
   ...COLORS.map(c => `${_B}sprites/cars/car-${c}.png`),
-  `${_B}sprites/cars/car-boss.png`,
+  `${_B}sprites/designed/boss.png`,
 ];
 
 export const SHOOTER_URLS = COLORS.flatMap(c => [

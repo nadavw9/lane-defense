@@ -156,21 +156,21 @@ const scaleRare = (phases, k) => Object.fromEntries(
   Object.entries(phases).map(([phase, ws]) => [phase, ws.map((w) =>
     (w.value === 'bigrig' || w.value === 'tank') ? { ...w, weight: Math.round(w.weight * k) } : w)]));
 const WEIGHTS_RARE_GOAL = scaleRare(WEIGHTS_FULL, 2.5);
-const RARE_GOAL_LEVELS = new Set([31, 32, 36, 39]);
+const RARE_GOAL_LEVELS = new Set([15]);   // V2: "Meet the tank" — tanks must actually show up
 
 // Exported for the level-config audit (tests/audit-level-config.test.js), which
 // verifies every destroyType goal targets a car type actually spawnable at that level.
 export function bandWeights(level) {
+  // V2 level table (2026-09-27, see LevelManager). Types arrive: bike L1, car L2,
+  // van L5, truck L8, big rig L12, tank L15.
   if (RARE_GOAL_LEVELS.has(level)) return WEIGHTS_RARE_GOAL;
   if (level === 1)  return WEIGHTS_L1;
   if (level <= 4)   return WEIGHTS_FTUE;
-  if (level <= 5)   return WEIGHTS_MID;
-  if (level <= 8)   return WEIGHTS_MID_TRUCK;   // L6-L8: truck pulled forward (LEVER B, 2026-08-01)
-  if (level <= 12)  return WEIGHTS_HARD;
-  if (level <= 14)  return WEIGHTS_HARD_PLUS;
-  if (level === 17) return WEIGHTS_L17_BIGRIG;
-  if (level === 30) return WEIGHTS_L30_TANK;   // §3c boss: tank-heavy (INFRA-B)
-  return WEIGHTS_FULL;
+  if (level <= 7)   return WEIGHTS_MID;
+  if (level <= 11)  return WEIGHTS_MID_TRUCK;   // trucks from L8 ("Heavy load")
+  if (level <= 14)  return WEIGHTS_HARD_PLUS;   // big rigs from L12
+  if (level === 18) return WEIGHTS_L17_BIGRIG;  // "Big rigs"
+  return WEIGHTS_FULL;                          // tank from L15
 }
 
 export function pickCarType(rng, level, phase, availableRows) {

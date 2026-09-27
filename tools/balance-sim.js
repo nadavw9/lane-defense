@@ -42,6 +42,7 @@ function goalSummary(goals) {
   return goals.map(g =>
     g.type === 'destroyTotal' ? `Total:${g.count}`
     : g.type === 'destroyColor' ? `${g.color}:${g.count}`
+    : g.type === 'defeatBoss' ? `BOSS:${g.count}`
     : `${g.carType}:${g.count}`
   ).join(', ');
 }
@@ -77,14 +78,8 @@ function runOne(levelId) {
   const lm = new LevelManager();
   lm.goToLevel(levelId);
   const cfg = lm.current;
-  const runner = new SimulationRunner({
-    duration: cfg.duration, colors: cfg.colors, worldConfig: cfg.worldConfig,
-    levelId, skill, laneCount: cfg.laneCount, colCount: cfg.colCount,
-    laneTargetCarCount: cfg.laneTargetCarCount, spawnBudget: cfg.spawnBudget,
-    gridRows: cfg.gridRows, goals: cfg.goals ?? [],
-    initialCars: cfg.initialCars ?? null, spawnScript: cfg.spawnScript ?? null,   // §3c bosses
-    shooterColorWeights: cfg.shooterColorWeights ?? null,                         // §3c L10 v2
-  });
+  const runner = SimulationRunner.fromLevel(cfg, { skill });
+
 
   let wins = 0, winTurns = 0, totalKills = 0, totalShots = 0;
   for (let s = 0; s < runs; s++) {

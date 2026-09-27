@@ -96,8 +96,8 @@ const LEVEL_INTRO_TYPE = {
   1:  'small',   // motorbike
   2:  'big',     // sedan
   5:  'jeep',    // van
-  6:  'truck',   // moved 9 -> 6 (2026-08-01) — see CarTypes.WEIGHTS_MID_TRUCK
-  13: 'bigrig',
+  8:  'truck',   // V2 (2026-09-27): L8 "Heavy load"
+  12: 'bigrig',  // V2: big rigs from L12
   15: 'tank',
 };
 

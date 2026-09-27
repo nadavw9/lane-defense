@@ -272,7 +272,8 @@ export class SimulationRunner {
         const g = goals[i];
         const match = g.type === 'destroyTotal'
           || (g.type === 'destroyColor' && color === g.color)
-          || (g.type === 'destroyType'  && type  === g.carType);
+          || (g.type === 'destroyType'  && type  === g.carType)
+          || (g.type === 'defeatBoss'   && type  === 'boss');
         if (match) goalProgress[i] = Math.max(0, goalProgress[i] - 1);
       }
     };
@@ -656,6 +657,22 @@ export class SimulationRunner {
       powerShots,
       armorBreaks,
     };
+  }
+
+  // A runner for a real level config — every field the live game reads from the
+  // config, in one place, so tools and tests can't forget one (traits, bosses...).
+  static fromLevel(cfg, opts = {}) {
+    return new SimulationRunner({
+      duration: cfg.duration, colors: cfg.colors, worldConfig: cfg.worldConfig,
+      levelId: cfg.id, laneCount: cfg.laneCount, colCount: cfg.colCount,
+      laneTargetCarCount: cfg.laneTargetCarCount, spawnBudget: cfg.spawnBudget,
+      gridRows: cfg.gridRows, goals: cfg.goals ?? [],
+      initialCars: cfg.initialCars ?? null, spawnScript: cfg.spawnScript ?? null,
+      shooterColorWeights: cfg.shooterColorWeights ?? null,
+      traits: cfg.traits ?? null,
+      streak: typeof cfg.streak === 'boolean' ? cfg.streak : null,
+      ...opts,
+    });
   }
 
   // Run `count` levels starting from startSeed and return aggregate stats.

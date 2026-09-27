@@ -273,7 +273,7 @@ export class GameState {
   // Apply a kill to all matching goals.
   // destroyType car types: small, big, jeep, truck, bigrig, tank.
   // destroyColor goals check carColor.
-  // destroyTotal goals always count down.
+  // destroyTotal goals always count down; defeatBoss counts boss vehicles.
   applyKillToGoals(carColor, carType) {
     for (let i = 0; i < this.goals.length; i++) {
       const goal = this.goals[i];
@@ -285,6 +285,8 @@ export class GameState {
         matches = (carColor === goal.color);
       } else if (goal.type === 'destroyType') {
         matches = (carType === goal.carType);
+      } else if (goal.type === 'defeatBoss') {
+        matches = (carType === 'boss');
       }
 
       if (matches) {

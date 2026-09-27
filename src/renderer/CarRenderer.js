@@ -69,7 +69,7 @@ const DEATH_SCALE    = 1.40;
 // Map color name → sprite URL
 const _BASE = import.meta.env.BASE_URL;
 function carTextureUrl(car) {
-  if (car.type === 'boss') return `${_BASE}sprites/cars/car-boss.png`;
+  if (car.type === 'boss') return `${_BASE}sprites/designed/boss.png`;
   return `${_BASE}sprites/cars/car-${car.color.toLowerCase()}.png`;
 }
 

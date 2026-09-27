@@ -13,6 +13,7 @@
 // win is goal-driven now (see GoalCounterUI).
 
 import { Graphics, Text } from 'pixi.js';
+import { INK, SUN, toyPanel } from './ToyStyle.js';
 import { BAR_Y } from './BoosterBar.js';
 import { uiIcon } from './UIIcon.js';
 
@@ -84,15 +85,14 @@ export class HUDRenderer {
     this._levelText = new Text({
       text: 'L1',
       style: {
-        fontSize:   14,
-        fontWeight: 'bold',
-        fill:       0xffffff,
-        dropShadow: { color: 0x220055, blur: 3, distance: 1, alpha: 0.9 },
+        fontSize:   15,
+        fontWeight: '900',
+        fill:       INK,
       },
     });
     this._levelText.anchor.set(0.5, 0.5);
     this._levelText.x = BADGE_X + BADGE_W / 2;
-    this._levelText.y = ROW_MID;
+    this._levelText.y = ROW_MID - 1;
     this._layer.addChild(this._levelText);
 
     // ── Combo glow + text (transient, over upper road) ──────────────────────
@@ -197,14 +197,7 @@ export class HUDRenderer {
 
     // No separate info bar — these elements sit on the booster bar's own full-width
     // background. Draw just the level badge (purple gradient pill) in the left gutter.
-    g.roundRect(BADGE_X + 1, BADGE_Y + 2, BADGE_W, BADGE_H, BADGE_R);
-    g.fill({ color: 0x000000, alpha: 0.38 });
-    g.roundRect(BADGE_X, BADGE_Y, BADGE_W, BADGE_H, BADGE_R);
-    g.fill(0x4a1088);
-    g.rect(BADGE_X + BADGE_R * 0.6, BADGE_Y + 1, BADGE_W - BADGE_R * 1.2, BADGE_H * 0.46);
-    g.fill({ color: 0xaa55ff, alpha: 0.50 });
-    g.roundRect(BADGE_X, BADGE_Y, BADGE_W, BADGE_H, BADGE_R);
-    g.stroke({ color: 0xddaa22, width: 1.2, alpha: 0.70 });
+    toyPanel(g, BADGE_X, BADGE_Y - 1, BADGE_W, BADGE_H - 2, BADGE_R, SUN, { lip: 3, stroke: 2.5 });
   }
 
   _drawCoinDisc(cx, cy) {

@@ -22,8 +22,8 @@ const CONFETTI_COLORS = [0xff4466, 0x44ff88, 0xffcc00, 0x44aaff, 0xff88ff, 0xff8
 // Goal/car palette (matches CLAUDE.md) — used to tint the win confetti by the
 // level's goals.
 const GOAL_PALETTE = {
-  Red: 0xE24B4A, Blue: 0x378ADD, Green: 0x639922,
-  Yellow: 0xEF9F27, Purple: 0x7F77DD, Orange: 0xD85A30,
+  Red: 0xFF3D3D, Blue: 0x2F8CFF, Green: 0x2FCC55,
+  Yellow: 0xFFD42A, Purple: 0xA35CFF, Orange: 0xFF8A1C,
 };
 
 // Colours of the level's destroyColor goals (falls back to the festive set).

@@ -36,12 +36,12 @@ import { bombSlotScreenY, PX_PER_WU, BOMB_R } from '../renderer3d/projection.js'
 
 // Re-export color map so we can use it without a circular dep on ShooterRenderer.
 const COLOR_MAP = {
-  Red:    0xE24B4A,
-  Blue:   0x378ADD,
-  Green:  0x639922,
-  Yellow: 0xEF9F27,
-  Purple: 0x7F77DD,
-  Orange: 0xD85A30,
+  Red:    0xFF3D3D,
+  Blue:   0x2F8CFF,
+  Green:  0x2FCC55,
+  Yellow: 0xFFD42A,
+  Purple: 0xA35CFF,
+  Orange: 0xFF8A1C,
 };
 
 const HIT_RADIUS      = TOP_RADIUS + 14;

@@ -412,7 +412,14 @@ export class GameRenderer3D {
   setRoadTexture(url) { this._road?.setRoadTextureUrl?.(url); }
 
   // Dispatch-zone floor — a 3D plane UNDER the bomb spheres (null = none).
-  setZoneTexture(url) { this._road?.setZoneTextureUrl?.(url); }
+  // Also dresses Shooter3D's floor plane — that is the surface actually visible
+  // under the bombs (it sits above Road3D's zone floor). Stored so a rebuilt
+  // Shooter3D re-applies it (stale-value register: same shape as gridRows).
+  setZoneTexture(url) {
+    this._zoneTexUrl = url ?? null;
+    this._road?.setZoneTextureUrl?.(url);
+    this._shooters?.setFloorTexture(this._zoneTexUrl);
+  }
 
   setActiveColCount(n) {
     // Stored as well as forwarded: _buildGameObjects() replaces _shooters with a
@@ -589,6 +596,7 @@ export class GameRenderer3D {
     const pxPerWu = (this._height * scale) / (2 * frustum.halfZe);
     this._cars        = new Car3D(scene, this._lanes);
     this._shooters    = new Shooter3D(scene, this._columns, pxPerWu);
+    if (this._zoneTexUrl) this._shooters.setFloorTexture(this._zoneTexUrl);
     this._projectiles = new Projectile3D(scene, this._firingSlots, this._lanes);
     this._particles   = new Particles3D(scene, this._lighting, this._lanes);
     // Re-apply per-level geometry to the freshly-built renderers. Both MUST be

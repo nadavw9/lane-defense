@@ -2,6 +2,7 @@
 // Icons are PNG sprites (booster-{colorchange,freeze,bomb}.png); each card shows a
 // ×N count badge and an 18px name label. Bomb glow pulses when bombs available.
 import { Graphics, Text, Sprite, Assets } from 'pixi.js';
+import { INK, PLUM_DEEP, SUN, toyPanel, toyLabel } from './ToyStyle.js';
 
 const _B = import.meta.env.BASE_URL;
 function boosterUrl(name) { return `${_B}sprites/designed/booster-${name}.png`; }
@@ -29,7 +30,8 @@ export const BAR_H = 76;
 const CARD_W    = 64;
 const CARD_H    = 64;
 const CARD_GAP  = 10;
-const CARD_R    = 12;
+const CARD_R    = 14;
+const CARD_LIP  = 4;     // toy-button lip, inside CARD_H (face = CARD_H - CARD_LIP)
 const NUM_CARDS = 3;
 const TOTAL_W   = NUM_CARDS * CARD_W + (NUM_CARDS - 1) * CARD_GAP;
 const BAR_XOFF  = Math.round((390 - TOTAL_W) / 2);
@@ -37,7 +39,8 @@ const CARD_Y    = BAR_Y + Math.round((BAR_H - CARD_H) / 2);
 
 const ICON_SIZE  = 32;   // sprite icon, centered in the upper card area
 const ICON_CY    = 22;   // icon center Y — above the bottom name label
-const LABEL_SIZE = 18;   // name label — meets the design-system UI floor
+const LABEL_SIZE = 15;   // name label — fits INSIDE the 64px card with its ink outline
+                         // (at 18 the words overhung the card edges); the icon carries identity
 
 // ── Press animation (SWAP / FREEZE only — BOMB has its own glow feedback) ───────
 // On tap: scale down to 0.88 over 60ms (ease-in), spring back to 1.0 over 80ms.
@@ -47,7 +50,10 @@ const PRESS_MIN     = 0.88;
 
 const CARD_X = Array.from({ length: NUM_CARDS }, (_, i) => BAR_XOFF + i * (CARD_W + CARD_GAP));
 // Indices: 0=COLOR CHANGE, 1=FREEZE, 2=BOMB
-const COLOR_CHANGE_ACCENT = 0xCC66FF;   // rainbow/magenta hint for the COLOR CHANGE card
+// Toy Town card faces — each booster owns one saturated colour (palette-aligned).
+const COLOR_CHANGE_ACCENT = 0xA35CFF;   // purple  (palette Purple)
+const FREEZE_ACCENT       = 0x2FB4FF;   // ice cyan
+const BOMB_ACCENT         = 0xFF8A1C;   // orange  (palette Orange)
 
 
 export class BoosterBar {
@@ -59,14 +65,14 @@ export class BoosterBar {
     // Background strip
     const bg = new Graphics();
     bg.rect(0, BAR_Y, appW, BAR_H);
-    bg.fill(0x0a0a18);
-    bg.rect(0, BAR_Y, appW, 1);
-    bg.fill(0x1a1a3a);
+    bg.fill(PLUM_DEEP);
+    bg.rect(0, BAR_Y, appW, 3);
+    bg.fill(INK);
     this._layer.addChild(bg);
     this._bg = bg;
 
     this._colorChangeBtn = _makeCard(this._layer, CARD_X[0], COLOR_CHANGE_ACCENT, 'colorchange', 'COLOR', onColorChange);
-    this._freezeBtn = _makeCard(this._layer, CARD_X[1], 0x44ccff, 'freeze', 'FREEZE', onFreeze);
+    this._freezeBtn = _makeCard(this._layer, CARD_X[1], FREEZE_ACCENT, 'freeze', 'FREEZE', onFreeze);
     this._bombBtn   = _makeBombCard(this._layer, CARD_X[2], onBomb);
 
     this._colorChangeBtn._unlocked = false;
@@ -114,9 +120,9 @@ export class BoosterBar {
     _animatePress(this._freezeBtn, dt);
 
     // ── Count badge labels (short form — icon identifies the button) ──────────
-    const colorLabel  = s.colorChangeMode ? 'CANCEL' : `×${s.colorChange}`;
-    const freezeLabel = `×${s.freeze}`;
-    const bombLabel   = s.bombMode  ? 'CANCEL' : `×${s.bombs}`;
+    const colorLabel  = s.colorChangeMode ? 'CANCEL' : `${s.colorChange}`;
+    const freezeLabel = `${s.freeze}`;
+    const bombLabel   = s.bombMode  ? 'CANCEL' : `${s.bombs}`;
 
     if (this._colorChangeBtn.label.text !== colorLabel) {
       this._colorChangeBtn.label.text = colorLabel;
@@ -129,9 +135,11 @@ export class BoosterBar {
       if (this._bombBtn.bombIcon) this._bombBtn.bombIcon.visible = !s.bombMode;
     }
 
-    this._colorChangeBtn.alpha = !this._colorChangeBtn._unlocked ? 0.18 : s.colorChange <= 0 ? 0.28 : s.colorChangeMode ? 0.70 : 1.0;
-    this._freezeBtn.alpha = !this._freezeBtn._unlocked ? 0.18 : (s.freeze <= 0 || s.isFrozen())  ? 0.28 : 1.0;
-    this._bombBtn.alpha   = (s.bombs <= 0 && !s.bombMode) ? 0.30 : s.bombMode ? 0.70 : 1.0;
+    // Empty / locked cards stay solid enough to read as buttons (toy style has no
+    // ghost UI) — the dimmer step still separates "none left" from "ready".
+    this._colorChangeBtn.alpha = !this._colorChangeBtn._unlocked ? 0.35 : s.colorChange <= 0 ? 0.55 : s.colorChangeMode ? 0.75 : 1.0;
+    this._freezeBtn.alpha = !this._freezeBtn._unlocked ? 0.35 : (s.freeze <= 0 || s.isFrozen())  ? 0.55 : 1.0;
+    this._bombBtn.alpha   = (s.bombs <= 0 && !s.bombMode) ? 0.55 : s.bombMode ? 0.75 : 1.0;
 
     // ── Bomb card glow / pulse ────────────────────────────────────────────────
     this._bombPulse += dt * 3.5;
@@ -165,7 +173,7 @@ export class BoosterBar {
     }
     if (this._freezeBtn._unlocked && s.freeze > 0 && !s.isFrozen()) {
       this._readyGlow.roundRect(CARD_X[1] - 2, CARD_Y - 2, CARD_W + 4, CARD_H + 4, CARD_R + 2);
-      this._readyGlow.stroke({ color: 0x44ccff, width: 2, alpha: rp });
+      this._readyGlow.stroke({ color: FREEZE_ACCENT, width: 2, alpha: rp });
     }
 
     // ── 4C: color-bomb charge pips (3 multi-kills earn a Color Bomb) ──────────
@@ -179,7 +187,9 @@ export class BoosterBar {
       // last-filled pip pulses so progress is felt
       const pulse = (on && i === filled - 1) ? 0.7 + 0.3 * Math.sin(this._readyPulse * 1.6) : 1;
       this._pips.circle(x, PY, on ? PR + 0.5 : PR);
-      this._pips.fill({ color: on ? 0xffe14a : 0x33384a, alpha: (on ? 1 : 0.55) * pulse });
+      this._pips.fill({ color: on ? SUN : 0x4A4466, alpha: (on ? 1 : 0.8) * pulse });
+      this._pips.circle(x, PY, on ? PR + 0.5 : PR);
+      this._pips.stroke({ color: INK, width: 1.5 });
       if (on) { this._pips.circle(x, PY, PR + 2.5); this._pips.stroke({ color: 0xff8844, width: 1, alpha: 0.5 * pulse }); }
     }
     this._prevPipFill = filled;
@@ -222,23 +232,7 @@ export class BoosterBar {
 
 function _cardBase(layer, x, accentColor) {
   const card = new Graphics();
-
-  // Dark base
-  card.roundRect(0, 0, CARD_W, CARD_H, CARD_R);
-  card.fill({ color: 0x0b0b18 });
-
-  // Lighter top gradient strip (≈45% of height)
-  card.roundRect(0, 0, CARD_W, Math.round(CARD_H * 0.45), CARD_R);
-  card.fill({ color: 0x181830, alpha: 0.9 });
-
-  // Thin colored accent line at top
-  card.rect(CARD_R, 0, CARD_W - CARD_R * 2, 2);
-  card.fill({ color: accentColor, alpha: 0.90 });
-
-  // Border
-  card.roundRect(0.5, 0.5, CARD_W - 1, CARD_H - 1, CARD_R);
-  card.stroke({ color: accentColor, width: 1, alpha: 0.38 });
-
+  toyPanel(card, 0, 0, CARD_W, CARD_H - CARD_LIP, CARD_R, accentColor, { lip: CARD_LIP, stroke: 3 });
   card.x = x;
   card.y = CARD_Y;
   layer.addChild(card);
@@ -246,24 +240,22 @@ function _cardBase(layer, x, accentColor) {
 }
 
 function _addCountLabel(card, accentColor) {
+  // Yellow count coin with an ink number, overlapping the card's top-right corner.
   const badge = new Graphics();
-  badge.roundRect(-17, -12, 34, 24, 12);
-  badge.fill({ color: 0x050510, alpha: 0.92 });
-  badge.roundRect(-17, -12, 34, 24, 12);
-  badge.stroke({ color: accentColor, width: 1.5, alpha: 0.70 });
-  badge.x = CARD_W - 18;
-  badge.y = 13;
+  badge.circle(0, 0, 11).fill(SUN);
+  badge.circle(0, 0, 11).stroke({ color: INK, width: 2.5 });
+  badge.x = CARD_W - 6;
+  badge.y = 2;
   card.addChild(badge);
   card.labelBadge = badge;   // hidden when the label shows the centered CANCEL action
 
   const tx = new Text({
-    text: '×0',
-    style: { fontSize: 16, fontWeight: 'bold', fill: 0xffffff,
-      dropShadow: { color: 0x000000, blur: 3, distance: 0, alpha: 0.9 } },
+    text: '0',
+    style: { fontSize: 14, fontWeight: '900', fill: INK },
   });
   tx.anchor.set(0.5, 0.5);
-  tx.x = CARD_W - 18;
-  tx.y = 13;
+  tx.x = CARD_W - 6;
+  tx.y = 2;
   card.addChild(tx);
   return tx;
 }
@@ -272,19 +264,17 @@ function _addCountLabel(card, accentColor) {
 // centered on the card (matching the bottom name label) with no corner badge.
 function _positionLabel(card, text) {
   const isCancel = text === 'CANCEL';
-  card.label.x = isCancel ? CARD_W / 2 : CARD_W - 18;
+  card.label.x = isCancel ? CARD_W / 2 : CARD_W - 6;
+  card.label.y = isCancel ? (CARD_H - CARD_LIP) / 2 : 2;
+  card.label.style.fill = isCancel ? 0xffffff : INK;
   if (card.labelBadge) card.labelBadge.visible = !isCancel;
 }
 
 function _addNameLabel(card, name, accentColor) {
-  const tx = new Text({
-    text: name,
-    style: { fontSize: LABEL_SIZE, fontWeight: 'bold', fill: accentColor,
-      dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 0.8 } },
-  });
+  const tx = new Text({ text: name, style: toyLabel(LABEL_SIZE) });
   tx.anchor.set(0.5, 1);
   tx.x = CARD_W / 2;
-  tx.y = CARD_H - 3;
+  tx.y = CARD_H - CARD_LIP - 3;
   card.addChild(tx);
 }
 
@@ -354,7 +344,7 @@ function _animatePress(card, dt) {
 }
 
 function _makeBombCard(layer, x, onClick) {
-  const c    = 0xffaa00;
+  const c    = BOMB_ACCENT;
   const card = _cardBase(layer, x, c);
 
   // Sprite icon (kept on `bombIcon` so it can be hidden in bomb-mode → CANCEL)
@@ -377,7 +367,7 @@ function _makeBombCard(layer, x, onClick) {
 // Placeholder COLOR CHANGE glyph: a 6-wedge rainbow wheel (the game palette) with a
 // white "paintbrush" stroke across it. Replaced later by booster-colorchange.png.
 function _iconColorChange(g, cx, cy, _c) {
-  const wedges = [0xE24B4A, 0xEF9F27, 0x639922, 0x378ADD, 0x7F77DD, 0xD85A30];
+  const wedges = [0xFF3D3D, 0xFFD42A, 0x2FCC55, 0x2F8CFF, 0xA35CFF, 0xFF8A1C];
   const R = 11;
   for (let i = 0; i < 6; i++) {
     const a0 = (i / 6) * Math.PI * 2 - Math.PI / 2;

@@ -63,6 +63,8 @@ const COL_REFLECTOR    = 0xffdd00;
 const SHOULDER_COLOR = 0x1a1a1a;   // dark pavement flanking road
 const SHOULDER_W     = 5.0;        // world units wide (≈60 px on screen)
 const EDGE_LINE_W    = 0.15;       // white edge stripe width (world units)
+const LANE_EDGE_LINE_W = 0.22;      // solid line on the outer lane boundary (≥ tile dash width)
+const COL_LANE_EDGE  = 0xF4F1E6;   // same cream as the toy road tile's dash
 
 const TRAFFIC_DOT_COUNT = 30;
 const TRAFFIC_DOT_SPEED = 4.0;    // world units / sec
@@ -412,10 +414,13 @@ export class Road3D {
     // Main asphalt plane
     const texCopyMain = roadTex.clone();
     texCopyMain.repeat.set(W / 4.0, ROAD_LENGTH / 4.0);
-    // road-tile.jpg has a painted dash down its centre. Offset U so a dash lands
-    // exactly on the road centre (X=0) regardless of width: centre u=0.5 maps to
-    // U = offset + repeat/2, and we want that to be a dash (U = k+0.5).
-    texCopyMain.offset.x = 0.5 - (W / 4.0) / 2;
+    // The tile has its dash on the centre-line (U = k+0.5) and one tile = one
+    // lane, so solving U(firstDivider) = 0.5 puts a dash on EVERY divider for
+    // any lane count. The old formula (0.5 − repeat/2) aimed the dash at X=0,
+    // which is a divider only for EVEN counts: at 3 lanes it slid every dash
+    // onto the lane CENTRES, painting a line straight down under the cars.
+    const dashOffsetU = 0.5 - (laneToX(0, n) + 2.0 + hw) / 4.0;
+    texCopyMain.offset.x = dashOffsetU;
     texCopyMain.needsUpdate = true;
     const mat = new THREE.MeshBasicMaterial({ map: texCopyMain });
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(W, ROAD_LENGTH, 1, 1), mat);
@@ -441,7 +446,7 @@ export class Road3D {
 
     const texCopyVanish = roadTex.clone();
     texCopyVanish.repeat.set(W / 4.0, VANISH_LEN / 4.0);
-    texCopyVanish.offset.x = 0.5 - (W / 4.0) / 2;   // align dash to centre (matches main road)
+    texCopyVanish.offset.x = dashOffsetU;   // dashes on the dividers (matches main road)
     texCopyVanish.needsUpdate = true;
     const vanishMat = new THREE.MeshBasicMaterial({ map: texCopyVanish, color: 0x888888 });
     const vanishMesh = new THREE.Mesh(new THREE.PlaneGeometry(W, VANISH_LEN, 1, 1), vanishMat);
@@ -482,6 +487,7 @@ export class Road3D {
 
     // ── Road shoulders ────────────────────────────────────────────────────
     const shoulderMat = new THREE.MeshBasicMaterial({ color: SHOULDER_COLOR });
+    const laneEdgeMat = new THREE.MeshBasicMaterial({ color: COL_LANE_EDGE });
     for (const side of [-1, 1]) {
       const sx = side * (hw + SHOULDER_W / 2);
       const shoulder = new THREE.Mesh(
@@ -503,6 +509,17 @@ export class Road3D {
       edge.rotation.x = -Math.PI / 2;
       edge.position.set(ex, 0.002, ROAD_CENTER_Z);
       this._group.add(edge);
+
+      // Solid edge line on the outer lane boundary. The tile's dash also lands
+      // here (every lane boundary is a tile centre-line); a continuous line
+      // reads as the road edge instead of a stray dashed kerb.
+      const laneEdge = new THREE.Mesh(
+        new THREE.PlaneGeometry(LANE_EDGE_LINE_W, ROAD_LENGTH),
+        laneEdgeMat,
+      );
+      laneEdge.rotation.x = -Math.PI / 2;
+      laneEdge.position.set(side * n * 2.0, 0.003, ROAD_CENTER_Z);
+      this._group.add(laneEdge);
     }
   }
 
@@ -512,8 +529,10 @@ export class Road3D {
     const gapLen    = 1.0;
     const period    = dashLen + gapLen;
     const dashCount = Math.ceil(ROAD_LENGTH / period);
+    // World road tiles paint their own divider dashes (see _buildRoadSurface);
+    // these faint 3D dashes only mark lanes on the plain default tile.
     const dashMat   = new THREE.MeshBasicMaterial({
-      color: COL_DIVIDER, transparent: true, opacity: 0.25,
+      color: COL_DIVIDER, transparent: true, opacity: this._roadTexUrl ? 0 : 0.25,
     });
 
     // Divider between lane i and i+1: x = laneToX(i, n) + 2.0

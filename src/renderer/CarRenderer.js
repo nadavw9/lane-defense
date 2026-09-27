@@ -35,12 +35,12 @@ const HP_COLOR_LOW  = 0xee3333;   // < 25 %
 
 // Programmatic fallback colors (used when sprite loading failed).
 const CAR_COLORS = {
-  Red:    0xE24B4A,
-  Blue:   0x378ADD,
-  Green:  0x639922,
-  Yellow: 0xEF9F27,
-  Purple: 0x7F77DD,
-  Orange: 0xD85A30,
+  Red:    0xFF3D3D,
+  Blue:   0x2F8CFF,
+  Green:  0x2FCC55,
+  Yellow: 0xFFD42A,
+  Purple: 0xA35CFF,
+  Orange: 0xFF8A1C,
 };
 
 // Slightly lighter fill and darker border for each base color.

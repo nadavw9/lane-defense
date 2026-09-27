@@ -19,10 +19,10 @@ const BASE_URL = import.meta.env.BASE_URL ?? '';
 const TYPE_INFO = {
   small:  { name: 'MOTORBIKE', hp: CAR_TYPES.small.hp,  color: 0x44BB99, sprite: 'sprites/designed/bike-red.png'          },
   big:    { name: 'CAR',       hp: CAR_TYPES.big.hp,    color: 0xDD8833, sprite: 'sprites/designed/car-red-processed.png' },
-  jeep:   { name: 'VAN',       hp: CAR_TYPES.jeep.hp,   color: 0x378ADD, sprite: 'sprites/designed/van-red.png'           },
-  truck:  { name: 'TENDER',    hp: CAR_TYPES.truck.hp,  color: 0x639922, sprite: 'sprites/designed/truck-red.png'         },
-  bigrig: { name: 'BIG RIG',   hp: CAR_TYPES.bigrig.hp, color: 0xD85A30, sprite: 'sprites/designed/bigrig-red.png'        },
-  tank:   { name: 'TANK',      hp: CAR_TYPES.tank.hp,   color: 0x7F77DD, sprite: 'sprites/designed/tank.png'              },
+  jeep:   { name: 'VAN',       hp: CAR_TYPES.jeep.hp,   color: 0x2F8CFF, sprite: 'sprites/designed/van-red.png'           },
+  truck:  { name: 'TENDER',    hp: CAR_TYPES.truck.hp,  color: 0x2FCC55, sprite: 'sprites/designed/truck-red.png'         },
+  bigrig: { name: 'BIG RIG',   hp: CAR_TYPES.bigrig.hp, color: 0xFF8A1C, sprite: 'sprites/designed/bigrig-red.png'        },
+  tank:   { name: 'TANK',      hp: CAR_TYPES.tank.hp,   color: 0xA35CFF, sprite: 'sprites/designed/tank.png'              },
 };
 
 const DISPLAY_MS    = 2500;

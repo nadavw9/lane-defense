@@ -12,6 +12,7 @@ import { Sprite, Graphics, Text, Assets } from 'pixi.js';
 import { COL_W } from './ShooterRenderer.js';
 import { PX_PER_WU, BOMB_R, bombSlotScreenY, bombSlotRenderedBottom } from '../renderer3d/projection.js';
 import { BAR_Y } from './BoosterBar.js';
+import { INK, PLUM } from './ToyStyle.js';
 
 // ── Live bench geometry ───────────────────────────────────────────────────────
 // FUNCTIONS, not module-level consts (2026-07-24, geometry-liveness sweep):
@@ -60,15 +61,16 @@ export function bombUrl(color) {
   const file = `powerball-${c}.png`;
   return `${import.meta.env.BASE_URL}sprites/designed/${file}`;
 }
-const SLOT_BG    = 0x0d0d1a;
-const SLOT_EDGE  = 0x223344;
+// Toy Town: slots are recessed wells in a plum tray, ink-outlined.
+const SLOT_BG    = 0x2A2540;
+const SLOT_EDGE  = INK;
 const HI_COLOR   = 0x44aaff;
 const HI_ALPHA   = 0.35;
 
 // Shooter color → hex for glow tint on occupied slots.
 const GLOW_MAP = {
-  Red:    0xE24B4A, Blue:   0x378ADD, Green:  0x639922,
-  Yellow: 0xEF9F27, Purple: 0x7F77DD, Orange: 0xD85A30,
+  Red:    0xFF3D3D, Blue:   0x2F8CFF, Green:  0x2FCC55,
+  Yellow: 0xFFD42A, Purple: 0xA35CFF, Orange: 0xFF8A1C,
 };
 
 const DMG_STYLE = {
@@ -159,8 +161,10 @@ export class BenchRenderer {
     // Solid tray panel spanning the full bench band — drawn first, behind slots,
     // so the storage area is always distinct from the road.
     this._trayG.clear();
-    this._trayG.roundRect(2, BENCH_Y - BENCH_TRAY_PAD, this._colW * 4 - 4, BENCH_SLOT_H + BENCH_TRAY_PAD * 2, 9);
-    this._trayG.fill({ color: 0x1a1a2e, alpha: 0.85 });
+    this._trayG.roundRect(2, BENCH_Y - BENCH_TRAY_PAD, this._colW * 4 - 4, BENCH_SLOT_H + BENCH_TRAY_PAD * 2, 12);
+    this._trayG.fill(PLUM);
+    this._trayG.roundRect(2, BENCH_Y - BENCH_TRAY_PAD, this._colW * 4 - 4, BENCH_SLOT_H + BENCH_TRAY_PAD * 2, 12);
+    this._trayG.stroke({ color: INK, width: 3 });
 
     for (let i = 0; i < 4; i++) {
       const g       = this._graphics[i];
@@ -175,8 +179,8 @@ export class BenchRenderer {
       // Empty slots at 35% opacity so players can see there are slots to fill;
       // filled slots stay bright. (Tray panel behind makes both legible.)
       const isEmpty    = !shooter;
-      const bgAlpha    = isEmpty ? 0.35 : 0.90;
-      const borderAlph = isEmpty ? 0.35 : 0.55;
+      const bgAlpha    = 1;
+      const borderAlph = isEmpty ? 0.55 : 0.9;
 
       // Slot background
       g.roundRect(sx, BENCH_Y, sw, BENCH_SLOT_H, 7);
@@ -190,7 +194,7 @@ export class BenchRenderer {
         g.stroke({ color: HI_COLOR, width: 2, alpha: HI_ALPHA });
       } else {
         g.roundRect(sx, BENCH_Y, sw, BENCH_SLOT_H, 7);
-        g.stroke({ color: SLOT_EDGE, width: 1, alpha: borderAlph });
+        g.stroke({ color: SLOT_EDGE, width: 2, alpha: borderAlph });
       }
 
       if (shooter) {
@@ -227,7 +231,7 @@ export class BenchRenderer {
         this._sprites[i].visible = false;
         // Empty slot indicator — small dim dot
         g.circle(cx, cy, 3.5);
-        g.fill({ color: 0x334455, alpha: 0.55 });
+        g.fill({ color: 0x5A5478, alpha: 0.9 });
         this._texts[i].visible = false;
       }
     }

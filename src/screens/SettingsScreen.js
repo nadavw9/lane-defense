@@ -17,12 +17,12 @@ const VERSION = 'v1.1.0';
 
 const SLIDES = [
   {
-    num: '01', accent: 0x378ADD,
+    num: '01', accent: 0x2F8CFF,
     head: 'DRAG TO FIRE',
     body: 'Drag a bomb up from the bottom\ninto a lane matching its color.',
   },
   {
-    num: '02', accent: 0xE24B4A,
+    num: '02', accent: 0xFF3D3D,
     head: 'STOP THE BREACH',
     body: 'Destroy every car before it crosses\nthe red breach line at the bottom.',
   },

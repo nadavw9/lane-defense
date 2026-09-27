@@ -72,12 +72,12 @@ function badgeWorldH() { return 1.60 * BOMB_ZONE_SCALE; }
 
 // ── Color palette ──────────────────────────────────────────────────────────────
 const COLOR_HEX = {
-  Red:    0xFF1111,
-  Blue:   0x1166FF,
-  Green:  0x11CC11,
-  Yellow: 0xFFDD00,
-  Purple: 0xBB11FF,
-  Orange: 0xFF7700,
+  Red:    0xFF3D3D,
+  Blue:   0x2F8CFF,
+  Green:  0x2FCC55,
+  Yellow: 0xFFD42A,
+  Purple: 0xA35CFF,
+  Orange: 0xFF8A1C,
 };
 
 // ── Cross-browser rounded rect ─────────────────────────────────────────────────
@@ -414,6 +414,27 @@ export class Shooter3D {
 
   // ── Private ─────────────────────────────────────────────────────────────────
 
+  /** Per-world floor under the bombs (url = zone-<world>-<variant>.png, null =
+   *  keep the workshop surface). Tiled at the art's own aspect across the full
+   *  plane width; a world floor is authored at display brightness, so the
+   *  workshop's ×2.5 colour boost is dropped. */
+  setFloorTexture(url) {
+    if (!this._bgPlane || !url || url === this._floorUrl) return;
+    this._floorUrl = url;
+    const mat = this._bgPlane.material;
+    _texLoader.load(url, (tex) => {
+      if (url !== this._floorUrl) { tex.dispose(); return; }   // superseded mid-load
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const aspect = tex.image.width / tex.image.height;
+      tex.repeat.set(1, this._bgDims.d / (this._bgDims.w / aspect));
+      mat.map?.dispose();
+      mat.map = tex;
+      mat.color.setRGB(1, 1, 1);
+      mat.needsUpdate = true;
+    });
+  }
+
   _createBgPlane() {
     // Covers full bomb zone: Z=0 (breach) to Z≈12.6 (past stash slot).
     // Width wider than widest frustum (≈19.3) so edges are never visible.
@@ -430,6 +451,7 @@ export class Shooter3D {
     _texLoader.load(
       `${import.meta.env.BASE_URL}sprites/designed/panel-workshop-surface.png`,
       (tex) => {
+        if (this._floorUrl) { tex.dispose(); return; }   // a world floor won the race
         tex.wrapS      = THREE.RepeatWrapping;
         tex.wrapT      = THREE.RepeatWrapping;
         tex.repeat.set(5, 3.15);
@@ -442,6 +464,7 @@ export class Shooter3D {
         mat.needsUpdate = true;
       },
     );
+    this._bgDims = { w: BG_W, d: BG_DEPTH };
     const geo  = new THREE.PlaneGeometry(BG_W, BG_DEPTH);
     const mesh = new THREE.Mesh(geo, mat);
     mesh.rotation.x = -Math.PI / 2;

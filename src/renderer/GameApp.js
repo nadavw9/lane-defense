@@ -164,6 +164,7 @@ import {
   buildingSetForLevel, worldPanelForLevel, sceneVariantForLevel,
 } from './assetManifest.js';
 import { uiIcon } from './UIIcon.js';
+import { INK, SUN, toyPanel } from './ToyStyle.js';
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 
@@ -533,14 +534,10 @@ async function main() {
   const pauseBtn = (() => {
     const HIT = 44;           // tap-target size (min 44px)
     const g   = new Graphics();
-    // Background pill
-    g.roundRect(0, 0, HIT, HIT, 8);
-    g.fill({ color: 0x000000, alpha: 0.40 });
-    // Two vertical bars of the || symbol (centred in the 44px pill)
-    g.rect(14, 12, 6, 20);
-    g.fill({ color: 0xffffff, alpha: 0.90 });
-    g.rect(26, 12, 6, 20);
-    g.fill({ color: 0xffffff, alpha: 0.90 });
+    // Toy button (yellow face, ink outline, lip) with an ink || glyph.
+    toyPanel(g, 3, 3, HIT - 6, HIT - 10, 11, SUN, { lip: 4, stroke: 3 });
+    g.roundRect(14, 11, 6, 17, 2).fill(INK);
+    g.roundRect(24, 11, 6, 17, 2).fill(INK);
     // Right gutter of the booster row, centred on the booster card centre (y=786).
     g.x       = APP_W - HIT;
     g.y       = 764;
@@ -581,10 +578,7 @@ async function main() {
   function _makeGoalBarBtn(glyph, x, onTap, iconName = null) {
     const HIT = 38;
     const g   = new Graphics();
-    g.roundRect(0, 0, HIT, HIT, 9);
-    g.fill({ color: 0x000000, alpha: 0.45 });
-    g.roundRect(0, 0, HIT, HIT, 9);
-    g.stroke({ color: 0xffffff, width: 1, alpha: 0.18 });
+    toyPanel(g, 0, 0, HIT, HIT - 4, 10, SUN, { lip: 4, stroke: 3 });
     g.x = x; g.y = 28;
     g.eventMode = 'static';
     g.cursor    = 'pointer';
@@ -592,15 +586,16 @@ async function main() {
     g.on('pointerdown', onTap);
     g.on('pointerover', () => { g.alpha = 0.75; });
     g.on('pointerout',  () => { g.alpha = 1.00; });
-    const icon = iconName ? uiIcon(iconName, 24, glyph) : new Text({ text: glyph, style: { fontSize: 20 } });
+    const icon = iconName ? uiIcon(iconName, 24, glyph)
+      : new Text({ text: glyph, style: { fontSize: 22, fontWeight: '900', fill: INK } });
     icon.anchor.set(0.5, 0.5);
-    icon.x = HIT / 2; icon.y = HIT / 2;
+    icon.x = HIT / 2; icon.y = (HIT - 4) / 2;
     g.addChild(icon);
     layers.get('hudLayer').addChild(g);
     return g;
   }
   const hpGuideBtn   = _makeGoalBarBtn('🚗', 6,           () => showHpGuide(), 'car');
-  const howToPlayBtn = _makeGoalBarBtn('❓', APP_W - 44,  () => showHowToPlay());
+  const howToPlayBtn = _makeGoalBarBtn('?',  APP_W - 44,  () => showHowToPlay());
 
   // (Color-bomb streak pip counter removed — color bombs are now earned by a
   //  single-shot MULTI-KILL of 2+ cars, not by a consecutive-shot streak. FIX 4.)

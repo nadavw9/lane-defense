@@ -58,12 +58,12 @@ function explGeoForSize(size) {
 
 // ── Colour palette ─────────────────────────────────────────────────────────────
 const COLOR_HEX = {
-  Red:    0xE24B4A,
-  Blue:   0x378ADD,
-  Green:  0x639922,
-  Yellow: 0xEF9F27,
-  Purple: 0x7F77DD,
-  Orange: 0xD85A30,
+  Red:    0xFF3D3D,
+  Blue:   0x2F8CFF,
+  Green:  0x2FCC55,
+  Yellow: 0xFFD42A,
+  Purple: 0xA35CFF,
+  Orange: 0xFF8A1C,
 };
 
 // Particle Y height above road surface.
@@ -319,7 +319,7 @@ export class Particles3D {
     if (this._disposed) return;
     const pos = this._frontCarPos(laneIdx);
     if (!pos) return;
-    const mat  = new THREE.MeshBasicMaterial({ color: 0xE24B4A, transparent: true, opacity: 0.95 });
+    const mat  = new THREE.MeshBasicMaterial({ color: 0xFF3D3D, transparent: true, opacity: 0.95 });
     const mesh = new THREE.Mesh(_explGeoLg, mat);
     mesh.position.set(pos.x, PARTICLE_Y + 0.4, pos.z);
     this._scene.add(mesh);

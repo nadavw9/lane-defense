@@ -9,32 +9,34 @@
 import { Container, Graphics, Text, Sprite, Assets, Texture } from 'pixi.js';
 import { uiIcon } from './UIIcon.js';
 import { row0CoverY } from '../renderer3d/projection.js';
+import { INK, PLUM, WHITE, toyPanel } from './ToyStyle.js';
 
 const _B = import.meta.env.BASE_URL;
 
 // Color palette (matches CLAUDE.md section 10)
 const COLOR_PALETTE = {
-  Red:    0xE24B4A,
-  Blue:   0x378ADD,
-  Green:  0x639922,
-  Yellow: 0xEF9F27,
-  Purple: 0x7F77DD,
-  Orange: 0xD85A30,
+  Red:    0xFF3D3D,
+  Blue:   0x2F8CFF,
+  Green:  0x2FCC55,
+  Yellow: 0xFFD42A,
+  Purple: 0xA35CFF,
+  Orange: 0xFF8A1C,
 };
 
 // Card styling — larger pills with breathing room (HUD redesign: goals own the top).
 const CARD_W = 70;
 const CARD_H = 70;
 const CARD_GAP = 12;
-const CARD_R = 14;
-const CARD_BG_COLOR = 0x2a2f3e;
-const CARD_BG_ALPHA = 0.95;
+const CARD_R = 16;
+const CARD_LIP = 4;                 // toy-button lip under the face (inside CARD_H)
+const CARD_BG_COLOR   = WHITE;      // Toy Town: white cards, ink outline, ink number
+const CARD_DONE_COLOR = 0xC9F5D3;   // soft mint when the goal is met
 
 // The goals own the TOP zone: a full-width opaque band at the very top of the
 // screen, above the road. Cards are centred inside it; the band's solid fill keeps
 // the road/cars (which start ~44px) from showing through or overlapping.
 const PANEL_TOP_Y   = 12;   // first card row top
-const BAND_BG_COLOR = 0x0a0a1e;
+const BAND_BG_COLOR = PLUM;
 const MAX_CARDS_PER_ROW = 3;
 
 export class GoalCounterUI {
@@ -230,19 +232,14 @@ export class GoalCounterUI {
 
     if (icon) {
       icon.x = CARD_W / 2;
-      icon.y = 24;
+      icon.y = 21;
       card.addChild(icon);
     }
 
     // Count badge (bold white number or checkmark)
     const countText = new Text({
       text: String(goal.count),
-      style: {
-        fontSize:   22,
-        fontWeight: 'bold',
-        fill:       0xffffff,
-        dropShadow: { color: 0x000000, blur: 3, distance: 0, alpha: 0.6 },
-      },
+      style: { fontSize: 22, fontWeight: '900', fill: INK },
     });
     countText.anchor.set(0.5, 0.5);
     countText.x = CARD_W / 2;
@@ -254,28 +251,28 @@ export class GoalCounterUI {
     return card;
   }
 
-  // Redraw a card's pill bg: dark normally, green tint when complete, with an
-  // optional white flash overlay (0..1) during the completion celebration.
+  // Redraw a card's toy panel: white normally, mint when complete, with an
+  // optional gold flash overlay (0..1) during the completion celebration.
   _drawCardBg(card, completed, flashAlpha = 0) {
     const g = card._bg;
     g.clear();
-    const base = completed ? 0x1f6b3a : CARD_BG_COLOR;   // green when done
-    g.roundRect(0, 0, CARD_W, CARD_H, CARD_R).fill({ color: base, alpha: CARD_BG_ALPHA });
-    if (completed) g.roundRect(0, 0, CARD_W, CARD_H, CARD_R).stroke({ color: 0x44ff88, width: 2, alpha: 0.7 });
-    if (flashAlpha > 0) g.roundRect(0, 0, CARD_W, CARD_H, CARD_R).fill({ color: 0xffffff, alpha: flashAlpha });
+    toyPanel(g, 0, 0, CARD_W, CARD_H - CARD_LIP, CARD_R, completed ? CARD_DONE_COLOR : CARD_BG_COLOR,
+      { lip: CARD_LIP, gloss: 0 });
+    if (flashAlpha > 0) g.roundRect(0, 0, CARD_W, CARD_H - CARD_LIP, CARD_R).fill({ color: 0xffe066, alpha: flashAlpha });
   }
 
   _buildBurstIcon() {
     return uiIcon('explosion', 32, '💥');   // sprite (glyph fallback)
   }
 
-  // destroyColor: dedicated stylized counter icon (side-view car, Bug D — the
-  // top-down gameplay sprite read poorly at 32px). Fallback chain: goal-car →
-  // old top-down sprite → flat color circle.
+  // destroyColor: the same toy sedan the player is hunting on the road. (Bug D
+  // swapped in a side-view icon because the OLD painted top-down sprite read
+  // poorly at 32px; the outlined toy art reads cleanly, and matching the road
+  // is the point of the card.) Fallback chain: toy sedan → side-view → circle.
   _buildColorCarIcon(color) {
     const c = String(color).toLowerCase();
-    const sprite = this._designedSprite(`goal-car-${c}`, 34)
-                ?? this._designedSprite(`car-${c}-processed`, 32);
+    const sprite = this._designedSprite(`car-${c}-processed`, 30)
+                ?? this._designedSprite(`goal-car-${c}`, 34);
     if (sprite) return sprite;
     return this._buildColorCircle(color);
   }
@@ -348,8 +345,8 @@ export class GoalCounterUI {
     this._band.clear();
     this._band.rect(0, 0, this._stageWidth, bandH);
     this._band.fill(BAND_BG_COLOR);
-    this._band.rect(0, bandH - 1, this._stageWidth, 1);
-    this._band.fill({ color: 0xffffff, alpha: 0.07 });
+    this._band.rect(0, bandH - 3, this._stageWidth, 3);
+    this._band.fill(INK);
 
     let cardIndex = 0;
     for (let row = 0; row < totalRowsNeeded; row++) {

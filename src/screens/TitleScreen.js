@@ -9,7 +9,7 @@
 import { Container, Graphics, Text, Sprite, Assets, Rectangle } from 'pixi.js';
 import { uiIcon, uiPlate } from '../renderer/UIIcon.js';
 
-const CAR_COLORS  = [0xE24B4A, 0x378ADD, 0x639922, 0xEF9F27, 0x7F77DD, 0xD85A30];
+const CAR_COLORS  = [0xFF3D3D, 0x2F8CFF, 0x2FCC55, 0xFFD42A, 0xA35CFF, 0xFF8A1C];
 const SKY_TOP     = 0x4FC3F7;   // light sky blue
 const SKY_BOTTOM  = 0x81D4FA;   // slightly lighter horizon
 const GROUND_COL  = 0x66BB6A;   // fresh green ground
@@ -18,8 +18,8 @@ const CLOUD_COL   = 0xFFFFFF;
 const BASE_URL = import.meta.env.BASE_URL ?? '';
 // Real car sprites (preloaded by GameApp) used for the animated road cars.
 const CAR_SPRITE_COLORS = ['red', 'blue', 'green', 'orange', 'purple', 'yellow'];
-const CAR_HEX = { red: 0xE24B4A, blue: 0x378ADD, green: 0x639922,
-                  orange: 0xD85A30, purple: 0x7F77DD, yellow: 0xEF9F27 };
+const CAR_HEX = { red: 0xFF3D3D, blue: 0x2F8CFF, green: 0x2FCC55,
+                  orange: 0xFF8A1C, purple: 0xA35CFF, yellow: 0xFFD42A };
 
 // Build a car as a real sprite (preloaded), sized to a target on-screen HEIGHT and
 // facing rightward (direction of travel — the intro car drives left→right toward the
@@ -41,7 +41,7 @@ function makeCarSprite(color, targetH = 22) {
   }
   const g = new Graphics();
   const L = targetH * CAR_ASPECT, H = targetH;
-  g.roundRect(-L / 2, -H / 2, L, H, 4);          g.fill(CAR_HEX[color] ?? 0xE24B4A);
+  g.roundRect(-L / 2, -H / 2, L, H, 4);          g.fill(CAR_HEX[color] ?? 0xFF3D3D);
   g.roundRect(L * 0.05, -H / 2 + 2, L * 0.3, H - 4, 2); g.fill({ color: 0xFFFFFF, alpha: 0.32 });
   return g;
 }
@@ -291,7 +291,7 @@ export class TitleScreen {
       bomb.scale.set(42 / Math.max(bombTex.width, bombTex.height));
     } else {
       bomb = new Graphics();
-      bomb.circle(0, 0, 20).fill(0xE24B4A);
+      bomb.circle(0, 0, 20).fill(0xFF3D3D);
       bomb.circle(-6, -6, 7).fill({ color: 0xFFFFFF, alpha: 0.6 });
     }
     bomb.x = w / 2; bomb.y = h * 0.10; bomb.visible = false;

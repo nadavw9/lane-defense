@@ -8,12 +8,12 @@ import { Graphics, Text, Container } from 'pixi.js';
 const UNLOCKS = {
   6: {
     name:   'Bench Unlocked!',
-    color:  0x378ADD,
+    color:  0x2F8CFF,
     desc:   'Store up to 4 unwanted bombs\nand retrieve them mid-battle.',
   },
   8: {
     name:   'Swap Unlocked!',
-    color:  0xEF9F27,
+    color:  0xFFD42A,
     desc:   'Instantly swap the colors\nof two bomb columns.',
   },
   14: {

@@ -45,17 +45,17 @@ const SPRITE_SCALE     = 0.43;   // boss/fallback only — real types use sprite
 // FIT × row pitch — nothing touches its lane neighbour, and the size ordering
 // (bike < sedan < van < truck < tank < bigrig) is preserved.
 // BODY_FRAC (alpha-bbox fractions of the sprite image) and cx (body-center X
-// offset, + = right of image center) are MEASURED by scripts/measure-car-bbox.mjs
-// — regenerate the table if the car art changes. All color variants share red's
-// framing (scripts/normalize-car-variants.mjs re-frames them; run it first after
-// any art change), so this per-type table is valid for every color.
+// offset, + = right of image center) are MEASURED — since the Toy Town art
+// (2026-09-27) by scripts/render-toy-sprites.mjs, which rasterises the vector
+// source and prints this table. Every colour shares one geometry, so the
+// per-type table is valid for every colour. Re-run it after any art change.
 const BODY_FRAC = {
-  small:  { w: 0.572, h: 0.893, cx:  0.000 },
-  big:    { w: 0.518, h: 0.775, cx:  0.002 },
-  jeep:   { w: 0.514, h: 0.900, cx:  0.000 },
-  truck:  { w: 0.614, h: 0.961, cx:  0.000 },
-  bigrig: { w: 0.560, h: 0.932, cx:  0.004 },
-  tank:   { w: 0.975, h: 0.993, cx:  0.002 },
+  small:  { w: 0.724, h: 0.875, cx:  0.000 },
+  big:    { w: 0.873, h: 0.891, cx:  0.000 },
+  jeep:   { w: 0.881, h: 0.896, cx:  0.000 },
+  truck:  { w: 0.818, h: 0.911, cx:  0.000 },
+  bigrig: { w: 0.809, h: 0.919, cx:  0.000 },
+  tank:   { w: 0.846, h: 0.852, cx:  0.000 },
 };
 // Body length as a fraction of the row pitch. The first pass targeted a ~1.9px
 // worst gap — it perceptually FUSED (antialiased sprite edges eat ~1px each side,
@@ -128,24 +128,27 @@ const WOBBLE_ROT_FREQ = 0.9;
 
 // ── Colors ───────────────────────────────────────────────────────────────────
 const COLOR_HEX = {
-  Red:    0xE24B4A,
-  Blue:   0x378ADD,
-  Green:  0x639922,
-  Yellow: 0xEF9F27,
-  Purple: 0x7F77DD,
-  Orange: 0xD85A30,
+  Red:    0xFF3D3D,
+  Blue:   0x2F8CFF,
+  Green:  0x2FCC55,
+  Yellow: 0xFFD42A,
+  Purple: 0xA35CFF,
+  Orange: 0xFF8A1C,
   Boss:   0xCC44CC,
 };
 
 // ── Per-type plane dimensions (fractions of CELL) ───────────────────────────
 // PlaneGeometry = CELL*wF × CELL*hF.
+// hF is the length basis; wF = hF × the sprite image's aspect (printed by
+// scripts/render-toy-sprites.mjs) so the art is never stretched. The old
+// painted sprites were square-ish canvases squeezed onto these planes.
 const TYPE_DIMS = {
-  small:  { wF: 0.40, hF: 0.77 },   // motorbike — recognizable handlebar width
-  big:    { wF: 0.58, hF: 0.77 },   // standard sedan
-  jeep:   { wF: 0.62, hF: 0.81 },   // van — just wider than sedan
-  truck:  { wF: 0.60, hF: 0.98 },   // pickup
-  bigrig: { wF: 0.60, hF: 1.26 },   // semi — long but not wide
-  tank:   { wF: 0.72, hF: 1.01 },   // widest, still within lane
+  small:  { wF: 0.393, hF: 0.77 },   // motorbike — 196×384 art
+  big:    { wF: 0.504, hF: 0.77 },   // sedan     — 251×384
+  jeep:   { wF: 0.531, hF: 0.81 },   // van       — 252×384
+  truck:  { wF: 0.617, hF: 0.98 },   // tanker    — 242×384
+  bigrig: { wF: 0.685, hF: 1.26 },   // semi      — 209×384
+  tank:   { wF: 0.715, hF: 1.01 },   // tank      — 272×384
   boss:   { wF: 1.33, hF: 1.33 },
 };
 

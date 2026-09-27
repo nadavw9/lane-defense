@@ -170,12 +170,16 @@ const GLYPHS = {
 };
 
 // Bomb sphere with its damage number. `glyph` adds the colour-blind shape.
-export function bombSVG(color, damage, style = 'toy', { glyph = false, size = 100 } = {}) {
+// `damage` null = no number (the game draws its own live badge on top).
+// `frame` = viewBox side: 116 is tight; the shipped sprite uses a wider frame so
+// the ball fills the same fraction of the canvas as the art it replaces.
+export function bombSVG(color, damage, style = 'toy', { glyph = false, size = 100, frame = 116 } = {}) {
   const c = PALETTE[color], s = STYLE[style], id = uid('b');
   const ring = s.glow ? `stroke="${c.light}" stroke-width="4"` : `stroke="${s.ink}" stroke-width="${s.w + 0.8}"`;
-  const num = String(damage);
+  const num = damage == null ? '' : String(damage);
   const fs = num.length > 1 ? 44 : 52;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-8 -8 116 116" width="${size}" height="${size}">
+  const o = 50 - frame / 2;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${o} ${o} ${frame} ${frame}" width="${size}" height="${size}">
     <defs>
       <radialGradient id="${id}r" cx=".35" cy=".3" r=".8">
         <stop offset="0" stop-color="${c.light}"/><stop offset=".5" stop-color="${c.base}"/><stop offset="1" stop-color="${c.dark}"/></radialGradient>
@@ -186,7 +190,7 @@ export function bombSVG(color, damage, style = 'toy', { glyph = false, size = 10
       <circle cx="50" cy="50" r="44" fill="url(#${id}r)" ${ring}/>
       <ellipse cx="36" cy="28" rx="16" ry="10" fill="#fff" opacity=".55" transform="rotate(-25 36 28)"/>
       ${glyph ? `<path d="${GLYPHS[c.glyph]}" transform="translate(74 74) scale(.95)" fill="#fff" stroke="${c.dark}" stroke-width="1.6"/>` : ''}
-      <text x="50" y="${glyph ? 66 : 68}" text-anchor="middle" font-family="'Fredoka','Baloo 2','Arial Rounded MT Bold',Arial,sans-serif"
-        font-weight="700" font-size="${fs}" fill="#fff" stroke="#1F1A33" stroke-width="6" paint-order="stroke">${num}</text>
+      ${num === '' ? '' : `<text x="50" y="${glyph ? 66 : 68}" text-anchor="middle" font-family="'Fredoka','Baloo 2','Arial Rounded MT Bold',Arial,sans-serif"
+        font-weight="700" font-size="${fs}" fill="#fff" stroke="#1F1A33" stroke-width="6" paint-order="stroke">${num}</text>`}
     </g></svg>`;
 }

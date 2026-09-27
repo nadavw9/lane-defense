@@ -43,7 +43,7 @@ import { HapticsManager }  from '../game/HapticsManager.js';
 import { setColorblindMode } from '../game/ColorblindMode.js';
 
 import {
-  setActiveCounts, getLaneScreenX, getColumnScreenX, getColumnSlotScreenY,
+  setActiveCounts, getLaneScreenX, getColumnScreenX, getColumnScreenY, getColumnSlotScreenY,
   getLaneScreenBounds, getActiveLaneCount, getActiveColCount,
 } from './PositionRegistry.js';
 import { CarDirector }     from '../director/CarDirector.js';
@@ -1661,7 +1661,10 @@ async function main() {
       haptics.medium();
       floatingTexts.push(spawnFloatingText(
         layers.get('particleLayer'),
-        (colIdx + 0.5) * (APP_W / 4), 560,
+        // Above the column that received the assist (2026-09-27). Was hardcoded to a
+        // 4-column X and Y=560 — wrong column at 3 lanes, and inside the queue since
+        // the queue moved. Both now come from the registry, like every other anchor.
+        getColumnScreenX(colIdx), getColumnScreenY() - 40,
         '⚡ CRISIS ASSIST', 0xffcc00,
       ));
       progress.incrementCrisisAssists();

@@ -68,7 +68,10 @@ export class AdManager {
   async init() {
     if (!Capacitor.isNativePlatform()) return;
     try {
-      await AdMob.initialize({ testingDevices: [], initializeForTesting: true });
+      // Test mode ONLY in dev builds (2026-09-27). This was hard-coded true, which
+      // puts the production ad unit IDs above into test mode in the release APK:
+      // test ads, no revenue. `vite build` sets DEV=false, so release is live.
+      await AdMob.initialize({ testingDevices: [], initializeForTesting: import.meta.env.DEV });
       this._native = true;
     } catch (e) {
       console.warn('[AdManager] AdMob init failed:', e);

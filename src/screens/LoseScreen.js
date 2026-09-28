@@ -97,7 +97,7 @@ export class LoseScreen {
     const isNearMiss = goalTotal > 0 && goalLeft > 0 && goalLeft <= goalTotal * 0.2;
 
     const hasStats = gs !== null;
-    const panelH   = hasStats ? (heartsRemaining !== null ? 420 : 392) : 270;
+    const panelH   = hasStats ? (heartsRemaining !== null ? 456 : 428) : 300;
     const panelW   = 330;
     const px = (w - panelW) / 2;
     const py = (h - panelH) / 2 - 20;
@@ -153,7 +153,7 @@ export class LoseScreen {
       cy += 36;
     }
 
-    cy += 12;
+    cy += 44;
     this._button('TRY AGAIN', cx, cy, 'green', onRetry, audio);
     cy += 70;
     this._button('LEVEL MAP', cx, cy, 'blue', onMenu, audio, 52);

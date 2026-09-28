@@ -144,13 +144,16 @@ function tickFloatingTexts(texts, dt) {
 
 // Spawn a short-lived floating text centred horizontally at (x, y).
 function spawnFloatingText(parent, x, y, text, color = 0xffffff) {
+  // Chunky title face with an ink outline, so callouts read over any road/theme.
   const t = new Text({
     text,
     style: {
-      fontSize:   18,
-      fontWeight: 'bold',
+      fontFamily: '"Luckiest Guy", Fredoka, Arial, sans-serif',
+      fontSize:   22,
       fill:       color,
-      dropShadow: { color: 0x000000, blur: 5, distance: 2, alpha: 0.9 },
+      letterSpacing: 1,
+      stroke:     { color: INK, width: 5, join: 'round' },
+      dropShadow: { color: 0x000000, blur: 2, distance: 3, alpha: 0.45, angle: Math.PI / 2 },
     },
   });
   t.anchor.set(0.5);
@@ -1806,7 +1809,7 @@ async function main() {
     haptics.medium();
     particles.spawnHit(laneIdx, gameX, 'Blue');
     floatingTexts.push(spawnFloatingText(layers.get('particleLayer'),
-      getLaneScreenX(laneIdx), getColumnScreenY() - 90, 'ARMOUR OFF!', 0xC9D2E0));
+      getLaneScreenX(laneIdx), getColumnScreenY() - 90, 'ARMOUR OFF!', 0xE6ECF5));
     featureBanners.fire('armor_break', 'Armour off! Now hit it with its own colour.');
   };
   gameLoop._onBossHit = (laneIdx, boss, dead) => {

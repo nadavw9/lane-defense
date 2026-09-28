@@ -10,6 +10,7 @@
 //   • NEXT LEVEL button gently pulses once active to invite the tap
 import { Container, Graphics, Text, Sprite, Assets } from 'pixi.js';
 import { uiIcon } from '../renderer/UIIcon.js';
+import { worldForLevel } from './levelMapLayout.js';
 import { panel as premiumPanel, ribbon, button as premiumButton, bodyText, titleText, well } from '../renderer/PremiumUI.js';
 
 const _B = import.meta.env.BASE_URL;
@@ -288,13 +289,25 @@ export class WinScreen {
     }
 
     // City building repair animation — steps through states as coins count up
-    if (this._cityBldTarget > 0 && this._coinCountTarget > 0) {
-      const prog = this._coinCountCurrent / this._coinCountTarget;
+    if (this._cityBldTarget > 0) {
+      // Paced by the coin count-up; a 0-coin win still repairs, on a timer.
+      this._cityT = (this._cityT ?? 0) + dt;
+      const prog = this._coinCountTarget > 0
+        ? this._coinCountCurrent / this._coinCountTarget
+        : Math.max(0, (this._cityT - 0.6) / 1.2);
       const targetNow = prog >= 1.0 ? this._cityBldTarget
         : (prog >= 0.4 && this._cityBldTarget >= 1 ? 1 : 0);
       if (targetNow !== this._cityBldState) {
         this._setCityBldState(targetNow);
       }
+    }
+    if (this._cityBldPop != null && this._cityBldSprite) {     // repaired: pop
+      this._cityBldPop += dt;
+      const p = Math.min(1, this._cityBldPop / 0.35);
+      const tex = this._cityBldSprite.texture;
+      const base = 64 / Math.max(tex.width, tex.height);
+      this._cityBldSprite.scale.set(base * (1 + 0.35 * Math.sin(Math.PI * p) * (1 - p * 0.5)));
+      if (p >= 1) { this._cityBldSprite.scale.set(base); this._cityBldPop = null; }
     }
   }
 
@@ -397,6 +410,7 @@ export class WinScreen {
     y += ROW_H + ROW_GAP;
     // City repair row: the building graphic animates rubble → scaffold → repaired.
     this._statRow(px + 22, y, panelW - 44, ROW_H, 'CITY REPAIRED', '', 0xffcc00, { name: 'trophy', emoji: '🏆' });
+    this._cityLevelId = typeof levelId === 'number' ? levelId : (gs.levelId ?? null);
     this._buildCityAnim(px + panelW - 22 - 58, y - 1);
     y += ROW_H + ROW_GAP;
     this._statRow(px + 22, y, panelW - 44, ROW_H, 'BEST MULTI-KILL', `×${gs.maxSingleShotKills}`, 0xff8844, { name: 'lightning', emoji: '⚡' });
@@ -555,6 +569,24 @@ export class WinScreen {
     this._cityBldState = state;
     const g = this._cityBldGfx;
     g.clear();
+    // The level's own baked building (the one the map shows), when it's loaded;
+    // the little vector house otherwise.
+    const lv = this._cityLevelId;
+    const tex = typeof lv === 'number'
+      ? Assets.get(`${import.meta.env.BASE_URL}sprites/designed/repair-${worldForLevel(lv).theme}-${state}-${lv % 3}.png`)
+      : null;
+    if (tex) {
+      if (!this._cityBldSprite) {
+        this._cityBldSprite = new Sprite(tex);
+        this._cityBldSprite.anchor.set(0.5, 0.62);
+        this._cityBldSprite.x = 26; this._cityBldSprite.y = 20;
+        this._cityBldGfx.parent.addChild(this._cityBldSprite);
+      }
+      this._cityBldSprite.texture = tex;
+      this._cityBldSprite.scale.set(64 / Math.max(tex.width, tex.height));
+      if (state === 2) this._cityBldPop = 0;
+      return;
+    }
     WinScreen._drawBldGraphic(g, 40, 28, state);
   }
 

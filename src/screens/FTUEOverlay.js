@@ -488,36 +488,55 @@ export class FeatureBanners {
     this._seen.add(key);
     this._persist();
     const appW = this._appW;
-    this._pq.enqueue(PRIORITY.TUTORIAL, (w) => FeatureBanners._buildPill(w ?? appW, text), 2.5);
+    this._pq.enqueue(PRIORITY.TUTORIAL, (w) => FeatureBanners._buildPill(w ?? appW, text), Math.min(5, 2.2 + text.length * 0.03));
   }
 
   _persist() {
     try { localStorage.setItem('ftue_banners', JSON.stringify([...this._seen])); } catch {}
   }
 
-  // Compact right-aligned toast: 200px wide, anchored to right edge.
-  // Positioned below the HUD bar (ZONE_Y[TUTORIAL]=76) so it never
-  // overlaps the level badge, hearts, or the gameplay road.
+  // Tip banner (premium pass): centred indigo card with a gold rim, auto-height.
+  // A leading "NEW!" / "BOSS!" tag is lifted out into a gold title chip.
   static _buildPill(w, text) {
     const grp = new Container();
-    const PW = 210, PH = 38;
-    const PX = w - PW - 10;   // right-aligned, 10px from edge
-
-    // Toy Town speech card: white face, ink outline, lip (ToyStyle).
-    const bg = new Graphics();
-    toyPanel(bg, PX, 0, PW, PH - 3, 12, WHITE, { lip: 3, stroke: 2.5, gloss: 0 });
-    grp.addChild(bg);
+    const PW = Math.min(340, w - 32);
+    const PX = (w - PW) / 2;
+    const m = /^(NEW!|BOSS!|FINAL BOSS!|SUPERCHARGED!)\s*/.exec(text);
+    const tag = m ? m[1] : null;
+    const body = m ? text.slice(m[0].length) : text;
 
     const txt = new Text({
-      text,
-      style: {
-        fontSize: 12, fontWeight: '800', fill: INK, align: 'right',
-        wordWrap: true, wordWrapWidth: PW - 16,
-      },
+      text: body,
+      style: { fontSize: 14, fontWeight: '700', fill: 0xFFFFFF, align: 'left',
+        lineHeight: 18, wordWrap: true, wordWrapWidth: PW - (tag ? 96 : 60) },
     });
-    txt.anchor.set(1.0, 0.5);   // right-aligned anchor
-    txt.x = PX + PW - 8;
-    txt.y = PH / 2;
+    const PH = Math.max(50, txt.height + 22);
+
+    const bg = new Graphics();
+    bg.roundRect(PX + 2, 5, PW, PH, 16).fill({ color: 0x000000, alpha: 0.35 });
+    bg.roundRect(PX, 0, PW, PH, 16).fill(0x2B2760);
+    bg.roundRect(PX, 0, PW, PH * 0.5, 16).fill({ color: 0xFFFFFF, alpha: 0.07 });
+    bg.roundRect(PX, 0, PW, PH, 16).stroke({ color: 0xFFC93C, width: 2.5 });
+    bg.roundRect(PX, 0, PW, PH, 16).stroke({ color: INK, width: 1, alpha: 0.6 });
+    grp.addChild(bg);
+
+    let tx = PX + 16;
+    if (tag) {
+      const chip = new Text({ text: tag.replace('!', ''), style: {
+        fontFamily: '"Luckiest Guy", Fredoka, Arial, sans-serif', fontSize: 15, fill: 0xFFC93C,
+        stroke: { color: INK, width: 4, join: 'round' } } });
+      chip.anchor.set(0, 0.5);
+      chip.x = tx; chip.y = PH / 2 + 1;
+      if (chip.width > 76) chip.scale.set(76 / chip.width);
+      grp.addChild(chip);
+      tx += Math.max(56, chip.width + 16);
+    } else {
+      const ic = uiIcon('lightning', 24, '⚡');
+      ic.x = tx + 12; ic.y = PH / 2;
+      grp.addChild(ic);
+      tx += 34;
+    }
+    txt.x = tx; txt.y = (PH - txt.height) / 2;
     grp.addChild(txt);
     return grp;
   }

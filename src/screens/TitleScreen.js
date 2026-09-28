@@ -190,7 +190,11 @@ export class TitleScreen {
       this._container.addChild(rbtn);
       const cap = bodyText(it.label, 13, 0xFFFFFF);
       cap.x = x; cap.y = rowY + 44;
-      this._container.addChild(cap);
+      // Dark pill behind each caption so it reads on the busy town art.
+      const capBg = new Graphics();
+      capBg.roundRect(x - cap.width / 2 - 8, rowY + 34, cap.width + 16, 21, 10.5)
+        .fill({ color: 0x17143A, alpha: 0.78 }).stroke({ color: 0x000000, width: 1.5, alpha: 0.35 });
+      this._container.addChild(capBg, cap);
       if (it.badge) {
         const dot = new Graphics();
         dot.circle(x + 22, rowY - 22, 8).fill(0xE8453C).stroke({ color: 0x1F1A33, width: 2 });
@@ -337,17 +341,20 @@ export class TitleScreen {
   }
 
   _tickPlayGlow(dt) {
+    // One soft golden halo (stacked translucent fills, same corner radius as the
+    // button) plus a gentle breathe on the button — no hard outline rings.
     const g = this._playGlow;
     if (!g || !g.visible) return;
     this._playPulse += dt * 3.2;
-    const b    = this._playGlowBox;
-    const a    = 0.30 + 0.25 * (0.5 + 0.5 * Math.sin(this._playPulse));
-    const grow = 6 + 5 * (0.5 + 0.5 * Math.sin(this._playPulse));
+    const b = this._playGlowBox;
+    const k = 0.5 + 0.5 * Math.sin(this._playPulse);
     g.clear();
-    g.roundRect(b.cx - b.w / 2 - grow, b.cy - b.h / 2 - grow, b.w + grow * 2, b.h + grow * 2, 28);
-    g.stroke({ color: 0xFFD700, width: 6, alpha: a });
-    g.roundRect(b.cx - b.w / 2 - grow * 1.8, b.cy - b.h / 2 - grow * 1.8, b.w + grow * 3.6, b.h + grow * 3.6, 34);
-    g.stroke({ color: 0xFFD700, width: 3, alpha: a * 0.45 });
+    for (let i = 0; i < 6; i++) {
+      const pad = 4 + i * 4 + k * 4;
+      g.roundRect(b.cx - b.w / 2 - pad, b.cy - b.h / 2 - pad + 3, b.w + pad * 2, b.h + pad * 2, b.h / 2.6 + pad)
+        .fill({ color: 0xFFD54A, alpha: (0.07 + 0.05 * k) * (1 - i / 7) });
+    }
+    if (this._playBtn) this._playBtn.scale.set(1 + 0.025 * k);
   }
 
   // ── Helper: pill-shaped secondary button ──────────────────────────────────

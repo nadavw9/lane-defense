@@ -11,3 +11,17 @@ Captured headless (software renderer); colours and layout are exact, animation t
 08=AFTER  level card: "any cars" goal shown as a little traffic jam, video chips read "+1", green badges show boosters you already own (they come along automatically). (Real flow has the map behind the card)
 09=BEFORE win: cream rays on near-black
 10=AFTER  win: warm violet field with a soft gold glow, additive gold rays; a 0/1 multi-kill row is replaced by CARS DESTROYED. (Forced win from the dev hook, so coins/cars read 0 here - real wins show real numbers)
+
+Round 4 (after an independent art-director critique of round 3). Display font is now Lilita One
+everywhere - Luckiest Guy shrank some letters on purpose (C-o-L-o-R), which read as typos.
+11=BEFORE L10 boss: dark grey truck, "5 TO GO" drawn over the boss, achievement toast over the road
+12=AFTER  L10: boss repainted in the palette's boss magenta (no bomb matches it), floating count removed (the roof panel knocks out a pip instead), trophy toast drops onto the header band between the buttons. LOOK: does the boss read as the hero from arm's length?
+13=BEFORE L17 industrial: pale road next to pale pavement, COMBO under the toast
+14=AFTER  L17: darker road so cars pop, COMBO moved to mid-road, SUPERCHARGED pill lifted off the front bombs
+15=BEFORE L33 night: tower roofs with a lone "H" (helipads) looked like placeholders
+16=AFTER  L33: lit warm skylights, thicker neon roof rims, red aviation lights
+17=BEFORE title: PLAY had two hard offset glow rings; captions sat straight on the busy art
+18=AFTER  title: one soft golden halo + gentle breathe; captions on dark pills
+19=BEFORE map: every played node the same blue as the next one; "Tutorial City"
+20=AFTER  map: next level is PLAY-green (with the arrow and pulse), played = world colour; worlds renamed Toy Town / Steel Yards / Neon Nights
+21=AFTER  car guide: HP pills now a toughness scale (green = easy ... deep red = tank), "Tender" renamed TRUCK

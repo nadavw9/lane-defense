@@ -11,13 +11,13 @@
 // Data flow:
 //   InputManager → DragDrop → GameLoop.deploy() → GameState mutation
 //   GameState → CarRenderer / ShooterRenderer / HUDRenderer / ParticleSystem
-import { Application, Assets, Container, Graphics, Text, Ticker, TextStyle } from 'pixi.js';
+import { Application, Assets, Container, Graphics, Text, Ticker, TextStyle, FillGradient } from 'pixi.js';
 // Display fonts, bundled (no network needed on device): Fredoka for all UI
-// text, Luckiest Guy for big titles (PremiumUI.TITLE_FONT).
+// text, Lilita One for big titles (PremiumUI.TITLE_FONT).
 import '@fontsource/fredoka/500.css';
 import '@fontsource/fredoka/600.css';
 import '@fontsource/fredoka/700.css';
-import '@fontsource/luckiest-guy/400.css';
+import '@fontsource/lilita-one/400.css';
 
 import { GameRenderer3D }  from '../renderer3d/GameRenderer3D.js';
 import { assetLoader }     from '../renderer3d/AssetLoader.js';
@@ -151,7 +151,7 @@ function spawnFloatingText(parent, x, y, text, color = 0xffffff) {
   const t = new Text({
     text,
     style: {
-      fontFamily: '"Luckiest Guy", Fredoka, Arial, sans-serif',
+      fontFamily: '"Lilita One", Fredoka, Arial, sans-serif',
       fontSize:   22,
       fill:       color,
       letterSpacing: 1,
@@ -191,7 +191,7 @@ async function main() {
   TextStyle.defaultTextStyle.fontFamily = 'Fredoka, Arial, sans-serif';
   try {
     await Promise.race([
-      Promise.all(['500 20px Fredoka', '600 20px Fredoka', '700 20px Fredoka', '20px "Luckiest Guy"'].map(f => document.fonts.load(f))),
+      Promise.all(['500 20px Fredoka', '600 20px Fredoka', '700 20px Fredoka', '20px "Lilita One"'].map(f => document.fonts.load(f))),
       new Promise(r => setTimeout(r, 2500)),
     ]);
   } catch { /* fall back to Arial */ }
@@ -624,7 +624,7 @@ async function main() {
     // Round premium icon button (PremiumUI.roundButton), centred on the goal
     // slots' row inside the header band.
     const icon = iconName ? uiIcon(iconName, 24, glyph)
-      : new Text({ text: glyph, style: { fontFamily: '"Luckiest Guy", Fredoka, Arial, sans-serif', fontSize: 24, fill: 0xFFFFFF,
+      : new Text({ text: glyph, style: { fontFamily: '"Lilita One", Fredoka, Arial, sans-serif', fontSize: 24, fill: 0xFFFFFF,
           stroke: { color: INK, width: 4, join: 'round' } } });
     icon.anchor?.set?.(0.5, 0.5);
     const g = premiumRoundButton(icon, { r: 21, color: 0x3F63C8, onTap });
@@ -1882,10 +1882,10 @@ async function main() {
       shakeTime = Math.max(shakeTime, 0.45);
       popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildFlashText(w, 'BOSS DESTROYED!', 0xFFD42A), 1.6);
     } else {
+      // The boss's own roof panel knocks the pip out; no floating count on top of
+      // the boss (it collided with the boss art and the combo line).
       audio.play('boss_light', { left: boss.hp });
       haptics.medium();
-      floatingTexts.push(spawnFloatingText(layers.get('particleLayer'),
-        getLaneScreenX(laneIdx), posToScreenY(boss.position) + 118, `${boss.hp} TO GO`, 0xFFD42A));   // just under the boss
     }
   };
 
@@ -2597,61 +2597,44 @@ function _buildMultiKillPopup(w, killCount) {
 }
 
 function _buildAchievementPopup(w, achievement) {
-  // Compact top-right toast: 274×62px, 8px from right edge
-  const TW = 274, TH = 62, TX = w - TW - 8;
-
+  // Trophy pill that drops over the header band (PopupQueue docks it there), so
+  // it never covers the lanes. Indigo + gold like every other premium surface.
+  const TW = 258, TH = 58, TX = (w - TW) / 2;   // fits between the round header buttons
   const outer = new Container();
   const grp = new Container();
-  grp.x = w;  // start off-screen right for slide-in
+  grp.y = -TH - 20;                                   // start above the screen, drop in
   outer.addChild(grp);
 
   const bg = new Graphics();
-  bg.roundRect(TX, 0, TW, TH, 14);
-  bg.fill({ color: 0x0a0a1a, alpha: 0.88 });
-  bg.roundRect(TX, 0, TW, TH, 14);
-  bg.stroke({ color: 0xf5c842, width: 1.5, alpha: 0.85 });
+  bg.roundRect(TX + 2, 5, TW, TH, TH / 2).fill({ color: 0x000000, alpha: 0.35 });
+  bg.roundRect(TX, 0, TW, TH, TH / 2).fill(new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, textureSpace: 'local',
+    colorStops: [{ offset: 0, color: 0x4A3FA0 }, { offset: 1, color: 0x241F5A }] }));
+  bg.roundRect(TX + 10, 4, TW - 20, TH * 0.3, 10).fill({ color: 0xffffff, alpha: 0.12 });
+  bg.roundRect(TX, 0, TW, TH, TH / 2).stroke({ color: 0xFFC93C, width: 3 });
+  bg.circle(TX + TH / 2, TH / 2, TH / 2 - 7).fill(0x17143A).stroke({ color: 0xB9771C, width: 2 });
   grp.addChild(bg);
 
-  const icon = uiIcon('trophy', 32, '🏆');   // center-anchored → place at glyph-box centre
-  icon.x = TX + 10 + 16;
-  icon.y = (TH - 32) / 2 + 16;
+  const icon = uiIcon('trophy', 34, '🏆');
+  icon.x = TX + TH / 2; icon.y = TH / 2;
   grp.addChild(icon);
 
-  const textX = TX + 46;
-
-  const label = new Text({
-    text: 'ACHIEVEMENT UNLOCKED',
-    style: { fontSize: 9, fontWeight: 'bold', fill: 0xf5c842, letterSpacing: 1.0 },
-  });
-  label.x = textX;
-  label.y = 7;
+  const label = new Text({ text: 'TROPHY UNLOCKED', style: { fontSize: 11, fontWeight: '800', fill: 0xFFC93C, letterSpacing: 1.2 } });
+  label.x = TX + TH + 4; label.y = 9;
   grp.addChild(label);
-
-  const nameText = new Text({
-    text: achievement.name,
-    style: { fontSize: 14, fontWeight: 'bold', fill: 0xffeebb,
-      dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 0.9 } },
-  });
-  nameText.x = textX;
-  nameText.y = 22;
+  const nameText = new Text({ text: achievement.name, style: { fontFamily: '"Lilita One", Fredoka, Arial, sans-serif', fontSize: 21, fill: 0xFFFFFF,
+    stroke: { color: 0x1F1A33, width: 4, join: 'round' } } });
+  nameText.x = TX + TH + 4; nameText.y = 24;
   grp.addChild(nameText);
 
-  const descText = new Text({
-    text: achievement.desc,
-    style: { fontSize: 10, fill: 0xaa9966, fontWeight: 'normal', wordWrap: true, wordWrapWidth: TW - 56 },
-  });
-  descText.x = textX;
-  descText.y = 42;
-  grp.addChild(descText);
-
-  // Slide in from right
-  const slideListener = (ticker) => {
-    if (outer.destroyed) { Ticker.shared.remove(slideListener); return; }
-    grp.x = Math.max(0, grp.x - w * 8 * (ticker.deltaTime / 60));
-    if (grp.x <= 0) { grp.x = 0; Ticker.shared.remove(slideListener); }
+  const t0 = performance.now();
+  const drop = () => {
+    if (outer.destroyed) { Ticker.shared.remove(drop); return; }
+    const e = Math.min(1, (performance.now() - t0) / 320);
+    const k = 1 - Math.pow(1 - e, 3);
+    grp.y = (-TH - 20) * (1 - k) + Math.sin(e * Math.PI) * 4;
+    if (e >= 1) { grp.y = 0; Ticker.shared.remove(drop); }
   };
-  Ticker.shared.add(slideListener);
-
+  Ticker.shared.add(drop);
   return outer;
 }
 

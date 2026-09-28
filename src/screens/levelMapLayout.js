@@ -11,9 +11,9 @@ export const MAP_TOP = 178, MAP_BOTTOM = 772;   // node band (header above, safe
 const COLS_X = [62, 154, 236, 328];
 
 export const MAP_WORLDS = [
-  { page: 1, first: 1,  last: 15, name: 'Tutorial City',   theme: 'world1' },
-  { page: 2, first: 16, last: 30, name: 'Industrial Zone', theme: 'world2' },
-  { page: 3, first: 31, last: 40, name: 'Night Highway',   theme: 'world3' },
+  { page: 1, first: 1,  last: 15, name: 'Toy Town',        theme: 'world1' },
+  { page: 2, first: 16, last: 30, name: 'Steel Yards',     theme: 'world2' },
+  { page: 3, first: 31, last: 40, name: 'Neon Nights',     theme: 'world3' },
 ];
 
 export function worldForLevel(levelId) {

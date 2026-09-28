@@ -276,7 +276,7 @@ export class GoalCounterUI {
     // Count badge (bold white number or checkmark)
     const countText = new Text({
       text: String(goal.count),
-      style: { fontFamily: '"Luckiest Guy", Fredoka, Arial, sans-serif', fontSize: 22, fill: WHITE,
+      style: { fontFamily: '"Lilita One", Fredoka, Arial, sans-serif', fontSize: 22, fill: WHITE,
         stroke: { color: INK, width: 5, join: 'round' } },
     });
     countText.anchor.set(0.5, 0.5);

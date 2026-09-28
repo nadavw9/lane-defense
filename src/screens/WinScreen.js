@@ -594,7 +594,7 @@ export class WinScreen {
         this._cityBldGfx.parent.addChild(this._cityBldSprite);
       }
       this._cityBldSprite.texture = tex;
-      this._cityBldSprite.scale.set(64 / Math.max(tex.width, tex.height));
+      this._cityBldSprite.scale.set(80 / Math.max(tex.width, tex.height));   // pops out of the row a little: it is the reward
       if (state === 2) this._cityBldPop = 0;
       return;
     }

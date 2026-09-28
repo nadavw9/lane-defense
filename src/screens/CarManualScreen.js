@@ -13,12 +13,12 @@ import { INK, shade } from '../renderer/ToyStyle.js';
 const BASE_URL = import.meta.env.BASE_URL ?? '';
 
 const CAR_ENTRIES = [
-  { key: 'small',  name: 'MOTORBIKE', hp: CAR_TYPES.small.hp,  color: 0x44BB99, sprite: 'sprites/designed/bike-red.png'          },
-  { key: 'big',    name: 'CAR',       hp: CAR_TYPES.big.hp,    color: 0xDD8833, sprite: 'sprites/designed/car-red-processed.png' },
-  { key: 'jeep',   name: 'VAN',       hp: CAR_TYPES.jeep.hp,   color: 0x2F8CFF, sprite: 'sprites/designed/van-red.png'           },
-  { key: 'truck',  name: 'TENDER',    hp: CAR_TYPES.truck.hp,  color: 0x2FCC55, sprite: 'sprites/designed/truck-red.png'         },
-  { key: 'bigrig', name: 'BIG RIG',   hp: CAR_TYPES.bigrig.hp, color: 0xFF8A1C, sprite: 'sprites/designed/bigrig-red.png'        },
-  { key: 'tank',   name: 'TANK',      hp: CAR_TYPES.tank.hp,   color: 0xA35CFF, sprite: 'sprites/designed/tank.png'              },
+  { key: 'small',  name: 'MOTORBIKE', hp: CAR_TYPES.small.hp,  color: 0x3DBB3A, sprite: 'sprites/designed/bike-red.png'          },
+  { key: 'big',    name: 'CAR',       hp: CAR_TYPES.big.hp,    color: 0x9CC42A, sprite: 'sprites/designed/car-red-processed.png' },
+  { key: 'jeep',   name: 'VAN',       hp: CAR_TYPES.jeep.hp,   color: 0xF2B21B, sprite: 'sprites/designed/van-red.png'           },
+  { key: 'truck',  name: 'TRUCK',     hp: CAR_TYPES.truck.hp,  color: 0xF07A1C, sprite: 'sprites/designed/truck-red.png'         },
+  { key: 'bigrig', name: 'BIG RIG',   hp: CAR_TYPES.bigrig.hp, color: 0xE8453C, sprite: 'sprites/designed/bigrig-red.png'        },
+  { key: 'tank',   name: 'TANK',      hp: CAR_TYPES.tank.hp,   color: 0xB02A5A, sprite: 'sprites/designed/tank.png'              },
 ];
 
 // Special cars, revealed once the player has reached the level that introduces them.

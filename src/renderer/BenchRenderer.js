@@ -74,7 +74,7 @@ const GLOW_MAP = {
 };
 
 const DMG_STYLE = {
-  fontFamily: '"Luckiest Guy", Fredoka, Arial, sans-serif',
+  fontFamily: '"Lilita One", Fredoka, Arial, sans-serif',
   fontSize:   15,
   fill:       0xffffff,
   stroke:     { color: 0x1F1A33, width: 4, join: 'round' },

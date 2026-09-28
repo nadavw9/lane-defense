@@ -106,7 +106,7 @@ function drawDamageBadge(ctx, W, H, damage) {
   const ph       = H * 0.78;
   const fontSize = Math.round(ph * 0.92);
   // Chunky title face (preloaded at boot) — the same digits as the HUD.
-  ctx.font         = `${fontSize}px "Luckiest Guy", Arial Black, Arial`;
+  ctx.font         = `${fontSize}px "Lilita One", Arial Black, Arial`;
   ctx.textAlign    = 'center';
   ctx.textBaseline = 'middle';
   ctx.lineJoin     = 'round';

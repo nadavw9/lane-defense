@@ -144,7 +144,7 @@ export class ParticleSystem {
       text: `-${damage}`,
       // Title face with an ink outline — readable over any car, road or theme.
       style: {
-        fontFamily: '"Luckiest Guy", Fredoka, Arial, sans-serif',
+        fontFamily: '"Lilita One", Fredoka, Arial, sans-serif',
         fontSize:   22,
         fill:       0xFFFFFF,
         stroke:     { color: 0x1F1A33, width: 5, join: 'round' },

@@ -356,7 +356,9 @@ export const BUILD_HD = {
 export const BOSS_PANEL_HD = { x: 0, y: 2.74, z: -0.95, w: 2.3, d: 3.0 };
 export function buildBossHD({ armored = false } = {}) {
   const g = new THREE.Group();
-  const body = paintHD(0x3E4252), bodyD = paintHD(0x2A2C37);
+  // Boss magenta (palette "Boss", #CC44CC): the one vehicle no bomb colour matches,
+  // bright enough to read as the hero on every road (dark, concrete, night).
+  const body = paintHD(0xCC44CC), bodyD = paintHD(0x8E2C8E);
   const HY = new THREE.MeshStandardMaterial({ color: 0xFFD42A, roughness: 0.45 });
   const HK = new THREE.MeshStandardMaterial({ color: 0x1E1C24, roughness: 0.6 });
   for (const z of [2.1, 0.2, -1.9]) for (const sd of [-1, 1]) g.add(wheelHD(sd * 1.45, z, 0.62, 0.5, { spokes: 6, rimMat: MHD.rimDark }));

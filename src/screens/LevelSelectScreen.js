@@ -140,7 +140,9 @@ export class LevelSelectScreen {
     const node = new Container();
     node.x = n.x; node.y = n.y;
     const g = new Graphics();
-    const face = !open ? 0x77738F : boss ? 0xE8453C : accent;
+    // Played = the world's accent, the one to play next = PLAY green (it pulses,
+    // with the arrow), boss = red, locked = grey.
+    const face = !open ? 0x77738F : boss ? 0xE8453C : stars > 0 ? accent : 0x3DBB3A;
     g.circle(2, 6, NODE_R + 4).fill({ color: 0x000000, alpha: 0.35 });
     g.circle(0, 3, NODE_R + 4).fill(open ? GOLD_DEEP : 0x4A475E);
     g.circle(0, 0, NODE_R + 4).fill(open ? faceGrad(GOLD) : faceGrad(0x9A97AE));

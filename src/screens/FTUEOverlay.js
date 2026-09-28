@@ -523,7 +523,7 @@ export class FeatureBanners {
     let tx = PX + 16;
     if (tag) {
       const chip = new Text({ text: tag.replace('!', ''), style: {
-        fontFamily: '"Luckiest Guy", Fredoka, Arial, sans-serif', fontSize: 15, fill: 0xFFC93C,
+        fontFamily: '"Lilita One", Fredoka, Arial, sans-serif', fontSize: 15, fill: 0xFFC93C,
         stroke: { color: INK, width: 4, join: 'round' } } });
       chip.anchor.set(0, 0.5);
       chip.x = tx; chip.y = PH / 2 + 1;

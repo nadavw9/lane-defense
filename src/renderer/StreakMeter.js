@@ -57,7 +57,7 @@ export class StreakMeter {
     this._t += dt;
     this._popT = Math.min(1, this._popT + dt / 0.28);
     const pop = 1 + 0.22 * Math.sin(Math.PI * this._popT) * (1 - this._popT * 0.3);
-    const cx = APP_W / 2, cy = BREACH_LINE_Y;
+    const cx = APP_W / 2, cy = BREACH_LINE_Y - 7;   // sits on the stripe, clear of the front bomb
     const g = this._pill;
     g.clear();
     this._root.position.set(0, 0);

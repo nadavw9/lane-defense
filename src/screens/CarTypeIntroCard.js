@@ -19,12 +19,12 @@ const BASE_URL = import.meta.env.BASE_URL ?? '';
 // hp comes from CAR_TYPES (single source of truth) — the card shows base HP;
 // live cars scale it by the level's hpMultiplier.
 const TYPE_INFO = {
-  small:  { name: 'MOTORBIKE', hp: CAR_TYPES.small.hp,  color: 0x44BB99, sprite: 'sprites/designed/bike-red.png'          },
-  big:    { name: 'CAR',       hp: CAR_TYPES.big.hp,    color: 0xDD8833, sprite: 'sprites/designed/car-red-processed.png' },
-  jeep:   { name: 'VAN',       hp: CAR_TYPES.jeep.hp,   color: 0x2F8CFF, sprite: 'sprites/designed/van-red.png'           },
-  truck:  { name: 'TENDER',    hp: CAR_TYPES.truck.hp,  color: 0x2FCC55, sprite: 'sprites/designed/truck-red.png'         },
-  bigrig: { name: 'BIG RIG',   hp: CAR_TYPES.bigrig.hp, color: 0xFF8A1C, sprite: 'sprites/designed/bigrig-red.png'        },
-  tank:   { name: 'TANK',      hp: CAR_TYPES.tank.hp,   color: 0xA35CFF, sprite: 'sprites/designed/tank.png'              },
+  small:  { name: 'MOTORBIKE', hp: CAR_TYPES.small.hp,  color: 0x3DBB3A, sprite: 'sprites/designed/bike-red.png'          },
+  big:    { name: 'CAR',       hp: CAR_TYPES.big.hp,    color: 0x9CC42A, sprite: 'sprites/designed/car-red-processed.png' },
+  jeep:   { name: 'VAN',       hp: CAR_TYPES.jeep.hp,   color: 0xF2B21B, sprite: 'sprites/designed/van-red.png'           },
+  truck:  { name: 'TRUCK',     hp: CAR_TYPES.truck.hp,  color: 0xF07A1C, sprite: 'sprites/designed/truck-red.png'         },
+  bigrig: { name: 'BIG RIG',   hp: CAR_TYPES.bigrig.hp, color: 0xE8453C, sprite: 'sprites/designed/bigrig-red.png'        },
+  tank:   { name: 'TANK',      hp: CAR_TYPES.tank.hp,   color: 0xB02A5A, sprite: 'sprites/designed/tank.png'              },
 };
 
 const DISPLAY_MS    = 2500;

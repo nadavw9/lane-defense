@@ -30,7 +30,7 @@ const grad = (stops) => new FillGradient({ type: 'linear', start: { x: 0, y: 0 }
   colorStops: stops.map(([offset, color]) => ({ offset, color })) });
 
 function itemIcon(item, size) {
-  return item.icon ? boosterIcon(item.icon, size, '?') : uiIcon('shield', size * 0.92, '🛡');
+  return item.icon ? boosterIcon(item.icon, size, '?') : uiIcon('shield', size * 0.8, '🛡');
 }
 
 export class ShopScreen {
@@ -194,29 +194,30 @@ export class ShopScreen {
     c.addChild(sub);
 
     // Old price, struck through, above the buy button.
-    const old = bodyText(String(PACK_FULL), 19, 0x8A5212, { outline: false, weight: '800' });
+    const old = bodyText(String(PACK_FULL), 20, 0xFFFFFF, { weight: '800' });
     old.anchor.set(0, 0.5); old.x = tx; old.y = y + 92;
     c.addChild(old);
     const strike = new Graphics();
-    strike.moveTo(tx - 2, y + 95).lineTo(tx + old.width + 2, y + 89).stroke({ color: 0xD0302A, width: 3 });
+    strike.moveTo(tx - 2, y + 95).lineTo(tx + old.width + 2, y + 89).stroke({ color: 0xE8231A, width: 4 });
     c.addChild(strike);
     const save = Math.round((1 - SHOP_PACK.cost / PACK_FULL) * 100);
     const burst = new Container();
     const bg = new Graphics();
     const pts = [];
-    for (let i = 0; i < 24; i++) { const r = i % 2 ? 25 : 31, a = (i / 24) * Math.PI * 2; pts.push(Math.cos(a) * r, Math.sin(a) * r); }
+    for (let i = 0; i < 24; i++) { const r = i % 2 ? 21 : 26, a = (i / 24) * Math.PI * 2; pts.push(Math.cos(a) * r, Math.sin(a) * r); }
     bg.poly(pts).fill(0xE8453C).stroke({ color: INK, width: 3 });
-    bg.circle(0, -6, 14).fill({ color: 0xffffff, alpha: 0.18 });
+    bg.circle(0, -5, 11).fill({ color: 0xffffff, alpha: 0.18 });
     burst.addChild(bg);
-    const saveTxt = titleText(`-${save}%`, 15); saveTxt.y = 1;
+    const saveTxt = titleText(`-${save}%`, 13); saveTxt.y = 1;
     burst.addChild(saveTxt);
-    burst.x = x + w - 16; burst.y = y + 8; burst.rotation = 0.22;
+    burst.x = x + w - 14; burst.y = y + 62; burst.rotation = 0.22;   // sticker on the buy button
     c.addChild(burst);
     this._pulses.push(Object.assign(burst, { speed: 3.2, amp: 0.05 }));
 
     const btn = this._priceButton(SHOP_PACK.cost, 118, 52, () => this._buyPack(btn));
-    btn.x = x + w - 72; btn.y = y + 92;
+    btn.x = x + w - 84; btn.y = y + 92;
     c.addChild(btn);
+    c.addChild(burst);   // sticker sits on top of the button
   }
 
   _buildTile(item, x, y, w, h, owned) {

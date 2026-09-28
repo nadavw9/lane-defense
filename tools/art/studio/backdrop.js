@@ -149,7 +149,7 @@ const THEME = {
     sun: { color: 0xFFEFD2, intensity: 3.1, hemi: [0xCFE2FF, 0x7D7258, 0.62], env: 0.3, exposure: 1.0 },
   },
   world2: {
-    asphalt: 0x8A8C8F, asphaltHi: 0x9C9EA1, asphaltLo: 0x74767A, paint: '#F2F0EA', centre: '#FFC21A',
+    asphalt: 0x5E6166, asphaltHi: 0x6B6E73, asphaltLo: 0x505357, paint: '#F2F0EA', centre: '#FFC21A',
     kerb: 0xB9BCC2, gutter: 0x6A6C70, walk: [0xA8ABB0, 0x9FA2A8, 0xB2B5BA], walkJoint: '#7F8288',
     lawn: [0x8A9A6A, 0x7C8C5E], leaf: [0x6E9150, 0x7FA35C, 0x5F8246, 0x8DAE66], trunk: 0x6A4E36,
     roofs: [0x5E7D9E, 0xA87A52, 0x7A8590, 0x5F8A7E, 0x8F6A5C], walls: [0xC9C4BA, 0xB7BEC6, 0xD4CFC4],
@@ -630,7 +630,7 @@ function fence(len, color = 0x9AA0A8) {
 function tower(T, r, w, d, h) {
   // Night world: a tower top read from above — big, simple shapes (lit window
   // columns on the camera-facing side, a clean roof deck with ONE feature:
-  // a glowing pool, a helipad or a billboard) so it never turns into noise.
+  // a glowing pool, lit skylights or a billboard) so it never turns into noise.
   const g = new THREE.Group();
   const body = std(pick(r, T.walls), 0.55);
   g.add(rbox(w, h, d, 0.04, body, 0, h / 2, 0));
@@ -644,7 +644,9 @@ function tower(T, r, w, d, h) {
   g.add(rbox(w + 0.06, 0.14, d + 0.06, 0.03, std(0x23263A, 0.6), 0, h + 0.07, 0));
   g.add(box(w - 0.16, 0.04, d - 0.16, std(deck, 0.8), 0, h + 0.13, 0));
   const neon = pick(r, T.neon);
-  for (const [ww, dd, x, z] of [[w, 0.03, 0, d / 2 + 0.02], [w, 0.03, 0, -d / 2 - 0.02], [0.03, d, w / 2 + 0.02, 0], [0.03, d, -w / 2 - 0.02, 0]]) g.add(box(ww, 0.03, dd, glow(neon), x, h + 0.14, z));
+  for (const [ww, dd, x, z] of [[w, 0.08, 0, d / 2 + 0.02], [w, 0.08, 0, -d / 2 - 0.02], [0.08, d, w / 2 + 0.02, 0], [0.08, d, -w / 2 - 0.02, 0]]) g.add(box(ww, 0.04, dd, glow(neon), x, h + 0.14, z));
+  // Red aviation light on a corner mast.
+  g.add(cyl(0.02, 0.02, 0.4, std(0x3A3E52, 0.5), w / 2 - 0.2, h + 0.35, -d / 2 + 0.2, 6), cyl(0.07, 0.07, 0.07, glow(0xFF3B3B), w / 2 - 0.2, h + 0.56, -d / 2 + 0.2, 10));
   const feat = r();
   if (feat < 0.34) {
     // Rooftop pool with a lit deck edge.
@@ -652,11 +654,16 @@ function tower(T, r, w, d, h) {
     g.add(rbox(w * 0.62, 0.02, d * 0.52, 0.1, std(0xE6E9EC, 0.5), -w * 0.1, h + 0.15, 0));
     for (let i = 0; i < 2; i++) g.add(rbox(0.16, 0.05, 0.34, 0.03, std(0xF2F0EA, 0.5), w * 0.32, h + 0.18, -d * 0.2 + i * 0.4));
   } else if (feat < 0.62) {
-    // Helipad: dark disc, white H, amber corner lights.
-    const pad = cyl(Math.min(w, d) * 0.36, Math.min(w, d) * 0.36, 0.03, std(0x3A3E52, 0.6), 0, h + 0.16, 0, 32);
-    g.add(pad);
-    g.add(box(0.06, 0.012, 0.32, glow(0xF2F0EA), -0.1, h + 0.18, 0), box(0.06, 0.012, 0.32, glow(0xF2F0EA), 0.1, h + 0.18, 0), box(0.2, 0.012, 0.06, glow(0xF2F0EA), 0, h + 0.18, 0));
-    for (const [x, z] of [[-w / 2 + 0.15, -d / 2 + 0.15], [w / 2 - 0.15, -d / 2 + 0.15], [-w / 2 + 0.15, d / 2 - 0.15], [w / 2 - 0.15, d / 2 - 0.15]]) g.add(cyl(0.04, 0.04, 0.05, glow(0xFFB02E), x, h + 0.18, z, 8));
+    // Lit atrium skylights: warm glass panels in a dark frame — reads as a
+    // lived-in building from straight above (a helipad read as a stray "H").
+    const cols2 = w > 1.6 ? 3 : 2, rows2 = d > 1.6 ? 3 : 2;
+    const pw = (w - 0.5) / cols2, pd = (d - 0.5) / rows2;
+    g.add(box(w - 0.34, 0.03, d - 0.34, std(0x15172A, 0.5), 0, h + 0.15, 0));
+    const warm = [0xFFD27A, 0xFFE7A8, 0xFFB45A];
+    for (let c = 0; c < cols2; c++) for (let k = 0; k < rows2; k++) {
+      if (r() < 0.15) continue;
+      g.add(box(pw - 0.08, 0.02, pd - 0.08, glow(pick(r, warm)), -w / 2 + 0.25 + (c + 0.5) * pw, h + 0.17, -d / 2 + 0.25 + (k + 0.5) * pd));
+    }
   } else {
     // Billboard standing on the roof, facing the camera.
     const bw = Math.min(1.4, w * 0.7), bcol = pick(r, T.neon);

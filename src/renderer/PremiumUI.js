@@ -3,7 +3,7 @@
 // One visual language for every screen outside gameplay, matching the owner's
 // glossy icon set (sprites/ui) and the lit ToyStyle HUD: deep indigo panels with
 // a gold bevelled frame, a red ribbon header, chunky gradient buttons with a
-// press animation, Fredoka body text and Luckiest Guy titles.
+// press animation, Fredoka body text and Lilita One titles.
 //
 // Everything returns plain Pixi Containers positioned by the caller; nothing
 // here knows about game state.
@@ -11,7 +11,7 @@ import { Container, Graphics, Text, FillGradient } from 'pixi.js';
 import { INK, WHITE, shade, tint } from './ToyStyle.js';
 import { uiPlate, uiIcon } from './UIIcon.js';
 
-export const TITLE_FONT = '"Luckiest Guy", Fredoka, Arial, sans-serif';
+export const TITLE_FONT = '"Lilita One", Fredoka, Arial, sans-serif';
 export const GOLD = 0xFFC93C, GOLD_DEEP = 0xB9771C, INDIGO = 0x2B2760, INDIGO_DEEP = 0x17143A;
 export const RIBBON = 0xE8453C, GREEN = 0x3DBB3A, BLUE = 0x2F7FE0, PURPLE = 0x8B4FE0;
 
@@ -29,7 +29,7 @@ function grad(stops, key = null) {
   return g;
 }
 
-/** Title text: Luckiest Guy, white with an ink outline and a soft drop. */
+/** Title text: Lilita One, white with an ink outline and a soft drop. */
 export function titleText(str, size = 34, fill = WHITE) {
   const t = new Text({ text: str, style: {
     fontFamily: TITLE_FONT, fontSize: size, fill, letterSpacing: 1,

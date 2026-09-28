@@ -25,7 +25,7 @@ import { uiIcon } from './UIIcon.js';
 const ROW_MID = BAR_Y + 34;   // booster card centre; derived, not frozen (was 786 @ BAR_Y 752)
 
 // Combo celebration sits over the upper road (transient; goals own the very top).
-const COMBO_Y        = 150;
+const COMBO_Y        = 300;   // mid-upper road: clear of the top toast band
 const COMBO_PILL_H   = 32;
 
 const SPRING_K       = 380;
@@ -105,7 +105,7 @@ export class HUDRenderer {
     this._comboText = new Text({
       text: '',
       style: {
-        fontFamily: '"Luckiest Guy", Fredoka, Arial, sans-serif',
+        fontFamily: '"Lilita One", Fredoka, Arial, sans-serif',
         fontSize:   22,
         fill:       0xffffff,
         letterSpacing: 1,

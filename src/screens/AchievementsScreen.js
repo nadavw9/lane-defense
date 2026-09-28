@@ -12,6 +12,15 @@ import { INK } from '../renderer/ToyStyle.js';
 
 const ROW_H = 76, ROW_GAP = 10, PAD = 16;
 
+// One icon per trophy so the list isn't eighteen identical cups.
+const ICON = {
+  first_blood: 'explosion', combo_starter: 'fire', combo_master: 'fire', combo_legend: 'fire',
+  bench_warmer: 'hand', sharpshooter: 'target', survivor: 'shield', speed_demon: 'timer',
+  collector: 'coin', shopkeeper: 'gift', big_spender: 'coin', dedicated: 'star-filled',
+  streak_master: 'star-filled', chain_reaction: 'lightning', crisis_saved: 'heart',
+  weekly_hero: 'trophy', no_mercy: 'skull', daily_challenger: 'lightning',
+};
+
 export class AchievementsScreen {
   constructor(stage, appW, appH, progress, { onBack, audio }) {
     this._container = new Container();
@@ -95,9 +104,9 @@ export class AchievementsScreen {
     med.circle(mx, my, 25).fill(earned ? 0xFFE08A : 0x2A2656).stroke({ color: earned ? 0xB9771C : 0x0C0A26, width: 3 });
     med.circle(mx, my, 19).fill(earned ? GOLD : 0x1C1946);
     parent.addChild(med);
-    const ic = uiIcon('trophy', 30, '🏆');
+    const ic = uiIcon(ICON[a.id] ?? 'trophy', 28, '🏆');
     ic.x = mx; ic.y = my;
-    if (!earned) { ic.tint = 0x55507F; ic.alpha = 0.9; }
+    if (!earned) { ic.tint = 0x6A6496; ic.alpha = 0.85; }
     parent.addChild(ic);
 
     const name = bodyText(a.name, 17, earned ? 0xFFFFFF : 0x9C96C8, { outline: earned, align: 'left' });

@@ -105,9 +105,11 @@ function drawDamageBadge(ctx, W, H, damage) {
 
   const ph       = H * 0.78;
   const fontSize = Math.round(ph * 0.92);
-  ctx.font         = `900 ${fontSize}px Arial`;
+  // Chunky title face (preloaded at boot) — the same digits as the HUD.
+  ctx.font         = `${fontSize}px "Luckiest Guy", Arial Black, Arial`;
   ctx.textAlign    = 'center';
   ctx.textBaseline = 'middle';
+  ctx.lineJoin     = 'round';
 
   // Thin crisp outline + a small soft shadow — readable on any bomb colour
   // without forming a dark blob/background around the digit.
@@ -118,8 +120,8 @@ function drawDamageBadge(ctx, W, H, damage) {
 
   // Proportional stroke — slightly heavier than body text so the digit reads
   // as a game piece label at arm's length.
-  ctx.lineWidth   = Math.max(1.5, fontSize * 0.10);
-  ctx.strokeStyle = 'rgba(0,0,0,0.92)';
+  ctx.lineWidth   = Math.max(2, fontSize * 0.17);   // heavy ink: white reads on yellow too
+  ctx.strokeStyle = '#1F1A33';
   ctx.strokeText(String(damage), W / 2, H / 2 + 1);
 
   ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;

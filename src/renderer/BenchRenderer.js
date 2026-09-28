@@ -12,7 +12,7 @@ import { Sprite, Graphics, Text, Assets } from 'pixi.js';
 import { COL_W } from './ShooterRenderer.js';
 import { PX_PER_WU, BOMB_R, bombSlotScreenY, bombSlotRenderedBottom } from '../renderer3d/projection.js';
 import { BAR_Y } from './BoosterBar.js';
-import { INK, PLUM } from './ToyStyle.js';
+import { INK } from './ToyStyle.js';
 
 // ── Live bench geometry ───────────────────────────────────────────────────────
 // FUNCTIONS, not module-level consts (2026-07-24, geometry-liveness sweep):
@@ -74,10 +74,10 @@ const GLOW_MAP = {
 };
 
 const DMG_STYLE = {
-  fontSize:   13,
-  fontWeight: 'bold',
+  fontFamily: '"Luckiest Guy", Fredoka, Arial, sans-serif',
+  fontSize:   15,
   fill:       0xffffff,
-  dropShadow: { color: 0x000000, blur: 2, distance: 1, alpha: 0.6 },
+  stroke:     { color: 0x1F1A33, width: 4, join: 'round' },
 };
 
 export class BenchRenderer {
@@ -161,10 +161,13 @@ export class BenchRenderer {
     // Solid tray panel spanning the full bench band — drawn first, behind slots,
     // so the storage area is always distinct from the road.
     this._trayG.clear();
-    this._trayG.roundRect(2, BENCH_Y - BENCH_TRAY_PAD, this._colW * 4 - 4, BENCH_SLOT_H + BENCH_TRAY_PAD * 2, 12);
-    this._trayG.fill(PLUM);
-    this._trayG.roundRect(2, BENCH_Y - BENCH_TRAY_PAD, this._colW * 4 - 4, BENCH_SLOT_H + BENCH_TRAY_PAD * 2, 12);
-    this._trayG.stroke({ color: INK, width: 3 });
+    // Premium pass: the goal band's indigo with its gold trim, so the storage
+    // tray reads as part of the same HUD family rather than a placeholder bar.
+    const tw = this._colW * 4 - 4, th = BENCH_SLOT_H + BENCH_TRAY_PAD * 2, ty = BENCH_Y - BENCH_TRAY_PAD;
+    this._trayG.roundRect(2, ty, tw, th, 12).fill(0x221E4E);
+    this._trayG.roundRect(2, ty, tw, th * 0.5, 12).fill({ color: 0xFFFFFF, alpha: 0.05 });
+    this._trayG.roundRect(2, ty, tw, th, 12).stroke({ color: 0xB9771C, width: 2.5 });
+    this._trayG.roundRect(2, ty, tw, th, 12).stroke({ color: INK, width: 1, alpha: 0.7 });
 
     for (let i = 0; i < 4; i++) {
       const g       = this._graphics[i];
@@ -229,9 +232,14 @@ export class BenchRenderer {
         this._texts[i].visible = true;
       } else {
         this._sprites[i].visible = false;
-        // Empty slot indicator — small dim dot
-        g.circle(cx, cy, 3.5);
-        g.fill({ color: 0x5A5478, alpha: 0.9 });
+        // Empty slot: an inset socket (same language as the queue sockets) with
+        // a faint "+" — reads as "a bomb can park here", not as a stray dot.
+        const r = Math.min(BENCH_SLOT_H * 0.36, 15);
+        g.circle(cx, cy, r).fill({ color: 0x0C0A26, alpha: 0.75 });
+        g.circle(cx, cy + 1.5, r - 1.5).stroke({ color: 0xFFFFFF, width: 1.2, alpha: 0.08 });
+        g.circle(cx, cy, r).stroke({ color: 0x4E4890, width: 2 });
+        g.rect(cx - r * 0.38, cy - 1, r * 0.76, 2).fill({ color: 0x7A74B0, alpha: 0.8 });
+        g.rect(cx - 1, cy - r * 0.38, 2, r * 0.76).fill({ color: 0x7A74B0, alpha: 0.8 });
         this._texts[i].visible = false;
       }
     }

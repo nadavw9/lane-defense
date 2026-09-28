@@ -30,8 +30,8 @@ const BASE_URL = import.meta.env.BASE_URL ?? '';
 // Presentation only — art and accent colour per type. NEVER hp: that is computed.
 // Order is the progression order the player meets them in.
 const TYPE_ART = [
-  { type: 'small',  color: 0xFF3D3D, sprite: 'sprites/designed/bike-red.png'          },
-  { type: 'big',    color: 0xFFD42A, sprite: 'sprites/designed/car-red-processed.png' },
+  { type: 'small',  color: 0x44BB99, sprite: 'sprites/designed/bike-red.png'          },
+  { type: 'big',    color: 0xDD8833, sprite: 'sprites/designed/car-red-processed.png' },
   { type: 'jeep',   color: 0x2F8CFF, sprite: 'sprites/designed/van-red.png'           },
   { type: 'truck',  color: 0x2FCC55, sprite: 'sprites/designed/truck-red.png'         },
   { type: 'bigrig', color: 0xFF8A1C, sprite: 'sprites/designed/bigrig-red.png'        },

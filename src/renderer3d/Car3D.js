@@ -335,7 +335,7 @@ function _drawBossPanel(ctx, W, H, car) {
   const seq = car.sequence ?? [];
   const n = seq.length;
   const cur = seq[car.seqIdx];
-  const pipsH = H * 0.26;
+  const pipsH = H * 0.32;
   const bigR = Math.min(W, H - pipsH) * 0.42;
   const bx = W / 2, by = (H - pipsH) / 2 + H * 0.02;
   if (cur) {
@@ -359,9 +359,15 @@ function _drawBossPanel(ctx, W, H, car) {
       ctx.restore();
     }
   }
-  const pr = Math.min(pipsH * 0.34, (W / Math.max(1, n)) * 0.36);
+  // Sequence strip: a dark plate so the pips read on any paint, pips as big as
+  // the width allows (up to 8 lights on the L30 boss).
+  const pr = Math.min(pipsH * 0.36, (W / Math.max(1, n)) * 0.44);
+  const plateY = H - pipsH + pipsH * 0.08, plateH = pipsH * 0.84;
+  ctx.fillStyle = 'rgba(20,17,38,0.88)';
+  _rrect(ctx, W * 0.02, plateY, W * 0.96, plateH, plateH / 2); ctx.fill();
+  ctx.lineWidth = Math.max(2, plateH * 0.06); ctx.strokeStyle = INK_CSS; ctx.stroke();
   for (let i = 0; i < n; i++) {
-    const px = (i + 0.5) * (W / n), py = H - pipsH / 2;
+    const px = W * 0.06 + (i + 0.5) * (W * 0.88 / n), py = H - pipsH / 2;
     ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI * 2);
     if (i < car.seqIdx) { ctx.fillStyle = '#2A2638'; ctx.fill(); ctx.lineWidth = pr * 0.2; ctx.strokeStyle = '#5E587A'; ctx.stroke(); continue; }
     ctx.fillStyle = cssHex(COLOR_HEX[seq[i]] ?? 0x888888); ctx.fill();

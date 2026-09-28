@@ -86,7 +86,7 @@ export class StreakMeter {
         const lit = i < this._streak;
         const px = cx + (i - 1) * 32;
         const s = lit && i === this._streak - 1 ? pop : 1;
-        this._flame(g, px, cy, 8.5 * s, lit ? PIP_COLORS[i] : 0x5B5476, lit);
+        this._flame(g, px, cy + 1, 8.5 * s, lit ? PIP_COLORS[i] : 0x7A4A3A, lit);
       }
     }
   }
@@ -102,13 +102,22 @@ export class StreakMeter {
     }
   }
 
-  // A small flame: teardrop with a hot core when lit.
+  // A flame: rounded base with three licking tongues (tallest in the middle),
+  // and a hot inner flame when lit. Unlit = the same flame, dim — never a drop.
   _flame(g, x, y, s, color, lit) {
-    g.moveTo(x, y - s * 1.25)
-      .bezierCurveTo(x + s * 1.05, y - s * 0.2, x + s * 0.9, y + s, x, y + s)
-      .bezierCurveTo(x - s * 0.9, y + s, x - s * 1.05, y - s * 0.2, x, y - s * 1.25)
-      .fill(color).stroke({ color: INK, width: 2 });
-    if (lit) g.circle(x, y + s * 0.35, s * 0.38).fill({ color: WHITE, alpha: 0.75 });
+    const tongue = (k) => {                       // k = size factor for the inner flame
+      const b = y + s * 1.0 * k, w = s * 1.0 * k;
+      g.moveTo(x, b)
+        .bezierCurveTo(x - w * 1.1, b, x - w * 1.15, y - s * 0.1 * k, x - w * 0.62, y - s * 0.62 * k)
+        .quadraticCurveTo(x - w * 0.5, y - s * 0.12 * k, x - w * 0.22, y - s * 0.28 * k)
+        .quadraticCurveTo(x - w * 0.18, y - s * 1.05 * k, x, y - s * 1.45 * k)
+        .quadraticCurveTo(x + w * 0.18, y - s * 1.05 * k, x + w * 0.22, y - s * 0.28 * k)
+        .quadraticCurveTo(x + w * 0.5, y - s * 0.12 * k, x + w * 0.62, y - s * 0.62 * k)
+        .bezierCurveTo(x + w * 1.15, y - s * 0.1 * k, x + w * 1.1, b, x, b);
+    };
+    tongue(1);
+    g.fill(color).stroke({ color: INK, width: 2 });
+    if (lit) { tongue(0.55); g.fill({ color: 0xFFF1A8, alpha: 0.95 }); }
   }
 
   _bolt(g, x, y, s) {

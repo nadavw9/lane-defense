@@ -162,14 +162,18 @@ export class LevelSelectScreen {
       node.addChild(lock);
     }
 
-    if (boss) {
-      const sk = uiIcon('skull', 20, '💀');
-      sk.x = NODE_R - 2; sk.y = -NODE_R + 4;
-      node.addChild(sk);
-    } else if (weekly && open) {
-      const wk = uiIcon('star-filled', 18, '⭐');
-      wk.x = NODE_R - 2; wk.y = -NODE_R + 4;
-      node.addChild(wk);
+    // Corner badge on its own disc, so it reads as a badge rather than a sprite
+    // colliding with the node ring.
+    const badge = boss ? ['skull', 18, '💀', 0x3A1030] : (weekly && open) ? ['star-filled', 17, '⭐', 0x2B2760] : null;
+    if (badge) {
+      const bx = NODE_R + 1, by = -NODE_R + 2;
+      const bd = new Graphics();
+      bd.circle(bx + 1, by + 2, 13).fill({ color: 0x000000, alpha: 0.3 });
+      bd.circle(bx, by, 13).fill(badge[3]).stroke({ color: GOLD, width: 2.5 });
+      node.addChild(bd);
+      const ic = uiIcon(badge[0], badge[1], badge[2]);
+      ic.x = bx; ic.y = by;
+      node.addChild(ic);
     }
 
     // Stars plaque under completed levels.

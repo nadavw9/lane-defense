@@ -101,11 +101,12 @@ export class HUDRenderer {
     this._comboText = new Text({
       text: '',
       style: {
+        fontFamily: '"Luckiest Guy", Fredoka, Arial, sans-serif',
         fontSize:   22,
-        fontWeight: 'bold',
         fill:       0xffffff,
-        stroke:     { color: 0x000000, width: 3 },
-        dropShadow: { color: 0x000000, blur: 6, distance: 0, alpha: 0.70 },
+        letterSpacing: 1,
+        stroke:     { color: 0x1F1A33, width: 6, join: 'round' },
+        dropShadow: { color: 0x000000, blur: 2, distance: 3, alpha: 0.45, angle: Math.PI / 2 },
       },
     });
     this._comboText.anchor.set(0.5, 0.5);
@@ -266,13 +267,15 @@ export class HUDRenderer {
     const cx    = this._appW / 2;
     const cy    = COMBO_Y;
 
-    g.roundRect(cx - glowW / 2, cy - glowH / 2, glowW, glowH, 12);
-    g.fill({ color: this._curTierColor, alpha: this._curTierGlowAlpha });
+    // Soft radial halo behind the outlined text (a hard translucent box read
+    // as a debug highlight). Two stacked ellipses fake the falloff.
+    const a = this._curTierGlowAlpha;
+    g.ellipse(cx, cy, glowW * 0.62, glowH * 0.95).fill({ color: this._curTierColor, alpha: a * 0.35 });
+    g.ellipse(cx, cy, glowW * 0.45, glowH * 0.62).fill({ color: this._curTierColor, alpha: a * 0.45 });
 
     if (this._tierFlashT > 0) {
-      const flashA = (this._tierFlashT / 0.12) * 0.55;
-      g.roundRect(cx - glowW / 2, cy - glowH / 2, glowW, glowH, 12);
-      g.fill({ color: 0xffffff, alpha: flashA });
+      const flashA = (this._tierFlashT / 0.12) * 0.45;
+      g.ellipse(cx, cy, glowW * 0.5, glowH * 0.7).fill({ color: 0xffffff, alpha: flashA });
     }
   }
 

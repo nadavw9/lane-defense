@@ -196,6 +196,9 @@ export class GoalCounterUI {
     }
   }
 
+  /** Bottom edge of the goal band in stage px (live — changes per level). */
+  get bandBottom() { return this._bandH ?? 100; }
+
   setVisible(bool) {
     this._container.visible = bool;
   }
@@ -346,6 +349,7 @@ export class GoalCounterUI {
     // level it was not meant to touch. Only shallow boards move it.
     const cardsH = PANEL_TOP_Y * 2 + totalRowsNeeded * CARD_H + (totalRowsNeeded - 1) * CARD_GAP;
     const bandH  = Math.max(cardsH, row0CoverY(this._gridRows));
+    this._bandH = bandH;   // read live by the popup queue (tip banners dock under it)
     // Premium pass: indigo gradient band with a gold trim, matching the map header.
     this._band.clear();
     this._band.rect(0, 0, this._stageWidth, bandH).fill(new FillGradient({

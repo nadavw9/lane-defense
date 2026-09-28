@@ -55,7 +55,7 @@ export class DailyRewardScreen {
     const canClaim = p.canClaimDaily();
     const justCompleted = day === 0 && !canClaim;
     const sub = justCompleted ? 'Week complete! A new week starts tomorrow.'
-      : canClaim ? 'Come back every day for bigger rewards!'
+      : canClaim ? 'Come back every day — day 7 is the jackpot!'
       : 'Come back tomorrow for your next reward!';
     const st = bodyText(sub, 13, 0xC9C3F0, { outline: false, weight: '600' });
     st.x = PW / 2; st.y = 56;

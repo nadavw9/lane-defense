@@ -58,7 +58,7 @@ export class CarManualScreen {
     C.addChild(close);
 
     // Vehicles: 3 × 2 tiles.
-    this._label('VEHICLES', W / 2, PY + 52);
+    this._label('VEHICLES · BASE HP', W / 2, PY + 52);
     const tw = 100, th = 124, gap = 10;
     const gx = PX + (PW - (3 * tw + 2 * gap)) / 2, gy = PY + 66;
     CAR_ENTRIES.forEach((e, i) => {

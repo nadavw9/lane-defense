@@ -93,7 +93,7 @@ import { AutoTuner }             from '../analytics/AutoTuner.js';
 import { AchievementManager }     from '../game/AchievementManager.js';
 import { DailyChallengeManager }  from '../game/DailyChallengeManager.js';
 import { CarTypeIntroCard, hasIntroCard } from '../screens/CarTypeIntroCard.js';
-import { spawnableTypesFor } from '../director/CarTypes.js';
+import { spawnableTypesFor, carHpFor } from '../director/CarTypes.js';
 import { ComboFX } from './ComboFX.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -486,6 +486,8 @@ async function main() {
 
   // ── FTUE per-feature banners (once-per-lifetime, persisted to localStorage) ─
   const featureBanners = new FeatureBanners(popupQueue, APP_W);
+  // Tip banners dock under the goal band — read at show time, never cached.
+  popupQueue.tipYFn = () => (goalCounterUI?.bandBottom ?? 104) + 8;
 
   // ── Onboarding hints — three lifetime one-time tutorial MODAL cards (HP/book,
   //    match-damage, cars-advance). Rendered on app.stage, above the HUD. ───────
@@ -988,6 +990,7 @@ async function main() {
       carTypeIntroCard = new CarTypeIntroCard(
         app.stage, APP_W, APP_H, typeKey,
         () => { carTypeIntroCard = null; done(); },
+        carHpFor(typeKey, gs.world?.hpMultiplier ?? 1.0),
       );
     });
   }

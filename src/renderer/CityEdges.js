@@ -125,6 +125,7 @@ export class CityEdges {
 
     this._container = new Container();
     this._layer.addChild(this._container);
+    this._backdrop = false;
 
     this._laneCount   = 4;
     this._buildingSet = 'tutorial';
@@ -159,6 +160,14 @@ export class CityEdges {
   _redraw() {
     this._container.removeChildren();
     this._draw(this._laneCount);
+  }
+
+  // A baked gameplay backdrop (Road3D) already contains the verges, so the
+  // strips hide — they sit on the Pixi layer ABOVE the 3D canvas and would
+  // cover the bake. Stores the flag; the next setLaneCount() redraw applies it.
+  setBackdropActive(on) {
+    this._backdrop = !!on;
+    this._container.visible = !this._backdrop;
   }
 
   update(_dt) {}

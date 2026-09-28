@@ -430,6 +430,13 @@ export class Shooter3D {
    *  keep the workshop surface). Tiled at the art's own aspect across the full
    *  plane width; a world floor is authored at display brightness, so the
    *  workshop's ×2.5 colour boost is dropped. */
+  /** A baked backdrop (Road3D) paints the bomb depot itself — this plane sits
+   *  above the road and would cover it, so it hides while one is active. */
+  setFloorHidden(hidden) {
+    this._floorHidden = !!hidden;
+    if (this._bgPlane) this._bgPlane.visible = !this._floorHidden;
+  }
+
   setFloorTexture(url) {
     if (!this._bgPlane || !url || url === this._floorUrl) return;
     this._floorUrl = url;

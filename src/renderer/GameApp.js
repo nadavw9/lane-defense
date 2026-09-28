@@ -172,7 +172,7 @@ function spawnFloatingText(parent, x, y, text, color = 0xffffff) {
 
 import {
   ALL_SPRITE_URLS, CRITICAL_SPRITE_URLS, WORLD_ROAD_URLS,
-  buildingSetForLevel, worldPanelForLevel, sceneVariantForLevel,
+  buildingSetForLevel, worldPanelForLevel, sceneVariantForLevel, backdropUrlFor,
 } from './assetManifest.js';
 import { uiIcon } from './UIIcon.js';
 import { INK, SUN, toyPanel } from './ToyStyle.js';
@@ -833,6 +833,11 @@ async function main() {
     cityEdges.setWorldPanel(worldVariant);                    // scene-variant panels
     cityEdges.setLaneCount(cfg.laneCount ?? 4);
     gameRenderer3D.setRoadTexture(WORLD_ROAD_URLS[world] ?? null);
+    // Baked full-scene backdrop, when one exists for this world/variant/lanes:
+    // it carries the road, verges and bomb depot, so the strips step aside.
+    const backdrop = backdropUrlFor(levelId, cfg.laneCount ?? 4);
+    gameRenderer3D.setBackdrop(backdrop);
+    cityEdges.setBackdropActive(!!backdrop);
     // Zone floor renders as a 3D plane UNDER the bombs (a Pixi floor would
     // occlude the 3D bomb spheres — front canvas covers back canvas).
     gameRenderer3D.setZoneTexture(`${import.meta.env.BASE_URL}sprites/designed/zone-${worldVariant}.png`);

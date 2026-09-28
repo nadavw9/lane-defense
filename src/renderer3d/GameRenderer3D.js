@@ -410,6 +410,11 @@ export class GameRenderer3D {
 
   // Per-world road tile (url from assetManifest.WORLD_ROAD_URLS, null = default).
   setRoadTexture(url) { this._road?.setRoadTextureUrl?.(url); }
+  setBackdrop(url) {
+    this._backdropOn = !!url;
+    this._road?.setBackdropUrl?.(url);
+    this._shooters?.setFloorHidden?.(this._backdropOn);
+  }
 
   // Dispatch-zone floor — a 3D plane UNDER the bomb spheres (null = none).
   // Also dresses Shooter3D's floor plane — that is the surface actually visible
@@ -597,6 +602,7 @@ export class GameRenderer3D {
     this._cars        = new Car3D(scene, this._lanes);
     this._shooters    = new Shooter3D(scene, this._columns, pxPerWu);
     if (this._zoneTexUrl) this._shooters.setFloorTexture(this._zoneTexUrl);
+    this._shooters.setFloorHidden?.(!!this._backdropOn);
     this._projectiles = new Projectile3D(scene, this._firingSlots, this._lanes);
     this._particles   = new Particles3D(scene, this._lighting, this._lanes);
     // Re-apply per-level geometry to the freshly-built renderers. Both MUST be

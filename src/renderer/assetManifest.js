@@ -183,3 +183,17 @@ export const ALL_SPRITE_URLS = [
 // grass) may fail to load and degrade to programmatic fallbacks instead of
 // blanking the whole scene. See the resilient loader in GameApp.main().
 export const CRITICAL_SPRITE_URLS = new Set([...CAR_URLS, ...SHOOTER_URLS, ...BOOSTER_URLS]);
+
+// Baked gameplay backdrops (tools/art/studio/backdrop.js, `render-3d-sprites.mjs
+// backdrop`): one full-scene image per world × scene variant × lane count,
+// rendered from projection.js's geometry. Loaded by Road3D's own THREE loader,
+// so they are NOT in the Pixi preload list.
+const BACKDROPS = new Set([
+  ...[1, 2, 3].flatMap(w => ['a', 'b', 'c'].map(v => `world${w}-${v}-3`)),
+  'world1-b-1', 'world1-c-2',
+]);
+export function backdropUrlFor(levelId, laneCount) {
+  const key = `${worldPanelForLevel(levelId)}-${sceneVariantForLevel(levelId)}-${laneCount}`;
+  return BACKDROPS.has(key) ? `${_B}sprites/designed/backdrop-${key}.jpg` : null;
+}
+export const BACKDROP_KEYS = [...BACKDROPS];

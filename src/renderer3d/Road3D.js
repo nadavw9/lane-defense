@@ -137,6 +137,19 @@ export class Road3D {
     this._build();
   }
 
+  /** Baked gameplay backdrop (tools/art/studio/backdrop.js): ONE image of the
+   *  whole scene behind the cars — road, markings, kerbs, verges, bomb depot —
+   *  rendered from projection.js's own geometry for this lane count. When set,
+   *  it replaces the tiled road, zone floor and road dressing; the hazard
+   *  stripe and every dynamic effect stay live on top. null restores them. */
+  setBackdropUrl(url) {
+    const next = url ?? null;
+    if (next === (this._backdropUrl ?? null)) return;
+    this._backdropUrl = next;
+    this._clearGeometry();
+    this._build();
+  }
+
   /** Dispatch-zone floor texture (sliced from the same world scene). Rendered
    *  as a 3D plane UNDER the bomb spheres — it must never live on the Pixi
    *  layer, which would occlude the 3D bombs (front canvas covers back). */
@@ -362,6 +375,12 @@ export class Road3D {
 
   _build() {
     this._built = true;
+    if (this._backdropUrl) {
+      this._buildBackdrop();
+      this._dividers = [];
+      this._buildBreachLine();
+      return;
+    }
     this._buildZoneFloor();
     this._buildRoadSurface();
     this._buildNoiseOverlay();
@@ -400,6 +419,26 @@ export class Road3D {
     this._dividers      = [];
     this._roadMats      = [];
     this._built         = false;
+  }
+
+  // Full-frustum plane: the bake maps stage px 1:1 onto the frustum, so it
+  // must cover exactly [-halfX, halfX] × [topZ, bottomZ] — read live from
+  // projection.js (the band is lane-count-keyed), never cached.
+  _buildBackdrop() {
+    const F   = computeFrustum();
+    const tex = _getWorldRoadTex(this._backdropUrl).clone();
+    tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+    tex.repeat.set(1, 1);
+    tex.offset.set(0, 0);
+    tex.needsUpdate = true;
+    const mat  = new THREE.MeshBasicMaterial({ map: tex, toneMapped: false });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(F.halfX * 2, F.bottomZ - F.topZ), mat);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(0, -0.05, (F.topZ + F.bottomZ) / 2);
+    // Drawn FIRST: the bomb sprites don't write depth (depthWrite:false), so a
+    // floor drawn after them paints straight over them regardless of height.
+    mesh.renderOrder = -10;
+    this._group.add(mesh);
   }
 
   _buildRoadSurface() {

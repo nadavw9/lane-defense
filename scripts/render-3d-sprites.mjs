@@ -14,6 +14,7 @@ import { chromium } from 'playwright';
 import sharp from 'sharp';
 import { writeFileSync } from 'node:fs';
 import { MAP_WORLDS, mapNodes, mapRoadPath } from '../src/screens/levelMapLayout.js';
+import * as P from '../src/renderer3d/projection.js';
 
 const [mode = 'sheet', outArg] = process.argv.slice(2);
 const OUT = 'public/sprites/designed';
@@ -113,6 +114,34 @@ if (mode === 'verges') {
       `// light panel rectangle (fractions of the image) where Car3D draws the sequence.\n` +
       `export const BOSS_SPRITE_GEOMETRY = ${JSON.stringify(geo, null, 2)};\n`);
     console.log('v2 sprites written; boss geometry', geo);
+  }
+} else if (mode === 'backdrop' || mode === 'backdroppreview') {
+  // Gameplay backdrops. Geometry comes from projection.js for each lane count,
+  // so the baked road, breach and bomb depot sit exactly under the live game.
+  //   backdrop [world] [variant] [lanes]  → public/sprites/designed/backdrop-*.jpg
+  //   backdroppreview <outDir> [world] [variant] [lanes]
+  const args = process.argv.slice(3);
+  const outDir = mode === 'backdrop' ? OUT : args.shift();
+  const [wArg, vArg, nArg] = args;
+  const jobs = [];
+  for (const world of wArg ? [wArg] : ['world1', 'world2', 'world3']) {
+    for (const v of vArg ? [vArg] : ['a', 'b', 'c']) jobs.push([world, v, Number(nArg ?? 3)]);
+  }
+  if (!wArg && mode === 'backdrop') jobs.push(['world1', 'b', 1], ['world1', 'c', 2]);   // L1 / L2
+  for (const [world, v, n] of jobs) {
+    P.setActiveLaneCount(n);
+    const F = P.computeFrustum();
+    const L = {
+      halfX: F.halfX, topZ: F.topZ, bottomZ: F.bottomZ,
+      halfW: P.roadHalfWPure(n), laneXs: Array.from({ length: n }, (_, i) => P.laneToXPure(i, n)),
+      breachZ: P.ROAD_Z_NEAR, barZ: P.screenYToZ(P.BOOSTER_BAR_TOP_Y),
+      slotZs: [0, 1, 2].map(i => P.bombSlotZ(i)), bombR: P.BOMB_R,
+    };
+    const t0 = Date.now();
+    const url = await page.evaluate(([w, v, L]) => window.studio.backdrop(w, v, L), [world, v, L]);
+    const file = `${outDir}/backdrop-${world}-${v}-${n}.jpg`;
+    writeFileSync(file, decode(url));
+    console.log(file, `${((Date.now() - t0) / 1000).toFixed(1)}s`);
   }
 } else if (mode === 'map' || mode === 'mappreview') {
   // Level-map backgrounds (one per world page) + repair building sprites.

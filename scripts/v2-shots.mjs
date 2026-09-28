@@ -3,7 +3,9 @@
 // Plays real turns through the dev hooks (the same path a drag takes after
 // validation) so boards show traffic mid-level, not the opening deal.
 import { chromium } from 'playwright';
-const [out, base = 'http://localhost:5173/'] = process.argv.slice(2);
+const [out, base = 'http://localhost:5173/', only] = process.argv.slice(2);
+// Optional 3rd arg: comma list of levels to capture (e.g. 7,12) — skips the rest.
+const ONLY = only ? only.split(',').map(Number) : null;
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
 
 async function open(level) {
@@ -49,7 +51,7 @@ async function play(p, n) {
 const shots = [
   ['01', 7, 8], ['02', 11, 8], ['03', 17, 8], ['04', 10, 6], ['05', 20, 7], ['06', 40, 8],
 ];
-for (const [name, level, n] of shots) {
+for (const [name, level, n] of (ONLY ? ONLY.map((l, i) => [`L${l}`, l, 8]) : shots)) {
   const p = await open(level);
   await play(p, n);
   await p.screenshot({ path: `${out}/${name}.png` });
@@ -57,7 +59,7 @@ for (const [name, level, n] of shots) {
   await p.close();
 }
 // Hot Streak: pips at 2, then charged.
-{
+if (!ONLY) {
   const p = await open(5);
   await p.evaluate(() => { const l = window._nav.getGameLoop(); l._gs.streak = 2; l._onStreak?.(2, false, {}); });
   await p.waitForTimeout(600);

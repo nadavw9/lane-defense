@@ -14,6 +14,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { BUILD_HD, buildBossHD, BOSS_PANEL_HD } from './vehicles-hd.js';
+import { renderBackdrop } from './backdrop.js';
 
 export const PALETTE = {
   Red: 0xFF3D3D, Orange: 0xFF8A1C, Yellow: 0xFFD42A,
@@ -1159,6 +1160,12 @@ window.studio = {
     clearObj(obj);
     setLight(DEFAULT_LIGHT);
     return out.toDataURL('image/png');
+  },
+  // Full gameplay backdrop (road, verges, depot) for one world/variant/lane
+  // count. L comes from projection.js via the driver; returns a JPEG data URL.
+  backdrop(world, variant, L, { scale = 2, ss = 2, quality = 0.9 } = {}) {
+    const c = renderBackdrop(renderer, world, variant, { ...L, tilt: TILT }, { scale, ss });
+    return c.toDataURL('image/jpeg', quality);
   },
   ready: true,
 };

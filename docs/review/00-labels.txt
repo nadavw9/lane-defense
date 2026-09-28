@@ -1,30 +1,13 @@
-Premium pass, round 2 (branch feat/v2-design). Odd = BEFORE, even = AFTER unless marked.
+Premium pass, round 3 (branch feat/v2-design). BEFORE = commit a0380dc, AFTER = current.
 Captured headless (software renderer); colours and layout are exact, animation timing is not.
 
-01=BEFORE L7 speeders: grey hint pill overflowing, pale "x2 COMBO" box, teardrop streak pips, dot bench
-02=AFTER  L7: tip card above the breach line (NEW tag + text), outlined combo with a soft halo, flame pips, inked bomb numbers, bench sockets with "+". LOOK: tip readable, no car hidden at level start
-03=BEFORE L10 boss: small grey BOSS pill, ghosted "5 TO GO", tiny sequence pips
-04=AFTER  L10: BOSS tip card, sequence pips on a dark plate under the big light, "5 TO GO" now spawns under the boss. LOOK: can you read the boss colour order from arm's length?
-05=BEFORE L40 two bosses (night): same grey pill
-06=AFTER  L40: FINAL BOSS tip card, both bosses fully visible above it
-07=BEFORE daily reward (old dark panel, text coins)
-08=AFTER  daily: gold-rim card, 3x2 day tiles + day-7 jackpot, coin/booster art, big CLAIM
-09=BEFORE stats (plain text list on black)
-10=AFTER  stats: star progress hero card + 6 icon tiles
-11=BEFORE achievements ("???" grid on black)
-12=AFTER  trophies: progress bar, scrolling rows, one icon per trophy, goals visible while locked (survival-mode trophies hidden - that mode no longer exists)
-13=BEFORE how to play (old L22 screenshots)
-14=AFTER  how to play: 4 slides drawn from the game's own art, includes Hot Streak
-15=BEFORE car encyclopedia (flat list, misleading "one hit" tips)
-16=AFTER  car guide: vehicles marked BASE HP + the 4 special cars (locked until reached)
-17=BEFORE car HP (flat list)
-18=AFTER  car HP: same live per-level numbers, pill colours now match the car guide
-19=BEFORE new-vehicle card (dark strip)
-20=AFTER  new-vehicle card: ribbon, rays, big vehicle, THIS level's HP (was base HP - disagreed with the board)
-21=AFTER only  continue offer after a breach: big CONTINUE (watch a video), RETRY, "Give up"
-22=AFTER only  level card L10: the boss and its rule shown before PLAY (in the real flow the map sits behind)
-23=AFTER only  title on a return visit: PLAY shown immediately (the bomb-drop intro now plays once per session)
-24=AFTER only  level map: skull / weekly-star badges now sit on their own discs
-25=AFTER only  win (captured mid-animation: button still dim, building still rubble - it now repairs into the level's real 3D building, even on 0-coin wins)
-26=AFTER only  game over: stat rows no longer touch TRY AGAIN
-27=AFTER only  pause
+01=BEFORE shop: three rows, BOMB missing, bottom third empty, grey-ish price buttons
+02=AFTER  shop: BOOSTER PACK value offer (2 of each, -22%), 2x2 tiles incl. BOMB with owned counts, always-gold prices, FREE STUFF row (+25 coins for a video, 3 a day; daily gift OPEN). LOOK: is the pack the first thing your eye lands on?
+03=AFTER  shop when broke + gift already claimed: gift card shows a live countdown; a price you can't afford shakes and says "watch a video for free coins" (toast not in this frame - software renderer lag). Purchases now go to your inventory and come into every level with you
+04=BEFORE settings: web-form look, "100%" labels sitting on the slider knobs, mini how-to-play carousel
+05=AFTER  settings: label + value above a full-width slider (no collision), chunky toggles, HELP buttons, privacy under ABOUT
+06=AFTER  settings -> CAR GUIDE opens over settings; back returns to settings
+07=BEFORE level card: starburst goal icon, three identical "AD" chips
+08=AFTER  level card: "any cars" goal shown as a little traffic jam, video chips read "+1", green badges show boosters you already own (they come along automatically). (Real flow has the map behind the card)
+09=BEFORE win: cream rays on near-black
+10=AFTER  win: warm violet field with a soft gold glow, additive gold rays; a 0/1 multi-kill row is replaced by CARS DESTROYED. (Forced win from the dev hook, so coins/cars read 0 here - real wins show real numbers)

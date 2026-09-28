@@ -1,7 +1,8 @@
 // Shop + settings captures for design review (dev server :5173).
 //   node scripts/shop-shots.mjs <outDir> [prefix]
 // Shop with coins and a ready daily gift, shop after a purchase with the gift
-// claimed (countdown), shop broke (deny toast), settings, settings → car guide.
+// claimed (countdown), shop broke (deny toast), settings, settings → car guide,
+// level card with owned boosters, win.
 import { chromium } from 'playwright';
 const [out, prefix = 'shop'] = process.argv.slice(2);
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
@@ -37,4 +38,9 @@ await p.evaluate(() => { window._nav.cleanAll(); window._nav.showSettings(); });
 await shot('settings');
 await tap(288, 584);                      // CAR GUIDE
 await shot('settings-carguide');
+await p.evaluate(() => { window._nav.cleanAll(); window._nav.showLevelSelect(); window._nav.showPreLevel(12); });
+await shot('prelevel');
+await p.evaluate(() => window._nav.startLevel(12)); await p.waitForTimeout(3000);
+await p.evaluate(() => window._nav.showWin()); await p.waitForTimeout(2500);
+await shot('win');
 await b.close();

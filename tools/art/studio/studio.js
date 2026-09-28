@@ -15,6 +15,7 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { BUILD_HD, buildBossHD, BOSS_PANEL_HD } from './vehicles-hd.js';
 import { renderBackdrop } from './backdrop.js';
+import { renderMapHD, renderRepairHD } from './mapdiorama.js';
 
 export const PALETTE = {
   Red: 0xFF3D3D, Orange: 0xFF8A1C, Yellow: 0xFFD42A,
@@ -1119,47 +1120,15 @@ window.studio = {
   },
   // Level-map background for one world page (W×H map px at `scale`×).
   map(theme, seed, { W = 390, H = 844, S = 22, scale = 2, road, nodes } = {}) {
-    house.k = undefined;
-    setLight(theme === 'world3' ? { ...WORLD.world3.light, hemi: 0.8, key: 1.5 } : WORLD[theme].light);   // map: night, but readable
-    const cz = Math.cos(TILT);
-    const Wu = W / S, Hu = H / S;
-    const obj = place(buildMap(theme, seed, { W, H, S, road, nodes }));
-    camera.position.set(0, Math.cos(TILT) * 40, Math.sin(TILT) * 40);
-    camera.up.set(0, 0, -1);
-    camera.lookAt(0, 0, 0);
-    Object.assign(camera, { left: -Wu / 2, right: Wu / 2, top: Hu / 2, bottom: -Hu / 2 });
-    camera.updateProjectionMatrix();
-    renderer.setSize(W * scale, H * scale, false);
-    ground.visible = false;
-    const L = H / (S * cz);
-    Object.assign(key.shadow.camera, { left: -L, right: L, top: L, bottom: -L });
-    key.shadow.camera.updateProjectionMatrix();
-    const out = snapshot(W * scale, H * scale);
-    Object.assign(key.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8 });
-    key.shadow.camera.updateProjectionMatrix();
-    ground.visible = true;
-    clearObj(obj);
-    setLight(DEFAULT_LIGHT);
-    return out.toDataURL('image/png');
+    // HD diorama (mapdiorama.js): the gameplay backdrop's props and sun.
+    const plots = nodes.map(n => [n.plotX, n.plotY + 14]);
+    const c = renderMapHD(renderer, theme, seed, { W, H, S, road, nodes, plots, tilt: TILT, scale });
+    return c.toDataURL('image/png');
   },
   // One repair building sprite, framed at a fixed scale so all states align.
   repair(theme, state, variant, { S = 22, scale = 2, px = 150 } = {}) {
-    setLight(theme === 'world3' ? { ...WORLD.world3.light, hemi: 0.8, key: 1.5 } : WORLD[theme].light);
-    const obj = place(buildRepair(theme, state, variant));
-    camera.position.set(0, Math.cos(TILT) * 30, Math.sin(TILT) * 30);
-    camera.up.set(0, 0, -1);
-    camera.lookAt(0, 0, 0);
-    camera.updateMatrixWorld(true);
-    // Fixed frame centred on the plot's ground centre, a bit above for height.
-    const hw = px / S / 2;
-    const c = new THREE.Vector3(0, 1.0, 0).applyMatrix4(camera.matrixWorldInverse);
-    Object.assign(camera, { left: c.x - hw, right: c.x + hw, top: c.y + hw, bottom: c.y - hw });
-    camera.updateProjectionMatrix();
-    renderer.setSize(px * scale * 2, px * scale * 2, false);
-    const out = snapshot(px * scale, px * scale);
-    clearObj(obj);
-    setLight(DEFAULT_LIGHT);
-    return out.toDataURL('image/png');
+    const c = renderRepairHD(renderer, theme, state, variant, { S, scale, px, tilt: TILT });
+    return c.toDataURL('image/png');
   },
   // Full gameplay backdrop (road, verges, depot) for one world/variant/lane
   // count. L comes from projection.js via the driver; returns a JPEG data URL.

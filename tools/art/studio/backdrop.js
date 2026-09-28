@@ -490,9 +490,9 @@ function awning(w, cols, facing) {
 }
 
 // A town house seen from above: body, pitched tile roof or flat roof with kit.
-function townHouse(T, r, w, d, h, facing) {
+function townHouse(T, r, w, d, h, facing, opts = {}) {
   const g = new THREE.Group();
-  const wall = std(pick(r, T.walls), 0.85);
+  const wall = std(opts.wall ?? pick(r, T.walls), 0.85);
   g.add(rbox(w, h, d, 0.04, wall, 0, h / 2, 0));
   // Windows on the camera-facing side (+z) and street side.
   const winM = std(0x3B5B86, 0.15, { metalness: 0.3 });
@@ -501,8 +501,9 @@ function townHouse(T, r, w, d, h, facing) {
       g.add(box(0.26, 0.3, 0.02, winM, -w / 2 + 0.35 + i * 0.55, 0.45 + fl * 0.7, d / 2 + 0.005));
     }
   }
-  const roofCol = pick(r, T.roofs);
-  if (r() < 0.62) {
+  g.add(rbox(0.3, 0.5, 0.04, 0.02, std(0x7A4E32, 0.6), w * 0.25, 0.25, d / 2 + 0.01));
+  const roofCol = opts.roof ?? pick(r, T.roofs);
+  if (opts.style ? opts.style === 'pitched' : r() < 0.62) {
     // Pitched roof along z (ridge runs along the street) with tile texture.
     const tex = roofTileTexture(roofCol, r);
     tex.repeat.set(w * 0.5, d * 0.5);
@@ -528,7 +529,7 @@ function townHouse(T, r, w, d, h, facing) {
     const top = mix(roofCol, 0xBFB8AA, 0.6);
     g.add(rbox(w + 0.06, 0.12, d + 0.06, 0.03, std(mix(top, 0x000000, 0.15), 0.8), 0, h + 0.06, 0));
     g.add(box(w - 0.14, 0.04, d - 0.14, std(top, 0.95), 0, h + 0.1, 0));
-    const kit = r();
+    const kit = opts.kit ?? r();
     if (kit < 0.35) {
       for (let i = 0; i < 2 + Math.floor(r() * 2); i++) {
         const ac = rbox(0.34, 0.2, 0.3, 0.03, std(0xE4E6EA, 0.5), (r() - 0.5) * (w - 0.5), h + 0.22, (r() - 0.5) * (d - 0.5));
@@ -961,3 +962,8 @@ export function renderBackdrop(renderer, world, variant, L, { scale = 2, ss = 2 
   pmrem.dispose();
   return c;
 }
+
+// ── Shared with the map diorama (mapdiorama.js) ─────────────────────────────
+export { THEME, rng, pick, mix, std, glow, rbox, box, cyl, sphere, blob, plane, canvas, toTex, speckle, blotch,
+  paverTexture, grassTexture, tree, pine, bush, flowerBed, lamp, bench, hydrant, bollard, bin, planterPot, parasol,
+  townHouse, warehouse, shippingContainer, drum, pallet, cone, fence, tower, neonSign };

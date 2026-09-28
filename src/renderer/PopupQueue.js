@@ -40,7 +40,7 @@ const DEBOUNCE_S = 0.4;
 // cars. Priority only decides which queued item shows next.
 const SAFE_GAP_Y   = 505;
 const MAX_DURATION = 2.0;   // notifications auto-dismiss within 2 seconds
-const TIP_Y = 112;              // fallback; GameApp wires tipYFn to the live goal band
+const TIP_BOTTOM = 600;         // fallback; GameApp wires tipBottomFn to the breach line
 const TIP_MAX_DURATION = 5.0;   // rule tips need reading time (a 3-line tip in 2s was unreadable)
 
 export class PopupQueue {
@@ -141,9 +141,12 @@ export class PopupQueue {
 
   _showItem({ priority, buildFn, duration }) {
     const container = buildFn(this._appW);
-    // Rule tips dock under the HUD band (far end of the road, away from the cars
-    // about to breach); short toasts keep the gap above the breach line.
-    container.y     = priority === PRIORITY.TUTORIAL ? (this.tipYFn?.() ?? TIP_Y) : SAFE_GAP_Y;
+    // Rule tips sit just above the breach line. Most fire at level start, when
+    // those rows are still empty; the top of the road is where new pieces (and
+    // bosses) arrive, so a tip there would hide the very thing it introduces.
+    container.y     = priority === PRIORITY.TUTORIAL
+      ? (this.tipBottomFn?.() ?? TIP_BOTTOM) - container.height - 12
+      : SAFE_GAP_Y;
     container.alpha = 1;
     this._layer.addChild(container);
     this._active = { container, timer: Math.min(duration, priority === PRIORITY.TUTORIAL ? TIP_MAX_DURATION : MAX_DURATION), priority };

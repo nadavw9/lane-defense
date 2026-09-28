@@ -14,7 +14,7 @@ await p.goto('http://localhost:5173/', { waitUntil: 'networkidle' });
 await p.waitForFunction(() => !!window._nav, null, { timeout: 90000 });
 await p.waitForTimeout(2500);
 const shot = async (name) => { await p.waitForTimeout(1600); await p.screenshot({ path: `${out}/${prefix}-${name}.png` }); console.log(name); };
-await p.evaluate(() => window._nav.showTitle()); await p.waitForTimeout(6000); await shot('title');
+await p.evaluate(() => window._nav.showTitle()); await p.waitForTimeout(800); await p.evaluate(() => { window._nav.cleanAll(); window._nav.showTitle(); }); await shot('title');
 await p.evaluate(() => window._nav.showLevelSelect()); await shot('levels');
 await p.evaluate(() => window._nav.showPreLevel(12)); await shot('prelevel');
 await p.evaluate(() => window._nav.startLevel(12)); await p.waitForTimeout(3000);

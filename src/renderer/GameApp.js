@@ -94,6 +94,7 @@ import { AchievementManager }     from '../game/AchievementManager.js';
 import { DailyChallengeManager }  from '../game/DailyChallengeManager.js';
 import { CarTypeIntroCard, hasIntroCard } from '../screens/CarTypeIntroCard.js';
 import { spawnableTypesFor, carHpFor } from '../director/CarTypes.js';
+import { BREACH_LINE_Y } from '../renderer3d/projection.js';   // live binding (per band)
 import { ComboFX } from './ComboFX.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -486,8 +487,8 @@ async function main() {
 
   // ── FTUE per-feature banners (once-per-lifetime, persisted to localStorage) ─
   const featureBanners = new FeatureBanners(popupQueue, APP_W);
-  // Tip banners dock under the goal band — read at show time, never cached.
-  popupQueue.tipYFn = () => (goalCounterUI?.bandBottom ?? 104) + 8;
+  // Tip banners sit above the breach line (canonical, from projection.js).
+  popupQueue.tipBottomFn = () => BREACH_LINE_Y - 14;
 
   // ── Onboarding hints — three lifetime one-time tutorial MODAL cards (HP/book,
   //    match-damage, cars-advance). Rendered on app.stage, above the HUD. ───────
@@ -1825,7 +1826,7 @@ async function main() {
       audio.play('boss_light', { left: boss.hp });
       haptics.medium();
       floatingTexts.push(spawnFloatingText(layers.get('particleLayer'),
-        getLaneScreenX(laneIdx), getColumnScreenY() - 110, `${boss.hp} TO GO`, 0xFFD42A));
+        getLaneScreenX(laneIdx), posToScreenY(boss.position) + 70, `${boss.hp} TO GO`, 0xFFD42A));   // just under the boss
     }
   };
 

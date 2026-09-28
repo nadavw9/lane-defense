@@ -47,6 +47,8 @@ function makeCarSprite(color, targetH = 22) {
   return g;
 }
 
+let _introPlayed = false;   // the bomb-drop intro plays on the first title visit only
+
 export class TitleScreen {
   constructor(stage, appW, appH, {
     onPlay, onDaily, hasDailyReward, onDailyChallenge,
@@ -212,8 +214,15 @@ export class TitleScreen {
       this._container.addChild(gear);
     }
 
-    // Intro bomb-drop one-shot (reveals the PLAY button when it finishes).
-    this._buildIntro(w, h);
+    // Intro bomb-drop one-shot (reveals the PLAY button when it finishes) —
+    // once per session; coming back to the title shows PLAY immediately.
+    if (_introPlayed) {
+      btn.visible = true; playGlow.visible = true;
+      this._intro = null;
+    } else {
+      _introPlayed = true;
+      this._buildIntro(w, h);
+    }
   }
 
   // ── Intro: a bomb drops on a passing car, then the PLAY button appears ──────

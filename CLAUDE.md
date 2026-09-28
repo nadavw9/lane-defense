@@ -11,6 +11,26 @@ An approved 3-workstream master plan is in progress (WS1 testing DONE → WS2 UI
 Route mechanical spec-execution to cheaper models; reserve Fable/Opus for design judgment
 (playbook §2).
 
+### PLAY THE GAME BEFORE CALLING IT DONE — QA bots (2026-09-28)
+
+The owner found an L1 soft-lock in 5 seconds of play that 1300 green unit tests never saw.
+Run the game, not just the suite. The bots drive the REAL input path (DragDrop handlers,
+real canvas taps) against a dev server and flag stalls, not balance:
+
+| script | what it proves |
+|---|---|
+| `scripts/autoplay.mjs <out> 1 41` (41 = daily) | every level playable to win/lose: emptyBoard, noMove, turnStuck, pauseStuck, dropRefused, rescue resumes, boosters spend, loss history |
+| `scripts/ftue-play.mjs <out> 6` | brand-new save: title → map → card → real mouse drags → win → NEXT |
+| `scripts/booster-qa.mjs <out>` | colour change / freeze / bomb through real taps + armed-bomb-vs-pause regression |
+| `scripts/economy-qa.mjs` | shop → inventory → level → settle |
+
+Run them against a **worktree of the commit under test on port 5174** (`QA_URL=http://localhost:5174/`),
+never the dev server you are editing — HMR reloads kill a run mid-level. Headless is ~1 fps under
+load at DPR 2: wait on state (`getScreens()`, `dbgRescue().built`), never on time, and use DPR 1.
+Bugs these found on 2026-09-28: L1 empty-road soft-lock (row-0 staging), L4 bench tutorial input
+lock, CONTINUE after a boss breach = unwinnable level, queue reorder grabbing the wrong bomb,
+rainbow bombs recoloured to 0 damage.
+
 ### VALIDATION — the gates cost more than they caught; these are the rules (2026-08-08)
 
 **1. Docs-only changes go straight to master.** No branch, no CI wait. A markdown file cannot

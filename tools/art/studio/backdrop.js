@@ -184,7 +184,7 @@ function roadTexture(T, world, L, r) {
     for (const lx of laneXs) for (const s of [-1, 1]) { x.beginPath(); x.moveTo(X(lx + s * 2), 0); x.lineTo(X(lx + s * 2), H); x.stroke(); }
     // Slab-to-slab tone shifts.
     for (let wz = Math.ceil(z0 / 4.5) * 4.5; wz < z1; wz += 4.5) for (const lx of laneXs) {
-      x.globalAlpha = 0.06 + r() * 0.08; x.fillStyle = r() < 0.5 ? '#FFFFFF' : '#000000';
+      x.globalAlpha = 0.03 + r() * 0.04; x.fillStyle = r() < 0.5 ? '#FFFFFF' : '#000000';
       x.fillRect(X(lx - 2), Y(wz), 4 * pxu, 4.5 * pxu);
     }
     x.globalAlpha = 1;

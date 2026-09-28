@@ -95,6 +95,7 @@ import { DailyChallengeManager }  from '../game/DailyChallengeManager.js';
 import { CarTypeIntroCard, hasIntroCard } from '../screens/CarTypeIntroCard.js';
 import { spawnableTypesFor, carHpFor } from '../director/CarTypes.js';
 import { BREACH_LINE_Y } from '../renderer3d/projection.js';   // live binding (per band)
+import { roundButton as premiumRoundButton } from './PremiumUI.js';
 import { ComboFX } from './ComboFX.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -625,26 +626,20 @@ async function main() {
   // ── Goal-bar flank buttons — HP guide (🚗 left) + how-to-play (❓ right) ────────
   // On the goal pill row (~y=47). Shown during gameplay; open a paused overlay.
   function _makeGoalBarBtn(glyph, x, onTap, iconName = null) {
-    const HIT = 38;
-    const g   = new Graphics();
-    toyPanel(g, 0, 0, HIT, HIT - 4, 10, SUN, { lip: 4, stroke: 3 });
-    g.x = x; g.y = 28;
-    g.eventMode = 'static';
-    g.cursor    = 'pointer';
-    g.visible   = false;
-    g.on('pointerdown', onTap);
-    g.on('pointerover', () => { g.alpha = 0.75; });
-    g.on('pointerout',  () => { g.alpha = 1.00; });
+    // Round premium icon button (PremiumUI.roundButton), centred on the goal
+    // slots' row inside the header band.
     const icon = iconName ? uiIcon(iconName, 24, glyph)
-      : new Text({ text: glyph, style: { fontSize: 22, fontWeight: '900', fill: INK } });
-    icon.anchor.set(0.5, 0.5);
-    icon.x = HIT / 2; icon.y = (HIT - 4) / 2;
-    g.addChild(icon);
+      : new Text({ text: glyph, style: { fontFamily: '"Luckiest Guy", Fredoka, Arial, sans-serif', fontSize: 24, fill: 0xFFFFFF,
+          stroke: { color: INK, width: 4, join: 'round' } } });
+    icon.anchor?.set?.(0.5, 0.5);
+    const g = premiumRoundButton(icon, { r: 21, color: 0x3F63C8, onTap });
+    g.x = x; g.y = 46;
+    g.visible = false;
     layers.get('hudLayer').addChild(g);
     return g;
   }
-  const hpGuideBtn   = _makeGoalBarBtn('🚗', 6,           () => showHpGuide(), 'car');
-  const howToPlayBtn = _makeGoalBarBtn('?',  APP_W - 44,  () => showHowToPlay());
+  const hpGuideBtn   = _makeGoalBarBtn('🚗', 32,          () => showHpGuide(), 'car');
+  const howToPlayBtn = _makeGoalBarBtn('?',  APP_W - 32,  () => showHowToPlay());
 
   // (Color-bomb streak pip counter removed — color bombs are now earned by a
   //  single-shot MULTI-KILL of 2+ cars, not by a consecutive-shot streak. FIX 4.)

@@ -1,233 +1,161 @@
-// CarManualScreen — in-game car encyclopedia.
-// Shows all 6 car types; unencountered ones appear as locked silhouettes.
-// Access via pause menu "CAR INFO" button or HUD book icon.
-
-import { Container, Graphics, Text, Sprite, Assets } from 'pixi.js';
+// CarManualScreen — the in-game car guide (premium pass, 2026-09-28).
+//
+// Two sections: the six vehicle types (base HP from CAR_TYPES, the single source
+// of truth; the in-level CAR HP panel shows the exact numbers for that level) and
+// the four V2 special cars. Anything the player has not met yet is a locked tile.
+// Access via the pause menu "CAR GUIDE" button.
+import { Container, Graphics, Sprite, Assets } from 'pixi.js';
 import { uiIcon } from '../renderer/UIIcon.js';
 import { CAR_TYPES } from '../director/CarTypes.js';
+import { panel, ribbon, button, roundButton, titleText, bodyText, backdrop, well, GOLD, RIBBON } from '../renderer/PremiumUI.js';
+import { INK, shade } from '../renderer/ToyStyle.js';
 
 const BASE_URL = import.meta.env.BASE_URL ?? '';
 
-// hp comes from CAR_TYPES (single source of truth) — the manual shows base HP;
-// live cars scale it by the level's hpMultiplier. (The values previously
-// hardcoded here were from the reverted gridRows-16 HP raise.)
 const CAR_ENTRIES = [
-  { key: 'small',  name: 'MOTORBIKE', hp: CAR_TYPES.small.hp,  color: 0x44BB99, sprite: 'sprites/designed/bike-red.png'           },
-  { key: 'big',    name: 'CAR',       hp: CAR_TYPES.big.hp,    color: 0xDD8833, sprite: 'sprites/designed/car-red-processed.png'  },
-  { key: 'jeep',   name: 'VAN',       hp: CAR_TYPES.jeep.hp,   color: 0x2F8CFF, sprite: 'sprites/designed/van-red.png'            },
-  { key: 'truck',  name: 'TENDER',    hp: CAR_TYPES.truck.hp,  color: 0x2FCC55, sprite: 'sprites/designed/truck-red.png'          },
-  { key: 'bigrig', name: 'BIG RIG',   hp: CAR_TYPES.bigrig.hp, color: 0xFF8A1C, sprite: 'sprites/designed/bigrig-red.png'         },
-  { key: 'tank',   name: 'TANK',      hp: CAR_TYPES.tank.hp,   color: 0xA35CFF, sprite: 'sprites/designed/tank.png'               },
+  { key: 'small',  name: 'MOTORBIKE', hp: CAR_TYPES.small.hp,  color: 0x44BB99, sprite: 'sprites/designed/bike-red.png'          },
+  { key: 'big',    name: 'CAR',       hp: CAR_TYPES.big.hp,    color: 0xDD8833, sprite: 'sprites/designed/car-red-processed.png' },
+  { key: 'jeep',   name: 'VAN',       hp: CAR_TYPES.jeep.hp,   color: 0x2F8CFF, sprite: 'sprites/designed/van-red.png'           },
+  { key: 'truck',  name: 'TENDER',    hp: CAR_TYPES.truck.hp,  color: 0x2FCC55, sprite: 'sprites/designed/truck-red.png'         },
+  { key: 'bigrig', name: 'BIG RIG',   hp: CAR_TYPES.bigrig.hp, color: 0xFF8A1C, sprite: 'sprites/designed/bigrig-red.png'        },
+  { key: 'tank',   name: 'TANK',      hp: CAR_TYPES.tank.hp,   color: 0xA35CFF, sprite: 'sprites/designed/tank.png'              },
 ];
 
-const ENTRY_H    = 100;
-const ENTRY_GAP  = 5;
-const SPR_ZONE_W = 76;   // left zone width for the sprite
-const SPR_MAX_W  = 62;
-const SPR_MAX_H  = 80;
+// Special cars, revealed once the player has reached the level that introduces them.
+const SPECIALS = [
+  { name: 'SPEEDER',   level: 7,  sprite: 'sprites/designed/speeder-big-yellow.png',  rule: 'Moves 2 steps a turn' },
+  { name: 'BOSS',      level: 10, sprite: 'sprites/designed/boss.png',                rule: 'Hit its roof colors in order' },
+  { name: 'ARMOURED',  level: 11, sprite: 'sprites/designed/armored-big-blue.png',    rule: 'Any color breaks the plates' },
+  { name: 'CHAMELEON', level: 17, sprite: 'sprites/designed/chameleon-big-green.png', rule: 'Changes color every turn' },
+];
 
 export class CarManualScreen {
   // seenTypes: Set of type keys the player has been introduced to
-  // (ProgressManager.getIntroducedCarTypes()); others render as locked silhouettes.
-  constructor(stage, appW, appH, { onClose, seenTypes }) {
+  // (ProgressManager.getIntroducedCarTypes()). unlockedLevel reveals specials.
+  constructor(stage, appW, appH, { onClose, seenTypes, unlockedLevel = 1 }) {
     this._seenTypes = seenTypes ?? new Set();
+    this._unlocked = unlockedLevel;
     this._container = new Container();
     stage.addChild(this._container);
     this._build(appW, appH, onClose);
   }
 
-  destroy() {
-    this._container.destroy({ children: true });
-  }
-
-  // ── Private ────────────────────────────────────────────────────────────────
+  destroy() { this._container.destroy({ children: true }); }
 
   _build(W, H, onClose) {
-    const PW = 356;
-    const ENTRIES_H = CAR_ENTRIES.length * (ENTRY_H + ENTRY_GAP) - ENTRY_GAP;
-    const PH = 66 + ENTRIES_H + 16 + 48 + 20;  // header + entries + gap + btn + padding
-    const PX = (W - PW) / 2;
-    const PY = Math.max(10, (H - PH) / 2);
+    const C = this._container;
+    const PW = 358, PH = 660;
+    const PX = (W - PW) / 2, PY = Math.max(40, (H - PH) / 2 + 6);
+    C.addChild(backdrop(W, H, 0.8));
+    const pn = panel(PW, PH);
+    pn.x = PX; pn.y = PY;
+    C.addChild(pn);
+    const rb = ribbon('CAR GUIDE', 230, { size: 26 });
+    rb.x = W / 2; rb.y = PY + 2;
+    C.addChild(rb);
+    const close = roundButton(uiIcon('close', 22, '✕'), { r: 22, color: RIBBON, onTap: () => onClose?.() });
+    close.x = PX + PW - 14; close.y = PY + 14;
+    C.addChild(close);
 
-    const seenTypes = this._seenTypes;
-
-    // Backdrop — blocks game clicks
-    const backdrop = new Graphics();
-    backdrop.rect(0, 0, W, H);
-    backdrop.fill({ color: 0x000011, alpha: 0.85 });
-    backdrop.eventMode = 'static';
-    this._container.addChild(backdrop);
-
-    // Panel
-    const panel = new Graphics();
-    panel.roundRect(PX, PY, PW, PH, 18);
-    panel.fill({ color: 0x0d1a2e, alpha: 0.98 });
-    panel.roundRect(PX, PY, PW, PH, 18);
-    panel.stroke({ color: 0x44aaff, width: 2, alpha: 0.30 });
-    this._container.addChild(panel);
-
-    // Header
-    const eyebrow = new Text({
-      text: 'CAR ENCYCLOPEDIA',
-      style: { fontSize: 10, fontWeight: 'bold', fill: 0x6688aa, letterSpacing: 3 },
+    // Vehicles: 3 × 2 tiles.
+    this._label('VEHICLES', W / 2, PY + 52);
+    const tw = 100, th = 124, gap = 10;
+    const gx = PX + (PW - (3 * tw + 2 * gap)) / 2, gy = PY + 66;
+    CAR_ENTRIES.forEach((e, i) => {
+      this._vehicleTile(e, gx + (i % 3) * (tw + gap), gy + Math.floor(i / 3) * (th + gap), tw, th, this._seenTypes.has(e.key));
     });
-    eyebrow.anchor.set(0.5, 0);
-    eyebrow.x = W / 2; eyebrow.y = PY + 14;
-    this._container.addChild(eyebrow);
 
-    const heading = new Text({
-      text: 'VEHICLES',
-      style: { fontSize: 22, fontWeight: 'bold', fill: 0xffffff },
+    // Specials: 2 × 2 tiles.
+    const sy = gy + 2 * (th + gap) + 14;
+    this._label('SPECIAL CARS', W / 2, sy);
+    const sw = (PW - 36 - gap) / 2, sh = 96;
+    SPECIALS.forEach((s, i) => {
+      this._specialTile(s, PX + 18 + (i % 2) * (sw + gap), sy + 14 + Math.floor(i / 2) * (sh + gap), sw, sh, this._unlocked >= s.level);
     });
-    heading.anchor.set(0.5, 0);
-    heading.x = W / 2; heading.y = PY + 30;
-    this._container.addChild(heading);
 
-    // Entries
-    const startY = PY + 66;
-    for (let i = 0; i < CAR_ENTRIES.length; i++) {
-      const entry = CAR_ENTRIES[i];
-      const ey    = startY + i * (ENTRY_H + ENTRY_GAP);
-      this._buildEntry(entry, ey, PX + 8, PW - 16, seenTypes.has(entry.key));
-    }
-
-    // Close button
-    const closeY = startY + ENTRIES_H + 16;
-    const BW = 200, BH = 48;
-    const btn = new Graphics();
-    btn.roundRect((W - BW) / 2, closeY, BW, BH, 12);
-    btn.fill({ color: 0x1a2a4a, alpha: 1 });
-    btn.eventMode = 'static'; btn.cursor = 'pointer';
-    btn.on('pointerdown', onClose);
-    btn.on('pointerover', () => { btn.alpha = 0.75; });
-    btn.on('pointerout',  () => { btn.alpha = 1.00; });
-    this._container.addChild(btn);
-
-    const btnTxt = new Text({
-      text: 'CLOSE',
-      style: { fontSize: 18, fontWeight: 'bold', fill: 0x88aacc },
-    });
-    btnTxt.anchor.set(0.5, 0.5);
-    btnTxt.x = W / 2; btnTxt.y = closeY + BH / 2;
-    this._container.addChild(btnTxt);
+    const ok = button('GOT IT', { variant: 'blue', w: 180, h: 56, size: 24, onTap: () => onClose?.() });
+    ok.x = W / 2; ok.y = PY + PH - 44;
+    C.addChild(ok);
   }
 
-  _buildEntry(entry, ey, ex, ew, revealed) {
-    const sprCX = ex + SPR_ZONE_W / 2;
-    const sprCY = ey + ENTRY_H / 2;
-    const textX  = ex + SPR_ZONE_W + 10;
+  _label(str, x, y) {
+    const t = bodyText(str, 13, 0xC9C3F0, { outline: false });
+    t.x = x; t.y = y;
+    this._container.addChild(t);
+  }
 
-    // Entry background
-    const bg = new Graphics();
-    bg.roundRect(ex, ey, ew, ENTRY_H, 10);
-    bg.fill({ color: revealed ? 0x0e1a28 : 0x0a0a14, alpha: 1 });
-    if (revealed) {
-      bg.roundRect(ex, ey, ew, ENTRY_H, 10);
-      bg.stroke({ color: entry.color, width: 1.5, alpha: 0.38 });
-    }
+  _sprite(path, maxW, maxH, x, y) {
+    const holder = new Container();
+    holder.x = x; holder.y = y;
+    this._container.addChild(holder);
+    Assets.load(`${BASE_URL}${path}`).then(tex => {
+      if (holder.destroyed) return;
+      const s = new Sprite(tex);
+      s.anchor.set(0.5);
+      s.scale.set(Math.min(maxW / s.width, maxH / s.height));
+      holder.addChild(s);
+    }).catch(() => {});
+  }
+
+  _lock(x, y, r = 26) {
+    const g = new Graphics();
+    g.circle(x, y, r).fill(0x1C1946).stroke({ color: 0x0C0A26, width: 2.5 });
+    g.roundRect(x - 9, y - 3, 18, 14, 3).fill(0x6E68A0);
+    g.moveTo(x - 7, y - 4).arc(x, y - 4, 7, Math.PI, 0).stroke({ color: 0x6E68A0, width: 3.5 });
+    this._container.addChild(g);
+  }
+
+  _vehicleTile(e, x, y, tw, th, revealed) {
+    const bg = well(tw, th);
+    bg.x = x; bg.y = y;
     this._container.addChild(bg);
-
-    if (revealed) {
-      // Colored placeholder while sprite loads
-      const plh = new Graphics();
-      plh.roundRect(ex + 6, ey + (ENTRY_H - SPR_MAX_H) / 2, SPR_MAX_W, SPR_MAX_H, 6);
-      plh.fill({ color: entry.color, alpha: 0.12 });
-      this._container.addChild(plh);
-
-      Assets.load(`${BASE_URL}${entry.sprite}`).then(tex => {
-        if (this._container?.destroyed) return;
-        const spr = new Sprite(tex);
-        const scale = Math.min(SPR_MAX_W / spr.width, SPR_MAX_H / spr.height);
-        spr.scale.set(scale);
-        spr.anchor.set(0.5, 0.5);
-        spr.x = sprCX; spr.y = sprCY;
-        this._container.removeChild(plh);
-        plh.destroy();
-        this._container.addChild(spr);
-      }).catch(() => {});
-
-      // Name
-      const nameTxt = new Text({
-        text: entry.name,
-        style: { fontSize: 17, fontWeight: '900', fill: 0xffffff },
-      });
-      nameTxt.anchor.set(0, 0);
-      nameTxt.x = textX; nameTxt.y = ey + 12;
-      this._container.addChild(nameTxt);
-
-      // HP badge
-      const bw = 96, bh = 26;
-      const hpBadge = new Graphics();
-      hpBadge.roundRect(textX, ey + 36, bw, bh, bh / 2);
-      hpBadge.fill({ color: entry.color, alpha: 0.85 });
-      this._container.addChild(hpBadge);
-
-      const hpTxt = new Text({
-        text: `${entry.hp} HP`,
-        style: { fontSize: 13, fontWeight: 'bold', fill: 0xffffff },
-      });
-      hpTxt.anchor.set(0, 0.5);
-      const hpHeart = uiIcon('heart', 14, '❤', { emojiFill: 0xff4466 });
-      hpHeart.x = textX + 10 + 7; hpHeart.y = ey + 36 + bh / 2;
-      hpTxt.x = textX + 10 + 18;  hpTxt.y = ey + 36 + bh / 2;
-      this._container.addChild(hpHeart);
-      this._container.addChild(hpTxt);
-
-      // Damage tip
-      const tipTxt = new Text({
-        text: `A ${entry.hp}-damage bomb destroys in one hit`,
-        style: {
-          fontSize:      10,
-          fill:          0x8899aa,
-          wordWrap:      true,
-          wordWrapWidth: ew - SPR_ZONE_W - 20,
-        },
-      });
-      tipTxt.anchor.set(0, 0);
-      tipTxt.x = textX; tipTxt.y = ey + 70;
-      this._container.addChild(tipTxt);
-
-    } else {
-      // Locked: silhouette circle with lock symbol + ??? name + ? HP badge
-      const lockBg = new Graphics();
-      lockBg.circle(sprCX, sprCY, 30);
-      lockBg.fill({ color: 0x151e28, alpha: 0.90 });
-      lockBg.circle(sprCX, sprCY, 30);
-      lockBg.stroke({ color: 0x2a3a4a, width: 1.5, alpha: 0.70 });
-      this._container.addChild(lockBg);
-
-      // Lock body (rectangle)
-      const lockBody = new Graphics();
-      lockBody.roundRect(sprCX - 9, sprCY - 2, 18, 14, 3);
-      lockBody.fill({ color: 0x334455, alpha: 1 });
-      this._container.addChild(lockBody);
-      // Lock shackle (arc top)
-      const shackle = new Graphics();
-      shackle.arc(sprCX, sprCY - 4, 8, Math.PI, 0);
-      shackle.stroke({ color: 0x334455, width: 4 });
-      this._container.addChild(shackle);
-
-      const qTxt = new Text({
-        text: '???',
-        style: { fontSize: 17, fontWeight: '900', fill: 0x334455 },
-      });
-      qTxt.anchor.set(0, 0);
-      qTxt.x = textX; qTxt.y = ey + 12;
-      this._container.addChild(qTxt);
-
-      // "? HP" badge — same layout as revealed HP badge but greyed out
-      const hpBadge = new Graphics();
-      hpBadge.roundRect(textX, ey + 36, 70, 26, 13);
-      hpBadge.fill({ color: 0x1e2d3e, alpha: 1 });
-      this._container.addChild(hpBadge);
-
-      const hpTxt = new Text({
-        text: '? HP',
-        style: { fontSize: 13, fontWeight: 'bold', fill: 0x44596e },
-      });
-      hpTxt.anchor.set(0, 0.5);
-      hpTxt.x = textX + 10; hpTxt.y = ey + 36 + 13;
-      this._container.addChild(hpTxt);
+    if (!revealed) {
+      this._lock(x + tw / 2, y + 48);
+      const q = titleText('???', 16, 0x6E68A0);
+      q.x = x + tw / 2; q.y = y + th - 22;
+      this._container.addChild(q);
+      return;
     }
+    this._sprite(e.sprite, 60, 58, x + tw / 2, y + 38);
+    const n = bodyText(e.name, 13, 0xFFFFFF);
+    n.x = x + tw / 2; n.y = y + 78;
+    if (n.width > tw - 8) n.scale.set((tw - 8) / n.width);
+    this._container.addChild(n);
+    // HP pill.
+    const pw = 70, ph = 22, px = x + (tw - pw) / 2, py = y + th - 28;
+    const pill = new Graphics();
+    pill.roundRect(px, py + 2, pw, ph, ph / 2).fill(shade(e.color, 0.55));
+    pill.roundRect(px, py, pw, ph - 1, ph / 2).fill(e.color);
+    pill.roundRect(px, py, pw, ph, ph / 2).stroke({ color: INK, width: 2 });
+    this._container.addChild(pill);
+    const heart = uiIcon('heart', 13, '❤', { emojiFill: 0xff4466 });
+    heart.x = px + 14; heart.y = py + ph / 2 - 1;
+    const hp = titleText(`${e.hp} HP`, 13);
+    hp.anchor.set(0, 0.5); hp.x = px + 24; hp.y = py + ph / 2 - 1;
+    this._container.addChild(heart, hp);
+  }
+
+  _specialTile(s, x, y, sw, sh, revealed) {
+    const bg = well(sw, sh);
+    bg.x = x; bg.y = y;
+    this._container.addChild(bg);
+    if (!revealed) {
+      this._lock(x + 38, y + sh / 2, 24);
+      const q = titleText('???', 16, 0x6E68A0);
+      q.anchor.set(0, 0.5); q.x = x + 72; q.y = y + 30;
+      this._container.addChild(q);
+      const r = bodyText(`Level ${s.level}`, 11, 0x6E68A0, { outline: false, align: 'left' });
+      r.anchor.set(0, 0.5); r.x = x + 72; r.y = y + 54;
+      this._container.addChild(r);
+      return;
+    }
+    this._sprite(s.sprite, 52, 76, x + 36, y + sh / 2);
+    const n = titleText(s.name, 15, GOLD);
+    n.anchor.set(0, 0.5); n.x = x + 70; n.y = y + 26;
+    if (n.width > sw - 76) n.scale.set((sw - 76) / n.width);
+    this._container.addChild(n);
+    const r = bodyText(s.rule, 11, 0xE6E1FF, { outline: false, align: 'left', weight: '600', wrap: sw - 78 });
+    r.anchor.set(0, 0); r.x = x + 70; r.y = y + 42;
+    this._container.addChild(r);
   }
 }

@@ -9,7 +9,10 @@
 //
 // The caller is responsible for calling update(dt) every render frame until
 // the overlay is no longer needed.
-import { Container, Graphics, Text } from 'pixi.js';
+import { Container, Graphics } from 'pixi.js';
+import { uiIcon } from '../renderer/UIIcon.js';
+import { panel, ribbon, button, titleText, bodyText, backdrop, GOLD } from '../renderer/PremiumUI.js';
+import { INK, WHITE } from '../renderer/ToyStyle.js';
 
 const FLASH_DURATION = 0.45;   // seconds for the red screen flash
 
@@ -45,7 +48,11 @@ export class RescueOverlay {
 
   // Call every render frame from the GameApp render ticker.
   update(dt) {
-    if (this._panelBuilt) return;
+    if (this._panelBuilt) {
+      this._t = (this._t ?? 0) + dt;
+      if (this._pulse && !this._pulse.destroyed) this._pulse.scale.set(1 + 0.04 * Math.sin(this._t * 4.5));
+      return;
+    }
 
     this._flashLife -= dt;
     this._flash.alpha = Math.max(0, (this._flashLife / FLASH_DURATION) * 0.75);
@@ -71,74 +78,60 @@ export class RescueOverlay {
     const { _appW: w, _appH: h, _gs: gs } = this;
     const c = new Container();
     this._container.addChild(c);
+    c.addChild(backdrop(w, h, 0.78));
 
-    // Dim backdrop — also absorbs pointer events so game layers stay inert.
-    const bg = new Graphics();
-    bg.rect(0, 0, w, h);
-    bg.fill({ color: 0x000000, alpha: 0.78 });
-    bg.eventMode = 'static';
-    c.addChild(bg);
+    const PW = 330, PH = 470;
+    const card = new Container();
+    card.x = (w - PW) / 2; card.y = (h - PH) / 2 - 6;
+    c.addChild(card);
+    card.addChild(panel(PW, PH, { face: 0x4A2440 }));
+    const rb = ribbon('BREACH!', 220, { size: 30 });
+    rb.x = PW / 2; rb.y = 2;
+    card.addChild(rb);
 
-    // Panel border — sized for three stacked options.
-    const panelW = 310, panelH = 398;
-    const px = (w - panelW) / 2;
-    const py = (h - panelH) / 2 - 10;
+    // Warning medallion.
+    const mg = new Graphics();
+    mg.circle(PW / 2, 108, 50).fill({ color: 0xFF3D3D, alpha: 0.18 });
+    mg.circle(PW / 2, 108, 38).fill(0xE8453C).stroke({ color: INK, width: 3.5 });
+    mg.ellipse(PW / 2, 92, 24, 11).fill({ color: WHITE, alpha: 0.28 });
+    card.addChild(mg);
+    const ex = titleText('!', 46);
+    ex.x = PW / 2; ex.y = 110;
+    card.addChild(ex);
 
-    const panel = new Graphics();
-    panel.roundRect(px, py, panelW, panelH, 18);
-    panel.fill({ color: 0x1a0505, alpha: 0.97 });
-    panel.roundRect(px, py, panelW, panelH, 18);
-    panel.stroke({ color: 0xdd2222, width: 2, alpha: 0.6 });
-    c.addChild(panel);
-
-    const cx = w / 2;
-    let y = py + 44;
-
-    this._text(c, 'GAME OVER', cx, y, { fontSize: 28, fill: 0xff4444 });
-    y += 40;
-    this._text(c, 'A car broke through!', cx, y, { fontSize: 14, fill: 0xbbbbbb, fontWeight: 'normal' });
-    y += 28;
-    this._text(c, 'Watch an ad to continue from here?', cx, y, { fontSize: 13, fill: 0x88bbdd, fontWeight: 'normal' });
-    y += 46;
+    // Loss-aversion line: how close the goal was.
+    const goalLeft = gs?.goalProgress?.reduce((a, r) => a + r, 0) ?? 0;
+    const head = titleText('A CAR BROKE THROUGH', 20, WHITE);
+    head.x = PW / 2; head.y = 180;
+    card.addChild(head);
+    const goalTotal = gs?.goals?.reduce((a, g) => a + g.count, 0) ?? 0;
+    const close = goalTotal > 0 && goalLeft <= goalTotal * 0.3;
+    const sub = bodyText(goalLeft <= 0 ? 'Keep going from right here?'
+      : goalLeft === 1 ? 'Just ONE car left to win!'
+      : close ? `Only ${goalLeft} cars left to win!` : 'Keep going from right here?', 16, GOLD, { outline: false });
+    sub.x = PW / 2; sub.y = 212;
+    card.addChild(sub);
 
     // CONTINUE — one-time rewarded-ad rescue; resumes from the breach moment.
-    this._button(c, '▶  CONTINUE', cx, y, 0x0d3a1a, 0x66ff99, () => this._onRescueAd());
-    y += 60;
+    const play = uiIcon('play', 26, '▶');
+    const cont = button('CONTINUE', { variant: 'green', w: 250, h: 76, size: 30, icon: play, sub: 'Watch a video', onTap: () => this._onRescueAd() });
+    cont.x = PW / 2; cont.y = 290;
+    card.addChild(cont);
+    this._pulse = cont;
 
     // RETRY — free, immediate full restart of the current level (no ad).
-    this._button(c, 'RETRY', cx, y, 0x3a1010, 0xff7777, () => this._onRetry?.());
-    y += 60;
+    const retry = button('RETRY', { variant: 'blue', w: 200, h: 58, size: 24, onTap: () => this._onRetry?.() });
+    retry.x = PW / 2; retry.y = 372;
+    card.addChild(retry);
 
     // Decline → back to level select (level failed).
-    this._button(c, 'LEVEL SELECT', cx, y, 0x1a2a3a, 0x88bbdd, () => this._onLevelSelect?.());
-  }
-
-  _text(parent, str, x, y, style) {
-    const t = new Text({ text: str, style: { fontWeight: 'bold', ...style } });
-    t.anchor.set(0.5, 0.5);
-    t.x = x;
-    t.y = y;
-    parent.addChild(t);
-    return t;
-  }
-
-  _button(parent, label, cx, y, bgColor, labelColor, onClick) {
-    const btnW = 236, btnH = 48;
-    const btn  = new Graphics();
-    btn.roundRect(-btnW / 2, -btnH / 2, btnW, btnH, 10);
-    btn.fill(bgColor);
-    btn.x = cx;
-    btn.y = y;
-    if (onClick) {
-      btn.eventMode = 'static';
-      btn.cursor    = 'pointer';
-      btn.on('pointerdown', onClick);
-      btn.on('pointerover',  () => { btn.alpha = 0.78; });
-      btn.on('pointerout',   () => { btn.alpha = 1.00; });
-    }
-    const t = new Text({ text: label, style: { fontSize: 19, fontWeight: 'bold', fill: labelColor } });
-    t.anchor.set(0.5, 0.5);
-    btn.addChild(t);
-    parent.addChild(btn);
+    const give = bodyText('Give up', 15, 0xC9A3C0, { outline: false });
+    give.x = PW / 2; give.y = 430;
+    give.eventMode = 'static'; give.cursor = 'pointer';
+    give.on('pointerup', () => this._onLevelSelect?.());
+    card.addChild(give);
+    const ul = new Graphics();
+    ul.rect(PW / 2 - give.width / 2, 440, give.width, 1.5).fill({ color: 0xC9A3C0, alpha: 0.6 });
+    card.addChild(ul);
   }
 }

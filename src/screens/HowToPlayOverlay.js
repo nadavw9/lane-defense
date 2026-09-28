@@ -1,28 +1,27 @@
-// HowToPlayOverlay — 4-slide tutorial slideshow opened from the ❓ button on the
-// right of the goal bar. Each slide: → advances; ✕ quits. Last slide has ✕ only.
-// Each slide shows a real-gameplay screenshot above the text (captured from L22 —
-// see public/sprites/tutorial/), replacing the old looping PixiJS demo animations
-// which were inaccurate.
+// HowToPlayOverlay — rules slideshow opened from the ❓ button on the goal bar
+// (premium pass, 2026-09-28).
+//
+// Each slide is an illustration composed from the game's own sprites (so it can
+// never drift from the art the way the old L22 screenshots did) above a title
+// and two lines of copy. ◀ / ▶ step through; the last slide ends with GOT IT!.
+import { Container, Graphics, Sprite, Assets } from 'pixi.js';
+import { uiIcon, boosterIcon } from '../renderer/UIIcon.js';
+import { panel, ribbon, button, roundButton, titleText, bodyText, backdrop, GOLD, RIBBON } from '../renderer/PremiumUI.js';
+import { INK, WHITE } from '../renderer/ToyStyle.js';
 
-import { Container, Graphics, Text, Sprite, Assets } from 'pixi.js';
-import { uiIcon } from '../renderer/UIIcon.js';
-
-const BASE_URL = import.meta.env.BASE_URL ?? '';
+const _B = import.meta.env.BASE_URL ?? '';
+const PW = 344, PH = 540, ART_H = 210;
 
 const SLIDES = [
-  { title: 'GOAL', img: '01-goal.png',
-    body: 'Destroy the required cars shown at the top.\n\nMeet all targets before any car reaches the breach line!' },
-  { title: 'HOW TO PLAY', img: '02-shot.png',
-    body: "Drag a bomb to a lane — it must match the car's color.\n\nEvery shot advances ALL cars one step forward. Plan carefully!" },
-  { title: 'BOOSTERS', img: '04-boosters.png',
-    body: 'COLOR: Tap a car then pick a color — all matching cars transform!\n\nFREEZE: Earned by a 3-car chain kill.\n\nBOMB: Clears an entire lane!' },
+  { title: 'MATCH THE COLOR', art: 'match',
+    body: 'Drag a bomb onto a lane. It hits the front car only if the colors match.' },
+  { title: 'EVERY SHOT COUNTS', art: 'advance',
+    body: 'After each shot, all cars roll one step closer. Stop them before the red line!' },
+  { title: 'HOT STREAK', art: 'streak',
+    body: 'Kill with 3 shots in a row to charge a POWER SHOT: double damage, any color.' },
+  { title: 'BOOSTERS', art: 'boosters',
+    body: 'Recolor repaints a whole color group, Freeze stops traffic, Bomb clears a lane.' },
 ];
-
-const PW = 320, PH = 440;
-// Screenshot display box (above the title). Fits within the card width; the captured
-// images are full 390×844 phone screens, so they letterbox to a tall thumbnail here.
-const IMG_BOX_W = PW - 80;   // 240
-const IMG_BOX_H = 150;       // <= 300px cap; sits above the title at PY+206
 
 export class HowToPlayOverlay {
   constructor(stage, appW, appH, { onClose } = {}) {
@@ -32,115 +31,190 @@ export class HowToPlayOverlay {
     this._H = appH;
     this._onClose = onClose;
     this._idx = 0;
-
-    // Backdrop — blocks game input
-    const backdrop = new Graphics();
-    backdrop.rect(0, 0, appW, appH);
-    backdrop.fill({ color: 0x000011, alpha: 0.82 });
-    backdrop.eventMode = 'static';
-    this._container.addChild(backdrop);
-
+    this._container.addChild(backdrop(appW, appH, 0.78));
     this._card = new Container();
+    this._card.x = (appW - PW) / 2; this._card.y = (appH - PH) / 2 + 8;
     this._container.addChild(this._card);
-
     this._render();
   }
 
-  destroy() {
-    this._container.destroy({ children: true });
+  destroy() { this._container.destroy({ children: true }); }
+
+  _go(d) {
+    this._idx = Math.max(0, Math.min(SLIDES.length - 1, this._idx + d));
+    this._render();
   }
 
   _render() {
     this._card.removeChildren().forEach(ch => ch.destroy({ children: true }));
+    const c = this._card;
+    const s = SLIDES[this._idx];
+    const last = this._idx === SLIDES.length - 1;
+    c.addChild(panel(PW, PH));
+    const rb = ribbon('HOW TO PLAY', 250, { size: 26 });
+    rb.x = PW / 2; rb.y = 2;
+    c.addChild(rb);
+    const close = roundButton(uiIcon('close', 22, '✕'), { r: 22, color: RIBBON, onTap: () => this._onClose?.() });
+    close.x = PW - 14; close.y = 14;
+    c.addChild(close);
 
-    const W = this._W, H = this._H;
-    const PX = (W - PW) / 2;
-    const PY = (H - PH) / 2;
-    const slide = SLIDES[this._idx];
-    const isLast = this._idx === SLIDES.length - 1;
+    // Illustration well.
+    const ax = 22, ay = 48, aw = PW - 44;
+    const well = new Graphics();
+    well.roundRect(ax, ay, aw, ART_H, 18).fill(0x1B2A4A);
+    well.roundRect(ax, ay, aw, ART_H * 0.5, 18).fill({ color: 0x3A6FB0, alpha: 0.25 });
+    well.roundRect(ax, ay, aw, ART_H, 18).stroke({ color: 0x0C0A26, width: 2.5 });
+    c.addChild(well);
+    const art = new Container();
+    art.x = ax + aw / 2; art.y = ay + ART_H / 2;
+    c.addChild(art);
+    ART[s.art](art, aw);
 
-    // Panel
-    const panel = new Graphics();
-    panel.roundRect(PX, PY, PW, PH, 20);
-    panel.fill({ color: 0x141a28, alpha: 0.98 });
-    panel.roundRect(PX, PY, PW, PH, 20);
-    panel.stroke({ color: 0x44aaff, width: 2, alpha: 0.30 });
-    this._card.addChild(panel);
+    const t = titleText(s.title, 28, GOLD);
+    t.x = PW / 2; t.y = ay + ART_H + 34;
+    c.addChild(t);
+    const b = bodyText(s.body, 16, WHITE, { outline: false, weight: '600', wrap: PW - 60 });
+    b.style.lineHeight = 22;
+    b.x = PW / 2; b.y = ay + ART_H + 92;
+    c.addChild(b);
 
-    // Step dots
-    const dotsY = PY + 22, dotGap = 16;
-    const dotsX = W / 2 - ((SLIDES.length - 1) * dotGap) / 2;
-    for (let i = 0; i < SLIDES.length; i++) {
-      const d = new Graphics();
-      d.circle(dotsX + i * dotGap, dotsY, 4);
-      d.fill({ color: 0xffffff, alpha: i === this._idx ? 0.95 : 0.28 });
-      this._card.addChild(d);
-    }
-
-    // ── Screenshot (upper half, above text) ────────────────────────────────────
-    const boxX = PX + 40, boxY = PY + 42;
-    const boxCX = W / 2, boxCY = boxY + IMG_BOX_H / 2;
-
-    const frame = new Graphics();
-    frame.roundRect(boxX, boxY, IMG_BOX_W, IMG_BOX_H, 12);
-    frame.fill({ color: 0x0c1018, alpha: 0.9 });
-    this._card.addChild(frame);
-
-    // Load the real-gameplay screenshot (preloaded in GameApp; falls back to a
-    // blank frame if it ever fails). Fit within the box, centered.
-    const url = `${BASE_URL}sprites/tutorial/${slide.img}`;
-    const myIdx = this._idx;
-    Assets.load(url).then(tex => {
-      if (this._container?.destroyed || this._idx !== myIdx) return;
-      const spr = new Sprite(tex);
-      const scale = Math.min(IMG_BOX_W / spr.width, IMG_BOX_H / spr.height);
-      spr.scale.set(scale);
-      spr.anchor.set(0.5, 0.5);
-      spr.x = boxCX; spr.y = boxCY;
-      this._card.addChild(spr);
-    }).catch(() => {});
-
-    // Title
-    const title = new Text({
-      text: slide.title,
-      style: { fontSize: 22, fontWeight: 'bold', fill: 0xffd54a, letterSpacing: 1, align: 'center' },
+    // Dots.
+    const dy = PH - 116, gap = 20, dx0 = PW / 2 - ((SLIDES.length - 1) * gap) / 2;
+    const dots = new Graphics();
+    SLIDES.forEach((_, i) => {
+      const on = i === this._idx;
+      dots.circle(dx0 + i * gap, dy, on ? 7 : 5).fill(on ? GOLD : 0x4E4890).stroke({ color: INK, width: 2 });
     });
-    title.anchor.set(0.5, 0);
-    title.x = W / 2; title.y = PY + 206;
-    this._card.addChild(title);
+    c.addChild(dots);
 
-    // Body
-    const body = new Text({
-      text: slide.body,
-      style: { fontSize: 14, fill: 0xe8ecf4, align: 'center', lineHeight: 21,
-               wordWrap: true, wordWrapWidth: PW - 48 },
-    });
-    body.anchor.set(0.5, 0);
-    body.x = W / 2; body.y = PY + 244;
-    this._card.addChild(body);
-
-    // ✕ quit (top-right)
-    this._addBtn(PX + PW - 30, PY + 8, '✕', 0xffffff, 0.10, () => this._onClose?.(), 30, 'close');
-
-    // → next (bottom-right) — hidden on the last slide
-    if (!isLast) {
-      this._addBtn(PX + PW - 60, PY + PH - 56, '→', 0xffffff, 0.16, () => { this._idx++; this._render(); }, 48);
+    // Nav.
+    if (this._idx > 0) {
+      const prev = roundButton(arrow(-1), { r: 26, color: 0x3A3662, onTap: () => this._go(-1) });
+      prev.x = 50; prev.y = PH - 56;
+      c.addChild(prev);
     }
-  }
-
-  _addBtn(x, y, glyph, color, bgAlpha, onTap, size = 30, iconName = null) {
-    const g = new Graphics();
-    g.roundRect(0, 0, size, size, 8);
-    g.fill({ color: 0xffffff, alpha: bgAlpha });
-    const t = iconName
-      ? uiIcon(iconName, Math.round(size * 0.6), glyph, { emojiFill: color })
-      : new Text({ text: glyph, style: { fontSize: Math.round(size * 0.6), fontWeight: 'bold', fill: color } });
-    t.anchor.set(0.5, 0.5); t.x = size / 2; t.y = size / 2;
-    g.addChild(t);
-    g.x = x; g.y = y;
-    g.eventMode = 'static';
-    g.cursor    = 'pointer';
-    g.on('pointerdown', onTap);
-    this._card.addChild(g);
+    if (last) {
+      const ok = button('GOT IT!', { variant: 'green', w: 190, h: 62, size: 28, onTap: () => this._onClose?.() });
+      ok.x = PW / 2; ok.y = PH - 56;
+      c.addChild(ok);
+    } else {
+      const next = button('NEXT', { variant: 'blue', w: 170, h: 60, size: 26, onTap: () => this._go(1) });
+      next.x = PW / 2; next.y = PH - 56;
+      c.addChild(next);
+    }
   }
 }
+
+// ── Illustrations (centred on the art container's origin) ─────────────────────
+
+function sprite(parent, path, size, x, y, { alpha = 1, rot = 0 } = {}) {
+  const url = `${_B}sprites/designed/${path}`;
+  const place = (tex) => {
+    if (parent.destroyed) return;
+    const sp = new Sprite(tex);
+    sp.anchor.set(0.5);
+    sp.scale.set(size / Math.max(tex.width, tex.height));
+    sp.x = x; sp.y = y; sp.alpha = alpha; sp.rotation = rot;
+    parent.addChild(sp);
+  };
+  const tex = Assets.get(url);
+  if (tex) place(tex); else Assets.load(url).then(place).catch(() => {});
+}
+
+function arrow(dir) {
+  const g = new Graphics();
+  g.poly([dir * 8, 0, -dir * 5, -9, -dir * 5, 9]).fill(WHITE).stroke({ color: INK, width: 2 });
+  return g;
+}
+
+function laneStrip(g, x, w, top, bot) {
+  g.roundRect(x - w / 2, top, w, bot - top, 10).fill(0x3A3F4E).stroke({ color: 0x0C0A26, width: 2 });
+  for (let y = top + 14; y < bot - 10; y += 26) g.rect(x - 1.5, y, 3, 12).fill({ color: WHITE, alpha: 0.35 });
+}
+
+function tick(parent, x, y, ok) {
+  const g = new Graphics();
+  g.circle(x, y, 16).fill(ok ? 0x3DBB3A : 0xE8453C).stroke({ color: INK, width: 2.5 });
+  parent.addChild(g);
+  const ic = ok ? uiIcon('check', 18, '✓') : uiIcon('close', 16, '✕');
+  ic.x = x; ic.y = y;
+  parent.addChild(ic);
+}
+
+const ART = {
+  match(a) {
+    const g = new Graphics();
+    laneStrip(g, -70, 74, -92, 92);
+    laneStrip(g, 70, 74, -92, 92);
+    // Drag trails.
+    g.moveTo(-70, 58).lineTo(-70, -8).stroke({ color: 0x3DBB3A, width: 5, alpha: 0.9 });
+    g.moveTo(70, 58).lineTo(70, -8).stroke({ color: 0xE8453C, width: 5, alpha: 0.9 });
+    a.addChild(g);
+    sprite(a, 'car-red-processed.png', 62, -70, -52);
+    sprite(a, 'car-blue-processed.png', 62, 70, -52);
+    sprite(a, 'powerball-red.png', 48, -70, 64);
+    sprite(a, 'powerball-red.png', 48, 70, 64);
+    tick(a, -30, 8, true);
+    tick(a, 110, 8, false);
+  },
+  advance(a) {
+    const g = new Graphics();
+    laneStrip(g, 0, 90, -96, 70);
+    g.rect(-80, 72, 160, 7).fill(0xE8453C).stroke({ color: INK, width: 2 });
+    for (const y of [-58, -6]) {
+      g.poly([-70, y + 16, -60, y + 30, -50, y + 16]).fill({ color: GOLD, alpha: 0.9 }).stroke({ color: INK, width: 1.5 });
+      g.poly([50, y + 16, 60, y + 30, 70, y + 16]).fill({ color: GOLD, alpha: 0.9 }).stroke({ color: INK, width: 1.5 });
+    }
+    a.addChild(g);
+    sprite(a, 'car-green-processed.png', 50, 0, -72);
+    sprite(a, 'car-yellow-processed.png', 50, 0, -20);
+    sprite(a, 'car-purple-processed.png', 50, 0, 34);
+    const w = bodyText('BREACH LINE', 11, 0xFFB3AE, { outline: true });
+    w.y = 92;
+    a.addChild(w);
+  },
+  streak(a) {
+    const g = new Graphics();
+    for (let i = 0; i < 3; i++) {
+      const x = -84 + i * 40;
+      g.circle(x, -40, 17).fill(0xFF8A1C).stroke({ color: INK, width: 2.5 });
+    }
+    g.circle(76, 20, 58).fill({ color: 0xFFC93C, alpha: 0.18 });
+    g.circle(76, 20, 44).fill({ color: 0xFF8A1C, alpha: 0.22 });
+    a.addChild(g);
+    for (let i = 0; i < 3; i++) {
+      const f = uiIcon('fire', 24, '🔥');
+      f.x = -84 + i * 40; f.y = -41;
+      a.addChild(f);
+    }
+    const x3 = titleText('3 IN A ROW', 18, WHITE);
+    x3.x = -44; x3.y = 4;
+    a.addChild(x3);
+    const eq = arrow(1);
+    eq.scale.set(1.6); eq.x = 16; eq.y = 20;
+    a.addChild(eq);
+    sprite(a, 'powerball-orange.png', 64, 76, 20);
+    const ps = titleText('POWER SHOT', 16, GOLD);
+    ps.x = 76; ps.y = 80;
+    a.addChild(ps);
+    const d2 = titleText('x2', 22, WHITE);
+    d2.x = -44; d2.y = 56;
+    const dl = bodyText('DAMAGE · ANY COLOR', 11, 0xC9C3F0, { outline: false });
+    dl.x = -44; dl.y = 80;
+    a.addChild(d2, dl);
+  },
+  boosters(a) {
+    [['colorchange', 'RECOLOR'], ['freeze', 'FREEZE'], ['bomb', 'BOMB']].forEach(([k, lbl], i) => {
+      const x = -96 + i * 96;
+      const g = new Graphics();
+      g.circle(x, -14, 40).fill(0x2B2760).stroke({ color: GOLD, width: 3 });
+      a.addChild(g);
+      const ic = boosterIcon(k, 58, '?');
+      ic.x = x; ic.y = -14;
+      a.addChild(ic);
+      const t = titleText(lbl, 16, WHITE);
+      t.x = x; t.y = 50;
+      a.addChild(t);
+    });
+  },
+};

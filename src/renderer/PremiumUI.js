@@ -9,7 +9,7 @@
 // here knows about game state.
 import { Container, Graphics, Text, FillGradient } from 'pixi.js';
 import { INK, WHITE, shade, tint } from './ToyStyle.js';
-import { uiPlate } from './UIIcon.js';
+import { uiPlate, uiIcon } from './UIIcon.js';
 
 export const TITLE_FONT = '"Luckiest Guy", Fredoka, Arial, sans-serif';
 export const GOLD = 0xFFC93C, GOLD_DEEP = 0xB9771C, INDIGO = 0x2B2760, INDIGO_DEEP = 0x17143A;
@@ -180,5 +180,54 @@ export function well(w, h, { r = 14 } = {}) {
   g.roundRect(0, 0, w, h, r).fill({ color: 0x0C0A26, alpha: 0.55 });
   g.roundRect(0, 0, w, h, r).stroke({ color: 0x000000, width: 2, alpha: 0.35 });
   g.roundRect(1, h - 2, w - 2, 1.5, 1).fill({ color: WHITE, alpha: 0.08 });
+  return g;
+}
+
+/** Full-screen menu background: violet → deep indigo, with a soft top glow. Swallows taps. */
+export function screenBg(w, h) {
+  const g = new Graphics();
+  g.rect(0, 0, w, h).fill(grad([[0, 0x3A2F7A], [0.55, 0x241F5A], [1, INDIGO_DEEP]], 'screenbg'));
+  g.ellipse(w / 2, 40, w * 0.75, 170).fill({ color: 0x7A5CFF, alpha: 0.18 });
+  for (let i = 0; i < 26; i++) {                           // faint confetti dots (deterministic)
+    const x = (i * 97.3) % w, y = 120 + ((i * 211.7) % (h - 180));
+    g.circle(x, y, 1.5 + (i % 3)).fill({ color: WHITE, alpha: 0.05 + (i % 4) * 0.015 });
+  }
+  g.eventMode = 'static';
+  return g;
+}
+
+/** Ribbon title + round back button, the standard full-screen header. */
+export function screenHeader(parent, w, title, onBack, { ribbonW = 230, size = 26 } = {}) {
+  const rb = ribbon(title, ribbonW, { size });
+  rb.x = w / 2; rb.y = 40;
+  parent.addChild(rb);
+  if (onBack) {
+    const back = roundButton(uiIcon('back', 22, '←'), { r: 22, color: BLUE, onTap: onBack });
+    back.x = 32; back.y = 40;
+    parent.addChild(back);
+  }
+  return rb;
+}
+
+/** Gold-rimmed indigo card — local origin top-left. `accent` tints the rim. */
+export function card(w, h, { r = 16, rim = GOLD_DEEP, face = 0x3A3580, faceDeep = INDIGO, dim = false } = {}) {
+  const g = new Graphics();
+  g.roundRect(2, 5, w, h, r).fill({ color: 0x000000, alpha: 0.3 });
+  g.roundRect(0, 0, w, h, r).fill(grad([[0, dim ? 0x2A2656 : face], [1, dim ? 0x1C1946 : faceDeep]]));
+  g.roundRect(0, 0, w, h, r).stroke({ color: dim ? 0x3E3980 : rim, width: 2.5 });
+  g.roundRect(3, 3, w - 6, h - 6, r - 3).stroke({ color: WHITE, width: 1, alpha: dim ? 0.05 : 0.12 });
+  return g;
+}
+
+/** Progress bar — local origin top-left. */
+export function bar(w, h, frac, { color = GREEN } = {}) {
+  const g = new Graphics();
+  const f = Math.max(0, Math.min(1, frac));
+  g.roundRect(0, 0, w, h, h / 2).fill({ color: 0x0C0A26, alpha: 0.7 }).stroke({ color: INK, width: 2 });
+  if (f > 0) {
+    const fw = Math.max(h, (w - 4) * f);
+    g.roundRect(2, 2, fw, h - 4, (h - 4) / 2).fill(grad([[0, tint(color, 0.3)], [1, shade(color, 0.8)]]));
+    g.roundRect(4, 3, fw - 4, (h - 4) * 0.35, 2).fill({ color: WHITE, alpha: 0.3 });
+  }
   return g;
 }

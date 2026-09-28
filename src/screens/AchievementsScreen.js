@@ -1,120 +1,126 @@
-// AchievementsScreen — full-screen grid showing all 10 achievements.
-// Earned achievements appear in gold with their name and description.
-// Locked achievements show "???" until earned.
-import { Container, Graphics, Text } from 'pixi.js';
+// AchievementsScreen — the trophy room (premium pass, 2026-09-28).
+//
+// A progress card, then one scrolling column of trophy rows. Locked trophies
+// show their goal (players chase what they can see) greyed with a lock; earned
+// ones are gold with a check. Survival-mode trophies are hidden: that mode was
+// removed, so they can never be earned.
+import { Container, Graphics } from 'pixi.js';
 import { ACHIEVEMENTS } from '../game/AchievementManager.js';
+import { uiIcon } from '../renderer/UIIcon.js';
+import { screenBg, screenHeader, card, bar, titleText, bodyText, GOLD, GREEN } from '../renderer/PremiumUI.js';
+import { INK } from '../renderer/ToyStyle.js';
 
-const CARD_W   = 174;
-const CARD_H   = 78;
-const CARD_GAP = 8;
-const SIDE_PAD = 12;
+const ROW_H = 76, ROW_GAP = 10, PAD = 16;
 
 export class AchievementsScreen {
   constructor(stage, appW, appH, progress, { onBack, audio }) {
     this._container = new Container();
     stage.addChild(this._container);
+    this._scrollY = 0;
     this._build(appW, appH, progress, onBack, audio);
   }
 
-  destroy() {
-    this._container.destroy({ children: true });
-  }
-
-  // ── Private ────────────────────────────────────────────────────────────────
+  destroy() { this._container.destroy({ children: true }); }
 
   _build(w, h, progress, onBack, audio) {
-    // Full-screen background
-    const bg = new Graphics();
-    bg.rect(0, 0, w, h);
-    bg.fill(0x060610);
-    bg.eventMode = 'static';
-    this._container.addChild(bg);
+    const c = this._container;
+    c.addChild(screenBg(w, h));
+    screenHeader(c, w, 'TROPHIES', () => { audio?.play('button_tap'); onBack(); });
 
-    // ── Header ─────────────────────────────────────────────────────────────
-    const backBtn = new Text({ text: '← BACK',
-      style: { fontSize: 15, fontWeight: 'bold', fill: 0x44aaff } });
-    backBtn.anchor.set(0, 0.5); backBtn.x = 14; backBtn.y = 26;
-    backBtn.eventMode = 'static'; backBtn.cursor = 'pointer';
-    backBtn.on('pointerdown', () => { audio?.play('button_tap'); onBack(); });
-    this._container.addChild(backBtn);
+    const list = ACHIEVEMENTS.filter(a => !a.id.startsWith('survival_'));
+    const earnedSet = new Set(list.filter(a => progress.hasAchievement(a.id)).map(a => a.id));
+    // Earned first, then locked — both in definition order.
+    const ordered = [...list.filter(a => earnedSet.has(a.id)), ...list.filter(a => !earnedSet.has(a.id))];
 
-    const title = new Text({ text: 'ACHIEVEMENTS',
-      style: { fontSize: 22, fontWeight: 'bold', fill: 0xf5c842 } });
-    title.anchor.set(0.5, 0.5); title.x = w / 2; title.y = 26;
-    this._container.addChild(title);
+    // Progress card.
+    const pw = w - PAD * 2, ph = 74, py = 88;
+    const pc = card(pw, ph, { rim: GOLD });
+    pc.x = PAD; pc.y = py;
+    c.addChild(pc);
+    const tr = uiIcon('trophy', 52, '🏆');
+    tr.x = PAD + 42; tr.y = py + ph / 2;
+    c.addChild(tr);
+    const cnt = titleText(`${earnedSet.size} / ${list.length}`, 26, GOLD);
+    cnt.anchor.set(0, 0.5); cnt.x = PAD + 82; cnt.y = py + 24;
+    c.addChild(cnt);
+    const lab = bodyText('UNLOCKED', 13, 0xC9C3F0, { outline: false });
+    lab.anchor.set(0, 0.5); lab.x = cnt.x + cnt.width + 10; lab.y = py + 26;
+    c.addChild(lab);
+    const pb = bar(pw - 100, 16, earnedSet.size / Math.max(1, list.length), { color: GOLD });
+    pb.x = PAD + 82; pb.y = py + 44;
+    c.addChild(pb);
 
-    const earned = ACHIEVEMENTS.filter(a => progress.hasAchievement(a.id)).length;
-    const cntTxt = new Text({ text: `${earned} / ${ACHIEVEMENTS.length}`,
-      style: { fontSize: 14, fontWeight: 'bold', fill: 0x889aaa } });
-    cntTxt.anchor.set(1, 0.5); cntTxt.x = w - 14; cntTxt.y = 26;
-    this._container.addChild(cntTxt);
+    // Scrolling list.
+    const top = py + ph + 14, viewH = h - top - 8;
+    const view = new Container();
+    view.y = top;
+    c.addChild(view);
+    const mask = new Graphics();
+    mask.rect(0, top, w, viewH).fill(0xffffff);
+    c.addChild(mask);
+    view.mask = mask;
+    const content = new Container();
+    view.addChild(content);
+    ordered.forEach((a, i) => this._row(content, a, earnedSet.has(a.id), PAD, i * (ROW_H + ROW_GAP), w - PAD * 2));
+    const contentH = ordered.length * (ROW_H + ROW_GAP) + 8;
+    this._maxScroll = Math.max(0, contentH - viewH);
 
-    const sep = new Graphics();
-    sep.rect(0, 48, w, 1); sep.fill({ color: 0x334466, alpha: 0.5 });
-    this._container.addChild(sep);
-
-    // ── Achievement cards (2 columns) ────────────────────────────────────────
-    ACHIEVEMENTS.forEach((a, i) => {
-      const col    = i % 2;
-      const row    = Math.floor(i / 2);
-      const cx     = SIDE_PAD + col * (CARD_W + CARD_GAP);
-      const cy     = 58 + row * (CARD_H + CARD_GAP);
-      const isEarned = progress.hasAchievement(a.id);
-      this._buildCard(a, isEarned, cx, cy, w);
+    // Drag / wheel scrolling.
+    const hit = new Graphics();
+    hit.rect(0, 0, w, viewH).fill({ color: 0x000000, alpha: 0.001 });
+    view.addChildAt(hit, 0);
+    view.eventMode = 'static';
+    let dragFrom = null, startScroll = 0;
+    const apply = () => { content.y = -this._scrollY; };
+    view.on('pointerdown', (e) => { dragFrom = e.global.y; startScroll = this._scrollY; });
+    view.on('globalpointermove', (e) => {
+      if (dragFrom == null) return;
+      this._scrollY = Math.max(0, Math.min(this._maxScroll, startScroll - (e.global.y - dragFrom)));
+      apply();
     });
+    const end = () => { dragFrom = null; };
+    view.on('pointerup', end); view.on('pointerupoutside', end);
+    view.on('wheel', (e) => { this._scrollY = Math.max(0, Math.min(this._maxScroll, this._scrollY + e.deltaY * 0.6)); apply(); });
   }
 
-  _buildCard(achievement, isEarned, x, y, _w) {
-    // Background card
-    const g = new Graphics();
-    g.roundRect(x, y, CARD_W, CARD_H, 10);
-    g.fill(isEarned ? 0x1a1400 : 0x0c0c14);
-    g.roundRect(x, y, CARD_W, CARD_H, 10);
-    g.stroke({ color: isEarned ? 0xf5c842 : 0x222f40, width: 1.5, alpha: isEarned ? 0.80 : 0.35 });
-    this._container.addChild(g);
+  _row(parent, a, earned, x, y, rw) {
+    const bg = card(rw, ROW_H, { rim: earned ? GOLD : undefined, dim: !earned });
+    bg.x = x; bg.y = y;
+    parent.addChild(bg);
 
-    // Badge icon — gold star or grey dot
-    const iconG = new Graphics();
-    if (isEarned) {
-      this._starShape(iconG, 13, 0xf5c842);
-    } else {
-      iconG.roundRect(-10, -10, 20, 20, 5);
-      iconG.fill(0x1a2030);
-      iconG.rect(-4, -2, 8, 11); iconG.fill(0x2a3a50);
-      iconG.arc(0, -2, 5, Math.PI, 0, false); iconG.stroke({ color: 0x2a3a50, width: 3 });
-    }
-    iconG.x = x + 22;
-    iconG.y = y + CARD_H / 2;
-    this._container.addChild(iconG);
+    // Medallion.
+    const mx = x + 40, my = y + ROW_H / 2;
+    const med = new Graphics();
+    med.circle(mx, my + 2, 25).fill({ color: 0x000000, alpha: 0.3 });
+    med.circle(mx, my, 25).fill(earned ? 0xFFE08A : 0x2A2656).stroke({ color: earned ? 0xB9771C : 0x0C0A26, width: 3 });
+    med.circle(mx, my, 19).fill(earned ? GOLD : 0x1C1946);
+    parent.addChild(med);
+    const ic = uiIcon('trophy', 30, '🏆');
+    ic.x = mx; ic.y = my;
+    if (!earned) { ic.tint = 0x55507F; ic.alpha = 0.9; }
+    parent.addChild(ic);
 
-    // Name
-    const nameTxt = new Text({
-      text: isEarned ? achievement.name : '???',
-      style: { fontSize: 13, fontWeight: 'bold', fill: isEarned ? 0xf5c842 : 0x445566 },
-    });
-    nameTxt.anchor.set(0, 0.5);
-    nameTxt.x = x + 42; nameTxt.y = y + 24;
-    this._container.addChild(nameTxt);
+    const name = bodyText(a.name, 17, earned ? 0xFFFFFF : 0x9C96C8, { outline: earned, align: 'left' });
+    name.anchor.set(0, 0.5); name.x = x + 78; name.y = y + 26;
+    parent.addChild(name);
+    const desc = bodyText(a.desc, 12, earned ? 0xE6E1FF : 0x7D77AD, { outline: false, align: 'left', weight: '600', wrap: rw - 140 });
+    desc.anchor.set(0, 0); desc.x = x + 78; desc.y = y + 40;
+    parent.addChild(desc);
 
-    // Description
-    const descTxt = new Text({
-      text: isEarned ? achievement.desc : 'Keep playing to unlock',
-      style: { fontSize: 11, fill: isEarned ? 0x998866 : 0x334455,
-        wordWrap: true, wordWrapWidth: CARD_W - 48 },
-    });
-    descTxt.anchor.set(0, 0);
-    descTxt.x = x + 42; descTxt.y = y + 38;
-    this._container.addChild(descTxt);
+    // Status chip.
+    const sx = x + rw - 34, sy = y + ROW_H / 2;
+    const chip = new Graphics();
+    chip.circle(sx, sy, 16).fill(earned ? GREEN : 0x2A2656).stroke({ color: INK, width: 2.5 });
+    parent.addChild(chip);
+    const s = earned ? uiIcon('check', 20, '✓') : lockGlyph();
+    s.x = sx; s.y = sy;
+    parent.addChild(s);
   }
+}
 
-  _starShape(g, outerR, color) {
-    const pts = 5, innerR = outerR * 0.42;
-    const pts2d = [];
-    for (let i = 0; i < pts * 2; i++) {
-      const angle = (Math.PI * i) / pts - Math.PI / 2;
-      const r = (i % 2 === 0) ? outerR : innerR;
-      pts2d.push(Math.cos(angle) * r, Math.sin(angle) * r);
-    }
-    g.poly(pts2d); g.fill(color);
-  }
+function lockGlyph() {
+  const g = new Graphics();
+  g.roundRect(-7, -2, 14, 11, 3).fill(0x8C86BA);
+  g.moveTo(-5, -2).arc(0, -2, 5, Math.PI, 0).stroke({ color: 0x8C86BA, width: 2.5 });
+  return g;
 }

@@ -1,50 +1,34 @@
-// DailyRewardScreen — modal overlay showing the 7-day reward calendar.
+// DailyRewardScreen — the 7-day reward calendar (premium pass, 2026-09-28).
 //
-// States per box:
-//   claimed  — days before the current streak day (or current day if
-//               already claimed today): dimmed with a check mark
-//   active   — the current day with a claimable reward: bright green border
-//   cooldown — current day already claimed today: dim green border
-//   future   — days not yet reached: dark/locked
+// Days 1–6 are tiles in a 3×2 grid; day 7 is the wide jackpot tile. Tile states:
+//   claimed  — before today (or today once claimed): dimmed with a green check
+//   active   — today's claimable reward: gold rim, glow, "TODAY" tag
+//   cooldown — today, already claimed
+//   future   — not reached yet
 //
-// The CLAIM button is only enabled when canClaimDaily() is true.
-// After claiming, the screen rebuilds to reflect the new state.
-// The CLOSE button is always available.
-import { Container, Graphics, Text } from 'pixi.js';
-import { uiIcon } from '../renderer/UIIcon.js';
-import { DAILY_REWARDS }             from '../game/ProgressManager.js';
+// CLAIM is only offered when canClaimDaily() is true; claiming rebuilds the card.
+import { Container, Graphics } from 'pixi.js';
+import { uiIcon, boosterIcon } from '../renderer/UIIcon.js';
+import { DAILY_REWARDS } from '../game/ProgressManager.js';
+import { panel, ribbon, button, roundButton, titleText, bodyText, backdrop, GOLD, GREEN } from '../renderer/PremiumUI.js';
+import { INK } from '../renderer/ToyStyle.js';
 
-const PANEL_W = 370;
-const PANEL_H = 330;
-
-// Per-day box geometry
-const BOX_W    = 44;
-const BOX_H    = 80;
-const BOX_GAP  = 6;
-// 7 boxes: 7*44 + 6*6 = 344, centred inside PANEL_W (13px each side)
-const BOXES_X0 = (PANEL_W - (7 * BOX_W + 6 * BOX_GAP)) / 2;
+const PW = 350, PH = 540;
 
 export class DailyRewardScreen {
-  // progress  — ProgressManager instance
-  // callbacks — { onClose }
-  // stage     — PixiJS stage (needed for _rebuild)
   constructor(stage, appW, appH, progress, { onClose, audio }) {
-    this._stage    = stage;
-    this._appW     = appW;
-    this._appH     = appH;
+    this._stage = stage;
+    this._appW = appW;
+    this._appH = appH;
     this._progress = progress;
-    this._onClose  = onClose;
-    this._audio    = audio;
+    this._onClose = onClose;
+    this._audio = audio;
     this._container = new Container();
     stage.addChild(this._container);
     this._build();
   }
 
-  destroy() {
-    this._container.destroy({ children: true });
-  }
-
-  // ── Private ────────────────────────────────────────────────────────────────
+  destroy() { this._container.destroy({ children: true }); }
 
   _rebuild() {
     this._container.destroy({ children: true });
@@ -54,198 +38,99 @@ export class DailyRewardScreen {
   }
 
   _build() {
-    const w  = this._appW;
-    const h  = this._appH;
-    const p  = this._progress;
-    const px = (w - PANEL_W) / 2;
-    const py = (h - PANEL_H) / 2 - 10;
-    const cx = w / 2;
+    const w = this._appW, h = this._appH, p = this._progress;
+    this._container.addChild(backdrop(w, h));
+    const card = new Container();
+    card.x = (w - PW) / 2; card.y = (h - PH) / 2 + 10;
+    this._container.addChild(card);
+    card.addChild(panel(PW, PH));
+    const rb = ribbon('DAILY REWARD', 262, { size: 27 });
+    rb.x = PW / 2; rb.y = 2;
+    card.addChild(rb);
+    const close = roundButton(uiIcon('close', 22, '✕'), { r: 22, color: 0xE8453C, onTap: () => { this._audio?.play('button_tap'); this._onClose(); } });
+    close.x = PW - 14; close.y = 14;
+    card.addChild(close);
 
-    // ── Backdrop (semi-transparent, blocks game layer clicks) ─────────────
-    const backdrop = new Graphics();
-    backdrop.rect(0, 0, w, h);
-    backdrop.fill({ color: 0x000011, alpha: 0.80 });
-    backdrop.eventMode = 'static';
-    this._container.addChild(backdrop);
+    const day = p.dailyDay;              // 0-6, next day to claim
+    const canClaim = p.canClaimDaily();
+    const justCompleted = day === 0 && !canClaim;
+    const sub = justCompleted ? 'Week complete! A new week starts tomorrow.'
+      : canClaim ? 'Come back every day for bigger rewards!'
+      : 'Come back tomorrow for your next reward!';
+    const st = bodyText(sub, 13, 0xC9C3F0, { outline: false, weight: '600' });
+    st.x = PW / 2; st.y = 56;
+    card.addChild(st);
 
-    // ── Panel ─────────────────────────────────────────────────────────────
-    const panel = new Graphics();
-    panel.roundRect(px, py, PANEL_W, PANEL_H, 18);
-    panel.fill({ color: 0x0d1a2e, alpha: 0.97 });
-    panel.roundRect(px, py, PANEL_W, PANEL_H, 18);
-    panel.stroke({ color: 0x44aaff, width: 2, alpha: 0.40 });
-    this._container.addChild(panel);
-
-    // ── Title ─────────────────────────────────────────────────────────────
-    this._text('DAILY REWARDS', cx, py + 34, { fontSize: 22, fill: 0xffffff });
-
-    const day       = p.dailyDay;          // 0-6 (next day to claim)
-    const canClaim  = p.canClaimDaily();
-
-    // Which day box index is "today" for labelling purposes:
-    // • canClaim  → day is the claimable box
-    // • !canClaim → day-1 (mod 7) was claimed today, day is next
-    const claimedUpTo = canClaim ? day - 1 : day - 1;  // last fully claimed index
-    // Boxes 0..claimedUpTo are claimed, day is current, day+1..6 are future
-    // Special: if day=0 and !canClaim → just completed full cycle
-
-    const justCompleted = (day === 0 && !canClaim);
-
-    let subtitle;
-    if (justCompleted) {
-      subtitle = 'Cycle complete! Come back tomorrow.';
-    } else if (canClaim) {
-      subtitle = `Day ${day + 1} reward ready to claim!`;
-    } else {
-      subtitle = `Next reward: Day ${day + 1} — come back tomorrow!`;
+    const stateOf = (i) => justCompleted || i < day ? 'claimed' : i === day ? (canClaim ? 'active' : 'cooldown') : 'future';
+    const tw = 94, th = 112, gap = 10;
+    const gx = (PW - (3 * tw + 2 * gap)) / 2, gy = 80;
+    for (let i = 0; i < 6; i++) {
+      this._tile(card, i, gx + (i % 3) * (tw + gap), gy + Math.floor(i / 3) * (th + gap), tw, th, stateOf(i));
     }
-    this._text(subtitle, cx, py + 60, { fontSize: 13, fill: 0x7799aa, fontWeight: 'normal' });
+    this._tile(card, 6, gx, gy + 2 * (th + gap), 3 * tw + 2 * gap, 108, stateOf(6), true);
 
-    // ── Day boxes ─────────────────────────────────────────────────────────
-    const boxesY = py + 90;
-    for (let i = 0; i < 7; i++) {
-      let state;
-      if (justCompleted) {
-        state = 'claimed';
-      } else if (i < day) {
-        state = 'claimed';
-      } else if (i === day) {
-        state = canClaim ? 'active' : 'cooldown';
-      } else {
-        state = 'future';
-      }
-      this._buildDayBox(i, px + BOXES_X0 + i * (BOX_W + BOX_GAP), boxesY, state);
-    }
-
-    // ── CLAIM button ──────────────────────────────────────────────────────
-    const btnY = py + PANEL_H - 130;
+    const by = PH - 60;
     if (canClaim && !justCompleted) {
-      this._button('CLAIM REWARD', cx, btnY, 0x1a5a2a, 0x44ff88, () => {
+      const b = button('CLAIM', { variant: 'green', w: 230, h: 68, size: 32, onTap: () => {
         this._audio?.play('daily_reward');
         p.claimDaily();
         this._rebuild();
-      });
+      } });
+      b.x = PW / 2; b.y = by;
+      card.addChild(b);
     } else {
-      this._text(
-        justCompleted ? '7-day streak complete!' : 'Already claimed today',
-        cx, btnY + 5,
-        { fontSize: 14, fill: 0x556677, fontWeight: 'normal' },
-      );
+      const b = button('OK', { variant: 'blue', w: 200, h: 62, size: 30, onTap: () => { this._audio?.play('button_tap'); this._onClose(); } });
+      b.x = PW / 2; b.y = by;
+      card.addChild(b);
     }
-
-    // ── CLOSE button ──────────────────────────────────────────────────────
-    this._button('CLOSE', cx, py + PANEL_H - 52, 0x1a1a2a, 0x88aacc,
-      () => { this._audio?.play('button_tap'); this._onClose(); });
   }
 
-  _buildDayBox(dayIdx, x, y, state) {
-    const reward = DAILY_REWARDS[dayIdx];
-
-    // Box colors by state
-    const BG = {
-      claimed:  0x080e08,
-      active:   0x0a1e0a,
-      cooldown: 0x080e0a,
-      future:   0x080808,
-    };
-    const BORDER = {
-      claimed:  0x1a2a1a,
-      active:   0x44ff88,
-      cooldown: 0x226633,
-      future:   0x181818,
-    };
-    const CONTENT_ALPHA = {
-      claimed:  0.35,
-      active:   1.0,
-      cooldown: 0.55,
-      future:   0.20,
-    };
-
+  _tile(parent, i, x, y, tw, th, state, jackpot = false) {
+    const reward = DAILY_REWARDS[i];
+    const active = state === 'active';
     const g = new Graphics();
-    g.roundRect(x, y, BOX_W, BOX_H, 8);
-    g.fill(BG[state]);
-    g.roundRect(x, y, BOX_W, BOX_H, 8);
-    g.stroke({ color: BORDER[state], width: state === 'active' ? 2 : 1.2, alpha: 1 });
-    this._container.addChild(g);
+    if (active) g.roundRect(x - 4, y - 4, tw + 8, th + 8, 18).fill({ color: GOLD, alpha: 0.28 });
+    const face = active ? 0x4A3F9A : state === 'future' ? 0x221E4E : 0x2A2656;
+    g.roundRect(x, y, tw, th, 14).fill(face);
+    g.roundRect(x, y, tw, th * 0.45, 14).fill({ color: 0xFFFFFF, alpha: active ? 0.1 : 0.04 });
+    g.roundRect(x, y, tw, th, 14).stroke({ color: active ? GOLD : 0x0C0A26, width: active ? 3 : 2 });
+    parent.addChild(g);
 
-    const alpha   = CONTENT_ALPHA[state];
-    const centerX = x + BOX_W / 2;
+    const dim = state === 'claimed' || state === 'future' ? 0.45 : 1;
+    const dl = bodyText(jackpot ? 'DAY 7 — JACKPOT' : `DAY ${i + 1}`, 12, active ? GOLD : 0xC9C3F0, { outline: active });
+    dl.x = x + tw / 2; dl.y = y + 14;
+    dl.alpha = Math.max(dim, 0.7);
+    parent.addChild(dl);
 
-    // Day label
-    const dayLabel = new Text({
-      text:  `D${dayIdx + 1}`,
-      style: { fontSize: 11, fontWeight: 'bold', fill: 0xaabbcc },
-    });
-    dayLabel.anchor.set(0.5, 0.5);
-    dayLabel.x     = centerX;
-    dayLabel.y     = y + 14;
-    dayLabel.alpha = alpha;
-    this._container.addChild(dayLabel);
-
-    // Reward label (2 lines: icon + amount)
-    const { line1, line2, color } = _rewardLabel(reward);
-    const rL1 = new Text({ text: line1, style: { fontSize: 14, fontWeight: 'bold', fill: color } });
-    rL1.anchor.set(0.5, 0.5);
-    rL1.x     = centerX;
-    rL1.y     = y + 38;
-    rL1.alpha = alpha;
-    this._container.addChild(rL1);
-
-    if (line2) {
-      const rL2 = new Text({ text: line2, style: { fontSize: 10, fill: color, fontWeight: 'normal' } });
-      rL2.anchor.set(0.5, 0.5);
-      rL2.x     = centerX;
-      rL2.y     = y + 54;
-      rL2.alpha = alpha;
-      this._container.addChild(rL2);
+    const { icon, label } = rewardArt(reward, jackpot ? 58 : 44);
+    const amount = titleText(label, jackpot ? 26 : 20);
+    if (jackpot) {
+      icon.x = x + tw / 2 - 50; icon.y = y + th / 2 + 8;
+      amount.anchor.set(0, 0.5); amount.x = x + tw / 2 - 10; amount.y = y + th / 2 + 8;
+      const gift = uiIcon('gift', 50, '🎁');
+      gift.x = x + tw - 44; gift.y = y + th / 2 + 6;
+      gift.alpha = dim;
+      parent.addChild(gift);
+    } else {
+      icon.x = x + tw / 2; icon.y = y + 52;
+      amount.x = x + tw / 2; amount.y = y + th - 20;
     }
+    icon.alpha = dim; amount.alpha = dim;
+    parent.addChild(icon, amount);
 
-    // Checkmark overlay for claimed days
     if (state === 'claimed') {
-      const tick = uiIcon('check', 22, '✓', { emojiFill: 0x44aa66 });
-      tick.x = centerX;
-      tick.y = y + BOX_H / 2;
-      this._container.addChild(tick);
+      const ck = new Graphics();
+      ck.circle(x + tw - 14, y + 14, 13).fill(GREEN).stroke({ color: INK, width: 2.5 });
+      parent.addChild(ck);
+      const t = uiIcon('check', 16, '✓');
+      t.x = x + tw - 14; t.y = y + 14;
+      parent.addChild(t);
     }
-  }
-
-  _text(str, x, y, style) {
-    const t = new Text({ text: str, style: { fontWeight: 'bold', ...style } });
-    t.anchor.set(0.5, 0.5);
-    t.x = x;
-    t.y = y;
-    this._container.addChild(t);
-    return t;
-  }
-
-  _button(label, cx, y, bgColor, labelColor, onClick) {
-    const btnW = 220, btnH = 48;
-    const btn  = new Graphics();
-    btn.roundRect(-btnW / 2, -btnH / 2, btnW, btnH, 12);
-    btn.fill(bgColor);
-    btn.x = cx;
-    btn.y = y;
-    btn.eventMode = 'static';
-    btn.cursor    = 'pointer';
-    btn.on('pointerdown', onClick);
-    btn.on('pointerover',  () => { btn.alpha = 0.78; });
-    btn.on('pointerout',   () => { btn.alpha = 1.00; });
-
-    const t = new Text({ text: label, style: { fontSize: 18, fontWeight: 'bold', fill: labelColor } });
-    t.anchor.set(0.5, 0.5);
-    btn.addChild(t);
-    this._container.addChild(btn);
   }
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-function _rewardLabel(reward) {
-  if (reward.type === 'coins') {
-    return { line1: `◆${reward.amount}`, line2: 'coins', color: 0xf5c842 };
-  }
-  if (reward.type === 'swap') {
-    return { line1: '+1', line2: 'SWAP', color: 0x66aaff };
-  }
-  return { line1: '?', line2: null, color: 0xffffff };
+function rewardArt(reward, size) {
+  if (reward.type === 'swap') return { icon: boosterIcon('colorchange', size, '🎨'), label: '+1' };
+  if (reward.type === 'coins') return { icon: uiIcon('coin', size, '🪙'), label: String(reward.amount) };
+  return { icon: uiIcon('gift', size, '🎁'), label: '?' };
 }

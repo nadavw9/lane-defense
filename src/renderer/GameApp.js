@@ -1229,6 +1229,7 @@ async function main() {
     pauseBtn.visible = false;
     carManualScreen = new CarManualScreen(app.stage, APP_W, APP_H, {
       seenTypes: progress.getIntroducedCarTypes(),
+      unlockedLevel: Math.max(progress.unlockedLevel ?? 1, gs?.levelId ?? 1),
       onClose: _closers.carManual = () => {
         carManualScreen?.destroy();
         carManualScreen = null;
@@ -2201,6 +2202,8 @@ async function main() {
     ftueOverlay?.destroy();        ftueOverlay        = null;
     carTypeIntroCard?._destroy();  carTypeIntroCard   = null;
     preLevelScreen?.destroy();     preLevelScreen     = null;
+    howToPlayOverlay?.destroy();   howToPlayOverlay   = null;
+    hpGuideOverlay?.destroy();     hpGuideOverlay     = null;
     _dismissColorPicker();
   };
   // ── Dev navigation API ────────────────────────────────────────────────────
@@ -2223,6 +2226,12 @@ async function main() {
       showSettings: () => { showSettings(() => showTitle()); },
       showDaily:    () => { showDailyReward(); },
       showStats:    () => { showStats(); },
+      cleanAll:     () => { _dbgCleanAll(); },
+      showAchievements: () => { showAchievements(() => { achievementsScreen?.destroy(); achievementsScreen = null; showTitle(); }); },
+      showHowToPlay: () => { showHowToPlay(); },
+      showHpGuide:  () => { showHpGuide(); },
+      showCarManual: () => { showCarManual(false); },
+      showCarIntro: (t) => { _triggerCarTypeIntro(t); },
       openColorPicker: () => {
         boosterState.colorChange = Math.max(1, boosterState.colorChange);
         boosterState.activateColorChange();

@@ -19,7 +19,9 @@
 // the panel cannot list a Tank on a level that never spawns one. Guarded by
 // tests/car-manual-hp.test.js, which spawns real cars and compares.
 
-import { Container, Graphics, Text, Sprite, Assets } from 'pixi.js';
+import { Container, Graphics, Sprite, Assets } from 'pixi.js';
+import { panel, ribbon, roundButton, titleText, bodyText, backdrop, well, RIBBON } from '../renderer/PremiumUI.js';
+import { INK, shade } from '../renderer/ToyStyle.js';
 import { uiIcon } from '../renderer/UIIcon.js';
 import { CAR_TYPES, carHpFor, spawnableTypesFor } from '../director/CarTypes.js';
 
@@ -36,8 +38,8 @@ const TYPE_ART = [
   { type: 'tank',   color: 0xA35CFF, sprite: 'sprites/designed/tank.png'              },
 ];
 
-const ROW_H   = 46;
-const SPR_BOX = 40;   // sprite fits within a 40×40 box
+const ROW_H   = 56;
+const SPR_BOX = 46;   // sprite fits within a 46×46 box
 
 export class HpGuideOverlay {
   // level: { levelId, hpMultiplier, gridRows, spawnScript } — the LIVE values from
@@ -52,7 +54,7 @@ export class HpGuideOverlay {
   destroy() { this._container.destroy({ children: true }); }
 
   _build(W, H, onClose, level) {
-    const PW = 300;
+    const PW = 330;
     const mult      = level?.hpMultiplier ?? 1.0;
     const spawnable = level
       ? spawnableTypesFor(level.levelId, level.gridRows, level.cfg)
@@ -63,115 +65,77 @@ export class HpGuideOverlay {
       hp:        carHpFor(a.type, mult),
       available: spawnable ? spawnable.has(a.type) : true,
     }));
-    const PH = 86 + rows.length * ROW_H + 24;
+    const PH = 90 + rows.length * ROW_H + 44;
     const PX = (W - PW) / 2;
-    const PY = Math.max(20, (H - PH) / 2);
+    const PY = Math.max(40, (H - PH) / 2);
+    const C = this._container;
 
-    // Backdrop — blocks game input
-    const backdrop = new Graphics();
-    backdrop.rect(0, 0, W, H);
-    backdrop.fill({ color: 0x000011, alpha: 0.82 });
-    backdrop.eventMode = 'static';
-    this._container.addChild(backdrop);
+    C.addChild(backdrop(W, H, 0.78));
+    const pn = panel(PW, PH);
+    pn.x = PX; pn.y = PY;
+    C.addChild(pn);
+    const rb = ribbon('CAR HP', 200, { size: 26 });
+    rb.x = W / 2; rb.y = PY + 2;
+    C.addChild(rb);
 
-    // Panel
-    const panel = new Graphics();
-    panel.roundRect(PX, PY, PW, PH, 18);
-    panel.fill({ color: 0x141a28, alpha: 0.98 });
-    panel.roundRect(PX, PY, PW, PH, 18);
-    panel.stroke({ color: 0xffffff, width: 1.5, alpha: 0.18 });
-    this._container.addChild(panel);
-
-    // Title
-    const title = new Text({
-      text: 'CAR HP',
-      style: { fontSize: 20, fontWeight: 'bold', fill: 0xffffff, letterSpacing: 2 },
-    });
-    title.anchor.set(0.5, 0);
-    title.x = W / 2; title.y = PY + 18;
-    this._container.addChild(title);
-
-    // Rows: colour dot + name (left) … HP value (right)
-    const rowsTop = PY + 56;
-    const sprCX = PX + 32;   // sprite-zone centre
+    // Rows: vehicle art + name (left) … HP pill (right), each in an inset well.
+    const rowsTop = PY + 50;
+    const sprCX = PX + 50;
     rows.forEach((c, i) => {
-      const cy = rowsTop + i * ROW_H + ROW_H / 2;
-
-      // Car sprite (replaces the old colour dot). Coloured placeholder while it loads.
-      const plh = new Graphics();
-      plh.roundRect(sprCX - SPR_BOX / 2, cy - SPR_BOX / 2, SPR_BOX, SPR_BOX, 6);
-      plh.fill({ color: c.color, alpha: c.available ? 0.14 : 0.05 });
-      this._container.addChild(plh);
+      const top = rowsTop + i * ROW_H, cy = top + ROW_H / 2 - 3;
+      const bg = well(PW - 36, ROW_H - 6);
+      bg.x = PX + 18; bg.y = top;
+      bg.alpha = c.available ? 1 : 0.55;
+      C.addChild(bg);
 
       Assets.load(`${BASE_URL}${c.sprite}`).then(tex => {
         if (this._container?.destroyed) return;
         const spr = new Sprite(tex);
-        const scale = Math.min(SPR_BOX / spr.width, SPR_BOX / spr.height);
-        spr.scale.set(scale);
+        spr.scale.set(Math.min(SPR_BOX / spr.width, SPR_BOX / spr.height));
         spr.anchor.set(0.5, 0.5);
         spr.x = sprCX; spr.y = cy;
-        spr.alpha = c.available ? 1 : 0.30;   // greyed: cannot spawn on this level
-        this._container.removeChild(plh);
-        plh.destroy();
+        spr.alpha = c.available ? 1 : 0.3;   // greyed: cannot spawn on this level
         this._container.addChild(spr);
       }).catch(() => {});
 
-      const name = new Text({
-        text: c.name,
-        style: { fontSize: 16, fontWeight: 'bold', fill: c.available ? 0xe8ecf4 : 0x5a6274 },
-      });
+      const name = bodyText(c.name, 17, c.available ? 0xFFFFFF : 0x6E68A0, { outline: c.available, align: 'left' });
       name.anchor.set(0, 0.5);
-      name.x = PX + 60; name.y = cy;
-      this._container.addChild(name);
+      name.x = PX + 84; name.y = cy;
+      C.addChild(name);
 
       // An unavailable type shows no number at all. Printing its HP would be
       // answering a question the player cannot ask on this level, and a greyed-out
       // number still reads as "this is what it has".
-      const hp = new Text({
-        text: c.available ? `${c.hp} HP` : 'not here',
-        style: { fontSize: c.available ? 16 : 12, fontWeight: 'bold',
-                 fill: c.available ? 0xffd54a : 0x5a6274 },
-      });
-      hp.anchor.set(1, 0.5);
-      hp.x = PX + PW - 22; hp.y = cy;
-      this._container.addChild(hp);
-
-      if (i < rows.length - 1) {
-        const sep = new Graphics();
-        sep.rect(PX + 22, cy + ROW_H / 2 - 0.5, PW - 44, 1);
-        sep.fill({ color: 0xffffff, alpha: 0.07 });
-        this._container.addChild(sep);
+      if (c.available) {
+        const pill = new Graphics();
+        const pw2 = 78, ph2 = 30, px2 = PX + PW - 30 - pw2, py2 = cy - ph2 / 2;
+        pill.roundRect(px2, py2 + 2, pw2, ph2, ph2 / 2).fill(shade(c.color, 0.55));
+        pill.roundRect(px2, py2, pw2, ph2 - 2, ph2 / 2).fill(c.color);
+        pill.roundRect(px2, py2, pw2, ph2, ph2 / 2).stroke({ color: INK, width: 2.5 });
+        C.addChild(pill);
+        const heart = uiIcon('heart', 16, '❤', { emojiFill: 0xff4466 });
+        heart.x = px2 + 16; heart.y = cy - 1;
+        C.addChild(heart);
+        const hp = titleText(`${c.hp} HP`, 16);
+        hp.anchor.set(0, 0.5); hp.x = px2 + 28; hp.y = cy - 1;
+        C.addChild(hp);
+      } else {
+        const hp = bodyText('not on this level', 11, 0x6E68A0, { outline: false });
+        hp.anchor.set(1, 0.5);
+        hp.x = PX + PW - 32; hp.y = cy;
+        C.addChild(hp);
       }
     });
 
-    // Footnote
-    const note = new Text({
-      // Names the level, so the numbers are unambiguous rather than "base values"
-      // the player has no way to convert.
-      text: level
-        ? `Actual HP on level ${level.levelId}`
-        : 'Start a level to see its car HP',
-      style: { fontSize: 11, fill: 0x8a93a6, align: 'center' },
-    });
-    note.anchor.set(0.5, 1);
-    note.x = W / 2; note.y = PY + PH - 12;
-    this._container.addChild(note);
+    // Footnote — names the level, so the numbers are unambiguous rather than
+    // "base values" the player has no way to convert.
+    const note = bodyText(level ? `Actual HP on level ${level.levelId}` : 'Start a level to see its car HP',
+      12, 0xC9C3F0, { outline: false, weight: '600' });
+    note.x = W / 2; note.y = PY + PH - 26;
+    C.addChild(note);
 
-    // ✕ close button (top-right of panel)
-    this._addClose(PX + PW - 30, PY + 8, onClose);
-  }
-
-  _addClose(x, y, onClose) {
-    const g = new Graphics();
-    g.roundRect(0, 0, 30, 30, 8);
-    g.fill({ color: 0xffffff, alpha: 0.10 });
-    const t = uiIcon('close', 18, '✕', { emojiFill: 0xffffff });
-    t.x = 15; t.y = 15;
-    g.addChild(t);
-    g.x = x; g.y = y;
-    g.eventMode = 'static';
-    g.cursor    = 'pointer';
-    g.on('pointerdown', () => onClose?.());
-    this._container.addChild(g);
+    const close = roundButton(uiIcon('close', 22, '✕'), { r: 22, color: RIBBON, onTap: () => onClose?.() });
+    close.x = PX + PW - 14; close.y = PY + 14;
+    C.addChild(close);
   }
 }

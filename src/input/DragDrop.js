@@ -233,6 +233,10 @@ export class DragDrop {
     // hint or the car-intro card — is up). The card dismisses via its own Pixi
     // events, which are independent of this DOM-driven input path.
     this.inputBlocked = false;
+    // Booster taps (BOMB / COLOR CHANGE) only count below this screen Y: the
+    // header band (goal plaque + round buttons) sits over the top of the road,
+    // and a tap on its pause button used to fire an armed bomb. Set by GameApp.
+    this.minBoardTapY = 0;
   }
 
   // ── Public API ─────────────────────────────────────────────────────────────
@@ -255,7 +259,7 @@ export class DragDrop {
     if (this._boosterState?.bombMode) {
       // Extend the lower bound half a row past the breach line so the frontmost
       // row (its cars sit ON ROAD_BOTTOM_Y) is fully tappable; onBombPlaced clamps.
-      if (y >= ROAD_TOP_Y && y <= ROAD_BOTTOM_Y + frontRowTapMargin(this._gridRows)) {
+      if (y >= Math.max(ROAD_TOP_Y, this.minBoardTapY) && y <= ROAD_BOTTOM_Y + frontRowTapMargin(this._gridRows)) {
         // The BOMB clears the tapped car's LANE, so the lane is the payload; x,y
         // still travel through for the tapped row (the blast's travel target).
         //
@@ -276,7 +280,7 @@ export class DragDrop {
     // COLOR CHANGE (FIX 4B): first tap selects a car by lane; GameApp resolves the
     // car's colour and shows the colour picker for the second tap.
     if (this._boosterState?.colorChangeMode && this._boosterState.colorChangeFromColor == null) {
-      if (y >= ROAD_TOP_Y && y <= ROAD_BOTTOM_Y) {
+      if (y >= Math.max(ROAD_TOP_Y, this.minBoardTapY) && y <= ROAD_BOTTOM_Y) {
         const lane = this._hitTestLane(x, y);
         if (lane >= 0) this._onColorChangeTap(lane, x, y);
       }
@@ -473,9 +477,8 @@ export class DragDrop {
   // tests/deploy-guard-parity.test.js asserts the two never drift apart again.
   _deployWouldBeRefused(laneIdx) {
     const slots = this._firingSlots ?? [];
-    if (slots[laneIdx]) return true;                       // GameLoop, both paths
-    if (this._dragSource === 'bench') return false;        // deployFromBench stops here
-    return Object.values(slots).some((s) => s !== null);   // GameLoop.deploy, turn-based
+    if (slots[laneIdx]) return true;
+    return Object.values(slots).some((s) => s !== null);   // turn-based: queue AND bench
   }
 
   _handleLaneDrop(laneIdx) {
@@ -483,7 +486,7 @@ export class DragDrop {
     // screen position, mapped to the road plane in world space.
     const release = this._ghost ? screenToWorldXZ(this._ghost.x, this._ghost.y) : null;
     if (this._dragSource === 'column') {
-      this._onDeploy(this._dragSourceIdx, laneIdx, release);
+      this._onDeploy(this._dragSourceIdx, laneIdx, release, this._dragShooter);
       this._shooterRenderer.draggingColumn = -1;
     } else {
       const shooter = this._benchStorage.take(this._dragSourceIdx);

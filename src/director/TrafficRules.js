@@ -165,3 +165,22 @@ export function hitBoss(car, n = 1) {
 
 /** A lane holding a boss gets no refill traffic. */
 export function laneHasBoss(cars) { return cars.some(isBoss); }
+
+// Row 0 is a STAGING row, hidden behind the goal band (projection.row0CoverY):
+// cars there are invisible until the next advance. In a turn-based game the
+// board only advances on a shot, so a refill that leaves EVERY car at row 0
+// shows the player an empty road with nothing to shoot — a soft-lock (L1 after
+// the first kill: one lane, one car per lane). When no car is visible, step
+// the staged cars into row 1 so the board always has a target. It only fires
+// when the board is visually empty, so it cannot add pressure to a live board.
+// Shared by GameLoop and SimulationRunner (parity). `lanes` = arrays of cars.
+export function revealStagedCars(lanes) {
+  let any = false;
+  for (const cars of lanes) for (const c of cars) {
+    if (c.row >= 1) return false;   // something is already visible
+    any = true;
+  }
+  if (!any) return false;
+  for (const cars of lanes) for (const c of cars) if (c.row === 0) c.row = 1;
+  return true;
+}

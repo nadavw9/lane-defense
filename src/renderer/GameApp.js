@@ -455,7 +455,11 @@ async function main() {
         featureBanners.fire('colorchange_use', 'Tap a car, pick a color — ALL cars of that color transform!');
       }
     },
-    () => { audio.play('booster_activate'); audio.play('freeze_tinkle'); boosterState.activateFreeze(); boostersUsedThisLevel.push('freeze'); logEvent('booster_used', { booster: 'freeze', levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber }); tutOrch?.completeIfActive('freeze'); },
+    () => {
+      // Already frozen: a second tap would spend a charge for the same frozen turn.
+      if (boosterState.isFrozen()) return;
+      audio.play('booster_activate'); audio.play('freeze_tinkle'); boosterState.activateFreeze(); boostersUsedThisLevel.push('freeze'); logEvent('booster_used', { booster: 'freeze', levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber }); tutOrch?.completeIfActive('freeze');
+    },
     () => {
       // BOMB button — toggle placement mode on/off.
       if (boosterState.bombMode) {
@@ -491,7 +495,6 @@ async function main() {
   const featureBanners = new FeatureBanners(popupQueue, APP_W);
   // Tips, achievements and ambient toasts dock under the goal band, clear of
   // the breach zone where the losing car is decided. Read at show time.
-  popupQueue.topYFn = () => (goalCounterUI?.bandBottom ?? 104) + 10;
 
   // ── Onboarding hints — three lifetime one-time tutorial MODAL cards (HP/book,
   //    match-damage, cars-advance). Rendered on app.stage, above the HUD. ───────
@@ -511,7 +514,9 @@ async function main() {
     if (_modalQueue.length === 0) {
       if (_modalActive) {
         _modalActive = false;
-        if (gameLoopStarted && !gs.isOver) gameLoop.resume();
+        // Resume only if nothing else holds the game: the pause menu (or a screen
+        // opened from it) owns the pause and resumes on its own RESUME.
+        if (gameLoopStarted && !gs.isOver && !pauseScreen && !settingsScreen && !carManualScreen && !levelSelectScreen) gameLoop.resume();
       }
       return;
     }
@@ -702,6 +707,7 @@ async function main() {
   // settle, so several exit paths may call it safely. A missed exit (app killed
   // mid-level) costs the player nothing.
   let _levelInv = null;
+  let _lossRecorded = false;   // _recordFinalLoss runs once per level
   function _settleInventory() {
     if (!_levelInv) return;
     const { taken } = _levelInv;
@@ -724,6 +730,7 @@ async function main() {
     _dismissColorPicker();                 // FIX 4B: clear any open picker
     preLevelScreen?.destroy(); preLevelScreen = null;   // FIX 4D
     _clearModalQueue();
+    breachCam = null;   // a breach camera from the previous attempt must not open a rescue on this one
 
     // Resolve config from either a number or a pre-built config object.
     let cfg;
@@ -762,6 +769,7 @@ async function main() {
     boosterState.freeze      = (grant.freeze ?? 0) + taken.freeze;
     boosterState.bombs       = Math.min(boosterState.bombsMax, grant.bombs ?? 0) + taken.bombs;
     _levelInv = { taken };
+    _lossRecorded = false;
     adManager.resetForLevel();
 
     applyLevelConfig(cfg);
@@ -880,12 +888,16 @@ async function main() {
     // one after another in INTRO_ORDER. Fires after the splash clears (1.5 s), or
     // after the FTUE drag-arrow window on L1 (4.5 s = 1.35 s splash + 3 s FTUE).
     {
+      // L1's motorbike is the baseline car, not a "new" one: the card popped up
+      // 4.5 s in — mid-drag for a first-time player — and ate the drag. Mark it
+      // seen silently; cards start at L2 (the car).
+      if (levelId === 1 && !progress.getIntroducedCarTypes().has('small')) progress.markCarTypeIntroduced('small');
       const introduced = progress.getIntroducedCarTypes();
       const newTypes = INTRO_ORDER.filter(
         (t) => _levelCarTypes(cfg).has(t) && hasIntroCard(t) && !introduced.has(t),
       );
       if (newTypes.length > 0) {
-        const delay = levelId === 1 ? 4500 : 1500;
+        const delay = 1500;   // right after the level splash, before the first move
         carTypeIntroTimer = setTimeout(() => {
           carTypeIntroTimer = null;
           if (gs.isOver) return;
@@ -990,7 +1002,10 @@ async function main() {
     c.alpha = 0;
 
     let t = 0;
-    const unsub = app.ticker.add((ticker) => {
+    // Pixi 8's ticker.add returns the TICKER, not the listener — removing that
+    // matched nothing, so this ran forever: destroy() and onComplete() every
+    // frame after the splash, one more listener per level. Keep the function.
+    const unsub = (ticker) => {
       t += ticker.deltaMS / 1000;
       if (t < 0.2) {
         c.alpha = t / 0.2;
@@ -1003,7 +1018,8 @@ async function main() {
         c.destroy({ children: true });
         onComplete?.();   // FIX 1: reveal the objective only after the banner clears
       }
-    });
+    };
+    app.ticker.add(unsub);
   }
 
   // ── Car type intro (Royal Match "Meet the new blocker!" moment) ──────────
@@ -1085,7 +1101,8 @@ async function main() {
         const showOne = () => {
           if (remaining <= 0) { start(bundle); return; }
           remaining--;
-          adManager.showRewarded(() => showOne(), () => start(bundle));
+          // Skipped / failed / unavailable ad → no reward: start without the booster.
+          adManager.showRewarded(() => showOne(), () => start({ colorChange: 0, freeze: 0, bombs: 0 }));
         };
         showOne();
       },
@@ -1384,6 +1401,14 @@ async function main() {
         _settleInventory();
         pauseScreen.destroy();
         pauseScreen = null;
+        // Nothing from the abandoned level may fire over the map: the car-intro
+        // timer, queued modal cards and tutorials (their dismissal also resumed
+        // the abandoned loop behind the map).
+        clearTimeout(carTypeIntroTimer); carTypeIntroTimer = null;
+        carTypeIntroCard?._destroy();    carTypeIntroCard  = null;
+        _clearModalQueue();
+        tutOrch?.dismiss();
+        gameLoop.pause();
         // Leave gameLoop paused — _startLevel() will resume it.
         transition.fadeOut(0.25, () => {
           showLevelSelect();
@@ -1432,7 +1457,11 @@ async function main() {
     let improved   = [];
     let winLevelId = null;
     if (currentLevelIsDaily) {
-      progress.completeDailyChallenge(dailyDateKey);
+      // The bonus goes through gs.coins: the wallet is re-saved from gs.coins
+      // below, which used to overwrite a bonus added straight to progress.
+      progress.completeDailyChallenge(dailyDateKey, 0);
+      gs.coins += 25;
+      progress.addEarnedCoins(25);
       const dcAch = achievementManager.check('daily_challenge');
       dcAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
       onNext = null;
@@ -1467,10 +1496,12 @@ async function main() {
       onNext = () => {
         winScreen.destroy();
         winScreen = null;
-        const nextId = Math.min(40, levelId + 1);
-        // Offer the pre-level "Power Up?" screen before the next level — same as
-        // starting a level fresh from the map (onSelectLevel → _showPreLevel).
-        _showPreLevel(nextId);
+        // After the final level there is no "next": NEXT used to replay L40.
+        // Go back to the map (the whole city repaired is the ending).
+        if (levelId >= 40) { showLevelSelect(); return; }
+        // Offer the pre-level card before the next level — same as starting a
+        // level fresh from the map (onSelectLevel → _showPreLevel).
+        _showPreLevel(levelId + 1);
       };
 
       // Rating prompt: show after first ever 3-star win (native integration TBD in Phase 4).
@@ -1500,21 +1531,26 @@ async function main() {
       winLevelId,
     );
   }
-  function _showNoRescueLose() {
+  // The FINAL-loss moment, shared by every way a level can be failed: the
+  // no-rescue lose screen AND declining the rescue offer (RETRY / Give up) —
+  // those used to skip it, so a player who never watched the ad never built a
+  // fail streak (no DDA mercy, no free booster) and kept unspent inventory.
+  // §3d DDA: bump the fail streak so the next attempt gets the mercy factor
+  // (daily challenge excluded). §3e City Repair damage fires here too — a
+  // rescued-then-won breach is not a fail. Guarded so it counts once per level.
+  function _recordFinalLoss() {
     _settleInventory();
-    // §3d DDA: this is the FINAL-loss moment (a breach that gets rescued and
-    // then won never reaches here). Bump the fail streak so the next attempt's
-    // config copy gets the mercy factor. Daily challenge excluded inside
-    // recordLoss (non-numeric levelId), but guard here too for clarity.
-    // §3e City Repair damage fires HERE (final loss), not on first breach — a
-    // rescued-then-won breach is not a fail, so it must not scuff the city
-    // either (same single definition of failure as DDA). Only downgrades an
-    // already-repaired building (2→1) — replaying a beaten level and losing.
+    if (_lossRecorded) return;
+    _lossRecorded = true;
     if (!currentLevelIsDaily) {
       const lvl = levelManager.levelNumber;
       progress.recordLoss(lvl);
       progress.damageBuilding(progress.buildingForLevel(lvl));
     }
+  }
+
+  function _showNoRescueLose() {
+    _recordFinalLoss();
 
     pauseBtn.visible = false;
     bookBtn.visible  = false;
@@ -1598,6 +1634,7 @@ async function main() {
       },
       onRetry: () => {
         // RETRY — free, immediate restart of the current level (no ad).
+        _recordFinalLoss();
         rescueOverlay.destroy();
         rescueOverlay = null;
         const cfg = currentLevelIsDaily ? dailyChallengeManager.getChallenge() : levelManager.levelNumber;
@@ -1605,6 +1642,7 @@ async function main() {
       },
       onLevelSelect: () => {
         // Declined the one-time rescue → level failed; back to the map.
+        _recordFinalLoss();
         rescueOverlay.destroy();
         rescueOverlay = null;
         adManager.showInterstitial().then(() => {
@@ -1721,9 +1759,11 @@ async function main() {
       // Show at most one card per hit; the other (if eligible) fires next hit.
       let _hintShownThisHit = false;
       // Hint C — first correct-colour shot on L1: explain that all cars advance.
+      // A tip, not a modal: a blocking card after the very first kill paused the
+      // board on the player's first success.
       if (levelManager.levelNumber === 1 && !progress.hintAdvanceShown) {
         progress.markHintAdvance();
-        _showHintCard((done) => onboardingHints.showAdvance(done));
+        featureBanners.fire('advance', 'Every hit moves ALL cars one step closer. Clear them before they reach the line!');
         _hintShownThisHit = true;
       }
       // Hint A — first time a car SURVIVES a hit (any level): point to the book.
@@ -1777,6 +1817,7 @@ async function main() {
         // rescue. A second breach (rescue already used) → final game over.
         breachCam = { laneIdx: laneIdx ?? 0, t: 0, done: false,
                       skipRescue: noRescueThisLevel || gs.rescueUsed };
+        pauseBtn.visible = false;   // no pause/restart inside the breach beat
       }
     },
 
@@ -1958,10 +1999,10 @@ async function main() {
   const dragDrop = new DragDrop(
     layers, columns, gs.lanes, benchStorage, shooterRenderer, benchRenderer,
     {
-      onDeploy: (colIdx, laneIdx, release) => {
+      onDeploy: (colIdx, laneIdx, release, dragged) => {
         if (colIdx >= gs.activeColCount || laneIdx >= gs.activeLaneCount) return;
         gameRenderer3D.setDropStart(laneIdx, release);   // bomb travels FROM release
-        gameLoop.deploy(colIdx, laneIdx);
+        gameLoop.deploy(colIdx, laneIdx, dragged);
       },
       onBombPlaced: (x, y, laneIdx) => {
         // BOMB booster clears the tapped car's entire LANE — every car in it, any
@@ -2019,11 +2060,9 @@ async function main() {
       // match-damage modal card, and let the player drag once it's dismissed.
       onColumnPickup: () => {
         haptics.light();   // bomb pickup / drag start
-        if (levelManager.levelNumber === 1 && !progress.hintDamageShown) {
-          progress.markHintDamage();
-          _showHintCard((done) => onboardingHints.showDamage(done));
-          return true;   // intercept this pickup; the drag does not start
-        }
+        // (Hint B used to intercept the FIRST pickup on L1 with a modal card, so
+        // a new player's first drag did nothing. L1 bombs always out-damage its
+        // cars; the damage rule is taught by hint A the first time a hit fails.)
         return false;
       },
     },
@@ -2165,7 +2204,14 @@ async function main() {
       const _c = carTypeIntroCard;
       if (!_c.update(dt) && carTypeIntroCard === _c) carTypeIntroCard = null;
     }
-    dragDrop.inputBlocked = _modalActive || !!colorPicker;   // FIX 4B: block road drags while the picker is up
+    // Any screen or overlay above the board owns the input. Without this, taps on
+    // the pause menu / HUD buttons reached DragDrop too: with BOMB armed, tapping
+    // RESUME fired the bomb into the lane under the button. (Not gameLoop.paused:
+    // a pausing tutorial waits for a REAL drag, which must get through.)
+    dragDrop.minBoardTapY = goalCounterUI?.bandBottom ?? 0;
+    dragDrop.inputBlocked = _modalActive || !!colorPicker || !!pauseScreen || !!settingsScreen
+      || !!carManualScreen || !!hpGuideOverlay || !!howToPlayOverlay || !!rescueOverlay
+      || !!winScreen || !!unlockScreen || !!carTypeIntroCard || (gs?.isOver ?? false);
 
     // Juice updates
     laneFlash.update(dt);
@@ -2306,6 +2352,12 @@ async function main() {
         _showColorPicker(gs.colors[0]);
       },
       getGs: () => gs,
+      // Which screens/overlays are up (autoplay QA bot: rescue / win / lose flows).
+      getScreens: () => ({ win: !!winScreen, rescue: !!rescueOverlay, pause: !!pauseScreen, levelSelect: !!levelSelectScreen,
+        preLevel: !!preLevelScreen, title: !!titleScreen, modal: _modalActive, picker: !!colorPicker, introCard: !!carTypeIntroCard,
+        pauseBtn: pauseBtn.visible, boosters: { colorChange: boosterState.colorChange, freeze: boosterState.freeze, bombs: boosterState.bombs },
+        inventory: progress.getInventory(), coins: progress.coins }),
+      getBoosterState: () => boosterState,
       // Profiling handle: lets a harness wrap DragDrop's handlers to attribute
       // input-path cost (see scripts/_perf-handlers.mjs). Dev-only, like the
       // rest of this block.
@@ -2688,14 +2740,15 @@ function _buildSimpleToast(app, w, message, bgColor, textColor, onMount) {
 
   const TOTAL = 3.5;
   let elapsed = 0;
-  const unsub = app.ticker.add((ticker) => {
+  const unsub = (ticker) => {
     elapsed += ticker.deltaMS / 1000;
     if (elapsed > TOTAL - 0.8) grp.alpha = Math.max(0, (TOTAL - elapsed) / 0.8);
     if (elapsed >= TOTAL) {
       app.ticker.remove(unsub);
       grp.destroy({ children: true });
     }
-  });
+  };
+  app.ticker.add(unsub);
 }
 
 // ── Offline reward popup ───────────────────────────────────────────────────────

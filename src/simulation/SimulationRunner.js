@@ -33,7 +33,7 @@ import {
 import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { openingRowsForLevel, clampInitialCarsToDepth, streakEnabledFor } from '../game/LevelManager.js';
 import { canTarget, advanceLaneCars, flipChameleons, nextStreak,
-         isBoss, makeBoss, hitBoss, laneHasBoss, BOMB_BOSS_LIGHTS } from '../director/TrafficRules.js';
+         isBoss, makeBoss, hitBoss, laneHasBoss, BOMB_BOSS_LIGHTS, revealStagedCars } from '../director/TrafficRules.js';
 
 const DT = 1 / 60; // seconds per simulation tick (used for fire cooldowns only)
 
@@ -378,6 +378,7 @@ export class SimulationRunner {
         }
         if (added) lane.cars.sort((a, b) => b.row - a.row);   // cars[0] = front (highest row)
       }
+      revealStagedCars(discreteLanes.map(l => l.cars));   // parity with GameLoop._refillLanes
     };
 
     // ONE correct shot → advance ALL cars 1 row, breach-check, refill. Per shot.

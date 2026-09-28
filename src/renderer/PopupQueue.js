@@ -40,8 +40,7 @@ const DEBOUNCE_S = 0.4;
 // cars. Priority only decides which queued item shows next.
 const SAFE_GAP_Y   = 505;
 const MAX_DURATION = 2.0;   // notifications auto-dismiss within 2 seconds
-const TOP_Y = 112;
-const ACHIEVEMENT_Y = 14;       // over the header band (goal plaque), not the road              // fallback; GameApp wires topYFn to the live goal band
+const HEADER_DOCK_Y = 12;       // over the header band (goal plaque), not the road
 const TIP_MAX_DURATION = 5.0;   // rule tips need reading time (a 3-line tip in 2s was unreadable)
 
 export class PopupQueue {
@@ -144,9 +143,10 @@ export class PopupQueue {
     const container = buildFn(this._appW);
     // Tips, achievements and ambient toasts dock under the header, away from the
     // breach zone; short flash texts (combo, power shot) keep the mid-road gap.
-    // Achievements drop over the header band itself, so they never cover a lane.
-    const top = priority === PRIORITY.TUTORIAL || priority === PRIORITY.AMBIENT;
-    container.y     = priority === PRIORITY.ACHIEVEMENT ? ACHIEVEMENT_Y : top ? (this.topYFn?.() ?? TOP_Y) : SAFE_GAP_Y;
+    // Tips, achievements and ambient toasts dock ON the header band, so they never
+    // cover a lane (row 1, where cars emerge, sits right under the band).
+    const top = priority === PRIORITY.TUTORIAL || priority === PRIORITY.AMBIENT || priority === PRIORITY.ACHIEVEMENT;
+    container.y     = top ? HEADER_DOCK_Y : SAFE_GAP_Y;
     container.alpha = 1;
     this._layer.addChild(container);
     this._active = { container, timer: Math.min(duration, priority === PRIORITY.TUTORIAL ? TIP_MAX_DURATION : MAX_DURATION), priority };

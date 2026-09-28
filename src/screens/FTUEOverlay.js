@@ -499,7 +499,9 @@ export class FeatureBanners {
   // A leading "NEW!" / "BOSS!" tag is lifted out into a gold title chip.
   static _buildPill(w, text) {
     const grp = new Container();
-    const PW = Math.min(340, w - 32);
+    // Fits between the round header buttons: tips dock ON the header band so they
+    // never cover a lane (a tip under the band hid the cars emerging at rows 1-2).
+    const PW = Math.min(262, w - 128);
     const PX = (w - PW) / 2;
     const m = /^(NEW!|BOSS!|FINAL BOSS!|SUPERCHARGED!)\s*/.exec(text);
     const tag = m ? m[1] : null;

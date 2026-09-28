@@ -10,7 +10,7 @@ import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { Shooter } from '../models/Shooter.js';
 import { COLUMN_CAPACITY } from '../models/Column.js';
 import { canTarget, advanceLaneCars, flipChameleons, nextStreak,
-         isBoss, makeBoss, hitBoss, laneHasBoss, BOMB_BOSS_LIGHTS } from '../director/TrafficRules.js';
+         isBoss, makeBoss, hitBoss, laneHasBoss, BOMB_BOSS_LIGHTS, revealStagedCars } from '../director/TrafficRules.js';
 
 const KILLS_PER_BOMB      = 10;    // kills needed to earn one bomb charge
 const MULTI_KILLS_PER_BOMB = 3;    // multi-kills (2+ cars/shot) banked to earn a color bomb
@@ -95,26 +95,39 @@ export class GameLoop {
   set baseDuration(d) { this._baseDuration = d; }
 
   // Called by DragDrop → onDeploy (column source).
-  deploy(colIdx, laneIdx) {
+  // `expected` (optional): the shooter the player actually dragged. The column's
+  // top can change while a drag is held (an earned rainbow or a crisis inject
+  // replaces it when the previous shot resolves); firing col.top() then fired a
+  // bomb the player never picked. Refuse instead. Returns true when fired.
+  deploy(colIdx, laneIdx, expected = null) {
     const col     = this._gs.columns[colIdx];
     const shooter = col.top();
-    if (!shooter) return;
+    if (!shooter) return false;
+    if (expected && shooter !== expected) return false;
     // Slot occupancy is enforced by DragDrop; guard here defensively.
     // Turn-based: block new deploy if any shot is still in flight.
-    if (Object.values(this._gs.firingSlots).some(s => s !== null)) return;
-    if (this._gs.firingSlots[laneIdx]) return;
+    if (this._shotInFlight()) return false;
     col.consume();
     this._sDir.recordDeploy(this._gs.elapsed);
     this._startFiring(shooter, laneIdx, colIdx);
+    return true;
+  }
+
+  // A shot is travelling or waiting out its hit-stop.
+  _shotInFlight() {
+    return Object.values(this._gs.firingSlots).some(s => s !== null) || !!this._pendingShot;
   }
 
   // Called by DragDrop → onDeployFromBench (bench source).
   // Shooter is already extracted from BenchStorage by DragDrop.
+  // Turn-based like the queue: a bench shot fired while another shot was still
+  // in flight resolved two turns at once (and could change the queue mid-drag).
   deployFromBench(shooter, laneIdx) {
-    if (this._gs.firingSlots[laneIdx]) return;
+    if (this._shotInFlight()) return false;
     this._gs.benchUsed++;
     this._sDir.recordDeploy(this._gs.elapsed);
     this._startFiring(shooter, laneIdx, -1);
+    return true;
   }
 
   // Called by GameApp when the player places a BOMB booster on the road.
@@ -131,7 +144,10 @@ export class GameLoop {
   placeBombOnLane(laneIdx, tapRow = null) {
     const gs = this._gs;
     const bs = this._boosterState;
-    if (!bs?.consumeBomb()) return;
+    // A shot still in flight would resolve into the lane this clears — the queue
+    // bomb was consumed for nothing and no turn passed. Wait for it to land.
+    if (this._shotInFlight() || gs.isOver) return false;
+    if (!bs?.consumeBomb()) return false;
 
     const lane = (laneIdx >= 0 && laneIdx < gs.activeLaneCount) ? gs.lanes[laneIdx] : null;
     if (!lane || lane.cars.length === 0) {
@@ -245,7 +261,12 @@ export class GameLoop {
       if (!targetColor) return;
       const killed = this._fireColorBomb(targetColor);
       this._onColorBomb?.(targetColor, killed);
-      if (!gs.isOver) this._advanceGrid();   // one advance total, not per kill
+      if (gs.isOver) return;
+      // A rainbow that completes the goals wins NOW — the advance would run the
+      // breach check first (a finished level lost) or, under FREEZE, skip its
+      // win check entirely (goals at 0, level still running).
+      if (gs.goals.length > 0 && gs.isGoalMet()) { gs.endGame(true); this._onEnd(true); return; }
+      this._advanceGrid();   // one advance total, not per kill
       return;
     }
 
@@ -422,6 +443,7 @@ export class GameLoop {
     gs.resetLevel();
     gs.phaseMan.update(0);
     this._accumulator = 0;
+    this._pendingShot = null;           // a shot mid hit-stop must not survive into the new level
     this._carDir.setProgress?.(0);      // spawnScript stage back to stage 1 (§3c)
     this._primeInitialCars();
     this._sDir.fillColumns(gs.activeCols, gs.asDirectorState(), gs.phaseMan.getParams());
@@ -486,7 +508,8 @@ export class GameLoop {
       const dirState = gs.asDirectorState();
       const phaseParams = gs.phaseMan.getParams();
       this._sDir.fillColumns(gs.activeCols, dirState, phaseParams);
-      this._enforceViableMove(gs);      return;
+      this._enforceViableMove(gs);
+      return;
     }
 
     // 1. Move traffic. Ordinary cars move one row, speeders two, and nobody
@@ -643,6 +666,11 @@ export class GameLoop {
           car.position = this._rowToPosition(row, ROWS);
           lane.addCar(car);
         }
+      }
+      // Never leave the player an empty-looking road (see revealStagedCars).
+      const active = gs.lanes.slice(0, gs.activeLaneCount);
+      if (revealStagedCars(active.map(l => l.cars))) {
+        for (const l of active) for (const c of l.cars) c.position = this._rowToPosition(c.row, ROWS);
       }
     } else {
       // Legacy mode: pick at most 1-2 random candidate lanes.

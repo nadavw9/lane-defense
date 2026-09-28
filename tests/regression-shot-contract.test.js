@@ -82,7 +82,10 @@ describe('regression: shot contracts (real GameLoop)', () => {
         // Lane refill: after advancing the grid, a kill empties the lane, so refill spawns
         // a fresh car at row 0. With infinite spawn (spawnBudget now a density knob, not
         // a depletion pool), a new car always spawns when the lane is under-stocked.
-        expect(lanes[0].cars.some(c => c.row === 0)).toBe(true);
+        // Single-lane board (L1): the kill left nothing visible, so the staged
+        // row-0 car steps into row 1 (TrafficRules.revealStagedCars) — otherwise
+        // the road looks empty and nothing can be shot (device-reported soft-lock).
+        expect(lanes[0].cars.some(c => c.row === (survivor ? 0 : 1))).toBe(true);
         // spawnBudget no longer decrements — it's a density knob, not a depletion pool.
         expect(gs.spawnBudget).toBe(budgetBefore);
       });

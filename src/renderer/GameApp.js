@@ -2373,6 +2373,20 @@ async function main() {
         inventory: progress.getInventory(), coins: progress.coins }),
       getBoosterState: () => boosterState,
       startDaily: () => { [titleScreen, levelSelectScreen, winScreen].forEach(x => x?.destroy()); titleScreen = levelSelectScreen = winScreen = null; startDailyChallenge(); },
+      stageTop: (x, y) => {
+        const hit = app.renderer.events.rootBoundary.hitTest(x, y);
+        const chain = []; for (let o = hit; o; o = o.parent) chain.push(`${o.constructor?.name}${o.label ? ':' + o.label : ''}[${o.eventMode}]`);
+        const ev = app.renderer.events;
+        return { chain, scale: app.stage.scale.x, pivot: [app.stage.pivot.x, app.stage.pivot.y], pos: [app.stage.x, app.stage.y],
+          stage: { em: app.stage.eventMode, ic: app.stage.interactiveChildren, vis: app.stage.visible, n: app.stage.children.length },
+          root: ev.rootBoundary.rootTarget === app.stage, feats: ev.features,
+          kids: app.stage.children.map(c => `${c.constructor.name}:${c.eventMode}:${c.visible ? 'v' : 'h'}:${c.interactiveChildren ? 'i' : 'x'}`) };
+      },
+      dbgRescue: () => {
+        const r = rescueOverlay; if (!r) return null; const c = r._container;
+        const walk = (o, d = 0) => d > 3 ? [] : [`${'  '.repeat(d)}${o.constructor.name}:${o.eventMode}:${o.visible ? 'v' : 'h'}:a${o.alpha?.toFixed(2)}:${o.destroyed ? 'DESTROYED' : ''}`, ...(o.children ?? []).slice(0, 6).flatMap(k => walk(k, d + 1))];
+        return { idx: app.stage.children.indexOf(c), built: r._panelBuilt, flash: r._flashLife, tree: walk(c), ticker: app.ticker.started, lastTime: app.ticker.lastTime, fps: app.ticker.FPS };
+      },
       getColorPickerSwatches: () => colorPicker?.swatches ?? null,
       getMapNode: (n) => levelSelectScreen?.nodePosition?.(n) ?? null,
       getPreLevelPlayY: () => { const b = preLevelScreen?._play; if (!b) return null; const r = b.getBounds(); return r.y + r.height / 2; },

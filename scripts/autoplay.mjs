@@ -175,6 +175,24 @@ async function playLevel({ capMs }) {
         if (bsNow.freeze !== before - 1 || !bsNow.isFrozen()) ev('freezeNotApplied', { before, after: bsNow.freeze });
       }
     }
+    // Danger with no kill on top: pull a deeper matching bomb to the top (queue
+    // reorder, L5+) — what a real player does, and it exercises that path.
+    if (danger && danger.rows <= 2 && gs.levelId >= 5 && !bsNow.queueActionUsed && !stats._reorderedTurn?.[gs.turnCount]) {
+      const topKills = gs.columns.slice(0, colsN).some(c => c.top() && canTarget(danger.f, c.top()) && c.top().damage >= danger.f.hp);
+      if (!topKills) {
+        let found = null;
+        for (let c = 0; c < colsN && !found; c++) gs.columns[c].shooters.forEach((s, r) => { if (!found && r > 0 && canTarget(danger.f, s) && s.damage >= danger.f.hp) found = { c, r }; });
+        if (found) {
+          const from = dd._shooterRenderer.getQueueSlotCenter(found.c, found.r), to = dd._shooterRenderer.getQueueSlotCenter(found.c, 0);
+          const before = gs.columns[found.c].top();
+          drag(from.x, from.y, to.x, to.y); await sleep(250);
+          (stats._reorderedTurn ??= {})[gs.turnCount] = true;
+          stats.reorder = (stats.reorder ?? 0) + 1;
+          if (gs.columns[found.c].top() === before) ev('reorderNoEffect', { found });
+          continue;
+        }
+      }
+    }
     // Candidate moves: queue tops, then bench slots.
     const moves = [];
     for (let c = 0; c < colsN; c++) {

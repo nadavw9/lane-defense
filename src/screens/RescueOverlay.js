@@ -106,7 +106,11 @@ export class RescueOverlay {
     card.addChild(head);
     const goalTotal = gs?.goals?.reduce((a, g) => a + g.count, 0) ?? 0;
     const close = goalTotal > 0 && goalLeft <= goalTotal * 0.3;
-    const sub = bodyText(goalLeft <= 0 ? 'Keep going from right here?'
+    // A boss goal counts as "1" — it is not "one car left", it is a whole boss.
+    const bossLevel = gs?.goals?.some(g => g.type === 'defeatBoss');
+    const bossLights = (gs?.lanes ?? []).flatMap(l => l.cars).filter(c => c.sequence).reduce((a, c) => a + c.hp, 0);
+    const sub = bodyText(bossLevel ? (bossLights > 0 ? `The boss has ${bossLights} light${bossLights === 1 ? '' : 's'} left — keep going?` : 'The boss is still out there — keep going?')
+      : goalLeft <= 0 ? 'Keep going from right here?'
       : goalLeft === 1 ? 'Just ONE car left to win!'
       : close ? `Only ${goalLeft} cars left to win!` : 'Keep going from right here?', 16, GOLD, { outline: false });
     sub.x = PW / 2; sub.y = 212;

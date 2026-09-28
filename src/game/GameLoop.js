@@ -444,6 +444,7 @@ export class GameLoop {
     gs.phaseMan.update(0);
     this._accumulator = 0;
     this._pendingShot = null;           // a shot mid hit-stop must not survive into the new level
+    this._breachedBosses = [];
     this._carDir.setProgress?.(0);      // spawnScript stage back to stage 1 (§3c)
     this._primeInitialCars();
     this._sDir.fillColumns(gs.activeCols, gs.asDirectorState(), gs.phaseMan.getParams());
@@ -539,6 +540,9 @@ export class GameLoop {
           const idx = gs.lanes[li].cars.indexOf(car);
           if (idx >= 0) gs.lanes[li].cars.splice(idx, 1);
         }
+        // Remember a breaching BOSS: a rescue must put it back, or its defeatBoss
+        // goal can never be met (the level ran forever after CONTINUE).
+        this._breachedBosses = breached.filter(isBoss).map(car => ({ car, laneIdx: li }));
         gs.endGame(false);
         this._onEnd(false, li);
         return;
@@ -890,6 +894,19 @@ export class GameLoop {
   // skipped steps, then recolor for a fair fighting chance and guarantee a move.
   prepareForRescue() {
     const gs = this._gs;
+    // A boss that broke through comes back (pushed back like the rest of the
+    // traffic by gs.rescue), lights intact — before the refill claims its lane.
+    const ROWS = gs.gridRows ?? 16;
+    for (const { car, laneIdx } of this._breachedBosses ?? []) {
+      const lane = gs.lanes[laneIdx];
+      if (!lane || lane.cars.includes(car)) continue;
+      let row = Math.max(1, (ROWS - 1) - Math.floor(ROWS * 0.4));
+      while (row > 0 && lane.cars.some(c => c.row === row)) row--;
+      car.row = row;
+      car.position = this._rowToPosition(row, ROWS);
+      lane.addCar(car);
+    }
+    this._breachedBosses = [];
     this._refillLanes();
     const dirState    = gs.asDirectorState();
     const phaseParams = gs.phaseMan.getParams();

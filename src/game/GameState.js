@@ -190,10 +190,22 @@ export class GameState {
     const ROWS = this.gridRows ?? 16;
     const ROWS_BACK = Math.floor(ROWS * 0.4);
     for (const lane of this.lanes) {
-      for (const car of lane.cars) {
-        car.row      = Math.max(0, car.row - ROWS_BACK);
+      // Push traffic back, keeping every car on its own row in lane order: a flat
+      // max(0, row - k) stacked several cars on row 0 (drawn on top of each other).
+      // Cars that no longer fit behind row 0 leave the road (refill replaces them).
+      const cars = [...lane.cars].sort((a, b) => b.row - a.row);   // front first
+      let prev = Infinity;
+      const keep = [];
+      for (const car of cars) {
+        const row = Math.min(car.row - ROWS_BACK, prev - 1);
+        if (row < 0) continue;
+        car.row = row;
         car.position = ROWS <= 1 ? 0 : (car.row / (ROWS - 1)) * 100;
+        prev = row;
+        keep.push(car);
       }
+      lane.cars.length = 0;
+      for (const car of keep) lane.cars.push(car);
     }
   }
 

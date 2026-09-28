@@ -1,27 +1,10 @@
-Premium pass, round 3 (branch feat/v2-design). BEFORE = commit a0380dc, AFTER = current.
-Captured headless (software renderer); colours and layout are exact, animation timing is not.
+QA sweep round (branch feat/v2-design). Captured headless (software renderer): layout exact, animation timing not.
 
-01=BEFORE shop: three rows, BOMB missing, bottom third empty, grey-ish price buttons
-02=AFTER  shop: BOOSTER PACK value offer (2 of each, -22%), 2x2 tiles incl. BOMB with owned counts, always-gold prices, FREE STUFF row (+25 coins for a video, 3 a day; daily gift OPEN). LOOK: is the pack the first thing your eye lands on?
-03=AFTER  shop when broke + gift already claimed: gift card shows a live countdown; a price you can't afford shakes and says "watch a video for free coins" (toast not in this frame - software renderer lag). Purchases now go to your inventory and come into every level with you
-04=BEFORE settings: web-form look, "100%" labels sitting on the slider knobs, mini how-to-play carousel
-05=AFTER  settings: label + value above a full-width slider (no collision), chunky toggles, HELP buttons, privacy under ABOUT
-06=AFTER  settings -> CAR GUIDE opens over settings; back returns to settings
-07=BEFORE level card: starburst goal icon, three identical "AD" chips
-08=AFTER  level card: "any cars" goal shown as a little traffic jam, video chips read "+1", green badges show boosters you already own (they come along automatically). (Real flow has the map behind the card)
-09=BEFORE win: cream rays on near-black
-10=AFTER  win: warm violet field with a soft gold glow, additive gold rays; a 0/1 multi-kill row is replaced by CARS DESTROYED. (Forced win from the dev hook, so coins/cars read 0 here - real wins show real numbers)
-
-Round 4 (after an independent art-director critique of round 3). Display font is now Lilita One
-everywhere - Luckiest Guy shrank some letters on purpose (C-o-L-o-R), which read as typos.
-11=BEFORE L10 boss: dark grey truck, "5 TO GO" drawn over the boss, achievement toast over the road
-12=AFTER  L10: boss repainted in the palette's boss magenta (no bomb matches it), floating count removed (the roof panel knocks out a pip instead), trophy toast drops onto the header band between the buttons. LOOK: does the boss read as the hero from arm's length?
-13=BEFORE L17 industrial: pale road next to pale pavement, COMBO under the toast
-14=AFTER  L17: darker road so cars pop, COMBO moved to mid-road, SUPERCHARGED pill lifted off the front bombs
-15=BEFORE L33 night: tower roofs with a lone "H" (helipads) looked like placeholders
-16=AFTER  L33: lit warm skylights, thicker neon roof rims, red aviation lights
-17=BEFORE title: PLAY had two hard offset glow rings; captions sat straight on the busy art
-18=AFTER  title: one soft golden halo + gentle breathe; captions on dark pills
-19=BEFORE map: every played node the same blue as the next one; "Tutorial City"
-20=AFTER  map: next level is PLAY-green (with the arrow and pulse), played = world colour; worlds renamed Toy Town / Steel Yards / Neon Nights
-21=AFTER  car guide: HP pills now a toughness scale (green = easy ... deep red = tank), "Tender" renamed TRUCK
+01=BEFORE (your phone) L1 after the first kill: empty road, nothing to shoot. The next car was spawned on the hidden staging row behind the goal bar, and nothing moves until you shoot -> soft-lock.
+02=AFTER  L1 after kills: the next car steps into row 1 whenever the road would otherwise look empty. LOOK: there is always a car to shoot.
+03=BEFORE L1 first seconds for a new player: a NEW VEHICLE card popped up 4.5 s in and ate the first drag (then a "match the damage" card ate the second).
+04=AFTER  L1 start: no cards; the tip sits on the header bar (not over the road), LEVEL 1 ribbon mid-road, hand shows the drag. First drag fires.
+05=BEFORE L20 after CONTINUE when the boss itself broke through: the boss was gone for good, the goal could never complete, the level ran forever (bot: 225 turns).
+06=AFTER  L10 same situation: CONTINUE brings the boss back, pushed back with its lights intact.
+07=AFTER only  colour-change picker restyled (gold rim, glossy paint drops, current colour crossed out).
+08=AFTER only  L3 start: "incoming cars" label moved onto the road so it no longer collides with the header tip.

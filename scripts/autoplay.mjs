@@ -44,7 +44,7 @@ await p.waitForTimeout(1500);
 const report = [];
 for (let lv = from; lv <= to; lv++) {
   errs = [];
-  await p.evaluate((n) => window._nav.startLevel(n), lv);
+  await p.evaluate((n) => n > 40 ? window._nav.startDaily() : window._nav.startLevel(n), lv);   // 41 = today's daily challenge
   await p.waitForTimeout(2200);
   const t0 = Date.now();
   const r = await p.evaluate(playLevel, { capMs: 7 * 60 * 1000 });
@@ -104,9 +104,12 @@ async function playLevel({ capMs }) {
       for (let w = 0; w < 40; w++) { sc = nav.getScreens(); if (sc.rescue) break; await sleep(150); }
       if (!sc.rescue) { if (!gs.rescueUsed && !stats.noRescueLevel) ev('noRescueOffer'); break; }
       if (stats.rescue >= 1) break;
-      tapCanvas(195, 471);   // CONTINUE (watch a video → web mock ad)
+      await sleep(1500);     // the panel builds after the red flash
       stats.rescue++;
-      for (let w = 0; w < 80 && gs.isOver; w++) await sleep(150);
+      for (let tries = 0; tries < 3 && gs.isOver; tries++) {
+        tapCanvas(195, 471);   // CONTINUE (watch a video → 5 s web mock ad)
+        for (let w = 0; w < 60 && gs.isOver; w++) await sleep(150);
+      }
       await sleep(400);
       if (gs.isOver) { ev('rescueDidNotResume'); break; }
       const sc2 = nav.getScreens();

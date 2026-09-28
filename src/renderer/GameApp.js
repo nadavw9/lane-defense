@@ -2157,7 +2157,9 @@ async function main() {
       // Resume on return — but only if WE paused it (not the user).
       if (_hiddenWhilePlaying && pauseScreen === null) {
         _hiddenWhilePlaying = false;
-        gameLoop.resume();
+        // Coming back from another app: land on the pause menu rather than a
+        // board that is already running under a player who isn't looking yet.
+        if (pauseBtn.visible && !_modalActive && !colorPicker) showPause(); else gameLoop.resume();
       } else {
         _hiddenWhilePlaying = false;
       }
@@ -2379,7 +2381,9 @@ async function main() {
         pauseBtn: pauseBtn.visible, boosters: { colorChange: boosterState.colorChange, freeze: boosterState.freeze, bombs: boosterState.bombs },
         inventory: progress.getInventory(), coins: progress.coins }),
       getBoosterState: () => boosterState,
+      startDaily: () => { [titleScreen, levelSelectScreen, winScreen].forEach(x => x?.destroy()); titleScreen = levelSelectScreen = winScreen = null; startDailyChallenge(); },
       getMapNode: (n) => levelSelectScreen?.nodePosition?.(n) ?? null,
+      getPreLevelPlayY: () => { const b = preLevelScreen?._play; if (!b) return null; const r = b.getBounds(); return r.y + r.height / 2; },
       getWinNextY: () => { const b = winScreen?._nextBtn; if (!b) return null; const r = b.getBounds(); return r.y + r.height / 2; },
       // Profiling handle: lets a harness wrap DragDrop's handlers to attribute
       // input-path cost (see scripts/_perf-handlers.mjs). Dev-only, like the

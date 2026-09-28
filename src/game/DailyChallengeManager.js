@@ -2,57 +2,26 @@
 // The day index is seeded from the date so every player sees the same challenge.
 // Challenge configs are full level config objects compatible with applyLevelConfig().
 
+// V2 rules (2026-09-28). The old table was written for the real-time V1 game:
+// "cars move twice as fast" and "150 seconds" meant nothing in a turn-based game,
+// it ran on 4 lanes with no goals, and one day used six colours on four bomb
+// columns. Every challenge is now a real V2 board — 3 lanes, 8 rows, a car goal,
+// at most four colours — with ONE twist, and copy that says what actually happens.
 const CHALLENGES = [
-  {
-    name:        'Speed Round',
-    desc:        'Cars move twice as fast — but they have low HP',
-    colors:      ['Red', 'Blue', 'Green'],
-    worldConfig: { hpMultiplier: 0.35, speed: { base: 9.0, variance: 1.0 } },
-    duration:    100,
-  },
-  {
-    name:        'Tank Invasion',
-    desc:        'Triple HP — bring your hardest-hitting bombs!',
-    colors:      ['Red', 'Blue', 'Green'],
-    worldConfig: { hpMultiplier: 1.80, speed: { base: 3.5, variance: 0.3 } },
-    duration:    100,
-  },
-  {
-    name:        'Monochrome',
-    desc:        'Only red cars — but they never stop coming',
-    colors:      ['Red'],
-    worldConfig: { hpMultiplier: 1.0, speed: { base: 5.5, variance: 0.5 } },
-    duration:    100,
-  },
-  {
-    name:        'Blitz',
-    desc:        'Fast and furious — half HP but relentless spawns',
-    colors:      ['Red', 'Blue', 'Green'],
-    worldConfig: { hpMultiplier: 0.55, speed: { base: 7.5, variance: 1.0 } },
-    duration:    100,
-  },
-  {
-    name:        'Endurance',
-    desc:        '150 seconds — the longest haul of your life',
-    colors:      ['Red', 'Blue', 'Green'],
-    worldConfig: { hpMultiplier: 1.0, speed: { base: 4.5, variance: 0.5 } },
-    duration:    150,
-  },
-  {
-    name:        'Rainbow Rush',
-    desc:        'All six colors at once — stay sharp!',
-    colors:      ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'],
-    worldConfig: { hpMultiplier: 0.80, speed: { base: 5.5, variance: 0.6 } },
-    duration:    100,
-  },
-  {
-    name:        'Sudden Death',
-    desc:        'Harder cars, tighter timer — no rescue if you fail',
-    colors:      ['Red', 'Blue', 'Green'],
-    worldConfig: { hpMultiplier: 1.15, speed: { base: 5.5, variance: 0.5 } },
-    duration:    70,
-    noRescue:    true,
-  },
+  { name: 'Speeder Rush',   desc: 'Speeders everywhere — they move 2 steps a turn',
+    colors: ['Red', 'Blue', 'Green'], hp: 0.55, traits: { speeder: 0.30 }, goal: 30 },
+  { name: 'Iron Wall',      desc: 'Armoured cars — any bomb knocks the plates off',
+    colors: ['Red', 'Blue', 'Green'], hp: 0.50, traits: { armored: 0.25 }, goal: 28 },
+  { name: 'Monochrome',     desc: 'Only red cars — tougher, and they never stop coming',
+    colors: ['Red'], hp: 0.62, traits: {}, goal: 36 },
+  { name: 'Chameleon Chaos', desc: 'Chameleons flip colour every turn — watch the light',
+    colors: ['Red', 'Blue', 'Yellow'], hp: 0.72, traits: { chameleon: 0.30 }, goal: 28 },
+  { name: 'Endurance',      desc: 'The long haul — destroy 45 cars',
+    colors: ['Red', 'Blue', 'Green'], hp: 0.55, traits: { speeder: 0.06 }, goal: 45 },
+  { name: 'Four Colours',   desc: 'Red, blue, green and yellow all at once',
+    colors: ['Red', 'Blue', 'Green', 'Yellow'], hp: 0.66, traits: {}, goal: 30 },
+  { name: 'Sudden Death',   desc: 'Tough traffic — and no continue if you breach',
+    colors: ['Red', 'Blue', 'Green'], hp: 0.68, traits: { speeder: 0.08, armored: 0.08 }, goal: 26, noRescue: true },
 ];
 
 // Returns 'YYYY-MM-DD' for today's local date.
@@ -81,6 +50,8 @@ function weekIndex() {
   return Math.max(0, Math.floor((Date.now() - epoch) / (7 * 24 * 60 * 60 * 1000)));
 }
 
+export { CHALLENGES as DAILY_CHALLENGES };
+
 export class DailyChallengeManager {
   getTodayKey() {
     return todayDateKey();
@@ -93,19 +64,29 @@ export class DailyChallengeManager {
   // Returns today's challenge config.
   getChallenge() {
     const def = CHALLENGES[dayIndex() % CHALLENGES.length];
+    return DailyChallengeManager.configFor(def);
+  }
+
+  /** A V2 level config for a challenge definition (also used by tests/sims). */
+  static configFor(def) {
     return {
       id:         'daily',
       isDaily:    true,
-      laneCount:  4,
-      colCount:   4,
+      laneCount:  3,
+      colCount:   3,
+      gridRows:   8,
+      spawnBudget: 12,
+      laneTargetCarCount: 2,
       showArrow:  false,
       noRescue:   def.noRescue ?? false,
       hintText:   `DAILY: ${def.name} — ${def.desc}`,
       name:       def.name,
       desc:       def.desc,
       colors:     def.colors,
-      worldConfig: def.worldConfig,
-      duration:   def.duration,
+      worldConfig: { hpMultiplier: def.hp, speed: { base: 5.0, variance: 0.3 } },
+      traits:     def.traits,
+      goals:      [{ type: 'destroyTotal', count: def.goal }],
+      duration:   100,
     };
   }
 

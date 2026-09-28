@@ -37,10 +37,12 @@ for (let lv = 1; lv <= N; lv++) {
     await p.waitForTimeout(1500);
   }
   await shot(`L${lv}-card`);
-  await p.mouse.click(195, 609 + ((await S()).preLevel ? 0 : 0));   // card PLAY (no-intro card)
+  const playY = await p.evaluate(() => window._nav.getPreLevelPlayY());
+  if (playY == null) log.push(`L${lv}: level card did not open`);
+  await p.mouse.click(195, playY ?? 609);                 // card PLAY (real tap)
   await p.waitForTimeout(2500);
   s = await S();
-  if (!s.lvl || s.preLevel) { await p.evaluate(() => window._nav.getPreLevelPlay?.()); }
+  if (s.preLevel) log.push(`L${lv}: PLAY tap did not start the level`);
   await shot(`L${lv}-start`);
   const t0 = Date.now(); let drags = 0, idleNoTarget = 0;
   while (Date.now() - t0 < 180000) {

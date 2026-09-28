@@ -18,7 +18,9 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 
 const args = process.argv.slice(2);
 const out = args[0];
-const from = Number(args[1] ?? 1), to = Number(args[2] ?? 40);
+const list = String(args[1] ?? '').includes(',') ? args[1].split(',').map(Number) : null;
+const from = Number(list ? 0 : args[1] ?? 1), to = Number(list ? 0 : args[2] ?? 40);
+const levels = list ?? Array.from({ length: to - from + 1 }, (_, i) => from + i);
 const fresh = args.includes('--fresh');
 mkdirSync(out, { recursive: true });
 
@@ -42,7 +44,7 @@ await p.waitForFunction(() => !!window._nav, null, { timeout: 90000 });
 await p.waitForTimeout(1500);
 
 const report = [];
-for (let lv = from; lv <= to; lv++) {
+for (const lv of levels) {
   errs = [];
   await p.evaluate((n) => n > 40 ? window._nav.startDaily() : window._nav.startLevel(n), lv);   // 41 = today's daily challenge
   await p.waitForTimeout(2200);
@@ -64,6 +66,7 @@ async function playLevel({ capMs }) {
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const events = [];
   const stats = { bomb: 0, freeze: 0, rescue: 0 };
+  const history = [];   // last boards, attached when a level is lost
   const lanesN = gs.activeLaneCount, colsN = gs.activeColCount;
   const board = () => gs.lanes.slice(0, lanesN).map(l => l.cars.map(c =>
     `${c.color[0]}${c.hp}${c.armor ? 'A' : ''}${c.trait ? c.trait[0] : ''}${c.sequence ? 'B' : ''}@${c.row}`).join(' '));
@@ -98,6 +101,7 @@ async function playLevel({ capMs }) {
   while (performance.now() - t0 < capMs) {
     if (gs.isOver) {
       if (gs.won) break;
+      if (!events.some(e => e.kind === 'lost')) events.push({ kind: 'lost', turn: gs.turnCount, history: history.slice(), after: board() });
       // Breach: the rescue offer must appear (once); take it once, then verify
       // the level really resumes in a playable state.
       let sc = null;
@@ -123,7 +127,11 @@ async function playLevel({ capMs }) {
       continue;
     }
     if (inFlight()) { await sleep(60); continue; }
-    if (gs.turnCount !== lastTurn) { lastTurn = gs.turnCount; lastTurnAt = performance.now(); }
+    if (gs.turnCount !== lastTurn || history.length === 0) {
+      lastTurn = gs.turnCount; lastTurnAt = performance.now();
+      history.push({ turn: gs.turnCount, board: board(), queue: queue(), bench: bench() });
+      if (history.length > 4) history.shift();
+    }
 
     // Empty-looking board (the device-reported soft-lock class).
     const cars = gs.lanes.slice(0, lanesN).flatMap(l => l.cars);
@@ -155,7 +163,8 @@ async function playLevel({ capMs }) {
         const car = nav.getCarScreenPositions().find(c => c.lane === danger.l && c.row === danger.f.row);
         if (bsNow.bombMode && car) { tapCanvas(car.x, car.y); await sleep(600); }
         stats.bomb++;
-        if (bsNow.bombs === before && !bsNow.bombMode) ev('bombNotSpent', { before });
+        const laneCleared = !gs.lanes[danger.l].cars.some(c => c !== danger.f && !c.sequence) && !gs.lanes[danger.l].cars.includes(danger.f);
+        if (bsNow.bombs === before && !bsNow.bombMode && !laneCleared) ev('bombNotSpent', { before });
         if (bsNow.bombMode) { tapHud(hud.boosterBomb); ev('bombStuckArmed'); }
         continue;
       }
@@ -172,7 +181,10 @@ async function playLevel({ capMs }) {
       const s = gs.columns[c].top(); if (!s) continue;
       for (let l = 0; l < lanesN; l++) {
         const f = fronts[l]; if (!canTarget(f, s)) continue;
-        moves.push({ src: 'col', c, l, score: f.row * 10 + (s.damage >= f.hp ? 6 : 0) + (f.sequence ? 3 : 0) });
+        // A car that breaches on the next advance must die NOW (a kill, not a scratch).
+        const steps = f.trait === 'speeder' ? 2 : 1;
+        const breachesNext = f.row + steps > gs.gridRows - 1 && s.damage >= f.hp && !f.sequence;
+        moves.push({ src: 'col', c, l, score: f.row * 10 + (s.damage >= f.hp ? 6 : 0) + (f.sequence ? 3 : 0) + (breachesNext ? 1000 : 0) });
       }
     }
     const benchSlots = dd._benchStorage?._slots ?? [];

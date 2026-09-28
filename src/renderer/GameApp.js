@@ -94,7 +94,7 @@ import { AchievementManager }     from '../game/AchievementManager.js';
 import { DailyChallengeManager }  from '../game/DailyChallengeManager.js';
 import { CarTypeIntroCard, hasIntroCard } from '../screens/CarTypeIntroCard.js';
 import { spawnableTypesFor, carHpFor } from '../director/CarTypes.js';
-import { roundButton as premiumRoundButton } from './PremiumUI.js';
+import { roundButton as premiumRoundButton, ribbon as premiumRibbon } from './PremiumUI.js';
 import { inventorySpent } from '../game/BoosterInventory.js';
 import { bombBallScreenRadius } from '../renderer3d/projection.js';
 import { ComboFX } from './ComboFX.js';
@@ -999,28 +999,12 @@ async function main() {
 
   // ── Level intro splash — compact top-center pill badge (1.2 s) ───────────
   function _showLevelIntroSplash(levelNumber, onComplete) {
+    // Premium ribbon over the middle of the road (it used to be a dark pill at
+    // the top, colliding with the header-docked tips). Pops in, holds, fades.
     const c = new Container();
-    c.y = 66;   // pill top = 66-22 = 44 → flush with road top, never covers road or cars
+    c.y = Math.round((ROAD_TOP_Y + ROAD_BOTTOM_Y) / 2) - 40;
     app.stage.addChild(c);
-
-    const PW = 160, PH = 44;
-    const bg = new Graphics();
-    bg.roundRect(-PW / 2, -PH / 2, PW, PH, 12);
-    bg.fill({ color: 0x1a1a2e, alpha: 0.85 });
-    c.addChild(bg);
-
-    const txt = new Text({
-      text: `LEVEL ${levelNumber}`,
-      style: {
-        fontSize:   20,
-        fontWeight: 'bold',
-        fill:       0xffffff,
-        dropShadow: { color: 0x000000, blur: 6, distance: 0, alpha: 0.7 },
-      },
-    });
-    txt.anchor.set(0.5, 0.5);
-    c.addChild(txt);
-
+    c.addChild(premiumRibbon(`LEVEL ${levelNumber}`, 250, { size: 34 }));
     c.x     = APP_W / 2;
     c.alpha = 0;
 
@@ -1032,8 +1016,10 @@ async function main() {
       t += ticker.deltaMS / 1000;
       if (t < 0.2) {
         c.alpha = t / 0.2;
+        c.scale.set(0.6 + 0.5 * Math.sin((t / 0.2) * Math.PI / 2));
       } else if (t < 1.0) {
         c.alpha = 1;
+        c.scale.set(1.1 - 0.1 * Math.min(1, (t - 0.2) / 0.15));
       } else if (t < 1.2) {
         c.alpha = 1 - (t - 1.0) / 0.2;
       } else {
@@ -1445,6 +1431,7 @@ async function main() {
   // ── Screen: Win ───────────────────────────────────────────────────────────
   function showWin() {
     _settleInventory();
+    tutOrch?.dismiss();
     pauseBtn.visible = false;
     bookBtn.visible  = false;
     // Clear gameplay UI behind the modal: suppress toasts (achievements still
@@ -1574,6 +1561,7 @@ async function main() {
 
   function _showNoRescueLose() {
     _recordFinalLoss();
+    tutOrch?.dismiss();
 
     pauseBtn.visible = false;
     bookBtn.visible  = false;
@@ -1620,6 +1608,7 @@ async function main() {
 
   // ── Screen: Rescue ────────────────────────────────────────────────────────
   function showRescue() {
+    tutOrch?.dismiss();
     pauseBtn.visible = false;
     // FIX 2: hide the booster bar + suppress toasts behind the game-over modal,
     // exactly like the win/final-lose screens do.
@@ -1895,7 +1884,9 @@ async function main() {
     // Bounds/hand must match the BOMB booster card exactly (BoosterBar CARD_X[2]):
     // x 237-301 (centre 269), y 754-818. The fixed 3-button bar is identical on
     // every level, so these constants are correct for all 1/2/3/4-lane levels.
-    tutOrch?.start({
+    // Not on the shot that ends the level: the tutorial paused the loop and its
+    // spotlight stayed over the win screen and into the next level's card.
+    if (!gs.isOver && !(gs.goals.length > 0 && gs.isGoalMet())) tutOrch?.start({
       id:        'bomb',
       text:      '💣 BOMB earned — tap it, then tap a lane to blast every car on it!',
       bounds:    { x: 237, y: 754, w: 64, h: 64 },

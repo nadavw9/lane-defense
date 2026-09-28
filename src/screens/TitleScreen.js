@@ -354,7 +354,8 @@ export class TitleScreen {
       g.roundRect(b.cx - b.w / 2 - pad, b.cy - b.h / 2 - pad + 3, b.w + pad * 2, b.h + pad * 2, b.h / 2.6 + pad)
         .fill({ color: 0xFFD54A, alpha: (0.07 + 0.05 * k) * (1 - i / 7) });
     }
-    if (this._playBtn) this._playBtn.scale.set(1 + 0.025 * k);
+    // Breathe only once the intro's pop-in has finished (it animates the scale).
+    if (this._playBtn && (!this._intro || this._intro.phase === 'done')) this._playBtn.scale.set(1 + 0.025 * k);
   }
 
   // ── Helper: pill-shaped secondary button ──────────────────────────────────

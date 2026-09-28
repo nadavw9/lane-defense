@@ -307,7 +307,7 @@ export class FTUEOverlay {
     const carsLbl = new Text({ text: '↓  INCOMING CARS  ↓', style: { ...style, fill: 0xff8866 } });
     carsLbl.anchor.set(0.5, 0);
     carsLbl.x = w / 2;
-    carsLbl.y = ROAD_TOP_Y + 4;
+    carsLbl.y = ROAD_TOP_Y + 190;   // on the open road, clear of the header band (tips dock there)
     grp.addChild(carsLbl);
 
     const shootersLbl = new Text({ text: '↑  YOUR BOMBS  ↑', style: { ...style, fill: 0x66aaff } });

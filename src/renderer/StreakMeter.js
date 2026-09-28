@@ -86,7 +86,8 @@ export class StreakMeter {
         const lit = i < this._streak;
         const px = cx + (i - 1) * 32;
         const s = lit && i === this._streak - 1 ? pop : 1;
-        this._flame(g, px, cy + 1, 8.5 * s, lit ? PIP_COLORS[i] : 0x7A4A3A, lit);
+        if (!lit) g.circle(px, cy + 1, 10).fill({ color: 0xFFFFFF, alpha: 0.06 });
+        this._flame(g, px, cy + 1, 9.5 * s, lit ? PIP_COLORS[i] : 0xB8A28C, lit);
       }
     }
   }
@@ -95,10 +96,12 @@ export class StreakMeter {
     const r = this._rings;
     r.clear();
     const k = 0.5 + 0.5 * Math.sin(this._t * 9);
+    // A tight glowing rim on each charged bomb — never wider than the ball's own
+    // cradle, so it can't spill onto the bomb below or the next column.
     for (const a of this._anchors()) {
-      const rad = (a.r ?? 26) + 4 + 3 * k;
-      r.circle(a.x, a.y, rad + 4).stroke({ color: 0xFFD42A, width: 3, alpha: 0.5 + 0.3 * k });
-      r.circle(a.x, a.y, rad).stroke({ color: HOT, width: 4, alpha: 0.9 });
+      const rad = (a.r ?? 16) + 2.5;
+      r.circle(a.x, a.y, rad + 2 + 1.5 * k).stroke({ color: 0xFFD42A, width: 2, alpha: 0.35 + 0.35 * k });
+      r.circle(a.x, a.y, rad).stroke({ color: HOT, width: 3, alpha: 0.95 });
     }
   }
 

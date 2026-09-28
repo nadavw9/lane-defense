@@ -80,6 +80,10 @@ export class HUDRenderer {
     }
     this._layer.addChild(this._muteBtn);
     this._drawSpeaker(false);
+    // Premium pass: sound lives in Pause → Settings; a bare speaker glyph in the
+    // bar read as unfinished UI. Kept constructed (tests/hooks), just not shown.
+    this._muteBtn.visible = false;
+    this._muteBtn.eventMode = 'none';
 
     // ── Level text (over the badge drawn in _bg) ────────────────────────────
     this._levelText = new Text({

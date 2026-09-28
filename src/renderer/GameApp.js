@@ -94,8 +94,8 @@ import { AchievementManager }     from '../game/AchievementManager.js';
 import { DailyChallengeManager }  from '../game/DailyChallengeManager.js';
 import { CarTypeIntroCard, hasIntroCard } from '../screens/CarTypeIntroCard.js';
 import { spawnableTypesFor, carHpFor } from '../director/CarTypes.js';
-import { BREACH_LINE_Y } from '../renderer3d/projection.js';   // live binding (per band)
 import { roundButton as premiumRoundButton } from './PremiumUI.js';
+import { bombBallScreenRadius } from '../renderer3d/projection.js';
 import { ComboFX } from './ComboFX.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -434,7 +434,7 @@ async function main() {
   streakMeter.setAnchors(() => {
     const out = [];
     for (let c = 0; c < gs.activeColCount; c++) {
-      if (gs.columns[c]?.top()) out.push({ x: getColumnScreenX(c), y: getColumnScreenY(), r: 26 });
+      if (gs.columns[c]?.top()) out.push({ x: getColumnScreenX(c), y: getColumnScreenY(), r: bombBallScreenRadius() });
     }
     for (let i = 0; i < benchStorage.size; i++) {
       if (benchStorage.getSlot(i)) { const p = benchRenderer.getSlotCenter(i); out.push({ x: p.x, y: p.y, r: 22 }); }
@@ -488,8 +488,9 @@ async function main() {
 
   // ── FTUE per-feature banners (once-per-lifetime, persisted to localStorage) ─
   const featureBanners = new FeatureBanners(popupQueue, APP_W);
-  // Tip banners sit above the breach line (canonical, from projection.js).
-  popupQueue.tipBottomFn = () => BREACH_LINE_Y - 14;
+  // Tips, achievements and ambient toasts dock under the goal band, clear of
+  // the breach zone where the losing car is decided. Read at show time.
+  popupQueue.topYFn = () => (goalCounterUI?.bandBottom ?? 104) + 10;
 
   // ── Onboarding hints — three lifetime one-time tutorial MODAL cards (HP/book,
   //    match-damage, cars-advance). Rendered on app.stage, above the HUD. ───────
@@ -582,21 +583,14 @@ async function main() {
 
   // ── Pause button (|| icon, top-right of HUD, shown during gameplay) ──────
   const pauseBtn = (() => {
-    const HIT = 44;           // tap-target size (min 44px)
-    const g   = new Graphics();
-    // Toy button (yellow face, ink outline, lip) with an ink || glyph.
-    toyPanel(g, 3, 3, HIT - 6, HIT - 10, 11, SUN, { lip: 4, stroke: 3 });
-    g.roundRect(14, 11, 6, 17, 2).fill(INK);
-    g.roundRect(24, 11, 6, 17, 2).fill(INK);
-    // Right gutter of the booster row, centred on the booster card centre (y=786).
-    g.x       = APP_W - HIT;
-    g.y       = 764;
-    g.eventMode = 'static';
-    g.cursor    = 'pointer';
-    g.visible   = false;
-    g.on('pointerdown', () => showPause());
-    g.on('pointerover',  () => { g.alpha = 0.70; });
-    g.on('pointerout',   () => { g.alpha = 1.00; });
+    // Header, top-right (where top games put it): the same round premium button
+    // as the car-HP button on the left. How-to-play lives in the pause menu.
+    const glyph = new Graphics();
+    glyph.roundRect(-7, -8, 5, 16, 1.5).fill(0xFFFFFF).stroke({ color: INK, width: 1.5 });
+    glyph.roundRect(2, -8, 5, 16, 1.5).fill(0xFFFFFF).stroke({ color: INK, width: 1.5 });
+    const g = premiumRoundButton(glyph, { r: 21, color: 0x3F63C8, onTap: () => showPause() });
+    g.x = APP_W - 32; g.y = 46;
+    g.visible = false;
     layers.get('hudLayer').addChild(g);
     return g;
   })();
@@ -639,7 +633,8 @@ async function main() {
     return g;
   }
   const hpGuideBtn   = _makeGoalBarBtn('🚗', 32,          () => showHpGuide(), 'car');
-  const howToPlayBtn = _makeGoalBarBtn('?',  APP_W - 32,  () => showHowToPlay());
+  // How-to-play moved into the pause menu; the header's right slot is pause.
+  const howToPlayBtn = { visible: false, destroyed: true };
 
   // (Color-bomb streak pip counter removed — color bombs are now earned by a
   //  single-shot MULTI-KILL of 2+ cars, not by a consecutive-shot streak. FIX 4.)
@@ -786,7 +781,10 @@ async function main() {
     // the L1 drag-arrow hint, which stays in the overlay because it points at the bomb.
     let ftueCfg = cfg;
     if (cfg.hintText && !cfg.showArrow && typeof levelId === 'number') {
-      featureBanners.fire(`hint_L${levelId}`, cfg.hintText);
+      // NEW!/BOSS! intros are already the level card's headline (every level
+      // start goes through _showPreLevel); repeating them in-game only covered
+      // the board. Other hints still fire once as a tip.
+      if (!/^(NEW!|BOSS!|FINAL BOSS!)/.test(cfg.hintText)) featureBanners.fire(`hint_L${levelId}`, cfg.hintText);
       ftueCfg = { ...cfg, hintText: null };
     }
     // FTUEOverlay must be created AFTER setActiveCounts so that PositionRegistry
@@ -1315,6 +1313,14 @@ async function main() {
         pauseScreen = null;
         showCarManual(true);
       },
+      onHowToPlay: () => {
+        pauseScreen.destroy();
+        pauseScreen = null;
+        howToPlayOverlay = new HowToPlayOverlay(app.stage, APP_W, APP_H, {
+          ticker: app.ticker,
+          onClose: _closers.howToPlay = () => { howToPlayOverlay?.destroy(); howToPlayOverlay = null; showPause(); },
+        });
+      },
       onSettings: () => {
         pauseScreen.destroy();
         pauseScreen = null;
@@ -1826,7 +1832,7 @@ async function main() {
       audio.play('boss_light', { left: boss.hp });
       haptics.medium();
       floatingTexts.push(spawnFloatingText(layers.get('particleLayer'),
-        getLaneScreenX(laneIdx), posToScreenY(boss.position) + 70, `${boss.hp} TO GO`, 0xFFD42A));   // just under the boss
+        getLaneScreenX(laneIdx), posToScreenY(boss.position) + 118, `${boss.hp} TO GO`, 0xFFD42A));   // just under the boss
     }
   };
 
@@ -2115,7 +2121,7 @@ async function main() {
     streakMeter.update(dt);
     // Goal-bar help buttons share the pause button's gameplay visibility (overlays
     // hide pauseBtn while open, so these follow suit).
-    hpGuideBtn.visible = howToPlayBtn.visible = pauseBtn.visible;
+    hpGuideBtn.visible = pauseBtn.visible;
     transition.update(dt);
 
     // Core renderer updates

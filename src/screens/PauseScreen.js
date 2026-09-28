@@ -14,12 +14,12 @@ import { panel, ribbon, button, backdrop } from '../renderer/PremiumUI.js';
 import { uiIcon } from '../renderer/UIIcon.js';
 
 export class PauseScreen {
-  // callbacks: { onResume, onRestart?, onCarManual, onSettings, onQuit, audio }
-  constructor(stage, appW, appH, { onResume, onRestart = null, onCarManual, onSettings, onQuit, audio }) {
+  // callbacks: { onResume, onRestart?, onHowToPlay?, onCarManual, onSettings, onQuit, audio }
+  constructor(stage, appW, appH, { onResume, onRestart = null, onHowToPlay = null, onCarManual, onSettings, onQuit, audio }) {
     this._container = new Container();
     stage.addChild(this._container);
     this._quitTimer = null;
-    this._build(appW, appH, { onResume, onRestart, onCarManual, onSettings, onQuit, audio });
+    this._build(appW, appH, { onResume, onRestart, onHowToPlay, onCarManual, onSettings, onQuit, audio });
   }
 
   destroy() {
@@ -27,10 +27,10 @@ export class PauseScreen {
     this._container.destroy({ children: true });
   }
 
-  _build(w, h, { onResume, onRestart, onCarManual, onSettings, onQuit, audio }) {
+  _build(w, h, { onResume, onRestart, onHowToPlay, onCarManual, onSettings, onQuit, audio }) {
     this._container.addChild(backdrop(w, h));
-    const rows = onRestart ? 5 : 4;
-    const PW = 310, PH = 90 + rows * 74 + 20;
+    const rows = 4 + (onRestart ? 1 : 0) + (onHowToPlay ? 1 : 0);
+    const PW = 310, PH = 96 + rows * 66 + 24;
     const px = (w - PW) / 2, py = (h - PH) / 2 - 10;
     const pnl = panel(PW, PH);
     pnl.x = px; pnl.y = py;
@@ -40,18 +40,21 @@ export class PauseScreen {
     this._container.addChild(rb);
 
     const tap = (fn) => () => { audio?.play('button_tap'); fn?.(); };
-    let y = py + 88;
-    const add = (label, variant, fn, icon = null) => {
-      const b = button(label, { variant, w: 236, h: 60, size: 24, icon, onTap: fn });
+    // One primary action (RESUME, big and green), quiet secondary rows, and
+    // the destructive one in red at the bottom.
+    let y = py + 92;
+    const add = (label, variant, fn, icon = null, big = false) => {
+      const b = button(label, { variant, w: big ? 250 : 236, h: big ? 64 : 54, size: big ? 28 : 21, icon, onTap: fn });
       b.x = w / 2; b.y = y;
       this._container.addChild(b);
-      y += 74;
+      y += big ? 76 : 64;
       return b;
     };
-    add('RESUME', 'green', tap(onResume), uiIcon('play', 22, '▶'));
-    if (onRestart) add('RESTART', 'purple', tap(onRestart));
-    add('CAR GUIDE', 'blue', tap(onCarManual), uiIcon('book', 24, '📖'));
-    add('SETTINGS', 'dark', tap(onSettings), uiIcon('gear', 24, '⚙'));
+    add('RESUME', 'green', tap(onResume), uiIcon('play', 22, '▶'), true);
+    if (onRestart) add('RESTART', 'dark', tap(onRestart));
+    if (onHowToPlay) add('HOW TO PLAY', 'dark', tap(onHowToPlay));
+    add('CAR GUIDE', 'dark', tap(onCarManual), uiIcon('book', 22, '📖'));
+    add('SETTINGS', 'dark', tap(onSettings), uiIcon('gear', 22, '⚙'));
 
     // Two-step quit.
     let armed = false;

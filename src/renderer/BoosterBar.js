@@ -120,9 +120,10 @@ export class BoosterBar {
     _animatePress(this._freezeBtn, dt);
 
     // ── Count badge labels (short form — icon identifies the button) ──────────
-    const colorLabel  = s.colorChangeMode ? 'CANCEL' : `${s.colorChange}`;
-    const freezeLabel = `${s.freeze}`;
-    const bombLabel   = s.bombMode  ? 'CANCEL' : `${s.bombs}`;
+    // Empty boosters show "+" (get more) rather than a dead "0".
+    const colorLabel  = s.colorChangeMode ? 'CANCEL' : (s.colorChange > 0 ? `${s.colorChange}` : '+');
+    const freezeLabel = s.freeze > 0 ? `${s.freeze}` : '+';
+    const bombLabel   = s.bombMode  ? 'CANCEL' : (s.bombs > 0 ? `${s.bombs}` : '+');
 
     if (this._colorChangeBtn.label.text !== colorLabel) {
       this._colorChangeBtn.label.text = colorLabel;
@@ -179,8 +180,19 @@ export class BoosterBar {
     // ── 4C: color-bomb charge pips (3 multi-kills earn a Color Bomb) ──────────
     const NEED   = 3;
     const filled = Math.min(NEED, this._gs?.multiKillCount ?? 0);
-    const PCX = 195, PY = BAR_Y - 9, PR = 4, PGAP = 13;
+    const PCX = 203, PY = BAR_Y - 9, PR = 4, PGAP = 13;
     this._pips.clear();
+    // Label: a small rainbow bomb disc — three multi-kills earn one.
+    {
+      const rx = PCX - ((NEED - 1) * PGAP) / 2 - 17, R = 6.5;
+      const cols = [0xFF3D3D, 0xFF8A1C, 0xFFD42A, 0x2FCC55, 0x2F8CFF, 0xA35CFF];
+      cols.forEach((c, k) => {
+        const a0 = (k / 6) * Math.PI * 2 - Math.PI / 2, a1 = ((k + 1) / 6) * Math.PI * 2 - Math.PI / 2;
+        this._pips.moveTo(rx, PY).arc(rx, PY, R, a0, a1).lineTo(rx, PY).fill(c);
+      });
+      this._pips.circle(rx, PY, R).stroke({ color: INK, width: 1.5 });
+      this._pips.circle(rx - 2, PY - 2, 1.6).fill({ color: 0xFFFFFF, alpha: 0.8 });
+    }
     for (let i = 0; i < NEED; i++) {
       const x = PCX - ((NEED - 1) * PGAP) / 2 + i * PGAP;
       const on = i < filled;

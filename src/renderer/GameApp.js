@@ -527,6 +527,23 @@ async function main() {
     const show = _modalQueue.shift();
     show(() => _runNextModal());
   }
+  // Everything that owns the input above the board (names, for QA hooks too).
+  function _boardBlockers() {
+    const b = [];
+    if (_modalActive) b.push('modal');
+    if (colorPicker) b.push('picker');
+    if (pauseScreen) b.push('pause');
+    if (settingsScreen) b.push('settings');
+    if (carManualScreen) b.push('carManual');
+    if (hpGuideOverlay) b.push('hpGuide');
+    if (howToPlayOverlay) b.push('howToPlay');
+    if (rescueOverlay) b.push('rescue');
+    if (winScreen) b.push('win');
+    if (unlockScreen) b.push('unlock');
+    if (carTypeIntroCard) b.push('introCard');
+    if (gs?.isOver) b.push('over');
+    return b;
+  }
   function _clearModalQueue() { _modalQueue.length = 0; _modalActive = false; }
   // Back-compat alias: onboarding hint call sites use _showHintCard(show).
   const _showHintCard = _enqueueModal;
@@ -922,8 +939,13 @@ async function main() {
 
     if (!currentLevelIsDaily && UNLOCK_LEVELS.includes(levelId) && !progress.hasSeenUnlock(levelId)) {
       gameLoop.pause();
-      unlockScreen = new BoosterUnlockScreen(app.stage, APP_W, APP_H, levelId, {
+      // The screen calls onPlay synchronously from its constructor when it has
+      // nothing to show (L4's entry is the bench tutorial, not a card) — so the
+      // assignment below must not resurrect a screen onPlay already closed.
+      let unlockClosed = false;
+      const scr = new BoosterUnlockScreen(app.stage, APP_W, APP_H, levelId, {
         onPlay: () => {
+          unlockClosed = true;
           progress.markSeenUnlock(levelId);
           unlockScreen?.destroy();
           unlockScreen = null;
@@ -949,6 +971,7 @@ async function main() {
           }
         },
       });
+      if (!unlockClosed) unlockScreen = scr; else scr.destroy?.();
     }
 
     // Start gameplay music from CALM; phase updates will crossfade as needed.
@@ -2209,9 +2232,7 @@ async function main() {
     // RESUME fired the bomb into the lane under the button. (Not gameLoop.paused:
     // a pausing tutorial waits for a REAL drag, which must get through.)
     dragDrop.minBoardTapY = goalCounterUI?.bandBottom ?? 0;
-    dragDrop.inputBlocked = _modalActive || !!colorPicker || !!pauseScreen || !!settingsScreen
-      || !!carManualScreen || !!hpGuideOverlay || !!howToPlayOverlay || !!rescueOverlay
-      || !!winScreen || !!unlockScreen || !!carTypeIntroCard || (gs?.isOver ?? false);
+    dragDrop.inputBlocked = _boardBlockers().length > 0;
 
     // Juice updates
     laneFlash.update(dt);
@@ -2353,11 +2374,13 @@ async function main() {
       },
       getGs: () => gs,
       // Which screens/overlays are up (autoplay QA bot: rescue / win / lose flows).
-      getScreens: () => ({ win: !!winScreen, rescue: !!rescueOverlay, pause: !!pauseScreen, levelSelect: !!levelSelectScreen,
+      getScreens: () => ({ blockers: _boardBlockers(), win: !!winScreen, rescue: !!rescueOverlay, pause: !!pauseScreen, levelSelect: !!levelSelectScreen,
         preLevel: !!preLevelScreen, title: !!titleScreen, modal: _modalActive, picker: !!colorPicker, introCard: !!carTypeIntroCard,
         pauseBtn: pauseBtn.visible, boosters: { colorChange: boosterState.colorChange, freeze: boosterState.freeze, bombs: boosterState.bombs },
         inventory: progress.getInventory(), coins: progress.coins }),
       getBoosterState: () => boosterState,
+      getMapNode: (n) => levelSelectScreen?.nodePosition?.(n) ?? null,
+      getWinNextY: () => { const b = winScreen?._nextBtn; if (!b) return null; const r = b.getBounds(); return r.y + r.height / 2; },
       // Profiling handle: lets a harness wrap DragDrop's handlers to attribute
       // input-path cost (see scripts/_perf-handlers.mjs). Dev-only, like the
       // rest of this block.

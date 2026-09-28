@@ -37,7 +37,7 @@ if (!fresh) {
     if (!localStorage.getItem('lane-defense-v1')) localStorage.setItem('lane-defense-v1', JSON.stringify({ unlockedLevel: 40, coins: 500 }));
   });
 }
-await p.goto('http://localhost:5173/', { waitUntil: 'networkidle' });
+await p.goto(process.env.QA_URL ?? 'http://localhost:5173/', { waitUntil: 'networkidle' });
 await p.waitForFunction(() => !!window._nav, null, { timeout: 90000 });
 await p.waitForTimeout(1500);
 
@@ -84,7 +84,9 @@ async function playLevel({ capMs }) {
       if (!gl.paused && !dd.inputBlocked) return true;
       if (gs.isOver) return true;
       nav.dismissTutorial();
-      if (dd.inputBlocked || gl.paused) tapCanvas(195, 560);   // modal cards: TAP TO CONTINUE sits low-centre
+      // Modal cards: TAP TO CONTINUE sits low-centre; the feature-unlock screen's
+      // PLAY sits near the bottom. Cycle through the real button spots.
+      if (dd.inputBlocked || gl.paused) tapCanvas(195, [560, 714, 520][a % 3]);
       await sleep(250);
     }
     return !gl.paused && !dd.inputBlocked;

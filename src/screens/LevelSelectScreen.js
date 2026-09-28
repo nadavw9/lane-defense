@@ -136,7 +136,11 @@ export class LevelSelectScreen {
     return s;
   }
 
+  /** Screen position of a level's node on the current page (QA / dev hooks). */
+  nodePosition(levelId) { return this._nodePos?.[levelId] ?? null; }
+
   _node(n, { stars, open, isNext, accent, boss, weekly }) {
+    (this._nodePos ??= {})[n.levelId] = { x: n.x, y: n.y };
     const node = new Container();
     node.x = n.x; node.y = n.y;
     const g = new Graphics();

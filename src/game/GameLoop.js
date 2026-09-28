@@ -843,7 +843,7 @@ export class GameLoop {
     for (const col of activeCols) {
       if (matchesNeeded <= 0) break;
       const top = col.top();
-      if (!top || frontColors.includes(top.color)) continue;
+      if (!top || top.isColorBomb || frontColors.includes(top.color)) continue;
       top.color = frontColors[colorIdx % frontColors.length];
       colorIdx++;
       matchesNeeded--;
@@ -928,8 +928,10 @@ export class GameLoop {
     }
     if (frontColors.size === 0) return; // no cars yet — nothing to enforce
 
-    // Check column tops.
+    // Check column tops. An earned RAINBOW matches any car: that is viable, and it
+    // must never be recoloured (it became a 0-damage "purple" bomb on the queue).
     for (const col of gs.activeCols) {
+      if (col.top()?.isColorBomb) return;
       if (frontColors.has(col.top()?.color)) return;
     }
     // Check bench slots (if bench is in play).
@@ -942,7 +944,7 @@ export class GameLoop {
     // No viable move — force-recolor the first non-empty column top.
     const target = [...frontColors][0];
     for (const col of gs.activeCols) {
-      if (col.top()) {
+      if (col.top() && !col.top().isColorBomb) {
         col.top().color = target;
         return;
       }

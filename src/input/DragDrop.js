@@ -287,7 +287,21 @@ export class DragDrop {
       return;
     }
 
-    const col = this._hitTestColumn(x, y);
+    // Queue slots are closer together (~42px) than the pickup radius (48px), so
+    // "first slot within radius" always grabbed the TOP bomb when the player
+    // pressed the 2nd one (and the 2nd when they pressed the 3rd): reorder could
+    // never move the bomb the player touched. Resolve to the NEAREST slot first.
+    const nearest = this._hitTestQueueSlot(x, y);
+    if (nearest && nearest.row > 0 && this._reorderEnabled && this._columns[nearest.col].shooters[nearest.row]) {
+      const { col: qCol, row: qRow } = nearest;
+      const shooter = this._columns[qCol].shooters[qRow];
+      if (this._onColumnPickup(shooter)) return;
+      const { x: cx, y: cy } = this._shooterRenderer.getQueueSlotCenter(qCol, qRow);
+      this._startDrag('column', qCol, qRow, shooter, cx, cy, x, y);
+      return;
+    }
+
+    const col = nearest ? nearest.col : this._hitTestColumn(x, y);
 
     if (col !== -1 && this._columns[col].top()) {
       const shooter = this._columns[col].top();
@@ -791,16 +805,16 @@ export class DragDrop {
     // Test all 3 slot rows (not just occupied ones) so EMPTY slots/columns are
     // valid drop targets for reorder + bench-return. The drag-source path in
     // onPointerDown guards with `if (shooter)`, so this never grabs an empty slot.
+    // NEAREST slot within the radius (slots overlap: pitch < radius).
+    let best = null, bestD = HIT_RADIUS * HIT_RADIUS;
     for (let col = 0; col < getActiveColCount(); col++) {
       for (let row = 0; row < 3; row++) {   // 3 = COLUMN_CAPACITY
         const { x: cx, y: cy } = this._shooterRenderer.getQueueSlotCenter(col, row);
-        const dx = x - cx, dy = y - cy;
-        if (dx * dx + dy * dy <= HIT_RADIUS * HIT_RADIUS) {
-          return { col, row };
-        }
+        const dx = x - cx, dy = y - cy, d = dx * dx + dy * dy;
+        if (d <= bestD) { bestD = d; best = { col, row }; }
       }
     }
-    return null;
+    return best;
   }
 
   _hitTestLane(x, y) {

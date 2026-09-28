@@ -1860,7 +1860,7 @@ async function main() {
     audio.play('freeze_tinkle');
     haptics.medium();   // booster earned
     floatingTexts.push(spawnFloatingText(
-      layers.get('particleLayer'), APP_W / 2, 700,
+      layers.get('particleLayer'), APP_W / 2, 470,
       `${kills}-CAR CHAIN! Freeze earned!`, 0x88ddff,
     ));
   };
@@ -1869,7 +1869,7 @@ async function main() {
     audio.play('coin_collect');
     haptics.medium();   // booster earned
     floatingTexts.push(spawnFloatingText(
-      layers.get('particleLayer'), APP_W / 2, 700,
+      layers.get('particleLayer'), APP_W / 2, 470,
       '2× COMBO! Color Change ready!', 0xCC66FF,
     ));
   };
@@ -1878,7 +1878,7 @@ async function main() {
     haptics.medium();   // booster earned
     // Centered notification flash (centered so the longer text doesn't clip).
     floatingTexts.push(spawnFloatingText(
-      layers.get('particleLayer'), APP_W / 2, 748,
+      layers.get('particleLayer'), APP_W / 2, 470,   // mid-board: the tutorial caption owns the bottom
       'BOMB READY! (10 kills)', 0xffaa00,
     ));
     // Bounds/hand must match the BOMB booster card exactly (BoosterBar CARD_X[2]):
@@ -2373,6 +2373,7 @@ async function main() {
         inventory: progress.getInventory(), coins: progress.coins }),
       getBoosterState: () => boosterState,
       startDaily: () => { [titleScreen, levelSelectScreen, winScreen].forEach(x => x?.destroy()); titleScreen = levelSelectScreen = winScreen = null; startDailyChallenge(); },
+      getColorPickerSwatches: () => colorPicker?.swatches ?? null,
       getMapNode: (n) => levelSelectScreen?.nodePosition?.(n) ?? null,
       getPreLevelPlayY: () => { const b = preLevelScreen?._play; if (!b) return null; const r = b.getBounds(); return r.y + r.height / 2; },
       getWinNextY: () => { const b = winScreen?._nextBtn; if (!b) return null; const r = b.getBounds(); return r.y + r.height / 2; },

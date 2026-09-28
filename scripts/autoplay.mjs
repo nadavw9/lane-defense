@@ -216,6 +216,26 @@ async function playLevel({ capMs }) {
       if (!gs.isOver && gs.turnCount === turnBefore && performance.now() - w0 >= 12000) ev('turnStuck', { move: m });
       continue;
     }
+    // No legal shot: try COLOR CHANGE through the real UI (button → car → swatch),
+    // recolouring the most urgent front car to a colour on the queue.
+    if (bsNow.colorChange > 0 && fronts.some(Boolean)) {
+      const target = fronts.map((f, l) => f && !f.sequence ? { f, l } : null).filter(Boolean).sort((a, b) => b.f.row - a.f.row)[0];
+      const want = gs.columns.slice(0, colsN).map(c => c.top()?.color).find(c => c && c !== target?.f.color);
+      if (target && want) {
+        const before = bsNow.colorChange, fromColor = target.f.color;
+        tapHud(hud.boosterColor); await sleep(200);
+        const car = nav.getCarScreenPositions().find(c => c.lane === target.l && c.row === target.f.row);
+        if (car) { tapCanvas(car.x, car.y); await sleep(300); }
+        const sw = nav.getColorPickerSwatches()?.find(x => x.color === want && x.enabled);
+        if (sw) { tapCanvas(sw.x, sw.y); await sleep(300); }
+        stats.colorChange = (stats.colorChange ?? 0) + 1;
+        if (!sw) ev('colorPickerMissing', { want, fromColor });
+        else if (target.f.color === fromColor) ev('colorChangeNoEffect', { want, fromColor });
+        else if (bsNow.colorChange !== before - 1) ev('colorChangeNotSpent', { before, after: bsNow.colorChange });
+        if (bsNow.colorChangeMode) { tapHud(hud.boosterColor); ev('colorChangeStuckArmed'); }
+        continue;
+      }
+    }
     // No legal shot: park the top bomb on the bench if there is room, else report.
     const free = benchSlots.findIndex(s => !s);
     if (free >= 0 && gs.columns[0].top() && dd._benchRenderer) {

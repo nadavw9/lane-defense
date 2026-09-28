@@ -17,9 +17,9 @@ import { INK, WHITE } from '../renderer/ToyStyle.js';
 
 const _B = import.meta.env.BASE_URL;
 const BOOSTERS = [
-  { key: 'colorchange', label: 'Recolor', bundle: { colorChange: 1, freeze: 0, bombs: 0 } },
-  { key: 'freeze',      label: 'Freeze',  bundle: { colorChange: 0, freeze: 1, bombs: 0 } },
-  { key: 'bomb',        label: 'Bomb',    bundle: { colorChange: 0, freeze: 0, bombs: 1 } },
+  { key: 'colorchange', inv: 'colorChange', label: 'Recolor', bundle: { colorChange: 1, freeze: 0, bombs: 0 } },
+  { key: 'freeze',      inv: 'freeze',      label: 'Freeze',  bundle: { colorChange: 0, freeze: 1, bombs: 0 } },
+  { key: 'bomb',        inv: 'bombs',       label: 'Bomb',    bundle: { colorChange: 0, freeze: 0, bombs: 1 } },
 ];
 
 function spriteFit(path, size) {
@@ -38,7 +38,15 @@ function goalIcon(goal) {
     const f = { small: 'bike', big: 'car', jeep: 'van', truck: 'truck', bigrig: 'bigrig', tank: 'tank' }[goal.carType] ?? 'car';
     return spriteFit(`sprites/designed/${f}-red${f === 'car' ? '-processed' : ''}.png`, 44);
   }
-  return uiIcon('explosion', 40, '💥');
+  // destroyTotal: "any cars" — a small fanned traffic jam of three colours.
+  const jam = new Container();
+  for (const [col, dx, dy, rot] of [['blue', -17, 4, -0.22], ['yellow', 17, 4, 0.22], ['red', 0, -2, 0]]) {
+    const s = spriteFit(`sprites/designed/car-${col}-processed.png`, 38);
+    if (!s) continue;
+    s.x = dx; s.y = dy; s.rotation = rot;
+    jam.addChild(s);
+  }
+  return jam.children.length ? jam : uiIcon('explosion', 40, '💥');
 }
 
 // Which sprite introduces a level's new piece (from its intro line).
@@ -55,7 +63,8 @@ function introSprite(intro, lv) {
 export class PreLevelScreen {
   // opts: { onSelect(adCount, bundle), onClose, audio, freeBooster, level }
   //   level = { id, name, goals, hintText } (the level config)
-  constructor(stage, appW, appH, levelLabel, { onSelect, onClose = null, audio, freeBooster = null, level = null }) {
+  constructor(stage, appW, appH, levelLabel, { onSelect, onClose = null, audio, freeBooster = null, level = null, owned = null }) {
+    this._owned = owned ?? {};
     this._container = new Container();
     stage.addChild(this._container);
     this._onSelect = onSelect;
@@ -174,13 +183,28 @@ export class PreLevelScreen {
       ic.y = -18;
       tile.addChild(ic);
       const chip = new Graphics();
-      chip.roundRect(-36, 20, 72, 26, 13).fill(isFree ? 0x3DBB3A : 0x2F7FE0).stroke({ color: INK, width: 2.5 });
+      chip.roundRect(-38, 20, 76, 28, 14).fill(isFree ? 0x3DBB3A : 0x2F7FE0).stroke({ color: INK, width: 2.5 });
+      chip.roundRect(-32, 23, 64, 8, 4).fill({ color: 0xffffff, alpha: 0.3 });
       tile.addChild(chip);
       if (isFree) {
-        const ft = titleText('FREE', 16); ft.y = 33; tile.addChild(ft);
+        const ft = titleText('FREE', 16); ft.y = 34; tile.addChild(ft);
       } else {
-        const play = uiIcon('play', 14, '▶'); play.x = -14; play.y = 33; tile.addChild(play);
-        const at = titleText('AD', 16); at.x = 8; at.y = 33; tile.addChild(at);
+        // "+1 with a video" — a play badge and the gain, not the word AD.
+        const pb = new Graphics();
+        pb.circle(-17, 34, 9).fill(0xffffff);
+        pb.moveTo(-20, 29).lineTo(-12, 34).lineTo(-20, 39).closePath().fill(0x2F7FE0);
+        tile.addChild(pb);
+        const at = titleText('+1', 17); at.x = 9; at.y = 34; tile.addChild(at);
+      }
+      // Owned boosters come along automatically — say so on the tile.
+      const own = this._owned[b.inv] ?? 0;
+      if (own > 0) {
+        const ob = new Graphics();
+        ob.circle(bw / 2 - 12, -bh / 2 + 12, 15).fill(0x3DBB3A).stroke({ color: INK, width: 2.5 });
+        ob.ellipse(bw / 2 - 12, -bh / 2 + 6, 8, 4).fill({ color: 0xffffff, alpha: 0.35 });
+        tile.addChild(ob);
+        const ot = titleText(`×${own}`, 13); ot.x = bw / 2 - 12; ot.y = -bh / 2 + 12;
+        tile.addChild(ot);
       }
       tile.eventMode = 'static';
       tile.cursor = 'pointer';

@@ -1093,6 +1093,7 @@ async function main() {
       audio,
       freeBooster,
       level: levelCfg,
+      owned: progress.getInventory(),
     });
   }
 
@@ -1129,7 +1130,7 @@ async function main() {
   }
 
   // ── Screen: Daily Reward ──────────────────────────────────────────────────
-  function showDailyReward() {
+  function showDailyReward(after = null) {
     dailyRewardScreen = new DailyRewardScreen(app.stage, APP_W, APP_H, progress, {
       onClose: _closers.daily = () => {
         dailyRewardScreen.destroy();
@@ -1137,6 +1138,7 @@ async function main() {
         // Check if the daily_claim achievement was just earned.
         const newAch = achievementManager.check('daily_claim');
         newAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
+        if (after) { after(); return; }
         if (titleScreen) {
           titleScreen.destroy();
           titleScreen = null;
@@ -1197,6 +1199,12 @@ async function main() {
         const newAch = achievementManager.check('shop_purchase');
         newAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
       },
+      onDaily: () => {
+        shopScreen.destroy();
+        shopScreen = null;
+        showDailyReward(() => showShop());
+      },
+      onWatchAd: (onEarned) => adManager.showRewarded(onEarned, () => {}),
       audio,
     });
   }
@@ -1247,7 +1255,25 @@ async function main() {
   // the title gear and the in-game pause menu.
   function showSettings(onClose) {
     _closers.settings = onClose;
-    settingsScreen = new SettingsScreen(app.stage, APP_W, APP_H, audio, { onClose }, progress, haptics);
+    settingsScreen = new SettingsScreen(app.stage, APP_W, APP_H, audio, {
+      onClose,
+      // Help opens OVER settings; closing returns to settings as it was.
+      onHowToPlay: () => {
+        if (howToPlayOverlay) return;
+        howToPlayOverlay = new HowToPlayOverlay(app.stage, APP_W, APP_H, {
+          ticker: app.ticker,
+          onClose: _closers.howToPlay = () => { howToPlayOverlay?.destroy(); howToPlayOverlay = null; },
+        });
+      },
+      onCarGuide: () => {
+        if (carManualScreen) return;
+        carManualScreen = new CarManualScreen(app.stage, APP_W, APP_H, {
+          seenTypes: progress.getIntroducedCarTypes(),
+          unlockedLevel: Math.max(progress.unlockedLevel ?? 1, gs?.levelId ?? 1),
+          onClose: _closers.carManual = () => { carManualScreen?.destroy(); carManualScreen = null; },
+        });
+      },
+    }, progress, haptics);
   }
 
   // ── Screen: Car Manual ────────────────────────────────────────────────────
@@ -2037,8 +2063,9 @@ async function main() {
   // Android default applies: back exits the app, even in the middle of a level.
   function _handleBack() {
     const close = (open, key) => { if (open && _closers[key]) { _closers[key](); return true; } return false; };
-    if (close(settingsScreen, 'settings') || close(carManualScreen, 'carManual')
-      || close(hpGuideOverlay, 'hpGuide') || close(howToPlayOverlay, 'howToPlay')
+    // Overlays that can open over Settings close before Settings does.
+    if (close(carManualScreen, 'carManual') || close(hpGuideOverlay, 'hpGuide')
+      || close(howToPlayOverlay, 'howToPlay') || close(settingsScreen, 'settings')
       || close(dailyRewardScreen, 'daily') || close(achievementsScreen, 'achievements')
       || close(statsScreen, 'stats') || close(shopScreen, 'shop') || close(pauseScreen, 'pause')) return;
     if (preLevelScreen) {

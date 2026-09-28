@@ -8,7 +8,7 @@
 //   • "PERFECT DEFENSE!" header on 3-star clean win
 //   • 1.5s button lock prevents accidental dismissal during outro animations
 //   • NEXT LEVEL button gently pulses once active to invite the tap
-import { Container, Graphics, Text, Sprite, Assets } from 'pixi.js';
+import { Container, Graphics, Text, Sprite, Assets, FillGradient } from 'pixi.js';
 import { uiIcon } from '../renderer/UIIcon.js';
 import { worldForLevel } from './levelMapLayout.js';
 import { panel as premiumPanel, ribbon, button as premiumButton, bodyText, titleText, well } from '../renderer/PremiumUI.js';
@@ -329,8 +329,12 @@ export class WinScreen {
     // Backdrop — catches all touches so gameplay beneath isn't accessible.
     // Strong dim (0.90) so the road / cars / booster bar do not bleed through.
     const backdrop = new Graphics();
-    backdrop.rect(0, 0, w, h);
-    backdrop.fill({ color: 0x000011, alpha: 0.90 });
+    // Deep violet celebration field (not black) with a warm glow behind the
+    // panel, so the gold burst reads as light rather than cream-on-black.
+    backdrop.rect(0, 0, w, h).fill(new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, textureSpace: 'local',
+      colorStops: [{ offset: 0, color: 0x2A1F66 }, { offset: 0.5, color: 0x3B2580 }, { offset: 1, color: 0x160F3A }] }));
+    backdrop.alpha = 0.96;
+    for (let i = 0; i < 10; i++) { const r = 300 - i * 24; backdrop.ellipse(w / 2, h / 2 - 40, r, r * 1.25).fill({ color: 0xFFB84A, alpha: 0.035 }); }
     backdrop.eventMode = 'static';
     this._container.addChild(backdrop);
 
@@ -372,7 +376,9 @@ export class WinScreen {
       burst.anchor.set(0.5);
       burst.scale.set((panelH + 150) / burstTex.height);
       burst.x = cx; burst.y = py + panelH / 2;
-      burst.alpha = 0.92;
+      burst.tint = 0xFFD470;
+      burst.alpha = 0.5;
+      burst.blendMode = 'add';
       this._container.addChild(burst);
     }
 
@@ -413,7 +419,12 @@ export class WinScreen {
     this._cityLevelId = typeof levelId === 'number' ? levelId : (gs.levelId ?? null);
     this._buildCityAnim(px + panelW - 22 - 58, y - 1);
     y += ROW_H + ROW_GAP;
-    this._statRow(px + 22, y, panelW - 44, ROW_H, 'BEST MULTI-KILL', `×${gs.maxSingleShotKills}`, 0xff8844, { name: 'lightning', emoji: '⚡' });
+    // A multi-kill of 0 or 1 is not a stat worth celebrating — show shots instead.
+    if ((gs.maxSingleShotKills ?? 0) >= 2) {
+      this._statRow(px + 22, y, panelW - 44, ROW_H, 'BEST MULTI-KILL', `×${gs.maxSingleShotKills}`, 0xff8844, { name: 'lightning', emoji: '⚡' });
+    } else {
+      this._statRow(px + 22, y, panelW - 44, ROW_H, 'CARS DESTROYED', String(gs.totalKills ?? 0), 0xff8844, { name: 'explosion', emoji: '💥' });
+    }
     if (is3Star) {
       y += ROW_H + ROW_GAP;
       this._statRow(px + 22, y, panelW - 44, ROW_H, 'PERFECT CLEAR', 'Flawless!', 0xffcc00, { name: 'star-filled', emoji: '★' });

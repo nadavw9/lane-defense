@@ -150,6 +150,28 @@ export class ProgressManager {
     this._save();
   }
 
+  // ── Shop: free coins for a rewarded video (capped per calendar day) ───────
+  static VIDEO_COINS = 25;
+  static VIDEO_COINS_PER_DAY = 3;
+
+  videoCoinsLeft(now = new Date()) {
+    const v = this._data.videoCoins;
+    const today = now.toDateString();
+    return ProgressManager.VIDEO_COINS_PER_DAY - (v?.date === today ? v.count : 0);
+  }
+
+  /** Grant the video reward. Returns the coins granted (0 if capped). */
+  claimVideoCoins(now = new Date()) {
+    if (this.videoCoinsLeft(now) <= 0) return 0;
+    const today = now.toDateString();
+    const v = this._data.videoCoins?.date === today ? this._data.videoCoins : { date: today, count: 0 };
+    this._data.videoCoins = { date: today, count: v.count + 1 };
+    this._data.coins += ProgressManager.VIDEO_COINS;
+    this._data.totalCoinsEarned += ProgressManager.VIDEO_COINS;
+    this._save();
+    return ProgressManager.VIDEO_COINS;
+  }
+
   // ── Level progression ────────────────────────────────────────────────────
 
   // Record a win: update best star count and unlock the next level.
@@ -406,6 +428,13 @@ export class ProgressManager {
     const { lastClaim } = this._data.dailyReward;
     if (lastClaim === null) return true;
     return (Date.now() - lastClaim) >= MS_PER_DAY;
+  }
+
+  /** Milliseconds until the daily reward can be claimed again (0 = ready). */
+  dailyReadyIn(now = Date.now()) {
+    const { lastClaim } = this._data.dailyReward;
+    if (lastClaim === null) return 0;
+    return Math.max(0, lastClaim + MS_PER_DAY - now);
   }
 
   // Apply current day's reward, advance counter, persist.

@@ -30,6 +30,9 @@ function defaults() {
     stars:                  {},
     coins:                  0,
     boosters:               { swap: 3, freeze: 0 },
+    // Owned boosters (shop purchases, daily rewards). Carried into every level
+    // and debited only by what a level actually spends — see GameApp.
+    inventory:              { colorChange: 0, freeze: 0, bombs: 0 },
     dailyReward:            { day: 0, lastClaim: null },
     seenComboTip:           false,
     seenUnlocks:            {},
@@ -133,6 +136,18 @@ export class ProgressManager {
 
   getBoosters() {
     return { ...this._data.boosters };
+  }
+
+  // ── Owned booster inventory (persists across levels) ─────────────────────
+  getInventory() {
+    return { ...this._data.inventory };
+  }
+
+  /** Add (n > 0) or debit (n < 0) owned boosters; never below zero. */
+  addInventory(key, n) {
+    if (!(key in this._data.inventory) || !n) return;
+    this._data.inventory[key] = Math.max(0, (this._data.inventory[key] ?? 0) + Math.floor(n));
+    this._save();
   }
 
   // ── Level progression ────────────────────────────────────────────────────
@@ -401,8 +416,8 @@ export class ProgressManager {
     const reward = DAILY_REWARDS[day];
 
     if      (reward.type === 'coins')  this._data.coins += reward.amount;
-    else if (reward.type === 'swap')   this._data.boosters.swap   += reward.amount;
-    else if (reward.type === 'freeze') this._data.boosters.freeze += reward.amount;
+    else if (reward.type === 'swap')   { this._data.boosters.swap += reward.amount; this._data.inventory.colorChange += reward.amount; }
+    else if (reward.type === 'freeze') { this._data.boosters.freeze += reward.amount; this._data.inventory.freeze += reward.amount; }
 
     this._data.dailyReward.lastClaim = Date.now();
     this._data.dailyReward.day       = (day + 1) % 7;
@@ -523,6 +538,9 @@ export class ProgressManager {
         Object.assign(d, saved);
         // Deep-merge nested objects so new sub-fields survive schema additions.
         d.boosters           = Object.assign(defaults().boosters,           saved.boosters           ?? {});
+        // Inventory arrived with the premium pass: a save without one keeps the
+        // freeze boosters it already bought (they used to be wiped at level start).
+        d.inventory          = Object.assign(defaults().inventory,          saved.inventory ?? { freeze: saved.boosters?.freeze ?? 0 });
         d.dailyReward        = Object.assign(defaults().dailyReward,        saved.dailyReward        ?? {});
         d.dailyChallenge     = Object.assign(defaults().dailyChallenge,     saved.dailyChallenge     ?? {});
         d.boosterUseCounts   = Object.assign(defaults().boosterUseCounts,   saved.boosterUseCounts   ?? {});

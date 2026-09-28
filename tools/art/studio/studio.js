@@ -16,6 +16,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { BUILD_HD, buildBossHD, BOSS_PANEL_HD } from './vehicles-hd.js';
 import { renderBackdrop } from './backdrop.js';
 import { renderMapHD, renderRepairHD } from './mapdiorama.js';
+import { renderTitle } from './title.js';
 
 export const PALETTE = {
   Red: 0xFF3D3D, Orange: 0xFF8A1C, Yellow: 0xFFD42A,
@@ -1135,6 +1136,10 @@ window.studio = {
   backdrop(world, variant, L, { scale = 2, ss = 2, quality = 0.9 } = {}) {
     const c = renderBackdrop(renderer, world, variant, { ...L, tilt: TILT }, { scale, ss });
     return c.toDataURL('image/jpeg', quality);
+  },
+  // Title key art (title.js), 390×844 stage at `scale`×. PNG data URL.
+  title({ scale = 2 } = {}) {
+    return renderTitle(renderer, { tilt: TILT, scale }).toDataURL('image/png');
   },
   ready: true,
 };

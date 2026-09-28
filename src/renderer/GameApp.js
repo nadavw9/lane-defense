@@ -95,6 +95,7 @@ import { DailyChallengeManager }  from '../game/DailyChallengeManager.js';
 import { CarTypeIntroCard, hasIntroCard } from '../screens/CarTypeIntroCard.js';
 import { spawnableTypesFor, carHpFor } from '../director/CarTypes.js';
 import { roundButton as premiumRoundButton } from './PremiumUI.js';
+import { inventorySpent } from '../game/BoosterInventory.js';
 import { bombBallScreenRadius } from '../renderer3d/projection.js';
 import { ComboFX } from './ComboFX.js';
 
@@ -694,7 +695,23 @@ async function main() {
   // ── Core level-start routine ──────────────────────────────────────────────
   // Called both for normal levels (levelId: number) and for the daily challenge
   // (levelIdOrConfig: full config object with isDaily:true).
+  // ── Owned boosters (inventory) ─────────────────────────────────────────────
+  // A level starts with its ad grant PLUS the player's owned boosters. When it
+  // ends, only what was actually spent comes off the inventory; the ad grant is
+  // spent first (it is level-only). Idempotent per level: _levelInv clears on
+  // settle, so several exit paths may call it safely. A missed exit (app killed
+  // mid-level) costs the player nothing.
+  let _levelInv = null;
+  function _settleInventory() {
+    if (!_levelInv) return;
+    const { taken } = _levelInv;
+    _levelInv = null;
+    const spent = inventorySpent(taken, { colorChange: boosterState.colorChange, freeze: boosterState.freeze, bombs: boosterState.bombs });
+    for (const [key, used] of Object.entries(spent)) if (used > 0) progress.addInventory(key, -used);
+  }
+
   function _startLevel(levelIdOrConfig) {
+    _settleInventory();   // restart / next level: debit the previous attempt first
     // Tear down any lingering overlay screens.
     winScreen?.destroy();           winScreen        = null;
     rescueOverlay?.destroy();       rescueOverlay    = null;
@@ -735,9 +752,16 @@ async function main() {
     boosterState.queueActionUsed = false;  // free queue action available at level start
     const grant = _pendingBoosterGrant ?? { colorChange: 0, freeze: 0, bombs: 0 };
     _pendingBoosterGrant = null;
-    boosterState.colorChange = grant.colorChange ?? 0;
-    boosterState.freeze      = grant.freeze ?? 0;
-    boosterState.bombs       = Math.min(boosterState.bombsMax, grant.bombs ?? 0);
+    const inv = progress.getInventory();
+    const taken = {
+      colorChange: inv.colorChange ?? 0,
+      freeze:      inv.freeze ?? 0,
+      bombs:       Math.max(0, Math.min(inv.bombs ?? 0, boosterState.bombsMax - Math.min(boosterState.bombsMax, grant.bombs ?? 0))),
+    };
+    boosterState.colorChange = (grant.colorChange ?? 0) + taken.colorChange;
+    boosterState.freeze      = (grant.freeze ?? 0) + taken.freeze;
+    boosterState.bombs       = Math.min(boosterState.bombsMax, grant.bombs ?? 0) + taken.bombs;
+    _levelInv = { taken };
     adManager.resetForLevel();
 
     applyLevelConfig(cfg);
@@ -1331,6 +1355,7 @@ async function main() {
         });
       },
       onQuit: () => {
+        _settleInventory();
         pauseScreen.destroy();
         pauseScreen = null;
         // Leave gameLoop paused — _startLevel() will resume it.
@@ -1345,6 +1370,7 @@ async function main() {
 
   // ── Screen: Win ───────────────────────────────────────────────────────────
   function showWin() {
+    _settleInventory();
     pauseBtn.visible = false;
     bookBtn.visible  = false;
     // Clear gameplay UI behind the modal: suppress toasts (achievements still
@@ -1449,6 +1475,7 @@ async function main() {
     );
   }
   function _showNoRescueLose() {
+    _settleInventory();
     // §3d DDA: this is the FINAL-loss moment (a breach that gets rescued and
     // then won never reaches here). Bump the fail streak so the next attempt's
     // config copy gets the mercy factor. Daily challenge excluded inside

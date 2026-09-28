@@ -143,6 +143,13 @@ if (mode === 'verges') {
     writeFileSync(file, decode(url));
     console.log(file, `${((Date.now() - t0) / 1000).toFixed(1)}s`);
   }
+} else if (mode === 'title' || mode === 'titlepreview') {
+  // Title key art → public/sprites/designed/title-background.png (780×1688),
+  // or <outDir>/title-background.png for a preview.
+  const out = mode === 'title' ? `${OUT}/title-background.png` : `${outArg ?? '.'}/title-background.png`;
+  const url = await page.evaluate(() => window.studio.title());
+  await sharp(decode(url)).toFile(out);
+  console.log(out);
 } else if (mode === 'map' || mode === 'mappreview') {
   // Level-map backgrounds (one per world page) + repair building sprites.
   //   map-<world>.png (780×1688), repair-<world>-<state>-<variant>.png (300×300)

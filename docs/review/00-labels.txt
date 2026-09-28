@@ -1,15 +1,30 @@
-V2 redesign review — BEFORE = feat/toy-town build, AFTER = feat/v2-design. Same level, same 8 auto-played turns.
-01=BEFORE L7 — ordinary traffic only.
-02=AFTER L7 "Rush hour" — speeders (flame exhaust) move 2 rows a turn. Look for: the flames reading as "fast", the NEW! banner.
-03=BEFORE L10 — old "boss" was just a spawn mix; nothing on the road says boss.
-04=AFTER L10 "The Hauler" — boss truck in the middle lane, big light = colour to hit now, pips = the rest of its sequence. Look for: is the big light readable at a glance?
-05=BEFORE L11.
-06=AFTER L11 "Steel plates" — armoured cars (grey plates, hazard ram). Any bomb knocks the plates off.
-07=BEFORE L17.
-08=AFTER L17 "Shape shifters" — chameleon (red bike, middle lane) with a blue lamp + cycle arrows = the colour it turns into next turn. Look for: lamp size on the bike.
-09=BEFORE L40.
-10=AFTER L40 "Twin Titans" — two bosses; the right one is plated (steel bars across its light).
-11=BEFORE L5 — no streak.
-12=AFTER L5 — Hot Streak meter on the breach stripe: 2 of 3 flames lit.
-13=AFTER L5 — SUPERCHARGED: pill turns hot, fire rings around every bomb you can fire next.
-14=New V2 art sheet: armoured (blue), speeder (yellow), chameleon (green) variants, boss and plated boss.
+Premium pass, round 2 (branch feat/v2-design). Odd = BEFORE, even = AFTER unless marked.
+Captured headless (software renderer); colours and layout are exact, animation timing is not.
+
+01=BEFORE L7 speeders: grey hint pill overflowing, pale "x2 COMBO" box, teardrop streak pips, dot bench
+02=AFTER  L7: tip card above the breach line (NEW tag + text), outlined combo with a soft halo, flame pips, inked bomb numbers, bench sockets with "+". LOOK: tip readable, no car hidden at level start
+03=BEFORE L10 boss: small grey BOSS pill, ghosted "5 TO GO", tiny sequence pips
+04=AFTER  L10: BOSS tip card, sequence pips on a dark plate under the big light, "5 TO GO" now spawns under the boss. LOOK: can you read the boss colour order from arm's length?
+05=BEFORE L40 two bosses (night): same grey pill
+06=AFTER  L40: FINAL BOSS tip card, both bosses fully visible above it
+07=BEFORE daily reward (old dark panel, text coins)
+08=AFTER  daily: gold-rim card, 3x2 day tiles + day-7 jackpot, coin/booster art, big CLAIM
+09=BEFORE stats (plain text list on black)
+10=AFTER  stats: star progress hero card + 6 icon tiles
+11=BEFORE achievements ("???" grid on black)
+12=AFTER  trophies: progress bar, scrolling rows, one icon per trophy, goals visible while locked (survival-mode trophies hidden - that mode no longer exists)
+13=BEFORE how to play (old L22 screenshots)
+14=AFTER  how to play: 4 slides drawn from the game's own art, includes Hot Streak
+15=BEFORE car encyclopedia (flat list, misleading "one hit" tips)
+16=AFTER  car guide: vehicles marked BASE HP + the 4 special cars (locked until reached)
+17=BEFORE car HP (flat list)
+18=AFTER  car HP: same live per-level numbers, pill colours now match the car guide
+19=BEFORE new-vehicle card (dark strip)
+20=AFTER  new-vehicle card: ribbon, rays, big vehicle, THIS level's HP (was base HP - disagreed with the board)
+21=AFTER only  continue offer after a breach: big CONTINUE (watch a video), RETRY, "Give up"
+22=AFTER only  level card L10: the boss and its rule shown before PLAY (in the real flow the map sits behind)
+23=AFTER only  title on a return visit: PLAY shown immediately (the bomb-drop intro now plays once per session)
+24=AFTER only  level map: skull / weekly-star badges now sit on their own discs
+25=AFTER only  win (captured mid-animation: button still dim, building still rubble - it now repairs into the level's real 3D building, even on 0-coin wins)
+26=AFTER only  game over: stat rows no longer touch TRY AGAIN
+27=AFTER only  pause

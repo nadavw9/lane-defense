@@ -28,7 +28,9 @@ await shot('title');
 await p.mouse.click(195, 474);                         // PLAY
 await p.waitForTimeout(2000);
 await shot('map');
+const tries = {};
 for (let lv = 1; lv <= N; lv++) {
+  tries[lv] = (tries[lv] ?? 0) + 1;
   let s = await S();
   if (!s.preLevel) {
     // Tap the level's node on the map (read its position from the map screen).
@@ -45,7 +47,7 @@ for (let lv = 1; lv <= N; lv++) {
   if (s.preLevel) log.push(`L${lv}: PLAY tap did not start the level`);
   await shot(`L${lv}-start`);
   const t0 = Date.now(); let drags = 0, idleNoTarget = 0;
-  while (Date.now() - t0 < 180000) {
+  while (drags < 90 && Date.now() - t0 < 1500000) {   // bounded by turns, not wall clock (headless is ~1 fps)
     s = await S();
     if (s.over) break;
     if (s.blocked || s.modal || s.introCard) { await shot(`L${lv}-modal`); await p.mouse.click(195, 560); await p.waitForTimeout(700); continue; }
@@ -80,7 +82,10 @@ for (let lv = 1; lv <= N; lv++) {
   await shot(`L${lv}-end-${s.won ? 'win' : 'lose'}`);
   log.push(`L${lv}: ${s.won ? 'WIN' : s.over ? 'LOSE' : 'STUCK'} after ${drags} drags, turn ${s.turn}`);
   if (s.win) { await p.waitForTimeout(2500); await p.mouse.click(195, (await p.evaluate(() => window._nav.getWinNextY?.() ?? 560))); await p.waitForTimeout(2000); await shot(`L${lv}-after-next`); }
-  else { await p.evaluate(() => window._nav.cleanAll()); await p.evaluate(() => window._nav.showLevelSelect()); await p.waitForTimeout(1500); }
+  else {
+    await p.evaluate(() => window._nav.cleanAll()); await p.evaluate(() => window._nav.showLevelSelect()); await p.waitForTimeout(1500);
+    if (tries[lv] < 2) lv--;   // a loss locks the next level: replay this one once
+  }
 }
 writeFileSync(`${out}/log.txt`, log.join('\n') + '\n\nERRORS\n' + errs.join('\n'));
 console.log(log.join('\n')); console.log('errors:', errs.length, errs.slice(0, 5));

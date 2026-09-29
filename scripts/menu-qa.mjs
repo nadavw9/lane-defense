@@ -140,6 +140,41 @@ await shot('after-cancel');
 await esc();
 s = await until(s => s.pause, 5000);
 ok('pause again', s.pause);
+// Pause → SETTINGS → HOW TO PLAY: Escape unwinds one layer at a time.
+await tap(195, 510);
+s = await until(s => s.settings, 5000);
+ok('pause → settings opens', s.settings);
+await esc();
+s = await until(s => !s.settings, 5000);
+ok('Escape closes settings back to pause (still paused)', !s.settings && s.pause && s.paused, JSON.stringify({ pause: s.pause, paused: s.paused }));
+await tap(195, 382);
+s = await until(s => s.howToPlay, 5000);
+ok('pause → how to play opens', s.howToPlay);
+await esc();
+s = await until(s => !s.howToPlay, 5000);
+ok('Escape closes how-to-play back to pause', !s.howToPlay && s.pause && s.paused, JSON.stringify({ pause: s.pause, paused: s.paused }));
+await tap(195, 446);
+s = await until(s => s.carManual, 5000);
+ok('pause → car guide opens', s.carManual);
+await esc();
+s = await until(s => !s.carManual, 5000);
+ok('Escape closes car guide back to pause', !s.carManual && s.pause && s.paused, JSON.stringify({ pause: s.pause, paused: s.paused }));
+// QUIT LEVEL (may ask to confirm: tap twice) → map, board torn down.
+await tap(195, 575);
+await p.waitForTimeout(400);
+s = await S();
+if (s.pause) { await shot('quit-confirm'); await tap(195, 575); }
+s = await until(s => s.levelSelect, 8000);
+ok('QUIT LEVEL returns to the map', s.levelSelect && !s.pause && !s.pauseBtn, JSON.stringify({ pause: s.pause, pauseBtn: s.pauseBtn }));
+await shot('after-quit');
+// Map TROPHIES and back keeps exactly one map.
+const kids0 = await p.evaluate(() => window._nav.stageTop(195, 400).stage.n);
+await esc();
+s = await until(s => s.title, 5000);
+await tap(195, 474);
+s = await until(s => s.levelSelect, 8000);
+const kids1 = await p.evaluate(() => window._nav.stageTop(195, 400).stage.n);
+ok('map → title → map does not grow the stage', kids1 <= kids0, `stage children ${kids0} → ${kids1}`);
 
 console.log(res.join('\n'));
 console.log('errors:', errs.length, errs.slice(0, 5));

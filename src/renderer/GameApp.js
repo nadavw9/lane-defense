@@ -1059,6 +1059,7 @@ async function main() {
   }
   function _showColorPicker(fromColor) {
     _dismissColorPicker();
+    colorPicker?.destroy();   // never orphan a live one (see showTitle)
     colorPicker = new ColorPicker(app.stage, APP_W, APP_H, gs.colors, fromColor, {
       onPick: (toColor) => {
         // Lanes with a matching car BEFORE the recolor — flash them on success.
@@ -1102,6 +1103,7 @@ async function main() {
     const freeBooster = failStreak >= 2
       ? { key: 'colorchange', emoji: '🎨', desc: 'Recolor', bundle: { colorChange: 1, freeze: 0, bombs: 0 } }
       : null;
+    preLevelScreen?.destroy();   // never orphan a live one (see showTitle)
     preLevelScreen = new PreLevelScreen(app.stage, APP_W, APP_H, label, {
       onSelect: (adCount, bundle) => {
         if (adCount <= 0) { start(bundle); return; }
@@ -1163,6 +1165,7 @@ async function main() {
 
   // ── Screen: Daily Reward ──────────────────────────────────────────────────
   function showDailyReward(after = null) {
+    dailyRewardScreen?.destroy();   // never orphan a live one (see showTitle)
     dailyRewardScreen = new DailyRewardScreen(app.stage, APP_W, APP_H, progress, {
       onClose: _closers.daily = () => {
         dailyRewardScreen.destroy();
@@ -1223,6 +1226,7 @@ async function main() {
     _pendingCityAnim = null;
   }
   function showShop() {
+    shopScreen?.destroy();   // never orphan a live one (see showTitle)
     shopScreen = new ShopScreen(app.stage, APP_W, APP_H, progress, boosterState, {
       onBack: _closers.shop = () => {
         shopScreen.destroy();
@@ -1248,6 +1252,7 @@ async function main() {
     pauseBtn.visible = false;
     audio.playMusic('title');
     _closers.achievements = onBack;
+    achievementsScreen?.destroy();   // never orphan a live one (see showTitle)
     achievementsScreen = new AchievementsScreen(app.stage, APP_W, APP_H, progress, {
       onBack,
       audio,
@@ -1260,6 +1265,7 @@ async function main() {
     audio.playMusic('title');
     titleScreen?.destroy();
     titleScreen = null;
+    statsScreen?.destroy();   // never orphan a live one (see showTitle)
     statsScreen = new StatsScreen(app.stage, APP_W, APP_H, {
       app,
       progressManager: progress,
@@ -1289,11 +1295,13 @@ async function main() {
   // the title gear and the in-game pause menu.
   function showSettings(onClose) {
     _closers.settings = onClose;
+    settingsScreen?.destroy();   // never orphan a live one (see showTitle)
     settingsScreen = new SettingsScreen(app.stage, APP_W, APP_H, audio, {
       onClose,
       // Help opens OVER settings; closing returns to settings as it was.
       onHowToPlay: () => {
         if (howToPlayOverlay) return;
+        howToPlayOverlay?.destroy();   // never orphan a live one (see showTitle)
         howToPlayOverlay = new HowToPlayOverlay(app.stage, APP_W, APP_H, {
           ticker: app.ticker,
           onClose: _closers.howToPlay = () => { howToPlayOverlay?.destroy(); howToPlayOverlay = null; },
@@ -1301,6 +1309,7 @@ async function main() {
       },
       onCarGuide: () => {
         if (carManualScreen) return;
+        carManualScreen?.destroy();   // never orphan a live one (see showTitle)
         carManualScreen = new CarManualScreen(app.stage, APP_W, APP_H, {
           seenTypes: progress.getIntroducedCarTypes(),
           unlockedLevel: Math.max(progress.unlockedLevel ?? 1, gs?.levelId ?? 1),
@@ -1316,6 +1325,7 @@ async function main() {
     if (wasPlaying) gameLoop.pause();
     bookBtn.visible  = false;
     pauseBtn.visible = false;
+    carManualScreen?.destroy();   // never orphan a live one (see showTitle)
     carManualScreen = new CarManualScreen(app.stage, APP_W, APP_H, {
       seenTypes: progress.getIntroducedCarTypes(),
       unlockedLevel: Math.max(progress.unlockedLevel ?? 1, gs?.levelId ?? 1),
@@ -1353,6 +1363,7 @@ async function main() {
     // computes each type's real HP from these, so it cannot drift from the board.
     // gs.world is the DDA-adjusted copy the loop is actually spawning from, which
     // is what the player is looking at; the base config would be a different lie.
+    hpGuideOverlay?.destroy();   // never orphan a live one (see showTitle)
     hpGuideOverlay = new HpGuideOverlay(app.stage, APP_W, APP_H, {
       onClose: _closers.hpGuide = () => { hpGuideOverlay?.destroy(); hpGuideOverlay = null; restore(); },
       level: {
@@ -1367,6 +1378,7 @@ async function main() {
   function showHowToPlay() {
     if (howToPlayOverlay) return;
     const { restore } = _openGoalOverlay();
+    howToPlayOverlay?.destroy();   // never orphan a live one (see showTitle)
     howToPlayOverlay = new HowToPlayOverlay(app.stage, APP_W, APP_H, {
       ticker: app.ticker,
       onClose: _closers.howToPlay = () => { howToPlayOverlay?.destroy(); howToPlayOverlay = null; restore(); },
@@ -1378,6 +1390,7 @@ async function main() {
     gameLoop.pause();
     pauseBtn.visible = false;
     bookBtn.visible  = false;
+    pauseScreen?.destroy();   // never orphan a live one (see showTitle)
     pauseScreen = new PauseScreen(app.stage, APP_W, APP_H, {
       onResume: _closers.pause = () => {
         pauseScreen.destroy();
@@ -1400,6 +1413,7 @@ async function main() {
       onHowToPlay: () => {
         pauseScreen.destroy();
         pauseScreen = null;
+        howToPlayOverlay?.destroy();   // never orphan a live one (see showTitle)
         howToPlayOverlay = new HowToPlayOverlay(app.stage, APP_W, APP_H, {
           ticker: app.ticker,
           onClose: _closers.howToPlay = () => { howToPlayOverlay?.destroy(); howToPlayOverlay = null; showPause(); },
@@ -1533,6 +1547,7 @@ async function main() {
     progress.setCoins(gs.coins);
     gs.coins = Math.max(0, gs.coins - coinsAtLevelStart);
 
+    winScreen?.destroy();   // never orphan a live one (see showTitle)
     winScreen = new WinScreen(
       app.stage, APP_W, APP_H, gs,
       onNext,
@@ -1581,6 +1596,7 @@ async function main() {
     audio.play('lose_tone');
 
     let loseScreen = null;
+    loseScreen?.destroy();   // never orphan a live one (see showTitle)
     loseScreen = new LoseScreen(
       app.stage, APP_W, APP_H,
       {
@@ -1623,6 +1639,7 @@ async function main() {
     boosterBar.setVisible(false);
     popupQueue.setSuppressed(true);
     audio.play('rescue_offer');
+    rescueOverlay?.destroy();   // never orphan a live one (see showTitle)
     rescueOverlay = new RescueOverlay(app.stage, APP_W, APP_H, gs, {
       onRescueAd: () => {
         adManager.showRewarded(

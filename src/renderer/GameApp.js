@@ -2128,6 +2128,11 @@ async function main() {
       return;
     }
     if (close(levelSelectScreen, 'levelSelect')) return;
+    // An armed booster / open colour picker: back cancels it (the Android habit),
+    // rather than being swallowed or pausing over it.
+    if (colorPicker) { boosterState.cancelColorChange(); _dismissColorPicker(); return; }
+    if (boosterState.colorChangeMode) { boosterState.cancelColorChange(); return; }
+    if (boosterState.bombMode) { boosterState.cancelBomb(); return; }
     // Mid-level: back pauses (the pause menu then offers resume / quit).
     if (gameLoopStarted && !gs.isOver && pauseBtn.visible && !colorPicker) { showPause(); return; }
     // Title: leave the app. Everywhere else (win / lose / continue offer, colour
@@ -2367,7 +2372,7 @@ async function main() {
       },
       getGs: () => gs,
       // Which screens/overlays are up (autoplay QA bot: rescue / win / lose flows).
-      getScreens: () => ({ blockers: _boardBlockers(), win: !!winScreen, rescue: !!rescueOverlay, pause: !!pauseScreen, levelSelect: !!levelSelectScreen,
+      getScreens: () => ({ blockers: _boardBlockers(), daily: !!dailyRewardScreen, achievements: !!achievementsScreen, stats: !!statsScreen, settings: !!settingsScreen, shop: !!shopScreen, carManual: !!carManualScreen, howToPlay: !!howToPlayOverlay, paused: gameLoop.paused, win: !!winScreen, rescue: !!rescueOverlay, pause: !!pauseScreen, levelSelect: !!levelSelectScreen,
         preLevel: !!preLevelScreen, title: !!titleScreen, modal: _modalActive, picker: !!colorPicker, introCard: !!carTypeIntroCard,
         pauseBtn: pauseBtn.visible, boosters: { colorChange: boosterState.colorChange, freeze: boosterState.freeze, bombs: boosterState.bombs },
         inventory: progress.getInventory(), coins: progress.coins }),

@@ -160,12 +160,12 @@ await esc();
 s = await until(s => !s.carManual, 5000);
 ok('Escape closes car guide back to pause', !s.carManual && s.pause && s.paused, JSON.stringify({ pause: s.pause, paused: s.paused }));
 // QUIT LEVEL (may ask to confirm: tap twice) → map, board torn down.
+const quitHit = await p.evaluate(() => window._nav.stageTop(195, 575).chain.slice(0, 3).join(' | '));
 await tap(195, 575);
-await p.waitForTimeout(400);
-s = await S();
-if (s.pause) { await shot('quit-confirm'); await tap(195, 575); }
+await p.waitForTimeout(300);
+if ((await S()).pause) await tap(195, 575);   // two-step quit: 2nd tap inside 2.5 s (no screenshot between — 1 fps)
 s = await until(s => s.levelSelect, 8000);
-ok('QUIT LEVEL returns to the map', s.levelSelect && !s.pause && !s.pauseBtn, JSON.stringify({ pause: s.pause, pauseBtn: s.pauseBtn }));
+ok('QUIT LEVEL returns to the map', s.levelSelect && !s.pause && !s.pauseBtn, JSON.stringify({ pause: s.pause, pauseBtn: s.pauseBtn, quitHit }));
 await shot('after-quit');
 // Map TROPHIES and back keeps exactly one map.
 const kids0 = await p.evaluate(() => window._nav.stageTop(195, 400).stage.n);

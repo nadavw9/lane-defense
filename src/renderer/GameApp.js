@@ -1596,7 +1596,6 @@ async function main() {
     audio.play('lose_tone');
 
     let loseScreen = null;
-    loseScreen?.destroy();   // never orphan a live one (see showTitle)
     loseScreen = new LoseScreen(
       app.stage, APP_W, APP_H,
       {

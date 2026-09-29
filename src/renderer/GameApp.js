@@ -1125,6 +1125,12 @@ async function main() {
 
   // ── Screen: Title ─────────────────────────────────────────────────────────
   function showTitle() {
+    // Idempotent: a caller that returns to the title without tearing the old
+    // one down (TROPHIES → back did exactly that) would otherwise orphan a
+    // full-screen title over the next level — invisible to getScreens, and it
+    // swallows every booster tap.
+    titleScreen?.destroy();
+    titleScreen = null;
     pauseBtn.visible = false;
     bookBtn.visible  = false;
     audio.playMusic('title');
@@ -1177,6 +1183,8 @@ async function main() {
 
   // ── Screen: Level Select ──────────────────────────────────────────────────
   function showLevelSelect() {
+    levelSelectScreen?.destroy();   // idempotent — never orphan a map (see showTitle)
+    levelSelectScreen = null;
     pauseBtn.visible = false;
     goalCounterUI.setVisible(false);
     audio.playMusic('title');
@@ -2380,7 +2388,7 @@ async function main() {
       startDaily: () => { [titleScreen, levelSelectScreen, winScreen].forEach(x => x?.destroy()); titleScreen = levelSelectScreen = winScreen = null; startDailyChallenge(); },
       stageTop: (x, y) => {
         const hit = app.renderer.events.rootBoundary.hitTest(x, y);
-        const chain = []; for (let o = hit; o; o = o.parent) chain.push(`${o.constructor?.name}${o.label ? ':' + o.label : ''}[${o.eventMode}]`);
+        const chain = []; for (let o = hit; o; o = o.parent) { const bb = o.getBounds?.(); chain.push(`${o.constructor?.name}${o.label ? ':' + o.label : ''}[${o.eventMode}]${bb ? ` @${bb.x | 0},${bb.y | 0} ${bb.width | 0}x${bb.height | 0}` : ''}${o.texture?.label ? ' tex=' + o.texture.label : ''}${o.texture?.source?.label ? ' src=' + o.texture.source.label : ''} idx=${o.parent ? o.parent.children.indexOf(o) : -1}`); }
         const ev = app.renderer.events;
         return { chain, scale: app.stage.scale.x, pivot: [app.stage.pivot.x, app.stage.pivot.y], pos: [app.stage.x, app.stage.y],
           stage: { em: app.stage.eventMode, ic: app.stage.interactiveChildren, vis: app.stage.visible, n: app.stage.children.length },

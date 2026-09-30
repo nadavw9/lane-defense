@@ -1,10 +1,7 @@
-QA sweep round (branch feat/v2-design). Captured headless (software renderer): layout exact, animation timing not.
-
-01=BEFORE (your phone) L1 after the first kill: empty road, nothing to shoot. The next car was spawned on the hidden staging row behind the goal bar, and nothing moves until you shoot -> soft-lock.
-02=AFTER  L1 after kills: the next car steps into row 1 whenever the road would otherwise look empty. LOOK: there is always a car to shoot.
-03=BEFORE L1 first seconds for a new player: a NEW VEHICLE card popped up 4.5 s in and ate the first drag (then a "match the damage" card ate the second).
-04=AFTER  L1 start: no cards; the tip sits on the header bar (not over the road), LEVEL 1 ribbon mid-road, hand shows the drag. First drag fires.
-05=BEFORE L20 after CONTINUE when the boss itself broke through: the boss was gone for good, the goal could never complete, the level ran forever (bot: 225 turns).
-06=AFTER  L10 same situation: CONTINUE brings the boss back, pushed back with its lights intact.
-07=AFTER only  colour-change picker restyled (gold rim, glossy paint drops, current colour crossed out).
-08=AFTER only  L3 start: "incoming cars" label moved onto the road so it no longer collides with the header tip.
+01=BEFORE (your phone): bomb tutorial box off the BOMB card, hand covering it
+02=AFTER: bomb tutorial - rounded cutout + gold ring exactly on the card, caption card, hand hovers above
+03=AFTER: bench tutorial (L4) - ring on the real bench tray, caption above the drag hand
+04=NEW: bomb armed - "TAP A LANE TO BLAST IT" prompt, CANCEL on the button
+05=NEW: colour change armed - "TAP A CAR TO RECOLOUR" prompt
+06=BEFORE: L1 fresh start - hand demo was ~90px and covered the breach line
+07=AFTER: L1 fresh start - hand at proper size, banner in the shared card style

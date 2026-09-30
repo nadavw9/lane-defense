@@ -68,6 +68,7 @@ import { PreLevelScreen }             from '../screens/PreLevelScreen.js';
 import { BoosterUnlockScreen }        from '../screens/BoosterUnlockScreen.js';
 import { FTUEOverlay, FeatureBanners } from '../screens/FTUEOverlay.js';
 import { OnboardingHints }    from '../screens/OnboardingHints.js';
+import { ModeHint } from './ModeHint.js';
 import { BoosterSpotlight }      from '../screens/BoosterSpotlight.js';
 import { TransitionOverlay }      from '../screens/TransitionOverlay.js';
 import { TitleScreen }            from '../screens/TitleScreen.js';
@@ -490,6 +491,7 @@ async function main() {
 
   // ── Popup queue — single source of truth for all banner popups ────────────
   const popupQueue = new PopupQueue(layers.get('hudLayer'), APP_W);
+  const modeHint   = new ModeHint(layers.get('hudLayer'), APP_W);
 
   // ── FTUE per-feature banners (once-per-lifetime, persisted to localStorage) ─
   const featureBanners = new FeatureBanners(popupQueue, APP_W);
@@ -2242,6 +2244,11 @@ async function main() {
     unlockScreen?.update(dt);
     boosterSpotlight?.update(dt);
     tutOrch?.update(dt);
+    // Armed-booster prompt: what to tap next. Only while the board is live.
+    modeHint.set(gs.isOver || _boardBlockers().length > 0 ? null
+      : boosterState.bombMode ? 'TAP A LANE TO BLAST IT'
+      : boosterState.colorChangeMode && !colorPicker ? 'TAP A CAR TO RECOLOUR' : null);
+    modeHint.update(dt);
 
     // Modal cards (onboarding hints, car-type intro, color-bomb intro) all run
     // through the unified queue; block drag input while ANY card is up (FIX 2).

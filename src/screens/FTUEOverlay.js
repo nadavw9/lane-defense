@@ -20,6 +20,7 @@
 import { Container, Graphics, Text } from 'pixi.js';
 import { uiIcon } from '../renderer/UIIcon.js';
 import { PRIORITY } from '../renderer/PopupQueue.js';
+import { bodyText, GOLD } from '../renderer/PremiumUI.js';
 import {
   ROAD_TOP_Y, ROAD_BOTTOM_Y,
 } from '../renderer/LaneRenderer.js';
@@ -198,7 +199,7 @@ export class FTUEOverlay {
     // ── Hand demo animation (L1) ─────────────────────────────────────────
     if (this._handDemo && !this._handDemo.done) {
       this._handDemo.t += dt;
-      const { emoji, trailG, startX, startY, endX, endY } = this._handDemo;
+      const { emoji, trailG, startX, startY, endX, endY, baseScale } = this._handDemo;
       const cycleT = this._handDemo.t % HAND_CYCLE;
 
       if (Math.floor(this._handDemo.t / HAND_CYCLE) >= HAND_LOOPS) {
@@ -211,14 +212,14 @@ export class FTUEOverlay {
           emoji.x     = startX;
           emoji.y     = startY;
           emoji.alpha = p;
-          emoji.scale.set(1);
+          emoji.scale.set(baseScale);
         } else if (cycleT < HAND_APPEAR + HAND_DRAG) {
           const p     = (cycleT - HAND_APPEAR) / HAND_DRAG;
           const eased = 1 - Math.pow(1 - p, 2);
           emoji.x     = startX + (endX - startX) * eased;
           emoji.y     = startY + (endY - startY) * eased;
           emoji.alpha = 1;
-          emoji.scale.set(1);
+          emoji.scale.set(baseScale);
           trailG.moveTo(startX, startY);
           trailG.lineTo(emoji.x, emoji.y);
           trailG.stroke({ color: 0xffee44, width: 2.5, alpha: 0.40 });
@@ -227,16 +228,16 @@ export class FTUEOverlay {
           emoji.x = endX;
           emoji.y = endY;
           emoji.alpha = 1;
-          emoji.scale.set(1 + Math.sin(p * Math.PI) * 0.12);
+          emoji.scale.set(baseScale * (1 + Math.sin(p * Math.PI) * 0.12));
         } else if (cycleT < HAND_APPEAR + HAND_DRAG + HAND_HOLD + HAND_FADE) {
           const p = (cycleT - HAND_APPEAR - HAND_DRAG - HAND_HOLD) / HAND_FADE;
           emoji.x     = endX;
           emoji.y     = endY;
           emoji.alpha = 1 - p;
-          emoji.scale.set(1);
+          emoji.scale.set(baseScale);
         } else {
           emoji.alpha = 0;
-          emoji.scale.set(1);
+          emoji.scale.set(baseScale);
         }
       }
     }
@@ -368,21 +369,11 @@ export class FTUEOverlay {
     const grp = new Container();
     this._container.addChild(grp);
 
+    const txt = bodyText('Drag bombs to matching cars!', 16, 0xFFFFFF);
+    const bw = Math.min(appW - 40, txt.width + 44);
     const bg = new Graphics();
-    bg.roundRect(20, 0, appW - 40, 38, 10);
-    bg.fill({ color: 0x110800, alpha: 0.80 });
-    bg.roundRect(20, 0, appW - 40, 38, 10);
-    bg.stroke({ color: 0xffee44, width: 1.5, alpha: 0.70 });
+    bg.roundRect((appW - bw) / 2, 0, bw, 38, 19).fill({ color: 0x17143A, alpha: 0.96 }).stroke({ color: GOLD, width: 2.5 });
     grp.addChild(bg);
-
-    const txt = new Text({
-      text: 'Drag bombs to matching cars!',
-      style: {
-        fontSize: 15, fontWeight: 'bold', fill: 0xffee88, align: 'center',
-        dropShadow: { color: 0x000000, blur: 4, distance: 2, alpha: 0.9 },
-      },
-    });
-    txt.anchor.set(0.5, 0.5);
     txt.x = appW / 2;
     txt.y = 19;
     grp.addChild(txt);
@@ -413,7 +404,7 @@ export class FTUEOverlay {
     emoji.x = startX;
     emoji.y = startY;
 
-    this._handDemo = { grp, emoji, trailG, hitbox, startX, startY, endX, endY, t: 0, done: false };
+    this._handDemo = { grp, emoji, trailG, hitbox, startX, startY, endX, endY, t: 0, done: false, baseScale: emoji.scale.x };
   }
 
   _stopHandDemo() {

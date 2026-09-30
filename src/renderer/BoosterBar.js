@@ -3,6 +3,7 @@
 // ×N count badge and an 18px name label. Bomb glow pulses when bombs available.
 import { Graphics, Text, Sprite, Assets } from 'pixi.js';
 import { INK, PLUM_DEEP, SUN, toyPanel, toyLabel } from './ToyStyle.js';
+import { bodyText } from './PremiumUI.js';
 
 const _B = import.meta.env.BASE_URL;
 function boosterUrl(name) { return `${_B}sprites/designed/booster-${name}.png`; }
@@ -222,15 +223,7 @@ export class BoosterBar {
 
   _spawnReadyText() {
     if (this._readyText) { this._readyText.destroy(); this._readyText = null; }
-    const t = new Text({
-      text: 'BOMB READY!',
-      style: {
-        fontSize:   16,
-        fontWeight: 'bold',
-        fill:       0xffdd00,
-        dropShadow: { color: 0x000000, blur: 6, distance: 2, alpha: 0.9 },
-      },
-    });
+    const t = bodyText('BOMB READY!', 17, 0xFFD42A);
     t.anchor.set(0.5, 1);
     t.x = CARD_X[2] + CARD_W / 2;
     t.y = BAR_Y - 4;

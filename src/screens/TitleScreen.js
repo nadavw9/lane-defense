@@ -53,7 +53,7 @@ export class TitleScreen {
   constructor(stage, appW, appH, {
     onPlay, onDaily, hasDailyReward, onDailyChallenge,
     onAchievements, onStats, onSettings, audio,
-    loginStreak = 0,
+    loginStreak = 0, dailyChallengeDone = false,
   }) {
     this._container = new Container();
     this._carLayer  = new Container();
@@ -66,7 +66,7 @@ export class TitleScreen {
 
     stage.addChild(this._container);
     this._build(appW, appH, onPlay, onDaily, hasDailyReward, onDailyChallenge,
-                onAchievements, onStats, onSettings, audio, loginStreak);
+                onAchievements, onStats, onSettings, audio, loginStreak, dailyChallengeDone);
   }
 
   destroy() { this._container.destroy({ children: true }); }
@@ -98,7 +98,7 @@ export class TitleScreen {
   // ── Private ────────────────────────────────────────────────────────────────
 
   _build(w, h, onPlay, onDaily, hasDailyReward, onDailyChallenge,
-         onAchievements, onStats, onSettings, audio, loginStreak) {
+         onAchievements, onStats, onSettings, audio, loginStreak, dailyChallengeDone = false) {
 
     // ── Background: full-screen AI-generated city image ─────────────────────
     // Replaces the old sky-blue gradient + programmatic clouds/ground.
@@ -179,7 +179,7 @@ export class TitleScreen {
     // ── Secondary: a row of round icon buttons with captions ───────────────
     const items = [];
     if (onDaily) items.push({ icon: 'gift', emoji: '🎁', label: hasDailyReward ? 'DAILY!' : 'DAILY', color: hasDailyReward ? 0xF0A020 : 0x2F7FE0, fn: onDaily, badge: hasDailyReward });
-    if (onDailyChallenge) items.push({ icon: 'lightning', emoji: '⚡', label: 'CHALLENGE', color: 0x8B4FE0, fn: onDailyChallenge });
+    if (onDailyChallenge) items.push({ icon: 'lightning', emoji: '⚡', label: 'CHALLENGE', color: 0x8B4FE0, fn: onDailyChallenge, done: dailyChallengeDone });
     if (onAchievements) items.push({ icon: 'trophy', emoji: '🏆', label: 'TROPHIES', color: 0x2F7FE0, fn: onAchievements });
     if (onStats) items.push({ icon: 'chart', emoji: '📊', label: 'STATS', color: 0x2F7FE0, fn: onStats });
     const rowY = btnCY + btnH + 70, gapX = 84;
@@ -199,6 +199,13 @@ export class TitleScreen {
         const dot = new Graphics();
         dot.circle(x + 22, rowY - 22, 8).fill(0xE8453C).stroke({ color: 0x1F1A33, width: 2 });
         this._container.addChild(dot);
+      }
+      if (it.done) {   // today's challenge already cleared: a green tick, still replayable
+        const tick = new Graphics();
+        tick.circle(x + 22, rowY - 22, 10).fill(0x2FCC55).stroke({ color: 0x1F1A33, width: 2 });
+        tick.moveTo(x + 17, rowY - 22).lineTo(x + 21, rowY - 18).lineTo(x + 28, rowY - 27)
+          .stroke({ color: 0xFFFFFF, width: 3, cap: 'round', join: 'round' });
+        this._container.addChild(tick);
       }
     });
     if (onDaily && loginStreak >= 2) {

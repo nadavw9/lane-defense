@@ -122,9 +122,14 @@ export class AdManager {
       else this._showPlatformAd(onComplete, onDismissed);
       return;
     }
+    // One rewarded ad at a time. A native ad takes a second or two to load, and
+    // a player who taps CONTINUE again in that window would otherwise stack a
+    // second set of listeners — both fire on the one reward (double rescue).
+    if (this._rewardedBusy) return;
+    this._rewardedBusy = true;
     let rewarded = false;
     const listeners = [];
-    const cleanup = () => { listeners.forEach(l => l.remove()); listeners.length = 0; };
+    const cleanup = () => { this._rewardedBusy = false; listeners.forEach(l => l.remove()); listeners.length = 0; };
 
     listeners.push(AdMob.addListener(RewardAdPluginEvents.Rewarded, () => {
       rewarded = true;
@@ -201,6 +206,7 @@ export class AdManager {
   // Replace this method body with your real ad SDK.
   // Contract: call onComplete() after a successful view; onDismissed() if skipped.
   _showPlatformAd(onComplete, onDismissed) {
+    if (this._overlay) return;   // one at a time (double tap on CONTINUE)
     const overlay = document.createElement('div');
     overlay.style.cssText = [
       'position:fixed', 'top:0', 'left:0', 'width:100%', 'height:100%',

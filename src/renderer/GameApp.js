@@ -1153,6 +1153,7 @@ async function main() {
       onAchievements:     () => { showAchievements(() => { achievementsScreen?.destroy(); achievementsScreen = null; showTitle(); }); },
       onStats:            () => { showStats(); },
       loginStreak:        progress.loginStreak,
+      dailyChallengeDone: progress.isDailyChallengeCompleted(dailyChallengeManager.getTodayKey()),
       onSettings: () => {
         showSettings(() => {
           settingsScreen.destroy();
@@ -1491,11 +1492,15 @@ async function main() {
     if (currentLevelIsDaily) {
       // The bonus goes through gs.coins: the wallet is re-saved from gs.coins
       // below, which used to overwrite a bonus added straight to progress.
-      progress.completeDailyChallenge(dailyDateKey, 0);
-      gs.coins += 25;
-      progress.addEarnedCoins(25);
-      const dcAch = achievementManager.check('daily_challenge');
-      dcAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
+      // First clear of the day only. Replays are allowed (for fun) but pay
+      // nothing — winning it again used to pay +25 every time: a coin farm.
+      if (!progress.isDailyChallengeCompleted(dailyDateKey)) {
+        progress.completeDailyChallenge(dailyDateKey, 0);
+        gs.coins += 25;
+        progress.addEarnedCoins(25);
+        const dcAch = achievementManager.check('daily_challenge');
+        dcAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
+      }
       onNext = null;
     } else {
       const levelId = levelManager.levelNumber;
@@ -1643,6 +1648,7 @@ async function main() {
       onRescueAd: () => {
         adManager.showRewarded(
           () => {
+            if (!rescueOverlay) return;    // already resolved (a second reward callback)
             gs.rescue(10);
             gameLoop.prepareForRescue();   // FIX 2: refill lanes + columns the breach skipped
             rescueOverlay.destroy();

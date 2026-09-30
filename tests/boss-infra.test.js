@@ -74,19 +74,19 @@ describe('INFRA-A: scripted opening board (initialCars)', () => {
     }
   });
 
-  it('recomputes hp for the named type (base × hpMultiplier, HP_MINIMUM clamp) — a scripted tank is not born with a rolled bike hp', () => {
+  it('recomputes hp for the named type (fixed base HP, HP_MINIMUM clamp) — a scripted tank is not born with a rolled bike hp', () => {
     const { gs, loop } = makeLoop({
       hpMultiplier: 0.5,
       initialCars: [
-        { lane: 0, row: 1, type: 'tank'  },   // 20 × 0.5 = 10
-        { lane: 1, row: 1, type: 'truck' },   //  7 × 0.5 = 3.5 → 4
+        { lane: 0, row: 1, type: 'tank'  },   // 12 × 0.5 = 6
+        { lane: 1, row: 1, type: 'truck' },   //  5 × 0.5 = 2.5 → 3
         { lane: 2, row: 1, type: 'small' },   //  2 × 0.5 = 1 → clamps to HP_MINIMUM
       ],
     });
     loop._primeInitialCars();
-    expect(gs.lanes[0].cars[0].hp).toBe(10);
-    expect(gs.lanes[0].cars[0].maxHp).toBe(10);
-    expect(gs.lanes[1].cars[0].hp).toBe(4);
+    expect(gs.lanes[0].cars[0].hp).toBe(6);
+    expect(gs.lanes[0].cars[0].maxHp).toBe(6);
+    expect(gs.lanes[1].cars[0].hp).toBe(3);
     expect(gs.lanes[2].cars[0].hp).toBe(HP_MINIMUM);
   });
 

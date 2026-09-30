@@ -36,7 +36,7 @@ import { ComboGlow }       from './ComboGlow.js';
 import { DragDrop }        from '../input/DragDrop.js';
 import { InputManager }    from '../input/InputManager.js';
 import { BenchStorage }    from '../game/BenchStorage.js';
-import { BenchRenderer }   from './BenchRenderer.js';
+import { BenchRenderer, benchY, benchSlotH } from './BenchRenderer.js';
 
 import { GameState }       from '../game/GameState.js';
 import { GameLoop }        from '../game/GameLoop.js';
@@ -681,7 +681,7 @@ async function main() {
     // never a reference to LevelManager's config — a raw ref would let any
     // downstream write poison the balance source of truth, catastrophic for
     // shared presets. The fail-streak mercy factor (base 1.0) is folded into
-    // the copy's hpMultiplier here and nowhere else; the copy is what the
+    // the copy's heft (spawn mix) here and nowhere else; the copy is what the
     // Director reads. Daily challenge never gets mercy (non-numeric id → 0).
     const failStreak = typeof cfg.id === 'number' ? progress.getFailStreak(cfg.id) : 0;
     gs.world = applyDda(cfg.worldConfig, failStreak);
@@ -963,9 +963,9 @@ async function main() {
             tutOrch?.start({
               id:        'bench',
               text:      'New BENCH — drag a bomb here to store it for later!',
-              bounds:    { x: 0, y: 703, w: 390, h: 50 },
-              handStart: { x: 195, y: 672 },
-              handEnd:   { x: 195, y: 728 },
+              bounds:    () => ({ x: 12, y: benchY(), w: APP_W - 24, h: benchSlotH() }),
+              handStart: { x: 195, y: benchY() - 70 },
+              handEnd:   { x: 195, y: benchY() + benchSlotH() / 2 - 8 },
               pauseGame: true,
             });
           }
@@ -1919,9 +1919,7 @@ async function main() {
     if (!gs.isOver && !(gs.goals.length > 0 && gs.isGoalMet())) tutOrch?.start({
       id:        'bomb',
       text:      '💣 BOMB earned — tap it, then tap a lane to blast every car on it!',
-      bounds:    { x: 237, y: 754, w: 64, h: 64 },
-      handStart: { x: 269, y: 726 },
-      handEnd:   { x: 269, y: 790 },
+      bounds:    () => { const b = boosterBar?._bombBtn?.getBounds(); return b ? { x: b.x, y: b.y, w: b.width, h: b.height } : { x: 235, y: 764, w: 72, h: 77 }; },
       pauseGame: true,
     });
   };

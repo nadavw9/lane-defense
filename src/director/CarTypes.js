@@ -11,11 +11,11 @@ import { HP_MINIMUM } from './DirectorConfig.js';
 // raised HP overshot (tool-less win rate ~6%); hpMultiplier still applies live.
 export const CAR_TYPES = {
   small:  { hp:  2, label: 'Motorbike', minSpawnRow: 0 },
-  big:    { hp:  4, label: 'Car',       minSpawnRow: 0 },
-  jeep:   { hp:  5, label: 'Van',       minSpawnRow: 1 },
-  truck:  { hp:  7, label: 'Truck',     minSpawnRow: 2 },
-  bigrig: { hp: 11, label: 'Big Rig',   minSpawnRow: 3 },
-  tank:   { hp: 20, label: 'Tank',      minSpawnRow: 4 },
+  big:    { hp:  3, label: 'Car',       minSpawnRow: 0 },
+  jeep:   { hp:  4, label: 'Van',       minSpawnRow: 1 },
+  truck:  { hp:  5, label: 'Truck',     minSpawnRow: 2 },
+  bigrig: { hp:  7, label: 'Big Rig',   minSpawnRow: 3 },
+  tank:   { hp: 12, label: 'Tank',      minSpawnRow: 4 },
 };
 
 // ── Level-band weight tables ───────────────────────────────────────────────────
@@ -173,14 +173,29 @@ export function bandWeights(level) {
   return WEIGHTS_FULL;                          // tank from L15
 }
 
-export function pickCarType(rng, level, phase, availableRows) {
+// Difficulty lives in WHICH cars spawn, never in how tough a given type is: a
+// Motorbike is 2 HP and a Car is 4 HP on every level. `heft` (0..1, per level)
+// tilts the band's weights toward heavier types (1) or lighter ones (0); 0.5 is
+// the band table as written. Only tilts among types the band already allows, so
+// the manual / intro cards (spawnableTypesFor) are unaffected.
+const HEFT_SPREAD = 4;
+export function heftWeights(weights, heft) {
+  if (heft == null || heft === 0.5) return weights;
+  const logs = weights.map(w => Math.log(CAR_TYPES[w.value]?.hp ?? 1));
+  const lo = Math.min(...logs), hi = Math.max(...logs);
+  if (hi === lo) return weights;
+  const s = (Math.max(0, Math.min(1, heft)) - 0.5) * HEFT_SPREAD;
+  return weights.map((w, i) => ({ ...w, weight: w.weight * Math.exp(s * ((logs[i] - lo) / (hi - lo) - 0.5)) }));
+}
+
+export function pickCarType(rng, level, phase, availableRows, heft) {
   const band = bandWeights(level ?? 1);
   let weights = band[phase] ?? band.BUILD;
   if (availableRows !== undefined) {
     const filtered = weights.filter(w => (CAR_TYPES[w.value]?.minSpawnRow ?? 0) <= availableRows);
     if (filtered.length > 0) weights = filtered;
   }
-  return rng.weightedPick(weights);
+  return rng.weightedPick(heftWeights(weights, heft));
 }
 
 // ── Canonical per-level HP ─────────────────────────────────────────────────────

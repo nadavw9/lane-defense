@@ -47,14 +47,15 @@ describe('ddaFactor schedule', () => {
 
 describe('applyDda produces a non-aliasing copy', () => {
   it('returns a fresh object sharing NO reference with the source (incl. nested speed)', () => {
-    const src = Object.freeze({ hpMultiplier: 0.6, speed: Object.freeze({ base: 5.5, variance: 0.3 }) });
+    const src = Object.freeze({ heft: 0.6, hpMultiplier: 1, speed: Object.freeze({ base: 5.5, variance: 0.3 }) });
     const copy = applyDda(src, 5);
     expect(copy).not.toBe(src);
     expect(copy.speed).not.toBe(src.speed);          // shallow spread would alias this
-    expect(copy.hpMultiplier).toBeCloseTo(0.6 * 0.73, 10);
+    expect(copy.heft).toBeCloseTo(0.6 - 0.27 * 1.5, 10);   // mercy = a LIGHTER mix, never lower HP
+    expect(copy.hpMultiplier).toBe(1);
     expect(copy.speed).toEqual({ base: 5.5, variance: 0.3 });   // speed carried, unscaled
     // Source frozen — a mutation attempt would have thrown above; confirm intact.
-    expect(src.hpMultiplier).toBe(0.6);
+    expect(src.heft).toBe(0.6);
   });
 
   it('at streak 0-1 the copy is an exact-value clone (factor 1.0), still a distinct object', () => {
@@ -91,8 +92,9 @@ describe('LevelManager configs survive DDA untouched', () => {
     const c6  = applyDda(l6, 5);
 
     // Copies are mercy-scaled and non-aliasing…
-    expect(c10.hpMultiplier).toBeCloseTo(l10.hpMultiplier * 0.73, 10);
-    expect(c6.hpMultiplier).toBeCloseTo(l6.hpMultiplier * 0.73, 10);
+    expect(c10.heft).toBeCloseTo(Math.max(0, l10.heft - 0.405), 10);
+    expect(c6.heft).toBeCloseTo(Math.max(0, l6.heft - 0.405), 10);
+    expect(c10.hpMultiplier).toBe(1);   // car HP per type is fixed on every level
     expect(c6).not.toBe(l6);
     expect(c6.speed).not.toBe(l6.speed);
 
@@ -104,17 +106,17 @@ describe('LevelManager configs survive DDA untouched', () => {
     // Synthetic re-shared preset (presets EXIST to be shared; this is the
     // catastrophic case the copy must guard even though no two shipped levels
     // currently point at the same preset object after the 3c un-sharing).
-    const preset = { hpMultiplier: 0.5, speed: { base: 5, variance: 0.4 } };
+    const preset = { heft: 0.5, hpMultiplier: 1, speed: { base: 5, variance: 0.4 } };
     const siblingA = { id: 100, worldConfig: preset };
     const siblingB = { id: 101, worldConfig: preset };
     const presetSnapshot = JSON.stringify(preset);
 
     const copy = applyDda(siblingA.worldConfig, 5);   // A struggles → mercy
 
-    expect(copy.hpMultiplier).toBeCloseTo(0.5 * 0.73, 10);
+    expect(copy.heft).toBeCloseTo(0.5 - 0.405, 10);
     expect(JSON.stringify(preset)).toBe(presetSnapshot);        // preset byte-identical
-    expect(siblingA.worldConfig.hpMultiplier).toBe(0.5);        // A's base untouched
-    expect(siblingB.worldConfig.hpMultiplier).toBe(0.5);        // B (sibling) unaffected
+    expect(siblingA.worldConfig.heft).toBe(0.5);                 // A's base untouched
+    expect(siblingB.worldConfig.heft).toBe(0.5);                 // B (sibling) unaffected
     expect(siblingA.worldConfig).toBe(preset);                 // still the same object
     expect(siblingB.worldConfig).toBe(preset);
   });
@@ -140,13 +142,14 @@ describe('ProgressManager fail-streak', () => {
     expect(p.getFailStreak('daily-2026-07-16')).toBe(0);
   });
 
-  it('the streak → mercy pipeline: 2 losses on a base-0.6 level yields a 0.54 director copy', () => {
+  it('the streak → mercy pipeline: 2 losses on a base-0.6 heft level yields a 0.45 director copy', () => {
     const p = new ProgressManager();
     p.recordLoss(203); p.recordLoss(203);
-    const src = { hpMultiplier: 0.6, speed: { base: 5, variance: 0.3 } };
+    const src = { heft: 0.6, hpMultiplier: 1, speed: { base: 5, variance: 0.3 } };
     const copy = applyDda(src, p.getFailStreak(203));
-    expect(copy.hpMultiplier).toBeCloseTo(0.54, 10);   // 0.6 × 0.9
-    expect(src.hpMultiplier).toBe(0.6);
+    expect(copy.heft).toBeCloseTo(0.45, 10);   // 0.6 - 0.1 × 1.5
+    expect(copy.hpMultiplier).toBe(1);
+    expect(src.heft).toBe(0.6);
   });
 });
 
@@ -169,14 +172,14 @@ describe('AUDIT: the sim can never see DDA', () => {
     expect(src).not.toMatch(/failStreak|ddaFactor|applyDda|getFailStreak|\bdda\b/i);
   });
 
-  it('a fresh sim run reads BASE hpMultiplier regardless of any recorded streak', () => {
+  it('a fresh sim run reads BASE heft regardless of any recorded streak', () => {
     // The sim instantiates from LevelManager configs and never consults
     // ProgressManager — so a recorded streak cannot reach it. Prove L10 sims at
-    // its base value, the number the balance band was tuned to (V2 table,
-    // 2026-09-27: 1.37 — L10's side traffic is heavy while the boss is on).
+    // its base heft, the number the balance band was tuned to.
     const lm = new LevelManager(); lm.goToLevel(10);
     const cfg = lm.current;
-    expect(cfg.worldConfig.hpMultiplier).toBe(1.37);
+    expect(cfg.worldConfig.heft).toBe(1);
+    expect(cfg.worldConfig.hpMultiplier).toBe(1);
     const runner = new SimulationRunner({
       duration: cfg.duration, colors: cfg.colors, worldConfig: cfg.worldConfig,
       levelId: 10, skill: 'average', laneCount: cfg.laneCount, colCount: cfg.colCount,
@@ -185,7 +188,7 @@ describe('AUDIT: the sim can never see DDA', () => {
       shooterColorWeights: cfg.shooterColorWeights,
     });
     // The runner copies its config; the base hpMultiplier it holds is unchanged.
-    expect(runner._cfg.worldConfig.hpMultiplier).toBe(1.37);    // V2 table (2026-09-27)
+    expect(runner._cfg.worldConfig.heft).toBe(1);
     expect(runner.runLevel(1)).toHaveProperty('won');   // and it still runs
   });
 });

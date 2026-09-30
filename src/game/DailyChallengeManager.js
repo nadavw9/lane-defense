@@ -9,19 +9,19 @@
 // at most four colours — with ONE twist, and copy that says what actually happens.
 const CHALLENGES = [
   { name: 'Speeder Rush',   desc: 'Speeders everywhere — they move 2 steps a turn',
-    colors: ['Red', 'Blue', 'Green'], hp: 0.55, traits: { speeder: 0.30 }, goal: 30 },
+    colors: ['Red', 'Blue', 'Green'], heft: 0, traits: { speeder: 0.30 }, goal: 30 },
   { name: 'Iron Wall',      desc: 'Armoured cars — any bomb knocks the plates off',
-    colors: ['Red', 'Blue', 'Green'], hp: 0.50, traits: { armored: 0.25 }, goal: 28 },
+    colors: ['Red', 'Blue', 'Green'], heft: 0, traits: { armored: 0.25 }, goal: 28 },
   { name: 'Monochrome',     desc: 'Only red cars — tougher, and they never stop coming',
-    colors: ['Red'], hp: 0.62, traits: {}, goal: 36 },
+    colors: ['Red'], heft: 0.37, traits: {}, goal: 36 },
   { name: 'Chameleon Chaos', desc: 'Chameleons flip colour every turn — watch the light',
-    colors: ['Red', 'Blue', 'Yellow'], hp: 0.72, traits: { chameleon: 0.30 }, goal: 28 },
+    colors: ['Red', 'Blue', 'Yellow'], heft: 0.61, traits: { chameleon: 0.30 }, goal: 28 },
   { name: 'Endurance',      desc: 'The long haul — destroy 45 cars',
-    colors: ['Red', 'Blue', 'Green'], hp: 0.55, traits: { speeder: 0.06 }, goal: 45 },
+    colors: ['Red', 'Blue', 'Green'], heft: 0.11, traits: { speeder: 0.06 }, goal: 45 },
   { name: 'Four Colours',   desc: 'Red, blue, green and yellow all at once',
-    colors: ['Red', 'Blue', 'Green', 'Yellow'], hp: 0.66, traits: {}, goal: 30 },
+    colors: ['Red', 'Blue', 'Green', 'Yellow'], heft: 0.5, traits: {}, goal: 30 },
   { name: 'Sudden Death',   desc: 'Tough traffic — and no continue if you breach',
-    colors: ['Red', 'Blue', 'Green'], hp: 0.68, traits: { speeder: 0.08, armored: 0.08 }, goal: 26, noRescue: true },
+    colors: ['Red', 'Blue', 'Green'], heft: 0.21, traits: { speeder: 0.08, armored: 0.08 }, goal: 26, noRescue: true },
 ];
 
 // Returns 'YYYY-MM-DD' for today's local date.
@@ -83,7 +83,7 @@ export class DailyChallengeManager {
       name:       def.name,
       desc:       def.desc,
       colors:     def.colors,
-      worldConfig: { hpMultiplier: def.hp, speed: { base: 5.0, variance: 0.3 } },
+      worldConfig: { heft: def.heft, hpMultiplier: 1, speed: { base: 5.0, variance: 0.3 } },
       traits:     def.traits,
       goals:      [{ type: 'destroyTotal', count: def.goal }],
       duration:   100,

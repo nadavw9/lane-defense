@@ -172,7 +172,7 @@ export class CarDirector {
 
   _buildCar(color, phase, worldConfig, availableRows) {
     const type = this._pickScriptedType(availableRows)
-      ?? pickCarType(this._rng, this._level, phase, availableRows);
+      ?? pickCarType(this._rng, this._level, phase, availableRows, worldConfig?.heft);
     // Apply the level's hpMultiplier (carried on worldConfig, same value the
     // balance sim uses) so difficulty actually scales by level in live play.
     const multiplier = worldConfig?.hpMultiplier ?? 1.0;

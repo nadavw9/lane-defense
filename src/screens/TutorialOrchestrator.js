@@ -15,6 +15,8 @@
 import { Container, Graphics, Text } from 'pixi.js';
 import { uiIcon } from '../renderer/UIIcon.js';
 import { ROAD_BOTTOM_Y } from '../renderer/LaneRenderer.js';
+import { bodyText, GOLD } from '../renderer/PremiumUI.js';
+import { INK } from '../renderer/ToyStyle.js';
 
 const STORAGE_KEY    = 'ftue_completed';
 const APP_W          = 390;
@@ -47,12 +49,17 @@ export class TutorialOrchestrator {
   // Start a tutorial.  opts:
   //   id         — unique string; skip if already done
   //   text       — instruction shown above/below spotlight
-  //   bounds     — { x, y, w, h } canvas-pixel rect to spotlight (null = text-only)
+  //   bounds     — { x, y, w, h } canvas-pixel rect to spotlight (null = text-only),
+  //                OR a function returning one. Prefer the function: it reads the
+  //                real element's bounds at show time, so the spotlight can never
+  //                drift from the button it points at (the old hardcoded rect sat
+  //                ~2px off the BOMB card and clipped it).
   //   handStart  — { x, y } start of hand sweep, or null
   //   handEnd    — { x, y } end of hand sweep, or null
   //   pauseGame  — boolean (default true)
   start(opts) {
-    const { id, text, bounds = null, handStart = null, handEnd = null, pauseGame = true } = opts;
+    const { id, text, handStart = null, handEnd = null, pauseGame = true } = opts;
+    const bounds = typeof opts.bounds === 'function' ? opts.bounds() : (opts.bounds ?? null);
     if (this._done.has(id)) return;
     if (this._active?.id === id) return;
     this._clearGraphics();
@@ -104,6 +111,15 @@ export class TutorialOrchestrator {
       return;
     }
 
+    this._t = (this._t ?? 0) + dt;
+    // Soft breathing ring around the target.
+    if (this._ringGfx) this._ringGfx.alpha = 0.55 + 0.45 * Math.sin(this._t * 5);
+    // Tap mode (no sweep): the hand hovers ABOVE the target and dips onto it,
+    // so it never sits on top of the thing it points at.
+    if (this._handObj && this._tapHand) {
+      const k = 0.5 + 0.5 * Math.sin(this._t * 6);
+      this._handObj.y = this._tapHand.y + k * 10;
+    }
     // Animate hand sweep
     if (this._handObj && this._active.handStart && this._active.handEnd) {
       this._handT = (this._handT + dt / HAND_CYCLE) % 1;
@@ -121,53 +137,68 @@ export class TutorialOrchestrator {
 
   _buildGraphics() {
     const W = APP_W, H = APP_H;
-    const { text, bounds, handStart } = this._active;
+    const { text, bounds, handStart, handEnd } = this._active;
+    this._t = 0;
+    this._tapHand = null;
 
+    // Dim layer with a rounded window cut out around the target.
     if (bounds) {
-      // 4-rect dark surround
-      const { x, y, w, h } = bounds;
-      this._overlay = new Graphics();
-      this._overlay.alpha = 0.72;
-      this._overlay.rect(0,     0,     W,         y        ).fill(0x000000);
-      this._overlay.rect(0,     y + h, W,         H - y - h).fill(0x000000);
-      this._overlay.rect(0,     y,     x,         h        ).fill(0x000000);
-      this._overlay.rect(x + w, y,     W - x - w, h        ).fill(0x000000);
-      this._container.addChild(this._overlay);
+      const pad = 6;
+      const x = bounds.x - pad, y = bounds.y - pad, w = bounds.w + pad * 2, h = bounds.h + pad * 2;
+      const r = Math.min(20, h / 2);
+      this._layer = new Container();
+      // ONE dim shape with a rounded window cut out of it. (An 'erase' hole
+      // punches through the whole framebuffer — it erased the BOMB card itself.)
+      const dim = new Graphics().rect(0, 0, W, H).fill({ color: 0x0B0920, alpha: 0.74 })
+        .roundRect(x, y, w, h, r).cut();
+      this._layer.addChild(dim);
+      this._container.addChild(this._layer);
+      this._overlay = this._layer;
 
-      // Gold spotlight border
+      // Gold ring: a dark keyline outside, a bright gold line, a faint glow.
       this._borderGfx = new Graphics();
-      this._borderGfx.rect(x - 2, y - 2, w + 4, h + 4)
-        .stroke({ color: 0xf0c030, width: 3 });
+      this._borderGfx.roundRect(x - 3, y - 3, w + 6, h + 6, r + 3).stroke({ color: GOLD, width: 10, alpha: 0.16 });
+      this._borderGfx.roundRect(x - 1, y - 1, w + 2, h + 2, r + 1).stroke({ color: INK, width: 5 });
+      this._borderGfx.roundRect(x, y, w, h, r).stroke({ color: GOLD, width: 3 });
       this._container.addChild(this._borderGfx);
+      this._ringGfx = this._borderGfx;
     }
 
-    // Instruction text — above spotlight if room, else below; no bounds → shooter area
-    const textY = bounds
-      ? (bounds.y > 44 ? bounds.y - 24 : bounds.y + bounds.h + 24)
-      : ROAD_BOTTOM_Y + 24;  // below road — no cars here
-    this._textObj = new Text({
-      text,
-      style: {
-        fontSize:      16,
-        fontWeight:    'bold',
-        fill:          0xffffff,
-        align:         'center',
-        wordWrap:      true,
-        wordWrapWidth: W - 40,
-        dropShadow:    { color: 0x000000, blur: 5, distance: 0, alpha: 0.95 },
-      },
-    });
-    this._textObj.anchor.set(0.5, 0.5);
-    this._textObj.x = W / 2;
-    this._textObj.y = textY;
-    this._container.addChild(this._textObj);
+    // Instruction: a dark rounded card with a gold rim (same family as the
+    // other toasts), placed ABOVE the target with a pointer notch toward it —
+    // below only when the target is at the very top.
+    const label = bodyText(text.replace(/^[^\w]+/u, ''), 16, 0xFFFFFF, { wrap: W - 88 });
+    const cw = Math.min(W - 32, label.width + 36), ch = label.height + 22;
+    const above = !bounds || bounds.y > 150;
+    const cx = W / 2;
+    // Sit clear of the hand (above the target) — hand needs ~46px.
+    const handRoom = bounds && !handStart ? 52 : 14;
+    // A drag sweep starts above the target: the card sits above the sweep's start.
+    const top = handStart ? Math.min(bounds?.y ?? 1e9, handStart.y - 34) : bounds?.y;
+    const cy = bounds
+      ? (above ? top - 6 - handRoom - ch : bounds.y + bounds.h + 6 + handRoom)
+      : ROAD_BOTTOM_Y + 24;
+    const card = new Graphics();
+    card.roundRect(cx - cw / 2, cy, cw, ch, 16).fill({ color: 0x17143A, alpha: 0.96 }).stroke({ color: GOLD, width: 2.5 });
+    card.roundRect(cx - cw / 2 + 3, cy + 3, cw - 6, ch * 0.42, 13).fill({ color: 0xffffff, alpha: 0.07 });
+    this._container.addChild(card);
+    this._cardGfx = card;
+    label.x = cx; label.y = cy + ch / 2;
+    this._textObj = label;
+    this._container.addChild(label);
 
-    // Animated hand
-    if (handStart) {
-      this._handObj = uiIcon('hand', 28, '👆');
-      this._handObj.anchor.set(0.5, 0.5);
+    // Pointing hand.
+    if (handStart && handEnd) {            // drag sweep (bench tutorial)
+      this._handObj = uiIcon('hand', 34, '👆');
       this._handObj.x = handStart.x;
       this._handObj.y = handStart.y;
+      this._container.addChild(this._handObj);
+    } else if (bounds) {                   // tap: hover above, dip onto the target
+      this._handObj = uiIcon('hand', 34, '👆');
+      this._handObj.scale.y *= -1;         // fingertip points DOWN at the button
+      this._handObj.x = bounds.x + bounds.w / 2;
+      this._tapHand = { y: bounds.y - 34 };
+      this._handObj.y = this._tapHand.y;
       this._container.addChild(this._handObj);
     }
   }
@@ -176,6 +207,8 @@ export class TutorialOrchestrator {
     this._overlay?.destroy();   this._overlay   = null;
     this._borderGfx?.destroy(); this._borderGfx = null;
     this._textObj?.destroy();   this._textObj   = null;
+    this._cardGfx?.destroy();   this._cardGfx   = null;
+    this._ringGfx = null; this._layer = null; this._tapHand = null;
     this._handObj?.destroy();   this._handObj   = null;
     this._flashGfx?.destroy();  this._flashGfx  = null;
     this._container.visible = false;
@@ -190,7 +223,7 @@ export class TutorialOrchestrator {
 
     if (bounds) {
       this._flashGfx = new Graphics();
-      this._flashGfx.rect(bounds.x, bounds.y, bounds.w, bounds.h).fill(0xf0c030);
+      this._flashGfx.roundRect(bounds.x - 6, bounds.y - 6, bounds.w + 12, bounds.h + 12, Math.min(20, bounds.h / 2 + 6)).fill(0xf0c030);
       this._flashGfx.alpha = 0.70;
       this._container.addChild(this._flashGfx);
       this._container.visible = true;

@@ -167,7 +167,8 @@ function spritePathFor(car) {
   // plated reuses the armoured body (same plates, two hits); mender / volatile /
   // phantom keep the plain body and carry programmatic overlays instead.
   const art = t === 'plated' ? 'armored' : t;
-  const hasVariantArt = art === 'armored' || art === 'speeder' || art === 'chameleon';
+  const hasVariantArt = art === 'armored' || art === 'speeder' || art === 'chameleon'
+    || (art === 'mender' && car.type !== 'small') || art === 'volatile';
   if (hasVariantArt && TRAIT_TYPES[t]?.has(car.type) && (art !== 'armored' || (car.armor ?? 0) > 0)) {
     return `sprites/designed/${art}-${car.type}-${c}.png`;
   }
@@ -982,7 +983,7 @@ export class Car3D {
         return f;
       });
     }
-    if (car.trait === 'plated' || car.trait === 'mender' || car.trait === 'volatile' || car.trait === 'phantom') {
+    if (car.trait === 'plated' || car.trait === 'phantom' || (car.trait === 'mender' && car.type === 'small')) {
       const side = 1.25 / spriteScale;
       const badge = new THREE.Mesh(new THREE.PlaneGeometry(side, side),
         new THREE.MeshBasicMaterial({ map: car.trait === 'plated' ? _plateTex(car.armor ?? 2) : car.trait === 'mender' ? _menderTex()

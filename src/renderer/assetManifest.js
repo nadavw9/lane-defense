@@ -10,6 +10,7 @@
 //  - Always prefix with BASE_URL; never hardcode '/sprites/...'.
 
 import { MAP_WORLDS, worldForLevel } from '../screens/levelMapLayout.js';
+import { TRAIT_KEYS, traitSpritePath } from './traitIcons.js';
 
 const _B = import.meta.env.BASE_URL;   // '' in dev, '/lane-defense/' on GH Pages
 
@@ -171,7 +172,8 @@ export const MAP_URLS = [
 ];
 
 // V2 intro art shown on the level card.
-export const V2_INTRO_URLS = ['speeder-big-yellow', 'armored-big-blue', 'chameleon-big-green'].map(n => `${_B}sprites/designed/${n}.png`);
+export const V2_INTRO_URLS = [...new Set(TRAIT_KEYS.map(k => `${_B}${traitSpritePath(k)}`))]
+  .filter(u => !u.endsWith('car-purple-processed.png'));   // phantom reuses the sedan, already in CAR_URLS
 
 export const ALL_SPRITE_URLS = [
   ...MAP_URLS, ...V2_INTRO_URLS,

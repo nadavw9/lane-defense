@@ -9,6 +9,8 @@ import { uiIcon } from '../renderer/UIIcon.js';
 import { CAR_TYPES } from '../director/CarTypes.js';
 import { panel, ribbon, button, roundButton, titleText, bodyText, backdrop, well, GOLD, RIBBON } from '../renderer/PremiumUI.js';
 import { INK, shade } from '../renderer/ToyStyle.js';
+import { TRAIT_KEYS, traitInfo, traitSpritePath } from '../renderer/traitIcons.js';
+import { LEVEL_COUNT, levelConfigFor } from '../game/LevelManager.js';
 
 const BASE_URL = import.meta.env.BASE_URL ?? '';
 
@@ -21,13 +23,19 @@ const CAR_ENTRIES = [
   { key: 'tank',   name: 'TANK',      hp: CAR_TYPES.tank.hp,   color: 0xB02A5A, sprite: 'sprites/designed/tank.png'              },
 ];
 
-// Special cars, revealed once the player has reached the level that introduces them.
-const SPECIALS = [
-  { name: 'SPEEDER',   level: 7,  sprite: 'sprites/designed/speeder-big-yellow.png',  rule: 'Moves 2 steps a turn' },
-  { name: 'BOSS',      level: 10, sprite: 'sprites/designed/boss.png',                rule: 'Hit its roof colors in order' },
-  { name: 'ARMOURED',  level: 11, sprite: 'sprites/designed/armored-big-blue.png',    rule: 'Any color breaks the plates' },
-  { name: 'CHAMELEON', level: 17, sprite: 'sprites/designed/chameleon-big-green.png', rule: 'Changes color every turn' },
-];
+// Special cars, revealed once the player has reached the level that introduces
+// them. The intro level is DERIVED from the level table (first level whose trait
+// mix contains it), so adding or moving a level never leaves the guide stale.
+function firstLevelWith(trait) {
+  for (let id = 1; id <= LEVEL_COUNT; id++) if (levelConfigFor(id)?.traits?.[trait] > 0) return id;
+  return null;
+}
+function buildSpecials() {
+  const list = TRAIT_KEYS.map(k => ({ trait: k, ...traitInfo(k), sprite: traitSpritePath(k), level: firstLevelWith(k) }))
+    .filter(e => e.level != null);
+  list.push({ trait: 'boss', name: 'BOSS', level: 10, sprite: 'sprites/designed/boss.png', rule: 'Hit its roof colors in order' });
+  return list.sort((a, b) => a.level - b.level);
+}
 
 export class CarManualScreen {
   // seenTypes: Set of type keys the player has been introduced to
@@ -44,7 +52,7 @@ export class CarManualScreen {
 
   _build(W, H, onClose) {
     const C = this._container;
-    const PW = 358, PH = 660;
+    const PW = 358, PH = 760;
     const PX = (W - PW) / 2, PY = Math.max(40, (H - PH) / 2 + 6);
     C.addChild(backdrop(W, H, 0.8));
     const pn = panel(PW, PH);
@@ -59,18 +67,18 @@ export class CarManualScreen {
 
     // Vehicles: 3 × 2 tiles.
     this._label('VEHICLES · BASE HP', W / 2, PY + 52);
-    const tw = 100, th = 124, gap = 10;
+    const tw = 100, th = 108, gap = 10;
     const gx = PX + (PW - (3 * tw + 2 * gap)) / 2, gy = PY + 66;
     CAR_ENTRIES.forEach((e, i) => {
       this._vehicleTile(e, gx + (i % 3) * (tw + gap), gy + Math.floor(i / 3) * (th + gap), tw, th, this._seenTypes.has(e.key));
     });
 
-    // Specials: 2 × 2 tiles.
+    // Specials: 2 columns, as many rows as the campaign has special cars.
     const sy = gy + 2 * (th + gap) + 14;
     this._label('SPECIAL CARS', W / 2, sy);
-    const sw = (PW - 36 - gap) / 2, sh = 96;
-    SPECIALS.forEach((s, i) => {
-      this._specialTile(s, PX + 18 + (i % 2) * (sw + gap), sy + 14 + Math.floor(i / 2) * (sh + gap), sw, sh, this._unlocked >= s.level);
+    const sw = (PW - 36 - gap) / 2, sh = 80;
+    buildSpecials().forEach((s, i) => {
+      this._specialTile(s, PX + 18 + (i % 2) * (sw + gap), sy + 14 + Math.floor(i / 2) * (sh + 8), sw, sh, this._unlocked >= s.level);
     });
 
     const ok = button('GOT IT', { variant: 'blue', w: 180, h: 56, size: 24, onTap: () => onClose?.() });
@@ -84,7 +92,7 @@ export class CarManualScreen {
     this._container.addChild(t);
   }
 
-  _sprite(path, maxW, maxH, x, y) {
+  _sprite(path, maxW, maxH, x, y, tint = null) {
     const holder = new Container();
     holder.x = x; holder.y = y;
     this._container.addChild(holder);
@@ -93,6 +101,7 @@ export class CarManualScreen {
       const s = new Sprite(tex);
       s.anchor.set(0.5);
       s.scale.set(Math.min(maxW / s.width, maxH / s.height));
+      if (tint != null) s.tint = tint;
       holder.addChild(s);
     }).catch(() => {});
   }
@@ -149,13 +158,13 @@ export class CarManualScreen {
       this._container.addChild(r);
       return;
     }
-    this._sprite(s.sprite, 52, 76, x + 36, y + sh / 2);
+    this._sprite(s.sprite, 50, 68, x + 36, y + sh / 2, s.tint);
     const n = titleText(s.name, 15, GOLD);
-    n.anchor.set(0, 0.5); n.x = x + 70; n.y = y + 26;
+    n.anchor.set(0, 0.5); n.x = x + 70; n.y = y + 20;
     if (n.width > sw - 76) n.scale.set((sw - 76) / n.width);
     this._container.addChild(n);
     const r = bodyText(s.rule, 11, 0xE6E1FF, { outline: false, align: 'left', weight: '600', wrap: sw - 78 });
-    r.anchor.set(0, 0); r.x = x + 70; r.y = y + 42;
+    r.anchor.set(0, 0); r.x = x + 70; r.y = y + 34;
     this._container.addChild(r);
   }
 }

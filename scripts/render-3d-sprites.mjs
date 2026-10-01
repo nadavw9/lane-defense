@@ -81,13 +81,15 @@ if (mode === 'verges') {
     armored: ['big', 'jeep', 'truck', 'bigrig'],
     speeder: ['small', 'big', 'jeep'],
     chameleon: ['small', 'big', 'jeep', 'truck'],
+    mender: ['small', 'big', 'jeep', 'truck'],
+    volatile: ['big', 'jeep', 'truck'],
   };
   const variantBuf = async (t, c, v) => decode(await page.evaluate(([t, c, v]) => window.studio.vehicle(t, c, { variant: v }), [t, c, v]));
   const boss = await page.evaluate(() => window.studio.boss());
   const bossArm = await page.evaluate(() => window.studio.boss({ armored: true }));
   if (mode === 'v2sheet') {
     const tiles = [];
-    for (const [v, ts] of Object.entries(VARIANT_TYPES)) for (const t of ts) tiles.push(await variantBuf(t, v === 'speeder' ? 'Yellow' : v === 'armored' ? 'Blue' : 'Green', v));
+    for (const [v, ts] of Object.entries(VARIANT_TYPES)) for (const t of ts) tiles.push(await variantBuf(t, v === 'speeder' ? 'Yellow' : v === 'armored' ? 'Blue' : v === 'volatile' ? 'Purple' : 'Green', v));
     tiles.push(decode(boss.url), decode(bossArm.url));
     const CELL = 260, GAP = 16, cols = 7, rows = Math.ceil(tiles.length / cols);
     const comps = [];

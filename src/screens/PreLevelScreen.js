@@ -14,6 +14,7 @@ import { Container, Graphics, Sprite, Assets } from 'pixi.js';
 import { boosterIcon, uiIcon } from '../renderer/UIIcon.js';
 import { panel, ribbon, button, roundButton, bodyText, titleText, backdrop, well, GOLD } from '../renderer/PremiumUI.js';
 import { INK, WHITE } from '../renderer/ToyStyle.js';
+import { traitInfo, traitSpritePath } from '../renderer/traitIcons.js';
 
 const _B = import.meta.env.BASE_URL;
 const BOOSTERS = [
@@ -34,6 +35,12 @@ function spriteFit(path, size) {
 function goalIcon(goal) {
   if (goal.type === 'destroyColor') return spriteFit(`sprites/designed/car-${goal.color.toLowerCase()}-processed.png`, 44);
   if (goal.type === 'defeatBoss')   return spriteFit('sprites/designed/boss.png', 60);
+  if (goal.type === 'destroyTrait') {
+    const sp = spriteFit(traitSpritePath(goal.trait) ?? 'sprites/designed/car-red-processed.png', 56);
+    const t = traitInfo(goal.trait);
+    if (sp && t?.tint != null) sp.tint = t.tint;
+    return sp;
+  }
   if (goal.type === 'destroyType') {
     const f = { small: 'bike', big: 'car', jeep: 'van', truck: 'truck', bigrig: 'bigrig', tank: 'tank' }[goal.carType] ?? 'car';
     return spriteFit(`sprites/designed/${f}-red${f === 'car' ? '-processed' : ''}.png`, 44);
@@ -54,6 +61,10 @@ function introSprite(intro, lv) {
   if (/BOSS/.test(intro)) return 'sprites/designed/boss.png';
   if (/Speeder/i.test(intro)) return 'sprites/designed/speeder-big-yellow.png';
   if (/Armour/i.test(intro)) return 'sprites/designed/armored-big-blue.png';
+  if (/Plated|plating/i.test(intro)) return traitSpritePath('plated');
+  if (/Mender/i.test(intro)) return traitSpritePath('mender');
+  if (/Volatile/i.test(intro)) return traitSpritePath('volatile');
+  if (/Phantom/i.test(intro)) return traitSpritePath('phantom');
   if (/Chameleon/i.test(intro)) return 'sprites/designed/chameleon-big-green.png';
   if (/Bench/i.test(intro)) return 'sprites/designed/powerball-red.png';
   if (/FREEZE/i.test(intro)) return 'sprites/designed/booster-freeze.png';

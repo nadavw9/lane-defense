@@ -278,6 +278,40 @@ const VARIANT = {
     for (const sd of [-1, 1]) g.add(rbox(0.07, 0.3, 0.1, 0.03, M.trim, sd * hw * 0.62, D.tailY + 0.14, D.zB + 0.35));
     for (const sd of [-1, 1]) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, (D.zF - D.zB) * 0.5, 14), M.chrome); p.rotation.x = Math.PI / 2; p.position.set(sd * (hw + 0.07), 0.4, (D.zF + D.zB) / 2 - 0.2); g.add(p); }
   },
+  // Field medic: a white square with a green cross — on the roof of the bigger
+  // bodies (a big flat read from above), on the hood of the bike.
+  mender(g, type) {
+    const D = DECK[type] ?? DECK.big, hw = D.hw;
+    const green = new THREE.MeshStandardMaterial({ color: 0x2FCC55, roughness: 0.4 });
+    const small = type === 'small';
+    const sz = small ? 0.34 : Math.min(hw * 1.15, (D.roof[1] - D.roof[0]) * 0.8);
+    const y = small ? 1.02 : D.roofY + 0.03;
+    const z = small ? -0.45 : (D.roof[0] + D.roof[1]) / 2;
+    g.add(rbox(sz, 0.05, sz, 0.03, M.white, 0, y, z));
+    g.add(rbox(sz * 0.26, 0.06, sz * 0.78, 0.015, green, 0, y + 0.03, z));
+    g.add(rbox(sz * 0.78, 0.06, sz * 0.26, 0.015, green, 0, y + 0.03, z));
+  },
+  // Powder keg: orange barrels strapped on the roof with a hazard band, red beacon.
+  volatile(g, type) {
+    const D = DECK[type] ?? DECK.big, hw = D.hw;
+    const rz = (D.roof[0] + D.roof[1]) / 2;
+    const drum = new THREE.MeshStandardMaterial({ color: 0xFF8A1C, roughness: 0.45 });
+    for (const sd of [-1, 1]) {
+      const b = new THREE.Mesh(new THREE.CylinderGeometry(hw * 0.32, hw * 0.32, 0.8, 20), drum);
+      b.position.set(sd * hw * 0.38, D.roofY + 0.45, rz);
+      g.add(b);
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(hw * 0.335, hw * 0.335, 0.16, 20), HAZARD_K);
+      band.position.copy(b.position);
+      g.add(band);
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(hw * 0.2, hw * 0.2, 0.05, 16), M.trim);
+      cap.position.set(b.position.x, b.position.y + 0.42, rz);
+      g.add(cap);
+    }
+    g.add(rbox(hw * 1.2, 0.06, 0.12, 0.02, M.trim, 0, D.roofY + 0.1, rz));
+    const bc = new THREE.Mesh(new THREE.SphereGeometry(0.1, 14, 10), new THREE.MeshBasicMaterial({ color: 0xFF3D3D }));
+    bc.position.set(0, D.roofY + 0.95, rz);
+    g.add(bc);
+  },
   // Shape-shifter: a crest of fins along the roof and a glass dome in its middle
   // (the game lights the dome with the colour it will turn into next).
   chameleon(g, type, c) {

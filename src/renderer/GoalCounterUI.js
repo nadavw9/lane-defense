@@ -11,6 +11,7 @@ import { uiIcon } from './UIIcon.js';
 import { row0CoverY } from '../renderer3d/projection.js';
 import { INK, PLUM, WHITE, toyPanel, shade, tint } from './ToyStyle.js';
 import { FillGradient } from 'pixi.js';
+import { traitInfo } from './traitIcons.js';
 
 const _B = import.meta.env.BASE_URL;
 
@@ -197,6 +198,7 @@ export class GoalCounterUI {
     if (goal?.type === 'destroyColor') return COLOR_PALETTE[goal.color] ?? 0xffffff;
     if (goal?.type === 'destroyType')  return 0xffaa33;
     if (goal?.type === 'defeatBoss')   return 0xA35CFF;
+    if (goal?.type === 'destroyTrait') return 0x7FE0FF;
     return 0xffd54a;   // destroyTotal
   }
 
@@ -263,6 +265,11 @@ export class GoalCounterUI {
       icon = this._buildColorCarIcon(goal.color);
     } else if (goal.type === 'destroyType') {
       icon = this._buildCarIcon(goal.carType);
+    } else if (goal.type === 'destroyTrait') {
+      const t = traitInfo(goal.trait);
+      icon = t ? this._designedSprite(t.sprite, 36) : null;
+      if (icon && t.tint != null) icon.tint = t.tint;
+      icon ??= this._buildBurstIcon();
     } else if (goal.type === 'defeatBoss') {
       icon = this._designedSprite('boss', 34) ?? uiIcon('car', 28, '👹');
     }

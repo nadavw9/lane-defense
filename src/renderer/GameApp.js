@@ -63,6 +63,7 @@ import { Column }          from '../models/Column.js';
 import { WinScreen, calcStars }       from '../screens/WinScreen.js';
 import { LoseScreen }                  from '../screens/LoseScreen.js';
 import { RescueOverlay }              from '../screens/RescueOverlay.js';
+import { RESCUE_COIN_COST }           from '../director/DirectorConfig.js';
 import { ColorPicker }                from '../screens/ColorPicker.js';
 import { PreLevelScreen }             from '../screens/PreLevelScreen.js';
 import { BoosterUnlockScreen }        from '../screens/BoosterUnlockScreen.js';
@@ -1651,35 +1652,34 @@ async function main() {
     popupQueue.setSuppressed(true);
     audio.play('rescue_offer');
     rescueOverlay?.destroy();   // never orphan a live one (see showTitle)
+    // Both continue paths (ad / coins) resume play identically.
+    const resumeAfterRescue = () => {
+      gs.rescue(10);
+      gameLoop.prepareForRescue();   // FIX 2: refill lanes + columns the breach skipped
+      rescueOverlay.destroy();
+      rescueOverlay = null;
+      // Resuming play — restore the booster bar + toasts.
+      boosterBar.setVisible(true);
+      popupQueue.setSuppressed(false);
+      audio.resetMusicPhase();
+      audio.playMusic('gameplay_calm');
+      pauseBtn.visible = true;
+    };
     rescueOverlay = new RescueOverlay(app.stage, APP_W, APP_H, gs, {
       onRescueAd: () => {
         adManager.showRewarded(
           () => {
             if (!rescueOverlay) return;    // already resolved (a second reward callback)
-            gs.rescue(10);
-            gameLoop.prepareForRescue();   // FIX 2: refill lanes + columns the breach skipped
-            rescueOverlay.destroy();
-            rescueOverlay = null;
-            // Resuming play — restore the booster bar + toasts.
-            boosterBar.setVisible(true);
-            popupQueue.setSuppressed(false);
-            audio.resetMusicPhase();
-            audio.playMusic('gameplay_calm');
-            pauseBtn.visible = true;
+            resumeAfterRescue();
           },
           null,   // dismissed without reward — leave rescue overlay on screen
         );
       },
       onRescueCoins: () => {
-        gs.coins -= 50;
+        if (!rescueOverlay || gs.coins < RESCUE_COIN_COST) return;
+        gs.coins -= RESCUE_COIN_COST;
         progress.setCoins(gs.coins);
-        gs.rescue(10);
-        gameLoop.prepareForRescue();   // FIX 2: refill lanes + columns the breach skipped
-        rescueOverlay.destroy();
-        rescueOverlay = null;
-        audio.resetMusicPhase();
-        audio.playMusic('gameplay_calm');
-        pauseBtn.visible = true;
+        resumeAfterRescue();
       },
       onRetry: () => {
         // RETRY — free, immediate restart of the current level (no ad).

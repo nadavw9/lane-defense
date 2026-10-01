@@ -13,13 +13,14 @@ import { Container, Graphics } from 'pixi.js';
 import { uiIcon } from '../renderer/UIIcon.js';
 import { panel, ribbon, button, titleText, bodyText, backdrop, GOLD } from '../renderer/PremiumUI.js';
 import { INK, WHITE } from '../renderer/ToyStyle.js';
+import { RESCUE_COIN_COST } from '../director/DirectorConfig.js';
 
 const FLASH_DURATION = 0.45;   // seconds for the red screen flash
 
 export class RescueOverlay {
   // Callbacks:
   //   onRescueAd()     — "CONTINUE" accepted; caller shows the rewarded ad then gs.rescue()
-  //   onRescueCoins()  — coin rescue (kept for compatibility; no button rendered)
+  //   onRescueCoins()  — "CONTINUE · coins" — shown only when the player can afford it
   //   onRetry()        — free full restart; caller destroys overlay and restarts the level
   //   onLevelSelect()  — decline; caller destroys overlay and returns to level select
   constructor(stage, appW, appH, gs, { onRescueAd, onRescueCoins, onRetry, onLevelSelect }) {
@@ -80,9 +81,11 @@ export class RescueOverlay {
     this._container.addChild(c);
     c.addChild(backdrop(w, h, 0.78));
 
-    const PW = 330, PH = 470;
+    const PW = 330;
+    const PH = 470 + ((gs?.coins ?? 0) >= RESCUE_COIN_COST && this._onRescueCoins ? 76 : 0);
     const card = new Container();
-    card.x = (w - PW) / 2; card.y = (h - PH) / 2 - 6;
+    // Anchored to the 470px layout so CONTINUE never moves; extra rows grow downward.
+    card.x = (w - PW) / 2; card.y = (h - 470) / 2 - 6;
     c.addChild(card);
     card.addChild(panel(PW, PH, { face: 0x4A2440 }));
     const rb = ribbon('BREACH!', 220, { size: 30 });
@@ -123,19 +126,29 @@ export class RescueOverlay {
     card.addChild(cont);
     this._pulse = cont;
 
+    // CONTINUE with coins — the no-ad option; only offered when affordable.
+    let dy = 0;
+    if ((gs?.coins ?? 0) >= RESCUE_COIN_COST && this._onRescueCoins) {
+      const pay = button(String(RESCUE_COIN_COST), { variant: 'gold', w: 250, h: 66, size: 26,
+        icon: uiIcon('coin', 26, '◆'), sub: 'Continue with coins', onTap: () => this._onRescueCoins() });
+      pay.x = PW / 2; pay.y = 372;
+      card.addChild(pay);
+      dy = 76;
+    }
+
     // RETRY — free, immediate full restart of the current level (no ad).
     const retry = button('RETRY', { variant: 'blue', w: 200, h: 58, size: 24, onTap: () => this._onRetry?.() });
-    retry.x = PW / 2; retry.y = 372;
+    retry.x = PW / 2; retry.y = 372 + dy;
     card.addChild(retry);
 
     // Decline → back to level select (level failed).
     const give = bodyText('Give up', 15, 0xC9A3C0, { outline: false });
-    give.x = PW / 2; give.y = 430;
+    give.x = PW / 2; give.y = 430 + dy;
     give.eventMode = 'static'; give.cursor = 'pointer';
     give.on('pointerup', () => this._onLevelSelect?.());
     card.addChild(give);
     const ul = new Graphics();
-    ul.rect(PW / 2 - give.width / 2, 440, give.width, 1.5).fill({ color: 0xC9A3C0, alpha: 0.6 });
+    ul.rect(PW / 2 - give.width / 2, 440 + dy, give.width, 1.5).fill({ color: 0xC9A3C0, alpha: 0.6 });
     card.addChild(ul);
   }
 }

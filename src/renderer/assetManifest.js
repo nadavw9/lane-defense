@@ -181,8 +181,12 @@ export const V2_INTRO_URLS = [...new Set(TRAIT_KEYS.map(k => `${_B}${traitSprite
 export const ALL_SPRITE_URLS = [
   ...MAP_URLS, ...V2_INTRO_URLS,
   ...CAR_URLS, ...SHOOTER_URLS, ...POWERBALL_URLS, ...BUILDING_URLS, ...TREE_URLS,
-  ...ENV_URLS, ...BOOSTER_URLS, ...TUTORIAL_URLS, ...TITLE_ART_URLS, ...WORLD_PANEL_URLS,
-  ...STRIP_PANEL_URLS, ...SCENE_STRIP_URLS, ...ZONE_FLOOR_URLS, ...UI_ICON_URLS,
+  ...ENV_URLS, ...BOOSTER_URLS, ...TUTORIAL_URLS, ...TITLE_ART_URLS,
+  // NOT preloaded: WORLD_PANEL_URLS / STRIP_PANEL_URLS / SCENE_STRIP_URLS (~16 MB). Every
+  // level has a baked backdrop that covers the verges, and CityEdges hides its strips
+  // while one is active; they are only a fallback, and CityEdges degrades to its
+  // programmatic buildings when a strip texture is absent.
+  ...ZONE_FLOOR_URLS, ...UI_ICON_URLS,
   ...BUTTON_PLATE_URLS, ...FRAME_URLS, ...GOAL_ICON_URLS,   // GOAL_ICON_URLS includes TITLE_INTRO_CAR_URL (car-blue-processed)
   ...Object.values(WORLD_ROAD_URLS),
 ];

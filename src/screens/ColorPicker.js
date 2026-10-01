@@ -5,6 +5,7 @@
 // Sits between the road and the booster bar. A dim backdrop catches outside taps
 // (= cancel). The picker has no animation loop; the caller destroys it on pick/cancel.
 import { Container, Graphics, Text, FillGradient } from 'pixi.js';
+import { shapeFor } from '../game/ColorblindMode.js';
 
 const HEX = {
   Red: 0xFF3D3D, Blue: 0x2F8CFF, Green: 0x2FCC55,
@@ -77,6 +78,12 @@ export class ColorPicker {
       if (isFrom) {
         dot.moveTo(-r * 0.45, -r * 0.45).lineTo(r * 0.45, r * 0.45).moveTo(r * 0.45, -r * 0.45).lineTo(-r * 0.45, r * 0.45)
           .stroke({ color: 0xFFFFFF, width: 4, alpha: 0.7 });
+      }
+      const sym = shapeFor(color);
+      if (sym) {   // colourblind mode: every swatch also carries its shape
+        const st = new Text({ text: sym, style: { fontSize: Math.round(r * 1.1), fontWeight: '900', fill: 0xFFFFFF, stroke: { color: 0x1F1A33, width: 3 } } });
+        st.anchor.set(0.5); st.alpha = isFrom ? 0.4 : 1;
+        dot.addChild(st);
       }
       dot.x = x; dot.y = dotY;
       (this.swatches ??= []).push({ color, x, y: dotY, enabled: !isFrom });   // QA hooks

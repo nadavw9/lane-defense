@@ -159,6 +159,7 @@ export class CityEdges {
 
   _redraw() {
     this._container.removeChildren();
+    if (this._backdrop) return;   // a baked backdrop already contains the verges — draw nothing
     this._draw(this._laneCount);
   }
 
@@ -166,8 +167,10 @@ export class CityEdges {
   // strips hide — they sit on the Pixi layer ABOVE the 3D canvas and would
   // cover the bake. Stores the flag; the next setLaneCount() redraw applies it.
   setBackdropActive(on) {
+    const was = this._backdrop;
     this._backdrop = !!on;
     this._container.visible = !this._backdrop;
+    if (was && !this._backdrop) this._redraw();   // falling back to the strips: draw them now
   }
 
   update(_dt) {}

@@ -12,6 +12,7 @@ import { row0CoverY } from '../renderer3d/projection.js';
 import { INK, PLUM, WHITE, toyPanel, shade, tint } from './ToyStyle.js';
 import { FillGradient } from 'pixi.js';
 import { traitInfo } from './traitIcons.js';
+import { shapeFor } from '../game/ColorblindMode.js';
 
 const _B = import.meta.env.BASE_URL;
 
@@ -333,8 +334,16 @@ export class GoalCounterUI {
     const c = String(color).toLowerCase();
     const sprite = this._designedSprite(`car-${c}-processed`, 30)
                 ?? this._designedSprite(`goal-car-${c}`, 34);
-    if (sprite) return sprite;
-    return this._buildColorCircle(color);
+    const icon = sprite ?? this._buildColorCircle(color);
+    const sym = shapeFor(color);
+    if (!icon || !sym) return icon;
+    // Colourblind mode: the hunted colour also carries its shape.
+    const box = new Container();
+    box.addChild(icon);
+    const t = new Text({ text: sym, style: { fontSize: 15, fontWeight: '900', fill: 0xFFFFFF, stroke: { color: INK, width: 3 } } });
+    t.anchor.set(0.5); t.x = 11; t.y = 11;
+    box.addChild(t);
+    return box;
   }
 
   _buildColorCircle(color) {

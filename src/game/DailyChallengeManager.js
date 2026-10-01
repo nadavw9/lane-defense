@@ -22,6 +22,14 @@ const CHALLENGES = [
     colors: ['Red', 'Blue', 'Green', 'Yellow'], heft: 0.5, traits: {}, goal: 30 },
   { name: 'Sudden Death',   desc: 'Tough traffic — and no continue if you breach',
     colors: ['Red', 'Blue', 'Green'], heft: 0.21, traits: { speeder: 0.08, armored: 0.08 }, goal: 26, noRescue: true },
+  { name: 'Ghost Road',     desc: 'Phantoms hide their colour until they roll closer',
+    colors: ['Red', 'Blue', 'Green'], heft: 0.6, traits: { phantom: 0.3 }, goal: 28 },
+  { name: 'Pit Crew',       desc: 'Menders heal a point every turn you do not hit them',
+    colors: ['Red', 'Blue', 'Green'], heft: 0.6, traits: { mender: 0.3 }, goal: 28 },
+  { name: 'Chain Reaction', desc: 'When a fuel truck blows, every other lane lurches forward',
+    colors: ['Red', 'Blue', 'Green'], heft: 0.35, traits: { volatile: 0.3 }, goal: 28 },
+  { name: 'Double Plate',   desc: 'Plated cars soak two hits of any colour',
+    colors: ['Red', 'Blue', 'Green'], heft: 0.05, traits: { plated: 0.08 }, goal: 26 },
 ];
 
 // Returns 'YYYY-MM-DD' for today's local date.

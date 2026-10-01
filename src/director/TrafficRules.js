@@ -9,13 +9,29 @@
 //   speeder   — moves 2 rows per turn instead of 1 (never passes the car ahead).
 //   chameleon — switches between two colours every time traffic moves; the other
 //               colour is shown on the car so the player can time the shot.
+//   plated    — heavy plating: TWO hits (any colour) to strip it, then an ordinary car.
+//   mender    — a repair truck: heals 1 HP each time traffic moves, unless the
+//               shot that moved traffic hit IT. Chip damage on a mender is wasted;
+//               finish it or leave it.
+//   volatile  — a fuel hauler: when destroyed it shoves every OTHER lane's traffic
+//               one extra row forward. Kill it when the road can take the surge.
+//   phantom   — colour hidden (a dark silhouette) until it reaches PHANTOM_REVEAL_ROW.
+//               Rules are unchanged; the player must plan with what the deal shows.
 //
 // Hot Streak: destroy at least one car on 3 shots in a row and the next bomb is
 // SUPERCHARGED — double damage, and its carry-over smashes through cars of ANY
 // colour (armour and the boss still stop it). A shot that hits without destroying
 // a car resets the streak.
 
-export const TRAITS = ['speeder', 'armored', 'chameleon'];
+// ORDER MATTERS: rollTrait walks this list accumulating probabilities, so appending
+// new traits keeps the random stream of every existing level byte-identical.
+export const TRAITS = ['speeder', 'armored', 'chameleon', 'plated', 'mender', 'volatile', 'phantom'];
+
+// Phantoms show their colour from this row on (row 0 is the hidden staging row).
+export const PHANTOM_REVEAL_ROW = 4;
+export function isHiddenPhantom(car) {
+  return car?.trait === 'phantom' && car.row < PHANTOM_REVEAL_ROW;
+}
 
 // Which car types may carry each trait. Speeders are light vehicles; armour goes
 // on the mid-weight bodies where plating reads; chameleons on anything but a tank.
@@ -23,6 +39,10 @@ export const TRAIT_TYPES = {
   speeder:   new Set(['small', 'big', 'jeep']),
   armored:   new Set(['big', 'jeep', 'truck', 'bigrig']),
   chameleon: new Set(['small', 'big', 'jeep', 'truck']),
+  plated:    new Set(['big', 'jeep', 'truck', 'bigrig']),
+  mender:    new Set(['small', 'big', 'jeep', 'truck']),
+  volatile:  new Set(['big', 'jeep', 'truck']),
+  phantom:   new Set(['small', 'big', 'jeep', 'truck', 'bigrig']),
 };
 
 export const STREAK_TO_CHARGE = 3;
@@ -50,15 +70,41 @@ export function stepFor(car) {
  * first). A car never moves into or past the car ahead of it, so a speeder stuck
  * behind a slow car waits. Mutates car.row in place; order is preserved.
  */
-export function advanceLaneCars(cars) {
+export function advanceLaneCars(cars, fixedStep = null) {
   let aheadRow = Infinity;
   for (const car of cars) {
-    let r = car.row + stepFor(car);
+    let r = car.row + (fixedStep ?? stepFor(car));
     if (r >= aheadRow) r = aheadRow - 1;
     if (r < car.row) r = car.row;
     car.row = r;
     aheadRow = r;
   }
+}
+
+/**
+ * Menders repair 1 HP per traffic move unless they were hit by the shot that
+ * caused it. Always clears the per-turn `recentHit` mark, so call it exactly once
+ * per lane per traffic move (after the move, before breach checks).
+ */
+export function healMenders(cars) {
+  for (const car of cars) {
+    if (car.trait === 'mender' && !car.recentHit && car.hp > 0 && car.hp < car.maxHp) car.hp += 1;
+    car.recentHit = false;
+  }
+}
+
+/** True when this destroyed-car record shoves the other lanes (see `volatile`). */
+export function causesSurge(destroyed) {
+  return (destroyed ?? []).some(d => d.trait === 'volatile');
+}
+
+/**
+ * A volatile car just died in `srcLane`: every OTHER lane's traffic moves one
+ * extra row. `lanes` = arrays of cars (front-first). Returns nothing; breach is
+ * checked by the caller exactly as for a normal advance.
+ */
+export function surgeOtherLanes(lanes, srcLane) {
+  lanes.forEach((cars, i) => { if (i !== srcLane) advanceLaneCars(cars, 1); });
 }
 
 /** Chameleons flip to their other colour. Call once per traffic move. */
@@ -101,6 +147,7 @@ export function applyTrait(car, trait, rng, palette) {
   }
   car.trait = trait;
   if (trait === 'armored') car.armor = 1;
+  if (trait === 'plated')  car.armor = 2;
   return car;
 }
 

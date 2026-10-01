@@ -25,9 +25,10 @@ export class CombatResolver {
     if (!frontCar) return MISS;
 
     // Armour takes the first hit from ANY bomb, and absorbs all of it.
+    // (Plated cars carry 2 plates: each hit strips one, `armorLeft` says how many remain.)
     if ((frontCar.armor ?? 0) > 0) {
-      frontCar.armor = 0;
-      return { hit: true, armorBroken: true, kills: 0, carryOverKills: 0, damageDealt: 0, destroyed: [] };
+      frontCar.armor -= 1;
+      return { hit: true, armorBroken: true, armorLeft: frontCar.armor, kills: 0, carryOverKills: 0, damageDealt: 0, destroyed: [] };
     }
 
     // Colour mismatch → no damage.
@@ -40,7 +41,7 @@ export class CombatResolver {
       const lights = power ? 2 : 1;
       const before = frontCar.hp;
       const dead = hitBoss(frontCar, lights);
-      const destroyed = dead ? [{ color: frontCar.color, type: frontCar.type }] : [];
+      const destroyed = dead ? [{ color: frontCar.color, type: frontCar.type, trait: frontCar.trait ?? null }] : [];
       if (dead) lane.removeFrontCar();
       return { hit: true, bossHit: true, kills: dead ? 1 : 0, carryOverKills: 0,
                damageDealt: before - Math.max(0, frontCar.hp), destroyed };
@@ -76,8 +77,9 @@ export class CombatResolver {
       car.takeDamage(remaining);
       damageDealt += Math.min(remaining, hp);
 
+      car.recentHit = true;   // menders skip this turn's repair
       if (car.isDead()) {
-        destroyed.push({ color: car.color, type: car.type });
+        destroyed.push({ color: car.color, type: car.type, trait: car.trait ?? null });
         if (kills > 0) carryOverKills++;
         kills++;
         lane.removeFrontCar();

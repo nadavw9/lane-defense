@@ -9,7 +9,7 @@ import { PHASE_CONFIG, HP_MINIMUM } from '../director/DirectorConfig.js';
 import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { Shooter } from '../models/Shooter.js';
 import { COLUMN_CAPACITY } from '../models/Column.js';
-import { canTarget, advanceLaneCars, flipChameleons, nextStreak,
+import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak,
          isBoss, makeBoss, hitBoss, laneHasBoss, BOMB_BOSS_LIGHTS, revealStagedCars } from '../director/TrafficRules.js';
 
 const KILLS_PER_BOMB      = 10;    // kills needed to earn one bomb charge
@@ -178,7 +178,7 @@ export class GameLoop {
       // Credit the level's goals (2026-09-27). Every other kill path does this;
       // BOMB never did, so on goal levels its kills counted for nothing — while the
       // simulator credited them, so balance assumed a BOMB players never got.
-      gs.applyKillToGoals(car.color, car.type);
+      gs.applyKillToGoals(car.color, car.type, car.trait);
       const combo = gs.recordKill(false);
       this._onKill(combo);
       if (bs && gs.killsTowardBomb % KILLS_PER_BOMB === 0 && bs.bombs < BOMB_MAX_CHARGES) {
@@ -289,6 +289,9 @@ export class GameLoop {
     const power = this._powerShotReady();
     const res = this._combat.resolve(shooter, lane, { power });
     const { kills, carryOverKills, damageDealt, destroyed: destroyedFromCombat } = res;
+    // A destroyed volatile shoves the other lanes' traffic one extra row on the
+    // advance this shot causes (see TrafficRules.surgeOtherLanes).
+    this._surgeFromLane = causesSurge(destroyedFromCombat) ? laneIdx : null;
 
     if (!res.hit) {
       this._onMiss(laneIdx, carGameX);
@@ -336,7 +339,7 @@ export class GameLoop {
 
       // Apply goal progress for each destroyed car
       for (const destroyed of destroyedFromCombat) {
-        gs.applyKillToGoals(destroyed.color, destroyed.type);
+        gs.applyKillToGoals(destroyed.color, destroyed.type, destroyed.trait);
       }
 
       for (let i = 0; i < kills; i++) {
@@ -418,7 +421,7 @@ export class GameLoop {
         const car = lane.cars[ci];
         killed.push({ laneIdx: li, position: car.position });  // capture before removal
         // Apply goal progress before removing the car
-        gs.applyKillToGoals(car.color, car.type);
+        gs.applyKillToGoals(car.color, car.type, car.trait);
         lane.cars.splice(ci, 1);
         const combo = gs.recordKill(false);
         this._onKill(combo);
@@ -503,6 +506,7 @@ export class GameLoop {
     const boosterFrozen = this._boosterState?.isFrozen() ?? false;
     const comboFrozen   = gs.comboFreezeShots > 0;
     if (boosterFrozen || comboFrozen) {
+      this._surgeFromLane = null;   // frozen traffic does not move, so nothing surges
       if (boosterFrozen) this._boosterState.consumeFreezeShot();
       if (comboFrozen)   gs.comboFreezeShots--;
       // Still refill columns and run viability guard, but cars don't move.
@@ -520,7 +524,17 @@ export class GameLoop {
       const cars = gs.lanes[li].cars;   // front-first (Lane keeps it sorted)
       advanceLaneCars(cars);
       flipChameleons(cars);
-      for (const car of cars) {
+      healMenders(cars);
+    }
+    // Volatile surge: every lane but the one that blew up moves one more row.
+    const surgeSrc = this._surgeFromLane;
+    this._surgeFromLane = null;
+    if (surgeSrc != null) {
+      surgeOtherLanes(Array.from({ length: gs.activeLaneCount }, (_, li) => gs.lanes[li].cars), surgeSrc);
+      this._onSurge?.(surgeSrc);
+    }
+    for (let li = 0; li < gs.activeLaneCount; li++) {
+      for (const car of gs.lanes[li].cars) {
         car.position = this._rowToPosition(car.row, ROWS);
         if (car.position > gs.maxCarPosition) gs.maxCarPosition = car.position;
       }

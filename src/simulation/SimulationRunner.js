@@ -32,7 +32,7 @@ import {
 } from '../director/DirectorConfig.js';
 import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { openingRowsForLevel, clampInitialCarsToDepth, streakEnabledFor } from '../game/LevelManager.js';
-import { canTarget, advanceLaneCars, flipChameleons, nextStreak,
+import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak,
          isBoss, makeBoss, hitBoss, laneHasBoss, BOMB_BOSS_LIGHTS, revealStagedCars } from '../director/TrafficRules.js';
 
 const DT = 1 / 60; // seconds per simulation tick (used for fire cooldowns only)
@@ -210,8 +210,8 @@ export class SimulationRunner {
     const streakOn = typeof this._cfg.streak === 'boolean' ? this._cfg.streak
       : (this._cfg.levelId != null ? streakEnabledFor({ id: this._cfg.levelId }) : false);
     // A car record carries the V2 trait state alongside row/hp/type/color.
-    const rec = (car, row) => ({ row, hp: car.hp, type: car.type, color: car.color,
-      trait: car.trait, armor: car.armor, altColor: car.altColor });
+    const rec = (car, row) => ({ row, hp: car.hp, maxHp: car.hp, type: car.type, color: car.color,
+      trait: car.trait, armor: car.armor, altColor: car.altColor, recentHit: false });
     const shooterDir = new ShooterDirector({}, rng, arbiter);
     shooterDir.setColorBias(this._cfg.shooterColorWeights);   // §3c L10 v2 (same impl as live game)
     const phaseMan   = new IntensityPhase(duration);
@@ -267,13 +267,14 @@ export class SimulationRunner {
     const hasGoals     = goals.length > 0;
     const goalProgress = goals.map(g => g.count);
     const totalGoalCount = goals.reduce((s, g) => s + g.count, 0);
-    const applyKillToGoals = (color, type) => {
+    const applyKillToGoals = (color, type, trait = null) => {
       for (let i = 0; i < goals.length; i++) {
         const g = goals[i];
         const match = g.type === 'destroyTotal'
           || (g.type === 'destroyColor' && color === g.color)
           || (g.type === 'destroyType'  && type  === g.carType)
-          || (g.type === 'defeatBoss'   && type  === 'boss');
+          || (g.type === 'defeatBoss'   && type  === 'boss')
+          || (g.type === 'destroyTrait' && trait != null && trait === g.trait);
         if (match) goalProgress[i] = Math.max(0, goalProgress[i] - 1);
       }
     };
@@ -382,14 +383,19 @@ export class SimulationRunner {
     };
 
     // ONE correct shot → advance ALL cars 1 row, breach-check, refill. Per shot.
+    let surgeFrom = null;   // lane index of a volatile killed by this shot, if any
     const _advanceOneRow = (phase) => {
       totalAdvances++;
       // FREEZE: an activated freeze skips this advance entirely — cars don't move
       // forward, no breach, no refill (mirrors "your next shot is free, no cars advance").
-      if (freezeSkips > 0) { freezeSkips--; return; }
+      if (freezeSkips > 0) { freezeSkips--; surgeFrom = null; return; }
       // Same traffic rules as GameLoop._advanceGrid: speeders move 2, nobody
       // passes the car ahead, chameleons flip colour.
-      for (const lane of discreteLanes) { advanceLaneCars(lane.cars); flipChameleons(lane.cars); }
+      for (const lane of discreteLanes) { advanceLaneCars(lane.cars); flipChameleons(lane.cars); healMenders(lane.cars); }
+      if (surgeFrom !== null) {   // volatile surge — same helper the live game calls
+        surgeOtherLanes(discreteLanes.map(l => l.cars), surgeFrom);
+        surgeFrom = null;
+      }
       if (discreteLanes.some(l => l.cars.length > 0 && l.cars[0].row >= BREACH_ROW)) {
         lostAt = totalAdvances;   // marker (shot index), not a wall-clock time
         return;
@@ -465,7 +471,7 @@ export class SimulationRunner {
             const bossSurvives = boss ? !hitBoss(boss, BOMB_BOSS_LIGHTS) : false;
             for (const car of bestLane.cars) {
               if (car === boss && bossSurvives) continue;
-              carsKilled++; bombKills++; applyKillToGoals(car.color, car.type);
+              carsKilled++; bombKills++; applyKillToGoals(car.color, car.type, car.trait);
             }
             bestLane.cars.length = 0;
             if (bossSurvives) bestLane.cars.push(boss);
@@ -541,11 +547,12 @@ export class SimulationRunner {
           // at the first car of a different colour, exactly as the game does.
           const res = this._combat.resolve({ color: s.color, damage: s.damage }, laneView(lane), { power });
           if (res.armorBroken) armorBreaks++;
+          surgeFrom = causesSurge(res.destroyed) ? lane.id : null;
           if (streakOn) ({ streak, charged: streakCharged } = nextStreak(streak, streakCharged, res.kills, power));
           carryOvers += res.carryOverKills;
           for (const dead of res.destroyed) {
             carsKilled++;
-            applyKillToGoals(dead.color, dead.type);   // credit the level's goals
+            applyKillToGoals(dead.color, dead.type, dead.trait);   // credit the level's goals
             currentCombo = (totalAdvances - lastKillTime <= COMBO_WINDOW) ? currentCombo + 1 : 1;
             lastKillTime = totalAdvances;
             if (currentCombo > maxCombo) maxCombo = currentCombo;

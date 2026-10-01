@@ -89,7 +89,7 @@ import { GoalCounterUI }          from './GoalCounterUI.js';
 import { StreakMeter }            from './StreakMeter.js';
 import { adManager }            from '../ads/AdManager.js';
 import { PopupQueue, PRIORITY }  from './PopupQueue.js';
-import { Analytics, logEvent }    from '../analytics/Analytics.js';
+import { Analytics, logEvent, setAnalyticsEnabled } from '../analytics/Analytics.js';
 import { AutoTuner }             from '../analytics/AutoTuner.js';
 import { AchievementManager }     from '../game/AchievementManager.js';
 import { DailyChallengeManager }  from '../game/DailyChallengeManager.js';
@@ -314,14 +314,17 @@ async function main() {
   loadScreen.destroy({ children: true });
 
   // ── Analytics (fire-and-forget, anonymous) ────────────────────────────────
+  // Consent is resolved first (UMP); analytics send nothing until it allows.
   const analytics = new Analytics();
-  analytics.recordSessionStart();
 
   // ── Progress (localStorage) ──────────────────────────────────────────────
   const progress = new ProgressManager();
 
   // ── Haptics + Colorblind ─────────────────────────────────────────────────
   await adManager.init();
+  setAnalyticsEnabled(adManager.consentGranted);
+  adManager.onConsentChange = setAnalyticsEnabled;
+  analytics.recordSessionStart();
 
   const haptics = new HapticsManager();
   haptics.enabled = progress.hapticsEnabled;

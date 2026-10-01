@@ -10,6 +10,9 @@
 // (v1.1 hearts/heartsLastDepleted removed in v1.7 — the lives system was vestigial;
 //  see the _load migration and §3e City Repair which replaced it with cityState.)
 const STORAGE_KEY = 'lane-defense-v1';
+// Bump when a migration is added to _load. Written on every save so a future
+// build can tell which schema a stored save came from.
+export const SAVE_VERSION = 2;
 
 // 7-day reward sequence.  Exported so DailyRewardScreen can render labels.
 export const DAILY_REWARDS = [
@@ -26,6 +29,7 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function defaults() {
   return {
+    saveVersion:            SAVE_VERSION,
     unlockedLevel:          1,
     stars:                  {},
     coins:                  0,
@@ -563,8 +567,20 @@ export class ProgressManager {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const d    = defaults();
-        const saved = JSON.parse(raw);
+        let saved;
+        try { saved = JSON.parse(raw); } catch { saved = null; }
+        if (saved === null || typeof saved !== 'object' || Array.isArray(saved)) {
+          // Unreadable save: keep the raw text under a side key so it can be
+          // recovered by hand, then start fresh. (Without this the next _save()
+          // silently overwrote the only copy.)
+          try { localStorage.setItem(STORAGE_KEY + '-corrupt', raw); } catch { /* full */ }
+          return defaults();
+        }
         Object.assign(d, saved);
+        // Sanitize the scalars every screen does arithmetic on.
+        d.unlockedLevel = Number.isFinite(d.unlockedLevel) ? Math.max(1, Math.floor(d.unlockedLevel)) : 1;
+        d.coins         = Number.isFinite(d.coins) ? Math.max(0, Math.floor(d.coins)) : 0;
+        d.saveVersion   = SAVE_VERSION;
         // Deep-merge nested objects so new sub-fields survive schema additions.
         d.boosters           = Object.assign(defaults().boosters,           saved.boosters           ?? {});
         // Inventory arrived with the premium pass: a save without one keeps the

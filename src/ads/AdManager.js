@@ -30,6 +30,7 @@ export class AdManager {
     this._overlay          = null;
     this._native           = false;
     this._lastInterstitial = 0;
+    this._consent          = !Capacitor.isNativePlatform();   // web has no consent regime
     this._privacyOptions   = false;   // UMP says the player must be able to reopen consent
   }
 
@@ -79,10 +80,15 @@ export class AdManager {
       // the GDPR message configured in the AdMob console (Privacy & messaging).
       const info = await this._resolveConsent();
       this._native = info.canRequestAds;
+      this._consent = info.canRequestAds;
     } catch (e) {
       console.warn('[AdManager] AdMob init failed:', e);
+      this._consent = false;
     }
   }
+
+  /** True when the player may be measured: web (no consent regime) or UMP allows it. */
+  get consentGranted() { return this._consent; }
 
   async _resolveConsent() {
     let info = await AdMob.requestConsentInfo();
@@ -105,6 +111,8 @@ export class AdManager {
       await AdMob.showPrivacyOptionsForm();
       const info = await AdMob.requestConsentInfo();
       this._native = info.canRequestAds;
+      this._consent = info.canRequestAds;
+      this.onConsentChange?.(this._consent);
     } catch (e) {
       console.warn('[AdManager] privacy options failed:', e);
     }

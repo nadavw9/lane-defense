@@ -19,6 +19,11 @@ function _genUUID() {
   });
 }
 
+// Off until the app has resolved consent (Google UMP via AdManager). Where the
+// law requires consent and the player has not given it, nothing is ever sent.
+let _enabled = false;
+export function setAnalyticsEnabled(v) { _enabled = !!v; }
+
 export class Analytics {
   constructor() {
     this._playerId = this._getOrCreatePlayerId();
@@ -86,7 +91,7 @@ export class Analytics {
   // POST to a Firebase REST collection. Errors are swallowed at both the
   // Promise level (network failure) and the synchronous level (fetch missing).
   _post(collection, payload) {
-    if (import.meta.env.DEV) return;   // dev and test runs never pollute live data
+    if (import.meta.env.DEV || !_enabled) return;   // dev/test runs and no-consent players send nothing
     try {
       fetch(`${DB_URL}/${collection}.json`, {
         method:  'POST',
@@ -102,7 +107,7 @@ export class Analytics {
 // Fire-and-forget discrete event logger. Wraps every failure so analytics
 // never affect gameplay.
 export function logEvent(eventName, data) {
-  if (import.meta.env.DEV) return;
+  if (import.meta.env.DEV || !_enabled) return;
   try {
     fetch(`${DB_URL}/events.json`, {
       method:  'POST',

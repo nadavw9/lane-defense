@@ -417,9 +417,11 @@ export class ProgressManager {
     // Saves from before the local-date change hold a UTC key; honour it for yesterday
     // so nobody loses a streak to the migration.
     const yesterday = previousLocalDateKey(now);
-    const continued = last === yesterday || last === previousUtcKey(now);
+    // Only a streak last written by the old UTC code (no `key` marker) gets the UTC fallback.
+    const legacy    = streak.key !== 'local';
+    const continued = last === yesterday || (legacy && last === previousUtcKey(now));
     const newCount  = continued ? prev + 1 : 1;
-    this._data.loginStreak = { count: newCount, lastLogin: today };
+    this._data.loginStreak = { count: newCount, lastLogin: today, key: 'local' };
     this._save();
     return { count: newCount, wasReset: !continued && prev > 0, prevCount: prev };
   }
@@ -490,7 +492,7 @@ export class ProgressManager {
     this._data.streakShields = Math.max(0, (this._data.streakShields ?? 1) - 1);
     // Restore the streak as if today continues yesterday.
     const today = localDateKey();
-    this._data.loginStreak = { count: prevCount + 1, lastLogin: today };
+    this._data.loginStreak = { count: prevCount + 1, lastLogin: today, key: 'local' };
     this._save();
     return true;
   }

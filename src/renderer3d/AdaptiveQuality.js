@@ -8,7 +8,10 @@
 export const QUALITY_STEPS = [1, 0.8, 0.65, 0.5];   // multiplier on the full render ratio
 
 const WINDOW_FRAMES = 90;
-const SLOW_MS = 26;        // average above this (< ~38 fps) → drop a step
+// A steady 33 ms is a 30 Hz-capped display (battery saver, Low Power Mode) or a game that
+// is simply fine at 30 fps — a turn-based puzzle needs no more — so only genuinely poor
+// frame times (< ~25 fps) cost resolution.
+const SLOW_MS = 40;        // average above this → drop a step
 const FAST_MS = 18;        // average below this (> ~55 fps) → candidate to climb
 const FAST_WINDOWS = 3;    // consecutive fast windows needed to climb
 const HITCH_MS = 250;      // single frames longer than this are not samples

@@ -7,7 +7,7 @@
 // a native wrapper.
 //
 import { Capacitor } from '@capacitor/core';
-import { shouldShowInterstitial } from './adPolicy.js';
+import { interstitialWindowOpen, isInterstitialTurn } from './adPolicy.js';
 import { AdMob, RewardAdPluginEvents, InterstitialAdPluginEvents, AdmobConsentStatus } from '@capacitor-community/admob';
 
 const REWARDED_AD_ID     = 'ca-app-pub-3492310681731275/5674269166';
@@ -166,13 +166,14 @@ export class AdManager {
   }
 
   // Show an interstitial ad (lose screen). Returns a Promise that resolves
-  // once the ad is dismissed. Paced by adPolicy.shouldShowInterstitial. Resolves immediately on web or when throttled.
-  showInterstitial(levelId = null) {
+  // once the ad is dismissed. Paced by adPolicy (window + every-Nth). Resolves immediately on web or when throttled.
+  showInterstitial(levelId = 0) {
     if (!this._native) return Promise.resolve();
     const now = Date.now();
-    this._eligibleCount++;
-    if (!shouldShowInterstitial({ now, lastInterstitial: this._lastInterstitial,
-      lastRewarded: this._lastRewarded, levelId, eligibleCount: this._eligibleCount })) return Promise.resolve();
+    if (!interstitialWindowOpen({ now, lastInterstitial: this._lastInterstitial,
+      lastRewarded: this._lastRewarded, levelId })) return Promise.resolve();
+    this._eligibleCount++;   // only moments the window allowed count toward "every second"
+    if (!isInterstitialTurn(this._eligibleCount)) return Promise.resolve();
     this._lastInterstitial = now;
 
     return new Promise((resolve) => {

@@ -33,6 +33,7 @@ export class GameRenderer3D {
     this._width   = width;
     this._height  = height;
     this._quality = new AdaptiveQuality();
+    this._appliedFactor = 1;
     this._lastRenderAt = 0;
     this._canvas  = null;
     this._scene3d  = null;
@@ -529,7 +530,12 @@ export class GameRenderer3D {
     if (this._canvas?.style.display === 'none') return;
     // Slow devices step the render scale down (and back up with headroom).
     const now = performance.now();
-    if (this._lastRenderAt && this._quality.record(now - this._lastRenderAt)) this._applyRenderScale();
+    if (this._lastRenderAt && this._quality.record(now - this._lastRenderAt)) {
+      // Downgrades apply at once (the player feels lag now). Upgrades wait for the next
+      // level build: badge canvases are sized from the render scale when built, and a
+      // mid-level increase would leave their digits soft.
+      if (this._quality.factor < this._appliedFactor) { this._appliedFactor = this._quality.factor; this._applyRenderScale(); }
+    }
     this._lastRenderAt = now;
     this._scene3d.renderDual();
   }
@@ -603,6 +609,7 @@ export class GameRenderer3D {
     // Device (render-target) px per world unit — badge canvases are sized from
     // this so damage numbers rasterize at their true on-screen resolution.
     // Same pixel-ratio clamp as Scene3D's renderer.setPixelRatio.
+    if (this._appliedFactor !== this._quality.factor) { this._appliedFactor = this._quality.factor; this._applyRenderScale(); }   // pending upgrade
     const frustum = computeFrustum(this._width, this._height);
     const scale   = this._renderScale ?? Math.min(window.devicePixelRatio || 1, 2);
     const pxPerWu = (this._height * scale) / (2 * frustum.halfZe);
@@ -638,7 +645,7 @@ export class GameRenderer3D {
     if (!this._scene3d || !this._canvas) return;
     const cssH  = parseFloat(this._canvas.style.height) || this._height;
     const full  = Math.min(2.5, (cssH / this._height) * (window.devicePixelRatio || 1));
-    const ratio = Math.max(1, full * this._quality.factor);
+    const ratio = Math.max(1, full * this._appliedFactor);
     this._scene3d.setRenderScale(ratio);
     this._renderScale = ratio;
   }

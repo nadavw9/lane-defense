@@ -9,14 +9,14 @@ describe('AdaptiveQuality', () => {
   });
   it('drops a step after one slow window and never below the floor', () => {
     const q = new AdaptiveQuality();
-    expect(feed(q, 40, 90)).toBe(1);
+    expect(feed(q, 48, 90)).toBe(1);
     expect(q.factor).toBe(QUALITY_STEPS[1]);
-    feed(q, 40, 90 * 10);
+    feed(q, 48, 90 * 10);
     expect(q.factor).toBe(QUALITY_STEPS[QUALITY_STEPS.length - 1]);
   });
   it('climbs back only after repeated fast windows', () => {
     const q = new AdaptiveQuality();
-    feed(q, 40, 90);
+    feed(q, 48, 90);
     expect(feed(q, 12, 90 * 2)).toBe(0);
     expect(feed(q, 12, 90)).toBe(1);
     expect(q.factor).toBe(1);
@@ -30,5 +30,10 @@ describe('AdaptiveQuality', () => {
   it('a mid-speed device does not oscillate', () => {
     const q = new AdaptiveQuality();
     expect(feed(q, 21, 90 * 20)).toBe(0);
+  });
+  it('a display capped at 30 Hz keeps full quality', () => {
+    const q = new AdaptiveQuality();
+    expect(feed(q, 33.4, 90 * 20)).toBe(0);
+    expect(q.factor).toBe(1);
   });
 });

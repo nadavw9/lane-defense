@@ -38,6 +38,11 @@ describe('login streak follows the local day', () => {
     const r = p.touchLoginStreak(new Date(2026, 5, 13, 12));
     expect(r).toMatchObject({ count: 1, wasReset: true, prevCount: 2 });
   });
+  it('the UTC fallback applies once: after a local write it no longer forgives a missed day', () => {
+    p.touchLoginStreak(new Date(2026, 5, 9, 12));
+    const r = p.touchLoginStreak(new Date(2026, 5, 11, 1, 30));   // skipped the 10th
+    expect(r.wasReset).toBe(true);
+  });
   it('a streak saved with a legacy UTC key survives the migration', () => {
     const now = new Date(2026, 5, 11, 12);
     p._data.loginStreak = { count: 4, lastLogin: utcDateKey(new Date(now.getTime() - 86400000)) };

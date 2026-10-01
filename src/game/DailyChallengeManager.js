@@ -41,22 +41,27 @@ function todayDateKey() {
 
 // Deterministic day index seeded from days since 2026-01-01.
 function dayIndex() {
-  const epoch = new Date(2026, 0, 1).getTime();
-  return Math.max(0, Math.floor((Date.now() - epoch) / (1000 * 60 * 60 * 24)));
+  // Calendar days between local dates — an elapsed-ms division drifts by an hour
+  // across DST and would roll the challenge at a different moment than the date key.
+  const d = new Date();
+  return Math.max(0, Math.floor((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(2026, 0, 1)) / 86400000));
 }
 
 // ISO week key (YYYY-Www) — same for every player in the same calendar week.
 function weekKey() {
   const d   = new Date();
   const jan1 = new Date(d.getFullYear(), 0, 1);
-  const week = Math.ceil(((d - jan1) / 86400000 + jan1.getDay() + 1) / 7);
+  // Whole calendar days since Jan 1 (0-based): rolls at local midnight, DST-proof. The old
+  // fractional-day maths rolled the week at midday on the last day of each week.
+  const days = Math.round((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(d.getFullYear(), 0, 1)) / 86400000);
+  const week = Math.ceil((days + jan1.getDay() + 1) / 7);
   return `${d.getFullYear()}-W${String(week).padStart(2, '0')}`;
 }
 
 // Deterministic week index from weeks since 2026-01-05 (first Monday).
 function weekIndex() {
-  const epoch = new Date(2026, 0, 5).getTime();
-  return Math.max(0, Math.floor((Date.now() - epoch) / (7 * 24 * 60 * 60 * 1000)));
+  const d = new Date();
+  return Math.max(0, Math.floor((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(2026, 0, 5)) / (7 * 86400000)));
 }
 
 export { CHALLENGES as DAILY_CHALLENGES };

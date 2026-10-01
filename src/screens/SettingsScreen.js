@@ -78,18 +78,31 @@ export class SettingsScreen {
     c.addChild(mask);
     body.mask = mask;
     body.eventMode = 'static';
-    let scroll = 0, dragFrom = null, startScroll = 0;
+    let scroll = 0, dragFrom = null, startScroll = 0, moved = false;
     const apply = () => { body.y = -scroll; };
     // Only a drag that STARTS on the background scrolls — sliders, toggles and
     // buttons keep their own gestures.
-    body.on('pointerdown', (e) => { if (e.target?.cursor !== 'pointer') { dragFrom = e.global.y; startScroll = scroll; } });
+    body.on('pointerdown', (e) => { if (e.target?.cursor !== 'pointer') { dragFrom = e.global.y; startScroll = scroll; moved = false; } });
     body.on('globalpointermove', (e) => {
       if (dragFrom == null) return;
-      scroll = Math.max(0, Math.min(maxScroll, startScroll - (e.global.y - dragFrom)));
+      const dy = e.global.y - dragFrom;
+      if (!moved && Math.abs(dy) > 6) {
+        // From here it is a scroll, not a tap: nothing under the finger may fire when it
+        // lifts (buttons act on pointerup, wherever the finger happens to be).
+        moved = true;
+        c.interactiveChildren = false;
+      }
+      if (!moved) return;
+      scroll = Math.max(0, Math.min(maxScroll, startScroll - dy));
       apply();
     });
-    const end = () => { dragFrom = null; };
-    body.on('pointerup', end); body.on('pointerupoutside', end);
+    const end = () => {
+      if (dragFrom == null) return;
+      dragFrom = null;
+      if (moved) setTimeout(() => { c.interactiveChildren = true; }, 0);   // after this pointerup is routed
+    };
+    c.eventMode = 'static';
+    c.on('pointerup', end); c.on('pointerupoutside', end);
     body.on('wheel', (e) => { scroll = Math.max(0, Math.min(maxScroll, scroll + e.deltaY * 0.6)); apply(); });
   }
 

@@ -1619,7 +1619,7 @@ async function main() {
           loseScreen = null;
           rescueOverlay = null;
           const cfg = currentLevelIsDaily ? dailyChallengeManager.getChallenge() : levelManager.levelNumber;
-          adManager.showInterstitial(currentLevelIsDaily ? 'daily' : levelManager.levelNumber).then(() => {
+          adManager.showInterstitial(currentLevelIsDaily ? progress.unlockedLevel : levelManager.levelNumber).then(() => {
             transition.fadeOut(0.20, () => { _startLevel(cfg); transition.fadeIn(0.20, null); });
           });
         },
@@ -1627,7 +1627,7 @@ async function main() {
           loseScreen?.destroy();
           loseScreen = null;
           rescueOverlay = null;
-          adManager.showInterstitial(currentLevelIsDaily ? 'daily' : levelManager.levelNumber).then(() => {
+          adManager.showInterstitial(currentLevelIsDaily ? progress.unlockedLevel : levelManager.levelNumber).then(() => {
             transition.fadeOut(0.20, () => { showLevelSelect(); transition.fadeIn(0.20, null); });
           });
         },
@@ -1682,6 +1682,7 @@ async function main() {
         if (!rescueOverlay || gs.coins < RESCUE_COIN_COST) return;
         gs.coins -= RESCUE_COIN_COST;
         progress.setCoins(gs.coins);
+        coinsAtLevelStart -= RESCUE_COIN_COST;   // the payment is not a loss of earnings this level
         logEvent('rescue_used', { levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber, method: 'coins' });
         resumeAfterRescue();
       },
@@ -1698,7 +1699,7 @@ async function main() {
         _recordFinalLoss();
         rescueOverlay.destroy();
         rescueOverlay = null;
-        adManager.showInterstitial(currentLevelIsDaily ? 'daily' : levelManager.levelNumber).then(() => {
+        adManager.showInterstitial(currentLevelIsDaily ? progress.unlockedLevel : levelManager.levelNumber).then(() => {
           transition.fadeOut(0.20, () => { showLevelSelect(); transition.fadeIn(0.20, null); });
         });
       },

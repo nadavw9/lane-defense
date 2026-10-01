@@ -201,8 +201,10 @@ async function main() {
     width:           APP_W,
     height:          APP_H,
     backgroundAlpha: 0,               // transparent so Three.js canvas shows through
-    antialias:       true,
-    resolution:      window.devicePixelRatio || 1,
+    // HUD at DPR > 2 buys nothing visible and costs fill rate on phones; MSAA is
+    // only worth it on low-density screens, where HUD curves would otherwise stair-step.
+    antialias:       (window.devicePixelRatio || 1) < 2,
+    resolution:      Math.min(window.devicePixelRatio || 1, 2),
     autoDensity:     true,
   });
   document.body.appendChild(app.canvas);

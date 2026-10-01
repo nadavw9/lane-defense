@@ -13,6 +13,7 @@
 import { Scene3D, posToZ } from './Scene3D.js';
 import { Lighting3D }    from './Lighting3D.js';
 import { levelTheme }    from './ThemeRegistry.js';
+import { AdaptiveQuality } from './AdaptiveQuality.js';
 import { Road3D }        from './Road3D.js';
 import { Skybox3D }      from './Skybox3D.js';
 import { Car3D }         from './Car3D.js';
@@ -31,6 +32,8 @@ export class GameRenderer3D {
   constructor(width, height) {
     this._width   = width;
     this._height  = height;
+    this._quality = new AdaptiveQuality();
+    this._lastRenderAt = 0;
     this._canvas  = null;
     this._scene3d  = null;
     this._lighting = null;
@@ -524,6 +527,10 @@ export class GameRenderer3D {
   render() {
     if (!this._mounted) return;
     if (this._canvas?.style.display === 'none') return;
+    // Slow devices step the render scale down (and back up with headroom).
+    const now = performance.now();
+    if (this._lastRenderAt && this._quality.record(now - this._lastRenderAt)) this._applyRenderScale();
+    this._lastRenderAt = now;
     this._scene3d.renderDual();
   }
 
@@ -630,7 +637,8 @@ export class GameRenderer3D {
   _applyRenderScale() {
     if (!this._scene3d || !this._canvas) return;
     const cssH  = parseFloat(this._canvas.style.height) || this._height;
-    const ratio = Math.min(3, Math.max(1, (cssH / this._height) * (window.devicePixelRatio || 1)));
+    const full  = Math.min(2.5, (cssH / this._height) * (window.devicePixelRatio || 1));
+    const ratio = Math.max(1, full * this._quality.factor);
     this._scene3d.setRenderScale(ratio);
     this._renderScale = ratio;
   }

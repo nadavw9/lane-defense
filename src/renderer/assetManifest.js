@@ -9,7 +9,14 @@
 //    build the same URLs dynamically, but the files are identical).
 //  - Always prefix with BASE_URL; never hardcode '/sprites/...'.
 
+import { MAP_WORLDS, worldForLevel } from '../screens/levelMapLayout.js';
+
 const _B = import.meta.env.BASE_URL;   // '' in dev, '/lane-defense/' on GH Pages
+
+// Worlds that exist in the campaign right now (derived from the level table, so a
+// world's art is preloaded exactly when its levels are). ['world1', ...] / [1, ...]
+const WORLD_THEMES = MAP_WORLDS.map(w => w.theme);
+const WORLD_NUMS   = WORLD_THEMES.map(t => Number(t.slice(5)));
 
 export const COLORS = ['red', 'blue', 'green', 'yellow', 'purple', 'orange'];
 
@@ -33,11 +40,13 @@ export const BUILDING_URLS = [...BUILDING_SETS.tutorial, ...BUILDING_SETS.indust
 
 // World → building set. Tutorial City L1–15, Industrial Zone L16–30, Night Highway L31–40.
 // Daily challenge (non-numeric levelId) uses the tutorial set.
+const BUILDING_SET_BY_THEME = {
+  world1: 'tutorial', world2: 'industrial', world3: 'night',
+  world4: 'industrial', world5: 'tutorial', world6: 'night', world7: 'night',
+};
 export function buildingSetForLevel(levelId) {
   if (typeof levelId !== 'number') return 'tutorial';
-  if (levelId <= 15) return 'tutorial';
-  if (levelId <= 30) return 'industrial';
-  return 'night';
+  return BUILDING_SET_BY_THEME[worldForLevel(levelId).theme] ?? 'night';
 }
 
 // AI world side-panel image, selected by level range (VISION worlds):
@@ -47,9 +56,7 @@ export function buildingSetForLevel(levelId) {
 //   an industrial road.)
 export function worldPanelForLevel(levelId) {
   if (typeof levelId !== 'number') return 'world1';
-  if (levelId <= 15) return 'world1';
-  if (levelId <= 30) return 'world2';
-  return 'world3';
+  return worldForLevel(levelId).theme;
 }
 
 // Cleaned-up top-down car used on the TITLE intro (the cars/ set has rough edges;
@@ -98,7 +105,7 @@ export const TITLE_ART_URLS = [
   `${_B}sprites/designed/title-logo.png`,
 ];
 
-export const WORLD_PANEL_URLS = [1, 2, 3].flatMap(w => [
+export const WORLD_PANEL_URLS = WORLD_NUMS.flatMap(w => [
   `${_B}sprites/designed/world${w}-left.png`,
   `${_B}sprites/designed/world${w}-right.png`,
 ]);
@@ -106,17 +113,14 @@ export const WORLD_PANEL_URLS = [1, 2, 3].flatMap(w => [
 // Per-world road tiles — sliced from each world's '-a' scene by
 // scripts/process-scenes.mjs, with the lane dash painted programmatically on
 // the tile centre-line (Road3D's half-tile offset turns it into the dividers).
-export const WORLD_ROAD_URLS = {
-  world1: `${_B}sprites/designed/road-world1.png`,
-  world2: `${_B}sprites/designed/road-world2.png`,
-  world3: `${_B}sprites/designed/road-world3.png`,
-};
+export const WORLD_ROAD_URLS = Object.fromEntries(
+  WORLD_THEMES.map(t => [t, `${_B}sprites/designed/road-${t}.png`]));
 
 // Strip-native side panels (Batch S): band aspect == on-screen strip aspect, so
 // CityEdges renders them width-fit + vertically tiled — the full band width is
 // always shown and buildings can never be sliced. The legacy world*.png panels
 // remain as the cover-crop fallback.
-export const STRIP_PANEL_URLS = [1, 2, 3].flatMap(w => [
+export const STRIP_PANEL_URLS = WORLD_NUMS.flatMap(w => [
   `${_B}sprites/designed/strip-world${w}-left.png`,
   `${_B}sprites/designed/strip-world${w}-right.png`,
 ]);
@@ -124,11 +128,11 @@ export const STRIP_PANEL_URLS = [1, 2, 3].flatMap(w => [
 // Full-scene slices (one AI scene per world+variant → 4 unified surfaces).
 // Variants a/b/c rotate across levels within a world (sceneVariantForLevel).
 export const SCENE_VARIANTS = ['a', 'b', 'c'];
-export const SCENE_STRIP_URLS = [1, 2, 3].flatMap(w => SCENE_VARIANTS.flatMap(v => [
+export const SCENE_STRIP_URLS = WORLD_NUMS.flatMap(w => SCENE_VARIANTS.flatMap(v => [
   `${_B}sprites/designed/strip-world${w}-${v}-left.png`,
   `${_B}sprites/designed/strip-world${w}-${v}-right.png`,
 ]));
-export const ZONE_FLOOR_URLS = [1, 2, 3].flatMap(w => SCENE_VARIANTS.map(v =>
+export const ZONE_FLOOR_URLS = WORLD_NUMS.flatMap(w => SCENE_VARIANTS.map(v =>
   `${_B}sprites/designed/zone-world${w}-${v}.png`,
 ));
 // Variant used for a given level within its world (a/b/c cycle).
@@ -162,8 +166,8 @@ export const FRAME_URLS = ['win-burst', 'lose-frame'].map(n => `${_B}sprites/ui/
 // Level map (2026-09-28): one baked background per world page + the city-repair
 // buildings in three states (rubble / scaffold / repaired) × three variants.
 export const MAP_URLS = [
-  ...['world1', 'world2', 'world3'].map(t => `${_B}sprites/designed/map-${t}.png`),
-  ...['world1', 'world2', 'world3'].flatMap(t => [0, 1, 2].flatMap(st => [0, 1, 2].map(v => `${_B}sprites/designed/repair-${t}-${st}-${v}.png`))),
+  ...WORLD_THEMES.map(t => `${_B}sprites/designed/map-${t}.png`),
+  ...WORLD_THEMES.flatMap(t => [0, 1, 2].flatMap(st => [0, 1, 2].map(v => `${_B}sprites/designed/repair-${t}-${st}-${v}.png`))),
 ];
 
 // V2 intro art shown on the level card.
@@ -189,7 +193,7 @@ export const CRITICAL_SPRITE_URLS = new Set([...CAR_URLS, ...SHOOTER_URLS, ...BO
 // rendered from projection.js's geometry. Loaded by Road3D's own THREE loader,
 // so they are NOT in the Pixi preload list.
 const BACKDROPS = new Set([
-  ...[1, 2, 3].flatMap(w => ['a', 'b', 'c'].map(v => `world${w}-${v}-3`)),
+  ...WORLD_NUMS.flatMap(w => ['a', 'b', 'c'].map(v => `world${w}-${v}-3`)),
   'world1-b-1', 'world1-c-2',
 ]);
 export function backdropUrlFor(levelId, laneCount) {

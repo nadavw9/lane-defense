@@ -9,6 +9,8 @@
 //   ratingPromptShown    — bool; one-time app-rate prompt flag
 // (v1.1 hearts/heartsLastDepleted removed in v1.7 — the lives system was vestigial;
 //  see the _load migration and §3e City Repair which replaced it with cityState.)
+import { LEVEL_COUNT } from './LevelManager.js';
+
 const STORAGE_KEY = 'lane-defense-v1';
 // Bump when a migration is added to _load. Written on every save so a future
 // build can tell which schema a stored save came from.
@@ -184,7 +186,7 @@ export class ProgressManager {
     if ((this._data.stars[key] ?? 0) < stars) {
       this._data.stars[key] = stars;
     }
-    if (levelId >= this._data.unlockedLevel && levelId < 40) {
+    if (levelId >= this._data.unlockedLevel && levelId < LEVEL_COUNT) {
       this._data.unlockedLevel = levelId + 1;
     }
     // §3d DDA: a win clears the mercy streak — next attempt starts at base.

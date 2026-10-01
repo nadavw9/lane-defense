@@ -6,15 +6,28 @@
 // rows of four; each level's city-repair building sits on a plot just above
 // its node.
 
+import { LEVEL_COUNT } from '../game/LevelManager.js';
+
 export const MAP_W = 390, MAP_H = 844;
 export const MAP_TOP = 178, MAP_BOTTOM = 772;   // node band (header above, safe margin below)
 const COLS_X = [62, 154, 236, 328];
 
-export const MAP_WORLDS = [
-  { page: 1, first: 1,  last: 15, name: 'Toy Town',        theme: 'world1' },
-  { page: 2, first: 16, last: 30, name: 'Steel Yards',     theme: 'world2' },
-  { page: 3, first: 31, last: 40, name: 'Neon Nights',     theme: 'world3' },
+// Every world the campaign is designed for. A world appears on the map only once
+// the level table reaches it, and its last page is clamped to the levels that
+// exist, so the map can never show a level that is not in the game.
+const WORLD_DEFS = [
+  { first: 1,  last: 15,  name: 'Toy Town',        theme: 'world1' },
+  { first: 16, last: 30,  name: 'Steel Yards',     theme: 'world2' },
+  { first: 31, last: 45,  name: 'Neon Nights',     theme: 'world3' },
+  { first: 46, last: 60,  name: 'Sun Valley',      theme: 'world4' },
+  { first: 61, last: 75,  name: 'Frost Pass',      theme: 'world5' },
+  { first: 76, last: 90,  name: 'Harbor Lights',   theme: 'world6' },
+  { first: 91, last: 100, name: 'Starlight Strip', theme: 'world7' },
 ];
+
+export const MAP_WORLDS = WORLD_DEFS
+  .filter(w => w.first <= LEVEL_COUNT)
+  .map((w, i) => ({ ...w, page: i + 1, last: Math.min(w.last, LEVEL_COUNT) }));
 
 export function worldForLevel(levelId) {
   return MAP_WORLDS.find(w => levelId >= w.first && levelId <= w.last) ?? MAP_WORLDS[0];

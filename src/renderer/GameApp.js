@@ -41,7 +41,7 @@ import { BenchRenderer, benchY, benchSlotH } from './BenchRenderer.js';
 import { GameState }       from '../game/GameState.js';
 import { GameLoop }        from '../game/GameLoop.js';
 import { CombatResolver }  from '../game/CombatResolver.js';
-import { LevelManager, openingRowsForLevel, clampInitialCarsToDepth, streakEnabledFor } from '../game/LevelManager.js';
+import { LevelManager, LEVEL_COUNT, openingRowsForLevel, clampInitialCarsToDepth, streakEnabledFor } from '../game/LevelManager.js';
 import { BoosterState }    from '../game/BoosterState.js';
 import { ProgressManager } from '../game/ProgressManager.js';
 import { applyDda }         from '../game/dda.js';
@@ -1540,7 +1540,7 @@ async function main() {
         winScreen = null;
         // After the final level there is no "next": NEXT used to replay L40.
         // Go back to the map (the whole city repaired is the ending).
-        if (levelId >= 40) { showLevelSelect(); return; }
+        if (levelId >= LEVEL_COUNT) { showLevelSelect(); return; }
         // Offer the pre-level card before the next level — same as starting a
         // level fresh from the map (onSelectLevel → _showPreLevel).
         _showPreLevel(levelId + 1);

@@ -18,7 +18,8 @@
 //   (scripted waves), so out-of-band bosses flag "BOSS §3c", never TOO EASY/HARD.
 // Turns: >70 too long (genuine grind; goal-driven levels legitimately run 35-55) · <5 too short.
 
-import { LevelManager } from '../src/game/LevelManager.js';
+import { LevelManager, LEVEL_COUNT } from '../src/game/LevelManager.js';
+import { bandFor } from './bands.mjs';
 import { SimulationRunner } from '../src/simulation/SimulationRunner.js';
 
 const args  = process.argv.slice(2);
@@ -32,7 +33,7 @@ if (!VALID_SKILLS.has(skill)) {
   process.exit(1);
 }
 
-const TOTAL_LEVELS = 40;
+const TOTAL_LEVELS = LEVEL_COUNT;
 const levelIds = levelArg === 'all'
   ? Array.from({ length: TOTAL_LEVELS }, (_, i) => i + 1)
   : levelArg.split(',').map(s => parseInt(s.replace(/^L/i, ''), 10)).filter(n => !Number.isNaN(n));
@@ -45,20 +46,6 @@ function goalSummary(goals) {
     : g.type === 'defeatBoss' ? `BOSS:${g.count}`
     : `${g.carType}:${g.count}`
   ).join(', ');
-}
-
-const BOSS_LEVELS = new Set([10, 20, 30, 40]);
-// L1-L3 are tutorial: ~100% is correct (L3 has no losing mechanism at brisk HP —
-// 3 lanes/2 colors; the tutorial→game transition marker is L4). Win% never flags.
-const TUTORIAL_LEVELS = new Set([1, 2, 3]);
-
-// Target bands at the reference profile (skill=average, boosterIQ 0.70).
-function bandFor(levelId) {
-  if (TUTORIAL_LEVELS.has(levelId)) return { lo: 85, hi: 100, tutorial: true };
-  if (BOSS_LEVELS.has(levelId)) return { lo: 40, hi: 55, boss: true };
-  if (levelId <= 9)  return { lo: 85, hi: 95, boss: false };
-  if (levelId <= 26) return { lo: 70, hi: 82, boss: false };
-  return { lo: 60, hi: 75, boss: false };
 }
 
 function flagFor(levelId, winPct, avgTurns) {
@@ -96,7 +83,7 @@ function runOne(levelId) {
 
 // ── Run + table ────────────────────────────────────────────────────────────────
 console.log(`\nBalance sim — ${levelIds.length} level(s) × ${runs} runs  [skill: ${skill}]  (win = all goals met, no breach)`);
-console.log(`Bands @ average+boosterIQ0.70 — tutorial L1-3: exempt · FTUE L4-9: 85-95 · mid L10-26: 70-82 · late L27-40: 60-75 · bosses: 40-55 (§3c)\n`);
+console.log(`Bands @ average+boosterIQ0.70 — tutorial L1-3: exempt · FTUE L4-9: 85-95 · see tools/bands.mjs · bosses: 40-55 (§3c)\n`);
 console.log('Lvl │ Goals                              │ Win%  │ Band  │ AvgTurns │ Kills/Shot │ Flag');
 console.log('────┼────────────────────────────────────┼───────┼───────┼──────────┼────────────┼──────────────────');
 

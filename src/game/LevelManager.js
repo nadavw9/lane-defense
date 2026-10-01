@@ -279,7 +279,7 @@ const PROGRESSION = [
   { id: 40, name: 'Twin Titans', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Yellow', 'Orange'], worldConfig: W(0),
     duration: 120, spawnBudget: 24, laneTargetCarCount: 2, gridRows: 8,
     traits: { speeder: 0.06, chameleon: 0.06 },
-    hintText: 'FINAL BOSS! Two titans — keep both in check',
+    hintText: 'BOSS! Two titans — keep both in check',
     initialCars: [...open(1),
       { lane: 0, row: 1, sequence: ['Orange', 'Red', 'Blue', 'Yellow', 'Orange', 'Red'], moveEvery: 3 },
       { lane: 2, row: 1, sequence: ['Blue', 'Yellow', 'Orange', 'Red', 'Blue'], moveEvery: 3, reArmor: true }],
@@ -364,6 +364,14 @@ export function clampInitialCarsToDepth(initialCars, gridRows = 16) {
   return initialCars.filter(def => (def.row ?? 0) <= maxRow);
 }
 
+// The campaign length and boss test are derived from the table, never hard-coded:
+// the map, progress, tools and tests all read these, so adding levels is one edit.
+export const LEVEL_COUNT = PROGRESSION.length;
+export function levelConfigFor(id) { return PROGRESSION.find(cfg => cfg.id === id) ?? null; }
+export function isBossLevel(id) {
+  return !!levelConfigFor(id)?.goals?.some(g => g.type === 'defeatBoss');
+}
+
 export class LevelManager {
   constructor() {
     this._idx       = 0;
@@ -412,15 +420,7 @@ export class LevelManager {
     return this._idx === PROGRESSION.length - 1;
   }
 
-  get world() { return this.current.id <= 20 ? 1 : 2; }
-
   get totalLevels() { return PROGRESSION.length; }
-
-  getLevelsForWorld(worldNum) {
-    const start = (worldNum - 1) * 20 + 1;
-    const end   = worldNum * 20;
-    return PROGRESSION.filter(cfg => cfg.id >= start && cfg.id <= end);
-  }
 
   static getSurvivalConfig(wave) {
     const speed   = Math.min(9.5, 4.0 + wave * 0.28);

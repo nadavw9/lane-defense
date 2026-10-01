@@ -7,14 +7,14 @@
 //   node tools/tune-levels.mjs 4-40 [runs=200]   → JSON { id: { hp, goalScale, win } }
 //
 // It only RECOMMENDS; LevelManager.js stays the hand-edited source of truth.
-import { LevelManager } from '../src/game/LevelManager.js';
+import { LevelManager, LEVEL_COUNT } from '../src/game/LevelManager.js';
+import { bandFor } from './bands.mjs';
 import { SimulationRunner } from '../src/simulation/SimulationRunner.js';
 
-const [range = '4-40', runsArg = '200'] = process.argv.slice(2);
+const [range = `4-${LEVEL_COUNT}`, runsArg = '200'] = process.argv.slice(2);
 const [lo, hi = lo] = range.split('-').map(Number);
 const RUNS = Number(runsArg);
-const BOSS = new Set([10, 20, 30, 40]);
-const band = (id) => BOSS.has(id) ? [40, 55] : id <= 9 ? [85, 95] : id <= 26 ? [70, 82] : [60, 75];
+const band = (id) => { const b = bandFor(id); return [b.lo, b.hi]; };
 
 function winRate(cfg, heft, goalScale) {
   const c = { ...cfg, worldConfig: { ...cfg.worldConfig, heft },

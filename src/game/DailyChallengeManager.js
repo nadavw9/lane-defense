@@ -7,6 +7,8 @@
 // it ran on 4 lanes with no goals, and one day used six colours on four bomb
 // columns. Every challenge is now a real V2 board — 3 lanes, 8 rows, a car goal,
 // at most four colours — with ONE twist, and copy that says what actually happens.
+import { localDateKey } from './dateKeys.js';
+
 const CHALLENGES = [
   { name: 'Speeder Rush',   desc: 'Speeders everywhere — they move 2 steps a turn',
     colors: ['Red', 'Blue', 'Green'], heft: 0, traits: { speeder: 0.30 }, goal: 30 },
@@ -34,8 +36,7 @@ const CHALLENGES = [
 
 // Returns 'YYYY-MM-DD' for today's local date.
 function todayDateKey() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return localDateKey();
 }
 
 // Deterministic day index seeded from days since 2026-01-01.

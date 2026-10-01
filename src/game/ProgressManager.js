@@ -10,6 +10,9 @@
 // (v1.1 hearts/heartsLastDepleted removed in v1.7 — the lives system was vestigial;
 //  see the _load migration and §3e City Repair which replaced it with cityState.)
 import { LEVEL_COUNT } from './LevelManager.js';
+import { localDateKey, previousLocalDateKey, utcDateKey } from './dateKeys.js';
+
+const previousUtcKey = (now) => utcDateKey(new Date(now.getTime() - 86400000));
 
 const STORAGE_KEY = 'lane-defense-v1';
 // Bump when a migration is added to _load. Written on every save so a future
@@ -412,16 +415,18 @@ export class ProgressManager {
 
   /** Call once per app open to update the streak.
    *  Returns { count, wasReset, prevCount } so callers can offer a shield. */
-  touchLoginStreak() {
-    const today  = new Date().toISOString().slice(0, 10);
+  touchLoginStreak(now = new Date()) {
+    const today  = localDateKey(now);
     const streak = this._data.loginStreak ?? { count: 0, lastLogin: '' };
     const last   = streak.lastLogin;
     const prev   = streak.count;
 
     if (last === today) return { count: prev, wasReset: false, prevCount: prev };
 
-    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-    const continued = last === yesterday;
+    // Saves from before the local-date change hold a UTC key; honour it for yesterday
+    // so nobody loses a streak to the migration.
+    const yesterday = previousLocalDateKey(now);
+    const continued = last === yesterday || last === previousUtcKey(now);
     const newCount  = continued ? prev + 1 : 1;
     this._data.loginStreak = { count: newCount, lastLogin: today };
     this._save();
@@ -493,7 +498,7 @@ export class ProgressManager {
     if (!this.hasStreakShield()) return false;
     this._data.streakShields = Math.max(0, (this._data.streakShields ?? 1) - 1);
     // Restore the streak as if today continues yesterday.
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDateKey();
     this._data.loginStreak = { count: prevCount + 1, lastLogin: today };
     this._save();
     return true;

@@ -1619,7 +1619,7 @@ async function main() {
           loseScreen = null;
           rescueOverlay = null;
           const cfg = currentLevelIsDaily ? dailyChallengeManager.getChallenge() : levelManager.levelNumber;
-          adManager.showInterstitial().then(() => {
+          adManager.showInterstitial(currentLevelIsDaily ? 'daily' : levelManager.levelNumber).then(() => {
             transition.fadeOut(0.20, () => { _startLevel(cfg); transition.fadeIn(0.20, null); });
           });
         },
@@ -1627,7 +1627,7 @@ async function main() {
           loseScreen?.destroy();
           loseScreen = null;
           rescueOverlay = null;
-          adManager.showInterstitial().then(() => {
+          adManager.showInterstitial(currentLevelIsDaily ? 'daily' : levelManager.levelNumber).then(() => {
             transition.fadeOut(0.20, () => { showLevelSelect(); transition.fadeIn(0.20, null); });
           });
         },
@@ -1696,7 +1696,7 @@ async function main() {
         _recordFinalLoss();
         rescueOverlay.destroy();
         rescueOverlay = null;
-        adManager.showInterstitial().then(() => {
+        adManager.showInterstitial(currentLevelIsDaily ? 'daily' : levelManager.levelNumber).then(() => {
           transition.fadeOut(0.20, () => { showLevelSelect(); transition.fadeIn(0.20, null); });
         });
       },

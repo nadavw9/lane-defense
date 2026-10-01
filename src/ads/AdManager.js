@@ -7,11 +7,11 @@
 // a native wrapper.
 //
 import { Capacitor } from '@capacitor/core';
+import { shouldShowInterstitial } from './adPolicy.js';
 import { AdMob, RewardAdPluginEvents, InterstitialAdPluginEvents, AdmobConsentStatus } from '@capacitor-community/admob';
 
 const REWARDED_AD_ID     = 'ca-app-pub-3492310681731275/5674269166';
 const INTERSTITIAL_AD_ID = 'ca-app-pub-3492310681731275/5734968591';
-const INTERSTITIAL_MIN_MS = 30_000;   // minimum gap between interstitials
 // ── Booster costs (ads required to unlock) ─────────────────────────────────
 export const AD_COSTS = {
   colorchange: 1,   // 1 ad → Color Change booster for this level
@@ -30,6 +30,8 @@ export class AdManager {
     this._overlay          = null;
     this._native           = false;
     this._lastInterstitial = 0;
+    this._lastRewarded     = 0;
+    this._eligibleCount    = 0;
     this._consent          = !Capacitor.isNativePlatform();   // web has no consent regime
     this._privacyOptions   = false;   // UMP says the player must be able to reopen consent
   }
@@ -141,6 +143,7 @@ export class AdManager {
 
     listeners.push(AdMob.addListener(RewardAdPluginEvents.Rewarded, () => {
       rewarded = true;
+      this._lastRewarded = Date.now();
       cleanup();
       onComplete?.();
     }));
@@ -163,12 +166,13 @@ export class AdManager {
   }
 
   // Show an interstitial ad (lose screen). Returns a Promise that resolves
-  // once the ad is dismissed. Throttled to avoid showing more than once per
-  // INTERSTITIAL_MIN_MS. Resolves immediately on web or when throttled.
-  showInterstitial() {
+  // once the ad is dismissed. Paced by adPolicy.shouldShowInterstitial. Resolves immediately on web or when throttled.
+  showInterstitial(levelId = null) {
     if (!this._native) return Promise.resolve();
     const now = Date.now();
-    if (now - this._lastInterstitial < INTERSTITIAL_MIN_MS) return Promise.resolve();
+    this._eligibleCount++;
+    if (!shouldShowInterstitial({ now, lastInterstitial: this._lastInterstitial,
+      lastRewarded: this._lastRewarded, levelId, eligibleCount: this._eligibleCount })) return Promise.resolve();
     this._lastInterstitial = now;
 
     return new Promise((resolve) => {

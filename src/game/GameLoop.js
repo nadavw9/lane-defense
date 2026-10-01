@@ -308,7 +308,7 @@ export class GameLoop {
 
     if (res.armorBroken) {
       // Plates knocked off: no damage, but it is a hit — traffic advances.
-      this._onArmorBreak?.(laneIdx, carGameX, shooter.color);
+      this._onArmorBreak?.(laneIdx, carGameX, shooter.color, res.armorLeft ?? 0);
     } else {
       // Pass the kill COUNT (not just a boolean) so the renderer can escalate the
       // shake / chroma / explosion size for multi-kills.
@@ -520,12 +520,14 @@ export class GameLoop {
     // 1. Move traffic. Ordinary cars move one row, speeders two, and nobody
     //    passes the car ahead (TrafficRules — the simulator runs the same code).
     //    Chameleons then flip to their other colour.
+    let mended = 0;
     for (let li = 0; li < gs.activeLaneCount; li++) {
       const cars = gs.lanes[li].cars;   // front-first (Lane keeps it sorted)
       advanceLaneCars(cars);
       flipChameleons(cars);
-      healMenders(cars);
+      mended += healMenders(cars);
     }
+    if (mended > 0) this._onMend?.(mended);
     // Volatile surge: every lane but the one that blew up moves one more row.
     const surgeSrc = this._surgeFromLane;
     this._surgeFromLane = null;

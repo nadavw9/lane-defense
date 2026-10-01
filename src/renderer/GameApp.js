@@ -1955,13 +1955,26 @@ async function main() {
         'SUPERCHARGED! Your next bomb does double damage and smashes through ANY colour behind the first car.');
     }
   };
-  gameLoop._onArmorBreak = (laneIdx, gameX) => {
+  gameLoop._onArmorBreak = (laneIdx, gameX, _color, armorLeft = 0) => {
     audio.play('armor_clang');
     haptics.medium();
     particles.spawnHit(laneIdx, gameX, 'Blue');
     floatingTexts.push(spawnFloatingText(layers.get('particleLayer'),
-      getLaneScreenX(laneIdx), getColumnScreenY() - 90, 'ARMOUR OFF!', 0xE6ECF5));
-    featureBanners.fire('armor_break', 'Armour off! Now hit it with its own colour.');
+      getLaneScreenX(laneIdx), getColumnScreenY() - 90, armorLeft > 0 ? 'PLATE OFF!' : 'ARMOUR OFF!', 0xE6ECF5));
+    if (armorLeft > 0) featureBanners.fire('plate_break', 'Heavy plating: it takes TWO hits, any colour, to strip it.');
+    else featureBanners.fire('armor_break', 'Armour off! Now hit it with its own colour.');
+  };
+  gameLoop._onSurge = (srcLane) => {
+    audio.play('surge');
+    haptics.heavy();
+    shakeTime = Math.max(shakeTime, 0.3);
+    floatingTexts.push(spawnFloatingText(layers.get('particleLayer'),
+      getLaneScreenX(srcLane), getColumnScreenY() - 90, 'SURGE!', 0xFF8A1C));
+    featureBanners.fire('volatile_surge', 'Volatile! When it blows, every OTHER lane lurches forward a row.');
+  };
+  gameLoop._onMend = () => {
+    audio.play('mend');
+    featureBanners.fire('mender_heal', 'Menders repair 1 HP each turn they are not hit. Keep shooting them!');
   };
   gameLoop._onBossHit = (laneIdx, boss, dead) => {
     if (dead) {

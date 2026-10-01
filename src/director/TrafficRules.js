@@ -87,10 +87,12 @@ export function advanceLaneCars(cars, fixedStep = null) {
  * per lane per traffic move (after the move, before breach checks).
  */
 export function healMenders(cars) {
+  let healed = 0;
   for (const car of cars) {
-    if (car.trait === 'mender' && !car.recentHit && car.hp > 0 && car.hp < car.maxHp) car.hp += 1;
+    if (car.trait === 'mender' && !car.recentHit && car.hp > 0 && car.hp < car.maxHp) { car.hp += 1; healed++; }
     car.recentHit = false;
   }
+  return healed;
 }
 
 /** True when this destroyed-car record shoves the other lanes (see `volatile`). */

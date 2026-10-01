@@ -18,7 +18,7 @@ import { CAR_SPRITE_GEOMETRY } from './carSpriteGeometry.js';
 import { BOSS_SPRITE_GEOMETRY } from './bossSpriteGeometry.js';
 import { isColorblind } from '../game/ColorblindMode.js';
 import { drawColorShapeBadge } from './colorShapeCanvas.js';
-import { TRAIT_TYPES } from '../director/TrafficRules.js';
+import { TRAIT_TYPES, isHiddenPhantom } from '../director/TrafficRules.js';
 
 // ── Canvas size for programmatic textures ────────────────────────────────────
 const CVS    = 256;
@@ -164,8 +164,12 @@ function spritePathFor(car) {
   if (car.type === 'boss') return (car.armor ?? 0) > 0 ? 'sprites/designed/boss-armored.png' : 'sprites/designed/boss.png';
   const c = car.color?.toLowerCase();
   const t = car.trait;
-  if (t && TRAIT_TYPES[t]?.has(car.type) && (t !== 'armored' || (car.armor ?? 0) > 0)) {
-    return `sprites/designed/${t}-${car.type}-${c}.png`;
+  // plated reuses the armoured body (same plates, two hits); mender / volatile /
+  // phantom keep the plain body and carry programmatic overlays instead.
+  const art = t === 'plated' ? 'armored' : t;
+  const hasVariantArt = art === 'armored' || art === 'speeder' || art === 'chameleon';
+  if (hasVariantArt && TRAIT_TYPES[t]?.has(car.type) && (art !== 'armored' || (car.armor ?? 0) > 0)) {
+    return `sprites/designed/${art}-${car.type}-${c}.png`;
   }
   return SPRITE_MAP[car.type]?.[car.color] ?? null;
 }
@@ -304,6 +308,56 @@ function _nextColorTex(color) {
       ctx.lineTo(ax + Math.cos(t + 2.2) * S * 0.07, ay + Math.sin(t + 2.2) * S * 0.07);
       ctx.stroke();
     }
+  });
+}
+
+
+// ── V3 trait badges (canvas, cached) ─────────────────────────────────────────
+function _badgeBase(ctx, S, fill) {
+  const c = S / 2, r = S * 0.40;
+  ctx.beginPath(); ctx.arc(c, c, r, 0, Math.PI * 2);
+  ctx.fillStyle = fill; ctx.fill();
+  ctx.lineWidth = S * 0.06; ctx.strokeStyle = '#FFFFFF'; ctx.stroke();
+  ctx.lineWidth = S * 0.03; ctx.strokeStyle = INK_CSS;
+  ctx.beginPath(); ctx.arc(c, c, r + S * 0.045, 0, Math.PI * 2); ctx.stroke();
+  return { c, r };
+}
+// Plated: steel disc with one pip per plate still on (2 → 1 → gone).
+function _plateTex(n) {
+  return _canvasTex(`plate:${n}`, 128, (ctx, S) => {
+    const { c, r } = _badgeBase(ctx, S, '#8E9AB0');
+    ctx.fillStyle = '#FFFFFF'; ctx.strokeStyle = INK_CSS; ctx.lineWidth = S * 0.025;
+    const xs = n === 1 ? [c] : [c - r * 0.38, c + r * 0.38];
+    for (const x of xs) { ctx.beginPath(); ctx.arc(x, c, r * 0.26, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+  });
+}
+// Mender: green disc with a white plus — "this one heals".
+function _menderTex() {
+  return _canvasTex('mender', 128, (ctx, S) => {
+    const { c, r } = _badgeBase(ctx, S, '#2FCC55');
+    ctx.fillStyle = '#FFFFFF'; ctx.strokeStyle = INK_CSS; ctx.lineWidth = S * 0.02;
+    const t = r * 0.34, l = r * 0.95;
+    ctx.beginPath();
+    ctx.rect(c - t / 2, c - l / 2, t, l); ctx.rect(c - l / 2, c - t / 2, l, t);
+    ctx.fill();
+  });
+}
+// Volatile: hazard disc (orange, black bang) — "kill me and the other lanes surge".
+function _volatileTex() {
+  return _canvasTex('volatile', 128, (ctx, S) => {
+    const { c, r } = _badgeBase(ctx, S, '#FF8A1C');
+    ctx.fillStyle = INK_CSS;
+    ctx.beginPath(); ctx.roundRect(c - r * 0.13, c - r * 0.62, r * 0.26, r * 0.78, r * 0.1); ctx.fill();
+    ctx.beginPath(); ctx.arc(c, c + r * 0.46, r * 0.15, 0, Math.PI * 2); ctx.fill();
+  });
+}
+// Phantom: violet disc with a question mark — colour not revealed yet.
+function _phantomTex() {
+  return _canvasTex('phantom', 128, (ctx, S) => {
+    const { c } = _badgeBase(ctx, S, '#5B3FA0');
+    ctx.fillStyle = '#FFFFFF'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = `900 ${S * 0.58}px sans-serif`;
+    ctx.fillText('?', c, c + S * 0.03);
   });
 }
 
@@ -522,6 +576,25 @@ export class Car3D {
       }
       const s = 1 + 0.08 * Math.sin(now * 5);
       fx.lamp.scale.set(s, s, 1);
+    }
+    if (fx.badge) {
+      if (car.trait === 'plated') {
+        const key = `p${armor}`;
+        if (fx.badgeKey !== key) {
+          fx.badgeKey = key;
+          fx.badge.visible = armor > 0;
+          if (armor > 0) { fx.badge.material.map = _plateTex(armor); fx.badge.material.needsUpdate = true; }
+        }
+      } else if (car.trait === 'phantom') {
+        fx.badge.visible = isHiddenPhantom(car);
+      } else if (car.trait === 'volatile') {
+        const s = 1 + 0.1 * Math.sin(now * 7);
+        fx.badge.scale.set(s, s, 1);
+      }
+    }
+    if (fx.shade) {
+      fx.shade.visible = isHiddenPhantom(car);
+      fx.shade.material.map = entry.bodyMat.map;
     }
     if (fx.flames) {
       for (let i = 0; i < fx.flames.length; i++) {
@@ -908,6 +981,30 @@ export class Car3D {
         group.add(f);
         return f;
       });
+    }
+    if (car.trait === 'plated' || car.trait === 'mender' || car.trait === 'volatile' || car.trait === 'phantom') {
+      const side = 1.25 / spriteScale;
+      const badge = new THREE.Mesh(new THREE.PlaneGeometry(side, side),
+        new THREE.MeshBasicMaterial({ map: car.trait === 'plated' ? _plateTex(car.armor ?? 2) : car.trait === 'mender' ? _menderTex()
+          : car.trait === 'volatile' ? _volatileTex() : _phantomTex(), transparent: true, depthWrite: false, toneMapped: false }));
+      badge.rotation.x = -Math.PI / 2;
+      const p = imgToLocal(0.5, 0.40);
+      badge.position.set(p.x, 0.14, p.z);
+      badge.renderOrder = 3;
+      group.add(badge);
+      traitFx.badge = badge; traitFx.badgeKey = car.trait === 'plated' ? `p${car.armor ?? 2}` : car.trait;
+    }
+    if (car.trait === 'phantom') {
+      // Dark silhouette over the body until the car reaches the reveal row.
+      const shade = new THREE.Mesh(mesh.geometry, new THREE.MeshBasicMaterial({
+        map: bodyMat.map, color: 0x1c1830, transparent: true, alphaTest: 0.08, depthWrite: false,
+        side: THREE.DoubleSide, toneMapped: false }));
+      shade.rotation.x = -Math.PI / 2;
+      shade.position.set(mesh.position.x, 0.07, 0);
+      shade.renderOrder = 2;
+      shade.visible = isHiddenPhantom(car);
+      group.add(shade);
+      traitFx.shade = shade;
     }
     if (car.type === 'boss') {
       // Colour-sequence panel drawn onto the roof light panel.

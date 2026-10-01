@@ -91,6 +91,9 @@ export class AudioManager {
       case 'power_shot':       return this._powerShot();
       case 'boss_light':       return this._bossLight(opts.left ?? 1);
       case 'boss_destroyed':   return this._bossDestroyed();
+      // V3 traits
+      case 'surge':            return this._surge();
+      case 'mend':             return this._mend();
     }
   }
 
@@ -634,6 +637,33 @@ export class AudioManager {
   // ── V2 sounds ──────────────────────────────────────────────────────────────
   // Metal plate knocked off: two detuned square partials with a fast decay (the
   // "clang") over a short high noise tick.
+  // Volatile blast: low rising rumble, the road lurching forward.
+  _surge() {
+    const ctx = this._ctx, now = ctx.currentTime;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(70, now);
+    o.frequency.exponentialRampToValueAtTime(220, now + 0.4);
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(0.16, now + 0.08);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+    o.connect(g); g.connect(this._master); o.start(now); o.stop(now + 0.5);
+    this._noiseBurst(0.35, 900, now, 0.05);
+  }
+
+  // Mender repair: two soft rising blips.
+  _mend() {
+    const ctx = this._ctx, now = ctx.currentTime;
+    [[660, 0], [990, 0.09]].forEach(([f, d]) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine'; o.frequency.setValueAtTime(f, now + d);
+      g.gain.setValueAtTime(0.0001, now + d);
+      g.gain.exponentialRampToValueAtTime(0.1, now + d + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, now + d + 0.18);
+      o.connect(g); g.connect(this._master); o.start(now + d); o.stop(now + d + 0.2);
+    });
+  }
+
   _armorClang() {
     const ctx = this._ctx, now = ctx.currentTime;
     for (const [f, v] of [[880, 0.12], [1318, 0.08], [2093, 0.05]]) {

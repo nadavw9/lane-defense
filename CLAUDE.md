@@ -179,7 +179,7 @@ Claude may choose either. But "it works" is not equivalent to
 
 ## 3. What This Is
 
-Hybrid-casual mobile puzzle-defense game. Cars in colored lanes advance toward the player one row per correct shot. Player drags color-coded bombs onto lanes — color must match the front car to deal damage. Turn-based grid, not real-time. 40 levels across 3 worlds. Live on GitHub Pages; native Android via Capacitor.
+Hybrid-casual mobile puzzle-defense game. Cars in colored lanes advance toward the player one row per correct shot. Player drags color-coded bombs onto lanes — color must match the front car to deal damage. Turn-based grid, not real-time. 100 levels across 7 worlds (L1-40 hand-tuned, L41-100 authored in `src/game/LateLevels.js` and sim-tuned). Live on GitHub Pages; native Android via Capacitor.
 
 - **Live URL:** https://nadavw9.github.io/lane-defense/
 - **Repo:** https://github.com/nadavw9/lane-defense
@@ -283,14 +283,18 @@ Always `${import.meta.env.BASE_URL}sprites/...`. Hardcoded `/sprites/...` causes
 | L9–12  | sunset | indigo-orange |
 | L13–15 | misty | cool grey; fog near=20 minimum — do not lower |
 | L16–30 | industrial | steel grey + orange hazard (World 2) |
-| L31+   | nightHighway | near-black sky, neon fog (World 3) |
+| L31-45 | nightHighway | near-black sky, neon fog (World 3) |
+| L46-60 | desert | World 4 Sun Valley (art: backdrops baked, no side strips) |
+| L61-75 | frost | World 5 Frost Pass |
+| L76-90 | harbor | World 6 Harbor Lights |
+| L91-100 | cosmos | World 7 Starlight Strip |
 
 ---
 
 ## 6. Current State
 
 ### Tests
-**1232 passing**, 2 skipped, 5 todo — 56 test files. Run: `npx vitest run`. All headless (no
+**1495 passing**, 1 skipped, 5 todo — 77 test files. Run: `npx vitest run`. All headless (no
 render tests).
 Visual smoke (`npm run test:visual`, Playwright) is separate and is a blocking CI gate.
 
@@ -640,7 +644,9 @@ API can reject the call, wait for it to be acceptable first (`game.waitForIdle()
 inferring rejection from an unchanged board.
 
 ### What is done
-- **40 levels** configured in `LevelManager.js` (L1–L40, three worlds)
+- **100 levels**: L1–L40 in `LevelManager.js`, L41–L100 in `LateLevels.js` (authored with `levelDsl.js`, heft/trait/goal scales generated into `lateTuning.js` by `node tools/tune-levels.mjs --write`). Seven worlds; worlds 4-7 art is baked (`render-3d-sprites.mjs backdrop|map`, `render-world-tiles.mjs`).
+- **Seven traits** (`TrafficRules.js`): speeder, armored, chameleon, plated, mender, volatile, phantom; goal types destroyTotal/Color/Type/Trait + defeatBoss. Bands in `tools/bands.mjs`; every level is checked in-band (2026-10-01).
+- **Economy (2026-10-01)**: 2 coins per car (was 10), shop 20-40, continue-with-coins 60 (`RESCUE_COIN_COST`); one booster store (`inventory`). Interstitials paced by `src/ads/adPolicy.js`. Daily/streak use the local day (`src/game/dateKeys.js`). Adaptive 3D render scale (`AdaptiveQuality.js`), reduce-motion setting (`MotionPrefs.js`).
 - **Car type intro cards** (`src/screens/CarTypeIntroCard.js`) — fires at: L1 small, L2 big, L5 jeep, L9 truck, L13 bigrig, L15 tank
 - **V2 redesign (2026-09-27, branch `feat/v2-design`)** — Hot Streak (3 kill shots →
   supercharged bomb: x2 damage, carry-over through any colour), special cars (speeder,
@@ -886,5 +892,4 @@ Password: `lanedefense2024`
 *Historical incident and merge logs in this file are provenance; the active sections above are
 the current source-of-truth summary.*
 
-*Last updated: 2026-08-31 — reconciled against the executable level, renderer, loop, and balance
-tool state.*
+*Last updated: 2026-10-01 — levels 41-100, worlds 4-7, traits, economy and settings brought up to date.*

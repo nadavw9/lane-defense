@@ -12,7 +12,12 @@ import {
   THEME, rng, pick, mix, std, glow, rbox, box, cyl, blob, plane, canvas, toTex, speckle, blotch,
   paverTexture, grassTexture, tree, pine, bush, flowerBed, lamp, bench, bollard, planterPot,
   townHouse, warehouse, shippingContainer, drum, pallet, cone, fence, tower, neonSign,
+  FAMILY, greenery, bedFor, potFor, townOpts, starTexture, cactus, rockCluster, snowDrift, frostPine,
 } from './backdrop.js';
+
+const NEW_WORLD = (w) => Number(w.slice(5)) > 3;
+const HEDGE = { world1: 0x3F8F3E, world4: 0xD8B27C, world5: 0xF2F7FB };
+const WALL = { world1: 0xEFDCC0, world2: 0xC9C4BA, world3: 0x3E4258, world4: 0xF0D2A0, world5: 0xA8744A, world6: 0xC9D3DC, world7: 0x3E3066 };
 
 function ribbon(points, width, mat, y, uvLen = 0) {
   const pos = [], idx = [], uv = [];
@@ -54,26 +59,31 @@ function roadStripTexture(T, world, r) {
   const W = 128, H = 256;
   const [c, x] = canvas(W, H);
   x.fillStyle = '#' + T.asphalt.toString(16).padStart(6, '0'); x.fillRect(0, 0, W, H);
-  speckle(x, W, H, r, 1600, world === 'world3' ? ['#4A4F66', '#1C1E28'] : ['#8A8C92', '#3E4046'], 0.5, 1.3, 0.2, 0.5);
+  speckle(x, W, H, r, 1600, FAMILY[world] === 'night' ? ['#4A4F66', '#1C1E28'] : ['#8A8C92', '#3E4046'], 0.5, 1.3, 0.2, 0.5);
   // Edge lines + centre dash.
-  x.fillStyle = world === 'world2' ? '#F2F0EA' : world === 'world3' ? '#4FE3FF' : '#F4F1E6';
+  x.fillStyle = NEW_WORLD(world) ? T.paint : world === 'world2' ? '#F2F0EA' : world === 'world3' ? '#4FE3FF' : '#F4F1E6';
   x.fillRect(8, 0, 6, H); x.fillRect(W - 14, 0, 6, H);
-  x.fillStyle = world === 'world2' ? '#FFC21A' : world === 'world3' ? '#FF3DB8' : '#F4F1E6';
+  x.fillStyle = NEW_WORLD(world) ? T.centre : world === 'world2' ? '#FFC21A' : world === 'world3' ? '#FF3DB8' : '#F4F1E6';
   x.fillRect(W / 2 - 3, 0, 6, H * 0.5);
   return toTex(c);
 }
 
 export function buildMapHD(theme, seed, { W, H, S, road, nodes, plots, tilt }) {
-  const T = THEME[theme], r = rng(seed * 131 + 7 + theme.length);
+  const T = THEME[theme], r = rng(seed * 131 + 7 + theme.length + (NEW_WORLD(theme) ? Number(theme.slice(5)) * 977 : 0));
   const cT = Math.cos(tilt);
   const toW = ([x, y]) => [(x - W / 2) / S, (y - H / 2) / (S * cT)];
   const Wu = W / S, Lu = H / (S * cT);
   const g = new THREE.Group();
-  const night = theme === 'world3';
+  const fam = FAMILY[theme];
+  const night = fam === 'night';
+  const accent = theme === 'world3' ? 0x4FE3FF : theme === 'world7' ? 0xA35CFF : null;
 
   // Ground.
   let groundMat;
   if (theme === 'world1') groundMat = std(0xffffff, 0.95, { map: grassTexture([0x6FBF55, 0x5DAE47], 40, Wu + 6, Lu + 10, r) });
+  else if (fam === 'town') groundMat = std(0xffffff, 0.95, { map: grassTexture(T.lawn, 40, Wu + 6, Lu + 10, r) });
+  else if (theme === 'world6') groundMat = std(0xffffff, 0.9, { map: paverTexture(T.depot, T.depotJoint, 40, Wu + 6, Lu + 10, r, { tile: 1.6 }) });
+  else if (theme === 'world7') groundMat = std(0xffffff, 0.8, { map: starTexture(Wu + 6, Lu + 10, r, 14) });
   else if (theme === 'world2') groundMat = std(0xffffff, 0.9, { map: paverTexture([0x9A9DA2, 0x93969B, 0xA2A5AA], '#7E8187', 40, Wu + 6, Lu + 10, r, { tile: 1.6 }) });
   else groundMat = std(0xffffff, 0.6, { map: paverTexture([0x262A3C, 0x2A2F44, 0x232738], '#191B26', 40, Wu + 6, Lu + 10, r, { tile: 1.2 }), metalness: 0.2 });
   g.add(plane(Wu + 6, Lu + 10, groundMat, 0, 0, 0));
@@ -90,18 +100,18 @@ export function buildMapHD(theme, seed, { W, H, S, road, nodes, plots, tilt }) {
   const path = road.map(toW);
   const roadW = 30 / S;
   let pathLen = 0; for (let i = 1; i < path.length; i++) pathLen += Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]);
-  const kerbCol = theme === 'world2' ? 0xFFC21A : theme === 'world3' ? 0x4A4E62 : 0xE8E1D2;
+  const kerbCol = NEW_WORLD(theme) ? (theme === 'world6' ? 0xFF8A1C : T.kerb) : theme === 'world2' ? 0xFFC21A : theme === 'world3' ? 0x4A4E62 : 0xE8E1D2;
   g.add(ribbon(path, roadW + 0.55, std(kerbCol, 0.7), 0.04));
   const rt = roadStripTexture(T, theme, r);
   rt.repeat.set(1, 1);
   g.add(ribbon(path, roadW, std(0xffffff, night ? 0.4 : 0.85, { map: rt, metalness: night ? 0.2 : 0 }), 0.06, roadW * 2));
-  if (night) g.add(ribbon(path, roadW + 0.7, new THREE.MeshBasicMaterial({ color: 0x4FE3FF, transparent: true, opacity: 0.25, depthWrite: false }), 0.035));
+  if (night) g.add(ribbon(path, roadW + 0.7, new THREE.MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.25, depthWrite: false }), 0.035));
 
   // Node plazas (round, paved) and building plots (paved lot, low hedge / fence).
   const pavTex = paverTexture(T.walk, T.walkJoint, 60, 3.4, 3.4, r, { tile: 0.42 });
   for (const n of nodes) {
     const [x, z] = toW([n.x, n.y]);
-    const rim = cyl(1.36, 1.42, 0.1, std(theme === 'world3' ? 0x4FE3FF : kerbCol, 0.6, theme === 'world3' ? { emissive: 0x4FE3FF, emissiveIntensity: 0.6 } : {}), x, 0.05, z, 44);
+    const rim = cyl(1.36, 1.42, 0.1, std(accent ?? kerbCol, 0.6, accent ? { emissive: accent, emissiveIntensity: 0.6 } : {}), x, 0.05, z, 44);
     rim.scale.z = 1 / cT; g.add(rim);
     const pad = cyl(1.26, 1.26, 0.13, std(0xffffff, 0.85, { map: pavTex }), x, 0.08, z, 44);
     pad.scale.z = 1 / cT; g.add(pad);
@@ -111,14 +121,15 @@ export function buildMapHD(theme, seed, { W, H, S, road, nodes, plots, tilt }) {
   const plotW = 2.75, plotD = 1.95;
   for (const [x, z] of plots.map(toW)) {
     const zc = z + 0.15;
-    if (theme === 'world1') {
-      g.add(plane(plotW, plotD / cT, std(0xffffff, 0.95, { map: grassTexture([0x86CF62, 0x78C257], 48, plotW, plotD, r) }), x, 0.02, zc));
+    if (fam === 'town') {
+      const lotCols = theme === 'world1' ? [0x86CF62, 0x78C257] : T.lawn;
+      g.add(plane(plotW, plotD / cT, std(0xffffff, 0.95, { map: grassTexture(lotCols, 48, plotW, plotD, r) }), x, 0.02, zc));
       for (const [hw, hd, hx, hz] of [[plotW, 0.16, 0, -plotD / cT / 2], [0.16, plotD / cT, -plotW / 2, 0], [0.16, plotD / cT, plotW / 2, 0]]) {
-        g.add(rbox(hw, 0.22, hd, 0.07, std(0x3F8F3E, 0.85), x + hx, 0.11, zc + hz));
+        g.add(rbox(hw, 0.22, hd, 0.07, std(HEDGE[theme], 0.85), x + hx, 0.11, zc + hz));
       }
     } else {
-      g.add(rbox(plotW + 0.14, 0.06, plotD / cT + 0.14, 0.06, theme === 'world3' ? glow(0x4FE3FF) : std(0xFFC21A, 0.6), x, 0.03, zc));
-      g.add(rbox(plotW, 0.08, plotD / cT, 0.06, std(theme === 'world3' ? 0x2E3246 : 0xB5B8BD, 0.85), x, 0.05, zc));
+      g.add(rbox(plotW + 0.14, 0.06, plotD / cT + 0.14, 0.06, accent ? glow(accent) : std(theme === 'world6' ? 0xFF8A1C : 0xFFC21A, 0.6), x, 0.03, zc));
+      g.add(rbox(plotW, 0.08, plotD / cT, 0.06, std(theme === 'world3' ? 0x2E3246 : theme === 'world7' ? 0x30244F : theme === 'world6' ? 0x8E9CAA : 0xB5B8BD, 0.85), x, 0.05, zc));
     }
   }
 
@@ -141,23 +152,28 @@ export function buildMapHD(theme, seed, { W, H, S, road, nodes, plots, tilt }) {
     const side = r() < 0.5 ? 1 : -1;
     const ox = -dz * side * (roadW / 2 + 0.75), oz = dx * side * (roadW / 2 + 0.75);
     if (!free(p[0] + ox, p[1] + oz, 0.4)) continue;
-    const item = r() < 0.6 ? lamp(T, r, night, 1) : (theme === 'world2' ? cone() : bench(r));
+    const item = r() < 0.6 ? lamp(T, r, night, 1) : (fam === 'yard' ? cone() : bench(r));
     item.scale.setScalar(0.85);
     if (!tryPut(item, p[0] + ox, p[1] + oz, 0.35)) continue;
   }
-  const budget = theme === 'world1' ? 140 : theme === 'world2' ? 60 : 85;
+  const budget = fam === 'town' ? (theme === 'world1' ? 140 : 110) : fam === 'yard' ? 60 : 85;
   for (let k = 0; k < 3000 && placed.length < budget; k++) {
     const x = (r() - 0.5) * (Wu + 1), z = (r() - 0.5) * (Lu + 2);
     const p = r();
     let obj, rad;
-    if (theme === 'world1') {
+    if (theme === 'world4' || theme === 'world5') {
+      if (p < 0.5) { rad = 0.75; obj = greenery(theme, T, r, 0.95 + r() * 0.4); }
+      else if (p < 0.68) { rad = 0.6; obj = bedFor(theme, T, r, 1.2, 0.8); }
+      else if (p < 0.78) { rad = 0.45; obj = potFor(theme, T, r, 1.2); }
+      else { rad = 1.5; obj = townHouse(T, r, 2.2, 1.8, 1.0 + r() * 0.5, 1, townOpts(theme)); }
+    } else if (theme === 'world1') {
       if (p < 0.42) { rad = 0.75; obj = tree(T, r, 0.9 + r() * 0.35); }
       else if (p < 0.58) { rad = 0.6; obj = pine(T, r, 1 + r() * 0.3); }
       else if (p < 0.72) { rad = 0.5; obj = bush(T, r, 1.2); }
       else if (p < 0.82) { rad = 0.8; obj = flowerBed(T, r, 1.2, 0.8); }
       else if (p < 0.9) { rad = 0.45; obj = planterPot(T, r, 1.2); }
       else { rad = 1.5; obj = townHouse(T, r, 2.2, 1.8, 1.0 + r() * 0.5, 1); }
-    } else if (theme === 'world2') {
+    } else if (fam === 'yard') {
       if (p < 0.34) {
         // A stacked container yard (2–3 boxes, some double-height).
         rad = 1.6; obj = new THREE.Group();
@@ -167,14 +183,14 @@ export function buildMapHD(theme, seed, { W, H, S, road, nodes, plots, tilt }) {
         if (r() < 0.5) obj.rotation.y = Math.PI / 2;
       }
       else if (p < 0.52) { rad = 2.0; obj = warehouse(T, r, 2.8, 2.2, 1.2 + r() * 0.5); }
-      else if (p < 0.68) { rad = 0.75; obj = tree(T, r, 0.9); }
+      else if (p < 0.68) { rad = 0.75; obj = greenery(theme, T, r, 0.9); }
       else if (p < 0.8) { rad = 0.6; obj = new THREE.Group(); const dc = pick(r, [0x2F8CFF, 0xE0574A, 0x2FA36B, 0xFFC21A]); for (const [dx, dz] of [[-0.2, 0], [0.2, 0.1], [0, 0.4], [0.35, 0.45]]) { const d = drum(dc); d.position.set(dx, 0, dz); obj.add(d); } }
       else if (p < 0.9) { rad = 0.7; obj = new THREE.Group(); for (let k = 0; k < 2; k++) { const pl = pallet(r); pl.position.x = k * 0.85; obj.add(pl); } }
       else { rad = 0.5; obj = new THREE.Group(); for (let k = 0; k < 3; k++) { const c = cone(); c.position.x = k * 0.35; obj.add(c); } }
     } else {
       if (p < 0.18) { rad = 0.4; obj = lamp(T, r, true, 1); }
       else if (p < 0.6) { rad = 1.6; obj = tower(T, r, 2.0 + r() * 0.6, 1.8, 1.8 + r() * 2.4); }
-      else if (p < 0.75) { rad = 0.7; obj = tree(T, r, 0.8); }
+      else if (p < 0.75) { rad = 0.7; obj = greenery(theme, T, r, 0.8); }
       else if (p < 0.88) { rad = 0.6; obj = neonSign(T, r, 1.0); }
       else { rad = 0.3; obj = bollard(0x4A4E62); }
     }
@@ -186,10 +202,26 @@ export function buildMapHD(theme, seed, { W, H, S, road, nodes, plots, tilt }) {
 
 // A repair building for its plot: 2 = repaired, 1 = scaffolding, 0 = rubble.
 export function buildRepairHD(theme, state, variant) {
-  const T = THEME[theme], r = rng(variant * 977 + state * 13 + theme.length * 7);
+  const T = THEME[theme], r = rng(variant * 977 + state * 13 + theme.length * 7 + (NEW_WORLD(theme) ? Number(theme.slice(5)) * 131 : 0));
   const g = new THREE.Group();
   const w = 2.4, d = 1.9;
   const full = () => {
+    if (theme === 'world4' || theme === 'world5') {
+      const styles = theme === 'world4' ? [
+        { style: 'flat', roof: 0xE08A44, wall: 0xF4DDB2, kit: 0.2 },
+        { style: 'flat', roof: 0xD9683D, wall: 0xEBC993, kit: 0.5 },
+        { style: 'pitched', roof: 0xD9683D, wall: 0xF7E7C9 },
+      ] : [
+        { style: 'pitched', roof: 0xF2F6FA, wall: 0xA8744A },
+        { style: 'pitched', roof: 0xE4ECF4, wall: 0x9A6B45 },
+        { style: 'pitched', roof: 0xF2F6FA, wall: 0xB98354 },
+      ];
+      const hs = townHouse(T, rng(variant * 31 + 5), w, d, 1.15, 1, styles[variant % 3]);
+      const grp = new THREE.Group(); grp.add(hs);
+      const fb = bedFor(theme, T, r, 0.9, 0.35); fb.position.set(-0.5, 0, d / 2 + 0.3); grp.add(fb);
+      const t = greenery(theme, T, r, 0.75); t.position.set(w / 2 + 0.2, 0, -0.3); grp.add(t);
+      return grp;
+    }
     if (theme === 'world1') {
       const styles = [
         { style: 'pitched', roof: 0xB5654A, wall: 0xF3E6CF },
@@ -202,12 +234,12 @@ export function buildRepairHD(theme, state, variant) {
       const t = tree(T, r, 0.75); t.position.set(w / 2 + 0.2, 0, -0.3); grp.add(t);
       return grp;
     }
-    if (theme === 'world2') return warehouse(T, rng(variant * 31 + 9), w, d, 1.1 + variant * 0.15);
+    if (FAMILY[theme] === 'yard') return warehouse(T, rng(variant * 31 + 9), w, d, 1.1 + variant * 0.15);
     return tower(T, rng(variant * 31 + 3), 2.1, 1.8, 2.0 + (variant % 3) * 0.45);
   };
   if (state === 2) { g.add(full()); return g; }
-  const wallMat = std(theme === 'world1' ? 0xEFDCC0 : theme === 'world2' ? 0xC9C4BA : 0x3E4258, 0.85);
-  const Hh = theme === 'world3' ? 1.7 : 1.15;
+  const wallMat = std(WALL[theme], 0.85);
+  const Hh = FAMILY[theme] === 'night' ? 1.7 : 1.15;
   if (state === 1) {
     // Half-built: walls to mid-height, scaffold frame with planks, crates, a crane arm.
     g.add(rbox(w * 0.92, Hh * 0.62, d * 0.9, 0.04, wallMat, 0, Hh * 0.31, 0));

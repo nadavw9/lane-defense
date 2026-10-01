@@ -167,6 +167,55 @@ const THEME = {
   },
 };
 
+// Worlds 4-7 (L46+) reuse the three scene FAMILIES — each family is a code path
+// (town: lawn lots, pavers, pitched/flat houses; yard: concrete, warehouses,
+// containers; night: dark plaza, towers, neon) — with their own palette and a few
+// signature props swapped in (cactus / frost pine / crystals, see greenery()).
+const FAMILY = { world1: 'town', world2: 'yard', world3: 'night', world4: 'town', world5: 'town', world6: 'yard', world7: 'night' };
+Object.assign(THEME, {
+  // Sun Valley — sun-bleached desert town: sand lots, adobe flat roofs, cacti.
+  world4: {
+    asphalt: 0x75706B, asphaltHi: 0x817C77, asphaltLo: 0x666260, paint: '#FFF1D2', centre: '#FFF1D2',
+    kerb: 0xE9CFA0, gutter: 0x7A6A58, walk: [0xE9CC9C, 0xDFBE8A, 0xF0D6AA], walkJoint: '#B99768',
+    lawn: [0xE3C58C, 0xD6B574], leaf: [0x6E9A4E, 0x7FAE5A, 0x5F8C45, 0x8CBB66], trunk: 0x8A6A4A,
+    roofs: [0xD9683D, 0xE08A44, 0xC4553A, 0xE8A25A], walls: [0xF4DDB2, 0xEBC993, 0xF7E7C9, 0xE6B98A],
+    awnings: [[0x1FB8B0, 0xFFFFFF], [0xFF8A1C, 0xFFFFFF], [0xE8453C, 0xFFFFFF]],
+    depot: [0xE3C690, 0xD9B97E, 0xEBD0A0], depotJoint: '#B59462', track: 0x9A7B55, trackEdge: 0xFFE9BD,
+    sun: { color: 0xFFE2B0, intensity: 3.5, hemi: [0xFFE9C8, 0x8A6A44, 0.66], env: 0.3, exposure: 1.02 },
+  },
+  // Frost Pass — snow town: log cabins with snow roofs, frosted pines.
+  world5: {
+    asphalt: 0x4B5361, asphaltHi: 0x586170, asphaltLo: 0x3F4652, paint: '#F4F8FF', centre: '#F4F8FF',
+    kerb: 0xDDE8F3, gutter: 0x5A6472, walk: [0xF1F6FB, 0xE3ECF5, 0xEAF1F8], walkJoint: '#B8C7D8',
+    lawn: [0xF3F7FB, 0xE3ECF4], leaf: [0x2F6E57, 0x3A7E64, 0x265C49, 0x347A60], trunk: 0x5A4636,
+    roofs: [0xF2F6FA, 0xE4ECF4, 0xDCE6F0], walls: [0xA8744A, 0x9A6B45, 0xB98354, 0x8C5F3C],
+    awnings: [[0xE8453C, 0xFFFFFF], [0x2F8CFF, 0xFFFFFF]],
+    depot: [0xD3E0EC, 0xC8D7E6, 0xDCE7F1], depotJoint: '#A7B9CC', track: 0x8FA3B8, trackEdge: 0xF4FAFF,
+    sun: { color: 0xDDE9FF, intensity: 2.8, hemi: [0xD7E6FF, 0x7D8CA3, 0.74], env: 0.34, exposure: 1.04 },
+  },
+  // Harbor Lights — container docks: blue-grey concrete, bright boxes, orange bollards.
+  world6: {
+    asphalt: 0x4D5662, asphaltHi: 0x5A6471, asphaltLo: 0x414955, paint: '#F2F6FA', centre: '#3FA9F5',
+    kerb: 0xB6C0CB, gutter: 0x59636F, walk: [0x8E9CAA, 0x85939F, 0x97A5B2], walkJoint: '#66727E',
+    lawn: [0x6E8A9A, 0x657F8E], leaf: [0x4F8C86, 0x5BA09A, 0x437A75, 0x68AEA6], trunk: 0x5C4A3A,
+    roofs: [0xE8453C, 0x2F8CFF, 0xFF8A1C, 0x2FA36B, 0x3FA9F5], walls: [0xC9D3DC, 0xB5C2CE, 0xD7DFE6],
+    awnings: [[0xFF8A1C, 0x2A2733]], depot: [0x6F7E8C, 0x66757F, 0x778694], depotJoint: '#4E5A66', track: 0x56646F, trackEdge: 0xFF8A1C,
+    lot: 0x70828F,
+    sun: { color: 0xFFF0DA, intensity: 3.1, hemi: [0xCFE6FF, 0x5E6C78, 0.66], env: 0.32, exposure: 1.0 },
+  },
+  // Starlight Strip — violet space-night: crystal spires, neon, a star-field plaza.
+  world7: {
+    asphalt: 0x2B2145, asphaltHi: 0x372B58, asphaltLo: 0x211938, paint: '#F1E8FF', centre: '#FF4FD8',
+    kerb: 0x5B4A8A, gutter: 0x181226, walk: [0x3A2F5E, 0x33295A, 0x41356A], walkJoint: '#1E1636',
+    lawn: [0x1F1838, 0x1A1430], leaf: [0x7C5CFF, 0xA35CFF, 0x4FE3FF, 0xFF4FD8], trunk: 0x3A2E5A,
+    roofs: [0x40306A, 0x4A3878, 0x362A5C, 0x52408A], walls: [0x3E3066, 0x35295A],
+    awnings: [[0xFF3DB8, 0x2A2D40], [0x4FE3FF, 0x2A2D40]], depot: [0x2E2350, 0x352A5A, 0x281F46], depotJoint: '#171030', track: 0x1E1738, trackEdge: 0xA35CFF,
+    neon: [0xFF3DB8, 0x4FE3FF, 0xFFD42A, 0xA35CFF], lot: 0x120D24,
+    fill: [0xFF4FD8, 0x7C5CFF],
+    sun: { color: 0xC9B8FF, intensity: 1.9, hemi: [0x8E7CFF, 0x1E1236, 0.72], env: 0.26, exposure: 1.06 },
+  },
+});
+
 // ── Textures ────────────────────────────────────────────────────────────────
 // Road surface, painted in GAME units: pxu px per world unit on both axes.
 function roadTexture(T, world, L, r) {
@@ -177,7 +226,7 @@ function roadTexture(T, world, L, r) {
   // Base + large mottling.
   x.fillStyle = css(T.asphalt); x.fillRect(0, 0, W, H);
   for (let i = 0; i < 36; i++) blotch(x, r() * W, r() * H, 70 + r() * 180, r() < 0.5 ? T.asphaltHi : T.asphaltLo, 0.07 + r() * 0.07);
-  if (world === 'world2') {
+  if (FAMILY[world] === 'yard') {
     // Concrete slabs: expansion joints across and along each lane.
     x.strokeStyle = 'rgba(40,42,46,0.55)'; x.lineWidth = 2.2;
     for (let wz = Math.ceil(z0 / 4.5) * 4.5; wz < z1; wz += 4.5) { x.beginPath(); x.moveTo(0, Y(wz)); x.lineTo(W, Y(wz)); x.stroke(); }
@@ -190,18 +239,18 @@ function roadTexture(T, world, L, r) {
     x.globalAlpha = 1;
   }
   // Aggregate grain.
-  speckle(x, W, H, r, Math.floor(W * H * 0.018), world === 'world3' ? ['#4A4F66', '#191B24', '#5B6178'] : ['#9A9CA3', '#45474D', '#B5B7BD', '#3A3C41'], 0.5, 1.4, 0.15, 0.55);
+  speckle(x, W, H, r, Math.floor(W * H * 0.018), FAMILY[world] === 'night' ? ['#4A4F66', '#191B24', '#5B6178'] : ['#9A9CA3', '#45474D', '#B5B7BD', '#3A3C41'], 0.5, 1.4, 0.15, 0.55);
   // Tyre wear: two darker polished bands per lane.
   for (const lx of laneXs) for (const s of [-1, 1]) {
     const bx = X(lx + s * 0.95), bw = 0.7 * pxu;
     const g = x.createLinearGradient(bx - bw / 2, 0, bx + bw / 2, 0);
-    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.5, world === 'world3' ? 'rgba(90,110,170,0.10)' : 'rgba(20,20,26,0.13)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.5, FAMILY[world] === 'night' ? 'rgba(90,110,170,0.10)' : 'rgba(20,20,26,0.13)'); g.addColorStop(1, 'rgba(0,0,0,0)');
     x.fillStyle = g; x.fillRect(bx - bw / 2, 0, bw, H);
   }
   // Oil drips down the lane centres.
   for (const lx of laneXs) for (let i = 0; i < 9; i++) blotch(x, X(lx + (r() - 0.5) * 0.8), r() * H, 8 + r() * 18, 0x1A1A20, 0.12 + r() * 0.1);
   // Patches and cracks (not on concrete).
-  if (world !== 'world2') {
+  if (FAMILY[world] !== 'yard') {
     // Tar-sealed cracks ("tar snakes"): glossy dark meandering lines.
     x.lineCap = 'round'; x.lineJoin = 'round';
     for (let i = 0; i < 7; i++) {
@@ -211,7 +260,7 @@ function roadTexture(T, world, L, r) {
       for (let k = 0; k < 9; k++) { px += (r() - 0.5) * 40; py += 10 + r() * 26; x.lineTo(px, py); }
       x.stroke();
     }
-    x.strokeStyle = world === 'world3' ? 'rgba(10,10,16,0.6)' : 'rgba(30,30,36,0.5)';
+    x.strokeStyle = FAMILY[world] === 'night' ? 'rgba(10,10,16,0.6)' : 'rgba(30,30,36,0.5)';
     for (let i = 0; i < 16; i++) {
       let px = r() * W, py = r() * H;
       x.lineWidth = 0.8 + r() * 1.2;
@@ -221,7 +270,7 @@ function roadTexture(T, world, L, r) {
     }
   }
   // Night: wet sheen + lamp light pools and neon reflections.
-  if (world === 'world3') {
+  if (FAMILY[world] === 'night') {
     // Wet asphalt: warm lamp pools and long neon streak reflections, added
     // light-on-dark ('lighter') so they glow instead of staining.
     x.save(); x.globalCompositeOperation = 'lighter';
@@ -240,19 +289,19 @@ function roadTexture(T, world, L, r) {
     x.restore();
   }
   // Lane markings.
-  const dash = world === 'world2' ? [2.6, 1.8] : [2.2, 2.0];
+  const dash = FAMILY[world] === 'yard' ? [2.6, 1.8] : [2.2, 2.0];
   const dw = 0.16 * pxu;
   for (let i = 0; i < laneXs.length - 1; i++) {
     const dx = X((laneXs[i] + laneXs[i + 1]) / 2);
     for (let wz = z0 - 0.7; wz < crossZ - 2.4; wz += dash[0] + dash[1]) {
       const a = Math.max(wz, z0), b = Math.min(wz + dash[0], crossZ - 2.4);
-      if (b > a) wornRect(x, dx - dw / 2, Y(a), dw, (b - a) * pxu, i === Math.floor((laneXs.length - 2) / 2) && world === 'world2' ? T.centre : T.paint, r, 0.3);
+      if (b > a) wornRect(x, dx - dw / 2, Y(a), dw, (b - a) * pxu, i === Math.floor((laneXs.length - 2) / 2) && FAMILY[world] === 'yard' ? T.centre : T.paint, r, 0.3);
     }
   }
   // Edge lines.
   for (const s of [-1, 1]) {
     const ex = X(s * (halfW - 0.42)) - dw / 2;
-    wornRect(x, ex, 0, dw, Y(crossZ - 2.4), world === 'world3' ? T.centre : T.paint, r, 0.22);
+    wornRect(x, ex, 0, dw, Y(crossZ - 2.4), FAMILY[world] === 'night' ? T.centre : T.paint, r, 0.22);
   }
   // Lane arrows (pointing down the road) a few rows above the crossing.
   x.save();
@@ -275,7 +324,7 @@ function roadTexture(T, world, L, r) {
   const off = ((zx1 - zx0) - (n * stripeW + (n - 1) * gap)) / 2;
   for (let i = 0; i < n; i++) {
     const sx = X(zx0 + off + i * (stripeW + gap));
-    wornRect(x, sx, Y(crossZ - 1.95), stripeW * pxu, 1.55 * pxu, world === 'world2' ? '#F2F0EA' : T.paint, r, 0.28);
+    wornRect(x, sx, Y(crossZ - 1.95), stripeW * pxu, 1.55 * pxu, FAMILY[world] === 'yard' ? '#F2F0EA' : T.paint, r, 0.28);
   }
   wornRect(x, X(zx0), Y(crossZ - 0.3), (zx1 - zx0) * pxu, 0.2 * pxu, T.paint, r, 0.2);
   // Ambient occlusion where the road meets the kerbs.
@@ -489,6 +538,104 @@ function awning(w, cols, facing) {
   return g;
 }
 
+
+// ── Signature props for worlds 4-7 ─────────────────────────────────────────
+function cactus(T, r, s = 1) {
+  const g = new THREE.Group();
+  const m = std(pick(r, T.leaf), 0.8);
+  g.add(cyl(0.11 * s, 0.13 * s, 0.95 * s, m, 0, 0.47 * s, 0, 12));
+  g.add(sphere(0.11 * s, m, 0, 0.95 * s, 0, 12, 8));
+  for (const sd of [-1, 1]) {
+    if (r() < 0.25) continue;
+    const y = (0.38 + r() * 0.2) * s;
+    const arm = cyl(0.06 * s, 0.06 * s, 0.26 * s, m, sd * 0.2 * s, y, 0, 10); arm.rotation.z = Math.PI / 2; g.add(arm);
+    g.add(cyl(0.06 * s, 0.06 * s, (0.3 + r() * 0.2) * s, m, sd * 0.32 * s, y + 0.16 * s, 0, 10));
+    g.add(sphere(0.06 * s, m, sd * 0.32 * s, y + 0.3 * s, 0, 8, 6));
+  }
+  if (r() < 0.5) g.add(sphere(0.045 * s, std(0xFF5C8A, 0.6), 0, 1.05 * s, 0, 8, 6));
+  return g;
+}
+function rockCluster(T, r, w = 0.9, d = 0.7) {
+  const g = new THREE.Group();
+  const n = 3 + Math.floor(r() * 3);
+  for (let i = 0; i < n; i++) {
+    const rock = blob((0.16 + r() * 0.18) * Math.min(w, 1.2), std(pick(r, [0xB98E62, 0xA77D55, 0xC9A074, 0x9A7450]), 0.92), r, 1, 0.35);
+    rock.scale.y = 0.65;
+    rock.position.set((r() - 0.5) * w * 0.8, 0.12, (r() - 0.5) * d * 0.8);
+    g.add(rock);
+  }
+  return g;
+}
+function snowDrift(T, r, w = 0.9, d = 0.7) {
+  const g = new THREE.Group();
+  const n = 3 + Math.floor(r() * 2);
+  for (let i = 0; i < n; i++) {
+    const m = blob((0.22 + r() * 0.2) * Math.min(w, 1.2), std(0xF6FAFF, 0.9), r, 1, 0.18);
+    m.scale.y = 0.45;
+    m.position.set((r() - 0.5) * w * 0.8, 0.08, (r() - 0.5) * d * 0.8);
+    g.add(m);
+  }
+  return g;
+}
+function frostPine(T, r, s = 1) {
+  const g = new THREE.Group();
+  g.add(cyl(0.06 * s, 0.08 * s, 0.5 * s, std(T.trunk, 0.9), 0, 0.25 * s, 0, 8));
+  for (let i = 0; i < 3; i++) {
+    const rad = (0.55 - i * 0.14) * s, h = 0.7 * s;
+    const m = new THREE.Mesh(new THREE.ConeGeometry(rad, h, 9), std(pick(r, T.leaf), 0.8));
+    m.position.y = (0.65 + i * 0.36) * s;
+    m.rotation.y = r() * 3;
+    g.add(m);
+    // Snow cap on each tier: a smaller, paler cone sitting on the tier's upper half.
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(rad * 0.72, h * 0.55, 9), std(0xF6FAFF, 0.9));
+    cap.position.y = (0.65 + i * 0.36) * s + h * 0.22;
+    cap.rotation.y = m.rotation.y;
+    g.add(cap);
+  }
+  return g;
+}
+function crystal(T, r, s = 1) {
+  const g = new THREE.Group();
+  const n = 3 + Math.floor(r() * 2);
+  for (let i = 0; i < n; i++) {
+    const h = (0.5 + r() * 0.7) * s;
+    const c = new THREE.Mesh(new THREE.OctahedronGeometry(0.2 * s, 0), glow(pick(r, T.leaf)));
+    c.scale.set(1, h / (0.2 * s * 1.0), 1);
+    const a = (i / n) * Math.PI * 2 + r();
+    c.position.set(Math.cos(a) * 0.16 * s, h * 0.5, Math.sin(a) * 0.16 * s);
+    c.rotation.set((r() - 0.5) * 0.4, r() * 3, (r() - 0.5) * 0.4);
+    g.add(c);
+  }
+  return g;
+}
+// Per-world planting: world 1-3 are exactly the original calls (same rng draws).
+function greenery(world, T, r, s = 1) {
+  if (world === 'world4') return r() < 0.8 ? cactus(T, r, s) : rockCluster(T, r, 0.7 * s, 0.6 * s);
+  if (world === 'world5') return frostPine(T, r, s);
+  if (world === 'world7') return crystal(T, r, s * 1.1);
+  return tree(T, r, s);
+}
+function bedFor(world, T, r, w, d) {
+  if (world === 'world4') return rockCluster(T, r, w, d);
+  if (world === 'world5') return snowDrift(T, r, w, d);
+  return flowerBed(T, r, w, d);
+}
+function potFor(world, T, r, s = 1) {
+  if (world === 'world4') return cactus(T, r, 0.8 * s);
+  if (world === 'world5') return frostPine(T, r, 0.6 * s);
+  return planterPot(T, r, s);
+}
+const townOpts = (world) => world === 'world4' ? { style: 'flat' } : world === 'world5' ? { style: 'pitched' } : {};
+// Star-field plaza texture for world 7's lots.
+function starTexture(wU, dU, r, pxu = 24) {
+  const W = Math.round(wU * pxu), H = Math.round(dU * pxu);
+  const [c, x] = canvas(W, H);
+  x.fillStyle = '#120D24'; x.fillRect(0, 0, W, H);
+  for (let i = 0; i < 6; i++) blotch(x, r() * W, r() * H, 40 + r() * 80, [0x2A1B55, 0x1B1040, 0x3A1B55][i % 3], 0.35);
+  speckle(x, W, H, r, Math.floor(W * H * 0.012), ['#FFFFFF', '#CFC3FF', '#8FE8FF', '#FFC8F2'], 0.5, 1.4, 0.4, 0.95);
+  return toTex(c);
+}
+
 // A town house seen from above: body, pitched tile roof or flat roof with kit.
 function townHouse(T, r, w, d, h, facing, opts = {}) {
   const g = new THREE.Group();
@@ -694,11 +841,12 @@ function neonSign(T, r, w) {
 // shoulder), laneXs, breachZ, barZ (bomb-zone bottom), slotZs (bomb rows).
 export function buildBackdrop(world, variant, L) {
   const T = THEME[world];
-  const r = rng(({ a: 11, b: 29, c: 47 }[variant] ?? 7) * 1009 + world.length * 31 + L.laneXs.length);
+  const wn = Number(world.slice(5));
+  const r = rng(({ a: 11, b: 29, c: 47 }[variant] ?? 7) * 1009 + world.length * 31 + L.laneXs.length + (wn > 3 ? wn * 977 : 0));
   const cT = Math.cos(L.tilt);
   const Z = (gz) => gz / cT;                 // game z → studio z (see header)
   const g = new THREE.Group();
-  const night = world === 'world3';
+  const night = FAMILY[world] === 'night';
   const pxu = 64;                           // texture density (px per world unit)
 
   const z0 = L.topZ - 3, z1 = L.bottomZ + 3;
@@ -722,10 +870,10 @@ export function buildBackdrop(world, variant, L) {
 
   // 2. Kerbs + gutters + sidewalks along both edges, down to the breach.
   const kerbW = 0.3, walkW = L.halfX - L.halfW - kerbW + 1.2;   // runs off-screen
-  const walkTex = paverTexture(T.walk, T.walkJoint, pxu, walkW, roadLen, r, { tile: world === 'world2' ? 0.9 : 0.5, style: world === 'world1' ? 'brick' : 'grid' });
+  const walkTex = paverTexture(T.walk, T.walkJoint, pxu, walkW, roadLen, r, { tile: FAMILY[world] === 'yard' ? 0.9 : 0.5, style: FAMILY[world] === 'town' ? 'brick' : 'grid' });
   for (const s of [-1, 1]) {
     const kx = s * (L.halfW + kerbW / 2);
-    const kerbMat = world === 'world2' ? std(0xffffff, 0.7, { map: hazardTex(pxu, kerbW, roadLen) }) : std(T.kerb, 0.7);
+    const kerbMat = FAMILY[world] === 'yard' ? std(0xffffff, 0.7, { map: hazardTex(pxu, kerbW, roadLen) }) : std(T.kerb, 0.7);
     g.add(rbox(kerbW, 0.16, Z(L.breachZ) - Z(z0), 0.04, kerbMat, kx, 0.08, (Z(z0) + Z(L.breachZ)) / 2));
     const wx = s * (L.halfW + kerbW + walkW / 2);
     const walk = plane(walkW, Z(L.breachZ) - Z(z0), std(0xffffff, 0.9, { map: walkTex }), wx, 0.1, (Z(z0) + Z(L.breachZ)) / 2);
@@ -751,7 +899,7 @@ export function buildBackdrop(world, variant, L) {
   // 3. Sidewalk furniture + edge buildings, per side.
   for (const s of [-1, 1]) {
     const walkIn = s * (L.halfW + kerbW + 0.45);       // furniture line near the kerb
-    const bandIn = s * (L.halfW + kerbW + (world === 'world1' ? 1.35 : 1.05));   // buildings start here
+    const bandIn = s * (L.halfW + kerbW + (FAMILY[world] === 'town' ? 1.35 : 1.05));   // buildings start here
     // Lamps.
     lampZs.forEach((lz, i) => {
       const lp = lamp(T, r, night, -s);
@@ -763,26 +911,26 @@ export function buildBackdrop(world, variant, L) {
     while (tz < L.breachZ - 1.2) {
       const kind = r();
       const px = walkIn + s * 0.1;
-      if (world === 'world1') {
+      if (FAMILY[world] === 'town') {
         if (kind < 0.55) {
           const pit = cyl(0.36, 0.36, 0.02, std(0x3A3C42, 0.5, { metalness: 0.5 }), px, 0.11, Z(tz), 24); pit.scale.z = 1 / cT; g.add(pit);
           const soil = cyl(0.26, 0.26, 0.022, std(0x4A3526, 0.95), px, 0.115, Z(tz), 24); soil.scale.z = 1 / cT; g.add(soil);
-          const t = tree(T, r, 0.95 + r() * 0.25); t.position.set(px, 0.1, Z(tz)); g.add(t);
+          const t = greenery(world, T, r, 0.95 + r() * 0.25); t.position.set(px, 0.1, Z(tz)); g.add(t);
         } else if (kind < 0.72) {
-          const fb = flowerBed(T, r, 0.62, 1.1); fb.position.set(px, 0.1, Z(tz)); g.add(fb);
+          const fb = bedFor(world, T, r, 0.62, 1.1); fb.position.set(px, 0.1, Z(tz)); g.add(fb);
         } else if (kind < 0.86) {
           const b = bench(r); b.position.set(px + s * 0.1, 0.1, Z(tz)); if (s > 0) b.rotation.y = Math.PI; g.add(b);
         } else {
           const h = hydrant(); h.position.set(px - s * 0.12, 0.1, Z(tz)); g.add(h);
           const bi = bin(); bi.position.set(px + s * 0.1, 0.1, Z(tz + 0.9)); g.add(bi);
         }
-      } else if (world === 'world2') {
+      } else if (FAMILY[world] === 'yard') {
         if (kind < 0.35) { const c = cone(); c.position.set(px - s * 0.1, 0.1, Z(tz)); g.add(c); const c2 = cone(); c2.position.set(px - s * 0.1, 0.1, Z(tz + 0.7)); g.add(c2); }
         else if (kind < 0.6) { for (let k = 0; k < 3; k++) { const b = bollard(0xFFC21A); b.position.set(px - s * 0.15, 0.1, Z(tz + k * 0.8)); g.add(b); } }
         else if (kind < 0.8) { const p = pallet(r); p.position.set(px, 0.1, Z(tz)); p.rotation.y = r() * 0.4; g.add(p); }
-        else { const t = tree(T, r, 0.8); t.position.set(px, 0.1, Z(tz)); g.add(t); }
+        else { const t = greenery(world, T, r, 0.8); t.position.set(px, 0.1, Z(tz)); g.add(t); }
       } else {
-        if (kind < 0.4) { const t = tree(T, r, 0.85); t.position.set(px, 0.1, Z(tz)); g.add(t); }
+        if (kind < 0.4) { const t = greenery(world, T, r, 0.85); t.position.set(px, 0.1, Z(tz)); g.add(t); }
         else if (kind < 0.7) { const b = bollard(0x4A4E62); b.position.set(px - s * 0.1, 0.1, Z(tz)); g.add(b); const b2 = bollard(0x4A4E62); b2.position.set(px - s * 0.1, 0.1, Z(tz + 0.7)); g.add(b2); }
         else { const n = neonSign(T, r, 0.9); n.position.set(px + s * 0.15, 0.1, Z(tz)); n.rotation.y = Math.PI / 2; g.add(n); }
       }
@@ -792,13 +940,13 @@ export function buildBackdrop(world, variant, L) {
     // street edge — rooftops, awnings, café tables).
     let bz = L.topZ - 1.5;
     while (bz < L.breachZ + 0.5) {
-      const d = world === 'world2' ? 3.2 + r() * 1.6 : 2.0 + r() * 1.2;
+      const d = FAMILY[world] === 'yard' ? 3.2 + r() * 1.6 : 2.0 + r() * 1.2;
       const w = 2.6 + r() * 0.8;
       const cx = bandIn + s * w / 2;
       const zc = bz + d / 2;
-      if (world === 'world1') {
+      if (FAMILY[world] === 'town') {
         const h = 1.0 + r() * 0.9;
-        const hs = townHouse(T, r, w, Z(d) - Z(0) - 0.25, h, -s);
+        const hs = townHouse(T, r, w, Z(d) - Z(0) - 0.25, h, -s, townOpts(world));
         hs.position.set(cx, 0.1, Z(zc));
         g.add(hs);
         if (r() < 0.55) {   // shopfront awning facing the street + café table
@@ -807,7 +955,7 @@ export function buildBackdrop(world, variant, L) {
           g.add(aw);
           if (r() < 0.6) { const p = parasol(r, pick(r, T.awnings)); p.position.set(bandIn - s * 0.35, 0.1, Z(zc + 0.2)); g.add(p); }
         }
-      } else if (world === 'world2') {
+      } else if (FAMILY[world] === 'yard') {
         if (r() < 0.55) {
           const wh = warehouse(T, r, w, Z(d) - Z(0) - 0.3, 1.3 + r() * 0.6);
           wh.position.set(cx, 0.1, Z(zc));
@@ -832,7 +980,9 @@ export function buildBackdrop(world, variant, L) {
     }
     // Ground under buildings (lawn / lot / dark plaza), off the sidewalk.
     const lotW = 5;
-    const lot = plane(lotW, Z(z1) - Z(z0), world === 'world1' ? std(0xffffff, 0.95, { map: grassTexture(T.lawn, 32, lotW, z1 - z0, r) }) : std(world === 'world2' ? 0x8E9196 : 0x1C1E28, 0.95),
+    const lot = plane(lotW, Z(z1) - Z(z0), FAMILY[world] === 'town' ? std(0xffffff, 0.95, { map: grassTexture(T.lawn, 32, lotW, z1 - z0, r) })
+      : world === 'world7' ? std(0xffffff, 0.8, { map: starTexture(lotW, z1 - z0, r) })
+      : std(T.lot ?? (FAMILY[world] === 'yard' ? 0x8E9196 : 0x1C1E28), 0.95),
       s * (L.halfW + kerbW + walkW + lotW / 2 - 1.3), 0.09, (Z(z0) + Z(z1)) / 2);
     g.add(lot);
   }
@@ -840,13 +990,13 @@ export function buildBackdrop(world, variant, L) {
   // 4. Bomb depot: from the breach down past the bar top, full width.
   const dz0 = L.breachZ, dz1 = z1;
   const depotW = L.halfX * 2 + 4;
-  const depotTex = paverTexture(T.depot, T.depotJoint, pxu, depotW, dz1 - dz0, r, { tile: world === 'world2' ? 1.0 : 0.6, style: world === 'world1' ? 'herring' : 'grid' });
+  const depotTex = paverTexture(T.depot, T.depotJoint, pxu, depotW, dz1 - dz0, r, { tile: FAMILY[world] === 'yard' ? 1.0 : 0.6, style: FAMILY[world] === 'town' ? 'herring' : 'grid' });
   g.add(plane(depotW, Z(dz1) - Z(dz0), std(0xffffff, night ? 0.5 : 0.9, { map: depotTex, metalness: night ? 0.2 : 0 }), 0, 0.02, (Z(dz0) + Z(dz1)) / 2));
   // A low wall with the stop line on top where road meets depot.
-  g.add(rbox(L.halfW * 2 + 0.6, 0.12, Z(0.34) - Z(0), 0.04, std(world === 'world2' ? 0xFFC21A : T.kerb, 0.6), 0, 0.06, Z(dz0 + 0.17)));
+  g.add(rbox(L.halfW * 2 + 0.6, 0.12, Z(0.34) - Z(0), 0.04, std(FAMILY[world] === 'yard' ? 0xFFC21A : T.kerb, 0.6), 0, 0.06, Z(dz0 + 0.17)));
   // Launch bays: a recessed channel continuing each lane into its bomb column,
   // with a metal-rimmed cradle under every bomb slot (the bomb sits IN it).
-  const rimM = night ? std(0x5A5F78, 0.3, { metalness: 0.7 }) : std(world === 'world2' ? 0x9EA3AA : 0xE9E3D6, 0.35, { metalness: world === 'world2' ? 0.6 : 0.1 });
+  const rimM = night ? std(0x5A5F78, 0.3, { metalness: 0.7 }) : std(FAMILY[world] === 'yard' ? 0x9EA3AA : 0xE9E3D6, 0.35, { metalness: FAMILY[world] === 'yard' ? 0.6 : 0.1 });
   for (const lx of L.laneXs) {
     const tw = L.bombR * 3.3, tLen = (L.slotZs.at(-1) + L.bombR * 2.2) - dz0;
     const zc = Z(dz0 + tLen / 2), zl = Z(tLen) - Z(0);
@@ -874,17 +1024,17 @@ export function buildBackdrop(world, variant, L) {
   // Depot dressing on the outer flanks (beside the columns, off the road width).
   for (const s of [-1, 1]) {
     const fx = s * (L.halfW + 1.1);
-    if (world === 'world1') {
-      const t = tree(T, r, 1.0); t.position.set(fx + s * 0.4, 0.02, Z(dz0 + 1.6)); g.add(t);
-      const fb = flowerBed(T, r, 0.9, 1.4); fb.position.set(fx, 0.02, Z(dz0 + 4.4)); g.add(fb);
-      const pp = planterPot(T, r, 1.1); pp.position.set(fx - s * 0.3, 0.02, Z(dz0 + 6.3)); g.add(pp);
-    } else if (world === 'world2') {
+    if (FAMILY[world] === 'town') {
+      const t = greenery(world, T, r, 1.0); t.position.set(fx + s * 0.4, 0.02, Z(dz0 + 1.6)); g.add(t);
+      const fb = bedFor(world, T, r, 0.9, 1.4); fb.position.set(fx, 0.02, Z(dz0 + 4.4)); g.add(fb);
+      const pp = potFor(world, T, r, 1.1); pp.position.set(fx - s * 0.3, 0.02, Z(dz0 + 6.3)); g.add(pp);
+    } else if (FAMILY[world] === 'yard') {
       for (let k = 0; k < 3; k++) { const dr = drum(pick(r, [0xFFC21A, 0x2F8CFF, 0xE0574A])); dr.position.set(fx + s * (k % 2) * 0.35, 0.02, Z(dz0 + 1.2 + k * 0.45)); g.add(dr); }
       const p = pallet(r); p.position.set(fx, 0.02, Z(dz0 + 4.4)); g.add(p);
       const c = cone(); c.position.set(fx - s * 0.2, 0.02, Z(dz0 + 6.2)); g.add(c);
     } else {
       const n = neonSign(T, r, 1.1); n.position.set(fx + s * 0.2, 0.02, Z(dz0 + 2.2)); g.add(n);
-      const t = tree(T, r, 0.9); t.position.set(fx, 0.02, Z(dz0 + 5.0)); g.add(t);
+      const t = greenery(world, T, r, 0.9); t.position.set(fx, 0.02, Z(dz0 + 5.0)); g.add(t);
     }
   }
   g.traverse(o => { if (o.isMesh) { o.castShadow = !o.material.isMeshBasicMaterial; o.receiveShadow = true; } });
@@ -931,10 +1081,11 @@ export function renderBackdrop(renderer, world, variant, L, { scale = 2, ss = 2 
   sun.target.position.set(0, 0, zMid);
   sun.position.add(new THREE.Vector3(0, 0, zMid));
   scene.add(sun, sun.target);
-  if (world === 'world3') {
+  if (FAMILY[world] === 'night') {
     // Coloured neon fill from the flanks.
-    const a = new THREE.DirectionalLight(0xFF3DB8, 0.35); a.position.set(-10, 6, zMid); scene.add(a);
-    const b = new THREE.DirectionalLight(0x4FE3FF, 0.35); b.position.set(10, 6, zMid); scene.add(b);
+    const [fa, fb2] = T.fill ?? [0xFF3DB8, 0x4FE3FF];
+    const a = new THREE.DirectionalLight(fa, 0.35); a.position.set(-10, 6, zMid); scene.add(a);
+    const b = new THREE.DirectionalLight(fb2, 0.35); b.position.set(10, 6, zMid); scene.add(b);
   }
 
   const obj = buildBackdrop(world, variant, L);
@@ -976,6 +1127,6 @@ export function renderBackdrop(renderer, world, variant, L, { scale = 2, ss = 2 
 }
 
 // ── Shared with the map diorama (mapdiorama.js) ─────────────────────────────
-export { THEME, rng, pick, mix, std, glow, rbox, box, cyl, sphere, blob, plane, canvas, toTex, speckle, blotch,
+export { THEME, FAMILY, greenery, bedFor, potFor, townOpts, starTexture, cactus, rockCluster, snowDrift, frostPine, crystal, rng, pick, mix, std, glow, rbox, box, cyl, sphere, blob, plane, canvas, toTex, speckle, blotch,
   paverTexture, grassTexture, tree, pine, bush, flowerBed, lamp, bench, hydrant, bollard, bin, planterPot, parasol,
   townHouse, warehouse, shippingContainer, drum, pallet, cone, fence, tower, neonSign };

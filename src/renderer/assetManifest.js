@@ -18,6 +18,9 @@ const _B = import.meta.env.BASE_URL;   // '' in dev, '/lane-defense/' on GH Page
 // world's art is preloaded exactly when its levels are). ['world1', ...] / [1, ...]
 const WORLD_THEMES = MAP_WORLDS.map(w => w.theme);
 const WORLD_NUMS   = WORLD_THEMES.map(t => Number(t.slice(5)));
+// Worlds 4+ have no side strips or panels: their baked backdrops cover the whole
+// scene (road, verges, depot), so only worlds 1-3 ship the legacy strip art.
+const STRIP_NUMS   = WORLD_NUMS.filter(w => w <= 3);
 
 export const COLORS = ['red', 'blue', 'green', 'yellow', 'purple', 'orange'];
 
@@ -106,7 +109,7 @@ export const TITLE_ART_URLS = [
   `${_B}sprites/designed/title-logo.png`,
 ];
 
-export const WORLD_PANEL_URLS = WORLD_NUMS.flatMap(w => [
+export const WORLD_PANEL_URLS = STRIP_NUMS.flatMap(w => [
   `${_B}sprites/designed/world${w}-left.png`,
   `${_B}sprites/designed/world${w}-right.png`,
 ]);
@@ -121,7 +124,7 @@ export const WORLD_ROAD_URLS = Object.fromEntries(
 // CityEdges renders them width-fit + vertically tiled — the full band width is
 // always shown and buildings can never be sliced. The legacy world*.png panels
 // remain as the cover-crop fallback.
-export const STRIP_PANEL_URLS = WORLD_NUMS.flatMap(w => [
+export const STRIP_PANEL_URLS = STRIP_NUMS.flatMap(w => [
   `${_B}sprites/designed/strip-world${w}-left.png`,
   `${_B}sprites/designed/strip-world${w}-right.png`,
 ]);
@@ -129,7 +132,7 @@ export const STRIP_PANEL_URLS = WORLD_NUMS.flatMap(w => [
 // Full-scene slices (one AI scene per world+variant → 4 unified surfaces).
 // Variants a/b/c rotate across levels within a world (sceneVariantForLevel).
 export const SCENE_VARIANTS = ['a', 'b', 'c'];
-export const SCENE_STRIP_URLS = WORLD_NUMS.flatMap(w => SCENE_VARIANTS.flatMap(v => [
+export const SCENE_STRIP_URLS = STRIP_NUMS.flatMap(w => SCENE_VARIANTS.flatMap(v => [
   `${_B}sprites/designed/strip-world${w}-${v}-left.png`,
   `${_B}sprites/designed/strip-world${w}-${v}-right.png`,
 ]));

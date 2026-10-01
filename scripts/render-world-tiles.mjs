@@ -10,8 +10,8 @@ import { roadTileSVG, zoneFloorSVG } from '../tools/art/worlds.mjs';
 const OUT = 'public/sprites/designed';
 const png = (svg, file) => sharp(Buffer.from(svg)).png().toFile(`${OUT}/${file}`);
 
-for (const w of ['world1', 'world2', 'world3']) {
+for (const w of ['world1', 'world2', 'world3', 'world4', 'world5', 'world6', 'world7']) {
   await png(roadTileSVG(w), `road-${w}.png`);
   for (const v of ['a', 'b', 'c']) await png(zoneFloorSVG(w), `zone-${w}-${v}.png`);
 }
-console.log('road tiles + dispatch floors written for world1-3');
+console.log('road tiles + dispatch floors written for world1-7');

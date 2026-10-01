@@ -150,11 +150,11 @@ export class CityEdges {
     this._buildingSet = BUILDING_SET_INFO[set] ? set : 'tutorial';
   }
 
-  // Swap the AI-generated world side-panel set. Accepts 'world1'..'world3' or a
+  // Swap the AI-generated world side-panel set. Accepts 'world1'..'world7' or a
   // scene-variant id like 'world2-b' (variants rotate per level). Stores it; the
   // subsequent setLaneCount() call in _startLevel redraws.
   setWorldPanel(world) {
-    if (/^world[123](-[abc])?$/.test(world ?? '')) this._worldPanel = world;
+    if (/^world[1-9](-[abc])?$/.test(world ?? '')) this._worldPanel = world;
   }
 
   _redraw() {

@@ -11,7 +11,8 @@
 //   L9-12:  sunset     — indigo-orange, dramatic, Tutorial City
 //   L13-15: misty      — cool grey overcast, Tutorial City climax
 //   L16-30: industrial — steel grey + orange hazard, World 2 Industrial Zone
-//   L31+:   nightHighway — near-black sky, headlight fog, World 3 Night Highway
+//   L31-45: nightHighway — near-black sky, headlight fog, World 3 Night Highway
+//   L46-60: desert, L61-75: frost, L76-90: harbor, L91-100: cosmos (Worlds 4-7)
 
 export const THEMES = {
   // Morning: warm cream-gold dominates. Soft sage greenery, hazy horizon.
@@ -73,6 +74,43 @@ export const THEMES = {
     roadColor: 0x0d0d14,   // very dark blue-black
     emissiveBoost: 0.4,
   },
+  // Desert (World 4, L46-60): hot pale sky, sandy glow, light dust haze.
+  desert: {
+    sky:       { zenith: 0x4aa8e8, mid: 0xa8d4ee, horizon: 0xffd9a0, glow: 0xffb860 },
+    hemi:      { sky: 0xe8dcc0, ground: 0xc89858, intensity: 1.35 },
+    sun:       { color: 0xfff0d0, intensity: 1.60 },
+    ambient:   { color: 0xfff4e4, intensity: 0.58 },
+    fog:       { color: 0xf0d8b0, near: 30, far: 96 },
+    roadColor: 0x2a2622,
+  },
+  // Frost (World 5, L61-75): pale blue overcast, cold white haze. near >= 20.
+  frost: {
+    sky:       { zenith: 0x7fa6d0, mid: 0xb4d0ea, horizon: 0xeaf4fc, glow: 0xd8ecff },
+    hemi:      { sky: 0xd0e4f8, ground: 0x8aa0b8, intensity: 1.10 },
+    sun:       { color: 0xeaf4ff, intensity: 0.95 },
+    ambient:   { color: 0xdcecff, intensity: 0.60 },
+    fog:       { color: 0xdce8f4, near: 22, far: 78 },
+    roadColor: 0x20242a,
+  },
+  // Harbor (World 6, L76-90): late-day teal sky, warm sodium horizon, salt haze.
+  harbor: {
+    sky:       { zenith: 0x1e5a8a, mid: 0x4a90b0, horizon: 0xffb070, glow: 0xff8a40 },
+    hemi:      { sky: 0x9ccce0, ground: 0x4a6068, intensity: 1.05 },
+    sun:       { color: 0xffd8a0, intensity: 1.20 },
+    ambient:   { color: 0xdcecf4, intensity: 0.50 },
+    fog:       { color: 0x9cc0cc, near: 24, far: 84 },
+    roadColor: 0x1c2024,
+  },
+  // Cosmos (World 7, L91-100): deep violet space, neon rim, dark low fog.
+  cosmos: {
+    sky:       { zenith: 0x0a0420, mid: 0x1c0a48, horizon: 0x4a1a8a, glow: 0xb040ff },
+    hemi:      { sky: 0x4a2a8a, ground: 0x120a2a, intensity: 0.55 },
+    sun:       { color: 0xb090ff, intensity: 0.40 },
+    ambient:   { color: 0xd8c8ff, intensity: 0.58 },
+    fog:       { color: 0x2a1458, near: 14, far: 48 },
+    roadColor: 0x120c1e,
+    emissiveBoost: 0.35,
+  },
 };
 
 // Map level id to a theme.
@@ -82,5 +120,9 @@ export function levelTheme(levelId) {
   if (levelId <= 12) return THEMES.sunset;
   if (levelId <= 15) return THEMES.misty;
   if (levelId <= 30) return THEMES.industrial;
-  return THEMES.nightHighway;
+  if (levelId <= 45) return THEMES.nightHighway;
+  if (levelId <= 60) return THEMES.desert;
+  if (levelId <= 75) return THEMES.frost;
+  if (levelId <= 90) return THEMES.harbor;
+  return THEMES.cosmos;
 }

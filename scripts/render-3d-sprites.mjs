@@ -126,7 +126,7 @@ if (mode === 'verges') {
   const outDir = mode === 'backdrop' ? OUT : args.shift();
   const [wArg, vArg, nArg] = args;
   const jobs = [];
-  for (const world of wArg ? [wArg] : ['world1', 'world2', 'world3']) {
+  for (const world of wArg ? [wArg] : ['world1', 'world2', 'world3', 'world4', 'world5', 'world6', 'world7']) {
     for (const v of vArg ? [vArg] : ['a', 'b', 'c']) jobs.push([world, v, Number(nArg ?? 3)]);
   }
   if (!wArg && mode === 'backdrop') jobs.push(['world1', 'b', 1], ['world1', 'c', 2]);   // L1 / L2
@@ -155,7 +155,7 @@ if (mode === 'verges') {
 } else if (mode === 'map' || mode === 'mappreview') {
   // Level-map backgrounds (one per world page) + repair building sprites.
   //   map-<world>.png (780×1688), repair-<world>-<state>-<variant>.png (300×300)
-  for (const w of MAP_WORLDS) {
+  for (const w of MAP_WORLDS.filter(w => !process.argv[4] || w.theme === process.argv[4])) {
     const road = mapRoadPath(w.page), nodes = mapNodes(w.page);
     const url = await page.evaluate(([t, road, nodes]) => window.studio.map(t, 1, { road, nodes }), [w.theme, road, nodes]);
     const out = mode === 'map' ? `${OUT}/map-${w.theme}.png` : `${outArg ?? '.'}/map-${w.theme}.png`;
@@ -163,7 +163,7 @@ if (mode === 'verges') {
     console.log('map', w.theme);
   }
   if (mode === 'map') {
-    for (const t of ['world1', 'world2', 'world3']) for (const st of [0, 1, 2]) for (const v of [0, 1, 2]) {
+    for (const t of (process.argv[4] ? [process.argv[4]] : ['world1', 'world2', 'world3', 'world4', 'world5', 'world6', 'world7'])) for (const st of [0, 1, 2]) for (const v of [0, 1, 2]) {
       const url = await page.evaluate(([t, st, v]) => window.studio.repair(t, st, v), [t, st, v]);
       await sharp(decode(url)).toFile(`${OUT}/repair-${t}-${st}-${v}.png`);
     }

@@ -1672,6 +1672,7 @@ async function main() {
         adManager.showRewarded(
           () => {
             if (!rescueOverlay) return;    // already resolved (a second reward callback)
+            logEvent('rescue_used', { levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber, method: 'ad' });
             resumeAfterRescue();
           },
           null,   // dismissed without reward — leave rescue overlay on screen
@@ -1681,6 +1682,7 @@ async function main() {
         if (!rescueOverlay || gs.coins < RESCUE_COIN_COST) return;
         gs.coins -= RESCUE_COIN_COST;
         progress.setCoins(gs.coins);
+        logEvent('rescue_used', { levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber, method: 'coins' });
         resumeAfterRescue();
       },
       onRetry: () => {
@@ -1853,11 +1855,11 @@ async function main() {
 
       const _evtLevelId = currentLevelIsDaily ? 'daily' : levelManager.levelNumber;
       if (won) {
-        logEvent('level_completed', { levelId: _evtLevelId });
+        logEvent('level_completed', { levelId: _evtLevelId, stars: _evtLevelId === 'daily' ? null : calcStars(gs), turns: gs.turnCount, boosters: boostersUsedThisLevel.length, rescued: !!gs.rescueUsed });
         haptics.success();
         showWin();
       } else {
-        logEvent('level_failed', { levelId: _evtLevelId });
+        logEvent('level_failed', { levelId: _evtLevelId, turns: gs.turnCount, goalLeft: gs.goalProgress?.reduce((a, r) => a + r, 0) ?? null, rescued: !!gs.rescueUsed });
         audio.stopMusic();
         audio.play('lose_tone');
         shakeTime = 0;

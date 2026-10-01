@@ -14,6 +14,7 @@ import { uiIcon, boosterIcon } from '../renderer/UIIcon.js';
 import { roundButton, button, bodyText, titleText, ribbon, screenBg, GOLD_DEEP } from '../renderer/PremiumUI.js';
 import { INK } from '../renderer/ToyStyle.js';
 import { ProgressManager } from '../game/ProgressManager.js';
+import { logEvent } from '../analytics/Analytics.js';
 
 export const SHOP_ITEMS = [
   { key: 'colorChange', label: 'COLOR SWAP', desc: 'Recolor a whole colour', cost: 20, icon: 'colorchange', glow: 0xB070FF, face: [0x4A3A96, 0x2A2268] },
@@ -354,6 +355,7 @@ export class ShopScreen {
     if (item.key === 'shield') p.addStreakShield(1);
     else p.addInventory(item.key, 1);
     p.incrementBoostersPurchased();
+    logEvent('shop_purchase', { item: item.key, cost: item.cost });
     this._onPurchase?.();
     this._rebuild();
     this._celebrate([item.key], '+1');
@@ -365,6 +367,7 @@ export class ShopScreen {
     this._audio?.play('coin_collect');
     for (const k of SHOP_PACK.keys) p.addInventory(k, SHOP_PACK.each);
     p.incrementBoostersPurchased();
+    logEvent('shop_purchase', { item: 'pack', cost: SHOP_PACK.cost });
     this._onPurchase?.();
     this._rebuild();
     this._celebrate(SHOP_PACK.keys, `+${SHOP_PACK.each}`);

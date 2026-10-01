@@ -11,6 +11,7 @@
 import { Container, Graphics, Text, Sprite, Assets, FillGradient } from 'pixi.js';
 import { uiIcon } from '../renderer/UIIcon.js';
 import { worldForLevel } from './levelMapLayout.js';
+import { LEVEL_COUNT } from '../game/LevelManager.js';
 import { panel as premiumPanel, ribbon, button as premiumButton, bodyText, titleText, well } from '../renderer/PremiumUI.js';
 
 const _B = import.meta.env.BASE_URL;
@@ -387,7 +388,9 @@ export class WinScreen {
     this._container.addChild(pnl);
 
     // Ribbon title across the top edge (pops in, then pulses — see update()).
-    const title = ribbon(is3Star ? 'PERFECT!' : 'LEVEL COMPLETE', is3Star ? 220 : 270, { size: is3Star ? 32 : 26 });
+    const finale = typeof levelId === 'number' && levelId >= LEVEL_COUNT;
+    const title = finale ? ribbon('CITY SAVED!', 260, { size: 30 })
+      : ribbon(is3Star ? 'PERFECT!' : 'LEVEL COMPLETE', is3Star ? 220 : 270, { size: is3Star ? 32 : 26 });
     title.x = cx; title.y = py + 2;
     this._container.addChild(title);
     this._titleBaseScale = 1;
@@ -438,7 +441,7 @@ export class WinScreen {
     // Normal levels: only NEXT LEVEL (no LEVEL SELECT on win — matches Royal Match pattern).
     // Daily challenge (onNext=null): LEVEL SELECT is the only exit.
     if (onNext) {
-      this._button('NEXT LEVEL', cx, y, 0x1a6a3a, 0x55ff99,
+      this._button(finale ? 'TO THE MAP' : 'NEXT LEVEL', cx, y, 0x1a6a3a, 0x55ff99,
         () => { audio?.play('button_tap'); onNext(); }, true);
     } else {
       this._button('LEVEL SELECT', cx, y, 0x1a2a3a, 0x88bbdd,

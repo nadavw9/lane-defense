@@ -30,14 +30,8 @@
 // (see the tuning note on each block). speed.base has no gameplay effect in the
 // turn-based game; it is kept only because the config shape requires it.
 
-const SPD = { base: 5.0, variance: 0.3 };
-// `heft` 0..1 = how heavy the spawn mix is (see CarTypes.heftWeights). Car HP per
-// TYPE is fixed everywhere: hpMultiplier is always 1.
-const W = (heft) => ({ heft, hpMultiplier: 1, speed: SPD });
-const total = (n) => [{ type: 'destroyTotal', count: n }];
-const boss = [{ type: 'defeatBoss', count: 1 }];
-// Opening rows for the non-boss lanes of a boss level (the boss owns its lane).
-const open = (...lanes) => lanes.flatMap(lane => [{ lane, row: 0 }, { lane, row: 1 }]);
+import { W, total, boss, open } from './levelDsl.js';
+import { LATE_LEVELS } from './LateLevels.js';
 
 const PROGRESSION = [
 
@@ -217,7 +211,7 @@ const PROGRESSION = [
     traits: { speeder: 0.08, chameleon: 0.08 }, goals: total(26) },
 
   // L30 BOSS "Chameleon King": a long 8-light sequence; speeders flank it.
-  { id: 30, name: 'Chameleon King', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Yellow', 'Purple'], worldConfig: W(0.36),
+  { id: 30, name: 'Long Haul', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Yellow', 'Purple'], worldConfig: W(0.36),
     duration: 120, spawnBudget: 20, laneTargetCarCount: 2, gridRows: 8,
     traits: { speeder: 0.18 },
     hintText: 'BOSS! A long sequence — and speeders on both sides',
@@ -284,6 +278,9 @@ const PROGRESSION = [
       { lane: 0, row: 1, sequence: ['Orange', 'Red', 'Blue', 'Yellow', 'Orange', 'Red'], moveEvery: 3 },
       { lane: 2, row: 1, sequence: ['Blue', 'Yellow', 'Orange', 'Red', 'Blue'], moveEvery: 3, reArmor: true }],
     goals: [{ type: 'defeatBoss', count: 2 }] },
+
+  // ═══ WORLDS 3-7 continue in LateLevels.js (L41-L100) ═══════════════════════
+  ...LATE_LEVELS,
 ];
 
 // COLOR CHANGE is now earned by chaining two strictly-consecutive multi-kills

@@ -15,6 +15,8 @@
 //   reset()                     — restore resting pose + zoom
 
 const SHAKE_DECAY    = 0.35;
+import { isReducedMotion } from '../game/MotionPrefs.js';
+
 const BREACH_ZOOM_IN = 0.10;   // peak zoom delta during breach pulse
 const INTRO_ZOOM_OUT = 0.12;   // start the intro this much zoomed out
 const INTRO_DURATION = 0.60;
@@ -40,6 +42,7 @@ export class CameraFX {
   }
 
   shake(magnitude = 0.15, duration = SHAKE_DECAY) {
+    if (isReducedMotion()) return;
     if (magnitude >= this._shakeMag || this._shakeTime <= 0) {
       this._shakeMag = magnitude; this._shakeTime = duration;
     }
@@ -90,10 +93,12 @@ export class CameraFX {
     this._currentComboZoom +=
       (this._targetComboZoom - this._currentComboZoom) * Math.min(1, dt * 3);
 
-    let zoom = this._baseZoom * (1 - this._currentComboZoom);
+    const still = isReducedMotion();
+    let zoom = this._baseZoom * (1 - (still ? 0 : this._currentComboZoom));
 
     if (this._introActive) {
       this._introT += dt;
+      if (still) this._introT = INTRO_DURATION;
       const e = _easeOutCubic(this._introT / INTRO_DURATION);
       zoom *= (1 - INTRO_ZOOM_OUT) + INTRO_ZOOM_OUT * e;
       if (this._introT >= INTRO_DURATION) this._introActive = false;
@@ -102,7 +107,7 @@ export class CameraFX {
     if (this._breachT >= 0 && !this._breachDone) {
       this._breachT += dt;
       const prog = Math.min(1, this._breachT / this._breachDuration);
-      zoom *= 1 + BREACH_ZOOM_IN * Math.sin(Math.PI * prog);
+      if (!still) zoom *= 1 + BREACH_ZOOM_IN * Math.sin(Math.PI * prog);
       if (this._breachT >= this._breachDuration) {
         this._breachDone = true; this._breachT = -1;
       }

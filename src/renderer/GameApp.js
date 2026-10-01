@@ -63,6 +63,7 @@ import { Column }          from '../models/Column.js';
 import { WinScreen, calcStars }       from '../screens/WinScreen.js';
 import { LoseScreen }                  from '../screens/LoseScreen.js';
 import { RescueOverlay }              from '../screens/RescueOverlay.js';
+import { isReducedMotion, setReducedMotion } from '../game/MotionPrefs.js';
 import { RESCUE_COIN_COST }           from '../director/DirectorConfig.js';
 import { ColorPicker }                from '../screens/ColorPicker.js';
 import { PreLevelScreen }             from '../screens/PreLevelScreen.js';
@@ -331,6 +332,7 @@ async function main() {
 
   const haptics = new HapticsManager();
   haptics.enabled = progress.hapticsEnabled;
+  setReducedMotion(progress.reducedMotion);
 
   // Apply saved colorblind preference immediately on startup.
   setColorblindMode(progress.colorblindMode);
@@ -2346,6 +2348,7 @@ async function main() {
         }
       }
     } else {
+      if (shakeTime > 0 && isReducedMotion()) shakeTime = 0;
       if (shakeTime > 0) {
         shakeTime = Math.max(0, shakeTime - dt);
         const mag = (shakeTime / 0.35) * 7;

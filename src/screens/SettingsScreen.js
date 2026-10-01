@@ -7,6 +7,7 @@
 //   HELP     — HOW TO PLAY and CAR GUIDE buttons (open the real overlays)
 //   ABOUT    — privacy links, version
 import { Container, Graphics } from 'pixi.js';
+import { isReducedMotion, setReducedMotion } from '../game/MotionPrefs.js';
 import { setColorblindMode } from '../game/ColorblindMode.js';
 import { uiIcon } from '../renderer/UIIcon.js';
 import { ribbon, roundButton, button, bodyText, titleText, screenBg, card, GOLD } from '../renderer/PremiumUI.js';
@@ -55,7 +56,41 @@ export class SettingsScreen {
     y = this._soundCard(y) + 16;
     y = this._gameplayCard(y) + 16;
     y = this._helpCard(y) + 16;
-    this._aboutCard(y);
+    y = this._aboutCard(y) + 16;
+    this._makeScrollable(c, 3, 76, y);
+  }
+
+  // The cards outgrow one screen on short phones: everything after the header
+  // (bg, ribbon, back) moves into a body that drags and wheel-scrolls under a mask.
+  _makeScrollable(c, headerCount, top, contentBottom) {
+    const h = this._appH, w = this._appW;
+    const viewH = h - top;
+    const maxScroll = Math.max(0, contentBottom - h);
+    if (maxScroll <= 0) return;
+    const body = new Container();
+    c.children.slice(headerCount).forEach(k => body.addChild(k));
+    const hit = new Graphics();
+    hit.rect(0, top, w, contentBottom - top).fill({ color: 0x000000, alpha: 0.001 });
+    body.addChildAt(hit, 0);
+    c.addChild(body);
+    const mask = new Graphics();
+    mask.rect(0, top, w, viewH).fill(0xffffff);
+    c.addChild(mask);
+    body.mask = mask;
+    body.eventMode = 'static';
+    let scroll = 0, dragFrom = null, startScroll = 0;
+    const apply = () => { body.y = -scroll; };
+    // Only a drag that STARTS on the background scrolls — sliders, toggles and
+    // buttons keep their own gestures.
+    body.on('pointerdown', (e) => { if (e.target?.cursor !== 'pointer') { dragFrom = e.global.y; startScroll = scroll; } });
+    body.on('globalpointermove', (e) => {
+      if (dragFrom == null) return;
+      scroll = Math.max(0, Math.min(maxScroll, startScroll - (e.global.y - dragFrom)));
+      apply();
+    });
+    const end = () => { dragFrom = null; };
+    body.on('pointerup', end); body.on('pointerupoutside', end);
+    body.on('wheel', (e) => { scroll = Math.max(0, Math.min(maxScroll, scroll + e.deltaY * 0.6)); apply(); });
   }
 
   // ── Cards ──────────────────────────────────────────────────────────────
@@ -88,11 +123,14 @@ export class SettingsScreen {
   }
 
   _gameplayCard(y) {
-    const h = 52 + 2 * 60 + 8;
+    const h = 52 + 3 * 60 + 8;
     let ry = this._cardFrame(y, h, 'GAMEPLAY', 'gear');
     ry = this._toggleRow('Colorblind shapes', 'Adds ● ▲ ■ ★ to every colour', ry,
       this._progress?.colorblindMode ?? false,
       (v) => { this._progress?.setColorblindMode(v); setColorblindMode(v); this._audio?.play('button_tap'); });
+    ry = this._toggleRow('Reduce motion', 'No screen shake or zoom pulses', ry,
+      isReducedMotion(),
+      (v) => { this._progress?.setReducedMotion(v); setReducedMotion(v); this._audio?.play('button_tap'); });
     this._toggleRow('Vibration', 'Buzz on shots and kills', ry,
       this._progress?.hapticsEnabled ?? true,
       (v) => {
@@ -134,6 +172,7 @@ export class SettingsScreen {
     const v = bodyText(`Traffic Bomb ${VERSION}  ·  Made by Nadav`, 13, 0xA9A3D6, { outline: false, weight: '700' });
     v.anchor.set(0.5); v.x = this._appW / 2; v.y = ry + 72;
     this._container.addChild(v);
+    return y + h;
   }
 
   _openUrl(url) {

@@ -3,6 +3,7 @@
 // Added fields (v1.1):
 //   colorblindMode       — bool; shape-symbol overlay enabled
 //   hapticsEnabled       — bool; haptic feedback enabled
+//   reducedMotion        — true/false once the player chose; null = follow the OS setting
 //   sfxVolume            — 0.0–1.0
 //   musicVolume          — 0.0–1.0
 //   loginStreak          — { count: N, lastLogin: 'YYYY-MM-DD' }
@@ -59,6 +60,7 @@ function defaults() {
     // the lives system was vestigial, gameplay had no hearts gate since FIX 3).
     colorblindMode:      false,
     hapticsEnabled:      true,
+    reducedMotion:       null,
     sfxVolume:           1.0,
     musicVolume:         1.0,
     loginStreak:         { count: 0, lastLogin: '' },
@@ -336,11 +338,13 @@ export class ProgressManager {
 
   get colorblindMode()  { return this._data.colorblindMode  ?? false; }
   get hapticsEnabled()  { return this._data.hapticsEnabled  ?? true; }
+  get reducedMotion()   { return this._data.reducedMotion   ?? null; }
   get sfxVolume()       { return this._data.sfxVolume       ?? 1.0; }
   get musicVolume()     { return this._data.musicVolume     ?? 1.0; }
 
   setColorblindMode(v)  { this._data.colorblindMode  = !!v;                    this._save(); }
   setHapticsEnabled(v)  { this._data.hapticsEnabled  = !!v;                    this._save(); }
+  setReducedMotion(v)   { this._data.reducedMotion   = !!v;                    this._save(); }
   setSfxVolume(v)       { this._data.sfxVolume        = Math.max(0, Math.min(1, +v)); this._save(); }
   setMusicVolume(v)     { this._data.musicVolume      = Math.max(0, Math.min(1, +v)); this._save(); }
 

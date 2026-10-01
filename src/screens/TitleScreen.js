@@ -213,7 +213,7 @@ export class TitleScreen {
       const x0 = w / 2 + (0 - (items.length - 1) / 2) * gapX;
       flame.x = x0 - 18; flame.y = rowY + 64;
       this._container.addChild(flame);
-      const badge = bodyText(`${loginStreak} day streak`, 12, 0xFFB35A);
+      const badge = bodyText(`${loginStreak} day streak`, 13, 0xFFB35A);
       badge.anchor.set(0, 0.5); badge.x = x0 - 8; badge.y = rowY + 64;
       this._container.addChild(badge);
     }

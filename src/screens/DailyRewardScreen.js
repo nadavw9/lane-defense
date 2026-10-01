@@ -97,7 +97,7 @@ export class DailyRewardScreen {
     parent.addChild(g);
 
     const dim = state === 'claimed' || state === 'future' ? 0.45 : 1;
-    const dl = bodyText(jackpot ? 'DAY 7 — JACKPOT' : `DAY ${i + 1}`, 12, active ? GOLD : 0xC9C3F0, { outline: active });
+    const dl = bodyText(jackpot ? 'DAY 7 — JACKPOT' : `DAY ${i + 1}`, 13, active ? GOLD : 0xC9C3F0, { outline: active });
     dl.x = x + tw / 2; dl.y = y + 14;
     dl.alpha = Math.max(dim, 0.7);
     parent.addChild(dl);

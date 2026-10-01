@@ -142,7 +142,7 @@ export function button(label, { variant = 'green', w = 220, h = 64, icon = null,
   }
   body.addChild(t);
   if (sub) {
-    const st = bodyText(sub, 12, WHITE);
+    const st = bodyText(sub, 13, WHITE);
     st.y = h * 0.24;
     body.addChild(st);
   }

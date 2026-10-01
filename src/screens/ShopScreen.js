@@ -250,7 +250,7 @@ export class ShopScreen {
     const name = titleText(item.label, 19);
     name.anchor.set(0.5); name.x = x + w / 2; name.y = y + 102;
     c.addChild(name);
-    const desc = bodyText(item.desc, 12, 0xD6D0FF, { outline: false, weight: '700' });
+    const desc = bodyText(item.desc, 13, 0xD6D0FF, { outline: false, weight: '700' });
     desc.anchor.set(0.5); desc.x = x + w / 2; desc.y = y + 123;
     c.addChild(desc);
 
@@ -291,14 +291,14 @@ export class ShopScreen {
       const btn = button('WATCH', { variant: 'blue', w: w - 30, h: 42, size: 20, onTap: () => this._watch() });
       btn.x = x + w / 2; btn.y = y + h - 44;
       c.addChild(btn);
-      const note = bodyText(`${left} left today`, 11, 0xE6FFE0, { outline: false, weight: '700' });
+      const note = bodyText(`${left} left today`, 13, 0xE6FFE0, { outline: false, weight: '700' });
       note.anchor.set(0.5); note.x = x + w / 2; note.y = y + h - 12;
       c.addChild(note);
     } else {
       const done = titleText('ALL WATCHED', 16, 0xC9C3F0);
       done.anchor.set(0.5); done.x = x + w / 2; done.y = y + h - 46;
       c.addChild(done);
-      const note = bodyText('More tomorrow', 12, 0xA8A2D8, { outline: false, weight: '700' });
+      const note = bodyText('More tomorrow', 13, 0xA8A2D8, { outline: false, weight: '700' });
       note.anchor.set(0.5); note.x = x + w / 2; note.y = y + h - 22;
       c.addChild(note);
     }
@@ -329,14 +329,14 @@ export class ShopScreen {
         onTap: () => { this._audio?.play('button_tap'); this._onDaily?.(); } });
       btn.x = x + w / 2; btn.y = y + h - 44;
       c.addChild(btn);
-      const note = bodyText(`Day ${this._progress.dailyDay + 1} of 7`, 11, 0xF2E6FF, { outline: false, weight: '700' });
+      const note = bodyText(`Day ${this._progress.dailyDay + 1} of 7`, 13, 0xF2E6FF, { outline: false, weight: '700' });
       note.anchor.set(0.5); note.x = x + w / 2; note.y = y + h - 12;
       c.addChild(note);
       // Whole card is a target too.
       g.eventMode = 'static'; g.cursor = 'pointer';
       g.on('pointertap', () => { this._audio?.play('button_tap'); this._onDaily?.(); });
     } else {
-      const lbl = bodyText('NEXT GIFT IN', 11, 0xA8A2D8, { outline: false, weight: '800' });
+      const lbl = bodyText('NEXT GIFT IN', 13, 0xA8A2D8, { outline: false, weight: '800' });
       lbl.anchor.set(0.5); lbl.x = x + w / 2; lbl.y = y + h - 56;
       c.addChild(lbl);
       const tm = titleText(fmtCountdown(this._progress.dailyReadyIn()), 22, 0xFFE08A);

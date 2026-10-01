@@ -52,7 +52,7 @@ export class CarManualScreen {
 
   _build(W, H, onClose) {
     const C = this._container;
-    const PW = 358, PH = 760;
+    const PW = 358, PH = 784;
     const PX = (W - PW) / 2, PY = Math.max(40, (H - PH) / 2 + 6);
     C.addChild(backdrop(W, H, 0.8));
     const pn = panel(PW, PH);
@@ -76,7 +76,7 @@ export class CarManualScreen {
     // Specials: 2 columns, as many rows as the campaign has special cars.
     const sy = gy + 2 * (th + gap) + 14;
     this._label('SPECIAL CARS', W / 2, sy);
-    const sw = (PW - 36 - gap) / 2, sh = 80;
+    const sw = (PW - 36 - gap) / 2, sh = 86;
     buildSpecials().forEach((s, i) => {
       this._specialTile(s, PX + 18 + (i % 2) * (sw + gap), sy + 14 + Math.floor(i / 2) * (sh + 8), sw, sh, this._unlocked >= s.level);
     });
@@ -125,9 +125,9 @@ export class CarManualScreen {
       this._container.addChild(q);
       return;
     }
-    this._sprite(e.sprite, 60, 58, x + tw / 2, y + 38);
+    this._sprite(e.sprite, 54, 50, x + tw / 2, y + 30);
     const n = bodyText(e.name, 13, 0xFFFFFF);
-    n.x = x + tw / 2; n.y = y + 78;
+    n.x = x + tw / 2; n.y = y + 63;   // clear of the HP pill (y + th - 28)
     if (n.width > tw - 8) n.scale.set((tw - 8) / n.width);
     this._container.addChild(n);
     // HP pill.
@@ -153,7 +153,7 @@ export class CarManualScreen {
       const q = titleText('???', 16, 0x6E68A0);
       q.anchor.set(0, 0.5); q.x = x + 72; q.y = y + 30;
       this._container.addChild(q);
-      const r = bodyText(`Level ${s.level}`, 11, 0x6E68A0, { outline: false, align: 'left' });
+      const r = bodyText(`Level ${s.level}`, 13, 0x6E68A0, { outline: false, align: 'left' });
       r.anchor.set(0, 0.5); r.x = x + 72; r.y = y + 54;
       this._container.addChild(r);
       return;
@@ -163,7 +163,7 @@ export class CarManualScreen {
     n.anchor.set(0, 0.5); n.x = x + 70; n.y = y + 20;
     if (n.width > sw - 76) n.scale.set((sw - 76) / n.width);
     this._container.addChild(n);
-    const r = bodyText(s.rule, 11, 0xE6E1FF, { outline: false, align: 'left', weight: '600', wrap: sw - 78 });
+    const r = bodyText(s.rule, 13, 0xE6E1FF, { outline: false, align: 'left', weight: '600', wrap: sw - 78 });
     r.anchor.set(0, 0); r.x = x + 70; r.y = y + 34;
     this._container.addChild(r);
   }

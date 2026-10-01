@@ -120,7 +120,7 @@ export class HpGuideOverlay {
         hp.anchor.set(0, 0.5); hp.x = px2 + 28; hp.y = cy - 1;
         C.addChild(hp);
       } else {
-        const hp = bodyText('not on this level', 11, 0x6E68A0, { outline: false });
+        const hp = bodyText('not on this level', 13, 0x6E68A0, { outline: false });
         hp.anchor.set(1, 0.5);
         hp.x = PX + PW - 32; hp.y = cy;
         C.addChild(hp);

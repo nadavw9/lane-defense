@@ -169,7 +169,7 @@ const ART = {
     sprite(a, 'car-green-processed.png', 50, 0, -72);
     sprite(a, 'car-yellow-processed.png', 50, 0, -20);
     sprite(a, 'car-purple-processed.png', 50, 0, 34);
-    const w = bodyText('BREACH LINE', 11, 0xFFB3AE, { outline: true });
+    const w = bodyText('BREACH LINE', 13, 0xFFB3AE, { outline: true });
     w.y = 92;
     a.addChild(w);
   },
@@ -199,7 +199,7 @@ const ART = {
     a.addChild(ps);
     const d2 = titleText('x2', 22, WHITE);
     d2.x = -44; d2.y = 56;
-    const dl = bodyText('DAMAGE · ANY COLOR', 11, 0xC9C3F0, { outline: false });
+    const dl = bodyText('DAMAGE · ANY COLOR', 13, 0xC9C3F0, { outline: false });
     dl.x = -44; dl.y = 80;
     a.addChild(d2, dl);
   },

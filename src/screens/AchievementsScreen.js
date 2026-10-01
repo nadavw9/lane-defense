@@ -112,7 +112,7 @@ export class AchievementsScreen {
     const name = bodyText(a.name, 17, earned ? 0xFFFFFF : 0x9C96C8, { outline: earned, align: 'left' });
     name.anchor.set(0, 0.5); name.x = x + 78; name.y = y + 26;
     parent.addChild(name);
-    const desc = bodyText(a.desc, 12, earned ? 0xE6E1FF : 0x7D77AD, { outline: false, align: 'left', weight: '600', wrap: rw - 140 });
+    const desc = bodyText(a.desc, 13, earned ? 0xE6E1FF : 0x7D77AD, { outline: false, align: 'left', weight: '600', wrap: rw - 140 });
     desc.anchor.set(0, 0); desc.x = x + 78; desc.y = y + 40;
     parent.addChild(desc);
 

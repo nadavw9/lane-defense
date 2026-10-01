@@ -1,13 +1,14 @@
 // StatsScreen — the player's profile page (premium pass, 2026-09-28).
 //
-// A hero card for star progress across the 40 levels, then a 2×3 grid of stat
+// A hero card for star progress across every level, then a 2×3 grid of stat
 // tiles: coins, levels cleared, cars destroyed, longest combo, accuracy and the
 // favourite booster. All values come from ProgressManager; nothing is stored here.
 import { Container } from 'pixi.js';
+import { LEVEL_COUNT } from '../game/LevelManager.js';
 import { uiIcon, boosterIcon } from '../renderer/UIIcon.js';
 import { screenBg, screenHeader, card, bar, titleText, bodyText, GOLD } from '../renderer/PremiumUI.js';
 
-const MAX_LEVEL = 40;
+const MAX_LEVEL = LEVEL_COUNT;
 const BOOSTER_ICON = { 'Color Change': 'colorchange', 'Freeze': 'freeze', 'Bomb': 'bomb', 'Swap': 'colorchange' };
 
 export class StatsScreen {
@@ -51,7 +52,7 @@ export class StatsScreen {
     const pb = bar(hw - 136, 20, stars / maxStars, { color: GOLD });
     pb.x = hx + 118; pb.y = hy + 76;
     c.addChild(pb);
-    const pct = bodyText(`${Math.round((stars / maxStars) * 100)}% of the city's stars`, 12, 0xA9A3D6, { outline: false, weight: '600' });
+    const pct = bodyText(`${Math.round((stars / maxStars) * 100)}% of the city's stars`, 13, 0xA9A3D6, { outline: false, weight: '600' });
     pct.anchor.set(0, 0.5); pct.x = hx + 118; pct.y = hy + 112;
     c.addChild(pct);
 
@@ -81,7 +82,7 @@ export class StatsScreen {
       v.x = x + tw / 2; v.y = y + 94;
       if (v.width > tw - 16) v.scale.set((tw - 16) / v.width);
       c.addChild(v);
-      const l = bodyText(t.label, 12, 0xC9C3F0, { outline: false });
+      const l = bodyText(t.label, 13, 0xC9C3F0, { outline: false });
       l.x = x + tw / 2; l.y = y + 128;
       c.addChild(l);
     });

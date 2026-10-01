@@ -131,7 +131,7 @@ export class SettingsScreen {
       b.x = MX + PADX + bw / 2 + i * (bw + 12); b.y = ry + 28;
       this._container.addChild(b);
     });
-    const v = bodyText(`Traffic Bomb ${VERSION}  ·  Made by Nadav`, 12, 0xA9A3D6, { outline: false, weight: '700' });
+    const v = bodyText(`Traffic Bomb ${VERSION}  ·  Made by Nadav`, 13, 0xA9A3D6, { outline: false, weight: '700' });
     v.anchor.set(0.5); v.x = this._appW / 2; v.y = ry + 72;
     this._container.addChild(v);
   }
@@ -203,7 +203,7 @@ export class SettingsScreen {
     const lt = bodyText(label, 16, 0xFFFFFF, { outline: false, weight: '800', align: 'left' });
     lt.anchor.set(0, 1); lt.x = x0; lt.y = cy + 1;
     c.addChild(lt);
-    const st = bodyText(sub, 12, 0xA9A3D6, { outline: false, weight: '700', align: 'left' });
+    const st = bodyText(sub, 13, 0xA9A3D6, { outline: false, weight: '700', align: 'left' });
     st.anchor.set(0, 0); st.x = x0; st.y = cy + 4;
     c.addChild(st);
 

@@ -8,6 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import { LevelManager } from '../src/game/LevelManager.js';
 import { CAR_TYPES, bandWeights } from '../src/director/CarTypes.js';
+import { TRAIT_TYPES } from '../src/director/TrafficRules.js';
 
 const PALETTE = ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'];
 
@@ -71,6 +72,15 @@ describe('audit: level configs (all 40)', () => {
         for (const g of cfg.goals.filter(g => g.type === 'destroyColor')) {
           expect(cfg.colors, `L${id} goal color ${g.color} not in palette [${cfg.colors}]`)
             .toContain(g.color);
+        }
+      });
+
+      it('every destroyTrait goal names a trait the level actually spawns', () => {
+        for (const g of cfg.goals.filter(g => g.type === 'destroyTrait')) {
+          expect(Object.keys(TRAIT_TYPES), `L${id} goal trait ${g.trait} is not a known trait`)
+            .toContain(g.trait);
+          expect(cfg.traits?.[g.trait] ?? 0, `L${id} goal trait ${g.trait} has zero spawn chance`)
+            .toBeGreaterThan(0);
         }
       });
 

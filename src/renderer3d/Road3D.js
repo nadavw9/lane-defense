@@ -93,6 +93,7 @@ export class Road3D {
     this._roadColorDark = COL_ASPHALT_DARK;
 
     // Refs to animated materials — reset on each rebuild.
+    this._depot         = null;
     this._reflStrips    = [];
     this._trafficTrails = [];
     this._speedLines    = [];
@@ -439,6 +440,36 @@ export class Road3D {
     // floor drawn after them paints straight over them regardless of height.
     mesh.renderOrder = -10;
     this._group.add(mesh);
+
+    // Depot overlay (2026-10-02). The bomb depot's slot tracks and rings are baked into
+    // this backdrop, so camera shake / combo zoom slid them out from under the bombs and
+    // the Pixi sockets (which sit still) for seconds after a kill. A second copy of the
+    // depot slice (breach line down to the frustum bottom) is counter-transformed every
+    // frame (setCameraComp) so on screen it is always exactly the rest-pose depot.
+    const total = F.bottomZ - F.topZ, depth = F.bottomZ - ROAD_Z_NEAR;
+    const dTex  = tex.clone();
+    dTex.wrapS = dTex.wrapT = THREE.ClampToEdgeWrapping;
+    dTex.repeat.set(1, depth / total);   // v=0 is the frustum bottom (near edge)
+    dTex.offset.set(0, 0);
+    dTex.needsUpdate = true;
+    const dMat  = new THREE.MeshBasicMaterial({ map: dTex, toneMapped: false });
+    const depot = new THREE.Mesh(new THREE.PlaneGeometry(F.halfX * 2, depth), dMat);
+    depot.rotation.x = -Math.PI / 2;
+    depot.position.set(0, -0.049, ROAD_Z_NEAR + depth / 2);
+    depot.renderOrder = -9;
+    this._group.add(depot);
+    this._depot = { mesh: depot, centerZ: ROAD_Z_NEAR + depth / 2 };
+  }
+
+  /** Counter-transform the depot slice against camera shake / zoom (see
+   *  Shooter3D.setCameraComp for the derivation; identity at rest). */
+  setCameraComp(cx, cz, baseX, baseZ, zoom) {
+    const d = this._depot;
+    if (!d || !d.mesh.parent) return;
+    const inv = 1 / (zoom || 1);
+    d.mesh.position.x = cx + (0 - baseX) * inv;
+    d.mesh.position.z = cz + (d.centerZ - baseZ) * inv;
+    d.mesh.scale.set(inv, inv, 1);
   }
 
   _buildRoadSurface() {

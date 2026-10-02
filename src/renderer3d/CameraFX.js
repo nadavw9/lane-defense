@@ -16,6 +16,7 @@
 
 const SHAKE_DECAY    = 0.35;
 import { isReducedMotion } from '../game/MotionPrefs.js';
+import { ROAD_Z_NEAR } from './projection.js';
 
 const BREACH_ZOOM_IN = 0.10;   // peak zoom delta during breach pulse
 const INTRO_ZOOM_OUT = 0.12;   // start the intro this much zoomed out
@@ -113,6 +114,14 @@ export class CameraFX {
       }
     }
 
+    // Zoom about the BREACH LINE, not the screen centre. The bomb zone below it is
+    // counter-transformed by Shooter3D to stay glued to its 2D sockets; pivoting here
+    // keeps the road edge, hazard stripe and zone floor meeting at the same screen
+    // row at every zoom, so the counter-transform never opens a seam.
+    //   screen = (p - cam) * zoom  ->  cam = P - (P - rest) / zoom  fixes P in place.
+    if (zoom !== 1) {
+      cam.position.z = ROAD_Z_NEAR - (ROAD_Z_NEAR - cam.position.z) / zoom;
+    }
     cam.zoom = zoom;
     cam.updateProjectionMatrix();
 

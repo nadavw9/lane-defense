@@ -310,6 +310,16 @@ export class Shooter3D {
       }
     }
 
+    // The zone floor (slot tracks, ring art) is part of the queue: it takes the same
+    // camera counter-transform as the balls, or the tracks slide under them.
+    if (this._bgPlane && this._bgDims) {
+      const cp = this._comp;
+      const inv = cp ? cp.inv : 1;
+      this._bgPlane.position.x = cp ? cp.cx + (0 - cp.baseX) * inv : 0;
+      this._bgPlane.position.z = cp ? cp.cz + (this._bgDims.d / 2 - cp.baseZ) * inv : this._bgDims.d / 2;
+      this._bgPlane.scale.set(inv, inv, 1);
+    }
+
     for (let li = 0; li < LANE_COUNT; li++) {
       const col   = this._columns[li];
       const slots = this._slots[li];

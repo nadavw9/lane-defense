@@ -1,3 +1,4 @@
-01=bomb queue at rest, L6 (reference)
-02=BEFORE: combo x12 zoom, balls drift off their sockets toward the road centre
-03=AFTER: same combo zoom, balls stay where they are at rest (compare against 01)
+01=bomb depot at rest, L6 (reference)
+02=BEFORE: combo x12 zoom - balls AND the depot slot art drift apart (this is what you saw)
+03=AFTER: same combo x12 zoom - balls, tracks and rings identical to 01
+04=AFTER: camera shake at max strength - still identical to 01 (only the road above shakes)

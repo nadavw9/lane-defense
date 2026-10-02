@@ -496,6 +496,10 @@ export class GameRenderer3D {
     this._environment?.update(dt);
     this._ambient?.update(dt);
     this._cameraFX?.update(dt);
+    if (this._cameraFX) {
+      const cam = this._scene3d.camera, fx = this._cameraFX;
+      this._shooters?.setCameraComp(cam.position.x, cam.position.z, fx._baseP.x, fx._baseP.z, cam.zoom / fx._baseZoom);
+    }
     this._laneFlash?.update(dt);
     this._scorchMarks?.update(dt);
     this._particles?.update(dt);

@@ -1,10 +1,3 @@
-BEFORE: none - worlds 4-7 are new (levels 46-100 previously fell back to world 3 art / no art).
-01=L50 Sun Valley (desert): sand verge, cacti, adobe, warm road; plated/armoured traffic
-02=L57 Sun Valley variant b: mender car (green cross) top-left lane
-03=L65 Frost Pass: snow verge + pines, cold blue road; phantom car (black with ?) right lane
-04=L72 Frost Pass variant c
-05=L80 Harbor Lights: container yard verge, hazard kerb, blue lane dashes; boss row top
-06=L88 Harbor Lights variant b
-07=L95 Starlight Strip: violet neon towers, glowing lane edges, crystal props in depot
-08=L99 Starlight Strip variant c
-LOOK FOR: each world reads as a different place; cars/bombs stay vivid against every road; breach line + depot visible; nothing sliced at the strips. The First Blood trophy banner covering the goal cards is the fresh-save achievement popup, not part of this change.
+01=bomb queue at rest, L6 (reference)
+02=BEFORE: combo x12 zoom, balls drift off their sockets toward the road centre
+03=AFTER: same combo zoom, balls stay where they are at rest (compare against 01)

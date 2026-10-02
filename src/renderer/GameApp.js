@@ -2459,6 +2459,7 @@ async function main() {
       // input-path cost (see scripts/_perf-handlers.mjs). Dev-only, like the
       // rest of this block.
       getDragDrop: () => dragDrop,
+      getRenderer3D: () => gameRenderer3D,
       // Bomb-queue 3D slot groups. Balls are Three meshes, sockets are Pixi
       // circles — two renderers, so their alignment can only be checked by
       // reading BOTH, which needs this handle.

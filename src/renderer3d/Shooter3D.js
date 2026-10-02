@@ -230,6 +230,17 @@ export class Shooter3D {
 
   setActiveColCount(n) { this._activeColCount = n; }
 
+  // Camera compensation (2026-10-02). The bomb queue is a 3D object but its sockets,
+  // halos and drag targets are Pixi overlays that never move. Camera shake and the
+  // combo / breach zoom move EVERY 3D object, so after a kill the balls drifted off
+  // their sockets for as long as the effect lasted (combo zoom-out holds for seconds).
+  // The camera is straight-down orthographic: screen = (p - camXZ) * zoom, so the
+  // exact counter is  p' = camXZ + (p - baseXZ) / zoom  and a 1/zoom scale. Identity
+  // (zoom 1, camera at rest) leaves every position untouched.
+  setCameraComp(cx, cz, baseX, baseZ, zoom) {
+    this._comp = { cx, cz, baseX, baseZ, inv: 1 / (zoom || 1) };
+  }
+
   // Get the world position of a queue slot (for DragDrop hit-test coordination)
   // Not used for rendering (3D doesn't do 2D hit-tests), but called by DragDrop for symmetry
   getQueueSlotCenter(colIdx, rowIdx) {
@@ -266,8 +277,10 @@ export class Shooter3D {
       shakeX = Math.sin(this._shakeT * 80) * 0.22 * (this._shakeT / 0.18);
     }
     for (let li = 0; li < this._slots.length; li++) {
-      for (let si = 0; si < this._slots[li].length; si++) {        const g = this._slots[li][si].group;
-        if (g._baseX != null) g.position.x = g._baseX + shakeX;
+      for (let si = 0; si < this._slots[li].length; si++) {
+        const g = this._slots[li][si].group;
+        const cp = this._comp;
+        if (g._baseX != null) g.position.x = cp ? cp.cx + (g._baseX + shakeX - cp.baseX) * cp.inv : g._baseX + shakeX;
         // Bombs rest STILL. The old idle bob spanned only ±0.12 wu ≈ ±2.4 device
         // px — a sine that small renders as discrete 1px steps with ~0.5s dwells
         // at its extremes ("stuck then jumps"), and it dragged the big damage
@@ -290,7 +303,10 @@ export class Shooter3D {
         // slotZ(si) IS the canonical position and it is a multiply — there is no
         // reason to cache it. Reading it live makes ball and socket share one
         // source of truth by construction, which is what the guard test pins.
-        g.position.z = slotZ(si);
+        g.position.z = cp ? cp.cz + (slotZ(si) - cp.baseZ) * cp.inv : slotZ(si);
+        // Rest scale of every slot (the front slot's punch / focus scale below
+        // multiplies on top). Counter-scales the camera zoom.
+        if (si > 0) g.scale.setScalar(this._slots[li][si]._baseScale * (cp ? cp.inv : 1));
       }
     }
 
@@ -353,18 +369,18 @@ export class Shooter3D {
           slot._punchT += dt;
           const PUNCH_DUR = 0.15;
           const prog = Math.min(1, slot._punchT / PUNCH_DUR);
-          const s    = (1.40 - 0.40 * easeOut3(prog)) * slot._baseScale;
+          const s    = (1.40 - 0.40 * easeOut3(prog)) * slot._baseScale * (this._comp ? this._comp.inv : 1);
           slot.group.scale.setScalar(s);
           if (slot._punchT >= PUNCH_DUR) {
             slot._punching = false;
-            slot.group.scale.setScalar(slot._baseScale);
+            slot.group.scale.setScalar(slot._baseScale * (this._comp ? this._comp.inv : 1));
           }
         }
 
         if (si === 0 && !slot._punching) {
           // 3B: the grabbed column's front bomb pops to 1.15x (focus); others rest.
           const sel = (li === this._selectedCol) ? 1.15 : 1.0;
-          slot.group.scale.setScalar(sel * slot._baseScale);
+          slot.group.scale.setScalar(sel * slot._baseScale * (this._comp ? this._comp.inv : 1));
         }
 
         // Opacity: dim bombs queued behind the grabbed column (0.7).
@@ -576,7 +592,8 @@ export class Shooter3D {
       emptyMesh,  emptyMat,
       badgeCanvas, badgeCtx, badgeTex, badgeMesh, badgeMat,
       lastColor:  '',
-      lastDamage: -1,      _punching: false, _punchT: 0,
+      lastDamage: -1,
+      _punching: false, _punchT: 0,
       _baseScale: 1.0,
     };
   }

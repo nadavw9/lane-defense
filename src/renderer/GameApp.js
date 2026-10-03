@@ -110,8 +110,7 @@ const TOTAL_COLS  = 4;
 
 // Breach camera: zoom toward the breaching lane for this many seconds before
 // showing the rescue overlay.
-const BREACH_CAM_DURATION = 0.50; // seconds
-const BREACH_CAM_ZOOM     = 0.08; // fraction over 1.0 (8% zoom-in at peak)
+const BREACH_CAM_DURATION = 0.50; // seconds of breach hold before the rescue / lose screen
 
 // ── Floating chain-hit labels ─────────────────────────────────────────────────
 
@@ -1658,6 +1657,7 @@ async function main() {
     const resumeAfterRescue = () => {
       gs.rescue(10);
       gameLoop.prepareForRescue();   // FIX 2: refill lanes + columns the breach skipped
+      shakeTime = 0;                 // settle any breach shake before play resumes
       rescueOverlay.destroy();
       rescueOverlay = null;
       // Resuming play — restore the booster bar + toasts.
@@ -2014,6 +2014,10 @@ async function main() {
     haptics.heavy();
   };
   gameLoop._onComboFreeze = () => {
+    // GameLoop resets the combo on a freeze but only the HUD/3D are told here; without
+    // this the x-N badge and the combo glow stayed lit at the old value.
+    hudRenderer.bumpCombo(0);
+    gameRenderer3D.setCombo(0);
     comboFX.triggerFreeze();
     popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildFlashText(w, 'FROZEN!', 0x88ddff), 1.5);
     audio.play('freeze_activate');
@@ -2326,42 +2330,35 @@ async function main() {
       featureBanners.fire('first_car', 'Cars incoming! Drag a bomb to the lane with a matching color.');
     }
 
-    // ── Breach camera ──────────────────────────────────────────────────────
+    // ── Breach beat → rescue flow ──────────────────────────────────────────
+    // A short hold (the shake plays over it) before the rescue / lose screen. No stage
+    // zoom: the 3D camera never zooms either, so the Pixi layer and the 3D scene can
+    // never disagree about where the road is.
     if (breachCam && !breachCam.done) {
       breachCam.t += dt;
-      const prog    = Math.min(1, breachCam.t / BREACH_CAM_DURATION);
-      const zoomAmt = BREACH_CAM_ZOOM * Math.sin(Math.PI * prog);
-      const scale   = 1 + zoomAmt;
-      const pivotX  = APP_W / 2;
-      const pivotY  = ROAD_BOTTOM_Y;
-
-      app.stage.scale.set(scale);
-      app.stage.pivot.set(pivotX, pivotY);
-      app.stage.position.set(pivotX, pivotY);
-
       if (breachCam.t >= BREACH_CAM_DURATION) {
         breachCam.done = true;
-        app.stage.scale.set(1);
-        app.stage.pivot.set(0, 0);
-        app.stage.position.set(0, 0);
         if (breachCam.skipRescue) {
           _showNoRescueLose();
         } else {
           showRescue();
         }
       }
-    } else {
-      if (shakeTime > 0 && isReducedMotion()) shakeTime = 0;
-      if (shakeTime > 0) {
-        shakeTime = Math.max(0, shakeTime - dt);
-        const mag = (shakeTime / 0.35) * 7;
-        app.stage.x = (Math.random() - 0.5) * 2 * mag;
-        app.stage.y = (Math.random() - 0.5) * 2 * mag;
-      } else {
-        app.stage.x = 0;
-        app.stage.y = 0;
-      }
     }
+
+    // ── Stage shake (Pixi layer) — also pushed to the 3D bomb zone so it stays
+    // glued to its sockets while the stage jitters.
+    if (shakeTime > 0 && isReducedMotion()) shakeTime = 0;
+    if (shakeTime > 0) {
+      shakeTime = Math.max(0, shakeTime - dt);
+      const mag = (shakeTime / 0.35) * 7;
+      app.stage.x = (Math.random() - 0.5) * 2 * mag;
+      app.stage.y = (Math.random() - 0.5) * 2 * mag;
+    } else {
+      app.stage.x = 0;
+      app.stage.y = 0;
+    }
+    gameRenderer3D.setStageOffset(app.stage.x, app.stage.y);
 
     if (rescueOverlay)    rescueOverlay.update(dt);
     if (preLevelScreen)   preLevelScreen.update?.(dt);
@@ -2460,6 +2457,8 @@ async function main() {
       // rest of this block.
       getDragDrop: () => dragDrop,
       getRenderer3D: () => gameRenderer3D,
+      getStage: () => app.stage,
+      forceStageShake: (t = 0.35) => { shakeTime = t; },
       // Bomb-queue 3D slot groups. Balls are Three meshes, sockets are Pixi
       // circles — two renderers, so their alignment can only be checked by
       // reading BOTH, which needs this handle.

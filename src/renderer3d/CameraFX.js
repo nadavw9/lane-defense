@@ -1,142 +1,75 @@
-// CameraFX — projection-agnostic camera juice.
-// Works on whatever camera Scene3D owns (orthographic). It never sets an
-// absolute pose; it captures the resting position/zoom at construction and
-// applies transient offsets (shake) and zoom pulses on top, restoring them.
+// CameraFX — shake-only camera juice.
+//
+// POLICY (2026-10-03): the camera NEVER zooms. The Pixi layer (sockets, tap
+// targets, hit sparks, goal band) is anchored to rest geometry from
+// projection.js and does not follow the 3D camera, so any zoom desynchronises
+// the two (bomb zone drifting off its sockets, exposed backdrop edges, tap
+// misalignment, stuck zoom state). Shake is a pure translation, which the
+// bomb zone cancels exactly via GameRenderer3D's zone offset.
 //
 //   shake(magnitude, duration)  — decaying X/Z position jitter
-//   startBreachZoom(duration)   — brief zoom-in pulse
-//   setCombo(combo)             — subtle sustained zoom-out at high combo
-//   startLevelIntro()           — zoom ease from slightly out to resting
-//   setLaneCount(n)             — re-syncs the resting pose from the camera
-//                                 (frustum/zCenter adapts in Scene3D; this
-//                                 class must re-capture it or every frame's
-//                                 update() silently reverts the camera back
-//                                 to whatever position was frozen at construction)
-//   reset()                     — restore resting pose + zoom
+//   setLaneCount(n)             — re-captures the resting pose from the camera
+//                                 (Scene3D sets the band's zCenter first; without
+//                                 re-capture update() would revert it every frame)
+//   update(dt)                  — per frame; exposes offsetX/offsetZ (the applied jitter)
+//   reset()                     — restore resting pose, drop any shake
 
-const SHAKE_DECAY    = 0.35;
 import { isReducedMotion } from '../game/MotionPrefs.js';
-import { ROAD_Z_NEAR } from './projection.js';
 
-const BREACH_ZOOM_IN = 0.10;   // peak zoom delta during breach pulse
-const INTRO_ZOOM_OUT = 0.12;   // start the intro this much zoomed out
-const INTRO_DURATION = 0.60;
-
-const COMBO_ZOOM_OUT = [
-  { threshold: 12, dz: 0.06 },
-  { threshold:  7, dz: 0.035 },
-  { threshold:  3, dz: 0.015 },
-];
-
-function _easeOutCubic(t) { return 1 - Math.pow(1 - Math.min(t, 1), 3); }
+const SHAKE_DECAY = 0.35;
 
 export class CameraFX {
   constructor(camera) {
-    this._camera   = camera;
-    this._baseP    = camera.position.clone();
-    this._baseZoom = camera.zoom || 1;
-
-    this._shakeMag = 0; this._shakeTime = 0;
-    this._breachT = -1; this._breachDuration = 0; this._breachDone = false;
-    this._targetComboZoom = 0; this._currentComboZoom = 0;
-    this._introActive = false; this._introT = 0;
+    this._camera = camera;
+    this._baseP  = camera.position.clone();
+    this._shakeMag = 0;
+    this._shakeTime = 0;
+    this._shakeDur = SHAKE_DECAY;
+    /** Jitter applied to the camera this frame (world units). */
+    this.offsetX = 0;
+    this.offsetZ = 0;
   }
 
   shake(magnitude = 0.15, duration = SHAKE_DECAY) {
     if (isReducedMotion()) return;
-    if (magnitude >= this._shakeMag || this._shakeTime <= 0) {
-      this._shakeMag = magnitude; this._shakeTime = duration;
+    const cur = this._shakeTime > 0
+      ? this._shakeMag * (this._shakeTime / this._shakeDur) : 0;
+    // A weaker hit never cuts a stronger one short.
+    if (magnitude >= cur) {
+      this._shakeMag = magnitude;
+      this._shakeTime = duration;
+      this._shakeDur = duration;
     }
   }
 
-  startBreachZoom(duration = 0.50) {
-    this._breachT = 0; this._breachDuration = duration; this._breachDone = false;
-  }
-
-  setCombo(combo) {
-    let dz = 0;
-    for (const tier of COMBO_ZOOM_OUT) {
-      if (combo >= tier.threshold) { dz = tier.dz; break; }
-    }
-    this._targetComboZoom = dz;
-  }
-
-  // Must run AFTER Scene3D has already set the camera's new resting position
-  // for this level (GameRenderer3D.setActiveLaneCount calls _scene3d.setLaneCount()
-  // before _cameraFX.setLaneCount() — confirmed order). Since 2026-07-23
-  // (THREE_LANE_REDESIGN_BATCH.md §1) the resting zCenter is lane-count-keyed,
-  // not constant — without this re-capture, update() below reverts the camera
-  // to the FROZEN position from construction time every single frame, silently
-  // undoing Scene3D's fix (discovered via the L4-L8 pilot: cars existed in game
-  // state and were correctly positioned in world space, but nothing was visible
-  // on screen because the live camera's Z was still the stale pre-band value).
   setLaneCount(_n) {
     this._baseP.copy(this._camera.position);
+    this.offsetX = 0; this.offsetZ = 0;
   }
 
-  startLevelIntro() { this._introActive = true; this._introT = 0; }
-
-  /** Call every frame. Returns true while any animation runs. */
+  /** Call every frame. Returns true while a shake is running. */
   update(dt) {
-    const cam = this._camera;
     let sx = 0, sz = 0;
-
-    if (this._shakeTime > 0) {
+    if (isReducedMotion()) {
+      this._shakeTime = 0;
+    } else if (this._shakeTime > 0) {
       this._shakeTime -= dt;
-      const t = Math.max(0, Math.min(1, this._shakeTime / SHAKE_DECAY));
-      const m = this._shakeMag * t;
-      sx = (Math.random() - 0.5) * 2 * m;
-      sz = (Math.random() - 0.5) * 2 * m;
-    } else { this._shakeTime = 0; }
-
-    cam.position.set(this._baseP.x + sx, this._baseP.y, this._baseP.z + sz);
-
-    this._currentComboZoom +=
-      (this._targetComboZoom - this._currentComboZoom) * Math.min(1, dt * 3);
-
-    const still = isReducedMotion();
-    let zoom = this._baseZoom * (1 - (still ? 0 : this._currentComboZoom));
-
-    if (this._introActive) {
-      this._introT += dt;
-      if (still) this._introT = INTRO_DURATION;
-      const e = _easeOutCubic(this._introT / INTRO_DURATION);
-      zoom *= (1 - INTRO_ZOOM_OUT) + INTRO_ZOOM_OUT * e;
-      if (this._introT >= INTRO_DURATION) this._introActive = false;
-    }
-
-    if (this._breachT >= 0 && !this._breachDone) {
-      this._breachT += dt;
-      const prog = Math.min(1, this._breachT / this._breachDuration);
-      if (!still) zoom *= 1 + BREACH_ZOOM_IN * Math.sin(Math.PI * prog);
-      if (this._breachT >= this._breachDuration) {
-        this._breachDone = true; this._breachT = -1;
+      if (this._shakeTime > 0) {
+        const m = this._shakeMag * (this._shakeTime / this._shakeDur);
+        sx = (Math.random() - 0.5) * 2 * m;
+        sz = (Math.random() - 0.5) * 2 * m;
+      } else {
+        this._shakeTime = 0;
       }
     }
-
-    // Zoom about the BREACH LINE, not the screen centre. The bomb zone below it is
-    // counter-transformed by Shooter3D to stay glued to its 2D sockets; pivoting here
-    // keeps the road edge, hazard stripe and zone floor meeting at the same screen
-    // row at every zoom, so the counter-transform never opens a seam.
-    //   screen = (p - cam) * zoom  ->  cam = P - (P - rest) / zoom  fixes P in place.
-    if (zoom !== 1) {
-      cam.position.z = ROAD_Z_NEAR - (ROAD_Z_NEAR - cam.position.z) / zoom;
-    }
-    cam.zoom = zoom;
-    cam.updateProjectionMatrix();
-
-    return this._shakeTime > 0 ||
-           (this._breachT >= 0 && !this._breachDone) ||
-           this._introActive;
+    this.offsetX = sx; this.offsetZ = sz;
+    this._camera.position.set(this._baseP.x + sx, this._baseP.y, this._baseP.z + sz);
+    return this._shakeTime > 0;
   }
 
   reset() {
-    this._shakeTime = 0; this._breachT = -1;
-    this._targetComboZoom = 0; this._currentComboZoom = 0;
-    this._introActive = false;
-    const cam = this._camera;
-    cam.position.copy(this._baseP);
-    cam.zoom = this._baseZoom;
-    cam.updateProjectionMatrix();
+    this._shakeTime = 0; this._shakeMag = 0;
+    this.offsetX = 0; this.offsetZ = 0;
+    this._camera.position.copy(this._baseP);
   }
 }

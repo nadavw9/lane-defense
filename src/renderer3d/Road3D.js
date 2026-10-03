@@ -93,7 +93,7 @@ export class Road3D {
     this._roadColorDark = COL_ASPHALT_DARK;
 
     // Refs to animated materials — reset on each rebuild.
-    this._depot         = null;
+    this._zoneMeshes    = [];   // {mesh, x, z}: bomb-zone art that follows camera + stage shake
     this._reflStrips    = [];
     this._trafficTrails = [];
     this._speedLines    = [];
@@ -185,6 +185,7 @@ export class Road3D {
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.set(0, -0.03, zTop + span / 2);
     this._group.add(mesh);
+    this._zoneMeshes.push({ mesh, x: 0, z: zTop + span / 2 });
   }
 
   /** Update road surface color from theme. No geometry rebuild needed. */
@@ -396,6 +397,7 @@ export class Road3D {
 
   _clearGeometry() {
     this.clearLaneGlow();
+    this._zoneMeshes = [];
     // Dispose every mesh/material in the group except in-flight bomb rings,
     // which are tracked separately and self-dispose.
     const ringMeshes = new Set(this._bombRings.map(r => r.mesh));
@@ -441,11 +443,10 @@ export class Road3D {
     mesh.renderOrder = -10;
     this._group.add(mesh);
 
-    // Depot overlay (2026-10-02). The bomb depot's slot tracks and rings are baked into
-    // this backdrop, so camera shake / combo zoom slid them out from under the bombs and
-    // the Pixi sockets (which sit still) for seconds after a kill. A second copy of the
-    // depot slice (breach line down to the frustum bottom) is counter-transformed every
-    // frame (setCameraComp) so on screen it is always exactly the rest-pose depot.
+    // Depot overlay. The bomb depot's slot tracks and rings are baked into this backdrop,
+    // so camera shake slid them out from under the bombs and the Pixi sockets (which sit
+    // still). A second copy of the depot slice (breach line down to the frustum bottom)
+    // is translated every frame (setZoneOffset) so on screen it stays on the rest-pose depot.
     const total = F.bottomZ - F.topZ, depth = F.bottomZ - ROAD_Z_NEAR;
     const dTex  = tex.clone();
     dTex.wrapS = dTex.wrapT = THREE.ClampToEdgeWrapping;
@@ -458,18 +459,16 @@ export class Road3D {
     depot.position.set(0, -0.049, ROAD_Z_NEAR + depth / 2);
     depot.renderOrder = -9;
     this._group.add(depot);
-    this._depot = { mesh: depot, centerZ: ROAD_Z_NEAR + depth / 2 };
+    this._zoneMeshes.push({ mesh: depot, x: 0, z: ROAD_Z_NEAR + depth / 2 });
   }
 
-  /** Counter-transform the depot slice against camera shake / zoom (see
-   *  Shooter3D.setCameraComp for the derivation; identity at rest). */
-  setCameraComp(cx, cz, baseX, baseZ, zoom) {
-    const d = this._depot;
-    if (!d || !d.mesh.parent) return;
-    const inv = 1 / (zoom || 1);
-    d.mesh.position.x = cx + (0 - baseX) * inv;
-    d.mesh.position.z = cz + (d.centerZ - baseZ) * inv;
-    d.mesh.scale.set(inv, inv, 1);
+  /** Translate the bomb-zone art by (dx, dz) world units: camera shake offset plus the
+   *  Pixi stage shake, so the zone stays glued to the sockets. Identity at rest. */
+  setZoneOffset(dx, dz) {
+    for (const z of this._zoneMeshes) {
+      z.mesh.position.x = z.x + dx;
+      z.mesh.position.z = z.z + dz;
+    }
   }
 
   _buildRoadSurface() {

@@ -11,6 +11,7 @@
 import * as THREE from 'three';
 import { laneToX, CELL } from './Scene3D.js';
 import { isColorblind } from '../game/ColorblindMode.js';
+import { isReducedMotion } from '../game/MotionPrefs.js';
 import { drawColorShapeBadge } from './colorShapeCanvas.js';
 import { BOMB_R, BOMB_ZONE_SCALE, bombSlotZ } from './projection.js';
 
@@ -191,6 +192,7 @@ export class Shooter3D {
 
 
     this._activeColCount = LANE_COUNT;
+    this._zoneDX = 0; this._zoneDZ = 0;   // camera + stage shake offset (world units)
     this._shakeT = 0;   // bomb-zone shake timer (wrong-shot feedback, 1D)
     this._selectedCol = -1;                              // 3B: grabbed-bomb column
   }
@@ -230,15 +232,14 @@ export class Shooter3D {
 
   setActiveColCount(n) { this._activeColCount = n; }
 
-  // Camera compensation (2026-10-02). The bomb queue is a 3D object but its sockets,
-  // halos and drag targets are Pixi overlays that never move. Camera shake and the
-  // combo / breach zoom move EVERY 3D object, so after a kill the balls drifted off
-  // their sockets for as long as the effect lasted (combo zoom-out holds for seconds).
-  // The camera is straight-down orthographic: screen = (p - camXZ) * zoom, so the
-  // exact counter is  p' = camXZ + (p - baseXZ) / zoom  and a 1/zoom scale. Identity
-  // (zoom 1, camera at rest) leaves every position untouched.
-  setCameraComp(cx, cz, baseX, baseZ, zoom) {
-    this._comp = { cx, cz, baseX, baseZ, inv: 1 / (zoom || 1) };
+  // Zone offset (2026-10-03). The bomb queue is a 3D object but its sockets, halos and
+  // drag targets are Pixi overlays anchored to rest geometry. Camera shake moves every
+  // 3D object and the stage shake moves the Pixi layer, so the zone is translated by
+  // the SUM of both (world units) to stay glued to its sockets. Translation only:
+  // the camera never zooms (see CameraFX), so no scale compensation exists.
+  setZoneOffset(dx, dz) {
+    this._zoneDX = dx || 0;
+    this._zoneDZ = dz || 0;
   }
 
   // Get the world position of a queue slot (for DragDrop hit-test coordination)
@@ -251,7 +252,7 @@ export class Shooter3D {
 
   // Brief horizontal jitter of the whole bomb queue — used on a wrong-colour shot
   // so the rejection reads in the bomb zone without shaking the whole screen. (1D)
-  shakeZone(dur = 0.18) { this._shakeT = dur; }
+  shakeZone(dur = 0.18) { if (!isReducedMotion()) this._shakeT = dur; }
 
   // 3B: which column's bomb is currently grabbed (-1 = none). The front bomb of
   // that column pops to 1.15x and the bombs behind it dim, for a focus effect.
@@ -279,8 +280,7 @@ export class Shooter3D {
     for (let li = 0; li < this._slots.length; li++) {
       for (let si = 0; si < this._slots[li].length; si++) {
         const g = this._slots[li][si].group;
-        const cp = this._comp;
-        if (g._baseX != null) g.position.x = cp ? cp.cx + (g._baseX + shakeX - cp.baseX) * cp.inv : g._baseX + shakeX;
+        if (g._baseX != null) g.position.x = g._baseX + shakeX + this._zoneDX;
         // Bombs rest STILL. The old idle bob spanned only ±0.12 wu ≈ ±2.4 device
         // px — a sine that small renders as discrete 1px steps with ~0.5s dwells
         // at its extremes ("stuck then jumps"), and it dragged the big damage
@@ -303,21 +303,15 @@ export class Shooter3D {
         // slotZ(si) IS the canonical position and it is a multiply — there is no
         // reason to cache it. Reading it live makes ball and socket share one
         // source of truth by construction, which is what the guard test pins.
-        g.position.z = cp ? cp.cz + (slotZ(si) - cp.baseZ) * cp.inv : slotZ(si);
-        // Rest scale of every slot (the front slot's punch / focus scale below
-        // multiplies on top). Counter-scales the camera zoom.
-        if (si > 0) g.scale.setScalar(this._slots[li][si]._baseScale * (cp ? cp.inv : 1));
+        g.position.z = slotZ(si) + this._zoneDZ;
+        if (si > 0) g.scale.setScalar(this._slots[li][si]._baseScale);
       }
     }
 
-    // The zone floor (slot tracks, ring art) is part of the queue: it takes the same
-    // camera counter-transform as the balls, or the tracks slide under them.
+    // The zone floor (slot tracks, ring art) takes the same offset as the balls.
     if (this._bgPlane && this._bgDims) {
-      const cp = this._comp;
-      const inv = cp ? cp.inv : 1;
-      this._bgPlane.position.x = cp ? cp.cx + (0 - cp.baseX) * inv : 0;
-      this._bgPlane.position.z = cp ? cp.cz + (this._bgDims.d / 2 - cp.baseZ) * inv : this._bgDims.d / 2;
-      this._bgPlane.scale.set(inv, inv, 1);
+      this._bgPlane.position.x = this._zoneDX;
+      this._bgPlane.position.z = this._bgDims.d / 2 + this._zoneDZ;
     }
 
     for (let li = 0; li < LANE_COUNT; li++) {
@@ -379,18 +373,18 @@ export class Shooter3D {
           slot._punchT += dt;
           const PUNCH_DUR = 0.15;
           const prog = Math.min(1, slot._punchT / PUNCH_DUR);
-          const s    = (1.40 - 0.40 * easeOut3(prog)) * slot._baseScale * (this._comp ? this._comp.inv : 1);
+          const s    = (1.40 - 0.40 * easeOut3(prog)) * slot._baseScale;
           slot.group.scale.setScalar(s);
           if (slot._punchT >= PUNCH_DUR) {
             slot._punching = false;
-            slot.group.scale.setScalar(slot._baseScale * (this._comp ? this._comp.inv : 1));
+            slot.group.scale.setScalar(slot._baseScale);
           }
         }
 
         if (si === 0 && !slot._punching) {
           // 3B: the grabbed column's front bomb pops to 1.15x (focus); others rest.
           const sel = (li === this._selectedCol) ? 1.15 : 1.0;
-          slot.group.scale.setScalar(sel * slot._baseScale * (this._comp ? this._comp.inv : 1));
+          slot.group.scale.setScalar(sel * slot._baseScale);
         }
 
         // Opacity: dim bombs queued behind the grabbed column (0.7).

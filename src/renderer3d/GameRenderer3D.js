@@ -5,7 +5,6 @@
 //   r3d.onMiss(laneIdx)
 //   r3d.onShoot(laneIdx)
 //   r3d.onBreach()
-//   r3d.onShake()
 //   r3d.setCombo(combo)
 //   r3d.triggerDeployPunch(colIdx)
 //   r3d.resetLevel()
@@ -26,7 +25,7 @@ import { PostFX3D }      from './PostFX3D.js';
 import { ScorchMarks3D } from './ScorchMarks3D.js';
 import { Environment3D } from './Environment3D.js';
 import { Ambient3D }     from './Ambient3D.js';
-import { computeFrustum } from './projection.js';
+import { computeFrustum, PX_PER_WU } from './projection.js';
 
 export class GameRenderer3D {
   constructor(width, height) {
@@ -45,6 +44,8 @@ export class GameRenderer3D {
     this._projectiles = null;
     this._particles   = null;
     this._cameraFX    = null;
+    this._stageOffX   = 0; this._stageOffY = 0;
+    this._timers      = new Set();
     this._laneFlash    = null;
     this._postFX       = null;
     this._scorchMarks  = null;
@@ -140,7 +141,21 @@ export class GameRenderer3D {
     this._road?.setTheme?.(theme);
   }
 
+  /** Pixi stage shake offset in stage px, pushed by GameApp every frame. */
+  setStageOffset(px, py) { this._stageOffX = px || 0; this._stageOffY = py || 0; }
+
+  _later(fn, ms) {
+    const id = setTimeout(() => { this._timers.delete(id); fn(); }, ms);
+    this._timers.add(id);
+  }
+
+  _clearTimers() {
+    for (const id of this._timers) clearTimeout(id);
+    this._timers.clear();
+  }
+
   resetLevel() {
+    this._clearTimers();
     this._cars?.clearAll();
     this._projectiles?.reset();
     this._particles?.dispose();
@@ -212,18 +227,12 @@ export class GameRenderer3D {
   }
 
   onBreach() {
-    this._cameraFX?.startBreachZoom(0.50);
     this._cameraFX?.shake(0.30, 0.50);
     this._postFX?.setBreach(1.0);
     this._postFX?.triggerChroma(0.04, 0.60);
   }
 
-  onShake(magnitude = 0.10) {
-    this._cameraFX?.shake(magnitude, 0.20);
-  }
-
   setCombo(combo) {
-    this._cameraFX?.setCombo(combo);
     this._postFX?.setCombo(combo);
     this._skybox?.setCombo(combo);   // drives aurora amplitude + colour shift
     // Keep bloom at resting level regardless of combo — headlights bloom yellow above 0.65+
@@ -284,7 +293,7 @@ export class GameRenderer3D {
 
     // ── Stage 2 — staggered detonations, front to back ────────────────────────
     order.forEach((k, i) => {
-      setTimeout(() => {
+      this._later(() => {
         this._particles?.spawnExplosion(k.laneIdx, color, 2.2, k.position);
         this._cameraFX?.shake(0.10, 0.12);   // small kick per pop
       }, FLASH_MS + i * STEP_MS);
@@ -292,7 +301,7 @@ export class GameRenderer3D {
 
     // ── Stage 3 — full-clear punctuation, once, after the last explosion ───────
     const lastMs = FLASH_MS + (order.length - 1) * STEP_MS;
-    setTimeout(() => {
+    this._later(() => {
       this._cameraFX?.shake(0.45, 0.65);
       this._scene3d?.setBloomStrength(3.0);
       this._postFX?.triggerChroma(0.09, 1.00);
@@ -305,21 +314,6 @@ export class GameRenderer3D {
 
   /** 3B: highlight the grabbed column's bomb (-1 = none). */
   setSelectedBomb(colIdx) { this._shooters?.setSelectedColumn(colIdx); }
-
-
-  // Project a queue slot's bomb (3D) to 2D screen pixels (stage coords) by running
-  // its world position through the actual camera — the ground-truth on-screen
-  // centre. Used by 2D overlays so they land exactly on the bomb.
-  getBombSlotScreenXY(col, row) {
-    const world = this._shooters?.getSlotWorldPosition(col, row);
-    const cam   = this._scene3d?.camera;
-    if (!world || !cam) return null;
-    world.project(cam);   // world → NDC [-1,1]
-    return {
-      x: (world.x * 0.5 + 0.5) * this._width,
-      y: (-world.y * 0.5 + 0.5) * this._height,
-    };
-  }
 
 
   /** Set the world {x,z} the next bomb in this lane should travel FROM (release point). */
@@ -342,7 +336,6 @@ export class GameRenderer3D {
 
   /** Sweep camera from high steep angle to gameplay position over 0.6 s. */
   startLevelIntro() {
-    this._cameraFX?.startLevelIntro();
     this._warmupShaders();
   }
 
@@ -496,10 +489,15 @@ export class GameRenderer3D {
     this._environment?.update(dt);
     this._ambient?.update(dt);
     this._cameraFX?.update(dt);
-    if (this._cameraFX) {
-      const cam = this._scene3d.camera, fx = this._cameraFX;
-      this._shooters?.setCameraComp(cam.position.x, cam.position.z, fx._baseP.x, fx._baseP.z, cam.zoom / fx._baseZoom);
-      this._road?.setCameraComp(cam.position.x, cam.position.z, fx._baseP.x, fx._baseP.z, cam.zoom / fx._baseZoom);
+    {
+      // Bomb zone = camera shake offset + Pixi stage shake (px -> world), so it stays
+      // locked to the Pixi sockets. Translation only; the camera never zooms.
+      const fx = this._cameraFX;
+      const k = 1 / PX_PER_WU;
+      const dx = (fx?.offsetX ?? 0) + this._stageOffX * k;
+      const dz = (fx?.offsetZ ?? 0) + this._stageOffY * k;
+      this._shooters?.setZoneOffset(dx, dz);
+      this._road?.setZoneOffset(dx, dz);
     }
     this._laneFlash?.update(dt);
     this._scorchMarks?.update(dt);
@@ -549,6 +547,7 @@ export class GameRenderer3D {
 
   destroy() {
     if (!this._mounted) return;
+    this._clearTimers();
 
     this._cars?.clearAll();
     this._projectiles?.dispose();

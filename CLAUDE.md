@@ -244,7 +244,7 @@ PixiJS canvas (z-front) overlays the Three.js canvas (z-behind). They share no W
 
 ### Camera — single top-down orthographic
 
-One `OrthographicCamera` in `Scene3D.js` renders everything. There is no perspective or dual-camera setup. `CameraFX.js` wraps the orthographic camera for transient juice only (shake, breach zoom pulse, combo zoom-out, level-intro zoom) — steady-state zoom is 1.
+One `OrthographicCamera` in `Scene3D.js` renders everything. There is no perspective or dual-camera setup. `CameraFX.js` is **shake-only** (2026-10-03): **the camera never zooms** — zoom is always 1. Combo zoom-out, breach zoom pulse, level-intro zoom and the Pixi breach scale pulse were removed because the Pixi layer (sockets, taps, sparks, goal band) is anchored to rest geometry and cannot follow a zoomed 3D camera: the bomb zone drifted off its sockets for seconds after a kill, backdrop edges showed, and taps misaligned. Shake is a pure translation: `GameRenderer3D.update` sets a **zone offset** (camera shake offset + Pixi stage shake px / `PX_PER_WU`) on `Shooter3D` (balls + zone floor) and `Road3D` (depot overlay / zone floor) so the bomb zone stays locked to its sockets. GameApp pushes the stage offset every frame via `setStageOffset`. Do NOT add zoom/scale effects to the camera or stage without also moving every Pixi anchor. Dev hooks: `_nav.getRenderer3D()`, `_nav.getStage()`, `_nav.forceStageShake(t)`; verify with the NDC probe (ball vs socket deviation must be 0.00 px under shake).
 
 ### 3D Scene Coordinate System — SINGLE SOURCE: `src/renderer3d/projection.js`
 
@@ -294,7 +294,7 @@ Always `${import.meta.env.BASE_URL}sprites/...`. Hardcoded `/sprites/...` causes
 ## 6. Current State
 
 ### Tests
-**1495 passing**, 1 skipped, 5 todo — 77 test files. Run: `npx vitest run`. All headless (no
+**1504 passing**, 1 skipped, 5 todo — 78 test files. Run: `npx vitest run`. All headless (no
 render tests).
 Visual smoke (`npm run test:visual`, Playwright) is separate and is a blocking CI gate.
 

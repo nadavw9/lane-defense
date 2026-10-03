@@ -98,7 +98,7 @@ import { DailyChallengeManager }  from '../game/DailyChallengeManager.js';
 import { CarTypeIntroCard, hasIntroCard } from '../screens/CarTypeIntroCard.js';
 import { spawnableTypesFor, carHpFor } from '../director/CarTypes.js';
 import { roundButton as premiumRoundButton, ribbon as premiumRibbon } from './PremiumUI.js';
-import { inventorySpent } from '../game/BoosterInventory.js';
+import { inventorySpentByUse } from '../game/BoosterInventory.js';
 import { bombBallScreenRadius } from '../renderer3d/projection.js';
 import { ComboFX } from './ComboFX.js';
 
@@ -407,6 +407,10 @@ async function main() {
 
   // ── Audio ─────────────────────────────────────────────────────────────────
   const audio = new AudioManager();
+  // Apply the saved volumes at boot: only the Settings sliders did, so a player who set
+  // Music to 0 got full-volume music after every restart.
+  audio.setSfxVolume(progress.sfxVolume);
+  audio.setMusicVolume(progress.musicVolume);
 
   // ── Boosters ──────────────────────────────────────────────────────────────
   // FIX 4E: booster counts no longer persist between levels — each level is seeded
@@ -455,6 +459,7 @@ async function main() {
     () => {
       // COLOR CHANGE button — toggle "tap a car" mode; cancel dismisses the picker too.
       if (boosterState.colorChangeMode) { boosterState.cancelColorChange(); _dismissColorPicker(); return; }
+      if (boosterState.bombMode && boosterState.colorChange > 0) boosterState.cancelBomb();   // one armed mode at a time
       if (boosterState.activateColorChange()) {
         audio.play('booster_activate');
         boostersUsedThisLevel.push('colorchange');
@@ -472,7 +477,10 @@ async function main() {
       // BOMB button — toggle placement mode on/off.
       if (boosterState.bombMode) {
         boosterState.cancelBomb();
-      } else if (boosterState.activateBomb()) {
+      } else {
+        if (boosterState.bombs <= 0) return;
+        if (boosterState.colorChangeMode) { boosterState.cancelColorChange(); _dismissColorPicker(); }   // one armed mode at a time
+        boosterState.activateBomb();
         audio.play('booster_activate');
         boostersUsedThisLevel.push('bomb');
         logEvent('booster_used', { booster: 'bomb', levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber });
@@ -568,6 +576,21 @@ async function main() {
   let carTypeIntroCard    = null;  // active intro card (only one at a time)
   let carTypeIntroTimer   = null;  // setTimeout handle for level-start intro delay
 
+  // Tear down every card/hint that can sit above the board, in an order that cannot
+  // resurrect one. CarTypeIntroCard._destroy() fires its onDismiss, whose done() runs
+  // _runNextModal(); with a card still queued that built the NEXT card, which the
+  // caller's `carTypeIntroCard = null` then orphaned (never updated, board playable
+  // under it). So: empty the queue first, null the ref, then destroy.
+  function _dismissAllCards() {
+    clearTimeout(carTypeIntroTimer); carTypeIntroTimer = null;
+    _clearModalQueue();
+    const card = carTypeIntroCard;
+    carTypeIntroCard = null;
+    card?._destroy();
+    _clearModalQueue();
+    onboardingHints.destroy();
+  }
+
   // Canonical reveal order when one level introduces several new types at once.
   const INTRO_ORDER = ['small', 'big', 'jeep', 'truck', 'bigrig', 'tank'];
 
@@ -597,7 +620,8 @@ async function main() {
   // ── Achievement system ────────────────────────────────────────────────────
   const achievementManager    = new AchievementManager(progress);
   const dailyChallengeManager = new DailyChallengeManager();
-  const weeklyPlaylist        = dailyChallengeManager.getWeeklyPlaylist();
+  // Read per use, not captured at boot: the app can stay open across the Monday rollover.
+  const weeklyPlaylist = () => dailyChallengeManager.getWeeklyPlaylist();
 
   // ── Per-level daily/no-rescue flags ───────────────────────────────────────
   let currentLevelIsDaily  = false;
@@ -736,9 +760,9 @@ async function main() {
   let _lossRecorded = false;   // _recordFinalLoss runs once per level
   function _settleInventory() {
     if (!_levelInv) return;
-    const { taken } = _levelInv;
+    const { taken, grant } = _levelInv;
     _levelInv = null;
-    const spent = inventorySpent(taken, { colorChange: boosterState.colorChange, freeze: boosterState.freeze, bombs: boosterState.bombs });
+    const spent = inventorySpentByUse(taken, grant, boosterState.used);
     for (const [key, used] of Object.entries(spent)) if (used > 0) progress.addInventory(key, -used);
   }
 
@@ -751,11 +775,10 @@ async function main() {
     unlockScreen?.destroy();        unlockScreen     = null;
     boosterSpotlight?.destroy();    boosterSpotlight = null;
     tutOrch?.dismiss();
-    clearTimeout(carTypeIntroTimer); carTypeIntroTimer   = null;
-    carTypeIntroCard?._destroy();   carTypeIntroCard    = null;
+    _dismissAllCards();
     _dismissColorPicker();                 // FIX 4B: clear any open picker
     preLevelScreen?.destroy(); preLevelScreen = null;   // FIX 4D
-    _clearModalQueue();
+    _cancelLevelSplash();
     breachCam = null;   // a breach camera from the previous attempt must not open a rescue on this one
 
     // Resolve config from either a number or a pre-built config object.
@@ -794,7 +817,8 @@ async function main() {
     boosterState.colorChange = (grant.colorChange ?? 0) + taken.colorChange;
     boosterState.freeze      = (grant.freeze ?? 0) + taken.freeze;
     boosterState.bombs       = Math.min(boosterState.bombsMax, grant.bombs ?? 0) + taken.bombs;
-    _levelInv = { taken };
+    boosterState.used = { colorChange: 0, freeze: 0, bombs: 0 };
+    _levelInv = { taken, grant: { colorChange: grant.colorChange ?? 0, freeze: grant.freeze ?? 0, bombs: Math.min(boosterState.bombsMax, grant.bombs ?? 0) } };
     _lossRecorded = false;
     adManager.resetForLevel();
 
@@ -845,9 +869,6 @@ async function main() {
       if (!/^(NEW!|BOSS!|FINAL BOSS!)/.test(cfg.hintText)) featureBanners.fire(`hint_L${levelId}`, cfg.hintText);
       ftueCfg = { ...cfg, hintText: null };
     }
-    // FTUEOverlay must be created AFTER setActiveCounts so that PositionRegistry
-    // returns correct lane/column screen positions for the current level geometry.
-    ftueOverlay = _makeFTUEOverlay(app.stage, APP_W, APP_H, ftueCfg);
     carRenderer.clearAll();
     gameRenderer3D.resetLevel();
     gameRenderer3D.applyTheme(levelId);
@@ -894,6 +915,11 @@ async function main() {
     gameRenderer3D.setZoneTexture(`${import.meta.env.BASE_URL}sprites/designed/zone-${worldVariant}.png`);
     shooterRenderer.setWorld(worldVariant);                   // (sockets only now)
     shooterRenderer.setLaneCount(cfg.laneCount ?? 4);
+    // FTUEOverlay reads SHOOTER_AREA_Y, ROAD_BOTTOM_Y and the column/lane positions in its
+    // constructor. It must be built only now, AFTER the band, road geometry and shooter
+    // layout were refreshed for THIS level; before them (as it was) it captured the
+    // previous level's band and sat ~60px off on every band change.
+    ftueOverlay = _makeFTUEOverlay(app.stage, APP_W, APP_H, ftueCfg);
     gameRenderer3D.startLevelIntro();
     gameRenderer3D.setCombo(0);
     _clearModalQueue();   // drop any queued cards from a previous level
@@ -955,7 +981,8 @@ async function main() {
       const scr = new BoosterUnlockScreen(app.stage, APP_W, APP_H, levelId, {
         onPlay: () => {
           unlockClosed = true;
-          progress.markSeenUnlock(levelId);
+          // NOT marked seen here: quitting mid-tutorial used to burn the only bench
+          // tutorial. It is marked when the player actually stores a bomb (onBenchStore).
           unlockScreen?.destroy();
           unlockScreen = null;
           const spotBooster = SPOTLIGHT_BOOSTER[levelId];
@@ -1007,6 +1034,13 @@ async function main() {
   }
 
   // ── Level intro splash — compact top-center pill badge (1.2 s) ───────────
+  let _levelSplash = null;   // live "LEVEL N" ribbon, so a restart / quit can remove it
+  function _cancelLevelSplash() {
+    if (!_levelSplash) return;
+    app.ticker.remove(_levelSplash.unsub);
+    if (!_levelSplash.c.destroyed) _levelSplash.c.destroy({ children: true });
+    _levelSplash = null;
+  }
   function _showLevelIntroSplash(levelNumber, onComplete) {
     // Premium ribbon over the middle of the road (it used to be a dark pill at
     // the top, colliding with the header-docked tips). Pops in, holds, fades.
@@ -1018,6 +1052,8 @@ async function main() {
     c.alpha = 0;
 
     let t = 0;
+    _cancelLevelSplash();   // never two ribbons (restart within 1.2 s)
+    _levelSplash = { c, unsub: null };
     // Pixi 8's ticker.add returns the TICKER, not the listener — removing that
     // matched nothing, so this ran forever: destroy() and onComplete() every
     // frame after the splash, one more listener per level. Keep the function.
@@ -1033,10 +1069,12 @@ async function main() {
         c.alpha = 1 - (t - 1.0) / 0.2;
       } else {
         app.ticker.remove(unsub);
+        if (_levelSplash?.c === c) _levelSplash = null;
         c.destroy({ children: true });
         onComplete?.();   // FIX 1: reveal the objective only after the banner clears
       }
     };
+    _levelSplash.unsub = unsub;
     app.ticker.add(unsub);
   }
 
@@ -1119,6 +1157,7 @@ async function main() {
         // Show `adCount` rewarded ads in sequence, then start with the bundle.
         let remaining = adCount;
         const showOne = () => {
+          if (!preLevelScreen) return;   // closed while the ad loaded: do not start a level behind the map
           if (remaining <= 0) { start(bundle); return; }
           remaining--;
           // Skipped / failed / unavailable ad → no reward: start without the booster.
@@ -1230,7 +1269,7 @@ async function main() {
         });
       },
       audio,
-      weeklyLevels: weeklyPlaylist.levels,
+      weeklyLevels: weeklyPlaylist().levels,
       cityAnim: _pendingCityAnim,   // §3e repair pop (consumed once, then cleared)
     });
     _pendingCityAnim = null;
@@ -1397,6 +1436,10 @@ async function main() {
 
   // ── Screen: Pause ─────────────────────────────────────────────────────────
   function showPause() {
+    // Pause is a single boolean, so opening the menu over a card / tutorial and then
+    // pressing RESUME released a pause the card or tutorial still owned (loop running
+    // under the "drag the bomb" spotlight). Those need their own explicit dismissal.
+    if (_boardBlockers().some(b => b === 'modal' || b === 'introCard' || b === 'unlock') || tutOrch?.isActive()) return false;
     gameLoop.pause();
     pauseBtn.visible = false;
     bookBtn.visible  = false;
@@ -1445,9 +1488,8 @@ async function main() {
         // Nothing from the abandoned level may fire over the map: the car-intro
         // timer, queued modal cards and tutorials (their dismissal also resumed
         // the abandoned loop behind the map).
-        clearTimeout(carTypeIntroTimer); carTypeIntroTimer = null;
-        carTypeIntroCard?._destroy();    carTypeIntroCard  = null;
-        _clearModalQueue();
+        _dismissAllCards();
+        _cancelLevelSplash();
         tutOrch?.dismiss();
         gameLoop.pause();
         // Leave gameLoop paused — _startLevel() will resume it.
@@ -1524,9 +1566,10 @@ async function main() {
       if (priorCity !== 2) _pendingCityAnim = { building: bId, prior: priorCity };
 
       // Weekly playlist bonus: +15 coins for winning a featured level this week.
-      const { levels: featuredLevels, weekKey: wk } = weeklyPlaylist;
+      const { levels: featuredLevels, weekKey: wk } = weeklyPlaylist();
       if (featuredLevels.includes(levelId) && !progress.hasClaimedWeeklyLevel(levelId, wk)) {
         gs.coins += 15;
+        progress.addEarnedCoins(15);
         progress.markClaimedWeeklyLevel(levelId, wk);
         floatingTexts.push(spawnFloatingText(
           layers.get('particleLayer'), APP_W / 2, APP_H / 2 - 60,
@@ -1606,8 +1649,7 @@ async function main() {
     popupQueue.setSuppressed(true);
     boosterBar.setVisible(false);
     ftueOverlay?.setVisible(false);
-    audio.stopMusic();
-    audio.play('lose_tone');
+    audio.stopMusic();   // (lose_tone already played at the breach — onEnd)
 
     let loseScreen = null;
     loseScreen = new LoseScreen(
@@ -1658,6 +1700,8 @@ async function main() {
       gs.rescue(10);
       gameLoop.prepareForRescue();   // FIX 2: refill lanes + columns the breach skipped
       shakeTime = 0;                 // settle any breach shake before play resumes
+      _dismissAllCards();            // a card that drained during the breach beat must not hold the loop
+      gameLoop.resume();
       rescueOverlay.destroy();
       rescueOverlay = null;
       // Resuming play — restore the booster bar + toasts.
@@ -2064,7 +2108,7 @@ async function main() {
   };
 
   // ── Tutorial orchestrator (needs gameLoop ref, created here) ─────────────
-  tutOrch = new TutorialOrchestrator(app.stage, gameLoop);
+  tutOrch = new TutorialOrchestrator(app.stage, gameLoop, audio);
 
   // ── Input ────────────────────────────────────────────────────────────────
   const dragDrop = new DragDrop(
@@ -2094,16 +2138,18 @@ async function main() {
         boosterState.setColorChangeCar(car.color);
         _showColorPicker(car.color);
       },
+      isShotInFlight: () => gameLoop._shotInFlight(),
       onDeployFromBench: (shooter, laneIdx, release) => {
-        if (laneIdx >= gs.activeLaneCount) return;
+        if (laneIdx >= gs.activeLaneCount) return false;
         gameRenderer3D.setDropStart(laneIdx, release);   // bomb travels FROM release
-        gameLoop.deployFromBench(shooter, laneIdx);
+        if (!gameLoop.deployFromBench(shooter, laneIdx)) return false;   // refused: DragDrop keeps the bomb on the bench
         // progress.incrementBenchUses() was called inside deployFromBench.
         const benchAch = achievementManager.check('bench_deploy');
         benchAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
       },
       onBenchStore: (_colIdx) => {
         tutOrch?.completeIfActive('bench');
+        progress.markSeenUnlock(4);   // the L4 bench tutorial has done its job
         // Column refills automatically via ShooterDirector next tick.
       },
       onReorder: (_srcCol, _srcRow, _tgtCol, _tgtRow) => {
@@ -2212,12 +2258,14 @@ async function main() {
         _hiddenWhilePlaying = false;
         // Coming back from another app: land on the pause menu rather than a
         // board that is already running under a player who isn't looking yet.
-        if (pauseBtn.visible && !_modalActive && !colorPicker) showPause(); else gameLoop.resume();
+        // A card that opened while hidden owns the pause: its dismissal resumes the loop.
+        if (_modalActive) { /* stay paused under the card */ }
+        else if (!(pauseBtn.visible && !colorPicker && showPause() !== false)) gameLoop.resume();
       } else {
         _hiddenWhilePlaying = false;
       }
       // Resume AudioContext if the browser suspended it.
-      if (audio._ctx?.state === 'suspended') audio._ctx.resume().catch(() => {});
+      if (audio._ctx && audio._ctx.state !== 'running') audio._ctx.resume().catch(() => {});   // 'interrupted' (iOS call/Siri) too
     }
   });
 
@@ -2226,7 +2274,7 @@ async function main() {
     e.preventDefault();
     gameLoop.pause();
     // A tiny non-intrusive toast — same helper used elsewhere in GameApp.
-    _buildSimpleToast(app, APP_W, 'Display connection lost — tap to reload', 0x1a0a0a, 0xff8866);
+    _buildSimpleToast(app, APP_W, 'Display connection lost — reconnecting…', 0x1a0a0a, 0xff8866);
   });
   app.canvas.addEventListener('webglcontextrestored', () => {
     // Safest recovery is a reload; the game auto-saves progress to localStorage.
@@ -2239,7 +2287,7 @@ async function main() {
 
     // 3D scene update + render (runs when gameRenderer3D is visible/active).
     // dt is scaled by gs.timeScale so a 3+ multi-kill plays back in brief bullet-time.
-    const fxDt = dt * (gs.timeScale ?? 1);
+    const fxDt = gs.isOver ? dt : dt * (gs.timeScale ?? 1);   // bullet-time must not outlive the shot into win/lose screens
     // NOTE: this payload is a hand-built literal, so any field GameRenderer3D
     // reads but this object omits is silently `undefined` — a dead read with no
     // error, which is exactly how the gridRows sync went unnoticed (see
@@ -2388,7 +2436,7 @@ async function main() {
     winScreen?.destroy();          winScreen          = null;
     rescueOverlay?.destroy();      rescueOverlay      = null;
     ftueOverlay?.destroy();        ftueOverlay        = null;
-    carTypeIntroCard?._destroy();  carTypeIntroCard   = null;
+    _dismissAllCards();
     preLevelScreen?.destroy();     preLevelScreen     = null;
     howToPlayOverlay?.destroy();   howToPlayOverlay   = null;
     hpGuideOverlay?.destroy();     hpGuideOverlay     = null;

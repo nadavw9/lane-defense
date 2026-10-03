@@ -13,6 +13,7 @@ import { COL_W } from './ShooterRenderer.js';
 import { PX_PER_WU, BOMB_R, bombSlotScreenY, bombSlotRenderedBottom } from '../renderer3d/projection.js';
 import { BAR_Y } from './BoosterBar.js';
 import { INK } from './ToyStyle.js';
+import { shapeFor } from '../game/ColorblindMode.js';
 
 // ── Live bench geometry ───────────────────────────────────────────────────────
 // FUNCTIONS, not module-level consts (2026-07-24, geometry-liveness sweep):
@@ -100,6 +101,7 @@ export class BenchRenderer {
     this._graphics = [];
     this._sprites  = [];
     this._texts    = [];
+    this._shapes   = [];   // colour-blind shape glyph per slot (stored bombs must stay readable)
 
     for (let i = 0; i < 4; i++) {
       const g = new Graphics();
@@ -116,6 +118,12 @@ export class BenchRenderer {
       t.anchor.set(0.5);
       this._layer.addChild(t);
       this._texts.push(t);
+
+      const sh = new Text({ text: '', style: { fontSize: 14, fontWeight: '900', fill: 0xFFFFFF, stroke: { color: INK, width: 3 } } });
+      sh.anchor.set(0.5);
+      sh.visible = false;
+      this._layer.addChild(sh);
+      this._shapes.push(sh);
     }
   }
 
@@ -127,6 +135,7 @@ export class BenchRenderer {
       for (const g  of this._graphics) g.clear();
       for (const sp of this._sprites)  sp.visible = false;
       for (const t  of this._texts)    t.visible  = false;
+      for (const t  of this._shapes)   t.visible  = false;
     }
   }
 
@@ -230,7 +239,13 @@ export class BenchRenderer {
         this._texts[i].x       = cx + 10;
         this._texts[i].y       = cy;
         this._texts[i].visible = true;
+        const sym = shapeFor(shooter.color);
+        this._shapes[i].text    = sym;
+        this._shapes[i].x       = cx - 4;
+        this._shapes[i].y       = cy + 10;
+        this._shapes[i].visible = sym !== '';
       } else {
+        this._shapes[i].visible = false;
         this._sprites[i].visible = false;
         // Empty slot: an inset socket (same language as the queue sockets) with
         // a faint "+" — reads as "a bomb can park here", not as a stray dot.

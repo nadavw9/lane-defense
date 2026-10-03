@@ -431,13 +431,17 @@ export class ProgressManager {
   canClaimDaily() {
     const { lastClaim } = this._data.dailyReward;
     if (lastClaim === null) return true;
-    return (Date.now() - lastClaim) >= MS_PER_DAY;
+    const now = Date.now();
+    // A claim stamped in the FUTURE means the clock was moved back after claiming; that
+    // stamp is untrustworthy and used to lock the reward until real time caught up.
+    if (lastClaim > now + 5 * 60_000) return true;
+    return (now - lastClaim) >= MS_PER_DAY;
   }
 
   /** Milliseconds until the daily reward can be claimed again (0 = ready). */
   dailyReadyIn(now = Date.now()) {
     const { lastClaim } = this._data.dailyReward;
-    if (lastClaim === null) return 0;
+    if (lastClaim === null || lastClaim > now + 5 * 60_000) return 0;
     return Math.max(0, lastClaim + MS_PER_DAY - now);
   }
 
@@ -577,6 +581,19 @@ export class ProgressManager {
           return defaults();
         }
         Object.assign(d, saved);
+        // A partial or hand-edited save can carry null / wrong-typed fields
+        // (stars: null, failStreak: "x", coins: NaN ...). Anything that doesn't match the
+        // default's type falls back to the default instead of crashing a later call.
+        const def = defaults();
+        for (const [k, dv] of Object.entries(def)) {
+          const v = d[k];
+          if (dv === null || dv === undefined) continue;
+          const bad = Array.isArray(dv) ? !Array.isArray(v)
+            : typeof dv === 'object' ? (v === null || typeof v !== 'object' || Array.isArray(v))
+            : typeof dv === 'number' ? !Number.isFinite(v)
+            : typeof v !== typeof dv;
+          if (bad) d[k] = dv;
+        }
         // Sanitize the scalars every screen does arithmetic on.
         d.unlockedLevel = Number.isFinite(d.unlockedLevel) ? Math.max(1, Math.floor(d.unlockedLevel)) : 1;
         d.coins         = Number.isFinite(d.coins) ? Math.max(0, Math.floor(d.coins)) : 0;
@@ -587,6 +604,7 @@ export class ProgressManager {
         d.inventory          = Object.assign(defaults().inventory,          saved.inventory ?? { freeze: saved.boosters?.freeze ?? 0 });
         delete d.boosters;
         d.dailyReward        = Object.assign(defaults().dailyReward,        saved.dailyReward        ?? {});
+        if (!Number.isInteger(d.dailyReward.day) || d.dailyReward.day < 0 || d.dailyReward.day > 6) d.dailyReward.day = 0;
         d.dailyChallenge     = Object.assign(defaults().dailyChallenge,     saved.dailyChallenge     ?? {});
         d.boosterUseCounts   = Object.assign(defaults().boosterUseCounts,   saved.boosterUseCounts   ?? {});
         d.achievements       = saved.achievements  ?? {};

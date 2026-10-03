@@ -5,6 +5,10 @@ export class BoosterState {
   constructor() {
     this.colorChange = 0;      // remaining COLOR CHANGE charges
     this.freeze = 0;           // remaining freeze charges
+    // Charges actually spent this level (reset at level start). Earned-in-level charges
+    // raise the remaining counts, so remaining-vs-taken under-debits the player's owned
+    // stock; the inventory is settled from what was USED instead (BoosterInventory).
+    this.used = { colorChange: 0, freeze: 0, bombs: 0 };
     // COLOR CHANGE is a two-tap booster: tap the button → tap a car (records its
     // colour) → tap a colour from the picker → all on-screen cars of the car's
     // original colour become the chosen colour.
@@ -49,6 +53,7 @@ export class BoosterState {
   consumeColorChange() {
     if (this.colorChange <= 0) return false;
     this.colorChange--;
+    this.used.colorChange++;
     this.colorChangeMode      = false;
     this.colorChangeFromColor = null;
     return true;
@@ -60,6 +65,7 @@ export class BoosterState {
   activateFreeze() {
     if (this.freeze <= 0) return false;
     this.freeze--;
+    this.used.freeze++;
     this.freezeShots = 1;
     return true;
   }
@@ -92,6 +98,7 @@ export class BoosterState {
   consumeBomb() {
     if (this.bombs <= 0) return false;
     this.bombs--;
+    this.used.bombs++;
     this.bombMode = false;
     return true;
   }

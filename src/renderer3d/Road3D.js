@@ -411,8 +411,12 @@ export class Road3D {
       this._group.remove(obj);
       obj.geometry?.dispose();
       if (obj.material) {
-        if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
-        else obj.material.dispose();
+        // Material.dispose() does NOT free its textures. Every rebuild (up to 4 per level)
+        // cloned the road / backdrop / zone textures, each with its own GL upload (the
+        // backdrop alone is ~5-7MB), and none were ever released. A texture still held by a
+        // shared cache simply re-uploads on next use, so freeing it here is always safe.
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        for (const m of mats) { m.map?.dispose(); m.dispose(); }
       }
     }
 

@@ -25,9 +25,10 @@ const HAND_CYCLE     = 0.9;     // seconds for one hand sweep
 const FLASH_DURATION = 0.55;    // seconds for gold completion flash
 
 export class TutorialOrchestrator {
-  constructor(stage, gameLoop) {
+  constructor(stage, gameLoop, audio = null) {
     this._stage    = stage;
     this._gameLoop = gameLoop;
+    this._audio    = audio;
 
     this._container = new Container();
     this._container.visible = false;
@@ -81,6 +82,9 @@ export class TutorialOrchestrator {
     if (this._active?.id !== id) return;
     this._complete();
   }
+
+  // True while a tutorial spotlight is up (the pause menu must not open over it).
+  isActive() { return this._active !== null; }
 
   // Dismiss (skip without completing) whatever tutorial is active.
   dismiss() {
@@ -232,22 +236,7 @@ export class TutorialOrchestrator {
     this._playDing();
   }
 
-  _playDing() {
-    try {
-      const ctx  = new (window.AudioContext || window.webkitAudioContext)();
-      const osc  = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.12);
-      gain.gain.setValueAtTime(0.25, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.4);
-      osc.onended = () => ctx.close();
-    } catch { /* audio unavailable */ }
-  }
+  _playDing() { this._audio?.play('tutorial_ding'); }
 
   _loadDone() {
     try {

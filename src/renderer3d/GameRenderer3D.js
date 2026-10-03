@@ -26,6 +26,7 @@ import { ScorchMarks3D } from './ScorchMarks3D.js';
 import { Environment3D } from './Environment3D.js';
 import { Ambient3D }     from './Ambient3D.js';
 import { computeFrustum, PX_PER_WU } from './projection.js';
+import { isReducedMotion } from '../game/MotionPrefs.js';
 
 export class GameRenderer3D {
   constructor(width, height) {
@@ -154,8 +155,18 @@ export class GameRenderer3D {
     this._timers.clear();
   }
 
+  /** Bloom burst (impact glow). Reduced motion keeps the resting strength. */
+  _bloomBurst(v) { this._scene3d?.setBloomStrength(isReducedMotion() ? 0.65 : v); }
+
   resetLevel() {
     this._clearTimers();
+    // Apply a pending render-scale UPGRADE between levels. _buildGameObjects only runs once
+    // per session, so deferring upgrades to it meant the scale could only ever go down: one
+    // transient slow window (shader compile, thermal blip) cost resolution for good.
+    if (this._mounted && this._quality && this._appliedFactor !== this._quality.factor) {
+      this._appliedFactor = this._quality.factor;
+      this._applyRenderScale();
+    }
     this._cars?.clearAll();
     this._projectiles?.reset();
     this._particles?.dispose();
@@ -246,7 +257,7 @@ export class GameRenderer3D {
   /** Gold bloom burst when CRISIS assist fires — the cavalry has arrived. */
   triggerCrisisGlow(colIdx) {
     this._shooters?.triggerPunch(colIdx);
-    this._scene3d?.setBloomStrength(1.8);
+    this._bloomBurst(1.8);
     this._cameraFX?.shake(0.05, 0.20);
   }
 
@@ -262,7 +273,7 @@ export class GameRenderer3D {
     this._particles?.spawnBombExplosion(bombPos, laneIdx);
     const shakeMag = 0.30 + Math.min(carsHit, 6) * 0.04;
     this._cameraFX?.shake(shakeMag, 0.55);
-    this._scene3d?.setBloomStrength(1.5);
+    this._bloomBurst(1.5);
     this._postFX?.triggerChroma(0.05, 0.60);
     // Expanding ring decal on road surface + white screen flash
     this._road?.spawnBombRing(bombPos, 0xff8800, laneIdx);
@@ -303,7 +314,7 @@ export class GameRenderer3D {
     const lastMs = FLASH_MS + (order.length - 1) * STEP_MS;
     this._later(() => {
       this._cameraFX?.shake(0.45, 0.65);
-      this._scene3d?.setBloomStrength(3.0);
+      this._bloomBurst(3.0);
       this._postFX?.triggerChroma(0.09, 1.00);
       this._postFX?.setFlash(0.55, 0.12);
     }, lastMs + 30);
@@ -535,8 +546,7 @@ export class GameRenderer3D {
     const now = performance.now();
     if (this._lastRenderAt && this._quality.record(now - this._lastRenderAt)) {
       // Downgrades apply at once (the player feels lag now). Upgrades wait for the next
-      // level build: badge canvases are sized from the render scale when built, and a
-      // mid-level increase would leave their digits soft.
+      // level start (resetLevel) so the resolution never pops mid-level.
       if (this._quality.factor < this._appliedFactor) { this._appliedFactor = this._quality.factor; this._applyRenderScale(); }
     }
     this._lastRenderAt = now;

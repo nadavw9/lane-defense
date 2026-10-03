@@ -47,21 +47,20 @@ function dayIndex() {
   return Math.max(0, Math.floor((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(2026, 0, 1)) / 86400000));
 }
 
-// ISO week key (YYYY-Www) — same for every player in the same calendar week.
-function weekKey() {
-  const d   = new Date();
-  const jan1 = new Date(d.getFullYear(), 0, 1);
-  // Whole calendar days since Jan 1 (0-based): rolls at local midnight, DST-proof. The old
-  // fractional-day maths rolled the week at midday on the last day of each week.
-  const days = Math.round((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(d.getFullYear(), 0, 1)) / 86400000);
-  const week = Math.ceil((days + jan1.getDay() + 1) / 7);
-  return `${d.getFullYear()}-W${String(week).padStart(2, '0')}`;
-}
-
-// Deterministic week index from weeks since 2026-01-05 (first Monday).
-function weekIndex() {
+// Deterministic week index from weeks since 2026-01-05 (first Monday). Weeks roll on
+// MONDAY at local midnight, and so does everything keyed off this index.
+function rawWeekIndex() {
   const d = new Date();
-  return Math.max(0, Math.floor((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(2026, 0, 5)) / (7 * 86400000)));
+  return Math.floor((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(2026, 0, 5)) / (7 * 86400000));
+}
+function weekIndex() { return Math.max(0, rawWeekIndex()); }
+
+// Week key for the "+15 weekly bonus once per level per week" claim. It MUST roll on
+// the same day as the playlist (weekIndex). It used to be a Sunday-start calendar week
+// while the playlist rolled Monday, so Sunday paid the same playlist's bonus twice (and
+// 31 Dec / 1 Jan did too). Same index => same playlist => same key.
+function weekKey() {
+  return `W${rawWeekIndex()}`;
 }
 
 export { CHALLENGES as DAILY_CHALLENGES };

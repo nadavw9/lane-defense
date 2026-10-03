@@ -60,8 +60,9 @@ function freshLoop() {
 
 // What the INPUT layer predicts, without constructing the whole DragDrop graph.
 // The method only reads _firingSlots and _dragSource.
-const inputRefuses = (firingSlots, laneIdx, dragSource) =>
-  DragDrop.prototype._deployWouldBeRefused.call({ _firingSlots: firingSlots, _dragSource: dragSource }, laneIdx);
+const inputRefuses = (firingSlots, laneIdx, dragSource, shotInFlight = () => false) =>
+  DragDrop.prototype._deployWouldBeRefused.call(
+    { _firingSlots: firingSlots, _dragSource: dragSource, _isShotInFlight: shotInFlight }, laneIdx);
 
 // What the GAME actually does, observed rather than re-implemented: a deploy that
 // was accepted leaves a firing slot behind.
@@ -142,6 +143,19 @@ describe('the input guard and the game-loop guard agree exactly', () => {
     expect(inputRefuses(
       [{ shooter: {}, colIdx: 0, timeLeft: 0.18 }, null, null, null], 1, 'column'),
       'the current guard must NOT reproduce the old rule').toBe(true);
+  });
+
+  it('a shot waiting out its HIT-STOP blocks drops on both sides (firingSlots is already clear)', () => {
+    // Found 2026-10-03: GameLoop also refuses while _pendingShot is set, but the input
+    // guard only read firingSlots, so a bench bomb was taken from the bench and lost.
+    const { loop } = freshLoop();
+    loop._pendingShot = { shooter: {}, laneIdx: 0 };
+    expect(loop.deployFromBench(new Shooter({ color: 'Red', damage: 3 }), 1)).toBe(false);
+    expect(loop.deploy(0, 1)).toBe(false);
+    const slots = [null, null, null, null];
+    for (const src of ['column', 'bench']) {
+      expect(inputRefuses(slots, 1, src, () => loop._shotInFlight())).toBe(true);
+    }
   });
 
   it('an idle board accepts from both sources', () => {

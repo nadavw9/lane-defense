@@ -701,7 +701,8 @@ export class Car3D {
             entry.shapeBadge.material.needsUpdate = true;
           }
         }
-        if (entry.shapeBadge) entry.shapeBadge.visible = isColorblind();
+        // A hidden phantom hides its colour on purpose; the colour-blind shape would reveal it.
+        if (entry.shapeBadge) entry.shapeBadge.visible = isColorblind() && !isHiddenPhantom(car);
         this._updateTraitFx(entry, car, dt, now);
 
         // ── Smooth advance lerp ───────────────────────────────────────────────

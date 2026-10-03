@@ -467,6 +467,10 @@ export class ShooterRenderer {
     // projection.js's band/queue-scale must already be updated for this level
     // by the time this runs (via gameRenderer3D.setActiveLaneCount() → Scene3D).
     recomputeShooterLayout();
+    // The tray rect was captured once in the constructor (band 540). Every 3-lane level
+    // runs band 600 (breach line ~60px lower), so the outline sat on the hazard stripe.
+    this._trayY = Math.round(BREACH_LINE_Y) + 10;
+    this._trayH = BOOSTER_BAR_Y - this._trayY;
     this._laneCountCache = n;
     this._drawTray(n);
   }

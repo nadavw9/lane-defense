@@ -6,6 +6,7 @@
 //   3. VignettePass        — dark screen-edges + red breach pulse + combo tint
 
 import * as THREE from 'three';
+import { isReducedMotion } from '../game/MotionPrefs.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 
 // ── Lens Barrel Distortion Shader ─────────────────────────────────────────────
@@ -153,6 +154,7 @@ export class PostFX3D {
   // ── Public API ───────────────────────────────────────────────────────────────
 
   triggerChroma(intensity = 0.008, duration = 0.20) {
+    if (isReducedMotion()) return;   // colour-fringe pulses are motion
     // Cap chroma at 0.010 — higher values create distracting colored edge lines.
     this._chromaTarget = Math.max(this._chromaTarget, Math.min(0.010, intensity));
     this._chromaDecay  = this._chromaTarget / duration;
@@ -167,6 +169,7 @@ export class PostFX3D {
    * Max alpha 0.4. Used for bomb detonation impact.
    */
   setFlash(intensity = 0.4, duration = 0.05) {
+    if (isReducedMotion()) return;   // full-screen white flashes are the photosensitivity risk
     this._flashCurrent = Math.min(0.4, intensity);
     this._flashDecay   = this._flashCurrent / Math.max(0.001, duration);
   }

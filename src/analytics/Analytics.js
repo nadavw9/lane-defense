@@ -80,10 +80,13 @@ export class Analytics {
 
   _getOrCreatePlayerId() {
     const KEY = 'ld_player_id';
-    let id = localStorage.getItem(KEY);
+    // Storage can throw (disabled, quota, private mode). Analytics must never stop the
+    // game starting: fall back to a per-session id.
+    let id = null;
+    try { id = localStorage.getItem(KEY); } catch { /* unavailable */ }
     if (!id) {
       id = _genUUID();
-      localStorage.setItem(KEY, id);
+      try { localStorage.setItem(KEY, id); } catch { /* unavailable */ }
     }
     return id;
   }

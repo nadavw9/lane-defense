@@ -447,6 +447,7 @@ export class GameLoop {
     gs.phaseMan.update(0);
     this._accumulator = 0;
     this._pendingShot = null;           // a shot mid hit-stop must not survive into the new level
+    this._surgeFromLane = null;         // a volatile kill on the last shot of a level must not surge the next one
     this._breachedBosses = [];
     this._carDir.setProgress?.(0);      // spawnScript stage back to stage 1 (§3c)
     this._primeInitialCars();
@@ -513,6 +514,15 @@ export class GameLoop {
       const dirState = gs.asDirectorState();
       const phaseParams = gs.phaseMan.getParams();
       this._sDir.fillColumns(gs.activeCols, dirState, phaseParams);
+      // A frozen shot can clear the whole road, or leave only row-0 staged cars hidden
+      // behind the goal band; with no advance and no refill nothing could ever be shot
+      // again (same soft-lock as the L1 empty road). Apply the empty-board rule here too.
+      const ROWS_F = gs.gridRows ?? 16;
+      const activeLanes = gs.lanes.slice(0, gs.activeLaneCount);
+      if (activeLanes.every(l => l.cars.length === 0)) this._refillLanes();
+      if (revealStagedCars(activeLanes.map(l => l.cars))) {
+        for (const l of activeLanes) for (const c of l.cars) c.position = this._rowToPosition(c.row, ROWS_F);
+      }
       this._enforceViableMove(gs);
       return;
     }
@@ -923,6 +933,7 @@ export class GameLoop {
       lane.addCar(car);
     }
     this._breachedBosses = [];
+    this._surgeFromLane = null;
     this._refillLanes();
     const dirState    = gs.asDirectorState();
     const phaseParams = gs.phaseMan.getParams();

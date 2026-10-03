@@ -157,7 +157,8 @@ export class DragDrop {
     shooterRenderer,
     benchRenderer,
     { onDeploy, onDeployFromBench, onBenchStore, onColorMismatch, onBenchFull, onBombPlaced,
-      onLaneHover, onLaneClear, getColorBombArmed, onColumnPickup, onColorChangeTap, onReorder } = {},
+      onLaneHover, onLaneClear, getColorBombArmed, onColumnPickup, onColorChangeTap, onReorder,
+      isShotInFlight } = {},
     boosterState = null,
     _unused = null,
     firingSlots = null,
@@ -187,6 +188,9 @@ export class DragDrop {
     this._onColumnPickup    = onColumnPickup     ?? (() => false);
 
     this._firingSlots = firingSlots;
+    // GameLoop also refuses a deploy while a shot waits out its hit-stop (firingSlots is
+    // already clear then), so the input guard must ask the loop, not just the slots.
+    this._isShotInFlight = isShotInFlight ?? (() => false);
     this._reorderEnabled = false;   // L5+ queue-reorder / bench-return gate
     // Board depth for the current level — drives the BOMB-booster front-row tap
     // margin (frontRowTapMargin), which is half a ROW interval and therefore
@@ -345,6 +349,15 @@ export class DragDrop {
   // True while a queue/bench bomb is being held.
   isDragging() { return this._state === 'dragging'; }
 
+  // The touch was CANCELLED by the system (notification shade, palm rejection, a
+  // system gesture) — it is not a release. Visual-only snap-back, no state writes.
+  cancel() {
+    if (this._state !== 'dragging') return;
+    this._clearHighlights();
+    this._benchRenderer?.setHighlight(-1);
+    this._snapBack();
+  }
+
   onPointerUp(x, y) {
     if (this.inputBlocked) {
       // Input got blocked MID-DRAG (a modal/sequence started while holding).
@@ -365,8 +378,13 @@ export class DragDrop {
     this._benchRenderer?.setHighlight(-1);
 
 
+    // A release on the ROAD is a lane drop. The queue-slot hit circles (48px) reach up
+    // into the front row, so without this a drop on the front car read as "drop on my
+    // own slot 0" and snapped back, or returned a bench bomb to the queue.
+    const onRoad = y >= ROAD_TOP_Y && y <= ROAD_BOTTOM_Y;
+
     // ── Reorder (L5+): drag queue slot to another queue slot ────────────────
-    if (this._dragSource === 'column' && this._reorderEnabled && this._dragSourceRow >= 0) {
+    if (!onRoad && this._dragSource === 'column' && this._reorderEnabled && this._dragSourceRow >= 0) {
       const targetQueue = this._hitTestQueueSlot(x, y);
       if (targetQueue !== null) {
         const { col: tCol, row: tRow } = targetQueue;
@@ -388,7 +406,7 @@ export class DragDrop {
     }
 
     // ── Bench → Queue return (L5+): drag bench bomb to a queue column ────────
-    if (this._dragSource === 'bench' && this._reorderEnabled) {
+    if (!onRoad && this._dragSource === 'bench' && this._reorderEnabled) {
       const queueHit = this._hitTestQueueSlot(x, y);
       if (queueHit !== null) {
         const { col: tCol } = queueHit;
@@ -492,6 +510,7 @@ export class DragDrop {
   _deployWouldBeRefused(laneIdx) {
     const slots = this._firingSlots ?? [];
     if (slots[laneIdx]) return true;
+    if (this._isShotInFlight()) return true;               // hit-stop: shot pending, slots clear
     return Object.values(slots).some((s) => s !== null);   // turn-based: queue AND bench
   }
 
@@ -503,9 +522,15 @@ export class DragDrop {
       this._onDeploy(this._dragSourceIdx, laneIdx, release, this._dragShooter);
       this._shooterRenderer.draggingColumn = -1;
     } else {
-      const shooter = this._benchStorage.take(this._dragSourceIdx);
+      // Peek, fire, and only THEN take: taking first deleted the bomb whenever the loop
+      // refused the shot (the return value was ignored).
+      const shooter = this._benchStorage.getSlot(this._dragSourceIdx);
       if (this._benchRenderer) this._benchRenderer.draggingSlot = -1;
-      this._onDeployFromBench(shooter, laneIdx, release);
+      if (this._onDeployFromBench(shooter, laneIdx, release) === false) {
+        this._snapBack();
+        return;
+      }
+      this._benchStorage.take(this._dragSourceIdx);
     }
     const targetX = getLaneScreenX(laneIdx);
     const targetY = ROAD_BOTTOM_Y;
@@ -535,6 +560,12 @@ export class DragDrop {
     }
     const col     = this._columns[this._dragSourceIdx];
     const shooter = col.top();
+    // The column top can change while a drag is held (earned rainbow, crisis inject).
+    // Storing live top() then destroys the bomb the player was holding.
+    if (!shooter || shooter !== this._dragShooter) {
+      this._snapBack();
+      return;
+    }
     col.consume();
     const slotIdx = this._benchStorage.store(shooter);
     this._shooterRenderer.draggingColumn = -1;
@@ -560,7 +591,7 @@ export class DragDrop {
     const tgtColumn = this._columns[tgtCol];
 
     const draggedShooter = srcColumn.shooters[srcRow];
-    if (!draggedShooter) {
+    if (!draggedShooter || draggedShooter !== this._dragShooter) {
       this._snapBack();
       return;
     }

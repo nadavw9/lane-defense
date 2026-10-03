@@ -141,7 +141,7 @@ export class SettingsScreen {
     ry = this._toggleRow('Colorblind shapes', 'Adds ● ▲ ■ ★ to every colour', ry,
       this._progress?.colorblindMode ?? false,
       (v) => { this._progress?.setColorblindMode(v); setColorblindMode(v); this._audio?.play('button_tap'); });
-    ry = this._toggleRow('Reduce motion', 'No screen shake or zoom pulses', ry,
+    ry = this._toggleRow('Reduce motion', 'No screen shake or flashes', ry,
       isReducedMotion(),
       (v) => { this._progress?.setReducedMotion(v); setReducedMotion(v); this._audio?.play('button_tap'); });
     this._toggleRow('Vibration', 'Buzz on shots and kills', ry,

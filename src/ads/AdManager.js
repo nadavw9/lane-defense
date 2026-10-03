@@ -43,7 +43,7 @@ export class AdManager {
 
   // How many ads the player has watched for this booster in the current level.
   getProgress(boosterType) {
-    return parseInt(localStorage.getItem(KEY(boosterType)) ?? '0', 10);
+    try { return parseInt(localStorage.getItem(KEY(boosterType)) ?? '0', 10) || 0; } catch { return 0; }
   }
 
   // How many ads are needed for this booster.
@@ -64,7 +64,7 @@ export class AdManager {
   // Reset all ad progress (call at the start of each level attempt).
   resetForLevel() {
     for (const type of Object.keys(AD_COSTS)) {
-      localStorage.removeItem(KEY(type));
+      try { localStorage.removeItem(KEY(type)); } catch { /* storage unavailable: nothing to reset */ }
     }
   }
 
@@ -208,7 +208,7 @@ export class AdManager {
       () => {
         // Record progress.
         const next = this.getProgress(boosterType) + 1;
-        localStorage.setItem(KEY(boosterType), String(next));
+        try { localStorage.setItem(KEY(boosterType), String(next)); } catch { /* storage unavailable */ }
         onRewarded?.(boosterType);
       },
       onDismissed,

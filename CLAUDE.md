@@ -294,7 +294,7 @@ Always `${import.meta.env.BASE_URL}sprites/...`. Hardcoded `/sprites/...` causes
 ## 6. Current State
 
 ### Tests
-**1504 passing**, 1 skipped, 5 todo — 78 test files. Run: `npx vitest run`. All headless (no
+**1523 passing**, 1 skipped, 5 todo — 81 files (+2 skipped). Run: `npx vitest run`. All headless (no
 render tests).
 Visual smoke (`npm run test:visual`, Playwright) is separate and is a blocking CI gate.
 
@@ -892,4 +892,6 @@ Password: `lanedefense2024`
 *Historical incident and merge logs in this file are provenance; the active sections above are
 the current source-of-truth summary.*
 
-*Last updated: 2026-10-01 — levels 41-100, worlds 4-7, traits, economy and settings brought up to date.*
+*2026-10-03 subsystem review: input pointer ownership + `DragDrop.cancel()`, frozen-board refill/reveal in `_advanceGrid`, booster spend settled by USE, weekly key = `W${rawWeekIndex()}`, audio buses `_out`/`_master`/`_musicGain` (tutorial ding via `audio.play`), `ProgressManager._load` type sanitiser, L4 bench unlock marked on first bench-store, reduced motion gates flash/chroma. Tests: `game-loop-edge-cases`, `input-manager`, `progress-load-hardening`, `weekly-key`.*
+
+*Last updated: 2026-10-03 (previous: 2026-10-01 — levels 41-100, worlds 4-7, traits, economy and settings brought up to date.*)

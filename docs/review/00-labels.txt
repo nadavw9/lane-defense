@@ -1,7 +1,5 @@
-01=BEFORE, L6 bomb zone at rest
-02=BEFORE, combo x12 held: whole 3D scene zoomed out 5.6%, thin blue strips at the road edges, depot art no longer matches the Pixi sockets/hazard stripe
-03=AFTER, L6 bomb zone at rest (identical to 01)
-04=AFTER, combo x12 held: nothing moves, balls sit exactly in their sockets, road edge unchanged (compare with 03 and 02)
-05=AFTER, camera shake forced on: balls, tracks and depot stay locked (measured 0.00 px deviation across 4 samples)
-06=AFTER, Pixi stage shake pinned to +6px,+6px: balls and zone floor moved exactly +6,+6 px with the sockets (measured)
-Look for: ball centred in every socket ring in 03-06; no blue edge strips in 04; tracks under balls.
+01=BEFORE (d811e90) L3 fresh load, 3-lane band
+02=AFTER  L3 fresh load - should be identical to 01 (no regression at rest)
+03=BEFORE L3 -> L1 (band change) with FTUE overlay: tutorial hand/overlay built before lane count was applied
+04=AFTER  same transition: overlay built after setLaneCount; look at hand + socket column alignment under the single lane, tray outline hugging the 3 sockets
+Note: hand is animated, so its exact frame differs between captures; check the column it points at and the tray outline.

@@ -1,10 +1,10 @@
 // AudioManager — synthesized audio via Web Audio API (no asset files).
 //
 // Architecture:
-//   oscillators/sources → _master (0.45) → ctx.destination
-//   music sources       → _musicGain (0.65) → _master
+//   SFX sources   → _master (SFX volume) → _out (0.45) → ctx.destination
+//   music sources → _musicGain           → _out
 //
-// Muting _master silences everything (music + SFX) in one ramp.
+// Muting _out silences everything (music + SFX) in one ramp.
 //
 // ── Music tracks (looping) ───────────────────────────────────────────────────
 //   'title'              — slow Cmaj7 pad, 8-second loop
@@ -35,14 +35,20 @@ export class AudioManager {
 
     if (this._ctx) {
       // Single master gain — ramping to 0 silences everything at once.
-      this._master = this._ctx.createGain();
-      this._master.gain.value = MASTER_VOL;
-      this._master.connect(this._ctx.destination);
+      // _out is the final stage (MASTER_VOL; mute ramps it). _master is the SFX bus
+      // (the SFX volume slider) and _musicGain the music bus; both feed _out, so the
+      // SFX slider no longer scales the music and mute restores the exact level.
+      this._out = this._ctx.createGain();
+      this._out.gain.value = MASTER_VOL;
+      this._out.connect(this._ctx.destination);
 
-      // Music sub-gain sits between music sources and _master.
+      this._master = this._ctx.createGain();
+      this._master.gain.value = this._sfxVol;
+      this._master.connect(this._out);
+
       this._musicGain = this._ctx.createGain();
-      this._musicGain.gain.value = MUSIC_VOL;
-      this._musicGain.connect(this._master);
+      this._musicGain.gain.value = MUSIC_VOL * this._musicVol;
+      this._musicGain.connect(this._out);
 
       // 1-second white-noise buffer shared by all noise sources.
       this._noise = this._makeNoiseBuffer(1.0);
@@ -69,6 +75,7 @@ export class AudioManager {
       case 'wrong_bounce':     return this._wrongBounce();                 // 6A
       case 'kill_ding':        return this._killDing();                    // 6A
       case 'pip_fill':         return this._pipFill(opts.index ?? 0);      // 6A
+      case 'tutorial_ding':    return this._tutorialDing();
       case 'swap_whoosh':      return this._swapWhoosh();                  // 6A
       case 'freeze_tinkle':    return this._freezeTinkle();                // 6A
       case 'heartbeat':        return this._heartbeat();                   // 6A
@@ -101,8 +108,8 @@ export class AudioManager {
   // Returns the new muted boolean.
   toggleMute() {
     this._muted = !this._muted;
-    if (this._master) {
-      this._master.gain.linearRampToValueAtTime(
+    if (this._out) {
+      this._out.gain.linearRampToValueAtTime(
         this._muted ? 0 : MASTER_VOL,
         this._ctx.currentTime + 0.04,
       );
@@ -115,11 +122,8 @@ export class AudioManager {
   /** Set SFX (master) volume 0.0–1.0. Preserved across mute/unmute. */
   setSfxVolume(v) {
     this._sfxVol = Math.max(0, Math.min(1, v));
-    if (!this._muted && this._master) {
-      this._master.gain.linearRampToValueAtTime(
-        MASTER_VOL * this._sfxVol,
-        this._ctx.currentTime + 0.04,
-      );
+    if (this._master) {
+      this._master.gain.linearRampToValueAtTime(this._sfxVol, this._ctx.currentTime + 0.04);
     }
   }
 
@@ -733,6 +737,20 @@ export class AudioManager {
       g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
       o.connect(g); g.connect(this._master); o.start(t); o.stop(t + 0.42);
     });
+  }
+
+  // Tutorial step chime. Lives here (not in its own throw-away AudioContext) so it obeys
+  // mute and the SFX volume and cannot leak a context per call.
+  _tutorialDing() {
+    const ctx = this._ctx, now = ctx.currentTime;
+    const osc = ctx.createOscillator(), gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, now);
+    osc.frequency.exponentialRampToValueAtTime(1320, now + 0.12);
+    gain.gain.setValueAtTime(0.25, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+    osc.connect(gain); gain.connect(this._master);
+    osc.start(now); osc.stop(now + 0.4);
   }
 
   _pipFill(index = 0) {

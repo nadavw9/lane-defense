@@ -38,3 +38,25 @@ describe('ProgressManager inventory', () => {
     expect(new ProgressManager().getInventory().freeze).toBe(0);
   });
 });
+
+import { inventorySpentByUse } from '../src/game/BoosterInventory.js';
+import { BoosterState } from '../src/game/BoosterState.js';
+describe('inventorySpentByUse (settle by use, not by remaining)', () => {
+  it('debits owned boosters even when in-level earns refilled the counts', () => {
+    // took 2 owned freezes, used both, earned 2 more: remaining-based settle debits 0
+    expect(inventorySpentByUse({ freeze: 2 }, {}, { freeze: 2 }).freeze).toBe(2);
+  });
+  it('spends the level-only ad grant first and never debits more than was taken', () => {
+    expect(inventorySpentByUse({ bombs: 1 }, { bombs: 1 }, { bombs: 1 }).bombs).toBe(0);
+    expect(inventorySpentByUse({ bombs: 1 }, { bombs: 1 }, { bombs: 2 }).bombs).toBe(1);
+    expect(inventorySpentByUse({ bombs: 1 }, {}, { bombs: 5 }).bombs).toBe(1);
+  });
+  it('BoosterState counts only charges actually consumed', () => {
+    const b = new BoosterState();
+    b.freeze = 2; b.bombs = 1; b.colorChange = 1;
+    b.activateFreeze(); b.activateBomb(); b.cancelBomb();
+    expect(b.used).toEqual({ colorChange: 0, freeze: 1, bombs: 0 });
+    b.consumeBomb(); b.consumeColorChange();
+    expect(b.used).toEqual({ colorChange: 1, freeze: 1, bombs: 1 });
+  });
+});

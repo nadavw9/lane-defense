@@ -26,7 +26,24 @@ shim = """    <script>
       })();
     </script>
 """
-s = s.replace('    <script type="module"', shim + '    <script type="module"', 1)
+# Preview-only QA shortcut: open the page with ?unlock=40 to start with levels
+# 1..40 unlocked (and a coin float) so bosses can be played without grinding.
+# Lives ONLY in the preview index.html; the game source and real builds are untouched.
+unlock = """    <script>
+      (function () {
+        try {
+          var m = /[?&]unlock=(\\d+)/.exec(location.search);
+          if (!m) return;
+          var K = 'lane-defense-v1', d = {};
+          try { d = JSON.parse(localStorage.getItem(K) || '{}') || {}; } catch (e) {}
+          d.unlockedLevel = Math.max(d.unlockedLevel || 1, Math.min(100, parseInt(m[1], 10)));
+          d.coins = Math.max(d.coins || 0, 500);
+          localStorage.setItem(K, JSON.stringify(d));
+        } catch (e) {}
+      })();
+    </script>
+"""
+s = s.replace('    <script type="module"', shim + unlock + '    <script type="module"', 1)
 open(p, 'w').write(s)
 files = []
 for root, _, fs in os.walk(out):

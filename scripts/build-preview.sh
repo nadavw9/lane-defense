@@ -26,24 +26,48 @@ shim = """    <script>
       })();
     </script>
 """
-# Preview-only QA shortcut: open the page with ?unlock=40 to start with levels
-# 1..40 unlocked (and a coin float) so bosses can be played without grinding.
-# Lives ONLY in the preview index.html; the game source and real builds are untouched.
-unlock = """    <script>
+# Preview-only QA gate: the hosted page cannot read ?unlock=, so the game's module
+# is held back until the player picks "Normal" or "Unlock L1-40" on a tiny overlay.
+# Lives ONLY in the preview index.html; game source and real builds are untouched.
+import re
+mod = re.search(r'<script type="module"[^>]*src="([^"]+)"[^>]*></script>', s)
+src = mod.group(1)
+gate = """    <script>
       (function () {
-        try {
-          var m = /[?&]unlock=(\\d+)/.exec(location.search);
-          if (!m) return;
-          var K = 'lane-defense-v1', d = {};
-          try { d = JSON.parse(localStorage.getItem(K) || '{}') || {}; } catch (e) {}
-          d.unlockedLevel = Math.max(d.unlockedLevel || 1, Math.min(100, parseInt(m[1], 10)));
-          d.coins = Math.max(d.coins || 0, 500);
-          localStorage.setItem(K, JSON.stringify(d));
-        } catch (e) {}
+        var SRC = "%s";
+        function start(unlock) {
+          try {
+            if (unlock) {
+              var K = 'lane-defense-v1', d = {};
+              try { d = JSON.parse(localStorage.getItem(K) || '{}') || {}; } catch (e) {}
+              d.unlockedLevel = Math.max(d.unlockedLevel || 1, 40);
+              d.coins = Math.max(d.coins || 0, 500);
+              localStorage.setItem(K, JSON.stringify(d));
+            }
+          } catch (e) {}
+          var o = document.getElementById('qa-gate'); if (o) o.remove();
+          var t = document.createElement('script');
+          t.type = 'module'; t.crossOrigin = ''; t.src = SRC; document.body.appendChild(t);
+        }
+        window.addEventListener('DOMContentLoaded', function () {
+          var o = document.createElement('div'); o.id = 'qa-gate';
+          o.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;font:600 18px sans-serif;color:#fff';
+          o.innerHTML = '<div>Traffic Bomb preview</div>';
+          function btn(label, u) {
+            var b = document.createElement('button'); b.textContent = label;
+            b.style.cssText = 'font:700 18px sans-serif;padding:14px 28px;border-radius:14px;border:0;background:#2F8CFF;color:#fff;min-width:240px';
+            b.onclick = function () { start(u); }; o.appendChild(b);
+          }
+          btn('Play normally', false);
+          btn('Unlock levels 1-40 (boss QA)', true);
+          document.body.appendChild(o);
+        });
       })();
     </script>
-"""
-s = s.replace('    <script type="module"', shim + unlock + '    <script type="module"', 1)
+""" % src
+s = s.replace(mod.group(0), gate, 1)
+s = s.replace('    <script>', shim + '    <script>', 1) if False else s
+s = s.replace(gate, shim + gate, 1)
 open(p, 'w').write(s)
 files = []
 for root, _, fs in os.walk(out):

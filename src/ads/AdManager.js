@@ -1,7 +1,7 @@
 // AdManager — rewarded video and interstitial ad abstraction layer.
 //
 // On native (Android/iOS via Capacitor): uses @capacitor-community/admob with
-// the production AdMob ad unit IDs (publisher ca-app-pub-3492310681731275).
+// the production AdMob ad unit IDs (publisher ca-app-pub-3810333742263149).
 //
 // On web: falls back to a timed mock overlay so the game is playable without
 // a native wrapper.
@@ -10,8 +10,8 @@ import { Capacitor } from '@capacitor/core';
 import { interstitialWindowOpen, isInterstitialTurn } from './adPolicy.js';
 import { AdMob, RewardAdPluginEvents, InterstitialAdPluginEvents, AdmobConsentStatus } from '@capacitor-community/admob';
 
-const REWARDED_AD_ID     = 'ca-app-pub-3492310681731275/5674269166';
-const INTERSTITIAL_AD_ID = 'ca-app-pub-3492310681731275/5734968591';
+const REWARDED_AD_ID     = 'ca-app-pub-3810333742263149/8064409920';
+const INTERSTITIAL_AD_ID = 'ca-app-pub-3810333742263149/4284947016';
 // ── Booster costs (ads required to unlock) ─────────────────────────────────
 export const AD_COSTS = {
   colorchange: 1,   // 1 ad → Color Change booster for this level

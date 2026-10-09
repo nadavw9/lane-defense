@@ -294,7 +294,7 @@ Always `${import.meta.env.BASE_URL}sprites/...`. Hardcoded `/sprites/...` causes
 ## 6. Current State
 
 ### Tests
-**1530 passing**, 1 skipped, 5 todo — 81 files (+2 skipped). Run: `npx vitest run`. All headless (no
+**1533 passing**, 1 skipped, 5 todo — 81 files (+2 skipped). Run: `npx vitest run`. All headless (no
 render tests).
 Visual smoke (`npm run test:visual`, Playwright) is separate and is a blocking CI gate.
 
@@ -654,7 +654,7 @@ inferring rejection from an unchanged board.
   table capped at 4 colours. Rules live in `src/director/TrafficRules.js`, shared by
   GameLoop, DragDrop and SimulationRunner. Tune levels with `node tools/tune-levels.mjs`.
   V2 art: `node scripts/render-3d-sprites.mjs v2`; review captures: `scripts/v2-shots.mjs`.
-- **AdMob** — `src/ads/AdManager.js` with PRODUCTION unit IDs (publisher ca-app-pub-3492310681731275; test mode only in dev builds). Console side (app review, app-ads.txt, UMP message, Play declarations) is unverified
+- **AdMob** — `src/ads/AdManager.js` with PRODUCTION unit IDs (publisher ca-app-pub-3810333742263149 (Traffic Bomb app created 2026-10-09 in the nadavwolfsonw account, same publisher as Lane Math); test mode only in dev builds). Console side (app review, app-ads.txt, UMP message, Play declarations) is unverified
 - **Signed release keystore** — `android/lane-defense-release.keystore` (gitignored). **Never delete.**
 - **Balance simulator** — `tools/balance-sim.js`
 - **Car rendering** — normal cars use pre-rendered 3D toy sprites (see §10 Art

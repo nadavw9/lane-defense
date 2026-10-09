@@ -152,6 +152,52 @@ describe('COLOR CHANGE and bosses', () => {
   });
 });
 
+describe('GameLoop.changeBossColor — COLOR CHANGE rewrites the boss\'s current light', () => {
+  const bossCar = (seq) => {
+    const car = new Car({ color: seq[0], hp: seq.length, speed: 5 });
+    car.type = 'boss'; car.sequence = [...seq]; car.seqIdx = 0; car.maxHp = seq.length;
+    car.row = 2; car.position = 22;
+    return car;
+  };
+
+  it('changes only the current light, keeps the rest of the sequence, spends a charge', () => {
+    const { gs, lanes } = makeState({ laneCount: 3 });
+    const bs = new BoosterState(); bs.colorChange = 1;
+    const loop = makeLoop(gs, { boosterState: bs });
+    const boss = bossCar(['Red', 'Blue', 'Green']); lanes[1].addCar(boss);
+
+    expect(loop.changeBossColor(1, 'Yellow')).toBe(true);
+    expect(boss.color).toBe('Yellow');
+    expect(boss.sequence).toEqual(['Yellow', 'Blue', 'Green']);
+    expect(boss.seqIdx).toBe(0);
+    expect(boss.hp).toBe(3);                 // no light cleared
+    expect(bs.colorChange).toBe(0);
+  });
+
+  it('works on a later light too', () => {
+    const { gs, lanes } = makeState({ laneCount: 3 });
+    const bs = new BoosterState(); bs.colorChange = 1;
+    const loop = makeLoop(gs, { boosterState: bs });
+    const boss = bossCar(['Red', 'Blue', 'Green']); boss.seqIdx = 1; boss.color = 'Blue'; lanes[1].addCar(boss);
+
+    expect(loop.changeBossColor(1, 'Red')).toBe(true);
+    expect(boss.sequence).toEqual(['Red', 'Red', 'Green']);
+    expect(boss.color).toBe('Red');
+  });
+
+  it('refuses the same colour, a colour outside the palette, or a lane without a boss (no charge)', () => {
+    const { gs, lanes } = makeState({ laneCount: 3 });
+    const bs = new BoosterState(); bs.colorChange = 1;
+    const loop = makeLoop(gs, { boosterState: bs });
+    lanes[1].addCar(bossCar(['Red', 'Blue']));
+
+    expect(loop.changeBossColor(1, 'Red')).toBe(false);
+    expect(loop.changeBossColor(1, 'Purple')).toBe(false);
+    expect(loop.changeBossColor(0, 'Green')).toBe(false);
+    expect(bs.colorChange).toBe(1);
+  });
+});
+
 describe('GameLoop._updateColorChangeCombo — consecutive multi-kills', () => {
   it('earns one charge on two strictly-consecutive multi-kills', () => {
     const { gs } = makeState();

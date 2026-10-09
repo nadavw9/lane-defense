@@ -606,7 +606,7 @@ export class Car3D {
       }
     }
     if (fx.panel) {
-      const key = `${car.seqIdx}:${armor}`;
+      const key = `${car.seqIdx}:${armor}:${car.sequence?.[car.seqIdx]}`;   // COLOR CHANGE rewrites the current light in place
       if (fx.panelKey !== key) {
         fx.panelKey = key;
         _drawBossPanel(fx.panelCanvas.getContext('2d'), fx.panelCanvas.width, fx.panelCanvas.height, car);

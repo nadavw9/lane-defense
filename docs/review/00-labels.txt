@@ -1,2 +1,4 @@
-01=BEFORE (1919dec) L10 boss: COLOR CHANGE armed, tapped the boss -> the colour picker opened for a car it can never change
-02=AFTER L10 boss: same tap -> message "BOSS CAN'T BE CHANGED" above the banner, no picker, COLOR CHANGE stays armed so you can tap another car
+01=L10 today: 8-row lane (normal car size). Reference for 02 and 03.
+02=L10 if the lane were 13 rows (needed for a boss that moves every turn): cars and boss visibly smaller. NOT SHIPPED, for your decision.
+03=L40 if the lane were 18 rows: cars tiny. NOT SHIPPED, for your decision.
+04=L10 AFTER the COLOR CHANGE fix: tapped the boss, picked Blue -> "BOSS NOW BLUE!", roof lamp turned blue, rest of the sequence unchanged. SHIPPED.

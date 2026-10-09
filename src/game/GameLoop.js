@@ -903,6 +903,21 @@ export class GameLoop {
     return lanes;
   }
 
+  // COLOR CHANGE on a boss: rewrite the boss's CURRENT light to `toColor` (the rest of
+  // its sequence is untouched and no light is cleared). Spends one charge. Returns
+  // true when applied; false (no charge) for a missing boss, the same colour, or a
+  // colour that is not in this level's palette.
+  changeBossColor(laneIdx, toColor) {
+    const gs = this._gs;
+    const boss = gs.activeLanes[laneIdx]?.cars.find((c) => isBoss(c));
+    if (!boss || !toColor || toColor === boss.color || !gs.colors.includes(toColor)) return false;
+    boss.sequence[boss.seqIdx] = toColor;
+    boss.color = toColor;
+    this._boosterState?.consumeColorChange();
+    this._enforceViableMove(gs);
+    return true;
+  }
+
   // FIX 4B: recolour every on-screen car whose colour is `fromColor` to `toColor`,
   // consume one COLOR CHANGE charge, and keep the board viable. Returns the count
   // of cars changed (0 = nothing matched, charge not spent).

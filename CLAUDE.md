@@ -294,7 +294,7 @@ Always `${import.meta.env.BASE_URL}sprites/...`. Hardcoded `/sprites/...` causes
 ## 6. Current State
 
 ### Tests
-**1523 passing**, 1 skipped, 5 todo — 81 files (+2 skipped). Run: `npx vitest run`. All headless (no
+**1530 passing**, 1 skipped, 5 todo — 81 files (+2 skipped). Run: `npx vitest run`. All headless (no
 render tests).
 Visual smoke (`npm run test:visual`, Playwright) is separate and is a blocking CI gate.
 
@@ -895,3 +895,5 @@ the current source-of-truth summary.*
 *2026-10-03 subsystem review: input pointer ownership + `DragDrop.cancel()`, frozen-board refill/reveal in `_advanceGrid`, booster spend settled by USE, weekly key = `W${rawWeekIndex()}`, audio buses `_out`/`_master`/`_musicGain` (tutorial ding via `audio.play`), `ProgressManager._load` type sanitiser, L4 bench unlock marked on first bench-store, reduced motion gates flash/chroma. Tests: `game-loop-edge-cases`, `input-manager`, `progress-load-hardening`, `weekly-key`.*
 
 *Last updated: 2026-10-03 (previous: 2026-10-01 — levels 41-100, worlds 4-7, traits, economy and settings brought up to date.*)
+
+*2026-10-09 boss pass (owner device play of L10): every boss now advances EVERY turn (`moveEvery: 1`, pinned by `boss-infra.test.js`) on the unchanged 8-row lane (longer lanes shrink cars). Sequences shortened to fit: L10 4 lights, L20 2 + armored 0.20, L30 4, L40 2+2 (armoured titan row 0, plain row 1); sim 40/52/43/49%. COLOR CHANGE on a boss rewrites its CURRENT light (`GameLoop.changeBossColor`, picker flow in GameApp). Preview artifact has an on-page gate with an unlock-to-L40 button (`scripts/build-preview.sh`). Bosses must be re-played on device. Open clarity ideas not built: glow on matching bombs, move countdown, per-light hit pop, guaranteed boss-colour bomb.*

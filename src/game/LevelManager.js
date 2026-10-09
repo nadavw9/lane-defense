@@ -21,7 +21,7 @@
 //
 // Bosses (L10/20/30/40) are real vehicles with a colour sequence on the roof —
 // see TrafficRules.makeBoss. Goal: defeatBoss. Each has its own twist:
-//   L10 The Hauler        — learn the sequence; slow (a row every 2 turns)
+//   L10 The Hauler        — learn the sequence; short, and it steps forward every turn
 //   L20 Iron Hauler       — re-plates after every light: any bomb, then the colour
 //   L30 Chameleon King    — a long sequence while speeders flank it
 //   L40 Twin Titans       — two bosses at once, one of them armoured
@@ -87,15 +87,15 @@ const PROGRESSION = [
     traits: { speeder: 0.10 },
     goals: [{ type: 'destroyColor', color: 'Blue', count: 5 }, { type: 'destroyColor', color: 'Green', count: 5 }] },
 
-  // L10 BOSS "The Hauler": a giant truck with a 6-colour sequence in the middle
-  // lane, moving a row every 2 turns. Hit it in order while the side lanes keep
+  // L10 BOSS "The Hauler": a giant truck with a 4-colour sequence in the middle
+  // lane, advancing a row every turn. Hit it in order while the side lanes keep
   // coming — the lesson is splitting bombs between the boss and the traffic.
   { id: 10, name: 'The Hauler', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(1),
     duration: 110, spawnBudget: 12, laneTargetCarCount: 3, gridRows: 8,
     traits: { speeder: 0.08 },
     hintText: 'BOSS! Hit the boss with the colours on its roof, in order',
     initialCars: [...open(0, 2),
-      { lane: 1, row: 1, sequence: ['Red', 'Blue', 'Green', 'Red', 'Green', 'Blue', 'Red'], moveEvery: 2 }],
+      { lane: 1, row: 1, sequence: ['Red', 'Blue', 'Green', 'Red'], moveEvery: 1 }],
     goals: boss },
 
   // L11 "Steel plates": ARMOURED cars — any bomb knocks the plates off.
@@ -156,10 +156,10 @@ const PROGRESSION = [
   // bombs — any colour, then the right one. Armoured escorts in the side lanes.
   { id: 20, name: 'Iron Hauler', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green', 'Yellow'], worldConfig: W(0),
     duration: 110, spawnBudget: 16, laneTargetCarCount: 2, gridRows: 8,
-    traits: { armored: 0.12 },
+    traits: { armored: 0.20 },
     hintText: 'BOSS! Its armour grows back after every light',
     initialCars: [...open(0, 2),
-      { lane: 1, row: 1, sequence: ['Yellow', 'Red', 'Blue', 'Green'], moveEvery: 2, reArmor: true }],
+      { lane: 1, row: 1, sequence: ['Yellow', 'Red'], moveEvery: 1, reArmor: true }],
     goals: boss },
 
   // L21 "Night shift" (relief).
@@ -216,7 +216,7 @@ const PROGRESSION = [
     traits: { speeder: 0.18 },
     hintText: 'BOSS! A long sequence — and speeders on both sides',
     initialCars: [...open(0, 2),
-      { lane: 1, row: 1, sequence: ['Purple', 'Yellow', 'Red', 'Blue', 'Purple', 'Red', 'Yellow', 'Blue'], moveEvery: 2 }],
+      { lane: 1, row: 1, sequence: ['Purple', 'Yellow', 'Red', 'Blue'], moveEvery: 1 }],
     goals: boss },
 
   // ═══ WORLD 3 — The Highway (L31-40) ════════════════════════════════════════
@@ -269,14 +269,14 @@ const PROGRESSION = [
     traits: { speeder: 0.12, armored: 0.12, chameleon: 0.12 }, goals: total(20) },
 
   // L40 BOSS "Twin Titans": two bosses, one armoured, with only the middle lane
-  // of ordinary traffic between them. They move a row every 3 turns.
+  // of ordinary traffic between them. They advance a row every turn (2 lights each).
   { id: 40, name: 'Twin Titans', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Yellow', 'Orange'], worldConfig: W(0),
     duration: 120, spawnBudget: 24, laneTargetCarCount: 2, gridRows: 8,
     traits: { speeder: 0.06, chameleon: 0.06 },
     hintText: 'BOSS! Two titans — keep both in check',
     initialCars: [...open(1),
-      { lane: 0, row: 1, sequence: ['Orange', 'Red', 'Blue', 'Yellow', 'Orange', 'Red'], moveEvery: 3 },
-      { lane: 2, row: 1, sequence: ['Blue', 'Yellow', 'Orange', 'Red', 'Blue'], moveEvery: 3, reArmor: true }],
+      { lane: 0, row: 1, sequence: ['Orange', 'Red'], moveEvery: 1 },
+      { lane: 2, row: 0, sequence: ['Blue', 'Yellow'], moveEvery: 1, reArmor: true }],
     goals: [{ type: 'defeatBoss', count: 2 }] },
 
   // ═══ WORLDS 3-7 continue in LateLevels.js (L41-L100) ═══════════════════════

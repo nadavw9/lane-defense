@@ -1,4 +1,4 @@
-01=L10 today: 8-row lane (normal car size). Reference for 02 and 03.
-02=L10 if the lane were 13 rows (needed for a boss that moves every turn): cars and boss visibly smaller. NOT SHIPPED, for your decision.
-03=L40 if the lane were 18 rows: cars tiny. NOT SHIPPED, for your decision.
-04=L10 AFTER the COLOR CHANGE fix: tapped the boss, picked Blue -> "BOSS NOW BLUE!", roof lamp turned blue, rest of the sequence unchanged. SHIPPED.
+01=L10 Hauler: 4-light roof sequence, moves every turn
+02=L20 Iron Hauler: 2 lights, re-plates after each
+03=L40 Twin Titans: 2 lights each, both advance every turn (armoured one in lane 3)
+Look for: boss roof lights legible, normal car size and 8-row lane unchanged.

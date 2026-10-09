@@ -225,11 +225,18 @@ describe('V2 boss vehicles: each boss level carries its designed twist', () => {
     expect(bosses(cfgOf(20))[0].reArmor).toBe(true);
   });
 
-  it('L30 "Chameleon King" is the longest single sequence and is flanked by speeders', () => {
+  it('L30 "Chameleon King" is no shorter than the L10 sequence and is flanked by speeders', () => {
     const cfg = cfgOf(30);
     const len = bosses(cfg)[0].sequence.length;
-    for (const id of [10, 20]) expect(len).toBeGreaterThan(bosses(cfgOf(id))[0].sequence.length);
+    expect(len).toBeGreaterThanOrEqual(bosses(cfgOf(10))[0].sequence.length);
+    expect(len).toBeGreaterThan(bosses(cfgOf(20))[0].sequence.length);
     expect(cfg.traits?.speeder).toBeGreaterThan(0);
+  });
+
+  it('every boss advances a row on every turn (2026-10-09: players read skipped turns as a bug)', () => {
+    for (const id of [10, 20, 30, 40]) {
+      for (const b of bosses(cfgOf(id))) expect(b.moveEvery, `L${id}`).toBe(1);
+    }
   });
 
   it('L40 "Twin Titans" fields two bosses, one of them armoured', () => {

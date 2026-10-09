@@ -654,7 +654,7 @@ inferring rejection from an unchanged board.
   table capped at 4 colours. Rules live in `src/director/TrafficRules.js`, shared by
   GameLoop, DragDrop and SimulationRunner. Tune levels with `node tools/tune-levels.mjs`.
   V2 art: `node scripts/render-3d-sprites.mjs v2`; review captures: `scripts/v2-shots.mjs`.
-- **AdMob** — `src/ads/AdManager.js` with Google **test** IDs for rewarded video and interstitial
+- **AdMob** — `src/ads/AdManager.js` with PRODUCTION unit IDs (publisher ca-app-pub-3492310681731275; test mode only in dev builds). Console side (app review, app-ads.txt, UMP message, Play declarations) is unverified
 - **Signed release keystore** — `android/lane-defense-release.keystore` (gitignored). **Never delete.**
 - **Balance simulator** — `tools/balance-sim.js`
 - **Car rendering** — normal cars use pre-rendered 3D toy sprites (see §10 Art
@@ -674,7 +674,7 @@ inferring rejection from an unchanged board.
   `BOMB_THREAT_ROWS = 2` matches the Danger Aura's existing 2-row warning.
 
 ### What is NOT done (production gates)
-- Replace AdMob test IDs with production unit IDs
+- Verify AdMob console state for com.nadavw.trafficbomb (app status, units exist, app-ads.txt, UMP message, Play Ads/Data Safety/AD_ID declarations)
 - Signed release APK for Play Store
 - Play Store listing (screenshots, feature graphic, privacy policy, Data Safety form)
 - Closed test track ≥ 12 testers × 14 days

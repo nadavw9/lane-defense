@@ -40,6 +40,7 @@ import { BenchRenderer, benchY, benchSlotH } from './BenchRenderer.js';
 
 import { GameState }       from '../game/GameState.js';
 import { GameLoop }        from '../game/GameLoop.js';
+import { isBoss }          from '../director/TrafficRules.js';
 import { CombatResolver }  from '../game/CombatResolver.js';
 import { LevelManager, LEVEL_COUNT, openingRowsForLevel, clampInitialCarsToDepth, streakEnabledFor } from '../game/LevelManager.js';
 import { BoosterState }    from '../game/BoosterState.js';
@@ -1109,21 +1110,24 @@ async function main() {
     colorPicker?.destroy();   // never orphan a live one (see showTitle)
     colorPicker = new ColorPicker(app.stage, APP_W, APP_H, gs.colors, fromColor, {
       onPick: (toColor) => {
-        // Lanes with a matching car BEFORE the recolor — flash them on success.
-        const changedLanes = [];
-        gs.activeLanes.forEach((lane, i) => {
-          if (lane.cars.some((c) => c.color === fromColor)) changedLanes.push(i);
-        });
+        // Lanes with a recolourable car BEFORE the recolor (bosses never change, so a
+        // boss lane is not flashed: that read as "it worked on the boss").
+        const changedLanes = gameLoop.colorChangeLanes(fromColor);
         const n = gameLoop.applyColorChange(fromColor, toColor);
         if (n > 0) {
           changedLanes.forEach((i) => gameRenderer3D.onImpact(i, toColor));   // 200ms flash → new tint
           audio.play('color_bomb', { color: toColor });
           haptics.medium();
           floatingTexts.push(spawnFloatingText(
-            layers.get('particleLayer'), APP_W / 2, 470, 'COLOR CHANGED!', 0xffe14a,
+            layers.get('particleLayer'), APP_W / 2, 470,
+            `${n} CAR${n === 1 ? '' : 'S'} NOW ${String(toColor).toUpperCase()}!`, 0xffe14a,
           ));
         } else {
           boosterState.cancelColorChange();
+          audio.play('hit_miss');
+          floatingTexts.push(spawnFloatingText(
+            layers.get('particleLayer'), APP_W / 2, 330, 'NOTHING TO CHANGE', 0xff8a8a,
+          ));
         }
         _dismissColorPicker();
       },
@@ -2135,6 +2139,17 @@ async function main() {
         const lane = gs.activeLanes[laneIdx];
         const car  = lane?.frontCar?.() ?? lane?.cars?.[0] ?? null;
         if (!car) return;
+        if (isBoss(car)) {
+          // A boss's colour is its sequence. Say so, and keep COLOR CHANGE armed so the
+          // player can tap an ordinary car instead (it used to open the picker, change
+          // other cars and flash the boss lane as if the boss had changed).
+          audio.play('hit_miss');
+          haptics.error?.();
+          floatingTexts.push(spawnFloatingText(
+            layers.get('particleLayer'), APP_W / 2, 330, "BOSS CAN'T BE CHANGED", 0xff8a8a,   // above the 'TAP A CAR' banner
+          ));
+          return;
+        }
         boosterState.setColorChangeCar(car.color);
         _showColorPicker(car.color);
       },

@@ -111,6 +111,47 @@ describe('GameLoop.applyColorChange', () => {
   });
 });
 
+describe('COLOR CHANGE and bosses', () => {
+  const bossCar = (color, seq) => {
+    const car = new Car({ color, hp: seq.length, speed: 5 });
+    car.type = 'boss'; car.sequence = [...seq]; car.seqIdx = 0; car.maxHp = seq.length;
+    car.row = 2; car.position = 22;
+    return car;
+  };
+
+  it('never recolours a boss, even when it shares the source colour', () => {
+    const { gs, lanes } = makeState({ laneCount: 3 });
+    const bs = new BoosterState(); bs.colorChange = 1;
+    const loop = makeLoop(gs, { boosterState: bs });
+    const boss = bossCar('Red', ['Red', 'Blue', 'Green']); lanes[1].addCar(boss);
+    const red = new Car({ color: 'Red', hp: 5, speed: 5 }); red.row = 5; red.position = 55; lanes[0].addCar(red);
+
+    expect(loop.applyColorChange('Red', 'Green')).toBe(1);
+    expect(boss.color).toBe('Red');
+    expect(boss.sequence).toEqual(['Red', 'Blue', 'Green']);
+    expect(lanes[0].cars[0].color).toBe('Green');
+  });
+
+  it('colorChangeLanes lists only lanes with a recolourable car (the boss lane is excluded)', () => {
+    const { gs, lanes } = makeState({ laneCount: 3 });
+    const loop = makeLoop(gs, { boosterState: new BoosterState() });
+    lanes[1].addCar(bossCar('Red', ['Red', 'Blue']));
+    const red = new Car({ color: 'Red', hp: 5, speed: 5 }); red.row = 5; red.position = 55; lanes[2].addCar(red);
+
+    expect(loop.colorChangeLanes('Red')).toEqual([2]);
+    expect(loop.colorChangeLanes('Blue')).toEqual([]);
+  });
+
+  it('a boss-only colour is a no-op that spends no charge', () => {
+    const { gs, lanes } = makeState({ laneCount: 3 });
+    const bs = new BoosterState(); bs.colorChange = 1;
+    const loop = makeLoop(gs, { boosterState: bs });
+    lanes[1].addCar(bossCar('Red', ['Red', 'Blue']));
+    expect(loop.applyColorChange('Red', 'Green')).toBe(0);
+    expect(bs.colorChange).toBe(1);
+  });
+});
+
 describe('GameLoop._updateColorChangeCombo — consecutive multi-kills', () => {
   it('earns one charge on two strictly-consecutive multi-kills', () => {
     const { gs } = makeState();

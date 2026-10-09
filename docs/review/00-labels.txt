@@ -1,5 +1,2 @@
-01=BEFORE (d811e90) L3 fresh load, 3-lane band
-02=AFTER  L3 fresh load - should be identical to 01 (no regression at rest)
-03=BEFORE L3 -> L1 (band change) with FTUE overlay: tutorial hand/overlay built before lane count was applied
-04=AFTER  same transition: overlay built after setLaneCount; look at hand + socket column alignment under the single lane, tray outline hugging the 3 sockets
-Note: hand is animated, so its exact frame differs between captures; check the column it points at and the tray outline.
+01=BEFORE (1919dec) L10 boss: COLOR CHANGE armed, tapped the boss -> the colour picker opened for a car it can never change
+02=AFTER L10 boss: same tap -> message "BOSS CAN'T BE CHANGED" above the banner, no picker, COLOR CHANGE stays armed so you can tap another car

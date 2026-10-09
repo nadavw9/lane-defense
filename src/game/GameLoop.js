@@ -893,6 +893,16 @@ export class GameLoop {
     }
   }
 
+  // Lanes holding at least one car COLOR CHANGE would actually recolour (bosses never
+  // change, so a boss sharing the colour must not count: the UI flashes these lanes).
+  colorChangeLanes(fromColor) {
+    const lanes = [];
+    this._gs.activeLanes.forEach((lane, i) => {
+      if (lane.cars.some((c) => c.color === fromColor && !isBoss(c))) lanes.push(i);
+    });
+    return lanes;
+  }
+
   // FIX 4B: recolour every on-screen car whose colour is `fromColor` to `toColor`,
   // consume one COLOR CHANGE charge, and keep the board viable. Returns the count
   // of cars changed (0 = nothing matched, charge not spent).

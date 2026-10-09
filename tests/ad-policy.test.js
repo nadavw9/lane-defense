@@ -25,3 +25,15 @@ describe('interstitial pacing', () => {
     expect([1, 2, 3, 4].map(isInterstitialTurn)).toEqual([false, true, false, true]);
   });
 });
+
+import { useTestAds } from '../src/ads/adPolicy.js';
+describe('useTestAds', () => {
+  it('is on in dev', () => { expect(useTestAds({ DEV: true })).toBe(true); });
+  it('is on for a tester build (VITE_TEST_ADS=1)', () => {
+    expect(useTestAds({ DEV: false, VITE_TEST_ADS: '1' })).toBe(true);
+  });
+  it('is OFF for a store release build', () => {
+    expect(useTestAds({ DEV: false })).toBe(false);
+    expect(useTestAds({ DEV: false, VITE_TEST_ADS: '0' })).toBe(false);
+  });
+});

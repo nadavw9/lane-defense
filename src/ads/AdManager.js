@@ -7,7 +7,7 @@
 // a native wrapper.
 //
 import { Capacitor } from '@capacitor/core';
-import { interstitialWindowOpen, isInterstitialTurn } from './adPolicy.js';
+import { interstitialWindowOpen, isInterstitialTurn, useTestAds } from './adPolicy.js';
 import { AdMob, RewardAdPluginEvents, InterstitialAdPluginEvents, AdmobConsentStatus } from '@capacitor-community/admob';
 
 const REWARDED_AD_ID     = 'ca-app-pub-3810333742263149/8064409920';
@@ -72,10 +72,10 @@ export class AdManager {
   async init() {
     if (!Capacitor.isNativePlatform()) return;
     try {
-      // Test mode ONLY in dev builds (2026-09-27). This was hard-coded true, which
+      // Test mode in dev builds and in tester builds (VITE_TEST_ADS=1) only (2026-09-27). This was hard-coded true, which
       // puts the production ad unit IDs above into test mode in the release APK:
       // test ads, no revenue. `vite build` sets DEV=false, so release is live.
-      await AdMob.initialize({ testingDevices: [], initializeForTesting: import.meta.env.DEV });
+      await AdMob.initialize({ testingDevices: [], initializeForTesting: useTestAds(import.meta.env) });
       // Consent (Google UMP) BEFORE any ad request. Where the law requires it
       // (EEA / UK / Switzerland) the form shows on first launch; elsewhere the
       // status comes back NOT_REQUIRED and nothing is shown. The form itself is

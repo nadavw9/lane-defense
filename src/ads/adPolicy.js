@@ -26,3 +26,11 @@ export function interstitialWindowOpen(s) {
 export function isInterstitialTurn(eligibleCount) {
   return eligibleCount % INTERSTITIAL_EVERY === 0;
 }
+
+// Whether AdMob must serve Google's TEST ads. True in dev, and in any build made
+// with VITE_TEST_ADS=1 (closed-test / tester builds): live ads tapped or
+// over-requested by testers can get the AdMob account flagged for invalid
+// traffic. A store release build is made WITHOUT the flag and serves live ads.
+export function useTestAds(env) {
+  return Boolean(env.DEV) || env.VITE_TEST_ADS === '1';
+}

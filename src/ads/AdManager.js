@@ -72,9 +72,9 @@ export class AdManager {
   async init() {
     if (!Capacitor.isNativePlatform()) return;
     try {
-      // Test mode in dev builds and in tester builds (VITE_TEST_ADS=1) only (2026-09-27). This was hard-coded true, which
-      // puts the production ad unit IDs above into test mode in the release APK:
-      // test ads, no revenue. `vite build` sets DEV=false, so release is live.
+      // Live ads require VITE_ADS_MODE=live at build time; anything else (missing,
+      // misspelt, or a dev build) keeps the production ad unit IDs above in test
+      // mode: test ads, no revenue. Fail-safe by design — see adPolicy.useTestAds.
       await AdMob.initialize({ testingDevices: [], initializeForTesting: useTestAds(import.meta.env) });
       // Consent (Google UMP) BEFORE any ad request. Where the law requires it
       // (EEA / UK / Switzerland) the form shows on first launch; elsewhere the

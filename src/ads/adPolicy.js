@@ -27,10 +27,13 @@ export function isInterstitialTurn(eligibleCount) {
   return eligibleCount % INTERSTITIAL_EVERY === 0;
 }
 
-// Whether AdMob must serve Google's TEST ads. True in dev, and in any build made
-// with VITE_TEST_ADS=1 (closed-test / tester builds): live ads tapped or
-// over-requested by testers can get the AdMob account flagged for invalid
-// traffic. A store release build is made WITHOUT the flag and serves live ads.
+// Whether AdMob must serve Google's TEST ads. Live ads are an explicit opt-in:
+// only a build made with VITE_ADS_MODE=live serves them. Dev builds, tester
+// builds (VITE_ADS_MODE=test) and any build where the variable is missing or
+// misspelt serve test ads. A forgotten flag therefore costs revenue (visible
+// the first time you look) and never an AdMob invalid-traffic flag on a
+// tester's taps.
 export function useTestAds(env) {
-  return Boolean(env.DEV) || env.VITE_TEST_ADS === '1';
+  if (env.DEV) return true;
+  return env.VITE_ADS_MODE !== 'live';
 }

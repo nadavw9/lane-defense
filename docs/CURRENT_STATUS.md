@@ -23,16 +23,17 @@ Evidence tags: VERIFIED (checked in code/file/UI), REPORTED (user screenshot or 
 
 ## Open items (next owner in brackets)
 1. DONE 2026-10-10: merged release manifest contains com.google.android.gms.permission.AD_ID and android.permission.ACCESS_ADSERVICES_AD_ID (user's PC, release build). "Advertising ID: Yes" is correct; keep it.
-2. Deletion by email: analytics uses a random install ID the player never sees, so a request cannot be matched. Decide: show ID in Settings + say so in privacy policy, or change the answer [ask user].
-3. Test/live ads: currently VITE_TEST_ADS=1 flag; GPT suggests an explicit mode so a forgotten flag cannot flip behaviour. Also verify IDs inside the final package [ask user].
+2. DONE in code 2026-10-10 (owner delegated): Settings > About shows the anonymous Data ID (tap to copy); public/privacy.html tells players to email it. Needs: privacy.html deployed to Pages, visual check on device/screenshot L5+ not yet taken.
+3. DONE in code 2026-10-10: VITE_ADS_MODE=live is the only way to get live ads; missing/misspelt = test ads. Tester AAB (code 1) was built with the old flag and still serves test ads. STORE build must set $env:VITE_ADS_MODE='live'. Verify live IDs in the final package.
 4. AdMob GDPR message (Privacy & messaging) not created; test consent/decline/reopen/offline on device [user + Claude].
 5. Analytics DB (`lanedefense-analytics` RTDB) rules unchecked; SHA-1 vs API-key Firebase wording unclear; google-services.json is tracked in git (only key restrictions matter) [Claude/user].
 6. Developer website on listing = https://nadavw9.github.io [user].
 7. 12 testers [user]; one tester group could serve both games.
-8. Store release build must be made WITHOUT VITE_TEST_ADS [Claude/user, later].
+8. Store release build must set VITE_ADS_MODE=live [Claude/user, later].
 9. Boss replays L10/L20/L30/L40 on device [user].
 
-## Shared services (cross-game)
+## Shared services (cross-game): see docs/SHARED_SERVICES.md
+
 Publisher pub-3810333742263149; app-ads.txt at https://nadavw9.github.io/app-ads.txt returns 200 with the DIRECT line (GPT, 2026-10-10). AdMob reading it for Traffic Bomb: unverified.
 
 ## Change log

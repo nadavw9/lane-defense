@@ -24,6 +24,10 @@ function _genUUID() {
 let _enabled = false;
 export function setAnalyticsEnabled(v) { _enabled = !!v; }
 
+// The anonymous install ID, as the player can read it in Settings. A deletion
+// request by email quotes this value; it is the only way to find their rows.
+export function getInstallId() { return new Analytics()._playerId; }
+
 export class Analytics {
   constructor() {
     this._playerId = this._getOrCreatePlayerId();

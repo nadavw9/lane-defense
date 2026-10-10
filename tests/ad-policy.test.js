@@ -28,12 +28,19 @@ describe('interstitial pacing', () => {
 
 import { useTestAds } from '../src/ads/adPolicy.js';
 describe('useTestAds', () => {
-  it('is on in dev', () => { expect(useTestAds({ DEV: true })).toBe(true); });
-  it('is on for a tester build (VITE_TEST_ADS=1)', () => {
-    expect(useTestAds({ DEV: false, VITE_TEST_ADS: '1' })).toBe(true);
+  it('is on in dev, even if live is requested', () => {
+    expect(useTestAds({ DEV: true })).toBe(true);
+    expect(useTestAds({ DEV: true, VITE_ADS_MODE: 'live' })).toBe(true);
   });
-  it('is OFF for a store release build', () => {
-    expect(useTestAds({ DEV: false })).toBe(false);
-    expect(useTestAds({ DEV: false, VITE_TEST_ADS: '0' })).toBe(false);
+  it('is on for an explicit test build', () => {
+    expect(useTestAds({ DEV: false, VITE_ADS_MODE: 'test' })).toBe(true);
+  });
+  it('is on when the mode is missing or misspelt (fail safe)', () => {
+    expect(useTestAds({ DEV: false })).toBe(true);
+    expect(useTestAds({ DEV: false, VITE_ADS_MODE: 'Live' })).toBe(true);
+    expect(useTestAds({ DEV: false, VITE_ADS_MODE: '' })).toBe(true);
+  });
+  it('is off only for an explicit live build', () => {
+    expect(useTestAds({ DEV: false, VITE_ADS_MODE: 'live' })).toBe(false);
   });
 });

@@ -14,6 +14,7 @@ import { ribbon, roundButton, button, bodyText, titleText, screenBg, card, GOLD 
 import { INK } from '../renderer/ToyStyle.js';
 import { Capacitor } from '@capacitor/core';
 import { adManager } from '../ads/AdManager.js';
+import { getInstallId } from '../analytics/Analytics.js';
 
 const PRIVACY_URL = 'https://nadavw9.github.io/lane-defense/privacy.html';
 const VERSION = 'v1.1.0';
@@ -171,7 +172,7 @@ export class SettingsScreen {
   }
 
   _aboutCard(y) {
-    const h = 52 + 94;
+    const h = 52 + 122;
     const ry = this._cardFrame(y, h, 'ABOUT', 'star-filled');
     const links = [['Privacy Policy', () => this._openUrl(PRIVACY_URL)]];
     if (adManager.hasPrivacyOptions) links.push(['Ad choices', () => adManager.showPrivacyOptions()]);
@@ -185,6 +186,16 @@ export class SettingsScreen {
     const v = bodyText(`Traffic Bomb ${VERSION}  ·  Made by Nadav`, 13, 0xA9A3D6, { outline: false, weight: '700' });
     v.anchor.set(0.5); v.x = this._appW / 2; v.y = ry + 72;
     this._container.addChild(v);
+    // Install ID: quoted in a data-deletion email (see the privacy policy). Tap copies it.
+    const id = getInstallId();
+    const idText = bodyText(`Data ID (tap to copy)\n${id}`, 11, 0xA9A3D6, { outline: false, weight: '700', align: 'center' });
+    idText.anchor.set(0.5); idText.x = this._appW / 2; idText.y = ry + 108;
+    idText.eventMode = 'static'; idText.cursor = 'pointer';
+    idText.on('pointertap', () => {
+      this._audio?.play('button_tap');
+      try { navigator.clipboard?.writeText(id); } catch { /* clipboard unavailable: ID stays readable */ }
+    });
+    this._container.addChild(idText);
     return y + h;
   }
 

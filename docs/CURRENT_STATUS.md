@@ -22,7 +22,7 @@ Evidence tags: VERIFIED (checked in code/file/UI), REPORTED (user screenshot or 
 - Store listing text, screenshots (L5+), 1024x500 feature graphic: NOT done. 512 icon exists (store/icon-512.png).
 
 ## Open items (next owner in brackets)
-1. AD_ID permission vs "Advertising ID: Yes" — check merged manifest of the AAB build [user runs, Claude reads result].
+1. DONE 2026-10-10: merged release manifest contains com.google.android.gms.permission.AD_ID and android.permission.ACCESS_ADSERVICES_AD_ID (user's PC, release build). "Advertising ID: Yes" is correct; keep it.
 2. Deletion by email: analytics uses a random install ID the player never sees, so a request cannot be matched. Decide: show ID in Settings + say so in privacy policy, or change the answer [ask user].
 3. Test/live ads: currently VITE_TEST_ADS=1 flag; GPT suggests an explicit mode so a forgotten flag cannot flip behaviour. Also verify IDs inside the final package [ask user].
 4. AdMob GDPR message (Privacy & messaging) not created; test consent/decline/reopen/offline on device [user + Claude].

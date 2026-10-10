@@ -1,4 +1,48 @@
-01=L10 Hauler: 4-light roof sequence, moves every turn
-02=L20 Iron Hauler: 2 lights, re-plates after each
-03=L40 Twin Titans: 2 lights each, both advance every turn (armoured one in lane 3)
-Look for: boss roof lights legible, normal car size and 8-row lane unchanged.
+Traffic Bomb — Play Store listing captures + Data ID evidence
+Captured 2026-10-10 from the dev server at commit 553dc76 (feat/v2-design).
+All frames 1170x2532 (390x844 @ DPR 3) — above Play's 1080x1920 phone minimum.
+L5+ only; L1 never used. Headed Chromium on the real GPU, not SwiftShader.
+
+01 = L12 Toy Town, x2 COMBO, "First Blood" trophy banner.
+     LOOK FOR: colour separation between the red/blue/green cars and the bomb
+     queue below; the trophy banner should be FULLY opaque, not half-faded.
+
+02 = L30 boss (Steel Yards / industrial), x6 COMBO.
+     LOOK FOR: the boss vehicle at the breach line and its roof-light panel —
+     this is the frame that has to sell "beat the boss by colour order".
+
+03 = L38 Neon Nights night highway.
+     LOOK FOR: cars still readable by colour against the near-black road; this
+     is the theme where readability is most at risk.
+
+04 = L50 Sun Valley desert, x7 COMBO, boss vehicle, all three boosters stocked.
+     LOOK FOR: strongest overall candidate for the first store screenshot.
+     Desert verges, combo callout and the booster bar all visible at once.
+
+05 = L65 Frost Pass, x8 COMBO, SUPERCHARGED banner at the breach line.
+     LOOK FOR: the SUPERCHARGED state — the Hot Streak payoff, the one V2
+     mechanic no other frame shows.
+
+06 = L80 Harbor Lights, x2 COMBO, two boss vehicles with colour panels.
+     LOOK FOR: goal card at top is clean. An earlier capture caught the trophy
+     banner MID-FADE double-exposed over this card; that frame was discarded.
+
+07 = Level map, Steel Yards (World 2) fully completed.
+     LOOK FOR: every level three-starred, rubble replaced by rebuilt warehouses,
+     skull markers on the L20 and L30 bosses. This is the city-repair meta.
+
+08 = Settings > About, showing the anonymous Data ID.  *** EVIDENCE, NOT A STORE SHOT ***
+     This is the change that had never been seen on screen. The Data ID and its
+     "(tap to copy)" label are legible at the bottom.
+     LOOK FOR / DECISION NEEDED: the Data ID sits FLUSH against the bottom edge
+     with essentially zero padding, at the panel's maximum scroll. It is not
+     clipped here, but this is the same shape as the booster-label issue fixed
+     in d804019, and on a device with a gesture bar or rounded corners it may
+     read as cut off. Needs your call before any UI change.
+
+NOT YET MADE: the 1024x500 feature graphic (Play requires it for the listing).
+
+Capture script: scripts/store-shots.mjs (new this session). It asserts
+_nav.getScreens() before every shutter and discards any frame with an overlay
+up — the first run reported "4 turns played, running=true" for two frames that
+were actually the BREACH rescue dialog.

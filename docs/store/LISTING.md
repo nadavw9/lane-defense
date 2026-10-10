@@ -55,22 +55,32 @@ offline, brain teaser (Apple 100 chars: `traffic,puzzle,bomb,color match,casual,
   policy statement ("not directed at children under 13") true and avoids Families-policy ad
   restrictions. Decision recorded 2026-10-01; revisit only if the owner wants the Families programme.
 
-## Google Play Data Safety (matches `public/privacy.html`)
+## Google Play Data Safety — AS DECLARED IN THE CONSOLE (2026-10-10)
+
+This is the version actually submitted, not a proposal. Four data types, each marked
+**collected AND shared**, **required** (not optional), with purposes **Advertising,
+Analytics, Fraud prevention**. Encrypted in transit: yes. Account creation: none.
+Deletion: by email. Do not "correct" this table toward the app's own code — see the note below.
 
 | Question | Answer |
 |---|---|
 | Collects or shares user data? | Yes |
 | Data encrypted in transit? | Yes (HTTPS) |
-| Users can request deletion? | Yes — by email (address in the privacy policy) |
-| **Device or other IDs** | Collected: random install ID (analytics) and advertising ID (AdMob). Purposes: analytics, advertising. Shared with: Google AdMob / Firebase. Not optional for ads; analytics follows consent where required. |
-| **App activity** | Collected: levels played, win/lose, duration, moves, boosters used. Purpose: analytics. Not linked to identity. |
-| **App info and performance** | Crash logs/diagnostics only if crash reporting is added (see TODO). |
-| **Approximate location** | Collected by AdMob via IP address. Purpose: advertising. |
-| Personal info, financial info, health, messages, photos, contacts, audio | Not collected |
+| Users can request deletion? | Yes — email the anonymous Data ID from Settings > About (path is in `public/privacy.html`) |
+| **Approximate location** | Collected + shared, required. Derived by AdMob from IP address. |
+| **App interactions** | Collected + shared, required. Levels played, win/lose, duration, moves, boosters used. |
+| **Diagnostics** | Collected + shared, required. Screen size and session timing; AdMob SDK diagnostics. |
+| **Device or other IDs** | Collected + shared, required. Random install ID (analytics) and advertising ID (AdMob). |
+| Personal info, financial info, health, messages, photos, contacts, audio, purchase history | Not collected |
 
-TODO before submission: re-check this table against whatever SDKs ship in the final build
-(Firebase Analytics/Crashlytics, AdMob, any purchase SDK). If in-app purchases are added, the
-"purchase history" line and the privacy policy both need updating.
+Why the declaration is broader than the code: Play requires declaring what the bundled SDKs
+collect, not only what app code sends. AdMob covers location, IDs and diagnostics on its own.
+Over-declaring is safe; under-declaring is the policy violation. So leave these four in place
+even though `src/analytics/Analytics.js` by itself would only justify App interactions + IDs.
+
+TODO before submission: if in-app purchases or crash reporting (Crashlytics) are ever added,
+re-open this table — purchase history and a broader Diagnostics scope would both need declaring,
+and `public/privacy.html` would need matching text.
 
 ## Apple App Privacy ("nutrition label")
 

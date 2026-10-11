@@ -45,11 +45,19 @@ Agreed order, and ASK THE OWNER before any Publish / Send for review:
    `https://nadavw9.github.io`, confirm support email, Save.
 3. Upload the code-2 AAB (built + verified, see below) to Closed testing > Alpha.
 
+**2026-10-11 local session (Claude in Chrome, owner's real Chrome):**
+- Item 1 DONE: no message existed (the earlier draft had never been saved). Created "Traffic Bomb consent"
+  (European regulations), app = Traffic Bomb only, Consent On, Manage options On, Do not consent On for every
+  country, Close Off, privacy URL already on the app. Published with owner OK; list shows Status "Published".
+- Item 2 was already DONE, nothing changed: Store settings > contact details showed website https://nadavw9.github.io
+  and email nadavwolfsonw@gmail.com. Side note: App category is "Not selected" on that page (needed for the listing).
+- d430f3b pushed.
+
 ## Open items (next owner in brackets)
 1. DONE 2026-10-10: merged release manifest contains com.google.android.gms.permission.AD_ID and android.permission.ACCESS_ADSERVICES_AD_ID (user's PC, release build). "Advertising ID: Yes" is correct; keep it.
 2. DONE 2026-10-10. privacy.html is LIVE — run 38055849492 (master d1b185a) deployed it and https://nadavw9.github.io/lane-defense/privacy.html now returns "Last updated: 10 October 2026" plus the Data ID deletion sentence (VERIFIED by fetch). Only that one file was cherry-picked to master; the live game build is unchanged. Two text defects fixed first: the policy named "Settings > Ad privacy choices" but the real row is "Ad choices" (SettingsScreen.js:178), and the date predated the Data ID paragraph. Settings > About captured on screen for the first time — docs/review/08.png.
 3. DONE + VERIFIED 2026-10-10. Built with VITE_ADS_MODE=live and read the output bundle: VITE_ADS_MODE:"live" is inlined at the AdMob.initialize call, both live unit IDs present, ZERO Google test IDs (ca-app-pub-3940256099942544). useTestAds fails safe — anything but exactly "live" yields test ads. STORE build must still set $env:VITE_ADS_MODE='live'.
-4. AdMob GDPR message (Privacy & messaging) not created; test consent/decline/reopen/offline on device [user + Claude].
+4. AdMob GDPR message PUBLISHED 2026-10-11; still to test consent/decline/reopen/offline on device [user + Claude].
 5. PARTLY ANSWERED 2026-10-10 without the console: unauthenticated reads of the `lanedefense-analytics` RTDB return **401** at the root and at /sessions.json, so the database is NOT world-readable. Writes were deliberately NOT tested — a write would inject junk into production data. Side finding: `AutoTuner` (AutoTuner.js:52, wired at GameApp.js:381 -> LevelManager.js:386) does an unauthenticated READ of /sessions.json that is 401-blocked and swallowed, so **difficulty auto-tuning is inert in production** — shipped difficulty is purely the hand/sim-tuned table. Owner decision 2026-10-10: leave it off, do not open the database; remove the dead read later in a separate small commit. Still open: whether the API keys are restricted (Google Cloud console) [user].
 6. Developer website on listing = https://nadavw9.github.io [user].
 7. 12 testers [user]; one tester group could serve both games.

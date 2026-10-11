@@ -22,6 +22,29 @@ Evidence tags: VERIFIED (checked in code/file/UI), REPORTED (user screenshot or 
 - NEW TESTER AAB READY 2026-10-10 (not yet uploaded): versionCode 2 / versionName 1.0.1, built with VITE_ADS_MODE=test, signed. `android/app/build/outputs/bundle/release/app-release.aab`, 57.16 MB. Pre-upload checks all VERIFIED by reading inside the package: shipped bundle inlines VITE_ADS_MODE:"test"; rewarded .../8064409920 and interstitial .../4284947016 present; AdMob app id ca-app-pub-3810333742263149~3212730463 in the manifest; no other publisher id; zero Google test IDs; both AD_ID permissions present; merged manifest versionCode="2" versionName="1.0.1". This build contains the Data ID screen — code 1 does not.
 - Store listing: text drafted (docs/store/LISTING.md, Data Safety table corrected to the four declared types). Screenshots CAPTURED 2026-10-10 to docs/review/ (01-07 gameplay L12/L30/L38/L50/L65/L80 + level map, all 1170x2532, L5+ only). 512 icon exists (store/icon-512.png). STILL MISSING: 1024x500 feature graphic.
 
+## NEXT SESSION STARTS HERE (written 2026-10-11)
+
+Browser automation is now configured: `chrome-devtools-mcp`, local scope, in
+`C:\Users\dalit\lane-defense-release`. **Start claude from that directory** or the
+server will not load. Verify with `claude mcp get chrome-devtools`.
+
+First browser call opens a Chrome with its own persistent profile (`--isolated=false`).
+The OWNER signs into Google there once — passwords and 2-step codes are his, always.
+One Google account serves both games: confirm **Traffic Bomb / com.nadavw.trafficbomb**
+is the selected app before every console action. Never touch The Math Wolf
+(com.wolfacademy.lanemath, owned by Codex/GPT).
+
+Agreed order, and ASK THE OWNER before any Publish / Send for review:
+1. AdMob consent message — https://apps.admob.com/v2/privacymessaging — name
+   "Traffic Bomb consent"; Consent On, Manage options On, Do not consent On, Close Off;
+   privacy URL https://nadavw9.github.io/lane-defense/privacy.html. Created by an earlier
+   extension session, publish state UNKNOWN. **This gates the live policy's promise**: the
+   policy already tells players to use Settings > Ad choices, and that row only renders when
+   AdMob returns privacy options (`adManager.hasPrivacyOptions`, SettingsScreen.js:178).
+2. Play Console > Grow users > Store presence > Store settings: Website
+   `https://nadavw9.github.io`, confirm support email, Save.
+3. Upload the code-2 AAB (built + verified, see below) to Closed testing > Alpha.
+
 ## Open items (next owner in brackets)
 1. DONE 2026-10-10: merged release manifest contains com.google.android.gms.permission.AD_ID and android.permission.ACCESS_ADSERVICES_AD_ID (user's PC, release build). "Advertising ID: Yes" is correct; keep it.
 2. DONE 2026-10-10. privacy.html is LIVE — run 38055849492 (master d1b185a) deployed it and https://nadavw9.github.io/lane-defense/privacy.html now returns "Last updated: 10 October 2026" plus the Data ID deletion sentence (VERIFIED by fetch). Only that one file was cherry-picked to master; the live game build is unchanged. Two text defects fixed first: the policy named "Settings > Ad privacy choices" but the real row is "Ad choices" (SettingsScreen.js:178), and the date predated the Data ID paragraph. Settings > About captured on screen for the first time — docs/review/08.png.

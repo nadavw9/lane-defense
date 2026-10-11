@@ -52,6 +52,14 @@ Agreed order, and ASK THE OWNER before any Publish / Send for review:
 - Item 2 was already DONE, nothing changed: Store settings > contact details showed website https://nadavw9.github.io
   and email nadavwolfsonw@gmail.com. Side note: App category is "Not selected" on that page (needed for the listing).
 - d430f3b pushed.
+- 2026-10-12: App category set to Puzzle (verified after reload). Default store listing CREATED as a draft holding
+  only the feature graphic fg-a.png (owner's pick; verified after reload). Text, icon and screenshots are not on it yet.
+- 2026-10-12: Tester AAB rebuilt from 9d75d97 (includes the d430f3b Data ID fix) with VITE_ADS_MODE=test. Read the
+  bundle: versionCode 2 / 1.0.1, initializeForTesting gets VITE_ADS_MODE:`test` (so it is true), and the AdMob IDs are
+  ~3212730463 / 8064409920 / 4284947016. The Alpha draft turned out to be EMPTY (no bundle), not the code-1 AAB the
+  handoff said. Owner uploaded the AAB by hand (the extension's upload is capped at 10 MB). Release "2 (1.0.1)",
+  target SDK 36, tester release notes. SAVED AS DRAFT, NOT sent for review. Alpha page: Inactive, Draft release
+  2 (1.0.1), 0 countries/regions, 1 of 4 complete (countries, testers, preview, and review all still open).
 
 ## Open items (next owner in brackets)
 1. DONE 2026-10-10: merged release manifest contains com.google.android.gms.permission.AD_ID and android.permission.ACCESS_ADSERVICES_AD_ID (user's PC, release build). "Advertising ID: Yes" is correct; keep it.

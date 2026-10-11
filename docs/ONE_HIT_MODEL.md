@@ -1,105 +1,99 @@
 # One-Hit Ladder Model — design and numbers
 
-Status: DESIGN, owner-approved direction 2026-10-12 (bomb numbers removed, car shrinks per hit,
-bosses removed, "Claude is the guide"). Branch: `feat/one-hit-model`. Not merged. `docs/VISION.md`
-is amended only after the owner approves the final wording (section 9).
+Status: IMPLEMENTED on branch `feat/one-hit-model` (owner-approved direction 2026-10-12). Not merged.
+`docs/VISION.md` is amended only after the owner approves the wording (section 9).
 
-## 1. Why (measured, not felt)
+## 1. Why
 
-- Today a bomb carries a number (2-8) and a car has HP (2/3/4/5/7/12). Shipped note in
-  `CarTypes.js`: 94% of matched shots one-shot a car, so the bomb number is decorative. That is the
-  owner's "no connection between bomb power and car HP".
-- Baseline sim (200 runs, 100 levels, average skill): 22.0 turns/level, 1.11 kills per shot (carry-over).
-  L5: 20 cars in 15.8 turns.
+- A bomb carried a number (2-8) and a car had HP (2-12). 94% of matched shots one-shot a car, so the
+  bomb number was decorative: the owner's "no connection between bomb power and car HP".
+- Bosses (every tenth level) did not read well and added a whole mechanic (colour sequences,
+  re-plating, colour change on a boss, boss tests).
 
-## 2. The model
+## 2. The model (as built)
 
-1. Every bomb is exactly ONE hit. Bombs show a colour only. No numbers anywhere.
-2. A car's hit points are its size. Each hit in the matching colour shrinks it one rung, same colour:
+1. Every bomb is exactly ONE hit and shows only a colour. No numbers anywhere (3D bombs, bench,
+   fallback 2D drawing, onboarding).
+2. A car's hit points are its size. Each matching hit shrinks it one rung, same colour, with a pop:
 
-   | rung | vehicle | hits to destroy |
-   |---|---|---|
-   | 4 | truck | 4 |
-   | 3 | van | 3 |
-   | 2 | car | 2 |
-   | 1 | motorbike | 1 |
+   | vehicle | hits to destroy |
+   |---|---|
+   | van (jeep) | 3 |
+   | car (big) | 2 |
+   | motorbike (small) | 1 |
 
-   Bigrig and tank are retired from spawning (their sprites stay for armour/boss-free special use).
-   No new art: every type already exists in every colour. A shrink is a sprite swap plus a pop.
-3. Traffic moves when a car is DESTROYED, not on every hit. A hit that only shrinks a car does not
-   move traffic. Wrong colour still does nothing.
-4. Hot Streak: every 3rd car you destroy charges the next bomb. The charged bomb hits TWICE and carries
-   through any colour (resolver already supports damage 2 + pierce). A non-killing hit no longer resets
-   the streak (with multi-hit cars that made the streak nearly unreachable).
-5. Armour (any colour strips it, no shrink) and the other traits keep their rules unchanged in this
-   phase. Mender heals back UP one rung per traffic move (readable without text).
-6. Bosses are removed as a mechanic. L10/L20/L30/L40 become ordinary "big wave" levels with a
-   destroyTotal goal and a heavy mix.
+   Truck, bigrig and tank are retired from spawning (their weight is folded into the van in
+   `CarTypes.bandWeights`). No new art: every type already exists in every colour.
+   `displayTypeFor(type, hp)` picks the sprite; `Car3D` rebuilds the entry when the rung changes.
+3. EVERY correct shot still advances traffic (owner rule, mandatory). To make that survivable with
+   multi-hit cars the road is longer in steps, not in size: a step is HALF a car length
+   (`STEPS_PER_ROW = 2`). Road length, car size and spawn spacing (one car length) are unchanged.
+   Speeders move two steps. Breach when `row > gridRows - 1`. Legacy `stepsPerRow = 1` is the default
+   for configs that do not opt in (tests, old sims); every level and the daily challenge opt in.
+4. Hot Streak: every 3rd car you destroy charges the next bomb. The charged bomb hits TWICE and
+   carries through any colour (resolver support unchanged). A hit that only shrinks a car neither adds
+   to nor breaks the count.
+5. Traits keep their rules, with one change: a mender repairs ONE rung after TWO traffic moves
+   without a hit (it used to heal every move, which made a shrunk mender unkillable).
+6. Bosses are gone. L10/20/30/40 and L50/60/70/80/90/100 are "big wave" levels: a heavier
+   destroyTotal goal, `milestone: true`, win band ten points below the neighbouring levels.
+7. Colour Bomb (earned by multi-kills) replaces the top bomb whose colour matches the FEWEST cars on
+   the board (it used to pick the lowest-damage bomb; all damage is 1 now).
+8. BOMB booster still clears the targeted lane; COLOR CHANGE recolours matching front cars (no boss
+   special case any more).
 
-## 3. The numbers
+## 3. Calibration
 
-Expected hits per car (heft 0.5, existing band tables, bigrig/tank folded into truck = 4):
+Measured with `tools/balance-sim.js` (skill average, boosterIQ 0.7):
 
-| level | phase | old avg HP | new avg hits |
-|---|---|---|---|
-| L1 | any | 2.00 | 1.00 |
-| L3 | BUILD / CLIMAX | 2.60 / 2.85 | 1.60 / 1.85 |
-| L6 | BUILD / CLIMAX | 3.05 / 3.80 | 2.05 / 2.80 |
-| L9 | BUILD / CLIMAX | 3.55 / 4.40 | 2.55 / 3.40 |
-| L12 | BUILD / CLIMAX | 4.10 / 5.90 | 2.90 / 3.90 |
-| L16+ | BUILD / CLIMAX | 4.55 / 8.35 | 3.00 / 3.95 |
+- Every-correct-shot advance with 1-3 hit cars and the old 8-row, 1-row steps: ~0% win. A lane of
+  multi-hit cars outruns the road.
+- Half-row steps alone: ~99% win. Ladder with unchanged goals: mean win 21% and 40-60 shots a level.
+- So goals shrink to roughly half and `tools/tune-levels.mjs` fits the rest per level.
 
-Late bands average 3-4 hits per car, which is too many shots per level. The band tables get re-weighted
-for four types (target 1.0 at L1, ~2.0 at L5-8, ~2.6 late) and goal counts are re-scaled by the sim.
+Tuner order of freedom per level (all 100 levels, band centre target from `tools/bands.mjs`):
+raise heft when full goals are too easy; else shrink goals (`scaleGoal`, floors 6 for destroyTotal and 2
+for side goals, never below x0.4); else ease heft; for trait goals pick the trait mix with the best win
+rate; last, thin the trait mix. Results live in `src/game/lateTuning.js` (generated, covers L1-100;
+`LevelManager` applies L1-40 on load, `levelDsl.lv()` applies L41+). Authored goals stay in
+`cfg.baseGoals` so the tuner always starts from the design.
 
-Sim prototype (damage 1, ladder 1/2/3/4, other rules untouched):
+Result at 300 runs: 100/100 levels inside their band except L4 (98% against 85-95, heft already at
+maximum). Average 24.5 turns a level (baseline before the change: 22.0).
 
-| rule for traffic | L5 win | L12 win | verdict |
-|---|---|---|---|
-| every hit moves traffic (today's rule) | 0-28% even with a 3-car goal | 1-52% | impossible: a lane of 4-hit trucks outruns an 8-row road |
-| traffic moves on a kill | 98% (goal 20) | 88-96% | winnable, easy; difficulty levers (density, lane length, traits) still apply |
+Coins: levels hold about half the cars, so `COINS_PER_CAR` went 2 -> 4 to keep a win worth the
+same.
 
-Why "moves on a kill": it keeps the number of board advances per level ~ equal to cars killed, exactly
-as today, so every level's pacing, speed and trait pressure carries over. Only shots per level change
-(about x2), which the goal re-scale absorbs. The player rule is one sentence: "destroy a car and traffic
-moves".
+## 4. Deleted with it
 
-## 4. Deleted with it (less code, not more)
+Bomb damage numbers and their rendering; `DAMAGE_WEIGHTS`/skew/boost config (dead, left for cleanup);
+depth-bait pairs; fairness rules FR-3 and FR-4 (FR-1, FR-2, FR-5 stay); boss code (`makeBoss`,
+`hitBoss`, sequences, roof panel drawing is dead code in `Car3D`, colour change on a boss, boss
+tests); the car damage tint and tilt (size is the health now); the truck/bigrig/tank rows in the car
+guide and the car manual.
 
-- Bomb damage numbers and their rendering; `DAMAGE_WEIGHTS`, `damageSkew`, `HP_DAMAGE_BOOST`,
-  depth-bait pairs (weak/strong), CRISIS damage logic keeps the colour assist only.
-- Fairness rules FR-3 and FR-4 (both are about damage vs HP). FR-1, FR-2, FR-5 stay.
-- `hpMultiplier` as a difficulty lever (already 1 on every authored level). DDA softens with `heft`.
-- Boss code: `makeBoss`, `hitBoss`, boss sequences, boss rendering, the colour-change-on-boss flow,
-  boss tests. Removed in its own commit after the model works.
-- HP guide overlay and car-manual HP numbers become "hits".
-
-## 5. Phases (each ends green on `npx vitest run`)
-
-1. Model: Shooter damage 1, ladder HP, advance-on-kill in GameLoop and SimulationRunner (one shared
-   rule), streak by kills, band tables, DDA by heft.
-2. Rendering: Car3D downgrade sprite swap with pop, bombs without numbers, intro cards, manual.
-3. Bosses out, L10/20/30/40 rebuilt as big-wave levels.
-4. Retune 100 levels with `tools/tune-levels.mjs` against `tools/bands.mjs`.
-5. QA bots (autoplay, ftue, booster, economy) against a worktree on port 5174, then branch CI.
-6. Owner plays on device. VISION.md amended after he approves the wording.
-
-## 6. Risks
+## 5. Risks
 
 - GameLoop/DragDrop/CombatResolver are on the CI-sensitive deploy/merge path: branch only, merge on green.
-- ~1500 tests assert damage/HP/boss values; many change by design. Each changed assertion is an
-  intentional behaviour change, not a loosened check.
-- Sim bot is not a human. Difficulty is a first calibration; device play is the real test.
-- The tester AAB already uploaded (1.0.1) has the old model. Testers get this build only after merge.
+- The sim bot is not a human. The bands are a first calibration; device play is the real test.
+- The tester AAB already uploaded (1.0.1) has the old model; testers get this build only after merge.
+- Dead config and `Car3D` boss drawing remain for a cleanup pass.
 
-## 7. Open points for the owner
+## 6. Owner checks on device
 
-- Streak "every 3rd kill" vs keeping the old "3 kills in a row". Chosen: every 3rd kill.
-- Tank/bigrig: retired from spawn. Could return later as a 5th rung if the late game feels flat.
+1. L1-L5: does a hit read clearly (car shrinks and pops), and is the road still readable, not crowded?
+2. Do half-steps feel like "every shot moves traffic"?
+3. Big waves (L10, L20, ...): hard but fair?
+4. Power shot: every 3rd destroyed car, too frequent or too rare?
 
-## 8. Not changed on purpose
+## 7. Not changed on purpose
 
-Colour palette, lane count, bench, boosters, economy, ads, store listing.
+Colour palette, lane count, bench, boosters, economy structure, ads, store listing.
+
+## 8. Phases
+
+Done: model, half-steps, ladder, boss removal, rendering, retune, tests. Remaining: QA bots on a
+worktree, CI on the branch, owner device play, VISION.md amendment.
 
 ## 9. VISION.md amendments needed (after approval)
 

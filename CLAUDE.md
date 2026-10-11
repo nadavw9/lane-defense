@@ -11,6 +11,17 @@ An approved 3-workstream master plan is in progress (WS1 testing DONE → WS2 UI
 Route mechanical spec-execution to cheaper models; reserve Fable/Opus for design judgment
 (playbook §2).
 
+### ONE-HIT LADDER MODEL (2026-10-12, branch `feat/one-hit-model`, NOT merged) — read first
+
+Bombs are exactly one hit and carry no number. A car's HP is its size: van 3 -> car 2 -> motorbike 1,
+each matching hit shrinks it one rung. Every correct shot still advances traffic, in HALF-row steps
+(`STEPS_PER_ROW = 2`, `TrafficRules.stepSize`). Bosses are gone (big-wave levels instead, `milestone: true`).
+Streak = every 3rd destroyed car. Mender heals one rung per two quiet moves. All 100 levels are sim-tuned
+via `node tools/tune-levels.mjs 1-100 300 --write` (writes `src/game/lateTuning.js`; L1-40 overlay is applied in
+`LevelManager`). Design and numbers: `docs/ONE_HIT_MODEL.md`. Anything below that talks about bomb
+damage numbers, boss levels (L10/20/30/40 as bosses), FR-3/FR-4 or the BOMB booster's boss rule describes the
+OLD model and is provenance until this branch merges.
+
 ### PLAY THE GAME BEFORE CALLING IT DONE — QA bots (2026-09-28)
 
 The owner found an L1 soft-lock in 5 seconds of play that 1300 green unit tests never saw.

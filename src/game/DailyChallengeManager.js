@@ -8,6 +8,7 @@
 // columns. Every challenge is now a real V2 board — 3 lanes, 8 rows, a car goal,
 // at most four colours — with ONE twist, and copy that says what actually happens.
 import { localDateKey } from './dateKeys.js';
+import { STEPS_PER_ROW } from '../director/TrafficRules.js';
 
 const CHALLENGES = [
   { name: 'Speeder Rush',   desc: 'Speeders everywhere — they move 2 steps a turn',
@@ -88,6 +89,7 @@ export class DailyChallengeManager {
       laneCount:  3,
       colCount:   3,
       gridRows:   8,
+      stepsPerRow: STEPS_PER_ROW,
       spawnBudget: 12,
       laneTargetCarCount: 2,
       showArrow:  false,

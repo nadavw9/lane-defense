@@ -34,6 +34,7 @@ export class GameState {
     // spawnBudget: total cars this level spawns; null = unlimited / legacy mode.
     // laneTargetCarCount: lanes refill up to this many cars at row 0.
     this.gridRows           = gridRows           ?? 16;
+    this.stepsPerRow        = 1;   // set per level by GameApp (TrafficRules.STEPS_PER_ROW); 1 = whole-row steps
     this.targetKills        = targetKills        ?? 10;
     this.spawnBudget        = spawnBudget        ?? null;
     this._initialSpawnBudget = spawnBudget       ?? null;

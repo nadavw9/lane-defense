@@ -47,6 +47,27 @@ export const TRAIT_TYPES = {
 
 export const STREAK_TO_CHARGE = 3;
 
+// ── Half-row steps ───────────────────────────────────────────────────────────
+// A car is one ROW long. Every correct shot advances traffic ONE STEP, and a step
+// is 1/stepsPerRow of a row, so a longer journey (more shots to the breach) needs
+// no longer road and no smaller cars. stepsPerRow = 1 is the legacy whole-row
+// model (what unit tests that do not opt in still run). With 2, rows are exact
+// halves in binary, so row arithmetic and === comparisons stay exact.
+export const STEPS_PER_ROW = 2;
+export const stepSize = (stepsPerRow = 1) => 1 / Math.max(1, stepsPerRow || 1);
+
+/**
+ * Lowest spawn row (in steps) where a new car fits: no existing car within one
+ * car length. With whole rows this is exactly the old "lowest unoccupied row".
+ * Returns -1 when the lane is physically full.
+ */
+export function freeSpawnRow(cars, step = 1, rows = Infinity) {
+  for (let r = 0; r < rows; r += step) {
+    if (!cars.some(c => Math.abs(c.row - r) < 1)) return r;
+  }
+  return -1;
+}
+
 /** Can a bomb of `bombColor` be fired at this (front) car? */
 export function canTarget(car, bombColor, isColorBomb = false) {
   if (!car) return false;
@@ -56,13 +77,13 @@ export function canTarget(car, bombColor, isColorBomb = false) {
 }
 
 /** Rows this car moves on one traffic advance. */
-export function stepFor(car) {
-  if (car.trait === 'speeder') return 2;
+export function stepFor(car, step = 1) {
+  if (car.trait === 'speeder') return 2 * step;
   if (car.moveEvery > 1) {
     car.moveTick = (car.moveTick ?? 0) + 1;
-    return car.moveTick % car.moveEvery === 0 ? 1 : 0;
+    return car.moveTick % car.moveEvery === 0 ? step : 0;
   }
-  return 1;
+  return step;
 }
 
 /**
@@ -70,11 +91,11 @@ export function stepFor(car) {
  * first). A car never moves into or past the car ahead of it, so a speeder stuck
  * behind a slow car waits. Mutates car.row in place; order is preserved.
  */
-export function advanceLaneCars(cars, fixedStep = null) {
+export function advanceLaneCars(cars, fixedStep = null, step = 1) {
   let aheadRow = Infinity;
   for (const car of cars) {
-    let r = car.row + (fixedStep ?? stepFor(car));
-    if (r >= aheadRow) r = aheadRow - 1;
+    let r = car.row + (fixedStep ?? stepFor(car, step));
+    if (r > aheadRow - 1) r = aheadRow - 1;
     if (r < car.row) r = car.row;
     car.row = r;
     aheadRow = r;
@@ -105,8 +126,8 @@ export function causesSurge(destroyed) {
  * extra row. `lanes` = arrays of cars (front-first). Returns nothing; breach is
  * checked by the caller exactly as for a normal advance.
  */
-export function surgeOtherLanes(lanes, srcLane) {
-  lanes.forEach((cars, i) => { if (i !== srcLane) advanceLaneCars(cars, 1); });
+export function surgeOtherLanes(lanes, srcLane, step = 1) {
+  lanes.forEach((cars, i) => { if (i !== srcLane) advanceLaneCars(cars, step, step); });
 }
 
 /** Chameleons flip to their other colour. Call once per traffic move. */
@@ -230,6 +251,6 @@ export function revealStagedCars(lanes) {
     any = true;
   }
   if (!any) return false;
-  for (const cars of lanes) for (const c of cars) if (c.row === 0) c.row = 1;
+  for (const cars of lanes) for (const c of cars) if (c.row < 1) c.row = 1;
   return true;
 }

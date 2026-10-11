@@ -10,7 +10,7 @@ import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { Shooter } from '../models/Shooter.js';
 import { COLUMN_CAPACITY } from '../models/Column.js';
 import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak,
-         isBoss, makeBoss, hitBoss, laneHasBoss, BOMB_BOSS_LIGHTS, revealStagedCars } from '../director/TrafficRules.js';
+         isBoss, makeBoss, hitBoss, laneHasBoss, BOMB_BOSS_LIGHTS, revealStagedCars, stepSize, freeSpawnRow } from '../director/TrafficRules.js';
 
 const KILLS_PER_BOMB      = 10;    // kills needed to earn one bomb charge
 const MULTI_KILLS_PER_BOMB = 3;    // multi-kills (2+ cars/shot) banked to earn a color bomb
@@ -533,7 +533,7 @@ export class GameLoop {
     let mended = 0;
     for (let li = 0; li < gs.activeLaneCount; li++) {
       const cars = gs.lanes[li].cars;   // front-first (Lane keeps it sorted)
-      advanceLaneCars(cars);
+      advanceLaneCars(cars, null, stepSize(gs.stepsPerRow));
       flipChameleons(cars);
       mended += healMenders(cars);
     }
@@ -542,7 +542,7 @@ export class GameLoop {
     const surgeSrc = this._surgeFromLane;
     this._surgeFromLane = null;
     if (surgeSrc != null) {
-      surgeOtherLanes(Array.from({ length: gs.activeLaneCount }, (_, li) => gs.lanes[li].cars), surgeSrc);
+      surgeOtherLanes(Array.from({ length: gs.activeLaneCount }, (_, li) => gs.lanes[li].cars), surgeSrc, stepSize(gs.stepsPerRow));
       this._onSurge?.(surgeSrc);
     }
     for (let li = 0; li < gs.activeLaneCount; li++) {
@@ -688,9 +688,8 @@ export class GameLoop {
         const lane = gs.lanes[li];
         if (laneHasBoss(lane.cars)) continue;   // the boss owns its lane
         while (lane.cars.length < target) {
-          let row = 0;
-          while (lane.cars.some(c => c.row === row)) row++;
-          if (row >= ROWS) break;   // lane physically full — nothing more to add
+          const row = freeSpawnRow(lane.cars, stepSize(gs.stepsPerRow), ROWS);
+          if (row < 0) break;   // lane physically full — nothing more to add
           const car = this._carDir.generateCar(lane, 'CALM', gs.world, gs.colors, gs.gridRows);
           car.row = row;
           car.position = this._rowToPosition(row, ROWS);

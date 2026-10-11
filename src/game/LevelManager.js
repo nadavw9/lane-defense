@@ -32,6 +32,7 @@
 
 import { W, total, boss, open } from './levelDsl.js';
 import { LATE_LEVELS } from './LateLevels.js';
+import { STEPS_PER_ROW } from '../director/TrafficRules.js';
 
 const PROGRESSION = [
 
@@ -282,6 +283,11 @@ const PROGRESSION = [
   // ═══ WORLDS 3-7 continue in LateLevels.js (L41-L100) ═══════════════════════
   ...LATE_LEVELS,
 ];
+
+// Every numbered level runs on half-row steps: each correct shot moves traffic half a
+// car length, so cars needing several hits still leave the player enough shots
+// without lengthening the road or shrinking the cars (see docs/ONE_HIT_MODEL.md).
+for (const cfg of PROGRESSION) cfg.stepsPerRow ??= STEPS_PER_ROW;
 
 // COLOR CHANGE is now earned by chaining two strictly-consecutive multi-kills
 // (see GameLoop._updateColorChangeCombo) — there is no per-level coin threshold.

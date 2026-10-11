@@ -724,6 +724,7 @@ async function main() {
     // Turn-based target: use explicit targetKills or compute from duration.
     gs.targetKills = cfg.targetKills ?? Math.max(5, Math.round((cfg.duration ?? 60) * 0.12));
     gs.gridRows    = cfg.gridRows ?? 10;  // default 10 road slots
+    gs.stepsPerRow = cfg.stepsPerRow ?? 1;
     // Opening depth is gridRows-aware (2026-07-25 rows-8 pilot): shallow boards
     // get a shallower deal, or the opening alone floods the runway. Scripted
     // openings (L10/L40) go through the same depth rule. Both derived from the

@@ -33,7 +33,7 @@ import {
 import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { openingRowsForLevel, clampInitialCarsToDepth, streakEnabledFor } from '../game/LevelManager.js';
 import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak,
-         isBoss, makeBoss, hitBoss, laneHasBoss, BOMB_BOSS_LIGHTS, revealStagedCars } from '../director/TrafficRules.js';
+         isBoss, makeBoss, hitBoss, laneHasBoss, BOMB_BOSS_LIGHTS, revealStagedCars, stepSize, freeSpawnRow } from '../director/TrafficRules.js';
 
 const DT = 1 / 60; // seconds per simulation tick (used for fire cooldowns only)
 
@@ -151,6 +151,7 @@ export class SimulationRunner {
       laneTargetCarCount: levelConfig.laneTargetCarCount ?? 1,
       spawnBudget:        levelConfig.spawnBudget        ?? Infinity,
       gridRows:           levelConfig.gridRows           ?? 16,
+      stepsPerRow:        levelConfig.stepsPerRow        ?? 1,
       // BOMB threat window in rows from the breach line. Defaults to the derived
       // BOMB_THREAT_ROWS; exposed only so the derivation sweep can vary it.
       bombThreatRows:     levelConfig.bombThreatRows     ?? BOMB_THREAT_ROWS,
@@ -226,6 +227,7 @@ export class SimulationRunner {
     // ── Discrete movement model: cars have integer row (0–gridRows-1, breach at >= gridRows) ──
     // Each correct-color shot advances ALL cars in ALL active lanes by 1 row.
     const BREACH_ROW = this._cfg.gridRows;
+    const STEP       = stepSize(this._cfg.stepsPerRow);   // one shot = one step (1/stepsPerRow of a row)
     const discreteLanes = Array.from({ length: LANE_N }, (_, id) => ({
       id,
       cars: [],  // Array of { row: number, hp: number, type: string, color: string }
@@ -368,9 +370,8 @@ export class SimulationRunner {
         let added = false;
         if (laneHasBoss(lane.cars)) continue;   // the boss owns its lane (parity)
         while (lane.cars.length < target) {
-          let row = 0;
-          while (lane.cars.some(c => c.row === row)) row++;
-          if (row >= this._cfg.gridRows) break;   // lane physically full
+          const row = freeSpawnRow(lane.cars, STEP, this._cfg.gridRows);
+          if (row < 0) break;   // lane physically full
           const car = carDir.generateCar({ id: lane.id }, phase, worldConfig, colors, this._cfg.gridRows);
           // No re-multiplication: car.hp already carries hpMultiplier (see the
           // opening-block parity note). Carry-over bait cars keep their 1-2 hp.
@@ -391,12 +392,12 @@ export class SimulationRunner {
       if (freezeSkips > 0) { freezeSkips--; surgeFrom = null; return; }
       // Same traffic rules as GameLoop._advanceGrid: speeders move 2, nobody
       // passes the car ahead, chameleons flip colour.
-      for (const lane of discreteLanes) { advanceLaneCars(lane.cars); flipChameleons(lane.cars); healMenders(lane.cars); }
+      for (const lane of discreteLanes) { advanceLaneCars(lane.cars, null, STEP); flipChameleons(lane.cars); healMenders(lane.cars); }
       if (surgeFrom !== null) {   // volatile surge — same helper the live game calls
-        surgeOtherLanes(discreteLanes.map(l => l.cars), surgeFrom);
+        surgeOtherLanes(discreteLanes.map(l => l.cars), surgeFrom, STEP);
         surgeFrom = null;
       }
-      if (discreteLanes.some(l => l.cars.length > 0 && l.cars[0].row >= BREACH_ROW)) {
+      if (discreteLanes.some(l => l.cars.length > 0 && l.cars[0].row > BREACH_ROW - 1)) {
         lostAt = totalAdvances;   // marker (shot index), not a wall-clock time
         return;
       }
@@ -674,7 +675,7 @@ export class SimulationRunner {
       duration: cfg.duration, colors: cfg.colors, worldConfig: cfg.worldConfig,
       levelId: cfg.id, laneCount: cfg.laneCount, colCount: cfg.colCount,
       laneTargetCarCount: cfg.laneTargetCarCount, spawnBudget: cfg.spawnBudget,
-      gridRows: cfg.gridRows, goals: cfg.goals ?? [],
+      gridRows: cfg.gridRows, stepsPerRow: cfg.stepsPerRow, goals: cfg.goals ?? [],
       initialCars: cfg.initialCars ?? null, spawnScript: cfg.spawnScript ?? null,
       shooterColorWeights: cfg.shooterColorWeights ?? null,
       traits: cfg.traits ?? null,

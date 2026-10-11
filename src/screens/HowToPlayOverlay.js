@@ -18,7 +18,7 @@ const SLIDES = [
   { title: 'EVERY SHOT COUNTS', art: 'advance',
     body: 'After each shot, all cars roll one step closer. Stop them before the red line!' },
   { title: 'HOT STREAK', art: 'streak',
-    body: 'Kill with 3 shots in a row to charge a POWER SHOT: double damage, any color.' },
+    body: 'Destroy 3 cars to charge a POWER SHOT: the next bomb hits twice, any color.' },
   { title: 'BOOSTERS', art: 'boosters',
     body: 'Recolor repaints a whole color group, Freeze stops traffic, Bomb clears a lane.' },
 ];
@@ -187,7 +187,7 @@ const ART = {
       f.x = -84 + i * 40; f.y = -41;
       a.addChild(f);
     }
-    const x3 = titleText('3 IN A ROW', 18, WHITE);
+    const x3 = titleText('3 CARS', 18, WHITE);
     x3.x = -44; x3.y = 4;
     a.addChild(x3);
     const eq = arrow(1);

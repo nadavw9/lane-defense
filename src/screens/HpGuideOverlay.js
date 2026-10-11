@@ -33,9 +33,6 @@ const TYPE_ART = [
   { type: 'small',  color: 0x3DBB3A, sprite: 'sprites/designed/bike-red.png'          },
   { type: 'big',    color: 0x9CC42A, sprite: 'sprites/designed/car-red-processed.png' },
   { type: 'jeep',   color: 0xF2B21B, sprite: 'sprites/designed/van-red.png'           },
-  { type: 'truck',  color: 0xF07A1C, sprite: 'sprites/designed/truck-red.png'         },
-  { type: 'bigrig', color: 0xE8453C, sprite: 'sprites/designed/bigrig-red.png'        },
-  { type: 'tank',   color: 0xB02A5A, sprite: 'sprites/designed/tank.png'              },
 ];
 
 const ROW_H   = 56;
@@ -74,7 +71,7 @@ export class HpGuideOverlay {
     const pn = panel(PW, PH);
     pn.x = PX; pn.y = PY;
     C.addChild(pn);
-    const rb = ribbon('CAR HP', 200, { size: 26 });
+    const rb = ribbon('CAR GUIDE', 230, { size: 26 });
     rb.x = W / 2; rb.y = PY + 2;
     C.addChild(rb);
 
@@ -116,7 +113,7 @@ export class HpGuideOverlay {
         const heart = uiIcon('heart', 16, '❤', { emojiFill: 0xff4466 });
         heart.x = px2 + 16; heart.y = cy - 1;
         C.addChild(heart);
-        const hp = titleText(`${c.hp} HP`, 16);
+        const hp = titleText(`${c.hp} ${c.hp === 1 ? 'HIT' : 'HITS'}`, 16);
         hp.anchor.set(0, 0.5); hp.x = px2 + 28; hp.y = cy - 1;
         C.addChild(hp);
       } else {
@@ -129,7 +126,7 @@ export class HpGuideOverlay {
 
     // Footnote — names the level, so the numbers are unambiguous rather than
     // "base values" the player has no way to convert.
-    const note = bodyText(level ? `Actual HP on level ${level.levelId}` : 'Start a level to see its car HP',
+    const note = bodyText('Every matching bomb shrinks a car one size',
       12, 0xC9C3F0, { outline: false, weight: '600' });
     note.x = W / 2; note.y = PY + PH - 26;
     C.addChild(note);

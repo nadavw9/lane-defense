@@ -18,7 +18,7 @@
 // guards: assert the consumer against the real thing, not against a mirror.
 import { describe, it, expect } from 'vitest';
 import fs from 'fs';
-import { CAR_TYPES, carHpFor, spawnableTypesFor } from '../src/director/CarTypes.js';
+import { CAR_TYPES, LADDER, carHpFor, spawnableTypesFor } from '../src/director/CarTypes.js';
 import { HP_MINIMUM } from '../src/director/DirectorConfig.js';
 import { CarDirector } from '../src/director/CarDirector.js';
 import { SeededRandom } from '../src/utils/SeededRandom.js';
@@ -124,7 +124,7 @@ describe('the CAR HP manual matches the cars the game actually spawns', () => {
 
   it('every car type has art in the overlay, so a new type cannot render blank', () => {
     const src = fs.readFileSync('src/screens/HpGuideOverlay.js', 'utf8');
-    for (const t of ALL_TYPES) {
+    for (const t of LADDER) {   // truck, bigrig and tank are retired from spawning
       expect(src, `car type "${t}" has no row in the manual`).toMatch(new RegExp(`type:\\s*'${t}'`));
     }
   });

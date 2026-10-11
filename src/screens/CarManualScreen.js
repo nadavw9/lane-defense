@@ -1,6 +1,6 @@
 // CarManualScreen — the in-game car guide (premium pass, 2026-09-28).
 //
-// Two sections: the six vehicle types (base HP from CAR_TYPES, the single source
+// Two sections: the three vehicle types (base HP from CAR_TYPES, the single source
 // of truth; the in-level CAR HP panel shows the exact numbers for that level) and
 // the four V2 special cars. Anything the player has not met yet is a locked tile.
 // Access via the pause menu "CAR GUIDE" button.
@@ -18,9 +18,6 @@ const CAR_ENTRIES = [
   { key: 'small',  name: 'MOTORBIKE', hp: CAR_TYPES.small.hp,  color: 0x3DBB3A, sprite: 'sprites/designed/bike-red.png'          },
   { key: 'big',    name: 'CAR',       hp: CAR_TYPES.big.hp,    color: 0x9CC42A, sprite: 'sprites/designed/car-red-processed.png' },
   { key: 'jeep',   name: 'VAN',       hp: CAR_TYPES.jeep.hp,   color: 0xF2B21B, sprite: 'sprites/designed/van-red.png'           },
-  { key: 'truck',  name: 'TRUCK',     hp: CAR_TYPES.truck.hp,  color: 0xF07A1C, sprite: 'sprites/designed/truck-red.png'         },
-  { key: 'bigrig', name: 'BIG RIG',   hp: CAR_TYPES.bigrig.hp, color: 0xE8453C, sprite: 'sprites/designed/bigrig-red.png'        },
-  { key: 'tank',   name: 'TANK',      hp: CAR_TYPES.tank.hp,   color: 0xB02A5A, sprite: 'sprites/designed/tank.png'              },
 ];
 
 // Special cars, revealed once the player has reached the level that introduces
@@ -65,7 +62,7 @@ export class CarManualScreen {
     C.addChild(close);
 
     // Vehicles: 3 × 2 tiles.
-    this._label('VEHICLES · BASE HP', W / 2, PY + 52);
+    this._label('VEHICLES · HITS TO DESTROY', W / 2, PY + 52);
     const tw = 100, th = 108, gap = 10;
     const gx = PX + (PW - (3 * tw + 2 * gap)) / 2, gy = PY + 66;
     CAR_ENTRIES.forEach((e, i) => {
@@ -138,7 +135,7 @@ export class CarManualScreen {
     this._container.addChild(pill);
     const heart = uiIcon('heart', 13, '❤', { emojiFill: 0xff4466 });
     heart.x = px + 14; heart.y = py + ph / 2 - 1;
-    const hp = titleText(`${e.hp} HP`, 13);
+    const hp = titleText(`${e.hp} ${e.hp === 1 ? 'HIT' : 'HITS'}`, 13);
     hp.anchor.set(0, 0.5); hp.x = px + 24; hp.y = py + ph / 2 - 1;
     this._container.addChild(heart, hp);
   }

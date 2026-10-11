@@ -119,7 +119,7 @@ export class CarTypeIntroCard {
     badge.roundRect(bx + 8, by + 4, bw - 16, bh * 0.3, 6).fill({ color: 0xFFFFFF, alpha: 0.3 });
     badge.roundRect(bx, by, bw, bh, bh / 2).stroke({ color: INK, width: 3 });
     card.addChild(badge);
-    const hpTxt = titleText(`${hp ?? info.hp} HP`, 20);
+    const hpTxt = titleText(`${hp ?? info.hp} ${(hp ?? info.hp) === 1 ? 'HIT' : 'HITS'}`, 20);
     const heart = uiIcon('heart', 22, '❤', { emojiFill: 0xff4466 });
     const tot = 22 + 8 + hpTxt.width;
     heart.x = CW / 2 - tot / 2 + 11; heart.y = by + bh / 2 - 1;

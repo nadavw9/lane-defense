@@ -5,14 +5,13 @@
 // Public API:
 //   deploy(colIdx, laneIdx) — called by DragDrop; resolves combat immediately
 //   restart()               — full level reset + reprime; called by screens
-import { PHASE_CONFIG, HP_MINIMUM } from '../director/DirectorConfig.js';
+import { PHASE_CONFIG, HP_MINIMUM, KILLS_PER_BOMB } from '../director/DirectorConfig.js';
 import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { Shooter } from '../models/Shooter.js';
 import { COLUMN_CAPACITY } from '../models/Column.js';
 import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak,
          revealStagedCars, stepSize, freeSpawnRow } from '../director/TrafficRules.js';
 
-const KILLS_PER_BOMB      = 10;    // kills needed to earn one bomb charge
 const MULTI_KILLS_PER_BOMB = 3;    // multi-kills (2+ cars/shot) banked to earn a color bomb
 const BOMB_MAX_CHARGES    = 3;     // max bombs a player can hold
 const BOMB_FREEZE_DURATION = 2.0;  // seconds all cars are frozen after bomb detonation

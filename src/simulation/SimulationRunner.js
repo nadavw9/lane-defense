@@ -29,6 +29,7 @@ import {
   COMBO_WINDOW,
   DEPLOY_DILATION,
   HP_MINIMUM,
+  KILLS_PER_BOMB,
 } from '../director/DirectorConfig.js';
 import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { openingRowsForLevel, clampInitialCarsToDepth, streakEnabledFor } from '../game/LevelManager.js';
@@ -258,10 +259,10 @@ export class SimulationRunner {
     let   armorBreaks      = 0;       // instrumentation: armour plates knocked off
     let   freezeCharges    = 0;       // earned 3-kill chain → +1, cap 2
     let   freezeSkips      = 0;       // pending advance-skips from an activated freeze
-    let   bombCharges      = 0;       // earned +1 per 10 kills, cap 3
+    let   bombCharges      = 0;       // earned +1 per KILLS_PER_BOMB kills, cap 3
     let   bombsFired       = 0;       // instrumentation: BOMB activations this level
     let   bombKills        = 0;       // instrumentation: cars removed by BOMB
-    let   nextBombKill     = 10;
+    let   nextBombKill     = KILLS_PER_BOMB;
     let   colorChangeCharges = 0;     // earned ~per 2 consecutive multi-kills, cap 2
 
     // ── Level goals (mirrors GameState.applyKillToGoals / isGoalMet) ──────────
@@ -548,7 +549,7 @@ export class SimulationRunner {
             // ── Booster EARN (skill-gated; mirrors shipped earn rules) ──────────
             if (boosterIQ > 0) {
               if (currentCombo % 3 === 0 && freezeCharges < 2) freezeCharges++;               // 3-kill chain → freeze
-              if (carsKilled >= nextBombKill && bombCharges < 3) { bombCharges++; nextBombKill += 10; }  // 10 kills → bomb
+              if (carsKilled >= nextBombKill && bombCharges < 3) { bombCharges++; nextBombKill += KILLS_PER_BOMB; }  // KILLS_PER_BOMB kills → bomb
               if (currentCombo % 4 === 0 && colorChangeCharges < 2) colorChangeCharges++;      // ~2 consecutive multi-kills → color change
             }
           }

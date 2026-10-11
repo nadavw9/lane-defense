@@ -64,7 +64,7 @@ import { WinScreen, calcStars }       from '../screens/WinScreen.js';
 import { LoseScreen }                  from '../screens/LoseScreen.js';
 import { RescueOverlay }              from '../screens/RescueOverlay.js';
 import { isReducedMotion, setReducedMotion } from '../game/MotionPrefs.js';
-import { RESCUE_COIN_COST }           from '../director/DirectorConfig.js';
+import { RESCUE_COIN_COST, KILLS_PER_BOMB } from '../director/DirectorConfig.js';
 import { ColorPicker }                from '../screens/ColorPicker.js';
 import { PreLevelScreen }             from '../screens/PreLevelScreen.js';
 import { BoosterUnlockScreen }        from '../screens/BoosterUnlockScreen.js';
@@ -1967,7 +1967,7 @@ async function main() {
     // Centered notification flash (centered so the longer text doesn't clip).
     floatingTexts.push(spawnFloatingText(
       layers.get('particleLayer'), APP_W / 2, 470,   // mid-board: the tutorial caption owns the bottom
-      'BOMB READY! (10 kills)', 0xffaa00,
+      `BOMB READY! (${KILLS_PER_BOMB} kills)`, 0xffaa00,
     ));
     // Bounds/hand must match the BOMB booster card exactly (BoosterBar CARD_X[2]):
     // x 237-301 (centre 269), y 754-818. The fixed 3-button bar is identical on

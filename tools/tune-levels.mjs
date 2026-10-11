@@ -40,7 +40,7 @@ const HEFT_HI = 1;
 // the old goals are ~2x too long). Per level: keep the authored heft, bisect the goal
 // scale to the band centre; a level whose goals are unscalable (trait-only) bisects
 // heft instead. Floor of 6 cars so a level never collapses into a handful of kills.
-const GS_LO = 0.4, GS_HI = 1;
+const GS_LO = 0.4, GS_HI = 1, GS_ANCHOR = 0.6;
 const goalsAt = (cfg, k) => (cfg.baseGoals ?? cfg.goals).map(g => scaleGoal(g, k));
 const bisect = (lo0, hi0, f, target) => {            // f falls as x rises; find x with f(x) ~ target
   let a = lo0, b = hi0;
@@ -55,17 +55,22 @@ for (let id = lo; id <= hi; id++) {
   const [bLo, bHi] = band(id); const target = (bLo + bHi) / 2;
   const scalableLevel = (cfg.baseGoals ?? cfg.goals).some(scalable);
   const heft0 = cfg.tuneHeft ?? cfg.worldConfig.heft ?? 0.3;
-  let heft = heft0, gs = scalableLevel ? GS_HI : 1, ts = 1;
+  let heft = heft0, gs = scalableLevel ? GS_ANCHOR : 1, ts = 1;
   // Order of freedom: raise heft when too easy at full goals; else shrink goals (floor GS_LO);
   // else ease heft; last, thin out the trait mix. Authored goals stay the design.
+  // Goals start at GS_ANCHOR of the authored count: levels stay short (a heavier mix is the first
+  // answer to "too easy", only then longer goals).
   if (winRate(cfg, heft, ts, gs) >= target) {
     heft = r2(bisect(heft0, 1, (m) => winRate(cfg, m, ts, gs), target));
+    if (scalableLevel && heft >= 0.99 && winRate(cfg, heft, ts, gs) >= target) {
+      gs = r2(bisect(GS_ANCHOR, GS_HI, (m) => winRate(cfg, heft, ts, m), target));
+    }
   } else if (scalableLevel) {
-    gs = r2(bisect(GS_LO, GS_HI, (m) => winRate(cfg, heft, ts, m), target));
+    gs = r2(bisect(GS_LO, GS_ANCHOR, (m) => winRate(cfg, heft, ts, m), target));
     // Goal counts are integers, so win(gs) is a staircase: polish to the nearest step.
     let bestE = Infinity, bestG = gs;
     for (let d = -0.08; d <= 0.0801; d += 0.02) {
-      const g2 = r2(Math.min(GS_HI, Math.max(GS_LO, gs + d))); const e = Math.abs(winRate(cfg, heft, ts, g2) - target);
+      const g2 = r2(Math.min(GS_ANCHOR, Math.max(GS_LO, gs + d))); const e = Math.abs(winRate(cfg, heft, ts, g2) - target);
       if (e < bestE) { bestE = e; bestG = g2; }
     }
     gs = bestG;

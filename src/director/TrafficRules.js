@@ -10,9 +10,8 @@
 //   chameleon — switches between two colours every time traffic moves; the other
 //               colour is shown on the car so the player can time the shot.
 //   plated    — heavy plating: TWO hits (any colour) to strip it, then an ordinary car.
-//   mender    — a repair truck: heals 1 HP each time traffic moves, unless the
-//               shot that moved traffic hit IT. Chip damage on a mender is wasted;
-//               finish it or leave it.
+//   mender    — a repair truck: repairs one rung after two traffic moves
+//               without a hit. Keep shooting it and it never heals.
 //   volatile  — a fuel hauler: when destroyed it shoves every OTHER lane's traffic
 //               one extra row forward. Kill it when the road can take the surge.
 //   phantom   — colour hidden (a dark silhouette) until it reaches PHANTOM_REVEAL_ROW.
@@ -99,14 +98,19 @@ export function advanceLaneCars(cars, fixedStep = null, step = 1) {
 }
 
 /**
- * Menders repair 1 HP per traffic move unless they were hit by the shot that
- * caused it. Always clears the per-turn `recentHit` mark, so call it exactly once
+ * Menders repair one rung after two traffic moves without a hit. Always clears the per-turn `recentHit` mark, so call it exactly once
  * per lane per traffic move (after the move, before breach checks).
  */
 export function healMenders(cars) {
   let healed = 0;
   for (const car of cars) {
-    if (car.trait === 'mender' && !car.recentHit && car.hp > 0 && car.hp < car.maxHp) { car.hp += 1; healed++; }
+    if (car.trait === 'mender') {
+      // One rung back after two quiet moves; a hit restarts the clock. (One-hit bombs mean
+      // a mender that healed on every move could never be shrunk by a player who also
+      // has to shoot other lanes.)
+      car.quiet = car.recentHit ? 0 : (car.quiet ?? 0) + 1;
+      if (car.quiet >= 2 && car.hp > 0 && car.hp < car.maxHp) { car.hp += 1; healed++; car.quiet = 0; }
+    }
     car.recentHit = false;
   }
   return healed;

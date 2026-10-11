@@ -13,6 +13,13 @@ export const goalColor = (color, count) => ({ type: 'destroyColor', color, count
 export const goalType  = (carType, count) => ({ type: 'destroyType', carType, count });
 export const goalTrait = (trait, count) => ({ type: 'destroyTrait', trait, count });
 
+/** Goal count x tuning scale. A whole-level 'destroy N cars' goal never drops under 6,
+ *  a colour / type / trait side-goal never under 2, so a scaled level keeps its idea. */
+export function scaleGoal(g, k) {
+  const floor = g.type === 'destroyTotal' ? 6 : 2;
+  return { ...g, count: Math.min(g.count, Math.max(floor, Math.round(g.count * k))) };
+}
+
 export const COLOR = { R: 'Red', B: 'Blue', G: 'Green', Y: 'Yellow', P: 'Purple', O: 'Orange' };
 /** 'ROBY' -> ['Orange'...]: palette from letters, in the order given. */
 export const pal = (letters) => [...letters].map(c => COLOR[c]);
@@ -26,7 +33,7 @@ export function lv(id, name, letters, o = {}) {
   const ramp = Math.floor((id - 40) / 6);
   const t = tuning?.[id];                       // sim-tuned numbers (lateTuning.js)
   const scaleTraits = (tr, k) => Object.fromEntries(Object.entries(tr).map(([n, p]) => [n, +(p * k).toFixed(4)]));
-  const goals = (o.goals ?? total(o.total ?? 26)).map(g => g.type === 'destroyTrait' ? g : { ...g, count: Math.max(1, Math.round(g.count * (t?.gs ?? 1))) });
+  const goals = (o.goals ?? total(o.total ?? 26)).map(g => scaleGoal(g, t?.gs ?? 1));
   return {
     id, name, laneCount: 3, colCount: 3, colors: pal(letters),
     worldConfig: W(o.heft ?? t?.heft ?? 0.3),

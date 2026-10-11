@@ -2027,7 +2027,7 @@ async function main() {
   };
   gameLoop._onMend = () => {
     audio.play('mend');
-    featureBanners.fire('mender_heal', 'Menders repair 1 HP each turn they are not hit. Keep shooting them!');
+    featureBanners.fire('mender_heal', 'Menders grow back a size when left alone. Keep shooting them!');
   };
 
   // ── Combo power-shot callbacks ────────────────────────────────────────────

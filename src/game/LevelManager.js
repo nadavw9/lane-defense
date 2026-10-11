@@ -30,7 +30,8 @@
 // (see the tuning note on each block). speed.base has no gameplay effect in the
 // turn-based game; it is kept only because the config shape requires it.
 
-import { W, total } from './levelDsl.js';
+import { LATE_TUNING } from './lateTuning.js';
+import { W, total, scaleGoal } from './levelDsl.js';
 import { LATE_LEVELS } from './LateLevels.js';
 import { STEPS_PER_ROW } from '../director/TrafficRules.js';
 
@@ -276,6 +277,19 @@ const PROGRESSION = [
 // car length, so cars needing several hits still leave the player enough shots
 // without lengthening the road or shrinking the cars (see docs/ONE_HIT_MODEL.md).
 for (const cfg of PROGRESSION) cfg.stepsPerRow ??= STEPS_PER_ROW;
+
+// Sim-tuned numbers (lateTuning.js, written by tools/tune-levels.mjs) for the hand-authored
+// L1-40: goal scale and spawn-mix heft. L41+ apply theirs in levelDsl.lv(). The authored goals
+// stay on cfg.baseGoals so the tuner always starts from the design, never from its own output.
+for (const cfg of PROGRESSION) {
+  const t = cfg.id <= 40 ? LATE_TUNING[cfg.id] : null;
+  if (!t) continue;
+  cfg.baseGoals = cfg.goals;
+  cfg.tuneHeft = cfg.worldConfig?.heft;
+  cfg.goals = cfg.goals.map(g => scaleGoal(g, t.gs ?? 1));
+  if (t.ts && t.ts !== 1 && cfg.traits) { cfg.baseTraits = cfg.traits; cfg.traits = Object.fromEntries(Object.entries(cfg.traits).map(([n, p]) => [n, +(p * t.ts).toFixed(4)])); }
+  if (t.heft != null) cfg.worldConfig = { ...cfg.worldConfig, heft: t.heft };
+}
 
 // COLOR CHANGE is now earned by chaining two strictly-consecutive multi-kills
 // (see GameLoop._updateColorChangeCombo) — there is no per-level coin threshold.

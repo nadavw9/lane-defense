@@ -57,7 +57,8 @@ export class SettingsScreen {
     y = this._soundCard(y) + 16;
     y = this._gameplayCard(y) + 16;
     y = this._helpCard(y) + 16;
-    y = this._aboutCard(y) + 16;
+    // Extra tail so the last card (Data ID) scrolls fully clear of a gesture bar.
+    y = this._aboutCard(y) + 48;
     this._makeScrollable(c, 3, 76, y);
   }
 
@@ -172,7 +173,7 @@ export class SettingsScreen {
   }
 
   _aboutCard(y) {
-    const h = 52 + 122;
+    const h = 52 + 142;   // room for the two-line Data ID clear of the card border
     const ry = this._cardFrame(y, h, 'ABOUT', 'star-filled');
     const links = [['Privacy Policy', () => this._openUrl(PRIVACY_URL)]];
     if (adManager.hasPrivacyOptions) links.push(['Ad choices', () => adManager.showPrivacyOptions()]);
@@ -189,7 +190,7 @@ export class SettingsScreen {
     // Install ID: quoted in a data-deletion email (see the privacy policy). Tap copies it.
     const id = getInstallId();
     const idText = bodyText(`Data ID (tap to copy)\n${id}`, 11, 0xA9A3D6, { outline: false, weight: '700', align: 'center' });
-    idText.anchor.set(0.5); idText.x = this._appW / 2; idText.y = ry + 108;
+    idText.anchor.set(0.5); idText.x = this._appW / 2; idText.y = ry + 112;
     idText.eventMode = 'static'; idText.cursor = 'pointer';
     idText.on('pointertap', () => {
       this._audio?.play('button_tap');

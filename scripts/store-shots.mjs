@@ -236,9 +236,9 @@ if (!ONLY || ONLY.includes('08')) {
     return { text: t.text, x: Math.round(g.x), y: Math.round(g.y) };
   });
 
+  // Scroll to the very bottom (the scroll clamps): that is where a gesture bar
+  // would cover the row, so it is the frame that proves the bottom padding.
   for (let i = 0; i < 14; i++) {
-    const r = await findId();
-    if (r && r.y > 40 && r.y < 800) break;      // comfortably inside 844pt stage
     await p.mouse.move(195, 500);
     await p.mouse.wheel(0, 240);
     await p.waitForTimeout(260);

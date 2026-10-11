@@ -31,14 +31,14 @@ L5+ only; L1 never used. Headed Chromium on the real GPU, not SwiftShader.
      LOOK FOR: every level three-starred, rubble replaced by rebuilt warehouses,
      skull markers on the L20 and L30 bosses. This is the city-repair meta.
 
-08 = Settings > About, showing the anonymous Data ID.  *** EVIDENCE, NOT A STORE SHOT ***
-     This is the change that had never been seen on screen. The Data ID and its
-     "(tap to copy)" label are legible at the bottom.
-     LOOK FOR / DECISION NEEDED: the Data ID sits FLUSH against the bottom edge
-     with essentially zero padding, at the panel's maximum scroll. It is not
-     clipped here, but this is the same shape as the booster-label issue fixed
-     in d804019, and on a device with a gesture bar or rounded corners it may
-     read as cut off. Needs your call before any UI change.
+08-before = Settings > About BEFORE the padding fix (captured 2026-10-10).
+     The Data ID's second line runs into the ABOUT card's bottom border, and
+     the panel ends 16px below the card.
+08 = Settings > About AFTER the fix (2026-10-11), scrolled to the very bottom.
+     *** EVIDENCE, NOT A STORE SHOT ***
+     LOOK FOR: the Data ID sits fully inside the card with a clear gap above
+     the border (card +20px, ID +4px), and ~48 stage px (~144 device px) of
+     empty space under the card, so a gesture bar cannot cover it.
 
 NOT YET MADE: the 1024x500 feature graphic (Play requires it for the listing).
 

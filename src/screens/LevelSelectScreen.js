@@ -13,7 +13,7 @@ import { uiIcon } from '../renderer/UIIcon.js';
 import { ribbon, roundButton, titleText, bodyText, GOLD, GOLD_DEEP } from '../renderer/PremiumUI.js';
 import { INK, WHITE, shade, tint } from '../renderer/ToyStyle.js';
 import { MAP_WORLDS, mapNodes, worldForLevel } from './levelMapLayout.js';
-import { LEVEL_COUNT, isBossLevel } from '../game/LevelManager.js';
+import { LEVEL_COUNT, isMilestoneLevel } from '../game/LevelManager.js';
 
 const _B = import.meta.env.BASE_URL;
 const NODE_R = 27;
@@ -123,7 +123,7 @@ export class LevelSelectScreen {
       const stars = p.getStars(n.levelId);
       const open = n.levelId <= unlocked;
       const isNext = n.levelId === unlocked && stars === 0;
-      this._node(n, { stars, open, isNext, accent, boss: isBossLevel(n.levelId), weekly: this._weeklyLevels.includes(n.levelId) });
+      this._node(n, { stars, open, isNext, accent, boss: isMilestoneLevel(n.levelId), weekly: this._weeklyLevels.includes(n.levelId) });
     }
 
     this._header(world, accent);

@@ -13,9 +13,7 @@
 // Reference profile for the target bands: skill=average (booster-aware, boosterIQ 0.70).
 // Bands (2026-07-10, post merge-fix baseline):
 //   Tutorial L1-3: win% exempt (~100% correct) · FTUE L4-9: 85-95% ·
-//   mid non-boss L10-26: 70-82% · late non-boss L27-40: 60-75%
-//   Bosses L10/20/30/40: 40-55% at this profile — reported but deferred to §3c
-//   (scripted waves), so out-of-band bosses flag "BOSS §3c", never TOO EASY/HARD.
+//   mid L10-26: 70-82% · late L27-40: 60-75% · big waves (every tenth): band minus 10.
 // Turns: >70 too long (genuine grind; goal-driven levels legitimately run 35-55) · <5 too short.
 
 import { LevelManager, LEVEL_COUNT } from '../src/game/LevelManager.js';
@@ -43,7 +41,6 @@ function goalSummary(goals) {
   return goals.map(g =>
     g.type === 'destroyTotal' ? `Total:${g.count}`
     : g.type === 'destroyColor' ? `${g.color}:${g.count}`
-    : g.type === 'defeatBoss' ? `BOSS:${g.count}`
     : `${g.carType}:${g.count}`
   ).join(', ');
 }
@@ -52,9 +49,7 @@ function flagFor(levelId, winPct, avgTurns) {
   const band = bandFor(levelId);
   const f = [];
   if (winPct < band.lo || winPct > band.hi) {
-    // Bosses are deferred to §3c scripted waves — report drift, don't call them broken.
-    if (band.boss) f.push('BOSS §3c');
-    else f.push(winPct < band.lo ? 'TOO HARD' : 'TOO EASY');
+    f.push(winPct < band.lo ? 'TOO HARD' : 'TOO EASY');
   }
   if (avgTurns != null && avgTurns > 70) f.push('TOO LONG');
   else if (avgTurns != null && avgTurns < 5) f.push('TOO SHORT');
@@ -83,7 +78,7 @@ function runOne(levelId) {
 
 // ── Run + table ────────────────────────────────────────────────────────────────
 console.log(`\nBalance sim — ${levelIds.length} level(s) × ${runs} runs  [skill: ${skill}]  (win = all goals met, no breach)`);
-console.log(`Bands @ average+boosterIQ0.70 — tutorial L1-3: exempt · FTUE L4-9: 85-95 · see tools/bands.mjs · bosses: 40-55 (§3c)\n`);
+console.log(`Bands @ average+boosterIQ0.70 — tutorial L1-3: exempt · FTUE L4-9: 85-95 · see tools/bands.mjs\n`);
 console.log('Lvl │ Goals                              │ Win%  │ Band  │ AvgTurns │ Kills/Shot │ Flag');
 console.log('────┼────────────────────────────────────┼───────┼───────┼──────────┼────────────┼──────────────────');
 

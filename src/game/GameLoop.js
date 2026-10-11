@@ -10,7 +10,7 @@ import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { Shooter } from '../models/Shooter.js';
 import { COLUMN_CAPACITY } from '../models/Column.js';
 import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak,
-         isBoss, makeBoss, hitBoss, laneHasBoss, BOMB_BOSS_LIGHTS, revealStagedCars, stepSize, freeSpawnRow } from '../director/TrafficRules.js';
+         revealStagedCars, stepSize, freeSpawnRow } from '../director/TrafficRules.js';
 
 const KILLS_PER_BOMB      = 10;    // kills needed to earn one bomb charge
 const MULTI_KILLS_PER_BOMB = 3;    // multi-kills (2+ cars/shot) banked to earn a color bomb
@@ -165,15 +165,9 @@ export class GameLoop {
 
     // Destroy every car in the lane, regardless of colour. Front-to-back from the
     // target so the cascade reads outward from the hit rather than in list order.
-    // A boss is not erased by a BOMB: it loses BOMB_BOSS_LIGHTS lights and stays
-    // unless that finishes it (TrafficRules.hitBoss). Everything else in the lane goes.
-    const boss = lane.cars.find(isBoss) ?? null;
-    const bossSurvives = boss ? !hitBoss(boss, BOMB_BOSS_LIGHTS) : false;
-    if (boss) this._onBossHit?.(laneIdx, boss, !bossSurvives);
-    const doomed = [...lane.cars].filter(c => !(c === boss && bossSurvives)).sort(
+    const doomed = [...lane.cars].sort(
       (a, b) => Math.abs(a.row - target.row) - Math.abs(b.row - target.row));
     lane.cars.length = 0;
-    if (bossSurvives) lane.cars.push(boss);
     for (const car of doomed) {
       // Credit the level's goals (2026-09-27). Every other kill path does this;
       // BOMB never did, so on goal levels its kills counted for nothing — while the
@@ -313,7 +307,6 @@ export class GameLoop {
       // Pass the kill COUNT (not just a boolean) so the renderer can escalate the
       // shake / chroma / explosion size for multi-kills.
       this._onHit(laneIdx, carGameX, shooter.color, damageDealt, kills, power);
-      if (res.bossHit) this._onBossHit?.(laneIdx, frontCar, kills > 0);
     }
 
     if (gs.streakEnabled) {
@@ -417,7 +410,7 @@ export class GameLoop {
     for (let li = 0; li < gs.activeLaneCount; li++) {
       const lane = gs.lanes[li];
       for (let ci = lane.cars.length - 1; ci >= 0; ci--) {
-        if (lane.cars[ci].color !== color || isBoss(lane.cars[ci])) continue;
+        if (lane.cars[ci].color !== color) continue;
         const car = lane.cars[ci];
         killed.push({ laneIdx: li, position: car.position });  // capture before removal
         // Apply goal progress before removing the car
@@ -448,7 +441,6 @@ export class GameLoop {
     this._accumulator = 0;
     this._pendingShot = null;           // a shot mid hit-stop must not survive into the new level
     this._surgeFromLane = null;         // a volatile kill on the last shot of a level must not surge the next one
-    this._breachedBosses = [];
     this._carDir.setProgress?.(0);      // spawnScript stage back to stage 1 (§3c)
     this._primeInitialCars();
     this._sDir.fillColumns(gs.activeCols, gs.asDirectorState(), gs.phaseMan.getParams());
@@ -566,9 +558,6 @@ export class GameLoop {
           const idx = gs.lanes[li].cars.indexOf(car);
           if (idx >= 0) gs.lanes[li].cars.splice(idx, 1);
         }
-        // Remember a breaching BOSS: a rescue must put it back, or its defeatBoss
-        // goal can never be met (the level ran forever after CONTINUE).
-        this._breachedBosses = breached.filter(isBoss).map(car => ({ car, laneIdx: li }));
         gs.endGame(false);
         this._onEnd(false, li);
         return;
@@ -686,7 +675,6 @@ export class GameLoop {
       const ROWS = gs.gridRows ?? 16;
       for (let li = 0; li < gs.activeLaneCount; li++) {
         const lane = gs.lanes[li];
-        if (laneHasBoss(lane.cars)) continue;   // the boss owns its lane
         while (lane.cars.length < target) {
           const row = freeSpawnRow(lane.cars, stepSize(gs.stepsPerRow), ROWS);
           if (row < 0) break;   // lane physically full — nothing more to add
@@ -706,7 +694,7 @@ export class GameLoop {
       const maxNew     = gs.activeLaneCount <= 2 ? 1 : 2;
       const candidates = [];
       for (let li = 0; li < gs.activeLaneCount; li++) {
-        if (!gs.lanes[li].cars.some(c => c.row < 2) && !laneHasBoss(gs.lanes[li].cars)) candidates.push(li);
+        if (!gs.lanes[li].cars.some(c => c.row < 2)) candidates.push(li);
       }
       for (let i = candidates.length - 1; i > 0; i--) {
         const j = Math.floor(this._rng.nextFloat(0, 1) * (i + 1));
@@ -892,29 +880,14 @@ export class GameLoop {
     }
   }
 
-  // Lanes holding at least one car COLOR CHANGE would actually recolour (bosses never
-  // change, so a boss sharing the colour must not count: the UI flashes these lanes).
+  // Lanes holding at least one car COLOR CHANGE would actually recolour (the UI
+  // flashes these lanes).
   colorChangeLanes(fromColor) {
     const lanes = [];
     this._gs.activeLanes.forEach((lane, i) => {
-      if (lane.cars.some((c) => c.color === fromColor && !isBoss(c))) lanes.push(i);
+      if (lane.cars.some((c) => c.color === fromColor)) lanes.push(i);
     });
     return lanes;
-  }
-
-  // COLOR CHANGE on a boss: rewrite the boss's CURRENT light to `toColor` (the rest of
-  // its sequence is untouched and no light is cleared). Spends one charge. Returns
-  // true when applied; false (no charge) for a missing boss, the same colour, or a
-  // colour that is not in this level's palette.
-  changeBossColor(laneIdx, toColor) {
-    const gs = this._gs;
-    const boss = gs.activeLanes[laneIdx]?.cars.find((c) => isBoss(c));
-    if (!boss || !toColor || toColor === boss.color || !gs.colors.includes(toColor)) return false;
-    boss.sequence[boss.seqIdx] = toColor;
-    boss.color = toColor;
-    this._boosterState?.consumeColorChange();
-    this._enforceViableMove(gs);
-    return true;
   }
 
   // FIX 4B: recolour every on-screen car whose colour is `fromColor` to `toColor`,
@@ -926,7 +899,7 @@ export class GameLoop {
     let changed = 0;
     for (const lane of gs.activeLanes) {
       for (const car of lane.cars) {
-        if (car.color === fromColor && !isBoss(car)) { car.color = toColor; changed++; }
+        if (car.color === fromColor) { car.color = toColor; changed++; }
       }
     }
     if (changed > 0) {
@@ -944,19 +917,6 @@ export class GameLoop {
   // skipped steps, then recolor for a fair fighting chance and guarantee a move.
   prepareForRescue() {
     const gs = this._gs;
-    // A boss that broke through comes back (pushed back like the rest of the
-    // traffic by gs.rescue), lights intact — before the refill claims its lane.
-    const ROWS = gs.gridRows ?? 16;
-    for (const { car, laneIdx } of this._breachedBosses ?? []) {
-      const lane = gs.lanes[laneIdx];
-      if (!lane || lane.cars.includes(car)) continue;
-      let row = Math.max(1, (ROWS - 1) - Math.floor(ROWS * 0.4));
-      while (row > 0 && lane.cars.some(c => c.row === row)) row--;
-      car.row = row;
-      car.position = this._rowToPosition(row, ROWS);
-      lane.addCar(car);
-    }
-    this._breachedBosses = [];
     this._surgeFromLane = null;
     this._refillLanes();
     const dirState    = gs.asDirectorState();
@@ -1022,15 +982,13 @@ export class GameLoop {
         const li  = Math.min(gs.activeLaneCount - 1, Math.max(0, def.lane ?? 0));
         const car = this._carDir.generateCar(gs.lanes[li], 'CALM', gs.world, gs.colors, ROWS);
         car.row = def.row ?? 0;
-        if (def.sequence) {
-          makeBoss(car, def);                 // V2 boss vehicle (TrafficRules)
-        } else if (def.type && CAR_TYPES[def.type]) {
+        if (def.type && CAR_TYPES[def.type]) {
           car.type = def.type;
           const mult = gs.world?.hpMultiplier ?? 1.0;
           car.hp    = carHpFor(def.type, mult);   // canonical — see CarTypes.carHpFor
           car.maxHp = car.hp;
         }
-        if (!def.sequence && def.color && gs.colors.includes(def.color)) car.color = def.color;
+        if (def.color && gs.colors.includes(def.color)) car.color = def.color;
         car.position = this._rowToPosition(car.row, ROWS);
         // The initial deal has nothing to "arrive" at — render settled immediately
         // (Car3D._createEntry skips the spawn-glide for isInitial cars). Mid-play

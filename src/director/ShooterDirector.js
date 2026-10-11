@@ -1,32 +1,17 @@
 // ShooterDirector — generates shooters for the 4 columns.
 // Handles demand-matching (bias toward front-car colors), damage weighting by
 // phase difficulty, depth-bait patterns, and the CRISIS assist system.
-import {
-  DAMAGE_WEIGHTS,
-  DEPTH_BAIT,
-  CRISIS,
-} from './DirectorConfig.js';
+import { CRISIS } from './DirectorConfig.js';
 import { Shooter } from '../models/Shooter.js';
 
 // Shots before an active lane color must be force-inserted into the queue.
 const COLOR_WINDOW = 7;
-
-// Extra weight added to damage values 6-8 based on max car HP on the road.
-// Checked in descending HP order; first match wins.
-const HP_DAMAGE_BOOST = [
-  [10, 12],  // bigrig / tank — strong boost to high-damage values
-  [ 7,  6],  // truck — moderate boost
-];
 
 export class ShooterDirector {
   constructor(config, rng, fairnessArbiter) {
     this._config  = config;
     this._rng     = rng;
     this._arbiter = fairnessArbiter;
-
-    // Depth-bait tracking per column: how many regular shooters since last bait.
-    this._baitCounters = {};  // { colId → count }
-    this._nextBaitAt   = {};  // { colId → threshold (3–5) }
 
     // CRISIS assist state
     this._lastCrisisTime = -Infinity;
@@ -66,13 +51,12 @@ export class ShooterDirector {
   // Color: forced if an active lane color is overdue in the availability window;
   //        else 60% demand-match (stack-weighted) toward front-car colors;
   //        40% uniform from palette.
-  // Damage: HP-aware pool — scaled by max car HP currently on the road.
+  // Every bomb is one hit, so a bomb is a colour and nothing else.
   // FairnessArbiter runs after generation and may override color or damage.
   generateShooter(column, gameState, phaseParams) {
     const colId  = this._colId(column);
     const color  = this._overdueColor(gameState) ?? this._biasedColor(gameState) ?? this._demandMatchColor(gameState);
-    const damage = this._pickDamageForContext(phaseParams.damageSkew, gameState);
-    const shooter = new Shooter({ color, damage, column: colId });
+    const shooter = new Shooter({ color, column: colId });
     this._arbiter.checkShooter(shooter, gameState);
 
     // Track post-arbiter color so the window reflects what was actually delivered.
@@ -80,29 +64,6 @@ export class ShooterDirector {
     this._colorLastSeen[shooter.color] = this._shotCount;
 
     return shooter;
-  }
-
-  // Create a depth-bait pair:
-  //   baitShooter   — weak (damage 2–3), random color, goes in front
-  //   rewardShooter — strong (damage 6–8), matches a front-car color, goes behind
-  // The caller decides whether to push both to the column (fillColumns does this).
-  // FairnessArbiter runs on each shooter.
-  createDepthBait(column, gameState) {
-    const colId = this._colId(column);
-
-    // Weak bait: visible top, intentionally low-value
-    const baitColor  = this._rng.pick(gameState.colorPalette);
-    const baitDamage = this._rng.nextInt(2, 3);
-    const baitShooter = new Shooter({ color: baitColor, damage: baitDamage, column: colId });
-    this._arbiter.checkShooter(baitShooter, gameState);
-
-    // Strong reward: hidden underneath, matches a front car to be tempting
-    const rewardColor  = this._frontCarColor(gameState) ?? this._rng.pick(gameState.colorPalette);
-    const rewardDamage = this._rng.nextInt(6, 8);
-    const rewardShooter = new Shooter({ color: rewardColor, damage: rewardDamage, column: colId });
-    this._arbiter.checkShooter(rewardShooter, gameState);
-
-    return { baitShooter, rewardShooter };
   }
 
   // Record a player shooter deploy so CRISIS eligibility can be evaluated.
@@ -148,8 +109,7 @@ export class ShooterDirector {
 
     // Generate guaranteed-match shooter
     const frontCar = dangerLane.frontCar();
-    const damage   = this._rng.nextInt(CRISIS.minimumDamageOnAssist, 8);
-    const shooter  = new Shooter({ color: frontCar.color, damage, column: 0 });
+    const shooter  = new Shooter({ color: frontCar.color, column: 0 });
 
     this._lastCrisisTime = now;
     this._arbiter.checkShooter(shooter, gameState);
@@ -158,30 +118,10 @@ export class ShooterDirector {
   }
 
   // Fill every column that needsRefill() up to COLUMN_DEPTH.
-  // Injects a depth-bait pair every DEPTH_BAIT.frequencyRange[0–1] regular shooters.
   fillColumns(columns, gameState, phaseParams) {
     for (const col of columns) {
-      if (!col.needsRefill()) continue;
-
-      // Lazy-initialise per-column bait state
-      if (this._nextBaitAt[col.id] === undefined) {
-        this._nextBaitAt[col.id]   = this._nextBaitThreshold();
-        this._baitCounters[col.id] = 0;
-      }
-
       while (col.needsRefill()) {
-        if (this._baitCounters[col.id] >= this._nextBaitAt[col.id]) {
-          // Inject depth bait
-          const { baitShooter, rewardShooter } = this.createDepthBait(col, gameState);
-          col.pushBottom(baitShooter);
-          if (col.needsRefill()) col.pushBottom(rewardShooter);
-          this._baitCounters[col.id] = 0;
-          this._nextBaitAt[col.id]   = this._nextBaitThreshold();
-        } else {
-          const shooter = this.generateShooter(col, gameState, phaseParams);
-          col.pushBottom(shooter);
-          this._baitCounters[col.id]++;
-        }
+        col.pushBottom(this.generateShooter(col, gameState, phaseParams));
       }
     }
   }
@@ -244,48 +184,6 @@ export class ShooterDirector {
     return this._rng.pick(gameState.colorPalette);
   }
 
-  // Context-aware damage pick:
-  //   • bike-only road (max HP ≤ 2): cap pool at values ≤ 4
-  //   • heavy car present (max HP ≥ 7): add extra weight to values 6-8
-  _pickDamageForContext(skew, gameState) {
-    const base  = DAMAGE_WEIGHTS[skew] ?? DAMAGE_WEIGHTS.standard;
-    const maxHp = this._maxCarHp(gameState);
-
-    if (maxHp > 0 && maxHp <= 2) {
-      const bikePool = base.filter(e => e.value <= 4);
-      if (bikePool.length > 0) return this._rng.weightedPick(bikePool);
-    }
-
-    let boost = 0;
-    for (const [threshold, b] of HP_DAMAGE_BOOST) {
-      if (maxHp >= threshold) { boost = b; break; }
-    }
-    if (boost > 0) {
-      const boosted = base.map(e =>
-        e.value >= 6 ? { value: e.value, weight: e.weight + boost } : e,
-      );
-      return this._rng.weightedPick(boosted);
-    }
-
-    return this._rng.weightedPick(base);
-  }
-
-  _pickDamage(skew) {
-    const pool = DAMAGE_WEIGHTS[skew] ?? DAMAGE_WEIGHTS.standard;
-    return this._rng.weightedPick(pool);
-  }
-
-  // Maximum HP of any car currently on the road across all lanes.
-  _maxCarHp(gameState) {
-    let max = 0;
-    for (const lane of gameState.lanes) {
-      for (const car of lane.cars) {
-        if (car.hp > max) max = car.hp;
-      }
-    }
-    return max;
-  }
-
   // Pick a random front-car color, or null if no front cars exist.
   _frontCarColor(gameState) {
     const frontCars = gameState.lanes.map(l => l.frontCar()).filter(Boolean);
@@ -308,9 +206,5 @@ export class ShooterDirector {
       }
     }
     return best;
-  }
-
-  _nextBaitThreshold() {
-    return this._rng.nextInt(DEPTH_BAIT.frequencyRange[0], DEPTH_BAIT.frequencyRange[1]);
   }
 }

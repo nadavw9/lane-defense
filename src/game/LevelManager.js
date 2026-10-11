@@ -30,7 +30,7 @@
 // (see the tuning note on each block). speed.base has no gameplay effect in the
 // turn-based game; it is kept only because the config shape requires it.
 
-import { W, total, boss, open } from './levelDsl.js';
+import { W, total } from './levelDsl.js';
 import { LATE_LEVELS } from './LateLevels.js';
 import { STEPS_PER_ROW } from '../director/TrafficRules.js';
 
@@ -88,16 +88,13 @@ const PROGRESSION = [
     traits: { speeder: 0.10 },
     goals: [{ type: 'destroyColor', color: 'Blue', count: 5 }, { type: 'destroyColor', color: 'Green', count: 5 }] },
 
-  // L10 BOSS "The Hauler": a giant truck with a 4-colour sequence in the middle
-  // lane, advancing a row every turn. Hit it in order while the side lanes keep
-  // coming — the lesson is splitting bombs between the boss and the traffic.
-  { id: 10, name: 'The Hauler', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(1),
-    duration: 110, spawnBudget: 12, laneTargetCarCount: 3, gridRows: 8,
+  // L10 BIG WAVE "Rush hour": the first milestone. Three cars deep in every lane, no
+  // new rule. The lesson is keeping all three lanes moving at once.
+  { id: 10, name: 'Rush hour', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(1),
+    duration: 110, spawnBudget: 12, laneTargetCarCount: 3, gridRows: 8, milestone: true,
     traits: { speeder: 0.08 },
-    hintText: 'BOSS! Hit the boss with the colours on its roof, in order',
-    initialCars: [...open(0, 2),
-      { lane: 1, row: 1, sequence: ['Red', 'Blue', 'Green', 'Red'], moveEvery: 1 }],
-    goals: boss },
+    hintText: 'BIG WAVE! Traffic is three deep. Keep every lane moving',
+    goals: total(24) },
 
   // L11 "Steel plates": ARMOURED cars — any bomb knocks the plates off.
   { id: 11, name: 'Steel plates', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.52),
@@ -153,15 +150,12 @@ const PROGRESSION = [
     duration: 100, spawnBudget: 15, laneTargetCarCount: 2, gridRows: 8,
     traits: { speeder: 0.08, armored: 0.08, chameleon: 0.08 }, goals: total(22) },
 
-  // L20 BOSS "Iron Hauler": re-plates after every light, so each light is two
-  // bombs — any colour, then the right one. Armoured escorts in the side lanes.
-  { id: 20, name: 'Iron Hauler', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green', 'Yellow'], worldConfig: W(0),
-    duration: 110, spawnBudget: 16, laneTargetCarCount: 2, gridRows: 8,
+  // L20 BIG WAVE "Iron lane": armoured cars in a dense, four-colour wave.
+  { id: 20, name: 'Iron lane', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green', 'Yellow'], worldConfig: W(0),
+    duration: 110, spawnBudget: 16, laneTargetCarCount: 3, gridRows: 8, milestone: true,
     traits: { armored: 0.20 },
-    hintText: 'BOSS! Its armour grows back after every light',
-    initialCars: [...open(0, 2),
-      { lane: 1, row: 1, sequence: ['Yellow', 'Red'], moveEvery: 1, reArmor: true }],
-    goals: boss },
+    hintText: 'BIG WAVE! Armoured cars in every lane',
+    goals: total(26) },
 
   // L21 "Night shift" (relief).
   { id: 21, name: 'Night shift', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Yellow'], worldConfig: W(0.63),
@@ -211,14 +205,12 @@ const PROGRESSION = [
     duration: 100, spawnBudget: 19, laneTargetCarCount: 2, gridRows: 8,
     traits: { speeder: 0.08, chameleon: 0.08 }, goals: total(26) },
 
-  // L30 BOSS "Chameleon King": a long 8-light sequence; speeders flank it.
+  // L30 BIG WAVE "Long haul": a long, dense wave with speeders in the mix.
   { id: 30, name: 'Long Haul', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Yellow', 'Purple'], worldConfig: W(0.36),
-    duration: 120, spawnBudget: 20, laneTargetCarCount: 2, gridRows: 8,
+    duration: 120, spawnBudget: 20, laneTargetCarCount: 3, gridRows: 8, milestone: true,
     traits: { speeder: 0.18 },
-    hintText: 'BOSS! A long sequence — and speeders on both sides',
-    initialCars: [...open(0, 2),
-      { lane: 1, row: 1, sequence: ['Purple', 'Yellow', 'Red', 'Blue'], moveEvery: 1 }],
-    goals: boss },
+    hintText: 'BIG WAVE! A long run, and speeders in the mix',
+    goals: total(30) },
 
   // ═══ WORLD 3 — The Highway (L31-40) ════════════════════════════════════════
 
@@ -269,16 +261,12 @@ const PROGRESSION = [
     duration: 110, spawnBudget: 23, laneTargetCarCount: 2, gridRows: 8,
     traits: { speeder: 0.12, armored: 0.12, chameleon: 0.12 }, goals: total(20) },
 
-  // L40 BOSS "Twin Titans": two bosses, one armoured, with only the middle lane
-  // of ordinary traffic between them. They advance a row every turn (2 lights each).
-  { id: 40, name: 'Twin Titans', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Yellow', 'Orange'], worldConfig: W(0),
-    duration: 120, spawnBudget: 24, laneTargetCarCount: 2, gridRows: 8,
+  // L40 BIG WAVE "Grand finale": the last hand-built level of the first four worlds.
+  { id: 40, name: 'Grand finale', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Yellow', 'Orange'], worldConfig: W(0),
+    duration: 120, spawnBudget: 24, laneTargetCarCount: 3, gridRows: 8, milestone: true,
     traits: { speeder: 0.06, chameleon: 0.06 },
-    hintText: 'BOSS! Two titans — keep both in check',
-    initialCars: [...open(1),
-      { lane: 0, row: 1, sequence: ['Orange', 'Red'], moveEvery: 1 },
-      { lane: 2, row: 0, sequence: ['Blue', 'Yellow'], moveEvery: 1, reArmor: true }],
-    goals: [{ type: 'defeatBoss', count: 2 }] },
+    hintText: 'BIG WAVE! Everything you have learned, three deep',
+    goals: total(30) },
 
   // ═══ WORLDS 3-7 continue in LateLevels.js (L41-L100) ═══════════════════════
   ...LATE_LEVELS,
@@ -371,8 +359,10 @@ export function clampInitialCarsToDepth(initialCars, gridRows = 16) {
 // the map, progress, tools and tests all read these, so adding levels is one edit.
 export const LEVEL_COUNT = PROGRESSION.length;
 export function levelConfigFor(id) { return PROGRESSION.find(cfg => cfg.id === id) ?? null; }
-export function isBossLevel(id) {
-  return !!levelConfigFor(id)?.goals?.some(g => g.type === 'defeatBoss');
+// A BIG WAVE is the milestone level that closes each block of ten: a dense board, no
+// new rule. (These were boss fights before docs/ONE_HIT_MODEL.md.)
+export function isMilestoneLevel(id) {
+  return !!levelConfigFor(id)?.milestone;
 }
 
 export class LevelManager {

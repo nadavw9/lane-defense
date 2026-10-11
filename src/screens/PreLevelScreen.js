@@ -34,7 +34,6 @@ function spriteFit(path, size) {
 
 function goalIcon(goal) {
   if (goal.type === 'destroyColor') return spriteFit(`sprites/designed/car-${goal.color.toLowerCase()}-processed.png`, 44);
-  if (goal.type === 'defeatBoss')   return spriteFit('sprites/designed/boss.png', 60);
   if (goal.type === 'destroyTrait') {
     const sp = spriteFit(traitSpritePath(goal.trait) ?? 'sprites/designed/car-red-processed.png', 56);
     const t = traitInfo(goal.trait);
@@ -137,7 +136,7 @@ export class PreLevelScreen {
     y += 34;
 
     // Goals.
-    const gl = bodyText(goals.length && goals[0].type === 'defeatBoss' ? 'DEFEAT' : 'GOALS', 15, 0xC9C3F0, { outline: false });
+    const gl = bodyText('GOALS', 15, 0xC9C3F0, { outline: false });
     gl.x = PW / 2; gl.y = y;
     card.addChild(gl);
     y += 18;

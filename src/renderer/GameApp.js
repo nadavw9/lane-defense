@@ -40,7 +40,6 @@ import { BenchRenderer, benchY, benchSlotH } from './BenchRenderer.js';
 
 import { GameState }       from '../game/GameState.js';
 import { GameLoop }        from '../game/GameLoop.js';
-import { isBoss }          from '../director/TrafficRules.js';
 import { CombatResolver }  from '../game/CombatResolver.js';
 import { LevelManager, LEVEL_COUNT, openingRowsForLevel, clampInitialCarsToDepth, streakEnabledFor } from '../game/LevelManager.js';
 import { BoosterState }    from '../game/BoosterState.js';
@@ -1102,8 +1101,6 @@ async function main() {
 
 
   // ── COLOR CHANGE picker (FIX 4B step 2) ──────────────────────────────────
-  // Lane of the boss being recoloured (set when a boss is tapped in COLOR CHANGE mode).
-  let colorChangeBossLane = null;
   function _dismissColorPicker() {
     colorPicker?.destroy();
     colorPicker = null;
@@ -1113,24 +1110,7 @@ async function main() {
     colorPicker?.destroy();   // never orphan a live one (see showTitle)
     colorPicker = new ColorPicker(app.stage, APP_W, APP_H, gs.colors, fromColor, {
       onPick: (toColor) => {
-        if (colorChangeBossLane !== null) {
-          // Tapped a BOSS: only its current light changes (the rest of the sequence stays).
-          const lane = colorChangeBossLane; colorChangeBossLane = null;
-          if (gameLoop.changeBossColor(lane, toColor)) {
-            gameRenderer3D.onImpact(lane, toColor);
-            audio.play('color_bomb', { color: toColor });
-            haptics.medium();
-            floatingTexts.push(spawnFloatingText(
-              layers.get('particleLayer'), APP_W / 2, 470, `BOSS NOW ${String(toColor).toUpperCase()}!`, 0xffe14a,
-            ));
-          } else {
-            boosterState.cancelColorChange();
-          }
-          _dismissColorPicker();
-          return;
-        }
-        // Lanes with a recolourable car BEFORE the recolor (bosses never change here, so
-        // a boss lane is not flashed).
+        // Lanes with a recolourable car BEFORE the recolor (so only they flash).
         const changedLanes = gameLoop.colorChangeLanes(fromColor);
         const n = gameLoop.applyColorChange(fromColor, toColor);
         if (n > 0) {
@@ -1150,7 +1130,7 @@ async function main() {
         }
         _dismissColorPicker();
       },
-      onCancel: () => { colorChangeBossLane = null; boosterState.cancelColorChange(); _dismissColorPicker(); },
+      onCancel: () => { boosterState.cancelColorChange(); _dismissColorPicker(); },
     });
   }
 
@@ -1888,8 +1868,7 @@ async function main() {
         _hintShownThisHit = true;
       }
       // Hint A — first time a car SURVIVES a hit (any level): point to the book.
-      const _bossLane = gs.lanes[laneIdx]?.frontCar()?.type === 'boss';   // a boss light is not an HP miss
-      if (!_hintShownThisHit && !isKill && damage > 0 && !_bossLane && !progress.hintHpMissShown) {
+      if (!_hintShownThisHit && !isKill && damage > 0 && !progress.hintHpMissShown) {
         progress.markHintHpMiss();
         _showHintCard((done) => onboardingHints.showHpMiss(done));
       }
@@ -2050,19 +2029,6 @@ async function main() {
     audio.play('mend');
     featureBanners.fire('mender_heal', 'Menders repair 1 HP each turn they are not hit. Keep shooting them!');
   };
-  gameLoop._onBossHit = (laneIdx, boss, dead) => {
-    if (dead) {
-      audio.play('boss_destroyed');
-      haptics.heavy(); setTimeout(() => haptics.heavy(), 160);
-      shakeTime = Math.max(shakeTime, 0.45);
-      popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildFlashText(w, 'BOSS DESTROYED!', 0xFFD42A), 1.6);
-    } else {
-      // The boss's own roof panel knocks the pip out; no floating count on top of
-      // the boss (it collided with the boss art and the combo line).
-      audio.play('boss_light', { left: boss.hp });
-      haptics.medium();
-    }
-  };
 
   // ── Combo power-shot callbacks ────────────────────────────────────────────
   gameLoop._onAdvance = () => {
@@ -2158,8 +2124,6 @@ async function main() {
         const lane = gs.activeLanes[laneIdx];
         const car  = lane?.frontCar?.() ?? lane?.cars?.[0] ?? null;
         if (!car) return;
-        // A boss changes only its CURRENT light; the picker greys the light's own colour.
-        colorChangeBossLane = isBoss(car) ? laneIdx : null;
         boosterState.setColorChangeCar(car.color);
         _showColorPicker(car.color);
       },

@@ -33,7 +33,7 @@ import {
 import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { openingRowsForLevel, clampInitialCarsToDepth, streakEnabledFor } from '../game/LevelManager.js';
 import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak,
-         isBoss, makeBoss, hitBoss, laneHasBoss, BOMB_BOSS_LIGHTS, revealStagedCars, stepSize, freeSpawnRow } from '../director/TrafficRules.js';
+         revealStagedCars, stepSize, freeSpawnRow } from '../director/TrafficRules.js';
 
 const DT = 1 / 60; // seconds per simulation tick (used for fire cooldowns only)
 
@@ -275,7 +275,6 @@ export class SimulationRunner {
         const match = g.type === 'destroyTotal'
           || (g.type === 'destroyColor' && color === g.color)
           || (g.type === 'destroyType'  && type  === g.carType)
-          || (g.type === 'defeatBoss'   && type  === 'boss')
           || (g.type === 'destroyTrait' && trait != null && trait === g.trait);
         if (match) goalProgress[i] = Math.max(0, goalProgress[i] - 1);
       }
@@ -304,11 +303,6 @@ export class SimulationRunner {
       for (const def of _initialCars) {
         const li  = Math.min(LANE_N - 1, Math.max(0, def.lane ?? 0));
         const car = carDir.generateCar({ id: li }, 'CALM', worldConfig, colors, this._cfg.gridRows);
-        if (def.sequence) {   // V2 boss — same constructor as GameLoop._primeInitialCars
-          makeBoss(car, def);
-          discreteLanes[li].cars.push({ ...car, row: def.row ?? 0 });
-          continue;
-        }
         const type  = (def.type && CAR_TYPES[def.type]) ? def.type : car.type;
         const color = (def.color && colors.includes(def.color)) ? def.color : car.color;
         // hp for a named type: base × mult with the live HP_MINIMUM clamp — the
@@ -368,7 +362,6 @@ export class SimulationRunner {
       const target = carDir.scriptRate() ?? this._cfg.laneTargetCarCount;
       for (const lane of discreteLanes) {
         let added = false;
-        if (laneHasBoss(lane.cars)) continue;   // the boss owns its lane (parity)
         while (lane.cars.length < target) {
           const row = freeSpawnRow(lane.cars, STEP, this._cfg.gridRows);
           if (row < 0) break;   // lane physically full
@@ -466,16 +459,11 @@ export class SimulationRunner {
           if (bestLane && rng.next() < boosterIQ) {
             bombCharges--;
             bombsFired++;
-            // Parity with GameLoop.placeBombOnLane: a boss loses BOMB_BOSS_LIGHTS
-            // lights and stays unless that finishes it; everything else goes.
-            const boss = bestLane.cars.find(isBoss) ?? null;
-            const bossSurvives = boss ? !hitBoss(boss, BOMB_BOSS_LIGHTS) : false;
+            // Parity with GameLoop.placeBombOnLane: the whole lane goes.
             for (const car of bestLane.cars) {
-              if (car === boss && bossSurvives) continue;
               carsKilled++; bombKills++; applyKillToGoals(car.color, car.type, car.trait);
             }
             bestLane.cars.length = 0;
-            if (bossSurvives) bestLane.cars.push(boss);
             // Parity with GameLoop._settleAfterClear: an empty board refills
             // (fresh spawns, no advance) so nothing can soft-lock.
             if (discreteLanes.every(l => l.cars.length === 0)) _refillLanes(phase);

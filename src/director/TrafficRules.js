@@ -79,10 +79,6 @@ export function canTarget(car, bombColor, isColorBomb = false) {
 /** Rows this car moves on one traffic advance. */
 export function stepFor(car, step = 1) {
   if (car.trait === 'speeder') return 2 * step;
-  if (car.moveEvery > 1) {
-    car.moveTick = (car.moveTick ?? 0) + 1;
-    return car.moveTick % car.moveEvery === 0 ? step : 0;
-  }
   return step;
 }
 
@@ -189,52 +185,6 @@ export function nextStreak(streak, charged, kills, usedCharge) {
   }
   return { streak, charged };
 }
-
-// ── Boss vehicles (L10 / L20 / L30 / L40) ───────────────────────────────────
-// A boss is one giant car with a colour SEQUENCE shown on its roof. Each bomb
-// of the current colour knocks out one light (a supercharged bomb knocks out
-// two) and the boss takes the next colour; clear the sequence to destroy it.
-// Bosses move one row every `moveEvery` turns, their lane gets no other
-// traffic, and `reArmor` bosses re-plate after every light (so each light is
-// "any bomb, then the right colour").
-
-// A BOMB booster does not erase a boss — it knocks this many lights off.
-export const BOMB_BOSS_LIGHTS = 2;
-
-export function isBoss(car) { return !!car?.sequence; }
-
-/** Turn a freshly built car into a boss from an initialCars definition. */
-export function makeBoss(car, def) {
-  car.type      = 'boss';
-  car.sequence  = [...def.sequence];
-  car.seqIdx    = 0;
-  car.color     = car.sequence[0];
-  car.moveEvery = def.moveEvery ?? 2;
-  car.moveTick  = 0;
-  car.reArmor   = !!def.reArmor;
-  car.armor     = car.reArmor ? 1 : 0;
-  car.trait     = null;
-  car.altColor  = null;
-  car.hp        = car.sequence.length;
-  car.maxHp     = car.hp;
-  return car;
-}
-
-/**
- * Knock `n` lights out of a boss. Returns true when the boss is destroyed.
- * Keeps hp in step with the lights left (renderers and goals read hp).
- */
-export function hitBoss(car, n = 1) {
-  car.seqIdx = Math.min(car.sequence.length, car.seqIdx + n);
-  car.hp = car.sequence.length - car.seqIdx;
-  if (car.hp <= 0) return true;
-  car.color = car.sequence[car.seqIdx];
-  if (car.reArmor) car.armor = 1;
-  return false;
-}
-
-/** A lane holding a boss gets no refill traffic. */
-export function laneHasBoss(cars) { return cars.some(isBoss); }
 
 // Row 0 is a STAGING row, hidden behind the goal band (projection.row0CoverY):
 // cars there are invisible until the next advance. In a turn-based game the

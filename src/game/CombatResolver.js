@@ -4,7 +4,6 @@
 //
 // Rule: CombatResolver never touches game state, renderers, or directors.
 // Shared by GameLoop and SimulationRunner — there is ONE damage model.
-import { isBoss, hitBoss } from '../director/TrafficRules.js';
 const MISS = Object.freeze({ hit: false, kills: 0, carryOverKills: 0, damageDealt: 0, destroyed: [] });
 
 export class CombatResolver {
@@ -36,17 +35,6 @@ export class CombatResolver {
 
     const power = !!opts.power;
 
-    // A boss loses one light per bomb (two when supercharged); no carry-over.
-    if (isBoss(frontCar)) {
-      const lights = power ? 2 : 1;
-      const before = frontCar.hp;
-      const dead = hitBoss(frontCar, lights);
-      const destroyed = dead ? [{ color: frontCar.color, type: frontCar.type, trait: frontCar.trait ?? null }] : [];
-      if (dead) lane.removeFrontCar();
-      return { hit: true, bossHit: true, kills: dead ? 1 : 0, carryOverKills: 0,
-               damageDealt: before - Math.max(0, frontCar.hp), destroyed };
-    }
-
     const res = this._applyDamage(shooter.damage * (power ? 2 : 1), shooter.color, lane, power);
     res.hit = true;
     return res;
@@ -69,7 +57,7 @@ export class CombatResolver {
       const car = lane.frontCar();
 
       if (kills > 0) {
-        if ((car.armor ?? 0) > 0 || isBoss(car)) break;
+        if ((car.armor ?? 0) > 0) break;
         if (!pierce && car.color !== shooterColor) break;
       }
 

@@ -33,7 +33,6 @@ function firstLevelWith(trait) {
 function buildSpecials() {
   const list = TRAIT_KEYS.map(k => ({ trait: k, ...traitInfo(k), sprite: traitSpritePath(k), level: firstLevelWith(k) }))
     .filter(e => e.level != null);
-  list.push({ trait: 'boss', name: 'BOSS', level: 10, sprite: 'sprites/designed/boss.png', rule: 'Hit its roof colors in order' });
   return list.sort((a, b) => a.level - b.level);
 }
 

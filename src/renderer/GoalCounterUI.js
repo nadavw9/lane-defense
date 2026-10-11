@@ -198,7 +198,6 @@ export class GoalCounterUI {
   _goalColor(goal) {
     if (goal?.type === 'destroyColor') return COLOR_PALETTE[goal.color] ?? 0xffffff;
     if (goal?.type === 'destroyType')  return 0xffaa33;
-    if (goal?.type === 'defeatBoss')   return 0xA35CFF;
     if (goal?.type === 'destroyTrait') return 0x7FE0FF;
     return 0xffd54a;   // destroyTotal
   }
@@ -271,8 +270,6 @@ export class GoalCounterUI {
       icon = t ? this._designedSprite(t.sprite, 36) : null;
       if (icon && t.tint != null) icon.tint = t.tint;
       icon ??= this._buildBurstIcon();
-    } else if (goal.type === 'defeatBoss') {
-      icon = this._designedSprite('boss', 34) ?? uiIcon('car', 28, '👹');
     }
 
     if (icon) {

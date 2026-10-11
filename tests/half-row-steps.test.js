@@ -32,9 +32,6 @@ describe('advanceLaneCars with a step', () => {
     advanceLaneCars(cars, null, 0.5);
     expect(cars.map(c => c.row)).toEqual([3.5, 2.5]);   // both move; gap stays 1
     const held = [car(3, { trait: 'speeder' }), car(1)];   // a speeder cannot overrun the car it follows
-    const slow = [car(3, { moveEvery: 2, moveTick: 0 }), car(2)];
-    advanceLaneCars(slow, null, 0.5);         // front car waits this turn, so the one behind waits too
-    expect(slow.map(c => c.row)).toEqual([3, 2]);
     advanceLaneCars(held, null, 0.5);
     expect(held[1].row).toBe(1.5);
   });

@@ -298,13 +298,13 @@ describe('World config', () => {
 // ─── HP Generation ────────────────────────────────────────────────────────────
 
 describe('HP generation constants', () => {
-  it('minimum HP is 2 (typed small cars have HP=2)', () => {
-    expect(HP_MINIMUM).toBe(2)
-    expect(HP_BASE.min).toBe(2)
+  it('minimum HP is 1 (a motorbike is one hit)', () => {
+    expect(HP_MINIMUM).toBe(1)
+    expect(HP_BASE.min).toBe(1)
   })
 
-  it('maximum HP is 12', () => {
-    expect(HP_BASE.max).toBe(12)
+  it('maximum HP is 3 (the jeep rung)', () => {
+    expect(HP_BASE.max).toBe(3)
   })
 
   it('variance range is 0.85–1.15', () => {

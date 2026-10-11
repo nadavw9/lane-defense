@@ -12,7 +12,7 @@ describe('coin economy scale', () => {
     const cheapest = Math.min(...SHOP_ITEMS.map(i => i.cost));
     for (const id of [5, 20, 45, 70, 99]) {
       lm.goToLevel(id);
-      const cars = lm.current.goals.filter(g => g.type !== 'defeatBoss').reduce((a, g) => a + g.count, 0) || 24;
+      const cars = lm.current.goals.reduce((a, g) => a + g.count, 0) || 24;
       const win = cars * COINS_PER_CAR;
       expect(win, `L${id} pays ${win}`).toBeGreaterThanOrEqual(cheapest);
       expect(win, `L${id} pays ${win}`).toBeLessThanOrEqual(cheapest * 4);

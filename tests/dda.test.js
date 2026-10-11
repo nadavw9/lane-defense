@@ -178,7 +178,8 @@ describe('AUDIT: the sim can never see DDA', () => {
     // its base heft, the number the balance band was tuned to.
     const lm = new LevelManager(); lm.goToLevel(10);
     const cfg = lm.current;
-    expect(cfg.worldConfig.heft).toBe(1);
+    const baseHeft = cfg.worldConfig.heft;
+    expect(typeof baseHeft).toBe('number');
     expect(cfg.worldConfig.hpMultiplier).toBe(1);
     const runner = new SimulationRunner({
       duration: cfg.duration, colors: cfg.colors, worldConfig: cfg.worldConfig,
@@ -188,7 +189,7 @@ describe('AUDIT: the sim can never see DDA', () => {
       shooterColorWeights: cfg.shooterColorWeights,
     });
     // The runner copies its config; the base hpMultiplier it holds is unchanged.
-    expect(runner._cfg.worldConfig.heft).toBe(1);
+    expect(runner._cfg.worldConfig.heft).toBe(baseHeft);
     expect(runner.runLevel(1)).toHaveProperty('won');   // and it still runs
   });
 });

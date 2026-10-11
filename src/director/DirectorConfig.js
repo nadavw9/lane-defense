@@ -121,7 +121,7 @@ export const WORLD_CONFIG = {
 // ─── Car HP Generation ────────────────────────────────────────────────────────
 
 // HP = base × world_multiplier × phase_multiplier × variance
-export const HP_BASE = { min: 2, max: 12 }; // absolute clamp range (tank base 12)
+export const HP_BASE = { min: 1, max: 3 }; // absolute clamp range: the one-hit ladder is 1..3 hits
 export const HP_VARIANCE = { min: 0.85, max: 1.15 };
 export const HP_MINIMUM = 1; // never below this (one-hit ladder: a motorbike is 1 hit)
 
@@ -190,7 +190,7 @@ export const CARRYOVER_COIN_BONUS = 5; // coins for a carry-over kill
 // Coins per car destroyed. A win is ~25-35 cars, so ~50-70 coins: about one booster
 // (20-40) or one coin-continue (60) per win — coins stay worth earning and spending.
 // (Was 10: a single win paid ~300 and bought eight boosters.)
-export const COINS_PER_CAR = 2;
+export const COINS_PER_CAR = 4;   // levels hold ~half the cars since the one-hit ladder, so a win pays the same as before
 export const RESCUE_COIN_COST = 60;   // continue after a breach, as an alternative to the ad
 
 // ─── Deploy Time Dilation ─────────────────────────────────────────────────────

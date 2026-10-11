@@ -144,8 +144,11 @@ describe('regression: car-type introduction ordering', () => {
       }
     });
 
-    it(`'${type}' is actually available from L${introLevel} onward (intro is real)`, () => {
-      expect(typesAvailableAt(introLevel).has(type)).toBe(true);
+    // One-hit ladder: truck / bigrig / tank are retired from spawning (folded into the jeep).
+    const retired = ['truck', 'bigrig', 'tank'].includes(type);
+    it(`'${type}' ${retired ? 'is retired and never spawns' : `is actually available from L${introLevel} onward (intro is real)`}`, () => {
+      expect(typesAvailableAt(introLevel).has(type)).toBe(!retired);
+      if (retired) expect(typesAvailableAt(100).has(type)).toBe(false);
     });
   }
 });

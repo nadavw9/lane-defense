@@ -80,10 +80,12 @@ describe('plated cars', () => {
 });
 
 describe('menders', () => {
-  it('heal 1 HP per traffic move when they were not hit that turn', () => {
-    const m = car({ trait: 'mender', hp: 2, maxHp: 5 });
+  it('heal one rung after two quiet traffic moves', () => {
+    const m = car({ trait: 'mender', hp: 1, maxHp: 3 });
+    healMenders([m]); expect(m.hp).toBe(1);
+    healMenders([m]); expect(m.hp).toBe(2);
+    healMenders([m]); expect(m.hp).toBe(2);
     healMenders([m]); expect(m.hp).toBe(3);
-    healMenders([m]); expect(m.hp).toBe(4);
   });
 
   it('never heal above max HP and never heal the dead', () => {
@@ -103,7 +105,9 @@ describe('menders', () => {
     expect(m.hp).toBe(3);          // this advance was caused by the hit on it
     expect(m.recentHit).toBe(false);
     healMenders([m]);
-    expect(m.hp).toBe(4);          // next turn, elsewhere: it repairs
+    expect(m.hp).toBe(3);          // one quiet move: not yet
+    healMenders([m]);
+    expect(m.hp).toBe(4);          // second quiet move: it repairs a rung
   });
 
   it('other traits and ordinary cars never heal', () => {
@@ -241,7 +245,10 @@ describe('GameLoop V3 wiring', () => {
     const m = put(loop, lanes[0], { color: 'Red', row: 2, hp: 3, maxHp: 6, trait: 'mender' });
     put(loop, lanes[1], { color: 'Blue', row: 3, hp: 99 });
     loop._resolveShot(new Shooter({ color: 'Blue', damage: 1, column: 0 }), 1);
-    expect(m.hp).toBe(4);
+    expect(m.hp).toBe(3);   // first quiet move
+    put(loop, lanes[1], { color: 'Blue', row: 3, hp: 99 });
+    loop._resolveShot(new Shooter({ color: 'Blue', damage: 1, column: 0 }), 1);
+    expect(m.hp).toBe(4);   // second quiet move: repaired
   });
 });
 

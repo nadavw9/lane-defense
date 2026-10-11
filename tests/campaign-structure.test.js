@@ -1,7 +1,7 @@
 // The campaign is data-driven: the map, progress and tools all derive from the level
 // table. These pin the invariants that adding levels must not break.
 import { describe, it, expect } from 'vitest';
-import { LEVEL_COUNT, LevelManager, isBossLevel, levelConfigFor } from '../src/game/LevelManager.js';
+import { LEVEL_COUNT, LevelManager, isMilestoneLevel, levelConfigFor } from '../src/game/LevelManager.js';
 import { MAP_WORLDS, mapNodes, worldForLevel } from '../src/screens/levelMapLayout.js';
 import { bandFor } from '../tools/bands.mjs';
 import { ProgressManager } from '../src/game/ProgressManager.js';
@@ -12,12 +12,12 @@ describe('campaign structure', () => {
     expect(levelConfigFor(LEVEL_COUNT + 1)).toBeNull();
   });
 
-  it('a boss closes every tenth level', () => {
-    for (let id = 10; id <= LEVEL_COUNT; id += 10) expect(isBossLevel(id), `L${id}`).toBe(true);
+  it('a big wave closes every tenth level', () => {
+    for (let id = 10; id <= LEVEL_COUNT; id += 10) expect(isMilestoneLevel(id), `L${id}`).toBe(true);
   });
 
-  it('only every tenth level is a boss', () => {
-    for (let id = 1; id <= LEVEL_COUNT; id++) if (id % 10 !== 0) expect(isBossLevel(id), `L${id}`).toBe(false);
+  it('only every tenth level is a big wave', () => {
+    for (let id = 1; id <= LEVEL_COUNT; id++) if (id % 10 !== 0) expect(isMilestoneLevel(id), `L${id}`).toBe(false);
   });
 
   it('map pages tile the campaign exactly, in order, with no gaps', () => {
@@ -52,11 +52,11 @@ describe('campaign structure', () => {
     expect(lm.levelNumber).toBe(LEVEL_COUNT);
   });
 
-  it('every level has a win-rate band and bosses get the boss band', () => {
+  it('every level has a win-rate band and big waves get the lower band', () => {
     for (let id = 1; id <= 100; id++) {
       const b = bandFor(id);
       expect(b.lo).toBeLessThan(b.hi);
-      if (isBossLevel(id)) expect(b.boss).toBe(true);
+      if (isMilestoneLevel(id)) expect(b.milestone).toBe(true);
     }
   });
 });

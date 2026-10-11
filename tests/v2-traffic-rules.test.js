@@ -3,7 +3,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
   canTarget, advanceLaneCars, flipChameleons, nextStreak, rollTrait,
-  makeBoss, hitBoss, isBoss, TRAIT_TYPES,
+  TRAIT_TYPES,
 } from '../src/director/TrafficRules.js';
 import { CombatResolver }  from '../src/game/CombatResolver.js';
 import { GameLoop }        from '../src/game/GameLoop.js';
@@ -104,44 +104,6 @@ describe('speeders and chameleons', () => {
   });
 });
 
-describe('boss vehicles', () => {
-  const mkBoss = (def = {}) => makeBoss(car({}), { sequence: ['Red', 'Blue', 'Red'], ...def });
-
-  it('shows the first colour, loses a light per matching bomb, and dies when the sequence ends', () => {
-    const b = mkBoss();
-    expect(isBoss(b)).toBe(true);
-    expect(b.color).toBe('Red');
-    const lane = laneOf(b);
-    expect(combat.resolve({ color: 'Blue', damage: 9 }, lane).hit).toBe(false);
-    expect(combat.resolve({ color: 'Red', damage: 9 }, lane)).toMatchObject({ hit: true, kills: 0 });
-    expect(b.color).toBe('Blue');
-    expect(combat.resolve({ color: 'Blue', damage: 1 }, lane, { power: true })).toMatchObject({ kills: 1 });
-    expect(lane.cars).toHaveLength(0);
-  });
-
-  it('moves one row every `moveEvery` turns', () => {
-    const b = mkBoss({ moveEvery: 2 }); b.row = 0;
-    advanceLaneCars([b]); expect(b.row).toBe(0);
-    advanceLaneCars([b]); expect(b.row).toBe(1);
-  });
-
-  it('a re-armouring boss plates up again after every light', () => {
-    const b = mkBoss({ reArmor: true });
-    expect(b.armor).toBe(1);
-    const lane = laneOf(b);
-    combat.resolve({ color: 'Green', damage: 1 }, lane);   // plates off
-    combat.resolve({ color: 'Red', damage: 1 }, lane);     // light 1
-    expect(b.armor).toBe(1);
-    expect(b.color).toBe('Blue');
-  });
-
-  it('hitBoss keeps hp equal to the lights left', () => {
-    const b = mkBoss();
-    hitBoss(b, 2);
-    expect(b.hp).toBe(1);
-  });
-});
-
 // ── Live GameLoop wiring ──────────────────────────────────────────────────────
 const mockApp = { ticker: { add: vi.fn(), remove: vi.fn() } };
 function buildLoop({ colors = ['Red', 'Blue'], laneCount = 3, gridRows = 8 } = {}) {
@@ -203,30 +165,21 @@ describe('GameLoop V2 wiring', () => {
     expect(gs.streakCharged).toBe(false);
   });
 
-  it('a boss lane gets no refill traffic, and a BOMB booster takes two lights, not the boss', () => {
+  it('a BOMB booster clears the whole lane it is dropped on, any colour', () => {
     const { gs, lanes, loop } = buildLoop();
-    const boss = makeBoss(car({}), { sequence: ['Red', 'Blue', 'Red', 'Blue'] });
-    boss.row = 0; boss.position = 0; lanes[1].addCar(boss);
+    put(loop, lanes[1], { color: 'Red', row: 0, hp: 3 });
+    put(loop, lanes[1], { color: 'Blue', row: 2, hp: 3 });
     put(loop, lanes[0], { color: 'Red', row: 3, hp: 99 });
-    loop._resolveShot(new Shooter({ color: 'Red', damage: 1, column: 0 }), 0);   // chip lane 0
-    expect(lanes[1].cars).toEqual([boss]);
     loop._boosterState = { consumeBomb: () => true, bombs: 0 };
     loop.placeBombOnLane(1);
-    expect(lanes[1].cars).toEqual([boss]);
-    expect(boss.hp).toBe(2);
+    expect(lanes[1].cars.length).toBe(0);
+    expect(lanes[0].cars.length).toBe(1);
     expect(gs.isOver).toBe(false);
   });
 });
 
 describe('simulator parity', () => {
-  it('runs a boss level and a trait level without throwing and reports V2 instrumentation', () => {
-    const boss = new SimulationRunner({
-      colors: ['Red', 'Blue', 'Green'], laneCount: 3, colCount: 3, gridRows: 8, levelId: 10,
-      laneTargetCarCount: 2, worldConfig: { hpMultiplier: 0.7, speed: { base: 5, variance: 0 } },
-      initialCars: [{ lane: 1, row: 0, sequence: ['Red', 'Blue', 'Green', 'Red'], moveEvery: 2 }],
-      goals: [{ type: 'destroyType', carType: 'boss', count: 1 }],
-    }).runLevel(1);
-    expect(typeof boss.won).toBe('boolean');
+  it('runs a trait level without throwing and reports V2 instrumentation', () => {
     const traits = new SimulationRunner({
       colors: ['Red', 'Blue', 'Green'], laneCount: 3, colCount: 3, gridRows: 8, levelId: 12,
       laneTargetCarCount: 2, worldConfig: { hpMultiplier: 0.7, speed: { base: 5, variance: 0 } },

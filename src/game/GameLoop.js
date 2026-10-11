@@ -380,15 +380,18 @@ export class GameLoop {
   }
 
   // Earn a rainbow color bomb: replace the "next bomb" (top shooter) of the
-  // strategically least-costly column — the active column whose top bomb has the
-  // LOWEST damage — with a rainbow color-bomb powerball. Picking the lowest-damage
-  // top means the player sacrifices the least useful bomb to gain the reward.
+  // strategically least-costly column — the active column whose top bomb matches the
+  // FEWEST cars on the board (every bomb is one hit now, so usefulness is the colour,
+  // not a damage number). The player sacrifices the least useful bomb to gain the reward.
   _earnColorBomb() {
     const gs = this._gs;
-    let bestCol = -1, lowestDmg = Infinity;
+    const onBoard = {};
+    for (let li = 0; li < gs.activeLaneCount; li++) for (const car of gs.lanes[li].cars) onBoard[car.color] = (onBoard[car.color] ?? 0) + 1;
+    let bestCol = -1, fewest = Infinity;
     for (let c = 0; c < gs.activeColCount; c++) {
       const top = gs.columns[c]?.top();
-      if (top && !top.isColorBomb && top.damage < lowestDmg) { lowestDmg = top.damage; bestCol = c; }
+      const n = top && !top.isColorBomb ? (onBoard[top.color] ?? 0) : Infinity;
+      if (n < fewest) { fewest = n; bestCol = c; }
     }
     if (bestCol === -1) bestCol = 0;  // fallback: first column
     const col     = gs.columns[bestCol];

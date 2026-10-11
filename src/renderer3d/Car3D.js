@@ -19,6 +19,7 @@ import { BOSS_SPRITE_GEOMETRY } from './bossSpriteGeometry.js';
 import { isColorblind } from '../game/ColorblindMode.js';
 import { drawColorShapeBadge } from './colorShapeCanvas.js';
 import { TRAIT_TYPES, isHiddenPhantom } from '../director/TrafficRules.js';
+import { displayTypeFor } from '../director/CarTypes.js';
 
 // ── Canvas size for programmatic textures ────────────────────────────────────
 const CVS    = 256;
@@ -160,6 +161,10 @@ const TYPE_DIMS = {
 // Variant sprites (armored-/speeder-/chameleon-<type>-<color>.png) share their
 // base sprite's canvas, so a swap is a texture change on the same plane.
 // Armour shows only while plated; a boss shows its armoured body while plated.
+// One-hit ladder: a car is drawn as the vehicle for the hits it has LEFT (van -> car ->
+// motorbike). Everything that sizes or positions art uses this, never car.type.
+function shownTypeOf(car) { return displayTypeFor(car.type, car.hp); }
+
 function spritePathFor(car) {
   if (car.type === 'boss') return (car.armor ?? 0) > 0 ? 'sprites/designed/boss-armored.png' : 'sprites/designed/boss.png';
   const c = car.color?.toLowerCase();
@@ -167,12 +172,13 @@ function spritePathFor(car) {
   // plated reuses the armoured body (same plates, two hits); mender / volatile /
   // phantom keep the plain body and carry programmatic overlays instead.
   const art = t === 'plated' ? 'armored' : t;
+  const st = shownTypeOf(car);
   const hasVariantArt = art === 'armored' || art === 'speeder' || art === 'chameleon'
-    || (art === 'mender' && car.type !== 'small') || art === 'volatile';
-  if (hasVariantArt && TRAIT_TYPES[t]?.has(car.type) && (art !== 'armored' || (car.armor ?? 0) > 0)) {
-    return `sprites/designed/${art}-${car.type}-${c}.png`;
+    || (art === 'mender' && st !== 'small') || art === 'volatile';
+  if (hasVariantArt && TRAIT_TYPES[t]?.has(st) && (art !== 'armored' || (car.armor ?? 0) > 0)) {
+    return `sprites/designed/${art}-${st}-${c}.png`;
   }
-  return SPRITE_MAP[car.type]?.[car.color] ?? null;
+  return SPRITE_MAP[st]?.[car.color] ?? null;
 }
 
 // ── Sprite map: nested by type → color (pre-colored PNGs, no material tint) ──
@@ -679,7 +685,16 @@ export class Car3D {
       for (const car of _laneCars) {
         if (!this._live.has(car)) this._live.set(car, this._createEntry(car, laneIdx));
 
-        const entry = this._live.get(car);
+        let entry = this._live.get(car);
+        if (entry.shown !== shownTypeOf(car)) {   // a hit shrank it: swap to the smaller vehicle
+          const fresh = this._createEntry(car, laneIdx, entry);
+          fresh.group.position.copy(entry.group.position);
+          entry._speedLines = [];   // handed to the new entry; do not kill them with the old one
+          this._disposeGhosts(entry);
+          this._disposeGroup(entry.group);
+          this._live.set(car, fresh);
+          entry = fresh;
+        }
         const g     = entry.group;
 
         // COLOR CHANGE booster recolors a live car in GameState (car.color mutates
@@ -751,8 +766,6 @@ export class Car3D {
           entry.bossRingMat.emissiveIntensity = 1.2 + 0.6 * Math.sin(entry.bossAngle * 3);
         }
 
-        const hpRatio = car.maxHp > 0 ? car.hp / car.maxHp : 0;
-
         // ── Color effects (MeshBasicMaterial tinting) ─────────────────────────
         entry._auraT += dt;
         let colorSet = false;
@@ -811,25 +824,13 @@ export class Car3D {
             colorSet = true;
           }
 
-          // Damage tint (lowest priority) — darken base color, preserve hue identity
-          if (!colorSet) {
-            const bright = hpRatio < 0.35 ? 0.45 : hpRatio < 0.65 ? 0.70 : 1.0;
-            if (bright < 1.0) {
-              entry.bodyMat.color.setHex(entry.baseHex);
-              entry.bodyMat.color.multiplyScalar(bright);
-            } else {
-              entry.bodyMat.color.setHex(entry.baseHex);
-            }
-          }
+          // (No damage tint: the car's SIZE is its health now, and a dimmed sprite would
+          // read as a different colour.)
+          if (!colorSet) entry.bodyMat.color.setHex(entry.baseHex);
         }
 
         // ── Damage rotation tilt ──────────────────────────────────────────────
-        let tiltZ = 0;
-        if (!isFrozen) {
-          if (hpRatio < 0.35)      tiltZ = -0.10 * (1 - hpRatio);
-          else if (hpRatio < 0.65) tiltZ = -0.04 * (1 - hpRatio);
-        }
-        g.rotation.z = tiltZ + wobbleRot;
+        g.rotation.z = wobbleRot;
 
         // ── Power squash-and-stretch (true non-uniform) ───────────────────────
         // Bombs arrive from below (south), so the car compresses vertically and
@@ -851,6 +852,15 @@ export class Car3D {
             entry._powerSquashing = false;
           }
           entry.mesh.scale.set(sx, sy, 1);
+        }
+
+        // Shrink pop: the smaller vehicle lands with a quick bounce so the hit reads.
+        if (entry._popT != null) {
+          entry._popT += dt;
+          const p = Math.min(1, entry._popT / 0.22);
+          const base = g.userData.baseScale ?? 1;
+          g.scale.setScalar(base * (1 + 0.24 * Math.sin(Math.PI * p)));
+          if (p >= 1) { g.scale.setScalar(base); entry._popT = null; }
         }
 
         if (car.hp !== entry.lastHp) entry.lastHp = car.hp;
@@ -878,7 +888,8 @@ export class Car3D {
 
   // ── Entry creation ─────────────────────────────────────────────────────────
 
-  _createEntry(car, laneIdx) {
+  _createEntry(car, laneIdx, keep = null) {
+    const st         = shownTypeOf(car);
     const hex        = carHex(car);
     const boostedHex = _boostColor(hex);
 
@@ -911,7 +922,7 @@ export class Car3D {
       });
     }
 
-    const cfg   = TYPE_DIMS[car.type] ?? TYPE_DIMS.big;
+    const cfg   = TYPE_DIMS[st] ?? TYPE_DIMS.big;
     const group = new THREE.Group();
     const mesh  = new THREE.Mesh(
       new THREE.PlaneGeometry(CELL * cfg.wF, CELL * cfg.hF),
@@ -924,13 +935,13 @@ export class Car3D {
     // (bigrig body rides 10.8% right of image center). Unlike the old hand-tuned
     // SPRITE_X_OFFSET table (removed in 9e878b1 — stale/wrong-signed), these come
     // from scripts/measure-car-bbox.mjs and regenerate with the art.
-    mesh.position.x = -(BODY_FRAC[car.type]?.cx ?? 0) * CELL * cfg.wF;
+    mesh.position.x = -(BODY_FRAC[st]?.cx ?? 0) * CELL * cfg.wF;
     group.add(mesh);
 
     // (The old spinning boss torus is gone — V2 bosses carry their sequence panel.)
     const bossRing = null, bossRingMat = null;
 
-    const spriteScale = spriteScaleFor(car.type, this._breachRow + 1);
+    const spriteScale = spriteScaleFor(st, this._breachRow + 1);
     group.userData.baseScale = spriteScale;
     group.scale.setScalar(spriteScale);
 
@@ -971,7 +982,7 @@ export class Car3D {
     }
     if (car.trait === 'speeder') {
       // Two exhaust flames off the tail (image top = vehicle rear).
-      const body = BODY_FRAC[car.type] ?? { w: 0.8, h: 0.8 };
+      const body = BODY_FRAC[st] ?? { w: 0.8, h: 0.8 };
       const fw = planeW * 0.22, fh = planeH * 0.34;
       traitFx.flames = [-1, 1].map(sd => {
         const f = new THREE.Mesh(new THREE.PlaneGeometry(fw, fh),
@@ -984,7 +995,7 @@ export class Car3D {
         return f;
       });
     }
-    if (car.trait === 'plated' || car.trait === 'phantom' || (car.trait === 'mender' && car.type === 'small')) {
+    if (car.trait === 'plated' || car.trait === 'phantom' || (car.trait === 'mender' && st === 'small')) {
       const side = 1.25 / spriteScale;
       const badge = new THREE.Mesh(new THREE.PlaneGeometry(side, side),
         new THREE.MeshBasicMaterial({ map: car.trait === 'plated' ? _plateTex(car.armor ?? 2) : car.trait === 'mender' ? _menderTex()
@@ -1045,7 +1056,7 @@ export class Car3D {
     // geometry + texture (disposed with the car, never by the ghost cleanup).
     // Skipped for the opening board — no glide means no trail to draw.
     const ghosts = [];
-    if (bodyMat.map && !car.isInitial) {
+    if (bodyMat.map && !car.isInitial && !keep) {
       for (let i = 0; i < 3; i++) {
         const gm = new THREE.MeshBasicMaterial({
           map: bodyMat.map, transparent: true, opacity: 0,
@@ -1060,8 +1071,9 @@ export class Car3D {
       }
     }
 
-    return {
+    const entry = {
       group, mesh, bodyMat,
+      shown: st,          // which rung of the ladder is drawn; reshaped when it changes
       color: car.color,   // sprite was built for this color; resynced if COLOR CHANGE recolors the car
       spritePath,         // which art is showing (V2: variants swap on armour/flip)
       traitFx,
@@ -1077,6 +1089,11 @@ export class Car3D {
       _speedLines: [],
       _ghosts: ghosts.length ? ghosts : null,
     };
+    if (keep) {   // reshaping a live car: carry its motion and effect state over
+      for (const k of ['renderZ', 'targetZ', 'lerpStartZ', 'lerpT', '_isSpawning', '_auraBlend', '_auraT', '_prevFrozen', '_speedLines']) entry[k] = keep[k];
+      entry._popT = 0;
+    }
+    return entry;
   }
 
   // 2D: advance the spawn ghost trail. Ghosts trail behind the gliding car at a
@@ -1110,7 +1127,7 @@ export class Car3D {
   // ── Speed lines ───────────────────────────────────────────────────────────
 
   _spawnSpeedLines(entry, laneIdx, car) {
-    const cfg = TYPE_DIMS[car.type] ?? TYPE_DIMS.big;
+    const cfg = TYPE_DIMS[shownTypeOf(car)] ?? TYPE_DIMS.big;
     const lx  = laneToX(laneIdx, this._laneCount);
     const geo  = _getSpeedLineGeo();
 

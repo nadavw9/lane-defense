@@ -235,7 +235,7 @@ export class BenchRenderer {
           sp.visible = false;
         }
 
-        this._texts[i].text    = String(shooter.damage);
+        this._texts[i].text    = '';   // one hit: no number
         this._texts[i].x       = cx + 10;
         this._texts[i].y       = cy;
         this._texts[i].visible = true;

@@ -441,9 +441,7 @@ export class ShooterRenderer {
         const tex = Assets.get(url);
         if (tex && sp1.texture !== tex) { sp1.texture = tex; fitSprite(sp1, TOP_DIAM); }
         sp1.visible       = true;
-        topText.text      = isColorblind()
-          ? `${SHAPES[top.color] ?? ''}${top.damage}`
-          : String(top.damage);
+        topText.text      = isColorblind() ? (SHAPES[top.color] ?? '') : '';   // one hit: no number
         topText.visible   = true;
       } else {
         sp1.visible     = false;
@@ -579,7 +577,7 @@ export class ShooterRenderer {
       const color = COLOR_MAP[second.color] ?? 0x888888;
       drawCannon(g, color, SECOND_RADIUS * 2, 0.65, cx, SECOND_Y);
 
-      this._secondTexts[i].text    = String(second.damage);
+      this._secondTexts[i].text    = '';
       this._secondTexts[i].x       = cx;
       this._secondTexts[i].y       = SECOND_Y + SECOND_RADIUS + 8;
       this._secondTexts[i].alpha   = 0.65;
@@ -596,7 +594,7 @@ export class ShooterRenderer {
       drawCannon(g, color, THIRD_RADIUS * 2, 0.40);
       g.setTransform(0, 0);
 
-      this._thirdTexts[i].text    = String(third.damage);
+      this._thirdTexts[i].text    = '';
       this._thirdTexts[i].x       = cx;
       this._thirdTexts[i].y       = THIRD_Y + THIRD_RADIUS + 6;
       this._thirdTexts[i].alpha   = 0.40;
@@ -618,7 +616,7 @@ export class ShooterRenderer {
       circ.clear();
       drawCannon(circ, color, TOP_RADIUS * 2, 1.0);
       circ.visible    = true;
-      topText.text    = String(top.damage);
+      topText.text    = '';
       topText.y       = 6;   // nudge number onto the barrel
       topText.visible = true;
     } else {

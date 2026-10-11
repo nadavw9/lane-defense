@@ -98,36 +98,10 @@ function _roundRect(ctx, x, y, w, h, r) {
   }
 }
 
-// ── Badge drawing — NO background, just a bold white number with a heavy dark
-// stroke + drop-shadow so it reads on any bomb colour and never bleeds a dark
-// rectangle outside the round bomb sprite.
-function drawDamageBadge(ctx, W, H, damage) {
+// ── Badge drawing — every bomb is exactly one hit, so a bomb carries NO number: the
+// badge canvas is simply cleared (colour-blind mode draws its shape on it afterwards).
+function drawDamageBadge(ctx, W, H) {
   ctx.clearRect(0, 0, W, H);
-
-  const ph       = H * 0.78;
-  const fontSize = Math.round(ph * 0.92);
-  // Chunky title face (preloaded at boot) — the same digits as the HUD.
-  ctx.font         = `${fontSize}px "Lilita One", Arial Black, Arial`;
-  ctx.textAlign    = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.lineJoin     = 'round';
-
-  // Thin crisp outline + a small soft shadow — readable on any bomb colour
-  // without forming a dark blob/background around the digit.
-  ctx.shadowColor   = 'rgba(0,0,0,0.55)';
-  ctx.shadowBlur    = Math.max(2, H * 0.05);
-  ctx.shadowOffsetX = 0;
-  ctx.shadowOffsetY = Math.max(1, H * 0.02);
-
-  // Proportional stroke — slightly heavier than body text so the digit reads
-  // as a game piece label at arm's length.
-  ctx.lineWidth   = Math.max(2, fontSize * 0.17);   // heavy ink: white reads on yellow too
-  ctx.strokeStyle = '#1F1A33';
-  ctx.strokeText(String(damage), W / 2, H / 2 + 1);
-
-  ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText(String(damage), W / 2, H / 2 + 1);
 }
 
 // Rainbow color-bomb badge — dark pill with a gold star (no damage number).

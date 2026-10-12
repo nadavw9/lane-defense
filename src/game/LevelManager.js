@@ -58,7 +58,7 @@ const PROGRESSION = [
   // L4 "Hot Streak": destroy a car 3 shots in a row → supercharged bomb.
   { id: 4, name: 'Hot Streak', laneCount: 3, colCount: 3, colors: ['Red', 'Blue'], worldConfig: W(1),
     duration: 90, spawnBudget: 9, laneTargetCarCount: 2, gridRows: 8,
-    hintText: 'Destroy a car 3 shots in a row for a SUPERCHARGED bomb', goals: total(22) },
+    hintText: 'Destroy 3 cars to SUPERCHARGE a bomb: it hits twice, any colour', goals: total(22) },
 
   // L5 "Green light" (relief): a third colour, gentle traffic.
   { id: 5, name: 'Green light', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(1),

@@ -199,7 +199,7 @@ const ART = {
     a.addChild(ps);
     const d2 = titleText('x2', 22, WHITE);
     d2.x = -44; d2.y = 56;
-    const dl = bodyText('DAMAGE · ANY COLOR', 13, 0xC9C3F0, { outline: false });
+    const dl = bodyText('2 HITS · ANY COLOR', 13, 0xC9C3F0, { outline: false });
     dl.x = -44; dl.y = 80;
     a.addChild(d2, dl);
   },

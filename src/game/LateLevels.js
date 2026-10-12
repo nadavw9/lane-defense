@@ -26,7 +26,7 @@ export const LATE_LEVELS = [
   // ═══ WORLD 4 — Sun Valley (L46-60): menders and the desert ════════════════
 
   lv(46, 'Oasis', 'RGYO', { traits: { mender: 0.16 }, total: 24,
-    hint: 'NEW! Menders — they heal 1 HP every turn they are not hit. Keep shooting!' }),
+    hint: 'NEW! Menders — left alone, they grow back a size. Keep shooting them!' }),
   lv(47, 'Quick fix', 'BYOR', { traits: { mender: 0.12, speeder: 0.10 }, total: 26 }),
   lv(48, 'Heat haze', 'RGPY', { traits: { mender: 0.08, chameleon: 0.08 }, total: 24 }),           // relief
   lv(49, 'Repair crew', 'GOPR', { traits: { mender: 0.18, armored: 0.08 },

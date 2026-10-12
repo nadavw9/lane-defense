@@ -12,8 +12,8 @@
 //            Plus dim mask (lanes 0-2, cols 0-2 already handled by mask).
 //        Other levels with hintText: auto-hiding text banner (8 s).
 //
-//   3. onFirstDeploy(damage?) — hides the L1 arrow; for early levels (L1-L5)
-//      shows a one-time "Deals [damage] damage!" tip at the shooter area.
+//   3. onFirstDeploy() — hides the L1 arrow and stops the hand demo. (The old "Deals N damage!"
+//      tip is gone: every bomb is one hit.)
 //   4. onFirstKill() — triggers the L2 combo hint.
 //
 // update(dt) must be called from the render ticker while the overlay is live.
@@ -68,8 +68,6 @@ export class FTUEOverlay {
     this._hudHints     = null;
     this._areaLabels   = null;
     this._comboHint    = null;
-    this._damageTip    = null;
-    this._damageTipT   = 0;
     this._comboHintT   = 0;
     this._comboHintOn  = false;
     this._handDemo     = null;
@@ -102,9 +100,8 @@ export class FTUEOverlay {
   // Hide/show the whole overlay (used to clear FTUE hints behind end-screens).
   setVisible(v) { this._container.visible = v; }
 
-  // Call after the first deploy.  For early levels, optionally shows a
-  // one-time damage tooltip near the shooter area.
-  onFirstDeploy(damage) {
+  // Call after the first deploy.
+  onFirstDeploy() {
     // Dismiss arrow hint on L1.
     if (this._isArrow && this._hintVisible) {
       this._hintVisible = false;
@@ -113,12 +110,6 @@ export class FTUEOverlay {
     }
     // Stop hand demo on deploy (player got it).
     this._stopHandDemo();
-
-    // Show damage tooltip for first deploy (levels 1-5 only).
-    if (damage != null && this._damageTip === null) {
-      this._damageTip = this._buildDamageTip(this._appW, damage);
-      this._damageTipT = 3;
-    }
   }
 
   // Call when the player scores their first kill (used by L2 combo hint).
@@ -180,19 +171,6 @@ export class FTUEOverlay {
         this._areaLabels.visible = false;
       } else if (this._elapsed > 4) {
         this._areaLabels.alpha = 1 - (this._elapsed - 4) / 2;
-      }
-    }
-
-    // ── Damage tooltip float + fade ───────────────────────────────────────
-    if (this._damageTip && this._damageTipT > 0) {
-      this._damageTipT -= dt;
-      this._damageTip.y -= 22 * dt;
-      if (this._damageTipT < 1) {
-        this._damageTip.alpha = Math.max(0, this._damageTipT);
-      }
-      if (this._damageTipT <= 0) {
-        this._damageTip.destroy({ children: true });
-        this._damageTip = null;
       }
     }
 
@@ -316,22 +294,6 @@ export class FTUEOverlay {
     shootersLbl.x = w / 2;
     shootersLbl.y = SHOOTER_AREA_Y - 4;
     grp.addChild(shootersLbl);
-  }
-
-  // Floating "Deals X damage!" tooltip near the shooter area.
-  _buildDamageTip(w, damage) {
-    const tip = new Text({
-      text: `This bomb deals ${damage} damage!`,
-      style: {
-        fontSize: 15, fontWeight: 'bold', fill: 0xffffff, align: 'center',
-        dropShadow: { color: 0x000000, blur: 5, distance: 2, alpha: 0.9 },
-      },
-    });
-    tip.anchor.set(0.5, 1);
-    tip.x = w / 2;
-    tip.y = SHOOTER_AREA_Y - 8;
-    this._container.addChild(tip);
-    return tip;
   }
 
   // Combo explanation banner shown after first kill on L2.

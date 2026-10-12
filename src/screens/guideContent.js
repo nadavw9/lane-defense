@@ -40,6 +40,11 @@ export function tourSteps(geo) {
       title: 'THE GOAL',
       text: 'Destroy this many cars to WIN the level.',
       target: geo.goal,
+    },
+    {
+      title: 'BOOSTERS',
+      text: 'Stuck? COLOUR recolours cars, FREEZE stops traffic, and BOMB wipes out a whole lane. You earn them as you play.',
+      target: geo.boosters,
       cta: "LET'S GO!",
     },
   ];

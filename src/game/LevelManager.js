@@ -322,6 +322,9 @@ const OPENING_ROWS = [0, 1, 2];
 // L1-L3 and L9-L40 are byte-identical until they're converted.
 const SHALLOW_ROWS_THRESHOLD = 10;
 const OPENING_ROWS_SHALLOW   = [0, 1];
+// L1 opens with three cars ALL on screen (rows 1-3; row 0 is the hidden staging row), so the
+// first-timer sees a queue and the BOMB booster's lane clear has something to clear.
+const L1_OPENING_ROWS        = [1, 2, 3];
 
 /**
  * Opening cars per lane at level start, as rows.
@@ -347,6 +350,7 @@ export function openingRowsForLevel(id, gridRows = 16) {
   // light single-car opening — they probe the director engine, not a level's opening
   // density. Every real numbered level uses the uniform opening.
   if (typeof id !== 'number') return [2];
+  if (id === 1 && gridRows <= SHALLOW_ROWS_THRESHOLD) return L1_OPENING_ROWS;
   return gridRows <= SHALLOW_ROWS_THRESHOLD ? OPENING_ROWS_SHALLOW : OPENING_ROWS;
 }
 

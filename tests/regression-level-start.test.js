@@ -76,7 +76,7 @@ describe('regression: every level starts in a valid state', () => {
       //    unwinnable at any tuning). Difficulty is still carried by bomb power +
       //    car count, not opening geometry. See tests/opening-depth-parity.test.js
       //    for the full derivation + live/sim parity guard.
-      const expectedOpen = cfg.gridRows <= 10 ? [0, 1] : [0, 1, 2];
+      const expectedOpen = cfg.id === 1 && cfg.gridRows <= 10 ? [1, 2, 3] : cfg.gridRows <= 10 ? [0, 1] : [0, 1, 2];
       expect(openingCarsForLevel(cfg.id, cfg.gridRows)).toBe(expectedOpen.length);
       expect(openingRowsForLevel(cfg.id, cfg.gridRows)).toEqual(expectedOpen);
       // Opening cars never start on or past the breach line (row gridRows-1).

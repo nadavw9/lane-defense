@@ -40,6 +40,11 @@ describe('opening depth — derivation', () => {
     }
   });
 
+  it('L1 opens with three VISIBLE cars (rows 1-3) on the shipped shallow board', () => {
+    expect(openingRowsForLevel(1, 8)).toEqual([1, 2, 3]);
+    for (const row of openingRowsForLevel(1, 8)) expect(row).toBeLessThan(8 - 1);
+  });
+
   it('keeps 3 rows on deep boards (gridRows > 10)', () => {
     for (const rows of [11, 12, 16]) {
       expect(openingRowsForLevel(5, rows), `@${rows}`).toEqual([0, 1, 2]);

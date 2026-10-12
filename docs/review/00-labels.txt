@@ -1,5 +1,3 @@
-01=BEFORE L17 (world 2, old look: dense building rows at the sides, busy checkered bomb zone)
-02=AFTER L5 (v2): street houses and gardens now continue beside the bomb zone; no outline frame around the zone; no lone tree or flower bed. Look for: does the zone still feel empty?
-03=AFTER L17 (world 2): world 2 keeps its industrial verge; only the bomb zone changed to the calm plain ground
-04=AFTER L50 (world 4, desert): same suburban layout in sand/adobe/cactus palette
-05=AFTER L1: single-lane road with the same garden verge
+01=Tour last card (fresh save, L1): new BOOSTERS step pointing at the bottom bar
+02=L1 board after the tour: three red cars queued on screen (before: one car visible)
+03=Tour first card (if present)

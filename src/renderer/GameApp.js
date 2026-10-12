@@ -88,7 +88,7 @@ import { TutorialOrchestrator }   from '../screens/TutorialOrchestrator.js';
 import { AchievementsScreen }     from '../screens/AchievementsScreen.js';
 import { StatsScreen }            from '../screens/StatsScreen.js';
 import { AudioManager }           from '../audio/AudioManager.js';
-import { BoosterBar }             from './BoosterBar.js';
+import { BoosterBar, BAR_Y as BOOSTER_BAR_TOP_Y } from './BoosterBar.js';
 import { GoalCounterUI }          from './GoalCounterUI.js';
 import { StreakMeter }            from './StreakMeter.js';
 import { adManager }            from '../ads/AdManager.js';
@@ -578,6 +578,7 @@ async function main() {
     bombs:  () => { const l = _laneSpan(); return { x: l.x, y: SHOOTER_AREA_Y + 6, w: l.w, h: SHOOTER_AREA_H - 6 }; },
     goal:   () => goalCounterUI.plaqueRect() ?? { x: APP_W / 2 - 45, y: 6, w: 90, h: 82 },
     bench:  () => ({ x: 12, y: benchY(), w: APP_W - 24, h: benchSlotH() }),
+    boosters: () => ({ x: 6, y: BOOSTER_BAR_TOP_Y, w: APP_W - 12, h: APP_H - BOOSTER_BAR_TOP_Y - 4 }),
   };
   let guideCard = null;
   function _showGuide(steps, onDone = null) {

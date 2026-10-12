@@ -1485,6 +1485,8 @@ async function main() {
         });
       },
       onQuit: () => {
+        // Abandon signal for difficulty tuning: where players give up mid-level.
+        logEvent('level_quit', { levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber, turns: gs.turnCount, kills: gs.totalKills, goalLeft: gs.goalProgress?.reduce((a, r) => a + r, 0) ?? null });
         _settleInventory();
         pauseScreen.destroy();
         pauseScreen = null;
@@ -1909,7 +1911,7 @@ async function main() {
         haptics.success();
         showWin();
       } else {
-        logEvent('level_failed', { levelId: _evtLevelId, turns: gs.turnCount, goalLeft: gs.goalProgress?.reduce((a, r) => a + r, 0) ?? null, rescued: !!gs.rescueUsed });
+        logEvent('level_failed', { levelId: _evtLevelId, turns: gs.turnCount, kills: gs.totalKills, goalLeft: gs.goalProgress?.reduce((a, r) => a + r, 0) ?? null, rescued: !!gs.rescueUsed });
         audio.stopMusic();
         audio.play('lose_tone');
         shakeTime = 0;

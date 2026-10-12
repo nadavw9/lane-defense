@@ -8,6 +8,10 @@
 
 const DB_URL = 'https://lanedefense-analytics-default-rtdb.firebaseio.com';
 
+// Rules generation. Stamped on every row so data from the old numbered-bomb model never mixes
+// with the one-hit ladder when win rates are compared against the sim bands.
+export const RULES_MODEL = 'onehit-1';
+
 function _genUUID() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
@@ -37,6 +41,7 @@ export class Analytics {
   recordSessionStart() {
     this._post('events', {
       event:        'session_start',
+      model:        RULES_MODEL,
       playerId:     this._playerId,
       timestamp:    Date.now(),
       deviceWidth:  window.innerWidth,
@@ -74,6 +79,7 @@ export class Analytics {
       rescueUsed,
       boostersUsed,
       benchUsed,
+      model:         RULES_MODEL,
       timestamp:     Date.now(),
       deviceWidth:   window.innerWidth,
       deviceHeight:  window.innerHeight,
@@ -113,13 +119,14 @@ export class Analytics {
 
 // Fire-and-forget discrete event logger. Wraps every failure so analytics
 // never affect gameplay.
+let _cachedId = null;   // anonymous install id, so per-player funnels (first-attempt win rate) can be built
 export function logEvent(eventName, data) {
   if (import.meta.env.DEV || !_enabled) return;
   try {
     fetch(`${DB_URL}/events.json`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ event: eventName, ...data, ts: Date.now() }),
+      body:    JSON.stringify({ event: eventName, model: RULES_MODEL, playerId: _cachedId ??= getInstallId(), ...data, ts: Date.now() }),
     }).catch(() => {});
   } catch (_) {}
 }

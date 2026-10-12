@@ -343,7 +343,12 @@ function paverTexture(cols, joint, pxu, wU, dU, r, { tile = 0.5, style = 'grid' 
   const [c, x] = canvas(W, H);
   x.fillStyle = joint; x.fillRect(0, 0, W, H);
   const t = tile * pxu, j = Math.max(1.2, pxu * 0.03);
-  if (style === 'herring') {
+  if (style === 'plain') {
+    // One calm ground colour with soft blotches and a fine speckle: no joints, no
+    // pattern, so the bomb stations and the bombs themselves are what the eye reads.
+    x.fillStyle = css(cols[0]); x.fillRect(0, 0, W, H);
+    for (let i = 0; i < 36; i++) blotch(x, r() * W, r() * H, 40 + r() * 90, cols[1 + (i % 2)] ?? cols[0], 0.28);
+  } else if (style === 'herring') {
     const L2 = t * 1.0, S2 = t * 0.5;
     for (let yy = -L2; yy < H + L2; yy += S2) for (let xx = -L2; xx < W + L2; xx += L2) {
       const k = Math.round(yy / S2) + Math.round(xx / L2);
@@ -869,7 +874,10 @@ export function buildBackdrop(world, variant, L) {
   g.add(road);
 
   // 2. Kerbs + gutters + sidewalks along both edges, down to the breach.
-  const kerbW = 0.3, walkW = L.halfX - L.halfW - kerbW + 1.2;   // runs off-screen
+  const town = FAMILY[world] === 'town';
+  // Town: a narrow pavement, then front gardens. Other families keep the wide plaza.
+  const kerbW = 0.3, walkW = town ? 0.75 : L.halfX - L.halfW - kerbW + 1.2;   // runs off-screen
+  const gardenX = L.halfW + kerbW + walkW;           // where the lawn starts (town)
   const walkTex = paverTexture(T.walk, T.walkJoint, pxu, walkW, roadLen, r, { tile: FAMILY[world] === 'yard' ? 0.9 : 0.5, style: FAMILY[world] === 'town' ? 'brick' : 'grid' });
   for (const s of [-1, 1]) {
     const kx = s * (L.halfW + kerbW / 2);
@@ -899,7 +907,7 @@ export function buildBackdrop(world, variant, L) {
   // 3. Sidewalk furniture + edge buildings, per side.
   for (const s of [-1, 1]) {
     const walkIn = s * (L.halfW + kerbW + 0.45);       // furniture line near the kerb
-    const bandIn = s * (L.halfW + kerbW + (FAMILY[world] === 'town' ? 1.35 : 1.05));   // buildings start here
+    const bandIn = s * (FAMILY[world] === 'town' ? gardenX + 1.15 : L.halfW + kerbW + 1.05);   // buildings start here (town: behind a front garden)
     // Lamps.
     lampZs.forEach((lz, i) => {
       const lp = lamp(T, r, night, -s);
@@ -912,15 +920,15 @@ export function buildBackdrop(world, variant, L) {
       const kind = r();
       const px = walkIn + s * 0.1;
       if (FAMILY[world] === 'town') {
-        if (kind < 0.55) {
+        if (kind < 0.3) {
           const pit = cyl(0.36, 0.36, 0.02, std(0x3A3C42, 0.5, { metalness: 0.5 }), px, 0.11, Z(tz), 24); pit.scale.z = 1 / cT; g.add(pit);
           const soil = cyl(0.26, 0.26, 0.022, std(0x4A3526, 0.95), px, 0.115, Z(tz), 24); soil.scale.z = 1 / cT; g.add(soil);
           const t = greenery(world, T, r, 0.95 + r() * 0.25); t.position.set(px, 0.1, Z(tz)); g.add(t);
-        } else if (kind < 0.72) {
+        } else if (kind < 0.42) {
           const fb = bedFor(world, T, r, 0.62, 1.1); fb.position.set(px, 0.1, Z(tz)); g.add(fb);
-        } else if (kind < 0.86) {
+        } else if (kind < 0.55) {
           const b = bench(r); b.position.set(px + s * 0.1, 0.1, Z(tz)); if (s > 0) b.rotation.y = Math.PI; g.add(b);
-        } else {
+        } else if (kind < 0.62) {
           const h = hydrant(); h.position.set(px - s * 0.12, 0.1, Z(tz)); g.add(h);
           const bi = bin(); bi.position.set(px + s * 0.1, 0.1, Z(tz + 0.9)); g.add(bi);
         }
@@ -946,15 +954,23 @@ export function buildBackdrop(world, variant, L) {
       const zc = bz + d / 2;
       if (FAMILY[world] === 'town') {
         const h = 1.0 + r() * 0.9;
-        const hs = townHouse(T, r, w, Z(d) - Z(0) - 0.25, h, -s, townOpts(world));
+        const dH = Z(d) - Z(0) - 0.25;
+        const hs = townHouse(T, r, w, dH, h, -s, townOpts(world));
         hs.position.set(cx, 0.1, Z(zc));
         g.add(hs);
-        if (r() < 0.55) {   // shopfront awning facing the street + café table
-          const aw = awning(Math.min(1.6, Z(d) - Z(0) - 0.6), pick(r, T.awnings), -s);
-          aw.position.set(cx - s * (w / 2 + 0.22), 0.1 + Math.min(1.0, h * 0.75), Z(zc));
-          g.add(aw);
-          if (r() < 0.6) { const p = parasol(r, pick(r, T.awnings)); p.position.set(bandIn - s * 0.35, 0.1, Z(zc + 0.2)); g.add(p); }
+        // Front garden: a path to the door, hedge along the pavement (gap at the
+        // path), a tree and a flower bed on the lawn.
+        const hedgeCol = world === 'world4' ? 0xE9D3A8 : world === 'world5' ? 0xEAF2F9 : T.leaf[2];
+        const hx = s * (gardenX + 0.12), pathX = s * (gardenX + 0.58);
+        g.add(plane(1.2, Z(0.42) - Z(0), std(world === 'world5' ? 0xDDE6EF : 0xE4D9C2, 0.95), pathX, 0.1, Z(zc)));
+        const half = d / 2;
+        for (const [a, b] of [[bz + 0.05, zc - 0.35], [zc + 0.35, bz + d - 0.05]]) {
+          if (b - a < 0.3) continue;
+          g.add(rbox(0.3, 0.34, Z(b) - Z(a), 0.12, std(hedgeCol, 0.85, { flatShading: true }), hx, 0.27, (Z(a) + Z(b)) / 2));
         }
+        const treeZ = zc + (r() < 0.5 ? -1 : 1) * (half * 0.55);
+        const tr = greenery(world, T, r, 0.75 + r() * 0.25); tr.position.set(s * (gardenX + 0.75 + r() * 0.35), 0.09, Z(treeZ)); g.add(tr);
+        if (r() < 0.8) { const fb = bedFor(world, T, r, 0.5, 0.9); fb.position.set(s * (gardenX + 0.5), 0.09, Z(zc + (treeZ > zc ? -0.95 : 0.95))); g.add(fb); }
       } else if (FAMILY[world] === 'yard') {
         if (r() < 0.55) {
           const wh = warehouse(T, r, w, Z(d) - Z(0) - 0.3, 1.3 + r() * 0.6);
@@ -977,20 +993,29 @@ export function buildBackdrop(world, variant, L) {
         g.add(tw);
       }
       bz += d;
+      if (FAMILY[world] === 'town') {
+        // Side garden between neighbours: a big tree, a bush row, sometimes a drive.
+        const gap = 1.1 + r() * 1.0;
+        const gz = bz + gap / 2;
+        if (r() < 0.65) { const bigT = greenery(world, T, r, 0.95 + r() * 0.3); bigT.position.set(s * (gardenX + 1.0 + r() * 0.6), 0.09, Z(gz)); g.add(bigT); }
+        if (r() < 0.7) { const bu = bush(T, r, 1.0); bu.position.set(s * (gardenX + 0.5), 0.09, Z(gz + (r() - 0.5) * 0.6)); g.add(bu); }
+        bz += gap;
+      }
     }
     // Ground under buildings (lawn / lot / dark plaza), off the sidewalk.
-    const lotW = 5;
-    const lot = plane(lotW, Z(z1) - Z(z0), FAMILY[world] === 'town' ? std(0xffffff, 0.95, { map: grassTexture(T.lawn, 32, lotW, z1 - z0, r) })
+    const lotW = town ? L.halfX - gardenX + 3 : 5;
+    const lotEnd = town ? L.breachZ : z1;      // town lawn stops at the depot, which has its own ground
+    const lot = plane(lotW, Z(lotEnd) - Z(z0), FAMILY[world] === 'town' ? std(0xffffff, 0.95, { map: grassTexture(T.lawn, 32, lotW, lotEnd - z0, r) })
       : world === 'world7' ? std(0xffffff, 0.8, { map: starTexture(lotW, z1 - z0, r) })
       : std(T.lot ?? (FAMILY[world] === 'yard' ? 0x8E9196 : 0x1C1E28), 0.95),
-      s * (L.halfW + kerbW + walkW + lotW / 2 - 1.3), 0.09, (Z(z0) + Z(z1)) / 2);
+      s * (town ? gardenX + lotW / 2 : L.halfW + kerbW + walkW + lotW / 2 - 1.3), 0.09, (Z(z0) + Z(lotEnd)) / 2);
     g.add(lot);
   }
 
   // 4. Bomb depot: from the breach down past the bar top, full width.
   const dz0 = L.breachZ, dz1 = z1;
   const depotW = L.halfX * 2 + 4;
-  const depotTex = paverTexture(T.depot, T.depotJoint, pxu, depotW, dz1 - dz0, r, { tile: FAMILY[world] === 'yard' ? 1.0 : 0.6, style: FAMILY[world] === 'town' ? 'herring' : 'grid' });
+  const depotTex = paverTexture(T.depot, T.depotJoint, pxu, depotW, dz1 - dz0, r, { tile: 0.6, style: 'plain' });
   g.add(plane(depotW, Z(dz1) - Z(dz0), std(0xffffff, night ? 0.5 : 0.9, { map: depotTex, metalness: night ? 0.2 : 0 }), 0, 0.02, (Z(dz0) + Z(dz1)) / 2));
   // A low wall with the stop line on top where road meets depot.
   g.add(rbox(L.halfW * 2 + 0.6, 0.12, Z(0.34) - Z(0), 0.04, std(FAMILY[world] === 'yard' ? 0xFFC21A : T.kerb, 0.6), 0, 0.06, Z(dz0 + 0.17)));

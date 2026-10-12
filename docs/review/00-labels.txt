@@ -1,9 +1,5 @@
-Level 1 first-run tour, centre-screen cards (one per NEXT press). Before: tips popped at the top of the screen (see the owner's "First Blood" screenshot).
-01=WELCOME (no target, dots show 6 steps)
-02=THE ROAD: whole road ringed in gold
-03=THE RED LINE: you LOSE if a car crosses; card moves below the line so it never covers the ring
-04=YOUR BOMBS: bomb queue ringed, hand shows the drag
-05=MATCH THE COLOUR: colour rule, shrink ladder, every correct shot moves all cars
-06=THE GOAL: goal plaque ringed, green LET'S GO! on the last card
-07=after the tour: board released, existing drag hint hand over the road
-Look for: card never covers its own highlighted element, text readable, nothing at the top of the screen.
+01=BEFORE L17 (world 2, old look: dense building rows at the sides, busy checkered bomb zone)
+02=AFTER L5 (world 1): suburban verge - narrow pavement, hedges, front lawns with trees and flower beds, house roofs at the edge; bomb zone is one calm ground colour with three clear stations. Look for: does it read as a neighbourhood, do the bombs pop against the zone?
+03=AFTER L17 (world 2): world 2 keeps its industrial verge; only the bomb zone changed to the calm plain ground
+04=AFTER L50 (world 4, desert): same suburban layout in sand/adobe/cactus palette
+05=AFTER L1: single-lane road with the same garden verge

@@ -14,7 +14,6 @@
 
 import { Container, Graphics, Text } from 'pixi.js';
 import { uiIcon } from '../renderer/UIIcon.js';
-import { ROAD_BOTTOM_Y } from '../renderer/LaneRenderer.js';
 import { bodyText, GOLD } from '../renderer/PremiumUI.js';
 import { INK } from '../renderer/ToyStyle.js';
 
@@ -173,15 +172,23 @@ export class TutorialOrchestrator {
     // below only when the target is at the very top.
     const label = bodyText(text.replace(/^[^\w]+/u, ''), 16, 0xFFFFFF, { wrap: W - 88 });
     const cw = Math.min(W - 32, label.width + 36), ch = label.height + 22;
-    const above = !bounds || bounds.y > 150;
     const cx = W / 2;
     // Sit clear of the hand (above the target) — hand needs ~46px.
     const handRoom = bounds && !handStart ? 52 : 14;
     // A drag sweep starts above the target: the card sits above the sweep's start.
     const top = handStart ? Math.min(bounds?.y ?? 1e9, handStart.y - 34) : bounds?.y;
-    const cy = bounds
-      ? (above ? top - 6 - handRoom - ch : bounds.y + bounds.h + 6 + handRoom)
-      : ROAD_BOTTOM_Y + 24;
+    // Centre of the screen, like every other explanation card; only when that would sit on
+    // the highlighted element (or its hand) does it move to the roomier side of it.
+    let cy = Math.round(H / 2 - ch / 2);
+    if (bounds) {
+      const lo = top - 6 - handRoom;                 // top of the keep-clear zone (target + hand)
+      const hi = bounds.y + bounds.h + 6 + handRoom; // bottom of it
+      if (cy + ch > lo && cy < hi) {
+        const roomAbove = lo, roomBelow = H - hi;
+        cy = roomAbove >= roomBelow ? lo - ch : hi;
+        cy = Math.max(8, Math.min(H - ch - 8, cy));
+      }
+    }
     const card = new Graphics();
     card.roundRect(cx - cw / 2, cy, cw, ch, 16).fill({ color: 0x17143A, alpha: 0.96 }).stroke({ color: GOLD, width: 2.5 });
     card.roundRect(cx - cw / 2 + 3, cy + 3, cw - 6, ch * 0.42, 13).fill({ color: 0xffffff, alpha: 0.07 });

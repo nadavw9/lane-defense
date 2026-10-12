@@ -987,27 +987,29 @@ export class DragDrop {
     ctx.quadraticCurveTo(fuseCPX, fuseCPY, fuseEndX, fuseEndY);
     ctx.stroke();
 
-    // ── Damage badge plate ────────────────────────────────────────────────────
-    const badgeCX = cx;
-    const badgeCY = cy + R * 0.32;
-    const badgeW  = R * 1.15;
-    const badgeH  = R * 0.62;
-    _canvasRoundRect(ctx, badgeCX - badgeW / 2, badgeCY - badgeH / 2, badgeW, badgeH, 8);
-    ctx.fillStyle   = '#0a0a14';
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.80)';
-    ctx.lineWidth   = 1.5;
-    ctx.stroke();
+    // ── Colour-bomb badge (normal bombs carry no number: every bomb is one hit) ──
+    if (isColorBomb) {
+      const badgeCX = cx;
+      const badgeCY = cy + R * 0.32;
+      const badgeW  = R * 1.15;
+      const badgeH  = R * 0.62;
+      _canvasRoundRect(ctx, badgeCX - badgeW / 2, badgeCY - badgeH / 2, badgeW, badgeH, 8);
+      ctx.fillStyle   = '#0a0a14';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.80)';
+      ctx.lineWidth   = 1.5;
+      ctx.stroke();
 
-    const badgeText = isColorBomb ? '★ALL' : String(damage);
-    ctx.font         = isColorBomb ? `bold ${Math.round(R * 0.52)}px Arial` : `bold ${Math.round(R * 0.70)}px Arial`;
-    ctx.fillStyle    = isColorBomb ? '#ffee44' : '#ffffff';
-    ctx.textAlign    = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.shadowColor  = 'rgba(0,0,0,0.9)';
-    ctx.shadowBlur   = 3;
-    ctx.fillText(badgeText, badgeCX, badgeCY);
-    ctx.shadowBlur   = 0;
+      const badgeText = '★ALL';
+      ctx.font         = `bold ${Math.round(R * 0.52)}px Arial`;
+      ctx.fillStyle    = '#ffee44';
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor  = 'rgba(0,0,0,0.9)';
+      ctx.shadowBlur   = 3;
+      ctx.fillText(badgeText, badgeCX, badgeCY);
+      ctx.shadowBlur   = 0;
+    }
 
     // ── Build PIXI container ─────────────────────────────────────────────────
     const tex = Texture.from(cv);

@@ -30,15 +30,11 @@ export function tourSteps(geo) {
     },
     {
       title: 'YOUR BOMBS',
-      text: 'Each bomb has a colour. Drag one onto a lane to hit the car in front.',
+      text: 'Drag a bomb onto a lane to hit the car in front of it. Every correct shot also moves ALL cars a step closer.',
       target: geo.bombs,
       hand: 'drag',
       handFrom: () => { const b = geo.bombs(); return { x: b.x + b.w / 2, y: b.y + 14 }; },
       handTo:   () => { const r = geo.road();  return { x: r.x + r.w / 2, y: r.y + r.h - 70 }; },
-    },
-    {
-      title: 'MATCH THE COLOUR',
-      text: 'A bomb only hurts cars of its own colour. Each hit shrinks a car: van, then car, then bike, then gone. Every correct shot also moves ALL cars a step closer.',
     },
     {
       title: 'THE GOAL',
@@ -51,6 +47,7 @@ export function tourSteps(geo) {
 
 // Titles and, where useful, a pointer at the part of the board the card is about.
 const CARDS = {
+  multi_color:     { title: 'MATCH THE COLOUR', text: 'A bomb only hurts cars of its own colour. Check the colour of the car at the front of the lane, then drag a bomb of the same colour onto it.', target: 'bombs' },
   multi_lane:      { title: 'NEW LANE',        target: 'road' },
   first_kill:      { title: 'FIRST KILL!',     text: 'Destroyed cars count toward your goal. Every 3rd car you destroy charges your next bomb.', target: 'goal' },
   first_combo:     { title: 'COMBO!',          text: 'Destroy cars back to back to build a combo. Bigger combos earn bonus coins.' },

@@ -9,9 +9,9 @@ const geo = {
 
 describe('level-1 tour', () => {
   const steps = tourSteps(geo);
-  it('explains the board, the colour rule, and how to win and lose', () => {
+  it('explains the board, and how to win and lose', () => {
     const text = steps.map(s => `${s.title} ${s.text}`).join(' ').toLowerCase();
-    for (const word of ['road', 'red line', 'lose', 'bomb', 'colour', 'goal', 'win']) expect(text).toContain(word);
+    for (const word of ['road', 'red line', 'lose', 'bomb', 'goal', 'win']) expect(text).toContain(word);
   });
   it('points at real board elements with functions, not cached rects', () => {
     for (const s of steps.filter(s => s.target)) expect(typeof s.target).toBe('function');

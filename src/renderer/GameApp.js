@@ -1015,6 +1015,7 @@ async function main() {
         levelStartCardsTimer = null;
         if (gs.isOver) return;
         if (levelId === 1 && !_tourDone()) _showGuide(tourSteps(guideGeo), _markTourDone);
+        if ((cfg.colors?.length ?? 0) >= 2) featureBanners.fire('multi_color', 'A bomb only hurts cars of its own colour.');
         if ((cfg.laneCount ?? 4) >= 3) featureBanners.fire('multi_lane', 'New lane open! Each lane needs a matching-color bomb.');
         if (levelHint) featureBanners.fire(levelHint.key, levelHint.text);
       }, 1500);

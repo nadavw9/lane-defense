@@ -22,6 +22,18 @@ via `node tools/tune-levels.mjs 1-100 300 --write` (writes `src/game/lateTuning.
 damage numbers, boss levels (L10/20/30/40 as bosses), FR-3/FR-4 or the BOMB booster's boss rule describes the
 OLD model and is provenance until this branch merges.
 
+### GUIDE CARDS — all explanations are centre-screen, never at the top (2026-10-12)
+
+Every tip is a `GuideCard` (`src/screens/GuideCard.js`): centred card, NEXT button, optional gold ring on a
+board element, optional pointing hand. Copy lives in `src/screens/guideContent.js`: `tourSteps` (level-1 walkthrough,
+shown after the splash, marked done only on the last card) and `stepsFor(key, text, geo)` (first-time cards).
+`FeatureBanners.fire(key, text)` is now just a once-ever gate that calls `_presentGuide`; the pill banners are gone.
+Cards run through the modal queue (loop paused, board input blocked). In-level achievements wait for the win
+screen. Visual fixtures seed every tutorial as seen (`tests-visual/fixtures/game.js`); `tour.spec.js` covers the
+real first run. QA hooks: `_nav.guideStep()`, `guideNext()`, `dismissGuides()` — bots must call `dismissGuides()`,
+a tap at a fixed pixel does not hit NEXT. `GameRenderer3D.prewarm()` compiles the 3D scene on the title screen so
+level 1 does not stare at black.
+
 ### PLAY THE GAME BEFORE CALLING IT DONE — QA bots (2026-09-28)
 
 The owner found an L1 soft-lock in 5 seconds of play that 1300 green unit tests never saw.

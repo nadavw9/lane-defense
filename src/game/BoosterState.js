@@ -94,6 +94,14 @@ export class BoosterState {
     this.bombMode = false;
   }
 
+  // Give back a charge that consumeBomb() took but that never fired (empty or out-of-play
+  // lane). Un-counts it from `used` too: the inventory is settled from USE, so a refund that
+  // only restored `bombs` still billed the player an owned bomb for a bomb that did nothing.
+  refundBomb() {
+    this.bombs = Math.min(this.bombsMax, this.bombs + 1);
+    this.used.bombs = Math.max(0, this.used.bombs - 1);
+  }
+
   // Consume one bomb charge when the player places a bomb.  Returns true on success.
   consumeBomb() {
     if (this.bombs <= 0) return false;

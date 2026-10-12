@@ -151,7 +151,7 @@ export class GameLoop {
     const lane = (laneIdx >= 0 && laneIdx < gs.activeLaneCount) ? gs.lanes[laneIdx] : null;
     if (!lane || lane.cars.length === 0) {
       // Nothing to hit — refund the bomb so the player isn't penalized.
-      bs.bombs = Math.min(bs.bombsMax ?? 3, bs.bombs + 1);
+      if (bs.refundBomb) bs.refundBomb(); else bs.bombs = Math.min(bs.bombsMax ?? 3, bs.bombs + 1);
       return;
     }
 
@@ -652,7 +652,16 @@ export class GameLoop {
     // again. Refill in that case only: fresh spawns at the top, no advance. When
     // other lanes still hold cars the board is playable and stays exactly as is,
     // which keeps the live game aligned with the simulator's BOMB model.
-    if (gs.activeLanes.every(l => l.cars.length === 0)) this._refillLanes();
+    if (gs.activeLanes.every(l => l.cars.length === 0)) { this._refillLanes(); return; }
+
+    // The clear can also leave ONLY staged cars (row 0, hidden behind the goal band) in the
+    // lanes that survived: the road then looks empty and nothing can be shot. Step them
+    // into view, exactly as every other post-shot path does (see revealStagedCars).
+    const active = gs.activeLanes;
+    if (revealStagedCars(active.map(l => l.cars))) {
+      const ROWS = gs.gridRows ?? 16;
+      for (const l of active) for (const c of l.cars) c.position = this._rowToPosition(c.row, ROWS);
+    }
   }
 
   // Refill each active lane up to laneTargetCarCount. Spawns infinitely to support

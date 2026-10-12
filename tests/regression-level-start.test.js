@@ -55,11 +55,12 @@ describe('regression: every level starts in a valid state', () => {
       // 6b. Lane count. Everything from L4 up is the 3-lane board; L1-L3 ramp.
       if (cfg.id >= 4) expect(cfg.laneCount).toBe(3);
 
-      // 7. Lane target car count. L1 eases in with 1. Everything else is 2 or 3:
+      // 7. Lane target car count. L1 queues 3 (owner request 2026-10-12: the BOMB booster's lane
+      //    clear is invisible with one car in the lane; sim still 100%). Everything else is 2 or 3:
       //    on an 8-row board ltc4 floods (0-1% win), so density must fall with
       //    board depth. 3 is reserved for levels that need the extra pressure and
       //    is capped there — a 4 anywhere means someone re-flooded the board.
-      if (cfg.id === 1) expect(cfg.laneTargetCarCount).toBe(1);
+      if (cfg.id === 1) expect(cfg.laneTargetCarCount).toBe(3);
       else {
         expect(cfg.laneTargetCarCount).toBeGreaterThanOrEqual(2);
         expect(cfg.laneTargetCarCount).toBeLessThanOrEqual(3);

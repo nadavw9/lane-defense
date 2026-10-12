@@ -59,6 +59,9 @@ gate = """    <script>
             b.onclick = function () { start(u); }; o.appendChild(b);
           }
           btn('Play normally', false);
+          var rb = document.createElement('button'); rb.textContent = 'New player (erase save + tutorials)';
+          rb.style.cssText = 'font:700 18px sans-serif;padding:14px 28px;border-radius:14px;border:0;background:#C94A3A;color:#fff;min-width:240px';
+          rb.onclick = function () { try { localStorage.clear(); } catch (e) {} start(false); }; o.appendChild(rb);
           btn('Unlock levels 1-40 (QA)', true);
           document.body.appendChild(o);
         });

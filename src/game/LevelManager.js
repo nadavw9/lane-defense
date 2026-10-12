@@ -41,7 +41,7 @@ const PROGRESSION = [
 
   // L1 "First shot": one lane, one colour. Cannot really be lost.
   { id: 1, name: 'First shot', laneCount: 1, colCount: 1, colors: ['Red'], worldConfig: W(1),
-    duration: 60, spawnBudget: 5, laneTargetCarCount: 1, gridRows: 8, showArrow: true,
+    duration: 60, spawnBudget: 5, laneTargetCarCount: 3, gridRows: 8, showArrow: true,   // 3 queued: the BOMB booster's lane clear must be visible
     hintText: 'Drag the matching bomb to the lane', goals: total(10) },
 
   // L2 "Two colours": colour must match.

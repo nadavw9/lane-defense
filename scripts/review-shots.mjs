@@ -8,7 +8,7 @@ const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-119
 for (const lv of levels.map(Number)) {
   const p = await b.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
   await p.addInitScript(({ cb, notch }) => {
-    localStorage.setItem('ftue_banners', JSON.stringify(['multi_lane', 'first_shot', 'bench', 'merge', 'first_car']));
+    localStorage.setItem('ftue_banners', JSON.stringify(['tour', 'multi_lane', 'first_shot', 'bench', 'merge', 'first_car']));
     if (cb) localStorage.setItem('lane-defense-v1', JSON.stringify({ colorblindMode: true }));
     if (notch) document.addEventListener('DOMContentLoaded', () => {
       document.documentElement.style.setProperty('--safe-area-inset-top', '44px');

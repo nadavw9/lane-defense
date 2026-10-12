@@ -86,7 +86,7 @@ async function playLevel({ capMs }) {
     for (let a = 0; a < 25; a++) {
       if (!gl.paused && !dd.inputBlocked) return true;
       if (gs.isOver) return true;
-      nav.dismissTutorial();
+      nav.dismissTutorial(); nav.dismissGuides?.();
       // Modal cards: TAP TO CONTINUE sits low-centre; the feature-unlock screen's
       // PLAY sits near the bottom. Cycle through the real button spots.
       if (dd.inputBlocked || gl.paused) tapCanvas(195, [560, 714, 520][a % 3]);

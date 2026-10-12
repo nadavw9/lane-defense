@@ -1,10 +1,9 @@
-01=BEFORE (old model) L5 at rest: numbered bombs, tall stack of cars. Compare crowding with 02.
-02=AFTER L5 at rest: bombs show colour only, same road length, cars lined up at the top. Look: is it crowded? is the view good?
-03=BEFORE L17 (industrial) at rest: numbers on bombs, truck/rig sprites.
-04=AFTER L17 at rest: three vehicle sizes only (van / car / motorbike), no numbers, bombs are plain colour.
-05=AFTER L5 right after the first hit: a hit only SHRINKS the car it hit, traffic moved half a car length.
-06=AFTER L5 second hit: the green van became a small bike (shrink ladder); look at the size change and whether it reads at a glance.
-07=AFTER L5 third frame: more hits, more shrinking; road still uncrowded.
-08=AFTER L9 at rest (sunset, 3 lanes).
-09=AFTER L13 (misty): SUPERCHARGED bomb armed (every 3rd destroyed car), x3 combo text, bikes and vans visible.
-10=AFTER L13 at rest.
+Level 1 first-run tour, centre-screen cards (one per NEXT press). Before: tips popped at the top of the screen (see the owner's "First Blood" screenshot).
+01=WELCOME (no target, dots show 6 steps)
+02=THE ROAD: whole road ringed in gold
+03=THE RED LINE: you LOSE if a car crosses; card moves below the line so it never covers the ring
+04=YOUR BOMBS: bomb queue ringed, hand shows the drag
+05=MATCH THE COLOUR: colour rule, shrink ladder, every correct shot moves all cars
+06=THE GOAL: goal plaque ringed, green LET'S GO! on the last card
+07=after the tour: board released, existing drag hint hand over the road
+Look for: card never covers its own highlighted element, text readable, nothing at the top of the screen.

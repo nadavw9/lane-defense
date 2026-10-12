@@ -11,7 +11,7 @@ const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-119
 async function open(level) {
   const p = await b.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
   await p.addInitScript(() => {
-    localStorage.setItem('ftue_banners', JSON.stringify(['multi_lane', 'first_shot', 'bench', 'merge', 'first_car', 'first_kill', 'first_combo', 'streak_charged', 'armor_break']));
+    localStorage.setItem('ftue_banners', JSON.stringify(['tour', 'multi_lane', 'first_shot', 'bench', 'merge', 'first_car', 'first_kill', 'first_combo', 'streak_charged', 'armor_break']));
   });
   await p.goto(base, { waitUntil: 'networkidle' });
   await p.waitForFunction(() => !!window._nav, null, { timeout: 90000 });

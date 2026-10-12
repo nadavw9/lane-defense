@@ -34,7 +34,7 @@ const saveFor = (unlocked) => ({
   streakShields: 1,
 });
 
-const BANNERS = ['multi_lane', 'first_shot', 'bench', 'merge', 'first_car',
+const BANNERS = ['tour', 'multi_lane', 'first_shot', 'bench', 'merge', 'first_car',
   'first_kill', 'first_combo', 'streak_charged', 'armor_break'];
 
 const browser = await chromium.launch({

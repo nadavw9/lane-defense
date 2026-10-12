@@ -19,7 +19,6 @@
 // update(dt) must be called from the render ticker while the overlay is live.
 import { Container, Graphics, Text } from 'pixi.js';
 import { uiIcon } from '../renderer/UIIcon.js';
-import { PRIORITY } from '../renderer/PopupQueue.js';
 import { bodyText, GOLD } from '../renderer/PremiumUI.js';
 import {
   ROAD_TOP_Y, ROAD_BOTTOM_Y,
@@ -416,18 +415,18 @@ export class FTUEOverlay {
   }
 }
 
-// ── FeatureBanners — per-feature first-encounter tutorial pills ───────────────
-// Shows a compact white pill banner via PopupQueue (TUTORIAL priority) the first
-// time each named feature is encountered in a session.  Keys are persisted to
-// localStorage so each banner appears at most once across sessions.
+// ── FeatureBanners — once-per-lifetime "first time you meet X" gate ───────────────
+// Remembers which named features have already been explained (localStorage, so each
+// appears at most once across sessions) and hands the first encounter to `present`,
+// which GameApp wires to the centre GuideCard. It draws nothing itself: tips no longer
+// pop up at the top of the screen.
 //
 // Usage:
-//   const fb = new FeatureBanners(popupQueue, appW);
-//   fb.fire('first_shot', 'Good shot! Color must match the car.');
+//   const fb = new FeatureBanners((key, text) => showGuide(key, text));
+//   fb.fire('first_miss', 'No damage! Bomb color must match the car color.');
 export class FeatureBanners {
-  constructor(popupQueue, appW) {
-    this._pq   = popupQueue;
-    this._appW = appW;
+  constructor(present) {
+    this._present = present;
     try {
       this._seen = new Set(JSON.parse(localStorage.getItem('ftue_banners') ?? '[]'));
     } catch {
@@ -435,64 +434,18 @@ export class FeatureBanners {
     }
   }
 
-  // Show the pill once for key; no-op if already seen.
+  has(key)  { return this._seen.has(key); }
+  mark(key) { this._seen.add(key); this._persist(); }
+
+  // Explain once per key; no-op if already seen.
   fire(key, text) {
     if (this._seen.has(key)) return;
     this._seen.add(key);
     this._persist();
-    const appW = this._appW;
-    this._pq.enqueue(PRIORITY.TUTORIAL, (w) => FeatureBanners._buildPill(w ?? appW, text), Math.min(5, 2.2 + text.length * 0.03));
+    this._present(key, text);
   }
 
   _persist() {
     try { localStorage.setItem('ftue_banners', JSON.stringify([...this._seen])); } catch {}
-  }
-
-  // Tip banner (premium pass): centred indigo card with a gold rim, auto-height.
-  // A leading "NEW!" / "BOSS!" tag is lifted out into a gold title chip.
-  static _buildPill(w, text) {
-    const grp = new Container();
-    // Fits between the round header buttons: tips dock ON the header band so they
-    // never cover a lane (a tip under the band hid the cars emerging at rows 1-2).
-    const PW = Math.min(262, w - 128);
-    const PX = (w - PW) / 2;
-    const m = /^(NEW!|BOSS!|FINAL BOSS!|SUPERCHARGED!)\s*/.exec(text);
-    const tag = m ? m[1] : null;
-    const body = m ? text.slice(m[0].length) : text;
-
-    const txt = new Text({
-      text: body,
-      style: { fontSize: 14, fontWeight: '700', fill: 0xFFFFFF, align: 'left',
-        lineHeight: 18, wordWrap: true, wordWrapWidth: PW - (tag ? 96 : 60) },
-    });
-    const PH = Math.max(50, txt.height + 22);
-
-    const bg = new Graphics();
-    bg.roundRect(PX + 2, 5, PW, PH, 16).fill({ color: 0x000000, alpha: 0.35 });
-    bg.roundRect(PX, 0, PW, PH, 16).fill(0x2B2760);
-    bg.roundRect(PX, 0, PW, PH * 0.5, 16).fill({ color: 0xFFFFFF, alpha: 0.07 });
-    bg.roundRect(PX, 0, PW, PH, 16).stroke({ color: 0xFFC93C, width: 2.5 });
-    bg.roundRect(PX, 0, PW, PH, 16).stroke({ color: INK, width: 1, alpha: 0.6 });
-    grp.addChild(bg);
-
-    let tx = PX + 16;
-    if (tag) {
-      const chip = new Text({ text: tag.replace('!', ''), style: {
-        fontFamily: '"Lilita One", Fredoka, Arial, sans-serif', fontSize: 15, fill: 0xFFC93C,
-        stroke: { color: INK, width: 4, join: 'round' } } });
-      chip.anchor.set(0, 0.5);
-      chip.x = tx; chip.y = PH / 2 + 1;
-      if (chip.width > 76) chip.scale.set(76 / chip.width);
-      grp.addChild(chip);
-      tx += Math.max(56, chip.width + 16);
-    } else {
-      const ic = uiIcon('lightning', 24, '⚡');
-      ic.x = tx + 12; ic.y = PH / 2;
-      grp.addChild(ic);
-      tx += 34;
-    }
-    txt.x = tx; txt.y = (PH - txt.height) / 2;
-    grp.addChild(txt);
-    return grp;
   }
 }

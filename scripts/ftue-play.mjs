@@ -50,7 +50,7 @@ for (let lv = 1; lv <= N; lv++) {
   while (drags < 90 && Date.now() - t0 < 1500000) {   // bounded by turns, not wall clock (headless is ~1 fps)
     s = await S();
     if (s.over) break;
-    if (s.blocked || s.modal || s.introCard) { await shot(`L${lv}-modal`); await p.mouse.click(195, 560); await p.waitForTimeout(700); continue; }
+    if (s.blocked || s.modal || s.introCard) { await shot(`L${lv}-modal`); await p.evaluate(() => window._nav.dismissGuides()); await p.mouse.click(195, 560); await p.waitForTimeout(700); continue; }
     if (s.paused) { log.push(`L${lv}: paused with no modal (tutorial?) turn ${s.turn}`); await shot(`L${lv}-paused`); await p.evaluate(() => window._nav.dismissTutorial()); await p.waitForTimeout(500); continue; }
     const move = await p.evaluate(() => {
       const n = window._nav, gs = n.getGs(), pos = n.getPositions();

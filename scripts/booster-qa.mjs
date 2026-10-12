@@ -22,7 +22,7 @@ const res = await p.evaluate(async () => {
     const o = { bubbles: true, cancelable: true, pointerId: 1, pointerType: 'mouse', isPrimary: true, clientX: r.left + sx / 390 * r.width, clientY: r.top + sy / 844 * r.height };
     c.dispatchEvent(new PointerEvent('pointerdown', o)); c.dispatchEvent(new PointerEvent('pointerup', o)); };
   const center = (r) => [r.x + r.w / 2, r.y + r.h / 2];
-  for (let i = 0; i < 20 && (gl.paused || nav.getDragDrop().inputBlocked); i++) { nav.dismissTutorial(); tap(195, 560); await sleep(250); }
+  for (let i = 0; i < 20 && (gl.paused || nav.getDragDrop().inputBlocked); i++) { nav.dismissTutorial(); nav.dismissGuides(); tap(195, 560); await sleep(250); }
   nav.setBoosters(3, 3, 3);
   const hud = nav.getHudBounds();
   const cars = () => nav.getCarScreenPositions().filter(c => c.row >= 1);

@@ -27,7 +27,7 @@ import { spriteFlags }     from './SpriteFlags.js';
 import { CityBackground }  from './CityBackground.js';
 import { CityEdges }       from './CityEdges.js';
 import { CarRenderer }     from './CarRenderer.js';
-import { ShooterRenderer } from './ShooterRenderer.js';
+import { ShooterRenderer, SHOOTER_AREA_Y, SHOOTER_AREA_H } from './ShooterRenderer.js';
 import { HUDRenderer }     from './HUDRenderer.js';
 import { ParticleSystem }  from './ParticleSystem.js';
 import { LaneFlash }       from './LaneFlash.js';
@@ -70,6 +70,8 @@ import { PreLevelScreen }             from '../screens/PreLevelScreen.js';
 import { BoosterUnlockScreen }        from '../screens/BoosterUnlockScreen.js';
 import { FTUEOverlay, FeatureBanners } from '../screens/FTUEOverlay.js';
 import { OnboardingHints }    from '../screens/OnboardingHints.js';
+import { GuideCard }           from '../screens/GuideCard.js';
+import { tourSteps, stepsFor } from '../screens/guideContent.js';
 import { ModeHint } from './ModeHint.js';
 import { BoosterSpotlight }      from '../screens/BoosterSpotlight.js';
 import { TransitionOverlay }      from '../screens/TransitionOverlay.js';
@@ -509,9 +511,9 @@ async function main() {
   const modeHint   = new ModeHint(layers.get('hudLayer'), APP_W);
 
   // ── FTUE per-feature banners (once-per-lifetime, persisted to localStorage) ─
-  const featureBanners = new FeatureBanners(popupQueue, APP_W);
-  // Tips, achievements and ambient toasts dock under the goal band, clear of
-  // the breach zone where the losing car is decided. Read at show time.
+  const featureBanners = new FeatureBanners((key, text) => _presentGuide(key, text));
+  // Every explanation is a centre-screen GuideCard (see _presentGuide). Achievements are
+  // held until the win screen; nothing pops up at the top of the board any more.
 
   // ── Onboarding hints — three lifetime one-time tutorial MODAL cards (HP/book,
   //    match-damage, cars-advance). Rendered on app.stage, above the HUD. ───────
@@ -558,10 +560,49 @@ async function main() {
     if (winScreen) b.push('win');
     if (unlockScreen) b.push('unlock');
     if (carTypeIntroCard) b.push('introCard');
+    if (guideCard) b.push('guide');
     if (gs?.isOver) b.push('over');
     return b;
   }
   function _clearModalQueue() { _modalQueue.length = 0; _modalActive = false; }
+  // ── Guide cards (centre-screen explanations) ─────────────────────────────────
+  // Live screen rects the cards point at. Functions, read at show time.
+  const _laneSpan = () => {
+    const n = getActiveLaneCount();
+    const a = getLaneScreenBounds(0), b = getLaneScreenBounds(Math.max(0, n - 1));
+    return { x: a.left, w: b.right - a.left };
+  };
+  const guideGeo = {
+    road:   () => { const l = _laneSpan(); return { x: l.x, y: ROAD_TOP_Y, w: l.w, h: ROAD_BOTTOM_Y - ROAD_TOP_Y }; },
+    breach: () => { const l = _laneSpan(); return { x: l.x - 4, y: ROAD_BOTTOM_Y - 12, w: l.w + 8, h: 24 }; },
+    bombs:  () => { const l = _laneSpan(); return { x: l.x, y: SHOOTER_AREA_Y + 6, w: l.w, h: SHOOTER_AREA_H - 6 }; },
+    goal:   () => goalCounterUI.plaqueRect() ?? { x: APP_W / 2 - 45, y: 6, w: 90, h: 82 },
+    bench:  () => ({ x: 12, y: benchY(), w: APP_W - 24, h: benchSlotH() }),
+  };
+  let guideCard = null;
+  function _showGuide(steps, onDone = null) {
+    if (!steps || steps.length === 0) { onDone?.(); return; }
+    _enqueueModal((done) => {
+      guideCard = new GuideCard(app.stage, APP_W, APP_H, steps, {
+        audio,
+        onDone: () => { guideCard = null; onDone?.(); done(); },
+      });
+    });
+  }
+  // First-time cards: FeatureBanners calls this once per key.
+  function _presentGuide(key, text) { _showGuide(stepsFor(key, text, guideGeo)); }
+  // The level-1 walkthrough. Marked done only when the player reaches the last card,
+  // so quitting half-way does not burn it.
+  const _tourDone = () => featureBanners.has('tour');
+  const _markTourDone = () => featureBanners.mark('tour');
+  // Achievements earned during play wait here and are shown on the win screen.
+  const pendingAchievements = [];
+  const _awardAch = (a) => { pendingAchievements.push(a); };
+  function _showPendingAchievements() {
+    if (pendingAchievements.length === 0) return;
+    const list = pendingAchievements.splice(0);
+    _showGuide(list.map(a => ({ title: 'ACHIEVEMENT!', text: `${a.name}: ${a.desc}`, cta: 'NICE!' })));
+  }
   // Back-compat alias: onboarding hint call sites use _showHintCard(show).
   const _showHintCard = _enqueueModal;
 
@@ -575,6 +616,7 @@ async function main() {
   // whenever a refill spawned a type (localStorage key + no backfill).
   let carTypeIntroCard    = null;  // active intro card (only one at a time)
   let carTypeIntroTimer   = null;  // setTimeout handle for level-start intro delay
+  let levelStartCardsTimer = null; // level-start tour / tip cards, shown after the splash
 
   // Tear down every card/hint that can sit above the board, in an order that cannot
   // resurrect one. CarTypeIntroCard._destroy() fires its onDismiss, whose done() runs
@@ -587,6 +629,10 @@ async function main() {
     const card = carTypeIntroCard;
     carTypeIntroCard = null;
     card?._destroy();
+    const gc = guideCard;
+    guideCard = null;
+    gc?.destroy();
+    clearTimeout(levelStartCardsTimer); levelStartCardsTimer = null;
     _clearModalQueue();
     onboardingHints.destroy();
   }
@@ -856,18 +902,17 @@ async function main() {
     boosterBar.setVisible(true);       // restore bar hidden by a prior end-screen
 
     // FTUE feature banners fired at level start when a feature first appears.
-    if ((cfg.laneCount ?? 4) >= 3) featureBanners.fire('multi_lane', 'New lane open! Each lane needs a matching-color bomb.');
-    if (benchUnlocked && levelId === 4) featureBanners.fire('bench_appear', 'Bench unlocked — store a bomb here for later!');
     setActiveCounts({ laneCount: cfg.laneCount ?? 4, colCount: cfg.colCount ?? 4 });
     // FIX 4: route the level's intro hint through the unified notification queue
     // (safe gap, one-at-a-time) instead of FTUEOverlay's own bottom banner — except
     // the L1 drag-arrow hint, which stays in the overlay because it points at the bomb.
     let ftueCfg = cfg;
+    let levelHint = null;
     if (cfg.hintText && !cfg.showArrow && typeof levelId === 'number') {
       // NEW!/BOSS! intros are already the level card's headline (every level
       // start goes through _showPreLevel); repeating them in-game only covered
       // the board. Other hints still fire once as a tip.
-      if (!/^(NEW!|BOSS!|FINAL BOSS!)/.test(cfg.hintText)) featureBanners.fire(`hint_L${levelId}`, cfg.hintText);
+      if (!/^(NEW!|BOSS!|FINAL BOSS!)/.test(cfg.hintText)) levelHint = { key: `hint_L${levelId}`, text: cfg.hintText };
       ftueCfg = { ...cfg, hintText: null };
     }
     carRenderer.clearAll();
@@ -960,6 +1005,19 @@ async function main() {
           }
         }, delay);
       }
+    }
+
+    // Level-start explanations (L1 tour, new-lane card, the level's tip) wait for the splash
+    // to clear, then play one after another before the first move.
+    clearTimeout(levelStartCardsTimer);
+    if (typeof levelIdOrConfig === 'number') {
+      levelStartCardsTimer = setTimeout(() => {
+        levelStartCardsTimer = null;
+        if (gs.isOver) return;
+        if (levelId === 1 && !_tourDone()) _showGuide(tourSteps(guideGeo), _markTourDone);
+        if ((cfg.laneCount ?? 4) >= 3) featureBanners.fire('multi_lane', 'New lane open! Each lane needs a matching-color bomb.');
+        if (levelHint) featureBanners.fire(levelHint.key, levelHint.text);
+      }, 1500);
     }
 
     pauseBtn.visible = true;
@@ -1529,7 +1587,7 @@ async function main() {
     const coinsEarned = Math.max(0, gs.coins - coinsAtLevelStart);
     if (coinsEarned > 0) progress.addEarnedCoins(coinsEarned);
     const coinAch = achievementManager.check('coins_earned');
-    coinAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
+    coinAch.forEach(a => _awardAch(a));
 
     // Level-end achievements.
     const endAch = achievementManager.check('level_end', {
@@ -1540,7 +1598,7 @@ async function main() {
       rescueUsed:   gs.rescueUsed,
       boostersUsed: boostersUsedThisLevel.length > 0,
     });
-    endAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
+    endAch.forEach(a => _awardAch(a));
 
     let onNext;
     let improved   = [];
@@ -1555,7 +1613,7 @@ async function main() {
         gs.coins += 25;
         progress.addEarnedCoins(25);
         const dcAch = achievementManager.check('daily_challenge');
-        dcAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
+        dcAch.forEach(a => _awardAch(a));
       }
       onNext = null;
     } else {
@@ -1582,7 +1640,7 @@ async function main() {
         ));
         // weekly_hero achievement
         const weeklyAch = achievementManager.check('weekly_win');
-        weeklyAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
+        weeklyAch.forEach(a => _awardAch(a));
       }
       // Update personal best and detect new records.
       improved   = progress.updateBestStats(levelId, { combo: gs.maxSingleShotKills, time: gs.elapsed, stars });
@@ -1625,6 +1683,9 @@ async function main() {
       improved,
       winLevelId,
     );
+    // Achievements earned on the way wait for the end of the level, then show as a card.
+    const shownWin = winScreen;
+    setTimeout(() => { if (winScreen === shownWin) _showPendingAchievements(); }, 1600);
   }
   // The FINAL-loss moment, shared by every way a level can be failed: the
   // no-rescue lose screen AND declining the rescue offer (RETRY / Give up) —
@@ -1780,21 +1841,12 @@ async function main() {
         // L2 combo hint routes through the unified queue (one-at-a-time, safe
         // gap) — FTUEOverlay's own bottom banner could stack over a queued
         // toast (design-audit CLUTTER item: two banners covering the game).
-        if (gs.levelId === 2) {
-          featureBanners.fire('combo_hint_L2',
-            'COMBO! Chain kills quickly for bonus coins and faster fire speed!');
-        }
       }
 
-      // One-time combo explanation popup the first time combo reaches 3.
-      if (combo >= 3 && !progress.seenComboTip) {
-        progress.markSeenComboTip();
-        popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildComboPopup(w), 3.0);
-      }
 
       // Achievement checks for kill events.
       const killAch = achievementManager.check('kill', { combo });
-      killAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
+      killAch.forEach(a => _awardAch(a));
     },
 
     onChainHit: (laneIdx, position) => {
@@ -1803,13 +1855,12 @@ async function main() {
       // so this no longer overlaps the cars.
       // chain_reaction achievement: 2+ kills from one shot.
       const chainAch = achievementManager.check('chain_kill');
-      chainAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
+      chainAch.forEach(a => _awardAch(a));
     },
 
     onShoot: (damage, laneIdx, colIdx) => {
       tutOrch?.completeIfActive('first_car');
       audio.play('shoot', { damage });
-      featureBanners.fire('first_shot', 'Direct hit! Color-matched shots deal damage to cars.');
 
       // On very first deploy: dismiss arrow hint and (for L1-L5) show damage tooltip.
       const tipDamage = (!firstDeployTooltipShown && levelManager.levelNumber <= 5)
@@ -1865,9 +1916,7 @@ async function main() {
       // A tip, not a modal: a blocking card after the very first kill paused the
       // board on the player's first success.
       if (levelManager.levelNumber === 1 && !progress.hintAdvanceShown) {
-        progress.markHintAdvance();
-        featureBanners.fire('advance', 'Every hit moves ALL cars one step closer. Clear them before they reach the line!');
-        _hintShownThisHit = true;
+        progress.markHintAdvance();   // the tour already explains this
       }
       // Hint A — first time a car SURVIVES a hit (any level): point to the book.
       if (!_hintShownThisHit && !isKill && damage > 0 && !progress.hintHpMissShown) {
@@ -1943,7 +1992,7 @@ async function main() {
       ));
       progress.incrementCrisisAssists();
       const crisisAch = achievementManager.check('crisis_assist');
-      crisisAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
+      crisisAch.forEach(a => _awardAch(a));
     },
   });
 
@@ -2139,7 +2188,7 @@ async function main() {
         if (!gameLoop.deployFromBench(shooter, laneIdx)) return false;   // refused: DragDrop keeps the bomb on the bench
         // progress.incrementBenchUses() was called inside deployFromBench.
         const benchAch = achievementManager.check('bench_deploy');
-        benchAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
+        benchAch.forEach(a => _awardAch(a));
       },
       onBenchStore: (_colIdx) => {
         tutOrch?.completeIfActive('bench');
@@ -2322,6 +2371,7 @@ async function main() {
     // Modal cards (onboarding hints, car-type intro, color-bomb intro) all run
     // through the unified queue; block drag input while ANY card is up (FIX 2).
     onboardingHints.update(dt);
+    if (guideCard && !guideCard.update(dt)) guideCard = null;
     // Drive the active car-type intro card's animation. Its onDismiss nulls the
     // ref and advances the queue, so capture the ref to avoid nulling a NEW card
     // that the queue may have started during this same update.
@@ -2366,11 +2416,6 @@ async function main() {
     // ── Popup queue ────────────────────────────────────────────────────────
     popupQueue.setTutorialActive(!!(ftueOverlay || tutOrch?.isAnyActive()));
     popupQueue.update(dt);
-
-    // First-car FTUE banner: fires once the first enemy becomes visible.
-    if (gameLoopStarted && !gs.isOver && gs.lanes.some(l => l.cars.length > 0)) {
-      featureBanners.fire('first_car', 'Cars incoming! Drag a bomb to the lane with a matching color.');
-    }
 
     // ── Breach beat → rescue flow ──────────────────────────────────────────
     // A short hold (the shake plays over it) before the rescue / lose screen. No stage
@@ -2524,6 +2569,10 @@ async function main() {
       // pixel does nothing, which is how harnesses got stuck on the
       // "drag the bomb" screen with the loop paused underneath.
       dismissTutorial: () => { tutOrch?.dismiss?.(); return !gameLoop.paused; },
+      // Click NEXT / GOT IT on every centre card until none is left (QA bots).
+      guideStep: () => (guideCard ? guideCard.stepIndex : -1),
+      guideNext: () => { guideCard?._next(); return guideCard ? guideCard.stepIndex : -1; },
+      dismissGuides: () => { let n = 0; while (guideCard && n++ < 40) guideCard._next(); return !guideCard; },
       // Test hook: enqueue a sample achievement toast (verifies popup z-order /
       // end-screen suppression).
       fireTestAchievement: () => popupQueue.enqueue(
@@ -2626,6 +2675,8 @@ async function main() {
 
   // ── Boot: show title screen (game loop not started yet) ───────────────────
   showTitle();
+  // Compile the 3D scene while the player is on the title screen, not behind level 1's fade.
+  setTimeout(() => gameRenderer3D.prewarm?.(), 400);
 
   // ── Post-boot overlays (deferred so title is visible first) ───────────────
 
@@ -2665,41 +2716,6 @@ function _buildFlashText(w, text, colorHex) {
   return grp;
 }
 
-function _buildComboPopup(w) {
-  const grp = new Container();
-  const PW = 180, PH = 52;
-  const PX = (w - PW) / 2;
-
-  const bg = new Graphics();
-  bg.roundRect(PX, 0, PW, PH, 14);
-  bg.fill({ color: 0x1a0800, alpha: 0.82 });
-  bg.roundRect(PX, 0, PW, PH, 14);
-  bg.stroke({ color: 0xff9922, width: 1.5, alpha: 0.75 });
-  grp.addChild(bg);
-
-  const title = new Text({
-    text: 'COMBO ×3!',
-    style: { fontSize: 22, fontWeight: 'bold', fill: 0xffcc22,
-      dropShadow: { color: 0x000000, blur: 4, distance: 2, alpha: 0.9 } },
-  });
-  title.anchor.set(0.5, 0);
-  title.x = w / 2;
-  title.y = 4;
-  grp.addChild(title);
-
-  const body = new Text({
-    text: 'Chain kills for bonus coins!',
-    style: { fontSize: 11, fontWeight: 'bold', fill: 0xffe8aa, align: 'center',
-      wordWrap: true, wordWrapWidth: PW - 20,
-      dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 0.9 } },
-  });
-  body.anchor.set(0.5, 0);
-  body.x = w / 2;
-  body.y = 32;
-  grp.addChild(body);
-
-  return grp;
-}
 
 // Linear interpolate between two 0xRRGGBB colors. t=0 → a, t=1 → b.
 function _lerpHex(a, b, t) {

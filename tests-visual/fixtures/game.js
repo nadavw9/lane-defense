@@ -40,7 +40,7 @@ export class GamePage {
     this.failedRequests = [];
   }
 
-  async boot() {
+  async boot(opts = {}) {
     this.page.on('pageerror', (e) => this.consoleErrors.push(`pageerror: ${e.message}`));
     this.page.on('console', (m) => {
       // Generic resource-load failures are duplicated (with the URL) by the
@@ -55,6 +55,20 @@ export class GamePage {
         this.failedRequests.push(`${r.status()} ${r.url()}`);
       }
     });
+    // Tutorials are not what these specs test, and a centre card pauses the board and swallows
+    // taps. Mark every first-time card as seen up front; the tour spec boots with
+    // { tutorials: true } to get the real first-run experience instead.
+    if (!opts.tutorials) {
+      await this.page.addInitScript(() => {
+        try {
+          if (localStorage.getItem('__qa_fresh_tutorials')) return;   // tour.spec asks for the real first run
+          const keys = ['tour', 'multi_lane', 'first_kill', 'first_combo', 'first_miss', 'hp_miss', 'streak_charged',
+            'colorchange_use', 'plate_break', 'armor_break', 'volatile_surge', 'mender_heal'];
+          for (let i = 1; i <= 100; i++) keys.push(`hint_L${i}`);
+          localStorage.setItem('ftue_banners', JSON.stringify(keys));
+        } catch { /* storage blocked */ }
+      });
+    }
     await this.page.goto('/', { waitUntil: 'domcontentloaded' });
     await this.page.waitForFunction(() => !!window._nav, null, { timeout: BOOT_TIMEOUT_MS });
     // Let the loading screen finish + title settle.
@@ -78,6 +92,7 @@ export class GamePage {
 
   tapStage(x, y) {
     return this.page.evaluate(([sx, sy]) => {
+      window._nav?.dismissGuides?.();   // a centre guide card would swallow this tap
       const c = document.querySelector('canvas:not(#three-canvas)');
       const r = c.getBoundingClientRect();
       const o = {

@@ -386,6 +386,19 @@ export class GameRenderer3D {
     }
   }
 
+  /**
+   * One-time warm-up while the title screen is up: compile the shaders and upload the
+   * road/environment textures with a single hidden frame (the canvas is display:none, but
+   * WebGL still draws into its buffer). Without it that cost lands on the first level start,
+   * behind the black transition fade, and level 1 stared at a black screen for seconds.
+   */
+  prewarm() {
+    if (!this._mounted || !this._scene3d || this._prewarmed) return;
+    this._prewarmed = true;
+    this._warmupShaders();
+    try { this._scene3d.render(); } catch (e) { console.warn('[GameRenderer3D] prewarm frame skipped:', e); }
+  }
+
   setActiveLaneCount(n) {
     this._activeLaneCount = n;       // remembered so rebuilt Car3D can re-apply it
     this._scene3d?.setLaneCount(n);

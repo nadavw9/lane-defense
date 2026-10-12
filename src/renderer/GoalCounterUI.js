@@ -77,6 +77,14 @@ export class GoalCounterUI {
     this._container.addChild(this._fx);
   }
 
+  // Rect of the gold goal plaque in stage coordinates (the tour spotlights it), or null
+  // when there is no goal to show. The band behind it spans the whole screen, so it is not it.
+  plaqueRect() {
+    if (!this._container.visible) return null;
+    const b = this._plaque.getLocalBounds();
+    return b.width > 0 ? { x: b.x, y: b.y, w: b.width, h: b.height } : null;
+  }
+
   // (Re)build cards from goals array
   /**
    * Board depth for this level. Drives the band's row-0 occlusion floor.

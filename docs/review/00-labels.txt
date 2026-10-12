@@ -1,48 +1,10 @@
-Traffic Bomb — Play Store listing captures + Data ID evidence
-Captured 2026-10-10 from the dev server at commit 553dc76 (feat/v2-design).
-All frames 1170x2532 (390x844 @ DPR 3) — above Play's 1080x1920 phone minimum.
-L5+ only; L1 never used. Headed Chromium on the real GPU, not SwiftShader.
-
-01 = L12 Toy Town, x2 COMBO, "First Blood" trophy banner.
-     LOOK FOR: colour separation between the red/blue/green cars and the bomb
-     queue below; the trophy banner should be FULLY opaque, not half-faded.
-
-02 = L30 boss (Steel Yards / industrial), x6 COMBO.
-     LOOK FOR: the boss vehicle at the breach line and its roof-light panel —
-     this is the frame that has to sell "beat the boss by colour order".
-
-03 = L38 Neon Nights night highway.
-     LOOK FOR: cars still readable by colour against the near-black road; this
-     is the theme where readability is most at risk.
-
-04 = L50 Sun Valley desert, x7 COMBO, boss vehicle, all three boosters stocked.
-     LOOK FOR: strongest overall candidate for the first store screenshot.
-     Desert verges, combo callout and the booster bar all visible at once.
-
-05 = L65 Frost Pass, x8 COMBO, SUPERCHARGED banner at the breach line.
-     LOOK FOR: the SUPERCHARGED state — the Hot Streak payoff, the one V2
-     mechanic no other frame shows.
-
-06 = L80 Harbor Lights, x2 COMBO, two boss vehicles with colour panels.
-     LOOK FOR: goal card at top is clean. An earlier capture caught the trophy
-     banner MID-FADE double-exposed over this card; that frame was discarded.
-
-07 = Level map, Steel Yards (World 2) fully completed.
-     LOOK FOR: every level three-starred, rubble replaced by rebuilt warehouses,
-     skull markers on the L20 and L30 bosses. This is the city-repair meta.
-
-08-before = Settings > About BEFORE the padding fix (captured 2026-10-10).
-     The Data ID's second line runs into the ABOUT card's bottom border, and
-     the panel ends 16px below the card.
-08 = Settings > About AFTER the fix (2026-10-11), scrolled to the very bottom.
-     *** EVIDENCE, NOT A STORE SHOT ***
-     LOOK FOR: the Data ID sits fully inside the card with a clear gap above
-     the border (card +20px, ID +4px), and ~48 stage px (~144 device px) of
-     empty space under the card, so a gesture bar cannot cover it.
-
-NOT YET MADE: the 1024x500 feature graphic (Play requires it for the listing).
-
-Capture script: scripts/store-shots.mjs (new this session). It asserts
-_nav.getScreens() before every shutter and discards any frame with an overlay
-up — the first run reported "4 turns played, running=true" for two frames that
-were actually the BREACH rescue dialog.
+01=BEFORE (old model) L5 at rest: numbered bombs, tall stack of cars. Compare crowding with 02.
+02=AFTER L5 at rest: bombs show colour only, same road length, cars lined up at the top. Look: is it crowded? is the view good?
+03=BEFORE L17 (industrial) at rest: numbers on bombs, truck/rig sprites.
+04=AFTER L17 at rest: three vehicle sizes only (van / car / motorbike), no numbers, bombs are plain colour.
+05=AFTER L5 right after the first hit: a hit only SHRINKS the car it hit, traffic moved half a car length.
+06=AFTER L5 second hit: the green van became a small bike (shrink ladder); look at the size change and whether it reads at a glance.
+07=AFTER L5 third frame: more hits, more shrinking; road still uncrowded.
+08=AFTER L9 at rest (sunset, 3 lanes).
+09=AFTER L13 (misty): SUPERCHARGED bomb armed (every 3rd destroyed car), x3 combo text, bikes and vans visible.
+10=AFTER L13 at rest.

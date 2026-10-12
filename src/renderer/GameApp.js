@@ -2008,7 +2008,7 @@ async function main() {
       haptics.medium();
       popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildFlashText(w, 'SUPERCHARGED!', 0xFF7A1F), 1.2);
       featureBanners.fire('streak_charged',
-        'SUPERCHARGED! Your next bomb does double damage and smashes through ANY colour behind the first car.');
+        'SUPERCHARGED! Your next bomb hits twice and smashes through ANY colour behind the first car.');
     }
   };
   gameLoop._onArmorBreak = (laneIdx, gameX, _color, armorLeft = 0) => {

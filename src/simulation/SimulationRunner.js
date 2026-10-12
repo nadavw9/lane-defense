@@ -363,7 +363,9 @@ export class SimulationRunner {
       const target = carDir.scriptRate() ?? this._cfg.laneTargetCarCount;
       for (const lane of discreteLanes) {
         let added = false;
-        while (lane.cars.length < target) {
+        let arrivals = 0;   // one arrival per lane per advance — parity with GameLoop._refillLanes
+        while (lane.cars.length < target && arrivals < 1) {
+          arrivals++;
           const row = freeSpawnRow(lane.cars, STEP, this._cfg.gridRows);
           if (row < 0) break;   // lane physically full
           const car = carDir.generateCar({ id: lane.id }, phase, worldConfig, colors, this._cfg.gridRows);

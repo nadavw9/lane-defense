@@ -677,7 +677,11 @@ export class GameLoop {
       const ROWS = gs.gridRows ?? 16;
       for (let li = 0; li < gs.activeLaneCount; li++) {
         const lane = gs.lanes[li];
-        while (lane.cars.length < target) {
+        // One arrival per lane per advance: after a lane clear (BOMB booster) the road
+        // refills as traffic driving in from the top, not three cars popping in at once.
+        let arrivals = 0;
+        while (lane.cars.length < target && arrivals < 1) {
+          arrivals++;
           const row = freeSpawnRow(lane.cars, stepSize(gs.stepsPerRow), ROWS);
           if (row < 0) break;   // lane physically full — nothing more to add
           const car = this._carDir.generateCar(lane, 'CALM', gs.world, gs.colors, gs.gridRows);

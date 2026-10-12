@@ -59,7 +59,7 @@ gate = """    <script>
             b.onclick = function () { start(u); }; o.appendChild(b);
           }
           btn('Play normally', false);
-          btn('Unlock levels 1-40 (boss QA)', true);
+          btn('Unlock levels 1-40 (QA)', true);
           document.body.appendChild(o);
         });
       })();

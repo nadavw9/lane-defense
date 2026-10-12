@@ -1,5 +1,5 @@
 01=BEFORE L17 (world 2, old look: dense building rows at the sides, busy checkered bomb zone)
-02=AFTER L5 (world 1): suburban verge - narrow pavement, hedges, front lawns with trees and flower beds, house roofs at the edge; bomb zone is one calm ground colour with three clear stations. Look for: does it read as a neighbourhood, do the bombs pop against the zone?
+02=AFTER L5 (v2): street houses and gardens now continue beside the bomb zone; no outline frame around the zone; no lone tree or flower bed. Look for: does the zone still feel empty?
 03=AFTER L17 (world 2): world 2 keeps its industrial verge; only the bomb zone changed to the calm plain ground
 04=AFTER L50 (world 4, desert): same suburban layout in sand/adobe/cactus palette
 05=AFTER L1: single-lane road with the same garden verge

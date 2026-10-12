@@ -947,7 +947,8 @@ export function buildBackdrop(world, variant, L) {
     // Buildings / yards beyond the sidewalk (mostly off-screen: we see their
     // street edge — rooftops, awnings, café tables).
     let bz = L.topZ - 1.5;
-    while (bz < L.breachZ + 0.5) {
+    const bzEnd = FAMILY[world] === 'town' ? z1 : L.breachZ + 0.5;   // town: the street's houses continue beside the depot
+    while (bz < bzEnd) {
       const d = FAMILY[world] === 'yard' ? 3.2 + r() * 1.6 : 2.0 + r() * 1.2;
       const w = 2.6 + r() * 0.8;
       const cx = bandIn + s * w / 2;
@@ -1004,7 +1005,7 @@ export function buildBackdrop(world, variant, L) {
     }
     // Ground under buildings (lawn / lot / dark plaza), off the sidewalk.
     const lotW = town ? L.halfX - gardenX + 3 : 5;
-    const lotEnd = town ? L.breachZ : z1;      // town lawn stops at the depot, which has its own ground
+    const lotEnd = z1;
     const lot = plane(lotW, Z(lotEnd) - Z(z0), FAMILY[world] === 'town' ? std(0xffffff, 0.95, { map: grassTexture(T.lawn, 32, lotW, lotEnd - z0, r) })
       : world === 'world7' ? std(0xffffff, 0.8, { map: starTexture(lotW, z1 - z0, r) })
       : std(T.lot ?? (FAMILY[world] === 'yard' ? 0x8E9196 : 0x1C1E28), 0.95),
@@ -1014,7 +1015,7 @@ export function buildBackdrop(world, variant, L) {
 
   // 4. Bomb depot: from the breach down past the bar top, full width.
   const dz0 = L.breachZ, dz1 = z1;
-  const depotW = L.halfX * 2 + 4;
+  const depotW = FAMILY[world] === 'town' ? 2 * gardenX : L.halfX * 2 + 4;   // town: paved yard the width of the street, lawn and houses either side
   const depotTex = paverTexture(T.depot, T.depotJoint, pxu, depotW, dz1 - dz0, r, { tile: 0.6, style: 'plain' });
   g.add(plane(depotW, Z(dz1) - Z(dz0), std(0xffffff, night ? 0.5 : 0.9, { map: depotTex, metalness: night ? 0.2 : 0 }), 0, 0.02, (Z(dz0) + Z(dz1)) / 2));
   // A low wall with the stop line on top where road meets depot.
@@ -1050,9 +1051,7 @@ export function buildBackdrop(world, variant, L) {
   for (const s of [-1, 1]) {
     const fx = s * (L.halfW + 1.1);
     if (FAMILY[world] === 'town') {
-      const t = greenery(world, T, r, 1.0); t.position.set(fx + s * 0.4, 0.02, Z(dz0 + 1.6)); g.add(t);
-      const fb = bedFor(world, T, r, 0.9, 1.4); fb.position.set(fx, 0.02, Z(dz0 + 4.4)); g.add(fb);
-      const pp = potFor(world, T, r, 1.1); pp.position.set(fx - s * 0.3, 0.02, Z(dz0 + 6.3)); g.add(pp);
+      // nothing: the houses and gardens of the street continue beside the yard
     } else if (FAMILY[world] === 'yard') {
       for (let k = 0; k < 3; k++) { const dr = drum(pick(r, [0xFFC21A, 0x2F8CFF, 0xE0574A])); dr.position.set(fx + s * (k % 2) * 0.35, 0.02, Z(dz0 + 1.2 + k * 0.45)); g.add(dr); }
       const p = pallet(r); p.position.set(fx, 0.02, Z(dz0 + 4.4)); g.add(p);

@@ -533,8 +533,12 @@ export class ShooterRenderer {
       // World floor active: no Pixi surface — clear any stale texture-era chrome.
       this._trayEdge?.clear();
       this._trayMask?.clear();
-      this._tray.roundRect(trayX, this._trayY, trayW, this._trayH, 12);
-      this._tray.stroke({ color: 0x445566, width: 1, alpha: this._worldVariant ? 0.25 : 0.50 });
+      // 3D mode: no outline. The baked floor is the zone; a Pixi frame around it read as two
+      // stray lines running down from the pavement.
+      if (!this._mode3D) {
+        this._tray.roundRect(trayX, this._trayY, trayW, this._trayH, 12);
+        this._tray.stroke({ color: 0x445566, width: 1, alpha: this._worldVariant ? 0.25 : 0.50 });
+      }
     }
 
     // ── Slot sockets — bombs sit IN designed slots, not floating on a panel ──

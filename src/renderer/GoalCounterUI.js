@@ -418,7 +418,10 @@ export class GoalCounterUI {
     b.rect(0, 0, W, bandH).fill(new FillGradient({
       type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, textureSpace: 'local',
       colorStops: [{ offset: 0, color: 0x221D55 }, { offset: 1, color: 0x352F78 }] }));
-    for (let x = -bandH; x < W; x += 14) b.poly([x, 0, x + 6, 0, x + 6 + bandH, bandH, x + bandH, bandH]).fill({ color: WHITE, alpha: 0.025 });
+    // Pinstripes, clamped to the band so its bounds stay inside the stage (an unclamped slant
+    // reached bandH px past both edges and tripped the HUD containment check).
+    const cx = (v) => Math.max(0, Math.min(W, v));
+    for (let x = -bandH; x < W; x += 14) b.poly([cx(x), 0, cx(x + 6), 0, cx(x + 6 + bandH), bandH, cx(x + bandH), bandH]).fill({ color: WHITE, alpha: 0.025 });
     b.rect(0, bandH - 6, W, 5).fill(0xE0A332);
     b.rect(0, bandH - 6, W, 1.5).fill({ color: 0xFFE9A0, alpha: 0.9 });
     b.rect(0, bandH - 1, W, 1).fill(INK);

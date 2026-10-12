@@ -1870,7 +1870,10 @@ async function main() {
       // Hint A — first time a car SURVIVES a hit (any level): point to the book.
       if (!_hintShownThisHit && !isKill && damage > 0 && !progress.hintHpMissShown) {
         progress.markHintHpMiss();
-        _showHintCard((done) => onboardingHints.showHpMiss(done));
+        // A banner, not a modal: with the one-hit ladder most first hits only SHRINK a car,
+        // so a blocking card here paused the board on the player's first hit (and stalled every
+        // fixture that shoots a multi-hit car on a fresh save).
+        featureBanners.fire('hp_miss', 'Big cars take more than one hit. Each hit shrinks them!');
       }
     },
 

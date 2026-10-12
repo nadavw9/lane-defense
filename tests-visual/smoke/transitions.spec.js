@@ -35,17 +35,20 @@ test('win L1 → start L2: fresh board, fresh goals, correct lane count', async 
 test('play some of L5, restart L5: board re-primed, progress cleared', async ({ game }) => {
   await game.startLevel(5);
 
-  // Play two effective shots (recolor front car to guarantee a hit).
-  for (let s = 0; s < 2; s++) {
+  // Play effective shots (recolor front car to guarantee a hit) until one car is destroyed.
+  // One-hit ladder: a van takes three hits, so a fixed two shots may only shrink it.
+  let mid = await game.gs();
+  let played = false;
+  for (let s = 0; s < 4 && !played; s++) {
     await game.page.evaluate(() => {
       const gs = window._nav.getGs();
       gs.lanes[0].cars[0].color = gs.columns[0].shooters[0].color;
     });
     await game.deploy(0, 0);
+    mid = await game.gs();
+    played = mid.goalProgress.reduce((s, r) => s + r, 0)
+           < mid.goals.reduce((s, g) => s + g.count, 0);
   }
-  const mid = await game.gs();
-  const played = mid.goalProgress.reduce((s, r) => s + r, 0)
-               < mid.goals.reduce((s, g) => s + g.count, 0);
 
   await game.startLevel(5);
   const gs = await game.gs();
@@ -57,7 +60,7 @@ test('play some of L5, restart L5: board re-primed, progress cleared', async ({ 
     expect(lane.count, `restarted L5 lane ${i} empty`).toBeGreaterThan(0);
   }
   // Sanity that the pre-restart play actually did something (test is meaningful).
-  expect(played, 'setup issue: the two shots before restart never registered').toBe(true);
+  expect(played, 'setup issue: the two shots before restart never destroyed a car').toBe(true);
 });
 
 test('rapid level hopping (L5 → L20 → L35) never leaves a dead board', async ({ game }) => {

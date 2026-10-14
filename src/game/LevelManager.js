@@ -65,10 +65,9 @@ const PROGRESSION = [
     duration: 100, spawnBudget: 10, laneTargetCarCount: 2, gridRows: 8,
     hintText: 'Green bombs join the fight', goals: total(20) },
 
-  // L6 "Park it": the bench — hold a bomb for later.
-  { id: 6, name: 'Park it', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(1),
+  // L6 "Park it": a colour goal (the bench itself is taught at L4).
+  { id: 6, name: 'Red alert', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(1),
     duration: 100, spawnBudget: 10, laneTargetCarCount: 2, gridRows: 8,
-    hintText: 'NEW! Bench — park a bomb and use it later',
     goals: [{ type: 'destroyColor', color: 'Red', count: 10 }] },
 
   // L7 "Rush hour": SPEEDERS move two rows a turn.
@@ -81,12 +80,13 @@ const PROGRESSION = [
   { id: 8, name: 'Heavy load', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.44),
     duration: 100, spawnBudget: 11, laneTargetCarCount: 2, gridRows: 8,
     traits: { speeder: 0.08 },
-    goals: total(20) },
+    hintText: 'NEW! FREEZE booster — your next shot is free, traffic holds', goals: total(20) },
 
   // L9 "Sunday drive" (relief).
   { id: 9, name: 'Sunday drive', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0),
     duration: 100, spawnBudget: 12, laneTargetCarCount: 2, gridRows: 8,
     traits: { speeder: 0.10 },
+    hintText: 'NEW! COLOUR CHANGE booster — recolour a whole colour of cars',
     goals: [{ type: 'destroyColor', color: 'Blue', count: 5 }, { type: 'destroyColor', color: 'Green', count: 5 }] },
 
   // L10 BIG WAVE "Rush hour": the first milestone. Three cars deep in every lane, no
@@ -118,7 +118,7 @@ const PROGRESSION = [
   { id: 14, name: 'Cold snap', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.26),
     duration: 100, spawnBudget: 13, laneTargetCarCount: 3, gridRows: 8,
     traits: { speeder: 0.10 },
-    hintText: 'NEW! FREEZE booster — your next shot is free, traffic holds', goals: total(26) },
+    goals: total(26) },
 
   // L15 "Meet the tank": the heaviest car arrives.
   { id: 15, name: 'Meet the tank', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.12),

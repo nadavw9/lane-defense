@@ -217,7 +217,7 @@ export class BenchRenderer {
         g.roundRect(sx, BENCH_Y, sw, BENCH_SLOT_H, 7);
         g.stroke({ color: glowCol, width: 1.5, alpha: 0.45 });
 
-        // Idle sprite left-of-center, damage number right-of-center.
+        // Idle sprite centred in its slot (the damage number it used to make room for is gone).
         const sp        = this._sprites[i];
         const tex       = Assets.get(bombUrl(shooter.color));
         if (tex) {
@@ -228,7 +228,7 @@ export class BenchRenderer {
             sp.scale.set(targetSize / max);
             sp._benchTargetSize = targetSize;
           }
-          sp.x       = cx - 14;
+          sp.x       = cx;   // dead centre: getSlotCenter(), the supercharged ring and the drag pickup all anchor here
           sp.y       = cy;
           sp.visible = true;
         } else {
@@ -241,7 +241,7 @@ export class BenchRenderer {
         this._texts[i].visible = true;
         const sym = shapeFor(shooter.color);
         this._shapes[i].text    = sym;
-        this._shapes[i].x       = cx - 4;
+        this._shapes[i].x       = cx;
         this._shapes[i].y       = cy + 10;
         this._shapes[i].visible = sym !== '';
       } else {

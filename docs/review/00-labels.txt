@@ -1,3 +1,4 @@
-01=Tour last card (fresh save, L1): new BOOSTERS step pointing at the bottom bar
-02=L1 board after the tour: three red cars queued on screen (before: one car visible)
-03=Tour first card (if present)
+01=BEFORE (owner screenshot, L41): the SUPERCHARGED ring sits offset from the bomb parked on bench slot 1.
+02=AFTER (L5, bomb parked on bench slot 1, streak charged): the ring is centred on the bomb.
+03=L2 start card "A SECOND LANE" (second of three L2 cards: lane, MATCH THE COLOUR, COMBO!).
+04=L4 start card "SUPERCHARGE" (the BENCH tutorial follows as its own spotlight).

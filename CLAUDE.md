@@ -34,6 +34,15 @@ real first run. QA hooks: `_nav.guideStep()`, `guideNext()`, `dismissGuides()` �
 a tap at a fixed pixel does not hit NEXT. `GameRenderer3D.prewarm()` compiles the 3D scene on the title screen so
 level 1 does not stare at black.
 
+### TEACHING IS HARD-CODED TO FIXED LEVELS (2026-10-14) — never "first time the player meets X"
+
+`src/screens/introSchedule.js` is the single schedule. `LEVEL_START_CARDS` (L2 lane/colour/combo, L3 lanes, L4
+supercharge, L5 reorder, L6 colour goal, L8 FREEZE, L9 COLOUR CHANGE, L10 RAINBOW; L1 = the tour; L4 bench =
+spotlight tutorial) open that level. `REACTIVE_WINDOW` lets in-play moments (first kill, wrong colour, power shot,
+armour/plate/mender/volatile) fire ONLY inside their level window, so a save that unlocks L30 is never taught late.
+Copy is `CARDS` in `guideContent.js`. `tests/intro-schedule.test.js` pins all of it, including that the visual fixtures
+seed every card key (add a new card -> add its key to `tests-visual/fixtures/game.js`). QA: `_nav.guideTitle()`.
+
 ### PLAY THE GAME BEFORE CALLING IT DONE — QA bots (2026-09-28)
 
 The owner found an L1 soft-lock in 5 seconds of play that 1300 green unit tests never saw.

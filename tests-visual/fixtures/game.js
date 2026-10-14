@@ -62,8 +62,10 @@ export class GamePage {
       await this.page.addInitScript(() => {
         try {
           if (localStorage.getItem('__qa_fresh_tutorials')) return;   // tour.spec asks for the real first run
-          const keys = ['tour', 'multi_lane', 'first_kill', 'first_combo', 'first_miss', 'hp_miss', 'streak_charged',
-            'colorchange_use', 'plate_break', 'armor_break', 'volatile_surge', 'mender_heal'];
+          // Every card key in src/screens/guideContent.js CARDS (tests/intro-schedule.test.js keeps this in sync).
+          const keys = ['tour', 'lane_2', 'lane_3', 'multi_color', 'combo', 'supercharge', 'reorder', 'goal_colour',
+            'freeze_booster', 'colour_change_booster', 'rainbow_bomb', 'first_kill', 'first_miss', 'hp_miss',
+            'streak_charged', 'plate_break', 'armor_break', 'volatile_surge', 'mender_heal'];
           for (let i = 1; i <= 100; i++) keys.push(`hint_L${i}`);
           localStorage.setItem('ftue_banners', JSON.stringify(keys));
         } catch { /* storage blocked */ }

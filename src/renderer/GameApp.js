@@ -89,6 +89,7 @@ import { AchievementsScreen }     from '../screens/AchievementsScreen.js';
 import { StatsScreen }            from '../screens/StatsScreen.js';
 import { AudioManager }           from '../audio/AudioManager.js';
 import { BoosterBar, BAR_Y as BOOSTER_BAR_TOP_Y } from './BoosterBar.js';
+import { levelStartCards, reactiveAllowed } from '../screens/introSchedule.js';
 import { GoalCounterUI }          from './GoalCounterUI.js';
 import { StreakMeter }            from './StreakMeter.js';
 import { adManager }            from '../ads/AdManager.js';
@@ -467,7 +468,6 @@ async function main() {
         boostersUsedThisLevel.push('colorchange');
         logEvent('booster_used', { booster: 'colorchange', levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber });
         tutOrch?.completeIfActive('colorchange');
-        featureBanners.fire('colorchange_use', 'Tap a car, pick a color — ALL cars of that color transform!');
       }
     },
     () => {
@@ -512,6 +512,13 @@ async function main() {
 
   // ── FTUE per-feature banners (once-per-lifetime, persisted to localStorage) ─
   const featureBanners = new FeatureBanners((key, text) => _presentGuide(key, text));
+  // In-play teaching moments only count inside their fixed level window (introSchedule.js);
+  // outside it they are never shown, so nothing is first-explained late. Daily: never.
+  const fireReactive = (key, text) => {
+    if (currentLevelIsDaily || !reactiveAllowed(key, levelManager.levelNumber)) return false;
+    featureBanners.fire(key, text);
+    return true;
+  };
   // Every explanation is a centre-screen GuideCard (see _presentGuide). Achievements are
   // held until the win screen; nothing pops up at the top of the board any more.
 
@@ -1016,9 +1023,11 @@ async function main() {
         levelStartCardsTimer = null;
         if (gs.isOver) return;
         if (levelId === 1 && !_tourDone()) _showGuide(tourSteps(guideGeo), _markTourDone);
-        if ((cfg.colors?.length ?? 0) >= 2) featureBanners.fire('multi_color', 'A bomb only hurts cars of its own colour.');
-        if ((cfg.laneCount ?? 4) >= 3) featureBanners.fire('multi_lane', 'New lane open! Each lane needs a matching-color bomb.');
-        if (levelHint) featureBanners.fire(levelHint.key, levelHint.text);
+        // Fixed-level teaching (introSchedule.js). A level with scheduled cards skips its
+        // generic tip: the cards already say it, and one level should not stack both.
+        const cards = levelStartCards(levelId);
+        for (const key of cards) featureBanners.fire(key, '');
+        if (levelHint && cards.length === 0) featureBanners.fire(levelHint.key, levelHint.text);
       }, 1500);
     }
 
@@ -1059,7 +1068,7 @@ async function main() {
             // L4 bench tutorial
             tutOrch?.start({
               id:        'bench',
-              text:      'New BENCH — drag a bomb here to store it for later!',
+              text:      'The BENCH has 4 slots: drag a bomb here to keep it for later, and drag it back out when you need its colour!',
               bounds:    () => ({ x: 12, y: benchY(), w: APP_W - 24, h: benchSlotH() }),
               handStart: { x: 195, y: benchY() - 70 },
               handEnd:   { x: 195, y: benchY() + benchSlotH() / 2 - 8 },
@@ -1834,8 +1843,7 @@ async function main() {
         haptics.comboMilestone();
       }
 
-      featureBanners.fire('first_kill', 'First kill! Chain kills quickly for combos and bonus coins.');
-      if (combo >= 3) featureBanners.fire('first_combo', 'COMBO! Rapid kills earn bonus coins and speed boosts.');
+      fireReactive('first_kill', '');
 
       // L2: notify FTUE overlay on first kill so it can show the combo hint.
       if (!firstKillDoneThisLevel) {
@@ -1926,7 +1934,7 @@ async function main() {
         // A banner, not a modal: with the one-hit ladder most first hits only SHRINK a car,
         // so a blocking card here paused the board on the player's first hit (and stalled every
         // fixture that shoots a multi-hit car on a fresh save).
-        featureBanners.fire('hp_miss', 'Big cars take more than one hit. Each hit shrinks them!');
+        fireReactive('hp_miss', '');
       }
     },
 
@@ -1934,7 +1942,7 @@ async function main() {
       particles.spawnMiss(laneIdx, gameX);
       gameRenderer3D.onMiss(laneIdx);
       audio.play('wrong_bounce');   // 6A/1D: descending "rejected" boing
-      featureBanners.fire('first_miss', 'No damage! Bomb color must match the car color.');
+      fireReactive('first_miss', '');
     },
 
     onEnd: (won, laneIdx) => {
@@ -2030,7 +2038,7 @@ async function main() {
     // every level, so these constants are correct for all 1/2/3/4-lane levels.
     // Not on the shot that ends the level: the tutorial paused the loop and its
     // spotlight stayed over the win screen and into the next level's card.
-    if (!gs.isOver && !(gs.goals.length > 0 && gs.isGoalMet())) tutOrch?.start({
+    if (!gs.isOver && !(gs.goals.length > 0 && gs.isGoalMet()) && !currentLevelIsDaily && reactiveAllowed('bomb_earned', levelManager.levelNumber)) tutOrch?.start({
       id:        'bomb',
       text:      '💣 BOMB earned — tap it, then tap a lane to blast every car on it!',
       bounds:    () => { const b = boosterBar?._bombBtn?.getBounds(); return b ? { x: b.x, y: b.y, w: b.width, h: b.height } : { x: 235, y: 764, w: 72, h: 77 }; },
@@ -2060,8 +2068,7 @@ async function main() {
       audio.play('supercharge');
       haptics.medium();
       popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildFlashText(w, 'SUPERCHARGED!', 0xFF7A1F), 1.2);
-      featureBanners.fire('streak_charged',
-        'SUPERCHARGED! Your next bomb hits twice and smashes through ANY colour behind the first car.');
+      fireReactive('streak_charged', '');
     }
   };
   gameLoop._onArmorBreak = (laneIdx, gameX, _color, armorLeft = 0) => {
@@ -2070,8 +2077,8 @@ async function main() {
     particles.spawnHit(laneIdx, gameX, 'Blue');
     floatingTexts.push(spawnFloatingText(layers.get('particleLayer'),
       getLaneScreenX(laneIdx), getColumnScreenY() - 90, armorLeft > 0 ? 'PLATE OFF!' : 'ARMOUR OFF!', 0xE6ECF5));
-    if (armorLeft > 0) featureBanners.fire('plate_break', 'Heavy plating: it takes TWO hits, any colour, to strip it.');
-    else featureBanners.fire('armor_break', 'Armour off! Now hit it with its own colour.');
+    if (armorLeft > 0) fireReactive('plate_break', '');
+    else fireReactive('armor_break', '');
   };
   gameLoop._onSurge = (srcLane) => {
     audio.play('surge');
@@ -2079,11 +2086,11 @@ async function main() {
     shakeTime = Math.max(shakeTime, 0.3);
     floatingTexts.push(spawnFloatingText(layers.get('particleLayer'),
       getLaneScreenX(srcLane), getColumnScreenY() - 90, 'SURGE!', 0xFF8A1C));
-    featureBanners.fire('volatile_surge', 'Volatile! When it blows, every OTHER lane lurches forward a row.');
+    fireReactive('volatile_surge', '');
   };
   gameLoop._onMend = () => {
     audio.play('mend');
-    featureBanners.fire('mender_heal', 'Menders grow back a size when left alone. Keep shooting them!');
+    fireReactive('mender_heal', '');
   };
 
   // ── Combo power-shot callbacks ────────────────────────────────────────────
@@ -2146,10 +2153,8 @@ async function main() {
     popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildFlashText(w, '3 MULTI-KILLS!', 0xffe14a), 1.6);
     audio.play('color_bomb', { color: 'Rainbow' });
     haptics.heavy();
-    if (!progress.hintColorBombShown) {
-      progress.markHintColorBomb();
-      _enqueueModal((done) => onboardingHints.showColorBomb(done));
-    }
+    // Explained once, inside its window (L4-10); the L10 start card covers everyone else.
+    fireReactive('rainbow_bomb', '');
   };
 
   // ── Tutorial orchestrator (needs gameLoop ref, created here) ─────────────
@@ -2573,6 +2578,7 @@ async function main() {
       dismissTutorial: () => { tutOrch?.dismiss?.(); return !gameLoop.paused; },
       // Click NEXT / GOT IT on every centre card until none is left (QA bots).
       guideStep: () => (guideCard ? guideCard.stepIndex : -1),
+      guideTitle: () => (guideCard ? (guideCard._steps[guideCard.stepIndex]?.title ?? null) : null),   // QA: which card is up
       guideNext: () => { guideCard?._next(); return guideCard ? guideCard.stepIndex : -1; },
       dismissGuides: () => { let n = 0; while (guideCard && n++ < 40) guideCard._next(); return !guideCard; },
       // Test hook: enqueue a sample achievement toast (verifies popup z-order /

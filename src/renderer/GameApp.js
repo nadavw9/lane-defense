@@ -973,7 +973,10 @@ async function main() {
     // constructor. It must be built only now, AFTER the band, road geometry and shooter
     // layout were refreshed for THIS level; before them (as it was) it captured the
     // previous level's band and sat ~60px off on every band change.
-    ftueOverlay = _makeFTUEOverlay(app.stage, APP_W, APP_H, ftueCfg);
+    // First run of L1: the WELCOME tour is the very first thing on screen, over the live board.
+    // The drag-arrow overlay is built only once the tour ends (see _markTourDone path below).
+    const tourPending = typeof levelIdOrConfig === 'number' && levelId === 1 && !_tourDone();
+    ftueOverlay = tourPending ? null : _makeFTUEOverlay(app.stage, APP_W, APP_H, ftueCfg);
     gameRenderer3D.startLevelIntro();
     gameRenderer3D.setCombo(0);
     _clearModalQueue();   // drop any queued cards from a previous level
@@ -1022,13 +1025,18 @@ async function main() {
       levelStartCardsTimer = setTimeout(() => {
         levelStartCardsTimer = null;
         if (gs.isOver) return;
-        if (levelId === 1 && !_tourDone()) _showGuide(tourSteps(guideGeo), _markTourDone);
+        if (tourPending) {
+          _showGuide(tourSteps(guideGeo), () => {
+            _markTourDone();
+            if (!gs.isOver && !ftueOverlay) ftueOverlay = _makeFTUEOverlay(app.stage, APP_W, APP_H, ftueCfg);
+          });
+        }
         // Fixed-level teaching (introSchedule.js). A level with scheduled cards skips its
         // generic tip: the cards already say it, and one level should not stack both.
         const cards = levelStartCards(levelId);
         for (const key of cards) featureBanners.fire(key, '');
         if (levelHint && cards.length === 0) featureBanners.fire(levelHint.key, levelHint.text);
-      }, 1500);
+      }, tourPending ? 150 : 1500);
     }
 
     pauseBtn.visible = true;
@@ -1090,7 +1098,7 @@ async function main() {
     coinsAtLevelStart = progress.coins;
 
     // ── Level intro splash ("LEVEL X" bounce-in) ──────────────────────────
-    if (typeof levelIdOrConfig === 'number') {
+    if (typeof levelIdOrConfig === 'number' && !tourPending) {
       _showLevelIntroSplash(levelManager.levelNumber, () => {});
     }
 

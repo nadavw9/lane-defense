@@ -1,4 +1,1 @@
-01=BEFORE (owner screenshot, L41): the SUPERCHARGED ring sits offset from the bomb parked on bench slot 1.
-02=AFTER (L5, bomb parked on bench slot 1, streak charged): the ring is centred on the bomb.
-03=L2 start card "A SECOND LANE" (second of three L2 cards: lane, MATCH THE COLOUR, COMBO!).
-04=L4 start card "SUPERCHARGE" (the BENCH tutorial follows as its own spotlight).
+01=L1 on pressing play (fresh save): WELCOME card first, board visible behind, no hand/arrow, no black screen

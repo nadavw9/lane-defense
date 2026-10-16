@@ -61,6 +61,9 @@ export const CARDS = {
   colour_change_booster: { title: 'COLOUR CHANGE', text: 'Tap COLOUR, tap a car, then pick a colour. ALL cars of that colour change to it. Earn one with two multi-kill shots in a row.', target: 'boosters' },
   rainbow_bomb:    { title: 'RAINBOW BOMB', text: 'Make three shots that each destroy 2 or more cars and a RAINBOW bomb joins your queue. It destroys every car of the colour it hits, in every lane.', target: 'bombs' },
 
+  freeze_earned:   { title: 'FREEZE EARNED!', text: 'Destroying 3 or more cars with one bomb earns a FREEZE. Tap it and your next shot is free: no car moves closer.', target: 'boosters' },
+  colour_change_earned: { title: 'COLOUR CHANGE EARNED!', text: 'Two multi-kill shots in a row earned a COLOUR CHANGE. Tap COLOUR, tap a car, then pick a colour: ALL cars of that colour change to it.', target: 'boosters' },
+
   // ── In-play moments (only inside their window, see introSchedule.js) ──
   first_kill:      { title: 'FIRST KILL!',     text: `Destroyed cars count toward your goal. Destroy ${KILLS_PER_BOMB} cars and you earn a BOMB booster.`, target: 'goal' },
   first_combo:     null,   // taught by the L2 COMBO card

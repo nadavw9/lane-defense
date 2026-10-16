@@ -33,6 +33,8 @@ export const REACTIVE_WINDOW = {
   bomb_earned:    [1, 1],
   first_miss:     [2, 2],
   hp_miss:        [2, 2],
+  freeze_earned:  [1, 10],   // first FREEZE earned in play; the L8 start card covers anyone who has not
+  colour_change_earned: [1, 10],   // same for COLOUR CHANGE (L9 card)
   streak_charged: [4, 5],
   rainbow_bomb:   [4, 10],
   armor_break:    [11, 11],

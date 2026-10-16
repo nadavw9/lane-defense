@@ -609,7 +609,10 @@ async function main() {
   function _showPendingAchievements() {
     if (pendingAchievements.length === 0) return;
     const list = pendingAchievements.splice(0);
-    _showGuide(list.map(a => ({ title: 'ACHIEVEMENT!', text: `${a.name}: ${a.desc}`, cta: 'NICE!' })));
+    // ONE card however many were earned: a chain of cards, each needing a tap, is noise.
+    const shown = list.slice(0, 3).map(a => `${a.name}: ${a.desc}`);
+    if (list.length > shown.length) shown.push(`+${list.length - shown.length} more in ACHIEVEMENTS`);
+    _showGuide([{ title: list.length === 1 ? 'ACHIEVEMENT!' : 'ACHIEVEMENTS!', text: shown.join('\n'), cta: 'NICE!' }]);
   }
   // Back-compat alias: onboarding hint call sites use _showHintCard(show).
   const _showHintCard = _enqueueModal;
@@ -2016,7 +2019,14 @@ async function main() {
 
   // ── Bomb system callbacks ─────────────────────────────────────────────────
   // FIX 4C: a 3+ car chain kill earns a FREEZE charge.
+  // First FREEZE / COLOUR CHANGE earned (L1-10 only, see introSchedule): a centre card pointing at
+  // the booster bar, like the BOMB. Marks the L8/L9 start card as seen so it is not repeated.
+  const _teachEarned = (earnedKey, startKey) => {
+    if (gs.isOver || (gs.goals.length > 0 && gs.isGoalMet())) return;
+    if (fireReactive(earnedKey, '')) featureBanners.mark(startKey);
+  };
   gameLoop._onFreezeEarned = (kills) => {
+    _teachEarned('freeze_earned', 'freeze_booster');
     audio.play('freeze_tinkle');
     haptics.medium();   // booster earned
     floatingTexts.push(spawnFloatingText(
@@ -2026,6 +2036,7 @@ async function main() {
   };
   // Earned by chaining two strictly-consecutive multi-kills (GameLoop._updateColorChangeCombo).
   gameLoop._onColorChangeEarned = () => {
+    _teachEarned('colour_change_earned', 'colour_change_booster');
     audio.play('coin_collect');
     haptics.medium();   // booster earned
     floatingTexts.push(spawnFloatingText(

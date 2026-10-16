@@ -1,1 +1,1 @@
-01=L1 on pressing play (fresh save): WELCOME card first, board visible behind, no hand/arrow, no black screen
+01=first FREEZE earned in L1: centre card, gold ring on booster bar (colour change identical)

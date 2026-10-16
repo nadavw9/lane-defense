@@ -1,17 +1,17 @@
 // AdManager — rewarded video and interstitial ad abstraction layer.
 //
 // On native (Android/iOS via Capacitor): uses @capacitor-community/admob with
-// the production AdMob ad unit IDs (publisher ca-app-pub-3492310681731275).
+// the production AdMob ad unit IDs (publisher ca-app-pub-3810333742263149).
 //
 // On web: falls back to a timed mock overlay so the game is playable without
 // a native wrapper.
 //
 import { Capacitor } from '@capacitor/core';
-import { AdMob, RewardAdPluginEvents, InterstitialAdPluginEvents } from '@capacitor-community/admob';
+import { interstitialWindowOpen, isInterstitialTurn, useTestAds } from './adPolicy.js';
+import { AdMob, RewardAdPluginEvents, InterstitialAdPluginEvents, AdmobConsentStatus } from '@capacitor-community/admob';
 
-const REWARDED_AD_ID     = 'ca-app-pub-3492310681731275/5674269166';
-const INTERSTITIAL_AD_ID = 'ca-app-pub-3492310681731275/5734968591';
-const INTERSTITIAL_MIN_MS = 30_000;   // minimum gap between interstitials
+const REWARDED_AD_ID     = 'ca-app-pub-3810333742263149/8064409920';
+const INTERSTITIAL_AD_ID = 'ca-app-pub-3810333742263149/4284947016';
 // ── Booster costs (ads required to unlock) ─────────────────────────────────
 export const AD_COSTS = {
   colorchange: 1,   // 1 ad → Color Change booster for this level
@@ -30,6 +30,10 @@ export class AdManager {
     this._overlay          = null;
     this._native           = false;
     this._lastInterstitial = 0;
+    this._lastRewarded     = 0;
+    this._eligibleCount    = 0;
+    this._consent          = !Capacitor.isNativePlatform();   // web has no consent regime
+    this._privacyOptions   = false;   // UMP says the player must be able to reopen consent
   }
 
   static getInstance() {
@@ -39,7 +43,7 @@ export class AdManager {
 
   // How many ads the player has watched for this booster in the current level.
   getProgress(boosterType) {
-    return parseInt(localStorage.getItem(KEY(boosterType)) ?? '0', 10);
+    try { return parseInt(localStorage.getItem(KEY(boosterType)) ?? '0', 10) || 0; } catch { return 0; }
   }
 
   // How many ads are needed for this booster.
@@ -60,7 +64,7 @@ export class AdManager {
   // Reset all ad progress (call at the start of each level attempt).
   resetForLevel() {
     for (const type of Object.keys(AD_COSTS)) {
-      localStorage.removeItem(KEY(type));
+      try { localStorage.removeItem(KEY(type)); } catch { /* storage unavailable: nothing to reset */ }
     }
   }
 
@@ -68,10 +72,51 @@ export class AdManager {
   async init() {
     if (!Capacitor.isNativePlatform()) return;
     try {
-      await AdMob.initialize({ testingDevices: [], initializeForTesting: true });
-      this._native = true;
+      // Live ads require VITE_ADS_MODE=live at build time; anything else (missing,
+      // misspelt, or a dev build) keeps the production ad unit IDs above in test
+      // mode: test ads, no revenue. Fail-safe by design — see adPolicy.useTestAds.
+      await AdMob.initialize({ testingDevices: [], initializeForTesting: useTestAds(import.meta.env) });
+      // Consent (Google UMP) BEFORE any ad request. Where the law requires it
+      // (EEA / UK / Switzerland) the form shows on first launch; elsewhere the
+      // status comes back NOT_REQUIRED and nothing is shown. The form itself is
+      // the GDPR message configured in the AdMob console (Privacy & messaging).
+      const info = await this._resolveConsent();
+      this._native = info.canRequestAds;
+      this._consent = info.canRequestAds;
     } catch (e) {
       console.warn('[AdManager] AdMob init failed:', e);
+      this._consent = false;
+    }
+  }
+
+  /** True when the player may be measured: web (no consent regime) or UMP allows it. */
+  get consentGranted() { return this._consent; }
+
+  async _resolveConsent() {
+    let info = await AdMob.requestConsentInfo();
+    if (info.isConsentFormAvailable && info.status === AdmobConsentStatus.REQUIRED) {
+      info = await AdMob.showConsentForm();
+    }
+    // (Compared as a string: the plugin declares PrivacyOptionsRequirementStatus
+    // but its package index does not export the enum.)
+    this._privacyOptions = info.privacyOptionsRequirementStatus === 'REQUIRED';
+    return info;
+  }
+
+  /** True when Settings must offer a way to review ad consent (UMP rule). */
+  get hasPrivacyOptions() { return this._privacyOptions; }
+
+  /** Reopen the consent choices (Settings → Ad privacy choices). */
+  async showPrivacyOptions() {
+    if (!Capacitor.isNativePlatform()) return;
+    try {
+      await AdMob.showPrivacyOptionsForm();
+      const info = await AdMob.requestConsentInfo();
+      this._native = info.canRequestAds;
+      this._consent = info.canRequestAds;
+      this.onConsentChange?.(this._consent);
+    } catch (e) {
+      console.warn('[AdManager] privacy options failed:', e);
     }
   }
 
@@ -80,15 +125,25 @@ export class AdManager {
   // onDismissed() — called if dismissed/failed before reward (optional).
   showRewarded(onComplete, onDismissed) {
     if (!this._native) {
-      this._showPlatformAd(onComplete, onDismissed);
+      // Web: the timed mock keeps the flow playable. On device with ads
+      // unavailable (no consent yet, init failed) there is nothing to show —
+      // never the mock, which would look like a fake ad.
+      if (Capacitor.isNativePlatform()) onDismissed?.();
+      else this._showPlatformAd(onComplete, onDismissed);
       return;
     }
+    // One rewarded ad at a time. A native ad takes a second or two to load, and
+    // a player who taps CONTINUE again in that window would otherwise stack a
+    // second set of listeners — both fire on the one reward (double rescue).
+    if (this._rewardedBusy) return;
+    this._rewardedBusy = true;
     let rewarded = false;
     const listeners = [];
-    const cleanup = () => { listeners.forEach(l => l.remove()); listeners.length = 0; };
+    const cleanup = () => { this._rewardedBusy = false; listeners.forEach(l => l.remove()); listeners.length = 0; };
 
     listeners.push(AdMob.addListener(RewardAdPluginEvents.Rewarded, () => {
       rewarded = true;
+      this._lastRewarded = Date.now();
       cleanup();
       onComplete?.();
     }));
@@ -111,12 +166,14 @@ export class AdManager {
   }
 
   // Show an interstitial ad (lose screen). Returns a Promise that resolves
-  // once the ad is dismissed. Throttled to avoid showing more than once per
-  // INTERSTITIAL_MIN_MS. Resolves immediately on web or when throttled.
-  showInterstitial() {
+  // once the ad is dismissed. Paced by adPolicy (window + every-Nth). Resolves immediately on web or when throttled.
+  showInterstitial(levelId = 0) {
     if (!this._native) return Promise.resolve();
     const now = Date.now();
-    if (now - this._lastInterstitial < INTERSTITIAL_MIN_MS) return Promise.resolve();
+    if (!interstitialWindowOpen({ now, lastInterstitial: this._lastInterstitial,
+      lastRewarded: this._lastRewarded, levelId })) return Promise.resolve();
+    this._eligibleCount++;   // only moments the window allowed count toward "every second"
+    if (!isInterstitialTurn(this._eligibleCount)) return Promise.resolve();
     this._lastInterstitial = now;
 
     return new Promise((resolve) => {
@@ -144,11 +201,14 @@ export class AdManager {
   //   onDismissed()            — called if the player skips before completion.
   showRewardedAd(boosterType, onRewarded, onDismissed) {
     if (this._overlay) return;   // already showing an ad
-    this._showPlatformAd(
+    // A REAL rewarded ad on device. This used to call the web mock directly, so
+    // on Android the booster unlocks played a fake 5-second "WATCHING AD" card:
+    // no ad, no revenue, and a screen that looks like a scam.
+    this.showRewarded(
       () => {
         // Record progress.
         const next = this.getProgress(boosterType) + 1;
-        localStorage.setItem(KEY(boosterType), String(next));
+        try { localStorage.setItem(KEY(boosterType), String(next)); } catch { /* storage unavailable */ }
         onRewarded?.(boosterType);
       },
       onDismissed,
@@ -159,6 +219,7 @@ export class AdManager {
   // Replace this method body with your real ad SDK.
   // Contract: call onComplete() after a successful view; onDismissed() if skipped.
   _showPlatformAd(onComplete, onDismissed) {
+    if (this._overlay) return;   // one at a time (double tap on CONTINUE)
     const overlay = document.createElement('div');
     overlay.style.cssText = [
       'position:fixed', 'top:0', 'left:0', 'width:100%', 'height:100%',

@@ -109,14 +109,13 @@ describe('the removed merge mechanic stays removed', () => {
     expect(howTo, 'How-to-play teaches merging again').not.toMatch(/MERGE COMBOS|03-merge/);
   });
 
-  it('queue reorder and bench-return SURVIVED the removal', () => {
-    // These shared the merge unlock flag but are their own mechanics. If this test
-    // fails, the removal went too far rather than not far enough.
+  it('bench-return SURVIVED the removal, and queue reorder is gone for good', () => {
     const dd = fs.readFileSync('src/input/DragDrop.js', 'utf8');
-    expect(dd, 'the reorder gate is gone').toMatch(/setReorderEnabled\s*\(/);
-    expect(dd, 'reorder handling is gone').toMatch(/_handleQueueReorder\s*\(/);
+    expect(dd, 'the bench-return gate is gone').toMatch(/setBenchReturnEnabled\s*\(/);
     expect(dd, 'bench-to-queue return is gone').toMatch(/_handleBenchToQueueReturn\s*\(/);
+    expect(dd, 'queue reorder is back').not.toMatch(/_handleQueueReorder|onReorder/);
     const app = fs.readFileSync('src/renderer/GameApp.js', 'utf8');
-    expect(app, 'GameApp no longer wires the reorder gate').toMatch(/setReorderEnabled\(/);
+    expect(app, 'GameApp no longer wires the bench-return gate').toMatch(/setBenchReturnEnabled\(/);
+    expect(app, 'queue reorder is back').not.toMatch(/onReorder/);
   });
 });

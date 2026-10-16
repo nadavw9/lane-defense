@@ -46,7 +46,11 @@ function makeLoop({ laneCount, laneTargetCarCount = 2, spawnBudget = 12, gridRow
 describe('spawn refill — every active lane evaluated', () => {
   it('2-lane level: BOTH active lanes refill to laneTargetCarCount after an advance', () => {
     const { gs, loop } = makeLoop({ laneCount: 2, laneTargetCarCount: 2 });
-    // Both active lanes start empty — both should be evaluated and filled.
+    // Both active lanes start empty — both are evaluated, and each gets ONE arrival per
+    // advance (traffic drives in; it does not pop in all at once).
+    loop._refillLanes();
+    expect(gs.lanes[0].cars.length).toBe(1);
+    expect(gs.lanes[1].cars.length).toBe(1);
     loop._refillLanes();
     expect(gs.lanes[0].cars.length).toBe(2);
     expect(gs.lanes[1].cars.length).toBe(2);
@@ -65,18 +69,22 @@ describe('spawn refill — every active lane evaluated', () => {
   it('3-lane level: all THREE active lanes get cars (not a random subset)', () => {
     const { gs, loop } = makeLoop({ laneCount: 3, laneTargetCarCount: 2 });
     loop._refillLanes();
+    loop._refillLanes();
     for (let li = 0; li < 3; li++) {
       expect(gs.lanes[li].cars.length).toBe(2);
     }
     expect(gs.lanes[3].cars.length).toBe(0);
   });
 
-  it('a single drained active lane is topped back up to target in one advance', () => {
+  it('a single drained active lane refills one car per advance until it reaches target', () => {
     const { gs, loop } = makeLoop({ laneCount: 2, laneTargetCarCount: 2 });
     loop._primeInitialCars();          // both lanes prime to 3 cars (rows 0,1,2)
     gs.lanes[0].cars = [];             // simulate the player clearing lane 0
     loop._advanceGrid();               // moves cars, then refills every active lane
-    // Lane 0 was emptied → refilled to target; lane 1 still above target (kept its cars).
+    // Lane 0 was emptied → ONE new car arrives this advance, then it climbs back to target;
+    // lane 1 still above target (kept its cars).
+    expect(gs.lanes[0].cars.length).toBe(1);
+    loop._advanceGrid();
     expect(gs.lanes[0].cars.length).toBe(2);
     expect(gs.lanes[1].cars.length).toBeGreaterThanOrEqual(2);
     // Front-car invariant preserved (cars[0] is the highest row in the lane).
@@ -86,7 +94,7 @@ describe('spawn refill — every active lane evaluated', () => {
 
   it('new spawns occupy distinct rows (no two cars stacked at the same position)', () => {
     const { gs, loop } = makeLoop({ laneCount: 2, laneTargetCarCount: 3 });
-    loop._refillLanes();
+    for (let i = 0; i < 3; i++) loop._refillLanes();
     const rows = gs.lanes[0].cars.map(c => c.row);
     expect(new Set(rows).size).toBe(rows.length);   // all distinct
   });

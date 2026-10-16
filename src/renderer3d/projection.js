@@ -85,7 +85,7 @@ export function computeFrustum(width = APP_W, height = APP_H) {
 // current level's band without changing their own call signatures — they all
 // close over this binding and read it fresh at call time.
 let F = computeFrustum();
-export let FRUSTUM_HALF_X = F.halfX;    // ≈ 11.237 (was hardcoded 9.650 — stale)
+export let FRUSTUM_HALF_X = F.halfX;    // ≈ 10.6 (4-lane) / 9.6 (3-lane) (was hardcoded 9.650 — stale)
 
 // ── Pure lane math ────────────────────────────────────────────────────────────
 export function laneToXPure(laneIdx, n) {

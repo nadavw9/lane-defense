@@ -18,7 +18,7 @@
 // guards: assert the consumer against the real thing, not against a mirror.
 import { describe, it, expect } from 'vitest';
 import fs from 'fs';
-import { CAR_TYPES, carHpFor, spawnableTypesFor } from '../src/director/CarTypes.js';
+import { CAR_TYPES, LADDER, carHpFor, spawnableTypesFor } from '../src/director/CarTypes.js';
 import { HP_MINIMUM } from '../src/director/DirectorConfig.js';
 import { CarDirector } from '../src/director/CarDirector.js';
 import { SeededRandom } from '../src/utils/SeededRandom.js';
@@ -98,15 +98,15 @@ describe('the CAR HP manual matches the cars the game actually spawns', () => {
     expect(offenders, offenders.join('\n  ')).toEqual([]);
   });
 
-  it('L9 does not list Tank, and L30 does', () => {
-    expect(spawnableTypesFor(9, 8).has('tank'), 'Tank listed on L9 again').toBe(false);
-    expect(spawnableTypesFor(30, 8).has('tank'), 'L30 is the tank boss and must list it').toBe(true);
+  it('the retired heavy types are never listed, on any level', () => {
+    for (const id of [1, 9, 30, 70]) for (const t of ['truck', 'bigrig', 'tank'])
+      expect(spawnableTypesFor(id, 8).has(t), `${t} listed on L${id}`).toBe(false);
   });
 
   it('carHpFor applies the HP_MINIMUM clamp the spawner applies', () => {
     // At a small multiplier a bike would round below the floor.
     expect(carHpFor('small', 0.1)).toBe(HP_MINIMUM);
-    expect(carHpFor('tank', 0.1)).toBe(2);
+    expect(carHpFor('jeep', 0.1)).toBe(HP_MINIMUM);
     expect(carHpFor('unknown-type', 1.0)).toBeNull();
   });
 
@@ -124,7 +124,7 @@ describe('the CAR HP manual matches the cars the game actually spawns', () => {
 
   it('every car type has art in the overlay, so a new type cannot render blank', () => {
     const src = fs.readFileSync('src/screens/HpGuideOverlay.js', 'utf8');
-    for (const t of ALL_TYPES) {
+    for (const t of LADDER) {   // truck, bigrig and tank are retired from spawning
       expect(src, `car type "${t}" has no row in the manual`).toMatch(new RegExp(`type:\\s*'${t}'`));
     }
   });

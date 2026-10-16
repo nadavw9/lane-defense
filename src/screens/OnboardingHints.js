@@ -87,7 +87,7 @@ export class OnboardingHints {
     const accent = 0x6cc6ff;
     const { panel, vx, vy } = this._buildShell(
       accent, 'STILL ALIVE!',
-      'Some cars take more than one hit.\nTap the book button (top-left) to open\nthe Car Manual and see every car’s HP.',
+      'Big cars take more than one hit.\nEach hit shrinks them: van, car,\nthen motorbike. Keep shooting!',
       onDismiss,
     );
     // Visual: book icon with a pulsing ring (mirrors the real top-left button).
@@ -108,19 +108,13 @@ export class OnboardingHints {
   showDamage(onDismiss) {
     const accent = 0xffcc44;
     const { panel, vx, vy } = this._buildShell(
-      accent, 'MATCH THE DAMAGE!',
-      'Drag a bomb whose damage number\nmatches or beats the car’s HP to\ndestroy it in one shot.',
+      accent, 'MATCH THE COLOR!',
+      'Drag a bomb onto a car of the\nsame color to hit it.\nEvery bomb is one hit.',
       onDismiss,
     );
     // Bomb sprite (left) with its damage number layered ON TOP (added in the
     // sprite's onAdded so the async-loaded powerball can't cover the number).
-    this._addSprite(panel, SPR.powerball, vx - 66, vy, 62, 62, () => {
-      const dmg = new Text({ text: '8', style: { fontSize: 28, fontWeight: '900', fill: 0xffffff,
-        stroke: { color: 0x000000, width: 3 },
-        dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 0.9 } } });
-      dmg.anchor.set(0.5); dmg.x = vx - 66; dmg.y = vy;
-      panel.addChild(dmg);
-    });
+    this._addSprite(panel, SPR.powerball, vx - 66, vy, 62, 62);
     // Arrow (middle).
     const g = new Graphics(); panel.addChild(g);
     g.poly([vx - 16, vy - 9, vx + 6, vy - 9, vx + 6, vy - 17, vx + 22, vy, vx + 6, vy + 17, vx + 6, vy + 9, vx - 16, vy + 9]);

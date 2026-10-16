@@ -31,7 +31,7 @@ export function ddaFactor(failStreak) {
 // Build the Director's world-config copy for a level start. This is the ONE
 // place the copy is made — GameApp._startLevel and the integrity tests both
 // call it, so "the copy shares no reference with LevelManager and the mercy
-// factor lands on hpMultiplier" is guaranteed by construction, not by two
+// mercy lands on heft" is guaranteed by construction, not by two
 // implementations agreeing. Returns a fresh object that aliases NOTHING in
 // `worldConfig` (nested `speed` copied too — a shallow spread would still
 // share it). `failStreak` 0-1 yields an exact-value copy (factor 1.0).
@@ -39,6 +39,7 @@ export function applyDda(worldConfig, failStreak) {
   return {
     ...worldConfig,
     speed: { ...worldConfig.speed },
-    hpMultiplier: worldConfig.hpMultiplier * ddaFactor(failStreak),
+    // factor 1.0 → shift 0; 0.73 (deep streak) → 0.405 lighter on the 0..1 heft scale.
+    heft: Math.max(0, (worldConfig.heft ?? 0.5) - (1 - ddaFactor(failStreak)) * 1.5),
   };
 }

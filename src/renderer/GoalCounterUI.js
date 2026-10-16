@@ -9,32 +9,37 @@
 import { Container, Graphics, Text, Sprite, Assets, Texture } from 'pixi.js';
 import { uiIcon } from './UIIcon.js';
 import { row0CoverY } from '../renderer3d/projection.js';
+import { INK, PLUM, WHITE, toyPanel, shade, tint } from './ToyStyle.js';
+import { FillGradient } from 'pixi.js';
+import { traitInfo } from './traitIcons.js';
+import { shapeFor } from '../game/ColorblindMode.js';
 
 const _B = import.meta.env.BASE_URL;
 
 // Color palette (matches CLAUDE.md section 10)
 const COLOR_PALETTE = {
-  Red:    0xE24B4A,
-  Blue:   0x378ADD,
-  Green:  0x639922,
-  Yellow: 0xEF9F27,
-  Purple: 0x7F77DD,
-  Orange: 0xD85A30,
+  Red:    0xFF3D3D,
+  Blue:   0x2F8CFF,
+  Green:  0x2FCC55,
+  Yellow: 0xFFD42A,
+  Purple: 0xA35CFF,
+  Orange: 0xFF8A1C,
 };
 
 // Card styling — larger pills with breathing room (HUD redesign: goals own the top).
-const CARD_W = 70;
-const CARD_H = 70;
-const CARD_GAP = 12;
+const CARD_W = 66;
+const CARD_H = 60;
+const CARD_GAP = 8;
 const CARD_R = 14;
-const CARD_BG_COLOR = 0x2a2f3e;
-const CARD_BG_ALPHA = 0.95;
+const CARD_LIP = 4;                 // toy-button lip under the face (inside CARD_H)
+const CARD_BG_COLOR   = WHITE;      // Toy Town: white cards, ink outline, ink number
+const CARD_DONE_COLOR = 0xC9F5D3;   // soft mint when the goal is met
 
 // The goals own the TOP zone: a full-width opaque band at the very top of the
 // screen, above the road. Cards are centred inside it; the band's solid fill keeps
 // the road/cars (which start ~44px) from showing through or overlapping.
 const PANEL_TOP_Y   = 12;   // first card row top
-const BAND_BG_COLOR = 0x0a0a1e;
+const BAND_BG_COLOR = PLUM;
 const MAX_CARDS_PER_ROW = 3;
 
 export class GoalCounterUI {
@@ -48,6 +53,13 @@ export class GoalCounterUI {
     // Full-width opaque band behind the cards (first child → drawn behind them).
     this._band = new Graphics();
     this._container.addChild(this._band);
+    // Goal plaque (gold frame around the goal slots) + overall progress bar.
+    this._plaque = new Graphics();
+    this._container.addChild(this._plaque);
+    this._bar = new Graphics();
+    this._container.addChild(this._bar);
+    this._barBox = null;
+    this._barShown = -1;
 
     // Board depth, for the band's row-0 occlusion floor (see _layoutCards).
     // Defaults to 16 = every level's depth before the rows-8 pilot, so an
@@ -63,6 +75,14 @@ export class GoalCounterUI {
     // Particle FX layer (above the cards, re-stacked on top in _layoutCards).
     this._fx = new Graphics();
     this._container.addChild(this._fx);
+  }
+
+  // Rect of the gold goal plaque in stage coordinates (the tour spotlights it), or null
+  // when there is no goal to show. The band behind it spans the whole screen, so it is not it.
+  plaqueRect() {
+    if (!this._container.visible) return null;
+    const b = this._plaque.getLocalBounds();
+    return b.width > 0 ? { x: b.x, y: b.y, w: b.width, h: b.height } : null;
   }
 
   // (Re)build cards from goals array
@@ -132,9 +152,10 @@ export class GoalCounterUI {
       // Count badge / checkmark
       if (card._countText) {
         if (isComplete) {
-          if (!card._checkmark) { card._countText.text = '✅'; card._checkmark = true; }
+          if (!card._checkmark) { card._countText.visible = false; card._check.visible = true; card._checkmark = true; }
         } else {
           card._countText.text = String(remaining);
+          card._countText.visible = true; card._check.visible = false;
           card._checkmark = false;
           if (card._completed) { card._completed = false; this._drawCardBg(card, false, 0); }  // goal reset
         }
@@ -158,11 +179,34 @@ export class GoalCounterUI {
     }
 
     this._stepBursts(dt);
+    this._drawBar(dt);
+  }
+
+  // Overall goal progress (kills made / kills needed), eased toward the target.
+  _drawBar(dt) {
+    if (!this._barBox) return;
+    const total = this._goals.reduce((a, g) => a + (g.count ?? 0), 0) || 1;
+    const left  = this._goalProgress.reduce((a, r) => a + Math.max(0, r), 0);
+    const target = 1 - left / total;
+    this._barShown = this._barShown < 0 ? target : this._barShown + (target - this._barShown) * Math.min(1, dt * 8);
+    const { x, y, w, h } = this._barBox;
+    const g = this._bar;
+    g.clear();
+    g.roundRect(x, y, w, h, h / 2).fill({ color: 0x0C0A26, alpha: 0.85 });
+    const fw = Math.max(0, (w - 4) * this._barShown);
+    if (fw > 1) {
+      g.roundRect(x + 2, y + 2, Math.max(h - 4, fw), h - 4, (h - 4) / 2).fill(this._barGrad ??= new FillGradient({
+        type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, textureSpace: 'local',
+        colorStops: [{ offset: 0, color: 0x9CF06A }, { offset: 1, color: 0x2FA33A }] }));
+      g.roundRect(x + 4, y + 3, Math.max(0, fw - 4), (h - 4) * 0.35, 2).fill({ color: WHITE, alpha: 0.35 });
+    }
+    g.roundRect(x, y, w, h, h / 2).stroke({ color: INK, width: 1.5 });
   }
 
   _goalColor(goal) {
     if (goal?.type === 'destroyColor') return COLOR_PALETTE[goal.color] ?? 0xffffff;
     if (goal?.type === 'destroyType')  return 0xffaa33;
+    if (goal?.type === 'destroyTrait') return 0x7FE0FF;
     return 0xffd54a;   // destroyTotal
   }
 
@@ -191,6 +235,9 @@ export class GoalCounterUI {
       }
     }
   }
+
+  /** Bottom edge of the goal band in stage px (live — changes per level). */
+  get bandBottom() { return this._bandH ?? 100; }
 
   setVisible(bool) {
     this._container.visible = bool;
@@ -226,58 +273,82 @@ export class GoalCounterUI {
       icon = this._buildColorCarIcon(goal.color);
     } else if (goal.type === 'destroyType') {
       icon = this._buildCarIcon(goal.carType);
+    } else if (goal.type === 'destroyTrait') {
+      const t = traitInfo(goal.trait);
+      icon = t ? this._designedSprite(t.sprite, 36) : null;
+      if (icon && t.tint != null) icon.tint = t.tint;
+      icon ??= this._buildBurstIcon();
     }
 
     if (icon) {
       icon.x = CARD_W / 2;
-      icon.y = 24;
+      icon.y = 21;
       card.addChild(icon);
     }
 
     // Count badge (bold white number or checkmark)
     const countText = new Text({
       text: String(goal.count),
-      style: {
-        fontSize:   22,
-        fontWeight: 'bold',
-        fill:       0xffffff,
-        dropShadow: { color: 0x000000, blur: 3, distance: 0, alpha: 0.6 },
-      },
+      style: { fontFamily: '"Lilita One", Fredoka, Arial, sans-serif', fontSize: 22, fill: WHITE,
+        stroke: { color: INK, width: 5, join: 'round' } },
     });
     countText.anchor.set(0.5, 0.5);
     countText.x = CARD_W / 2;
-    countText.y = 50;
+    countText.y = 45;
     card.addChild(countText);
     card._countText = countText;
+    // Done: a green tick disc replaces the number.
+    const check = new Container();
+    const disc = new Graphics();
+    disc.circle(0, 0, 12).fill(0x3DBB3A).stroke({ color: INK, width: 2.5 });
+    check.addChild(disc);
+    const tick = uiIcon('check', 16, '✓');
+    check.addChild(tick);
+    check.x = CARD_W / 2; check.y = 45; check.visible = false;
+    card.addChild(check);
+    card._check = check;
     card._checkmark = false;
 
     return card;
   }
 
-  // Redraw a card's pill bg: dark normally, green tint when complete, with an
-  // optional white flash overlay (0..1) during the completion celebration.
+  // Redraw a card's toy panel: white normally, mint when complete, with an
+  // optional gold flash overlay (0..1) during the completion celebration.
   _drawCardBg(card, completed, flashAlpha = 0) {
     const g = card._bg;
     g.clear();
-    const base = completed ? 0x1f6b3a : CARD_BG_COLOR;   // green when done
-    g.roundRect(0, 0, CARD_W, CARD_H, CARD_R).fill({ color: base, alpha: CARD_BG_ALPHA });
-    if (completed) g.roundRect(0, 0, CARD_W, CARD_H, CARD_R).stroke({ color: 0x44ff88, width: 2, alpha: 0.7 });
-    if (flashAlpha > 0) g.roundRect(0, 0, CARD_W, CARD_H, CARD_R).fill({ color: 0xffffff, alpha: flashAlpha });
+    // Inset well inside the gold plaque: dark indigo, lit rim at the bottom;
+    // green-lit when the goal is met.
+    const face = completed ? 0x1F5A36 : 0x14113A;
+    g.roundRect(0, 0, CARD_W, CARD_H, CARD_R).fill(face);
+    g.roundRect(0, 0, CARD_W, CARD_H * 0.5, CARD_R).fill({ color: 0x000000, alpha: 0.18 });
+    g.roundRect(0, 0, CARD_W, CARD_H, CARD_R).stroke({ color: 0x000000, width: 2, alpha: 0.5 });
+    g.roundRect(1, CARD_H - 3, CARD_W - 2, 2, 1).fill({ color: completed ? 0x9CF06A : 0xFFFFFF, alpha: completed ? 0.6 : 0.12 });
+    if (flashAlpha > 0) g.roundRect(0, 0, CARD_W, CARD_H, CARD_R).fill({ color: 0xffe066, alpha: flashAlpha });
   }
 
   _buildBurstIcon() {
     return uiIcon('explosion', 32, '💥');   // sprite (glyph fallback)
   }
 
-  // destroyColor: dedicated stylized counter icon (side-view car, Bug D — the
-  // top-down gameplay sprite read poorly at 32px). Fallback chain: goal-car →
-  // old top-down sprite → flat color circle.
+  // destroyColor: the same toy sedan the player is hunting on the road. (Bug D
+  // swapped in a side-view icon because the OLD painted top-down sprite read
+  // poorly at 32px; the outlined toy art reads cleanly, and matching the road
+  // is the point of the card.) Fallback chain: toy sedan → side-view → circle.
   _buildColorCarIcon(color) {
     const c = String(color).toLowerCase();
-    const sprite = this._designedSprite(`goal-car-${c}`, 34)
-                ?? this._designedSprite(`car-${c}-processed`, 32);
-    if (sprite) return sprite;
-    return this._buildColorCircle(color);
+    const sprite = this._designedSprite(`car-${c}-processed`, 30)
+                ?? this._designedSprite(`goal-car-${c}`, 34);
+    const icon = sprite ?? this._buildColorCircle(color);
+    const sym = shapeFor(color);
+    if (!icon || !sym) return icon;
+    // Colourblind mode: the hunted colour also carries its shape.
+    const box = new Container();
+    box.addChild(icon);
+    const t = new Text({ text: sym, style: { fontSize: 15, fontWeight: '900', fill: 0xFFFFFF, stroke: { color: INK, width: 3 } } });
+    t.anchor.set(0.5); t.x = 11; t.y = 11;
+    box.addChild(t);
+    return box;
   }
 
   _buildColorCircle(color) {
@@ -345,11 +416,40 @@ export class GoalCounterUI {
     // level it was not meant to touch. Only shallow boards move it.
     const cardsH = PANEL_TOP_Y * 2 + totalRowsNeeded * CARD_H + (totalRowsNeeded - 1) * CARD_GAP;
     const bandH  = Math.max(cardsH, row0CoverY(this._gridRows));
-    this._band.clear();
-    this._band.rect(0, 0, this._stageWidth, bandH);
-    this._band.fill(BAND_BG_COLOR);
-    this._band.rect(0, bandH - 1, this._stageWidth, 1);
-    this._band.fill({ color: 0xffffff, alpha: 0.07 });
+    this._bandH = bandH;   // read live by the popup queue (tip banners dock under it)
+    // Header band: deep indigo gradient, faint pinstripes, gold trim, and a soft
+    // shadow cast onto the road so the header sits ABOVE the scene.
+    const W = this._stageWidth;
+    const b = this._band;
+    b.clear();
+    for (let i = 0; i < 14; i++) b.rect(0, bandH + i, W, 1).fill({ color: 0x0B0A1E, alpha: 0.32 * (1 - i / 14) });
+    b.rect(0, 0, W, bandH).fill(new FillGradient({
+      type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, textureSpace: 'local',
+      colorStops: [{ offset: 0, color: 0x221D55 }, { offset: 1, color: 0x352F78 }] }));
+    // Pinstripes, clamped to the band so its bounds stay inside the stage (an unclamped slant
+    // reached bandH px past both edges and tripped the HUD containment check).
+    const cx = (v) => Math.max(0, Math.min(W, v));
+    for (let x = -bandH; x < W; x += 14) b.poly([cx(x), 0, cx(x + 6), 0, cx(x + 6 + bandH), bandH, cx(x + bandH), bandH]).fill({ color: WHITE, alpha: 0.025 });
+    b.rect(0, bandH - 6, W, 5).fill(0xE0A332);
+    b.rect(0, bandH - 6, W, 1.5).fill({ color: 0xFFE9A0, alpha: 0.9 });
+    b.rect(0, bandH - 1, W, 1).fill(INK);
+
+    // Gold plaque around the goal slots, with the progress bar under them.
+    const n  = Math.min(cardsPerRow, this._cards.length);
+    const pw = n * CARD_W + (n - 1) * CARD_GAP + 20;
+    const ph = totalRowsNeeded * CARD_H + (totalRowsNeeded - 1) * CARD_GAP + 26;
+    const px = (W - pw) / 2, py = PANEL_TOP_Y - 8;
+    const pq = this._plaque;
+    pq.clear();
+    pq.roundRect(px + 2, py + 5, pw, ph, 20).fill({ color: 0x000000, alpha: 0.35 });
+    pq.roundRect(px, py, pw, ph, 20).fill(new FillGradient({
+      type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, textureSpace: 'local',
+      colorStops: [{ offset: 0, color: 0xFFE9A0 }, { offset: 0.5, color: 0xFFC93C }, { offset: 1, color: 0xB9771C }] }));
+    pq.roundRect(px, py, pw, ph, 20).stroke({ color: INK, width: 2.5 });
+    pq.roundRect(px + 5, py + 5, pw - 10, ph - 10, 16).fill(0x2B2760);
+    pq.roundRect(px + 5, py + 5, pw - 10, ph - 10, 16).stroke({ color: shade(0xB9771C, 0.6), width: 1.5 });
+    this._barBox = { x: px + 14, y: py + ph - 14, w: pw - 28, h: 9 };
+    this._barShown = -1;
 
     let cardIndex = 0;
     for (let row = 0; row < totalRowsNeeded; row++) {
@@ -363,12 +463,13 @@ export class GoalCounterUI {
         // x/y therefore address the card CENTRE (used as the particle-burst origin).
         card.pivot.set(CARD_W / 2, CARD_H / 2);
         card.x = rowStartX + col * (CARD_W + CARD_GAP) + CARD_W / 2;
-        card.y = PANEL_TOP_Y + row * (CARD_H + CARD_GAP) + CARD_H / 2;
+        card.y = PANEL_TOP_Y - 2 + row * (CARD_H + CARD_GAP) + CARD_H / 2;
         this._container.addChild(card);
         cardIndex++;
       }
     }
     // Keep the particle FX layer above all cards, and reset completion tracking.
+    this._container.addChild(this._bar);
     this._container.addChild(this._fx);
     this._prevProgress = this._goalProgress.slice();
     this._bursts = [];

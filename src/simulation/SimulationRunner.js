@@ -29,9 +29,12 @@ import {
   COMBO_WINDOW,
   DEPLOY_DILATION,
   HP_MINIMUM,
+  KILLS_PER_BOMB,
 } from '../director/DirectorConfig.js';
 import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
-import { openingRowsForLevel, clampInitialCarsToDepth } from '../game/LevelManager.js';
+import { openingRowsForLevel, clampInitialCarsToDepth, streakEnabledFor } from '../game/LevelManager.js';
+import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak,
+         revealStagedCars, stepSize, freeSpawnRow } from '../director/TrafficRules.js';
 
 const DT = 1 / 60; // seconds per simulation tick (used for fire cooldowns only)
 
@@ -48,13 +51,18 @@ const DT = 1 / 60; // seconds per simulation tick (used for fire cooldowns only)
 // once for the body), and a balance sweep runs millions of shots. Allocating a
 // fresh wrapper each call made tests/boss-infra.test.js go 2.9s -> 32s and blew
 // its 30s budget. One wrapper per car, reused, restores it.
-export const carView = (rec) => (rec.__view ??= {
-  get hp()    { return rec.hp; },
-  get color() { return rec.color; },
-  get type()  { return rec.type; },
-  takeDamage(amount) { rec.hp = Math.max(0, rec.hp - amount); },
-  isDead()           { return rec.hp <= 0; },
-});
+// The record IS the view: the Car methods the resolver calls are attached to it
+// once (non-enumerable), so every field the V2 rules read or write — armour, boss
+// lights, chameleon colours — goes straight to the record with nothing to keep in
+// step. Attached once per record, never per call (see the note above).
+const _REC_METHODS = {
+  takeDamage: { value(amount) { this.hp = Math.max(0, this.hp - amount); } },
+  isDead:     { value() { return this.hp <= 0; } },
+};
+export const carView = (rec) => {
+  if (!Object.prototype.hasOwnProperty.call(rec, 'takeDamage')) Object.defineProperties(rec, _REC_METHODS);
+  return rec;
+};
 // Memoised for the same reason as carView — one adapter per lane, reused.
 export const laneView = (lane) => (lane.__view ??= {
   frontCar()      { const c = lane.cars[0]; return c ? carView(c) : null; },
@@ -144,6 +152,7 @@ export class SimulationRunner {
       laneTargetCarCount: levelConfig.laneTargetCarCount ?? 1,
       spawnBudget:        levelConfig.spawnBudget        ?? Infinity,
       gridRows:           levelConfig.gridRows           ?? 16,
+      stepsPerRow:        levelConfig.stepsPerRow        ?? 1,
       // BOMB threat window in rows from the breach line. Defaults to the derived
       // BOMB_THREAT_ROWS; exposed only so the derivation sweep can vary it.
       bombThreatRows:     levelConfig.bombThreatRows     ?? BOMB_THREAT_ROWS,
@@ -161,6 +170,10 @@ export class SimulationRunner {
       initialCars:        levelConfig.initialCars        ?? null,   // INFRA-A scripted opening
       spawnScript:        levelConfig.spawnScript        ?? null,   // INFRA-C staged waves
       shooterColorWeights: levelConfig.shooterColorWeights ?? null, // §3c L10 v2 supply bias
+      // V2 (TrafficRules): special-car trait table and Hot Streak. streak null →
+      // the level's own rule (streakEnabledFor); generic probes (no levelId) → off.
+      traits:             levelConfig.traits             ?? null,
+      streak:             levelConfig.streak             ?? null,
     };
     // Stateless — one instance per runner is fine and keeps runLevel() allocation-free.
     this._combat = new CombatResolver();
@@ -195,6 +208,12 @@ export class SimulationRunner {
     const carDir     = new CarDirector({}, rng);
     if (this._cfg.levelId != null) carDir.setLevel(this._cfg.levelId);
     carDir.setSpawnScript(this._cfg.spawnScript);   // §3c INFRA-C (same impl as live game)
+    carDir.setTraits(this._cfg.traits, colors);       // V2 special cars (same impl as live game)
+    const streakOn = typeof this._cfg.streak === 'boolean' ? this._cfg.streak
+      : (this._cfg.levelId != null ? streakEnabledFor({ id: this._cfg.levelId }) : false);
+    // A car record carries the V2 trait state alongside row/hp/type/color.
+    const rec = (car, row) => ({ row, hp: car.hp, maxHp: car.hp, type: car.type, color: car.color,
+      trait: car.trait, armor: car.armor, altColor: car.altColor, recentHit: false });
     const shooterDir = new ShooterDirector({}, rng, arbiter);
     shooterDir.setColorBias(this._cfg.shooterColorWeights);   // §3c L10 v2 (same impl as live game)
     const phaseMan   = new IntensityPhase(duration);
@@ -209,6 +228,7 @@ export class SimulationRunner {
     // ── Discrete movement model: cars have integer row (0–gridRows-1, breach at >= gridRows) ──
     // Each correct-color shot advances ALL cars in ALL active lanes by 1 row.
     const BREACH_ROW = this._cfg.gridRows;
+    const STEP       = stepSize(this._cfg.stepsPerRow);   // one shot = one step (1/stepsPerRow of a row)
     const discreteLanes = Array.from({ length: LANE_N }, (_, id) => ({
       id,
       cars: [],  // Array of { row: number, hp: number, type: string, color: string }
@@ -233,14 +253,16 @@ export class SimulationRunner {
     // Earn rules mirror the shipped game; USE is probabilistic per boosterIQ so a
     // higher-skill profile capitalizes on available boosters more often.
     const boosterIQ        = profile.boosterIQ ?? 0;
-    let   streakCount      = 0;       // consecutive correct SHOTS (VISION streak = 3 in a row)
-    let   powerReady       = false;   // a double-damage power shot is banked
+    let   streak           = 0;       // V2 Hot Streak: consecutive kill shots
+    let   streakCharged    = false;   // the next bomb is supercharged
+    let   powerShots       = 0;       // instrumentation: supercharged shots fired
+    let   armorBreaks      = 0;       // instrumentation: armour plates knocked off
     let   freezeCharges    = 0;       // earned 3-kill chain → +1, cap 2
     let   freezeSkips      = 0;       // pending advance-skips from an activated freeze
-    let   bombCharges      = 0;       // earned +1 per 10 kills, cap 3
+    let   bombCharges      = 0;       // earned +1 per KILLS_PER_BOMB kills, cap 3
     let   bombsFired       = 0;       // instrumentation: BOMB activations this level
     let   bombKills        = 0;       // instrumentation: cars removed by BOMB
-    let   nextBombKill     = 10;
+    let   nextBombKill     = KILLS_PER_BOMB;
     let   colorChangeCharges = 0;     // earned ~per 2 consecutive multi-kills, cap 2
 
     // ── Level goals (mirrors GameState.applyKillToGoals / isGoalMet) ──────────
@@ -248,12 +270,13 @@ export class SimulationRunner {
     const hasGoals     = goals.length > 0;
     const goalProgress = goals.map(g => g.count);
     const totalGoalCount = goals.reduce((s, g) => s + g.count, 0);
-    const applyKillToGoals = (color, type) => {
+    const applyKillToGoals = (color, type, trait = null) => {
       for (let i = 0; i < goals.length; i++) {
         const g = goals[i];
         const match = g.type === 'destroyTotal'
           || (g.type === 'destroyColor' && color === g.color)
-          || (g.type === 'destroyType'  && type  === g.carType);
+          || (g.type === 'destroyType'  && type  === g.carType)
+          || (g.type === 'destroyTrait' && trait != null && trait === g.trait);
         if (match) goalProgress[i] = Math.max(0, goalProgress[i] - 1);
       }
     };
@@ -288,7 +311,7 @@ export class SimulationRunner {
         const hp = (def.type && CAR_TYPES[def.type])
           ? carHpFor(def.type, worldConfig.hpMultiplier)
           : car.hp;
-        discreteLanes[li].cars.push({ row: def.row ?? 0, hp, type, color });
+        discreteLanes[li].cars.push({ ...rec(car, def.row ?? 0), hp, type, color });
       }
       for (const lane of discreteLanes) lane.cars.sort((a, b) => b.row - a.row);   // cars[0] = front
     } else {
@@ -304,7 +327,7 @@ export class SimulationRunner {
           // re-multiplying here was a live↔sim parity bug (pre-89e7c67 leftover,
           // when the sim was the only place the multiplier applied): the sim
           // fought ~half-hp heavy cars (L30 tank live 11 vs sim 6).
-          lane.cars.push({ row: _openRows[k], hp: car.hp, type: car.type, color: car.color });
+          lane.cars.push(rec(car, _openRows[k]));
         }
       }
     }
@@ -340,28 +363,37 @@ export class SimulationRunner {
       const target = carDir.scriptRate() ?? this._cfg.laneTargetCarCount;
       for (const lane of discreteLanes) {
         let added = false;
-        while (lane.cars.length < target) {
-          let row = 0;
-          while (lane.cars.some(c => c.row === row)) row++;
-          if (row >= this._cfg.gridRows) break;   // lane physically full
+        let arrivals = 0;   // one arrival per lane per advance — parity with GameLoop._refillLanes
+        while (lane.cars.length < target && arrivals < 1) {
+          arrivals++;
+          const row = freeSpawnRow(lane.cars, STEP, this._cfg.gridRows);
+          if (row < 0) break;   // lane physically full
           const car = carDir.generateCar({ id: lane.id }, phase, worldConfig, colors, this._cfg.gridRows);
           // No re-multiplication: car.hp already carries hpMultiplier (see the
           // opening-block parity note). Carry-over bait cars keep their 1-2 hp.
-          lane.cars.push({ row, hp: car.hp, type: car.type, color: car.color });
+          lane.cars.push(rec(car, row));
           added = true;
         }
         if (added) lane.cars.sort((a, b) => b.row - a.row);   // cars[0] = front (highest row)
       }
+      revealStagedCars(discreteLanes.map(l => l.cars));   // parity with GameLoop._refillLanes
     };
 
     // ONE correct shot → advance ALL cars 1 row, breach-check, refill. Per shot.
+    let surgeFrom = null;   // lane index of a volatile killed by this shot, if any
     const _advanceOneRow = (phase) => {
       totalAdvances++;
       // FREEZE: an activated freeze skips this advance entirely — cars don't move
       // forward, no breach, no refill (mirrors "your next shot is free, no cars advance").
-      if (freezeSkips > 0) { freezeSkips--; return; }
-      for (const lane of discreteLanes) for (const car of lane.cars) car.row++;
-      if (discreteLanes.some(l => l.cars.length > 0 && l.cars[0].row >= BREACH_ROW)) {
+      if (freezeSkips > 0) { freezeSkips--; surgeFrom = null; return; }
+      // Same traffic rules as GameLoop._advanceGrid: speeders move 2, nobody
+      // passes the car ahead, chameleons flip colour.
+      for (const lane of discreteLanes) { advanceLaneCars(lane.cars, null, STEP); flipChameleons(lane.cars); healMenders(lane.cars); }
+      if (surgeFrom !== null) {   // volatile surge — same helper the live game calls
+        surgeOtherLanes(discreteLanes.map(l => l.cars), surgeFrom, STEP);
+        surgeFrom = null;
+      }
+      if (discreteLanes.some(l => l.cars.length > 0 && l.cars[0].row > BREACH_ROW - 1)) {
         lostAt = totalAdvances;   // marker (shot index), not a wall-clock time
         return;
       }
@@ -430,8 +462,15 @@ export class SimulationRunner {
           if (bestLane && rng.next() < boosterIQ) {
             bombCharges--;
             bombsFired++;
-            for (const car of bestLane.cars) { carsKilled++; bombKills++; applyKillToGoals(car.color, car.type); }
+            // Parity with GameLoop.placeBombOnLane: the whole lane goes.
+            for (const car of bestLane.cars) {
+              carsKilled++; bombKills++; applyKillToGoals(car.color, car.type, car.trait);
+            }
             bestLane.cars.length = 0;
+            // Parity with GameLoop._settleAfterClear: an empty board refills
+            // (fresh spawns, no advance) so nothing can soft-lock.
+            if (discreteLanes.every(l => l.cars.length === 0)) _refillLanes(phase);
+            else revealStagedCars(discreteLanes.map(l => l.cars));   // parity: surviving lanes may hold only staged cars
           }
         }
         // COLOR CHANGE — ≥3 front cars share a colour that no column can currently
@@ -453,9 +492,12 @@ export class SimulationRunner {
         }
       }
 
+      const _threat = (car) => car.row + (car.trait === 'speeder' ? 1.5 : 0);
       const urgentLanes = discreteLanes
         .filter(l => l.cars.length > 0)
-        .sort((a, b) => b.cars[0].row - a.cars[0].row);
+        // Threat order: nearest the breach first; a speeder counts as closer than
+        // its row (it closes two rows a turn). Trait-free boards sort as before.
+        .sort((a, b) => _threat(b.cars[0]) - _threat(a.cars[0]));
 
       const usedCols  = new Set();
       const advBefore = totalAdvances;
@@ -470,18 +512,14 @@ export class SimulationRunner {
         shooterDir.recordDeploy(elapsed);
         columns[col].consume();
         if (this._cfg.onShot) this._cfg.onShot(isCorrect);  // tuning hook (per fired bomb)
-        if (!isCorrect) { streakCount = 0; powerReady = false; return; }  // wrong shot breaks the streak
+        if (!isCorrect) return;   // a misplay: bomb wasted, no advance, streak intact
         correctShots++;
         didFire = true;
-        streakCount++;
         if (lane.cars.length > 0) {
-          const car = lane.cars[0];
-          let dmg = s.damage;
-          // STREAK power shot: 3 correct in a row banks a double-damage shot; a
-          // higher-skill profile is more likely to cash it in (boosterIQ roll).
-          if (boosterIQ > 0 && powerReady && rng.next() < boosterIQ) {
-            dmg *= 2; powerReady = false; streakCount = 0;
-          }
+          // Hot Streak (TrafficRules): a charged bomb is supercharged — the SAME
+          // resolver flag the live game passes.
+          const power = streakOn && streakCharged;
+          if (power) powerShots++;
 
           // CARRY-OVER: resolved by the GAME'S OWN CombatResolver (fixed 2026-07-31).
           //
@@ -500,36 +538,56 @@ export class SimulationRunner {
           // Shooter colour is the front car's because `isCorrect` already decided this
           // is a matching shot; the resolver's per-car re-check is what stops the chain
           // at the first car of a different colour, exactly as the game does.
-          const res = this._combat.resolve({ color: car.color, damage: dmg }, laneView(lane));
+          const res = this._combat.resolve({ color: s.color, damage: s.damage }, laneView(lane), { power });
+          if (res.armorBroken) armorBreaks++;
+          surgeFrom = causesSurge(res.destroyed) ? lane.id : null;
+          if (streakOn) ({ streak, charged: streakCharged } = nextStreak(streak, streakCharged, res.kills, power));
           carryOvers += res.carryOverKills;
           for (const dead of res.destroyed) {
             carsKilled++;
-            applyKillToGoals(dead.color, dead.type);   // credit the level's goals
+            applyKillToGoals(dead.color, dead.type, dead.trait);   // credit the level's goals
             currentCombo = (totalAdvances - lastKillTime <= COMBO_WINDOW) ? currentCombo + 1 : 1;
             lastKillTime = totalAdvances;
             if (currentCombo > maxCombo) maxCombo = currentCombo;
             // ── Booster EARN (skill-gated; mirrors shipped earn rules) ──────────
             if (boosterIQ > 0) {
               if (currentCombo % 3 === 0 && freezeCharges < 2) freezeCharges++;               // 3-kill chain → freeze
-              if (carsKilled >= nextBombKill && bombCharges < 3) { bombCharges++; nextBombKill += 10; }  // 10 kills → bomb
+              if (carsKilled >= nextBombKill && bombCharges < 3) { bombCharges++; nextBombKill += KILLS_PER_BOMB; }  // KILLS_PER_BOMB kills → bomb
               if (currentCombo % 4 === 0 && colorChangeCharges < 2) colorChangeCharges++;      // ~2 consecutive multi-kills → color change
             }
           }
         }
-        if (boosterIQ > 0 && streakCount >= 3) powerReady = true;   // bank the power shot
         _advanceOneRow(phase);
       };
 
-      // Pass A — coverage: best-match column per urgent lane.
-      for (const lane of urgentLanes) {
-        if (lostAt !== null) break;
-        const car = lane.cars[0];
-        let bestCol = -1, bestDmg = -1;
+      // Column choice for a lane's front car (TrafficRules.canTarget). A matching
+      // colour takes the highest damage. Armour takes ANY bomb, so spend the one
+      // least useful elsewhere: prefer a top no other front car can use, then the
+      // lowest damage.
+      const _pickCol = (car) => {
+        let bestCol = -1, bestScore = -Infinity;
+        const armored = (car.armor ?? 0) > 0;
         for (let c = 0; c < COL_N; c++) {
           if (usedCols.has(c)) continue;
           const s = columns[c].top();
-          if (s && s.color === car.color && s.damage > bestDmg) { bestDmg = s.damage; bestCol = c; }
+          if (!s || !canTarget(car, s.color)) continue;
+          let score;
+          if (armored) {
+            const usefulElsewhere = discreteLanes.some(l => l.cars[0] && l.cars[0] !== car && l.cars[0].color === s.color);
+            score = (usefulElsewhere ? 0 : 100) - s.damage;
+          } else {
+            score = s.damage;
+          }
+          if (score > bestScore) { bestScore = score; bestCol = c; }
         }
+        return bestCol;
+      };
+
+      // Pass A — coverage: best column per urgent lane.
+      for (const lane of urgentLanes) {
+        if (lostAt !== null) break;
+        if (lane.cars.length === 0) continue;
+        const bestCol = _pickCol(lane.cars[0]);
         if (bestCol !== -1) _fire(bestCol, lane, _isCorrect());
       }
 
@@ -540,7 +598,7 @@ export class SimulationRunner {
         for (let c = 0; c < COL_N; c++) {
           if (usedCols.has(c)) continue;
           const s = columns[c].top();
-          if (s && s.color === lane.cars[0].color) { _fire(c, lane, _isCorrect()); break; }
+          if (s && canTarget(lane.cars[0], s.color)) { _fire(c, lane, _isCorrect()); break; }
         }
       }
 
@@ -597,7 +655,25 @@ export class SimulationRunner {
       turns,
       bombsFired,
       bombKills,
+      powerShots,
+      armorBreaks,
     };
+  }
+
+  // A runner for a real level config — every field the live game reads from the
+  // config, in one place, so tools and tests can't forget one (traits, bosses...).
+  static fromLevel(cfg, opts = {}) {
+    return new SimulationRunner({
+      duration: cfg.duration, colors: cfg.colors, worldConfig: cfg.worldConfig,
+      levelId: cfg.id, laneCount: cfg.laneCount, colCount: cfg.colCount,
+      laneTargetCarCount: cfg.laneTargetCarCount, spawnBudget: cfg.spawnBudget,
+      gridRows: cfg.gridRows, stepsPerRow: cfg.stepsPerRow, goals: cfg.goals ?? [],
+      initialCars: cfg.initialCars ?? null, spawnScript: cfg.spawnScript ?? null,
+      shooterColorWeights: cfg.shooterColorWeights ?? null,
+      traits: cfg.traits ?? null,
+      streak: typeof cfg.streak === 'boolean' ? cfg.streak : null,
+      ...opts,
+    });
   }
 
   // Run `count` levels starting from startSeed and return aggregate stats.

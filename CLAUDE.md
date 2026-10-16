@@ -11,6 +11,58 @@ An approved 3-workstream master plan is in progress (WS1 testing DONE → WS2 UI
 Route mechanical spec-execution to cheaper models; reserve Fable/Opus for design judgment
 (playbook §2).
 
+### ONE-HIT LADDER MODEL (2026-10-12, branch `feat/one-hit-model`, NOT merged) — read first
+
+Bombs are exactly one hit and carry no number. A car's HP is its size: van 3 -> car 2 -> motorbike 1,
+each matching hit shrinks it one rung. Every correct shot still advances traffic, in HALF-row steps
+(`STEPS_PER_ROW = 2`, `TrafficRules.stepSize`). Bosses are gone (big-wave levels instead, `milestone: true`).
+Streak = 3 shots IN A ROW that each destroy a car (a shot that destroys nothing resets it; a multi-kill is one step). There is NO queue reorder/swap (removed 2026-10-16); the bench is the only queue action. Retuned after both changes. Mender heals one rung per two quiet moves. All 100 levels are sim-tuned
+via `node tools/tune-levels.mjs 1-100 300 --write` (writes `src/game/lateTuning.js`; L1-40 overlay is applied in
+`LevelManager`). Design and numbers: `docs/ONE_HIT_MODEL.md`. Anything below that talks about bomb
+damage numbers, boss levels (L10/20/30/40 as bosses), FR-3/FR-4 or the BOMB booster's boss rule describes the
+OLD model and is provenance until this branch merges.
+
+### GUIDE CARDS — all explanations are centre-screen, never at the top (2026-10-12)
+
+Every tip is a `GuideCard` (`src/screens/GuideCard.js`): centred card, NEXT button, optional gold ring on a
+board element, optional pointing hand. Copy lives in `src/screens/guideContent.js`: `tourSteps` (level-1 walkthrough,
+shown after the splash, marked done only on the last card) and `stepsFor(key, text, geo)` (first-time cards).
+`FeatureBanners.fire(key, text)` is now just a once-ever gate that calls `_presentGuide`; the pill banners are gone.
+Cards run through the modal queue (loop paused, board input blocked). In-level achievements wait for the win
+screen. Visual fixtures seed every tutorial as seen (`tests-visual/fixtures/game.js`); `tour.spec.js` covers the
+real first run. QA hooks: `_nav.guideStep()`, `guideNext()`, `dismissGuides()` — bots must call `dismissGuides()`,
+a tap at a fixed pixel does not hit NEXT. `GameRenderer3D.prewarm()` compiles the 3D scene on the title screen so
+level 1 does not stare at black.
+
+### TEACHING IS HARD-CODED TO FIXED LEVELS (2026-10-14) — never "first time the player meets X"
+
+`src/screens/introSchedule.js` is the single schedule. `LEVEL_START_CARDS` (L2 lane/colour/combo, L3 lanes, L4
+supercharge, L6 colour goal, L8 FREEZE, L9 COLOUR CHANGE, L10 RAINBOW; L1 = the tour; L4 bench =
+spotlight tutorial) open that level. `REACTIVE_WINDOW` lets in-play moments (first kill, wrong colour, power shot,
+armour/plate/mender/volatile) fire ONLY inside their level window, so a save that unlocks L30 is never taught late.
+Copy is `CARDS` in `guideContent.js`. `tests/intro-schedule.test.js` pins all of it, including that the visual fixtures
+seed every card key (add a new card -> add its key to `tests-visual/fixtures/game.js`). QA: `_nav.guideTitle()`.
+
+### PLAY THE GAME BEFORE CALLING IT DONE — QA bots (2026-09-28)
+
+The owner found an L1 soft-lock in 5 seconds of play that 1300 green unit tests never saw.
+Run the game, not just the suite. The bots drive the REAL input path (DragDrop handlers,
+real canvas taps) against a dev server and flag stalls, not balance:
+
+| script | what it proves |
+|---|---|
+| `scripts/autoplay.mjs <out> 1 41` (41 = daily) | every level playable to win/lose: emptyBoard, noMove, turnStuck, pauseStuck, dropRefused, rescue resumes, boosters spend, loss history |
+| `scripts/ftue-play.mjs <out> 6` | brand-new save: title → map → card → real mouse drags → win → NEXT |
+| `scripts/booster-qa.mjs <out>` | colour change / freeze / bomb through real taps + armed-bomb-vs-pause regression |
+| `scripts/economy-qa.mjs` | shop → inventory → level → settle |
+
+Run them against a **worktree of the commit under test on port 5174** (`QA_URL=http://localhost:5174/`),
+never the dev server you are editing — HMR reloads kill a run mid-level. Headless is ~1 fps under
+load at DPR 2: wait on state (`getScreens()`, `dbgRescue().built`), never on time, and use DPR 1.
+Bugs these found on 2026-09-28: L1 empty-road soft-lock (row-0 staging), L4 bench tutorial input
+lock, CONTINUE after a boss breach = unwinnable level, queue reorder grabbing the wrong bomb,
+rainbow bombs recoloured to 0 damage.
+
 ### VALIDATION — the gates cost more than they caught; these are the rules (2026-08-08)
 
 **1. Docs-only changes go straight to master.** No branch, no CI wait. A markdown file cannot
@@ -159,7 +211,7 @@ Claude may choose either. But "it works" is not equivalent to
 
 ## 3. What This Is
 
-Hybrid-casual mobile puzzle-defense game. Cars in colored lanes advance toward the player one row per correct shot. Player drags color-coded bombs onto lanes — color must match the front car to deal damage. Turn-based grid, not real-time. 40 levels across 3 worlds. Live on GitHub Pages; native Android via Capacitor.
+Hybrid-casual mobile puzzle-defense game. Cars in colored lanes advance toward the player one row per correct shot. Player drags color-coded bombs onto lanes — color must match the front car to deal damage. Turn-based grid, not real-time. 100 levels across 7 worlds (L1-40 hand-tuned, L41-100 authored in `src/game/LateLevels.js` and sim-tuned). Live on GitHub Pages; native Android via Capacitor.
 
 - **Live URL:** https://nadavw9.github.io/lane-defense/
 - **Repo:** https://github.com/nadavw9/lane-defense
@@ -224,7 +276,7 @@ PixiJS canvas (z-front) overlays the Three.js canvas (z-behind). They share no W
 
 ### Camera — single top-down orthographic
 
-One `OrthographicCamera` in `Scene3D.js` renders everything. There is no perspective or dual-camera setup. `CameraFX.js` wraps the orthographic camera for transient juice only (shake, breach zoom pulse, combo zoom-out, level-intro zoom) — steady-state zoom is 1.
+One `OrthographicCamera` in `Scene3D.js` renders everything. There is no perspective or dual-camera setup. `CameraFX.js` is **shake-only** (2026-10-03): **the camera never zooms** — zoom is always 1. Combo zoom-out, breach zoom pulse, level-intro zoom and the Pixi breach scale pulse were removed because the Pixi layer (sockets, taps, sparks, goal band) is anchored to rest geometry and cannot follow a zoomed 3D camera: the bomb zone drifted off its sockets for seconds after a kill, backdrop edges showed, and taps misaligned. Shake is a pure translation: `GameRenderer3D.update` sets a **zone offset** (camera shake offset + Pixi stage shake px / `PX_PER_WU`) on `Shooter3D` (balls + zone floor) and `Road3D` (depot overlay / zone floor) so the bomb zone stays locked to its sockets. GameApp pushes the stage offset every frame via `setStageOffset`. Do NOT add zoom/scale effects to the camera or stage without also moving every Pixi anchor. Dev hooks: `_nav.getRenderer3D()`, `_nav.getStage()`, `_nav.forceStageShake(t)`; verify with the NDC probe (ball vs socket deviation must be 0.00 px under shake).
 
 ### 3D Scene Coordinate System — SINGLE SOURCE: `src/renderer3d/projection.js`
 
@@ -263,14 +315,18 @@ Always `${import.meta.env.BASE_URL}sprites/...`. Hardcoded `/sprites/...` causes
 | L9–12  | sunset | indigo-orange |
 | L13–15 | misty | cool grey; fog near=20 minimum — do not lower |
 | L16–30 | industrial | steel grey + orange hazard (World 2) |
-| L31+   | nightHighway | near-black sky, neon fog (World 3) |
+| L31-45 | nightHighway | near-black sky, neon fog (World 3) |
+| L46-60 | desert | World 4 Sun Valley (art: backdrops baked, no side strips) |
+| L61-75 | frost | World 5 Frost Pass |
+| L76-90 | harbor | World 6 Harbor Lights |
+| L91-100 | cosmos | World 7 Starlight Strip |
 
 ---
 
 ## 6. Current State
 
 ### Tests
-**1232 passing**, 2 skipped, 5 todo — 56 test files. Run: `npx vitest run`. All headless (no
+**1533 passing**, 1 skipped, 5 todo — 81 files (+2 skipped). Run: `npx vitest run`. All headless (no
 render tests).
 Visual smoke (`npm run test:visual`, Playwright) is separate and is a blocking CI gate.
 
@@ -620,15 +676,22 @@ API can reject the call, wait for it to be acceptable first (`game.waitForIdle()
 inferring rejection from an unchanged board.
 
 ### What is done
-- **40 levels** configured in `LevelManager.js` (L1–L40, three worlds)
+- **100 levels**: L1–L40 in `LevelManager.js`, L41–L100 in `LateLevels.js` (authored with `levelDsl.js`, heft/trait/goal scales generated into `lateTuning.js` by `node tools/tune-levels.mjs --write`). Seven worlds; worlds 4-7 art is baked (`render-3d-sprites.mjs backdrop|map`, `render-world-tiles.mjs`).
+- **Seven traits** (`TrafficRules.js`): speeder, armored, chameleon, plated, mender, volatile, phantom; goal types destroyTotal/Color/Type/Trait + defeatBoss. Bands in `tools/bands.mjs`; every level is checked in-band (2026-10-01).
+- **Economy (2026-10-01)**: 2 coins per car (was 10), shop 20-40, continue-with-coins 60 (`RESCUE_COIN_COST`); one booster store (`inventory`). Interstitials paced by `src/ads/adPolicy.js`. Daily/streak use the local day (`src/game/dateKeys.js`). Adaptive 3D render scale (`AdaptiveQuality.js`), reduce-motion setting (`MotionPrefs.js`).
 - **Car type intro cards** (`src/screens/CarTypeIntroCard.js`) — fires at: L1 small, L2 big, L5 jeep, L9 truck, L13 bigrig, L15 tank
-- **Streak Shot** — open implementation gap. The simulator has a partial model, but live
-  `GameLoop` does not yet apply the locked double-damage + one-shot slow behavior.
-- **AdMob** — `src/ads/AdManager.js` with Google **test** IDs for rewarded video and interstitial
+- **V2 redesign (2026-09-27, branch `feat/v2-design`)** — Hot Streak (3 kill shots →
+  supercharged bomb: x2 damage, carry-over through any colour), special cars (speeder,
+  armoured, chameleon), boss vehicles with colour sequences (L10/20/30/40), a new 40-level
+  table capped at 4 colours. Rules live in `src/director/TrafficRules.js`, shared by
+  GameLoop, DragDrop and SimulationRunner. Tune levels with `node tools/tune-levels.mjs`.
+  V2 art: `node scripts/render-3d-sprites.mjs v2`; review captures: `scripts/v2-shots.mjs`.
+- **AdMob** — `src/ads/AdManager.js` with PRODUCTION unit IDs (publisher ca-app-pub-3810333742263149 (Traffic Bomb app created 2026-10-09 in the nadavwolfsonw account, same publisher as Lane Math); test ads unless the build is made with `VITE_ADS_MODE=live` (explicit opt-in; missing/misspelt = test ads). Tester builds: `VITE_ADS_MODE=test`. STORE build: `$env:VITE_ADS_MODE='live'` before `npm run build`). Console side (app review, app-ads.txt, UMP message, Play declarations) is unverified
 - **Signed release keystore** — `android/lane-defense-release.keystore` (gitignored). **Never delete.**
 - **Balance simulator** — `tools/balance-sim.js`
-- **Car rendering** — normal cars use designed PNG sprite billboards on flat
-  `PlaneGeometry` + `MeshBasicMaterial`; the boss uses a procedural `CanvasTexture`.
+- **Car rendering** — normal cars use pre-rendered 3D toy sprites (see §10 Art
+  pipeline) as billboards on flat `PlaneGeometry` + `MeshBasicMaterial`; the boss
+  uses a procedural `CanvasTexture`.
 - **Danger Aura** — red pulse on cars within 2 rows of breach gate
 - **Fairness rules** (FR-1 through FR-5) enforced in `GameLoop._enforceViableMove()`
 - **Wrong-color shot = no advance** (shipped — never revert)
@@ -643,7 +706,7 @@ inferring rejection from an unchanged board.
   `BOMB_THREAT_ROWS = 2` matches the Danger Aura's existing 2-row warning.
 
 ### What is NOT done (production gates)
-- Replace AdMob test IDs with production unit IDs
+- Verify AdMob console state for com.nadavw.trafficbomb (app status, units exist, app-ads.txt, UMP message, Play Ads/Data Safety/AD_ID declarations)
 - Signed release APK for Play Store
 - Play Store listing (screenshots, feature graphic, privacy policy, Data Safety form)
 - Closed test track ≥ 12 testers × 14 days
@@ -707,17 +770,39 @@ Before committing any change to `LevelManager.js` or `CarTypes.js`:
 
 ## 10. Color Palette
 
+Toy Town palette (2026-09-27, owner-approved direction A). Re-picked for
+separation: the old red/orange/yellow sat within ~25° of hue and green was olive.
+
 ```
-Red:    #E24B4A   (0xE24B4A)
-Blue:   #378ADD   (0x378ADD)
-Green:  #639922   (0x639922)
-Yellow: #EF9F27   (0xEF9F27)
-Purple: #7F77DD   (0x7F77DD)
-Orange: #D85A30   (0xD85A30)
+Red:    #FF3D3D   (0xFF3D3D)
+Blue:   #2F8CFF   (0x2F8CFF)
+Green:  #2FCC55   (0x2FCC55)
+Yellow: #FFD42A   (0xFFD42A)
+Purple: #A35CFF   (0xA35CFF)
+Orange: #FF8A1C   (0xFF8A1C)
 Boss:   #CC44CC   (0xCC44CC)
 ```
 
-Duplicated in: `Car3D.js`, `Shooter3D.js`, `Projectile3D.js`, `src/input/DragDrop.js`. Update all four if changing any color.
+Duplicated across renderer/screen files (grep any value to find them all) and in
+`tools/art/studio/studio.js` (PALETTE) + `tools/art/vehicles.mjs`. Update all if
+changing any colour, then re-bake the sprites.
+
+### Art pipeline (Toy Town, 2026-09-27)
+
+The art is GENERATED, never hand-painted PNGs:
+
+| what | source | bake command |
+|------|--------|--------------|
+| vehicles, bombs, booster icons | 3D toy models in `tools/art/studio/` (Three.js, rendered offline, ink outline composited in 2D) | `node scripts/render-3d-sprites.mjs ship` |
+| side verges (all worlds, scene variants a/b/c) | 3D dioramas in the same studio, same camera tilt + light | `node scripts/render-3d-sprites.mjs scenery` |
+| road tiles, bomb-zone floors | SVG in `tools/art/worlds.mjs` | `node scripts/render-world-tiles.mjs` |
+| HUD chrome | `src/renderer/ToyStyle.js` helpers (ink outline, lip, gloss) | — |
+
+The 3D bakes need the Vite dev server on :5173 (it serves the studio page).
+Previews: `render-3d-sprites.mjs sheet <png>` / `verges <png>`. `ship` also
+GENERATES `src/renderer3d/carSpriteGeometry.js` (aspect + body bbox) — Car3D
+imports it; never hand-copy those numbers. Legacy file names are kept, so every
+screen picks up new art without path changes.
 
 ---
 
@@ -839,5 +924,8 @@ Password: `lanedefense2024`
 *Historical incident and merge logs in this file are provenance; the active sections above are
 the current source-of-truth summary.*
 
-*Last updated: 2026-08-31 — reconciled against the executable level, renderer, loop, and balance
-tool state.*
+*2026-10-03 subsystem review: input pointer ownership + `DragDrop.cancel()`, frozen-board refill/reveal in `_advanceGrid`, booster spend settled by USE, weekly key = `W${rawWeekIndex()}`, audio buses `_out`/`_master`/`_musicGain` (tutorial ding via `audio.play`), `ProgressManager._load` type sanitiser, L4 bench unlock marked on first bench-store, reduced motion gates flash/chroma. Tests: `game-loop-edge-cases`, `input-manager`, `progress-load-hardening`, `weekly-key`.*
+
+*Last updated: 2026-10-03 (previous: 2026-10-01 — levels 41-100, worlds 4-7, traits, economy and settings brought up to date.*)
+
+*2026-10-09 boss pass (owner device play of L10): every boss now advances EVERY turn (`moveEvery: 1`, pinned by `boss-infra.test.js`) on the unchanged 8-row lane (longer lanes shrink cars). Sequences shortened to fit: L10 4 lights, L20 2 + armored 0.20, L30 4, L40 2+2 (armoured titan row 0, plain row 1); sim 40/52/43/49%. COLOR CHANGE on a boss rewrites its CURRENT light (`GameLoop.changeBossColor`, picker flow in GameApp). Preview artifact has an on-page gate with an unlock-to-L40 button (`scripts/build-preview.sh`). Bosses must be re-played on device. Open clarity ideas not built: glow on matching bombs, move countdown, per-light hit pop, guaranteed boss-colour bomb.*

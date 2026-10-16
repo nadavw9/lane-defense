@@ -12,6 +12,8 @@ import { Sprite, Graphics, Text, Assets } from 'pixi.js';
 import { COL_W } from './ShooterRenderer.js';
 import { PX_PER_WU, BOMB_R, bombSlotScreenY, bombSlotRenderedBottom } from '../renderer3d/projection.js';
 import { BAR_Y } from './BoosterBar.js';
+import { INK } from './ToyStyle.js';
+import { shapeFor } from '../game/ColorblindMode.js';
 
 // ── Live bench geometry ───────────────────────────────────────────────────────
 // FUNCTIONS, not module-level consts (2026-07-24, geometry-liveness sweep):
@@ -60,22 +62,23 @@ export function bombUrl(color) {
   const file = `powerball-${c}.png`;
   return `${import.meta.env.BASE_URL}sprites/designed/${file}`;
 }
-const SLOT_BG    = 0x0d0d1a;
-const SLOT_EDGE  = 0x223344;
+// Toy Town: slots are recessed wells in a plum tray, ink-outlined.
+const SLOT_BG    = 0x2A2540;
+const SLOT_EDGE  = INK;
 const HI_COLOR   = 0x44aaff;
 const HI_ALPHA   = 0.35;
 
 // Shooter color → hex for glow tint on occupied slots.
 const GLOW_MAP = {
-  Red:    0xE24B4A, Blue:   0x378ADD, Green:  0x639922,
-  Yellow: 0xEF9F27, Purple: 0x7F77DD, Orange: 0xD85A30,
+  Red:    0xFF3D3D, Blue:   0x2F8CFF, Green:  0x2FCC55,
+  Yellow: 0xFFD42A, Purple: 0xA35CFF, Orange: 0xFF8A1C,
 };
 
 const DMG_STYLE = {
-  fontSize:   13,
-  fontWeight: 'bold',
+  fontFamily: '"Lilita One", Fredoka, Arial, sans-serif',
+  fontSize:   15,
   fill:       0xffffff,
-  dropShadow: { color: 0x000000, blur: 2, distance: 1, alpha: 0.6 },
+  stroke:     { color: 0x1F1A33, width: 4, join: 'round' },
 };
 
 export class BenchRenderer {
@@ -98,6 +101,7 @@ export class BenchRenderer {
     this._graphics = [];
     this._sprites  = [];
     this._texts    = [];
+    this._shapes   = [];   // colour-blind shape glyph per slot (stored bombs must stay readable)
 
     for (let i = 0; i < 4; i++) {
       const g = new Graphics();
@@ -114,6 +118,12 @@ export class BenchRenderer {
       t.anchor.set(0.5);
       this._layer.addChild(t);
       this._texts.push(t);
+
+      const sh = new Text({ text: '', style: { fontSize: 14, fontWeight: '900', fill: 0xFFFFFF, stroke: { color: INK, width: 3 } } });
+      sh.anchor.set(0.5);
+      sh.visible = false;
+      this._layer.addChild(sh);
+      this._shapes.push(sh);
     }
   }
 
@@ -125,6 +135,7 @@ export class BenchRenderer {
       for (const g  of this._graphics) g.clear();
       for (const sp of this._sprites)  sp.visible = false;
       for (const t  of this._texts)    t.visible  = false;
+      for (const t  of this._shapes)   t.visible  = false;
     }
   }
 
@@ -159,8 +170,13 @@ export class BenchRenderer {
     // Solid tray panel spanning the full bench band — drawn first, behind slots,
     // so the storage area is always distinct from the road.
     this._trayG.clear();
-    this._trayG.roundRect(2, BENCH_Y - BENCH_TRAY_PAD, this._colW * 4 - 4, BENCH_SLOT_H + BENCH_TRAY_PAD * 2, 9);
-    this._trayG.fill({ color: 0x1a1a2e, alpha: 0.85 });
+    // Premium pass: the goal band's indigo with its gold trim, so the storage
+    // tray reads as part of the same HUD family rather than a placeholder bar.
+    const tw = this._colW * 4 - 4, th = BENCH_SLOT_H + BENCH_TRAY_PAD * 2, ty = BENCH_Y - BENCH_TRAY_PAD;
+    this._trayG.roundRect(2, ty, tw, th, 12).fill(0x221E4E);
+    this._trayG.roundRect(2, ty, tw, th * 0.5, 12).fill({ color: 0xFFFFFF, alpha: 0.05 });
+    this._trayG.roundRect(2, ty, tw, th, 12).stroke({ color: 0xB9771C, width: 2.5 });
+    this._trayG.roundRect(2, ty, tw, th, 12).stroke({ color: INK, width: 1, alpha: 0.7 });
 
     for (let i = 0; i < 4; i++) {
       const g       = this._graphics[i];
@@ -175,8 +191,8 @@ export class BenchRenderer {
       // Empty slots at 35% opacity so players can see there are slots to fill;
       // filled slots stay bright. (Tray panel behind makes both legible.)
       const isEmpty    = !shooter;
-      const bgAlpha    = isEmpty ? 0.35 : 0.90;
-      const borderAlph = isEmpty ? 0.35 : 0.55;
+      const bgAlpha    = 1;
+      const borderAlph = isEmpty ? 0.55 : 0.9;
 
       // Slot background
       g.roundRect(sx, BENCH_Y, sw, BENCH_SLOT_H, 7);
@@ -190,7 +206,7 @@ export class BenchRenderer {
         g.stroke({ color: HI_COLOR, width: 2, alpha: HI_ALPHA });
       } else {
         g.roundRect(sx, BENCH_Y, sw, BENCH_SLOT_H, 7);
-        g.stroke({ color: SLOT_EDGE, width: 1, alpha: borderAlph });
+        g.stroke({ color: SLOT_EDGE, width: 2, alpha: borderAlph });
       }
 
       if (shooter) {
@@ -201,7 +217,7 @@ export class BenchRenderer {
         g.roundRect(sx, BENCH_Y, sw, BENCH_SLOT_H, 7);
         g.stroke({ color: glowCol, width: 1.5, alpha: 0.45 });
 
-        // Idle sprite left-of-center, damage number right-of-center.
+        // Idle sprite centred in its slot (the damage number it used to make room for is gone).
         const sp        = this._sprites[i];
         const tex       = Assets.get(bombUrl(shooter.color));
         if (tex) {
@@ -212,22 +228,33 @@ export class BenchRenderer {
             sp.scale.set(targetSize / max);
             sp._benchTargetSize = targetSize;
           }
-          sp.x       = cx - 14;
+          sp.x       = cx;   // dead centre: getSlotCenter(), the supercharged ring and the drag pickup all anchor here
           sp.y       = cy;
           sp.visible = true;
         } else {
           sp.visible = false;
         }
 
-        this._texts[i].text    = String(shooter.damage);
+        this._texts[i].text    = '';   // one hit: no number
         this._texts[i].x       = cx + 10;
         this._texts[i].y       = cy;
         this._texts[i].visible = true;
+        const sym = shapeFor(shooter.color);
+        this._shapes[i].text    = sym;
+        this._shapes[i].x       = cx;
+        this._shapes[i].y       = cy + 10;
+        this._shapes[i].visible = sym !== '';
       } else {
+        this._shapes[i].visible = false;
         this._sprites[i].visible = false;
-        // Empty slot indicator — small dim dot
-        g.circle(cx, cy, 3.5);
-        g.fill({ color: 0x334455, alpha: 0.55 });
+        // Empty slot: an inset socket (same language as the queue sockets) with
+        // a faint "+" — reads as "a bomb can park here", not as a stray dot.
+        const r = Math.min(BENCH_SLOT_H * 0.36, 15);
+        g.circle(cx, cy, r).fill({ color: 0x0C0A26, alpha: 0.75 });
+        g.circle(cx, cy + 1.5, r - 1.5).stroke({ color: 0xFFFFFF, width: 1.2, alpha: 0.08 });
+        g.circle(cx, cy, r).stroke({ color: 0x4E4890, width: 2 });
+        g.rect(cx - r * 0.38, cy - 1, r * 0.76, 2).fill({ color: 0x7A74B0, alpha: 0.8 });
+        g.rect(cx - 1, cy - r * 0.38, 2, r * 0.76).fill({ color: 0x7A74B0, alpha: 0.8 });
         this._texts[i].visible = false;
       }
     }

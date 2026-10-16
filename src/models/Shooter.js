@@ -11,7 +11,10 @@ const FIRE_DURATION_BY_DAMAGE = {
 };
 
 export class Shooter {
-  constructor({ color, damage, column, isColorBomb = false }) {
+  // Every bomb is ONE hit (docs/ONE_HIT_MODEL.md). `damage` is only ever 0 (the rainbow
+  // powerball, which deals no damage of its own) or the default 1; the supercharged
+  // Hot Streak shot doubles it at resolve time.
+  constructor({ color, damage = 1, column, isColorBomb = false }) {
     this.color = color;
     this.damage = damage;
     this.column = column;

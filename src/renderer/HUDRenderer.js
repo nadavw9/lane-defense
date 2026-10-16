@@ -13,6 +13,7 @@
 // win is goal-driven now (see GoalCounterUI).
 
 import { Graphics, Text } from 'pixi.js';
+import { INK, SUN, toyPanel } from './ToyStyle.js';
 import { BAR_Y } from './BoosterBar.js';
 import { uiIcon } from './UIIcon.js';
 
@@ -24,7 +25,7 @@ import { uiIcon } from './UIIcon.js';
 const ROW_MID = BAR_Y + 34;   // booster card centre; derived, not frozen (was 786 @ BAR_Y 752)
 
 // Combo celebration sits over the upper road (transient; goals own the very top).
-const COMBO_Y        = 150;
+const COMBO_Y        = 300;   // mid-upper road: clear of the top toast band
 const COMBO_PILL_H   = 32;
 
 const SPRING_K       = 380;
@@ -79,20 +80,23 @@ export class HUDRenderer {
     }
     this._layer.addChild(this._muteBtn);
     this._drawSpeaker(false);
+    // Premium pass: sound lives in Pause → Settings; a bare speaker glyph in the
+    // bar read as unfinished UI. Kept constructed (tests/hooks), just not shown.
+    this._muteBtn.visible = false;
+    this._muteBtn.eventMode = 'none';
 
     // ── Level text (over the badge drawn in _bg) ────────────────────────────
     this._levelText = new Text({
       text: 'L1',
       style: {
-        fontSize:   14,
-        fontWeight: 'bold',
-        fill:       0xffffff,
-        dropShadow: { color: 0x220055, blur: 3, distance: 1, alpha: 0.9 },
+        fontSize:   15,
+        fontWeight: '900',
+        fill:       INK,
       },
     });
     this._levelText.anchor.set(0.5, 0.5);
     this._levelText.x = BADGE_X + BADGE_W / 2;
-    this._levelText.y = ROW_MID;
+    this._levelText.y = ROW_MID - 1;
     this._layer.addChild(this._levelText);
 
     // ── Combo glow + text (transient, over upper road) ──────────────────────
@@ -101,11 +105,12 @@ export class HUDRenderer {
     this._comboText = new Text({
       text: '',
       style: {
+        fontFamily: '"Lilita One", Fredoka, Arial, sans-serif',
         fontSize:   22,
-        fontWeight: 'bold',
         fill:       0xffffff,
-        stroke:     { color: 0x000000, width: 3 },
-        dropShadow: { color: 0x000000, blur: 6, distance: 0, alpha: 0.70 },
+        letterSpacing: 1,
+        stroke:     { color: 0x1F1A33, width: 6, join: 'round' },
+        dropShadow: { color: 0x000000, blur: 2, distance: 3, alpha: 0.45, angle: Math.PI / 2 },
       },
     });
     this._comboText.anchor.set(0.5, 0.5);
@@ -197,14 +202,7 @@ export class HUDRenderer {
 
     // No separate info bar — these elements sit on the booster bar's own full-width
     // background. Draw just the level badge (purple gradient pill) in the left gutter.
-    g.roundRect(BADGE_X + 1, BADGE_Y + 2, BADGE_W, BADGE_H, BADGE_R);
-    g.fill({ color: 0x000000, alpha: 0.38 });
-    g.roundRect(BADGE_X, BADGE_Y, BADGE_W, BADGE_H, BADGE_R);
-    g.fill(0x4a1088);
-    g.rect(BADGE_X + BADGE_R * 0.6, BADGE_Y + 1, BADGE_W - BADGE_R * 1.2, BADGE_H * 0.46);
-    g.fill({ color: 0xaa55ff, alpha: 0.50 });
-    g.roundRect(BADGE_X, BADGE_Y, BADGE_W, BADGE_H, BADGE_R);
-    g.stroke({ color: 0xddaa22, width: 1.2, alpha: 0.70 });
+    toyPanel(g, BADGE_X, BADGE_Y - 1, BADGE_W, BADGE_H - 2, BADGE_R, SUN, { lip: 3, stroke: 2.5 });
   }
 
   _drawCoinDisc(cx, cy) {
@@ -273,13 +271,15 @@ export class HUDRenderer {
     const cx    = this._appW / 2;
     const cy    = COMBO_Y;
 
-    g.roundRect(cx - glowW / 2, cy - glowH / 2, glowW, glowH, 12);
-    g.fill({ color: this._curTierColor, alpha: this._curTierGlowAlpha });
+    // Soft radial halo behind the outlined text (a hard translucent box read
+    // as a debug highlight). Two stacked ellipses fake the falloff.
+    const a = this._curTierGlowAlpha;
+    g.ellipse(cx, cy, glowW * 0.62, glowH * 0.95).fill({ color: this._curTierColor, alpha: a * 0.35 });
+    g.ellipse(cx, cy, glowW * 0.45, glowH * 0.62).fill({ color: this._curTierColor, alpha: a * 0.45 });
 
     if (this._tierFlashT > 0) {
-      const flashA = (this._tierFlashT / 0.12) * 0.55;
-      g.roundRect(cx - glowW / 2, cy - glowH / 2, glowW, glowH, 12);
-      g.fill({ color: 0xffffff, alpha: flashA });
+      const flashA = (this._tierFlashT / 0.12) * 0.45;
+      g.ellipse(cx, cy, glowW * 0.5, glowH * 0.7).fill({ color: 0xffffff, alpha: flashA });
     }
   }
 

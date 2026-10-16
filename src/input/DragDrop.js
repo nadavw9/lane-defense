@@ -17,6 +17,7 @@
 // Bench highlights during drag from column:
 //   • BLUE ring on the hovered empty bench slot
 import { Graphics, Container, Text, Sprite, Texture } from 'pixi.js';
+import { canTarget } from '../director/TrafficRules.js';
 import {
   ROAD_TOP_Y, ROAD_BOTTOM_Y, frontRowTapMargin,
   ROAD_TOP_X, ROAD_TOP_W, ROAD_BOTTOM_W,
@@ -36,12 +37,12 @@ import { bombSlotScreenY, PX_PER_WU, BOMB_R } from '../renderer3d/projection.js'
 
 // Re-export color map so we can use it without a circular dep on ShooterRenderer.
 const COLOR_MAP = {
-  Red:    0xE24B4A,
-  Blue:   0x378ADD,
-  Green:  0x639922,
-  Yellow: 0xEF9F27,
-  Purple: 0x7F77DD,
-  Orange: 0xD85A30,
+  Red:    0xFF3D3D,
+  Blue:   0x2F8CFF,
+  Green:  0x2FCC55,
+  Yellow: 0xFFD42A,
+  Purple: 0xA35CFF,
+  Orange: 0xFF8A1C,
 };
 
 const HIT_RADIUS      = TOP_RADIUS + 14;
@@ -141,7 +142,6 @@ export class DragDrop {
   //   onDeploy(colIdx, laneIdx)
   //   onDeployFromBench(shooter, laneIdx)
   //   onBenchStore(colIdx)
-  //   onReorder(sourceColIdx, sourceRow, targetColIdx, targetRow)  — queue reorder (L5+)
   //   onColorMismatch()
   //   onBenchFull()
   //   onLaneHover(laneIdx, colorHex)  — 3D road lane glow
@@ -156,7 +156,8 @@ export class DragDrop {
     shooterRenderer,
     benchRenderer,
     { onDeploy, onDeployFromBench, onBenchStore, onColorMismatch, onBenchFull, onBombPlaced,
-      onLaneHover, onLaneClear, getColorBombArmed, onColumnPickup, onColorChangeTap, onReorder } = {},
+      onLaneHover, onLaneClear, getColorBombArmed, onColumnPickup, onColorChangeTap,
+      isShotInFlight } = {},
     boosterState = null,
     _unused = null,
     firingSlots = null,
@@ -179,18 +180,20 @@ export class DragDrop {
     this._onColorChangeTap  = onColorChangeTap   ?? (() => {});
     this._onLaneHover       = onLaneHover        ?? (() => {});
     this._onLaneClear       = onLaneClear        ?? (() => {});
-    this._onReorder         = onReorder          ?? (() => {});
-    this._getColorBombArmed = getColorBombArmed  ?? null;
+        this._getColorBombArmed = getColorBombArmed  ?? null;
     // Returns true to INTERCEPT a column-top pickup (e.g. show a modal tutorial
     // card first) — the drag does not start in that case.
     this._onColumnPickup    = onColumnPickup     ?? (() => false);
 
     this._firingSlots = firingSlots;
-    this._reorderEnabled = false;   // L5+ queue-reorder / bench-return gate
+    // GameLoop also refuses a deploy while a shot waits out its hit-stop (firingSlots is
+    // already clear then), so the input guard must ask the loop, not just the slots.
+    this._isShotInFlight = isShotInFlight ?? (() => false);
+    this._benchReturnEnabled = false;   // L5+ bench-return gate
     // Board depth for the current level — drives the BOMB-booster front-row tap
     // margin (frontRowTapMargin), which is half a ROW interval and therefore
     // depends on how many rows the board has. Set per level by GameApp
-    // (setGridRows), same pattern as setReorderEnabled. Defaults to the 16-row
+    // (setGridRows), same pattern as setBenchReturnEnabled. Defaults to the 16-row
     // standard so any un-set path behaves exactly as before.
     this._gridRows = 16;
 
@@ -232,12 +235,16 @@ export class DragDrop {
     // hint or the car-intro card — is up). The card dismisses via its own Pixi
     // events, which are independent of this DOM-driven input path.
     this.inputBlocked = false;
+    // Booster taps (BOMB / COLOR CHANGE) only count below this screen Y: the
+    // header band (goal plaque + round buttons) sits over the top of the road,
+    // and a tap on its pause button used to fire an armed bomb. Set by GameApp.
+    this.minBoardTapY = 0;
   }
 
   // ── Public API ─────────────────────────────────────────────────────────────
 
-  setReorderEnabled(enabled) {
-    this._reorderEnabled = !!enabled;
+  setBenchReturnEnabled(enabled) {
+    this._benchReturnEnabled = !!enabled;
   }
 
   // Board depth for the current level — see this._gridRows in the constructor.
@@ -254,7 +261,7 @@ export class DragDrop {
     if (this._boosterState?.bombMode) {
       // Extend the lower bound half a row past the breach line so the frontmost
       // row (its cars sit ON ROAD_BOTTOM_Y) is fully tappable; onBombPlaced clamps.
-      if (y >= ROAD_TOP_Y && y <= ROAD_BOTTOM_Y + frontRowTapMargin(this._gridRows)) {
+      if (y >= Math.max(ROAD_TOP_Y, this.minBoardTapY) && y <= ROAD_BOTTOM_Y + frontRowTapMargin(this._gridRows)) {
         // The BOMB clears the tapped car's LANE, so the lane is the payload; x,y
         // still travel through for the tapped row (the blast's travel target).
         //
@@ -275,14 +282,17 @@ export class DragDrop {
     // COLOR CHANGE (FIX 4B): first tap selects a car by lane; GameApp resolves the
     // car's colour and shows the colour picker for the second tap.
     if (this._boosterState?.colorChangeMode && this._boosterState.colorChangeFromColor == null) {
-      if (y >= ROAD_TOP_Y && y <= ROAD_BOTTOM_Y) {
+      if (y >= Math.max(ROAD_TOP_Y, this.minBoardTapY) && y <= ROAD_BOTTOM_Y) {
         const lane = this._hitTestLane(x, y);
         if (lane >= 0) this._onColorChangeTap(lane, x, y);
       }
       return;
     }
 
-    const col = this._hitTestColumn(x, y);
+    // Only the TOP bomb of a column can be picked up: the queue cannot be reordered.
+    const nearest = this._hitTestQueueSlot(x, y);
+
+    const col = nearest ? nearest.col : this._hitTestColumn(x, y);
 
     if (col !== -1 && this._columns[col].top()) {
       const shooter = this._columns[col].top();
@@ -290,21 +300,6 @@ export class DragDrop {
       if (this._onColumnPickup(shooter)) return;
       this._startDrag('column', col, 0, shooter, x, y, x, y);
       return;
-    }
-
-    // Queue reorder (L5+): hit-test any queue slot
-    if (this._reorderEnabled) {
-      const queueHit = this._hitTestQueueSlot(x, y);
-      if (queueHit !== null) {
-        const { col: qCol, row: qRow } = queueHit;
-        const shooter = this._columns[qCol].shooters[qRow];
-        if (shooter && this._onColumnPickup(shooter)) return;
-        if (shooter) {
-          const { x: cx, y: cy } = this._shooterRenderer.getQueueSlotCenter(qCol, qRow);
-          this._startDrag('column', qCol, qRow, shooter, cx, cy, x, y);
-          return;
-        }
-      }
     }
 
     const slot = this._benchRenderer?.hitTestSlot(x, y) ?? -1;
@@ -326,6 +321,15 @@ export class DragDrop {
   // True while a queue/bench bomb is being held.
   isDragging() { return this._state === 'dragging'; }
 
+  // The touch was CANCELLED by the system (notification shade, palm rejection, a
+  // system gesture) — it is not a release. Visual-only snap-back, no state writes.
+  cancel() {
+    if (this._state !== 'dragging') return;
+    this._clearHighlights();
+    this._benchRenderer?.setHighlight(-1);
+    this._snapBack();
+  }
+
   onPointerUp(x, y) {
     if (this.inputBlocked) {
       // Input got blocked MID-DRAG (a modal/sequence started while holding).
@@ -346,21 +350,10 @@ export class DragDrop {
     this._benchRenderer?.setHighlight(-1);
 
 
-    // ── Reorder (L5+): drag queue slot to another queue slot ────────────────
-    if (this._dragSource === 'column' && this._reorderEnabled && this._dragSourceRow >= 0) {
-      const targetQueue = this._hitTestQueueSlot(x, y);
-      if (targetQueue !== null) {
-        const { col: tCol, row: tRow } = targetQueue;
-        // Check if source == target (no-op snap back)
-        if (this._dragSourceIdx === tCol && this._dragSourceRow === tRow) {
-          this._snapBack();
-          return;
-        }
-        // Valid reorder drop
-        this._handleQueueReorder(this._dragSourceIdx, this._dragSourceRow, tCol, tRow);
-        return;
-      }
-    }
+    // A release on the ROAD is a lane drop. The queue-slot hit circles (48px) reach up
+    // into the front row, so without this a drop on the front car read as "drop on my
+    // own slot 0" and snapped back, or returned a bench bomb to the queue.
+    const onRoad = y >= ROAD_TOP_Y && y <= ROAD_BOTTOM_Y;
 
     // ── Top bomb only: drag top to bench ────────────────────────────────────
     if (this._dragSource === 'column' && this._dragSourceRow === 0 && this._hitTestBenchArea(x, y)) {
@@ -369,7 +362,7 @@ export class DragDrop {
     }
 
     // ── Bench → Queue return (L5+): drag bench bomb to a queue column ────────
-    if (this._dragSource === 'bench' && this._reorderEnabled) {
+    if (!onRoad && this._dragSource === 'bench' && this._benchReturnEnabled) {
       const queueHit = this._hitTestQueueSlot(x, y);
       if (queueHit !== null) {
         const { col: tCol } = queueHit;
@@ -472,9 +465,9 @@ export class DragDrop {
   // tests/deploy-guard-parity.test.js asserts the two never drift apart again.
   _deployWouldBeRefused(laneIdx) {
     const slots = this._firingSlots ?? [];
-    if (slots[laneIdx]) return true;                       // GameLoop, both paths
-    if (this._dragSource === 'bench') return false;        // deployFromBench stops here
-    return Object.values(slots).some((s) => s !== null);   // GameLoop.deploy, turn-based
+    if (slots[laneIdx]) return true;
+    if (this._isShotInFlight()) return true;               // hit-stop: shot pending, slots clear
+    return Object.values(slots).some((s) => s !== null);   // turn-based: queue AND bench
   }
 
   _handleLaneDrop(laneIdx) {
@@ -482,12 +475,18 @@ export class DragDrop {
     // screen position, mapped to the road plane in world space.
     const release = this._ghost ? screenToWorldXZ(this._ghost.x, this._ghost.y) : null;
     if (this._dragSource === 'column') {
-      this._onDeploy(this._dragSourceIdx, laneIdx, release);
+      this._onDeploy(this._dragSourceIdx, laneIdx, release, this._dragShooter);
       this._shooterRenderer.draggingColumn = -1;
     } else {
-      const shooter = this._benchStorage.take(this._dragSourceIdx);
+      // Peek, fire, and only THEN take: taking first deleted the bomb whenever the loop
+      // refused the shot (the return value was ignored).
+      const shooter = this._benchStorage.getSlot(this._dragSourceIdx);
       if (this._benchRenderer) this._benchRenderer.draggingSlot = -1;
-      this._onDeployFromBench(shooter, laneIdx, release);
+      if (this._onDeployFromBench(shooter, laneIdx, release) === false) {
+        this._snapBack();
+        return;
+      }
+      this._benchStorage.take(this._dragSourceIdx);
     }
     const targetX = getLaneScreenX(laneIdx);
     const targetY = ROAD_BOTTOM_Y;
@@ -517,6 +516,12 @@ export class DragDrop {
     }
     const col     = this._columns[this._dragSourceIdx];
     const shooter = col.top();
+    // The column top can change while a drag is held (earned rainbow, crisis inject).
+    // Storing live top() then destroys the bomb the player was holding.
+    if (!shooter || shooter !== this._dragShooter) {
+      this._snapBack();
+      return;
+    }
     col.consume();
     const slotIdx = this._benchStorage.store(shooter);
     this._shooterRenderer.draggingColumn = -1;
@@ -527,65 +532,6 @@ export class DragDrop {
       FLY_DURATION, () => this._destroyGhost(),
     );
     this._state = 'flying';
-    // Consume the free queue action.
-    if (this._boosterState) this._boosterState.queueActionUsed = true;
-  }
-
-  _handleQueueReorder(srcCol, srcRow, tgtCol, tgtRow) {
-    // Queue action: reorder/swap. Gate by free action flag.
-    if (this._boosterState?.queueActionUsed) {
-      this._snapBack();
-      return;
-    }
-
-    const srcColumn = this._columns[srcCol];
-    const tgtColumn = this._columns[tgtCol];
-
-    const draggedShooter = srcColumn.shooters[srcRow];
-    if (!draggedShooter) {
-      this._snapBack();
-      return;
-    }
-
-    // If target is occupied, SWAP. Writes are index-guarded: draggedShooter's
-    // existence proves srcRow < length; the occupied-check proves tgtRow < length —
-    // so neither assignment can create a sparse array. The invariant check below
-    // is a defensive backstop in case a future race reaches this with stale indices.
-    let destRow;
-    if (tgtColumn.shooters[tgtRow] !== undefined) {
-      const targetShooter = tgtColumn.shooters[tgtRow];
-      srcColumn.shooters[srcRow] = targetShooter;
-      tgtColumn.shooters[tgtRow] = draggedShooter;
-      destRow = tgtRow;
-    } else {
-      // Target slot is empty — move bomb from src to tgt (append at bottom of target column)
-      srcColumn.shooters.splice(srcRow, 1);
-      tgtColumn.shooters.push(draggedShooter);
-      destRow = tgtColumn.shooters.length - 1;
-    }
-    // Defensive invariant: no holes, ever (a sparse array crashes
-    // the renderer on undefined.color). Repair + log instead of corrupting.
-    for (const colArr of [srcColumn.shooters, tgtColumn.shooters]) {
-      if (colArr.includes(undefined)) {
-        console.error('[DragDrop] sparse queue write repaired', { srcCol, srcRow, tgtCol, tgtRow });
-        const dense = colArr.filter(s => s !== undefined);
-        colArr.length = 0; colArr.push(...dense);
-      }
-    }
-
-    this._shooterRenderer.draggingColumn = -1;
-    this._onReorder(srcCol, srcRow, tgtCol, tgtRow);
-
-    // Fly the ghost to where the dragged bomb ACTUALLY landed (the target slot).
-    // It used to snap back to the SOURCE slot, so the player watched their bomb
-    // "return" while something simultaneously consumed it at the target (S2-B).
-    const { x: tx, y: ty } = this._shooterRenderer.getQueueSlotCenter(tgtCol, destRow);
-    if (this._ghost) this._ghost.scale.set(1.0);
-    this._startAnim(
-      this._ghost.x, this._ghost.y, tx, ty,
-      SNAP_DURATION, () => this._destroyGhost(),
-    );
-    this._state = 'snapping';
     // Consume the free queue action.
     if (this._boosterState) this._boosterState.queueActionUsed = true;
   }
@@ -615,9 +561,6 @@ export class DragDrop {
 
     targetColumn.pushBottom(shooter);
     if (this._benchRenderer) this._benchRenderer.draggingSlot = -1;
-
-    // Notify via the onReorder callback (same as the queue-reorder path)
-    this._onReorder(-1, -1, targetColIdx, -1);
 
     // Fly the ghost to the bottom of the target column
     const { x: tx, y: ty } = this._shooterRenderer.getQueueSlotCenter(targetColIdx, targetColumn.shooters.length - 1);
@@ -662,7 +605,7 @@ export class DragDrop {
 
     if (this._dragSource === 'bench') {
       // Bench→Queue return (L5+): highlight valid queue columns with green, full ones with red
-      if (this._reorderEnabled) {
+      if (this._benchReturnEnabled) {
         const queueHit = this._hitTestQueueSlot(x, y);
         if (queueHit !== null) {
           const { col: tCol } = queueHit;
@@ -685,19 +628,6 @@ export class DragDrop {
         this._onLaneHover(laneIdx, _glow);   // 3C: green = valid drop, red = invalid
       }
       return;
-    }
-
-
-    // Column drag from a queue slot (reorder)
-    if (this._dragSource === 'column' && this._reorderEnabled && this._dragSourceRow >= 0) {
-      const queueTarget = this._hitTestQueueSlot(x, y);
-      if (queueTarget !== null) {
-        const { col: tCol, row: tRow } = queueTarget;
-        const isSameSlot = (this._dragSourceIdx === tCol && this._dragSourceRow === tRow);
-        // Highlight the target slot green for a valid reorder (different slot).
-        if (!isSameSlot) this._shooterRenderer.setReorderTarget(tCol, tRow, true);
-        return;
-      }
     }
 
 
@@ -764,10 +694,10 @@ export class DragDrop {
     // Empty lane — no car to hit. Reject the drop so the bomb bounces back to the
     // queue (same path as a wrong-colour drop) instead of being silently consumed.
     if (!frontCar) return false;
-    // Only the earned RAINBOW color bomb matches any lane that HAS a car.
-    // regular bomb and bounces on mismatch.
-    if (this._dragShooter.isColorBomb) return true;
-    return this._dragShooter.color === frontCar.color;
+    // The earned RAINBOW colour bomb matches any lane that HAS a car, and any
+    // bomb can knock the plates off an armoured car; otherwise colours must match
+    // (TrafficRules.canTarget — shared with the game loop and the simulator).
+    return canTarget(frontCar, this._dragShooter.color, !!this._dragShooter.isColorBomb);
   }
 
   _hitTestColumn(x, y) {
@@ -787,16 +717,16 @@ export class DragDrop {
     // Test all 3 slot rows (not just occupied ones) so EMPTY slots/columns are
     // valid drop targets for reorder + bench-return. The drag-source path in
     // onPointerDown guards with `if (shooter)`, so this never grabs an empty slot.
+    // NEAREST slot within the radius (slots overlap: pitch < radius).
+    let best = null, bestD = HIT_RADIUS * HIT_RADIUS;
     for (let col = 0; col < getActiveColCount(); col++) {
       for (let row = 0; row < 3; row++) {   // 3 = COLUMN_CAPACITY
         const { x: cx, y: cy } = this._shooterRenderer.getQueueSlotCenter(col, row);
-        const dx = x - cx, dy = y - cy;
-        if (dx * dx + dy * dy <= HIT_RADIUS * HIT_RADIUS) {
-          return { col, row };
-        }
+        const dx = x - cx, dy = y - cy, d = dx * dx + dy * dy;
+        if (d <= bestD) { bestD = d; best = { col, row }; }
       }
     }
-    return null;
+    return best;
   }
 
   _hitTestLane(x, y) {
@@ -938,27 +868,29 @@ export class DragDrop {
     ctx.quadraticCurveTo(fuseCPX, fuseCPY, fuseEndX, fuseEndY);
     ctx.stroke();
 
-    // ── Damage badge plate ────────────────────────────────────────────────────
-    const badgeCX = cx;
-    const badgeCY = cy + R * 0.32;
-    const badgeW  = R * 1.15;
-    const badgeH  = R * 0.62;
-    _canvasRoundRect(ctx, badgeCX - badgeW / 2, badgeCY - badgeH / 2, badgeW, badgeH, 8);
-    ctx.fillStyle   = '#0a0a14';
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.80)';
-    ctx.lineWidth   = 1.5;
-    ctx.stroke();
+    // ── Colour-bomb badge (normal bombs carry no number: every bomb is one hit) ──
+    if (isColorBomb) {
+      const badgeCX = cx;
+      const badgeCY = cy + R * 0.32;
+      const badgeW  = R * 1.15;
+      const badgeH  = R * 0.62;
+      _canvasRoundRect(ctx, badgeCX - badgeW / 2, badgeCY - badgeH / 2, badgeW, badgeH, 8);
+      ctx.fillStyle   = '#0a0a14';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.80)';
+      ctx.lineWidth   = 1.5;
+      ctx.stroke();
 
-    const badgeText = isColorBomb ? '★ALL' : String(damage);
-    ctx.font         = isColorBomb ? `bold ${Math.round(R * 0.52)}px Arial` : `bold ${Math.round(R * 0.70)}px Arial`;
-    ctx.fillStyle    = isColorBomb ? '#ffee44' : '#ffffff';
-    ctx.textAlign    = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.shadowColor  = 'rgba(0,0,0,0.9)';
-    ctx.shadowBlur   = 3;
-    ctx.fillText(badgeText, badgeCX, badgeCY);
-    ctx.shadowBlur   = 0;
+      const badgeText = '★ALL';
+      ctx.font         = `bold ${Math.round(R * 0.52)}px Arial`;
+      ctx.fillStyle    = '#ffee44';
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor  = 'rgba(0,0,0,0.9)';
+      ctx.shadowBlur   = 3;
+      ctx.fillText(badgeText, badgeCX, badgeCY);
+      ctx.shadowBlur   = 0;
+    }
 
     // ── Build PIXI container ─────────────────────────────────────────────────
     const tex = Texture.from(cv);

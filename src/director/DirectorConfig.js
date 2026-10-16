@@ -121,9 +121,9 @@ export const WORLD_CONFIG = {
 // ─── Car HP Generation ────────────────────────────────────────────────────────
 
 // HP = base × world_multiplier × phase_multiplier × variance
-export const HP_BASE = { min: 2, max: 20 }; // absolute clamp range (tank base 20)
+export const HP_BASE = { min: 1, max: 3 }; // absolute clamp range: the one-hit ladder is 1..3 hits
 export const HP_VARIANCE = { min: 0.85, max: 1.15 };
-export const HP_MINIMUM = 2; // never below this
+export const HP_MINIMUM = 1; // never below this (one-hit ladder: a motorbike is 1 hit)
 
 // ─── Lane Config ─────────────────────────────────────────────────────────────
 
@@ -187,7 +187,14 @@ export const FREEZE_THRESHOLD     = 7;  // kills → next shot freezes all cars 
 
 export const COMBO_WINDOW = 5;       // seconds between kills to maintain combo
 export const CARRYOVER_COIN_BONUS = 5; // coins for a carry-over kill
-export const COINS_PER_CAR = 10;     // coins awarded per car destroyed (hybrid-casual rate)
+// Coins per car destroyed. A win is ~25-35 cars, so ~50-70 coins: about one booster
+// (20-40) or one coin-continue (60) per win — coins stay worth earning and spending.
+// (Was 10: a single win paid ~300 and bought eight boosters.)
+// Kills that earn one BOMB booster charge. Levels hold about half the cars since the one-hit
+// ladder, so this went 10 -> 6 to keep the same earn rate per level.
+export const KILLS_PER_BOMB = 6;
+export const COINS_PER_CAR = 4;   // levels hold ~half the cars since the one-hit ladder, so a win pays the same as before
+export const RESCUE_COIN_COST = 60;   // continue after a breach, as an alternative to the ad
 
 // ─── Deploy Time Dilation ─────────────────────────────────────────────────────
 

@@ -15,6 +15,9 @@ export class InputManager {
     this._onDown   = this._onDown.bind(this);
     this._onMove   = this._onMove.bind(this);
     this._onUp     = this._onUp.bind(this);
+    this._onCancel = this._onCancel.bind(this);
+    this._onLeave  = (e) => { if (e.buttons === 0) this._onUp(e); };
+    this._activeId = null;   // the ONE pointer that owns the current gesture
 
     this._rect = null;                       // cached canvas rect, see _rectNow()
     this._onLayoutChange = () => this._invalidateRect();
@@ -31,10 +34,10 @@ export class InputManager {
     c.addEventListener('pointerdown',   this._onDown);
     c.addEventListener('pointermove',   this._onMove);
     c.addEventListener('pointerup',     this._onUp);
-    c.addEventListener('pointercancel', this._onUp);
+    c.addEventListener('pointercancel', this._onCancel);
     // Only treat pointerleave as a release when no button is held (e.g. finger
     // still down on mobile).  Prevents premature drop cancellation mid-drag.
-    c.addEventListener('pointerleave',  (e) => { if (e.buttons === 0) this._onUp(e); });
+    c.addEventListener('pointerleave',  this._onLeave);
   }
 
   destroy() {
@@ -42,8 +45,8 @@ export class InputManager {
     c.removeEventListener('pointerdown',   this._onDown);
     c.removeEventListener('pointermove',   this._onMove);
     c.removeEventListener('pointerup',     this._onUp);
-    c.removeEventListener('pointercancel', this._onUp);
-    c.removeEventListener('pointerleave',  this._onUp);
+    c.removeEventListener('pointercancel', this._onCancel);
+    c.removeEventListener('pointerleave',  this._onLeave);
     window.removeEventListener('resize', this._onLayoutChange);
     window.removeEventListener('orientationchange', this._onLayoutChange);
     this._ro?.disconnect();
@@ -52,6 +55,13 @@ export class InputManager {
   // ── Private ────────────────────────────────────────────────────────────────
 
   _onDown(e) {
+    // One gesture at a time: a second finger must not start, steer or release another
+    // finger's drag. A stale id (lost up event) is replaced by a fresh primary press.
+    if (this._activeId !== null && this._activeId !== e.pointerId && !e.isPrimary) return;
+    this._activeId = e.pointerId;
+    // Keep receiving move/up even if the mouse leaves the canvas mid-drag; without this
+    // a release outside the canvas left the drag stuck and the NEXT click resolved it.
+    try { this._app.canvas.setPointerCapture?.(e.pointerId); } catch { /* synthetic events */ }
     // Refresh at the START of every interaction: one forced layout per press
     // instead of one per move, and it guarantees a drag can never run against a
     // rect that went stale before the press.
@@ -61,13 +71,24 @@ export class InputManager {
   }
 
   _onMove(e) {
+    if (this._activeId !== null && e.pointerId !== this._activeId) return;
     const { x, y } = this._toGameCoords(e);
     this._dragDrop.onPointerMove(x, y);
   }
 
   _onUp(e) {
+    if (this._activeId !== null && e.pointerId !== this._activeId) return;
+    this._activeId = null;
     const { x, y } = this._toGameCoords(e);
     this._dragDrop.onPointerUp(x, y);
+  }
+
+  // The system took the touch away (notification shade, palm rejection, gesture):
+  // that is not a release, so it must never deploy, bench or reorder anything.
+  _onCancel(e) {
+    if (this._activeId !== null && e.pointerId !== this._activeId) return;
+    this._activeId = null;
+    this._dragDrop.cancel?.();
   }
 
   // Map a DOM PointerEvent from CSS-pixel space into the logical game canvas space.

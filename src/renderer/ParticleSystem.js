@@ -8,12 +8,12 @@ import { getLaneScreenX } from './PositionRegistry.js';
 
 // Color palette — matches CLAUDE.md spec.
 const COLOR_MAP = {
-  Red:    0xE24B4A,
-  Blue:   0x378ADD,
-  Green:  0x639922,
-  Yellow: 0xEF9F27,
-  Purple: 0x7F77DD,
-  Orange: 0xD85A30,
+  Red:    0xFF3D3D,
+  Blue:   0x2F8CFF,
+  Green:  0x2FCC55,
+  Yellow: 0xFFD42A,
+  Purple: 0xA35CFF,
+  Orange: 0xFF8A1C,
 };
 
 function carCenter(laneIdx, gameX) {
@@ -142,11 +142,13 @@ export class ParticleSystem {
     const { x, y } = carCenter(laneIdx, gameX);
     const t = new Text({
       text: `-${damage}`,
+      // Title face with an ink outline — readable over any car, road or theme.
       style: {
-        fontSize:   18,
-        fontWeight: 'bold',
-        fill:       0xffffff,
-        dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 0.8 },
+        fontFamily: '"Lilita One", Fredoka, Arial, sans-serif',
+        fontSize:   22,
+        fill:       0xFFFFFF,
+        stroke:     { color: 0x1F1A33, width: 5, join: 'round' },
+        dropShadow: { color: 0x000000, blur: 2, distance: 2, alpha: 0.4, angle: Math.PI / 2 },
       },
     });
     t.anchor.set(0.5, 0.5);

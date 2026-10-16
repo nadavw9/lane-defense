@@ -63,6 +63,8 @@ const COL_REFLECTOR    = 0xffdd00;
 const SHOULDER_COLOR = 0x1a1a1a;   // dark pavement flanking road
 const SHOULDER_W     = 5.0;        // world units wide (≈60 px on screen)
 const EDGE_LINE_W    = 0.15;       // white edge stripe width (world units)
+const LANE_EDGE_LINE_W = 0.22;      // solid line on the outer lane boundary (≥ tile dash width)
+const COL_LANE_EDGE  = 0xF4F1E6;   // same cream as the toy road tile's dash
 
 const TRAFFIC_DOT_COUNT = 30;
 const TRAFFIC_DOT_SPEED = 4.0;    // world units / sec
@@ -91,6 +93,7 @@ export class Road3D {
     this._roadColorDark = COL_ASPHALT_DARK;
 
     // Refs to animated materials — reset on each rebuild.
+    this._zoneMeshes    = [];   // {mesh, x, z}: bomb-zone art that follows camera + stage shake
     this._reflStrips    = [];
     this._trafficTrails = [];
     this._speedLines    = [];
@@ -135,6 +138,19 @@ export class Road3D {
     this._build();
   }
 
+  /** Baked gameplay backdrop (tools/art/studio/backdrop.js): ONE image of the
+   *  whole scene behind the cars — road, markings, kerbs, verges, bomb depot —
+   *  rendered from projection.js's own geometry for this lane count. When set,
+   *  it replaces the tiled road, zone floor and road dressing; the hazard
+   *  stripe and every dynamic effect stay live on top. null restores them. */
+  setBackdropUrl(url) {
+    const next = url ?? null;
+    if (next === (this._backdropUrl ?? null)) return;
+    this._backdropUrl = next;
+    this._clearGeometry();
+    this._build();
+  }
+
   /** Dispatch-zone floor texture (sliced from the same world scene). Rendered
    *  as a 3D plane UNDER the bomb spheres — it must never live on the Pixi
    *  layer, which would occlude the 3D bombs (front canvas covers back). */
@@ -169,6 +185,7 @@ export class Road3D {
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.set(0, -0.03, zTop + span / 2);
     this._group.add(mesh);
+    this._zoneMeshes.push({ mesh, x: 0, z: zTop + span / 2 });
   }
 
   /** Update road surface color from theme. No geometry rebuild needed. */
@@ -360,6 +377,12 @@ export class Road3D {
 
   _build() {
     this._built = true;
+    if (this._backdropUrl) {
+      this._buildBackdrop();
+      this._dividers = [];
+      this._buildBreachLine();
+      return;
+    }
     this._buildZoneFloor();
     this._buildRoadSurface();
     this._buildNoiseOverlay();
@@ -374,6 +397,7 @@ export class Road3D {
 
   _clearGeometry() {
     this.clearLaneGlow();
+    this._zoneMeshes = [];
     // Dispose every mesh/material in the group except in-flight bomb rings,
     // which are tracked separately and self-dispose.
     const ringMeshes = new Set(this._bombRings.map(r => r.mesh));
@@ -387,8 +411,12 @@ export class Road3D {
       this._group.remove(obj);
       obj.geometry?.dispose();
       if (obj.material) {
-        if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
-        else obj.material.dispose();
+        // Material.dispose() does NOT free its textures. Every rebuild (up to 4 per level)
+        // cloned the road / backdrop / zone textures, each with its own GL upload (the
+        // backdrop alone is ~5-7MB), and none were ever released. A texture still held by a
+        // shared cache simply re-uploads on next use, so freeing it here is always safe.
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        for (const m of mats) { m.map?.dispose(); m.dispose(); }
       }
     }
 
@@ -398,6 +426,53 @@ export class Road3D {
     this._dividers      = [];
     this._roadMats      = [];
     this._built         = false;
+  }
+
+  // Full-frustum plane: the bake maps stage px 1:1 onto the frustum, so it
+  // must cover exactly [-halfX, halfX] × [topZ, bottomZ] — read live from
+  // projection.js (the band is lane-count-keyed), never cached.
+  _buildBackdrop() {
+    const F   = computeFrustum();
+    const tex = _getWorldRoadTex(this._backdropUrl).clone();
+    tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+    tex.repeat.set(1, 1);
+    tex.offset.set(0, 0);
+    tex.needsUpdate = true;
+    const mat  = new THREE.MeshBasicMaterial({ map: tex, toneMapped: false });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(F.halfX * 2, F.bottomZ - F.topZ), mat);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(0, -0.05, (F.topZ + F.bottomZ) / 2);
+    // Drawn FIRST: the bomb sprites don't write depth (depthWrite:false), so a
+    // floor drawn after them paints straight over them regardless of height.
+    mesh.renderOrder = -10;
+    this._group.add(mesh);
+
+    // Depot overlay. The bomb depot's slot tracks and rings are baked into this backdrop,
+    // so camera shake slid them out from under the bombs and the Pixi sockets (which sit
+    // still). A second copy of the depot slice (breach line down to the frustum bottom)
+    // is translated every frame (setZoneOffset) so on screen it stays on the rest-pose depot.
+    const total = F.bottomZ - F.topZ, depth = F.bottomZ - ROAD_Z_NEAR;
+    const dTex  = tex.clone();
+    dTex.wrapS = dTex.wrapT = THREE.ClampToEdgeWrapping;
+    dTex.repeat.set(1, depth / total);   // v=0 is the frustum bottom (near edge)
+    dTex.offset.set(0, 0);
+    dTex.needsUpdate = true;
+    const dMat  = new THREE.MeshBasicMaterial({ map: dTex, toneMapped: false });
+    const depot = new THREE.Mesh(new THREE.PlaneGeometry(F.halfX * 2, depth), dMat);
+    depot.rotation.x = -Math.PI / 2;
+    depot.position.set(0, -0.049, ROAD_Z_NEAR + depth / 2);
+    depot.renderOrder = -9;
+    this._group.add(depot);
+    this._zoneMeshes.push({ mesh: depot, x: 0, z: ROAD_Z_NEAR + depth / 2 });
+  }
+
+  /** Translate the bomb-zone art by (dx, dz) world units: camera shake offset plus the
+   *  Pixi stage shake, so the zone stays glued to the sockets. Identity at rest. */
+  setZoneOffset(dx, dz) {
+    for (const z of this._zoneMeshes) {
+      z.mesh.position.x = z.x + dx;
+      z.mesh.position.z = z.z + dz;
+    }
   }
 
   _buildRoadSurface() {
@@ -412,10 +487,13 @@ export class Road3D {
     // Main asphalt plane
     const texCopyMain = roadTex.clone();
     texCopyMain.repeat.set(W / 4.0, ROAD_LENGTH / 4.0);
-    // road-tile.jpg has a painted dash down its centre. Offset U so a dash lands
-    // exactly on the road centre (X=0) regardless of width: centre u=0.5 maps to
-    // U = offset + repeat/2, and we want that to be a dash (U = k+0.5).
-    texCopyMain.offset.x = 0.5 - (W / 4.0) / 2;
+    // The tile has its dash on the centre-line (U = k+0.5) and one tile = one
+    // lane, so solving U(firstDivider) = 0.5 puts a dash on EVERY divider for
+    // any lane count. The old formula (0.5 − repeat/2) aimed the dash at X=0,
+    // which is a divider only for EVEN counts: at 3 lanes it slid every dash
+    // onto the lane CENTRES, painting a line straight down under the cars.
+    const dashOffsetU = 0.5 - (laneToX(0, n) + 2.0 + hw) / 4.0;
+    texCopyMain.offset.x = dashOffsetU;
     texCopyMain.needsUpdate = true;
     const mat = new THREE.MeshBasicMaterial({ map: texCopyMain });
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(W, ROAD_LENGTH, 1, 1), mat);
@@ -423,17 +501,9 @@ export class Road3D {
     mesh.position.set(0, -0.01, ROAD_CENTER_Z);
     this._group.add(mesh);
 
-    // Expansion joints — subtle white lines across full road width
-    const jointMat = new THREE.MeshBasicMaterial({
-      color: 0xffffff, transparent: true, opacity: 0.06,
-    });
-    for (let i = 1; i <= 12; i++) {
-      const z     = ROAD_Z_FAR + (i / 13) * ROAD_LENGTH;
-      const joint = new THREE.Mesh(new THREE.PlaneGeometry(W, 0.06), jointMat);
-      joint.rotation.x = -Math.PI / 2;
-      joint.position.set(0, 0.001, z);
-      this._group.add(joint);
-    }
+    // (No overlay grain or expansion joints: each world tile carries its own
+    // surface detail, and those uniform white/grey overlays washed the dark
+    // night-highway asphalt out to mid-grey.)
 
     // ── Visual background extension: road continues to vanishing point ─────
     const VANISH_LEN    = ROAD_Z_FAR - ROAD_Z_VANISHING;
@@ -441,7 +511,7 @@ export class Road3D {
 
     const texCopyVanish = roadTex.clone();
     texCopyVanish.repeat.set(W / 4.0, VANISH_LEN / 4.0);
-    texCopyVanish.offset.x = 0.5 - (W / 4.0) / 2;   // align dash to centre (matches main road)
+    texCopyVanish.offset.x = dashOffsetU;   // dashes on the dividers (matches main road)
     texCopyVanish.needsUpdate = true;
     const vanishMat = new THREE.MeshBasicMaterial({ map: texCopyVanish, color: 0x888888 });
     const vanishMesh = new THREE.Mesh(new THREE.PlaneGeometry(W, VANISH_LEN, 1, 1), vanishMat);
@@ -482,6 +552,7 @@ export class Road3D {
 
     // ── Road shoulders ────────────────────────────────────────────────────
     const shoulderMat = new THREE.MeshBasicMaterial({ color: SHOULDER_COLOR });
+    const laneEdgeMat = new THREE.MeshBasicMaterial({ color: COL_LANE_EDGE });
     for (const side of [-1, 1]) {
       const sx = side * (hw + SHOULDER_W / 2);
       const shoulder = new THREE.Mesh(
@@ -503,6 +574,17 @@ export class Road3D {
       edge.rotation.x = -Math.PI / 2;
       edge.position.set(ex, 0.002, ROAD_CENTER_Z);
       this._group.add(edge);
+
+      // Solid edge line on the outer lane boundary. The tile's dash also lands
+      // here (every lane boundary is a tile centre-line); a continuous line
+      // reads as the road edge instead of a stray dashed kerb.
+      const laneEdge = new THREE.Mesh(
+        new THREE.PlaneGeometry(LANE_EDGE_LINE_W, ROAD_LENGTH),
+        laneEdgeMat,
+      );
+      laneEdge.rotation.x = -Math.PI / 2;
+      laneEdge.position.set(side * n * 2.0, 0.003, ROAD_CENTER_Z);
+      this._group.add(laneEdge);
     }
   }
 
@@ -512,8 +594,10 @@ export class Road3D {
     const gapLen    = 1.0;
     const period    = dashLen + gapLen;
     const dashCount = Math.ceil(ROAD_LENGTH / period);
+    // World road tiles paint their own divider dashes (see _buildRoadSurface);
+    // these faint 3D dashes only mark lanes on the plain default tile.
     const dashMat   = new THREE.MeshBasicMaterial({
-      color: COL_DIVIDER, transparent: true, opacity: 0.25,
+      color: COL_DIVIDER, transparent: true, opacity: this._roadTexUrl ? 0 : 0.25,
     });
 
     // Divider between lane i and i+1: x = laneToX(i, n) + 2.0

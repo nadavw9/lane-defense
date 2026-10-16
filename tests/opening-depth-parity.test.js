@@ -40,6 +40,11 @@ describe('opening depth — derivation', () => {
     }
   });
 
+  it('L1 opens with three VISIBLE cars (rows 1-3) on the shipped shallow board', () => {
+    expect(openingRowsForLevel(1, 8)).toEqual([1, 2, 3]);
+    for (const row of openingRowsForLevel(1, 8)) expect(row).toBeLessThan(8 - 1);
+  });
+
   it('keeps 3 rows on deep boards (gridRows > 10)', () => {
     for (const rows of [11, 12, 16]) {
       expect(openingRowsForLevel(5, rows), `@${rows}`).toEqual([0, 1, 2]);
@@ -80,20 +85,6 @@ describe('opening depth — scripted initialCars (L10/L40) obey the SAME rule', 
   it('handles null/empty without throwing (levels with no scripted opening)', () => {
     expect(clampInitialCarsToDepth(null, 8)).toBeNull();
     expect(clampInitialCarsToDepth([], 8)).toEqual([]);
-  });
-
-  it('the real scripted-boss levels (L10/L40) clamp on a shallow board', () => {
-    for (const id of [10, 40]) {
-      const lm = new LevelManager(); lm.goToLevel(id);
-      const ic = lm.current.initialCars;
-      expect(ic?.length, `L${id} should have a scripted opening`).toBeGreaterThan(0);
-      // No-op at their shipped depth...
-      expect(clampInitialCarsToDepth(ic, 16)).toEqual(ic);
-      // ...but clamped if they were ever converted to a shallow board.
-      const clamped = clampInitialCarsToDepth(ic, 8);
-      expect(clamped.length).toBeLessThan(ic.length);
-      for (const def of clamped) expect(def.row ?? 0).toBeLessThanOrEqual(1);
-    }
   });
 });
 

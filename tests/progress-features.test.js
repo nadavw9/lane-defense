@@ -212,13 +212,13 @@ describe('ProgressManager introducedCarTypes', () => {
   });
 
   it('migration backfills from progression: past a type intro level = introduced', () => {
-    const store = { 'lane-defense-v1': JSON.stringify({ unlockedLevel: 13 }) };
+    const store = { 'lane-defense-v1': JSON.stringify({ unlockedLevel: 12 }) };
     withStorage(store);
     const p = new ProgressManager();
     const seen = p.getIntroducedCarTypes();
-    // completed L1..L12 → met small(L1), big(L2), jeep(L5), truck(L9)
+    // completed L1..L11 → met small(L1), big(L2), jeep(L5), truck(L8) — V2 schedule
     for (const t of ['small', 'big', 'jeep', 'truck']) expect(seen.has(t)).toBe(true);
-    // bigrig intros AT L13 (not yet played), tank at L15
+    // bigrig intros AT L12 (not yet played), tank at L15
     expect(seen.has('bigrig')).toBe(false);
     expect(seen.has('tank')).toBe(false);
   });

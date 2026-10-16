@@ -13,12 +13,11 @@
 // Reference profile for the target bands: skill=average (booster-aware, boosterIQ 0.70).
 // Bands (2026-07-10, post merge-fix baseline):
 //   Tutorial L1-3: win% exempt (~100% correct) · FTUE L4-9: 85-95% ·
-//   mid non-boss L10-26: 70-82% · late non-boss L27-40: 60-75%
-//   Bosses L10/20/30/40: 40-55% at this profile — reported but deferred to §3c
-//   (scripted waves), so out-of-band bosses flag "BOSS §3c", never TOO EASY/HARD.
+//   mid L10-26: 70-82% · late L27-40: 60-75% · big waves (every tenth): band minus 10.
 // Turns: >70 too long (genuine grind; goal-driven levels legitimately run 35-55) · <5 too short.
 
-import { LevelManager } from '../src/game/LevelManager.js';
+import { LevelManager, LEVEL_COUNT } from '../src/game/LevelManager.js';
+import { bandFor } from './bands.mjs';
 import { SimulationRunner } from '../src/simulation/SimulationRunner.js';
 
 const args  = process.argv.slice(2);
@@ -32,7 +31,7 @@ if (!VALID_SKILLS.has(skill)) {
   process.exit(1);
 }
 
-const TOTAL_LEVELS = 40;
+const TOTAL_LEVELS = LEVEL_COUNT;
 const levelIds = levelArg === 'all'
   ? Array.from({ length: TOTAL_LEVELS }, (_, i) => i + 1)
   : levelArg.split(',').map(s => parseInt(s.replace(/^L/i, ''), 10)).filter(n => !Number.isNaN(n));
@@ -46,27 +45,11 @@ function goalSummary(goals) {
   ).join(', ');
 }
 
-const BOSS_LEVELS = new Set([10, 20, 30, 40]);
-// L1-L3 are tutorial: ~100% is correct (L3 has no losing mechanism at brisk HP —
-// 3 lanes/2 colors; the tutorial→game transition marker is L4). Win% never flags.
-const TUTORIAL_LEVELS = new Set([1, 2, 3]);
-
-// Target bands at the reference profile (skill=average, boosterIQ 0.70).
-function bandFor(levelId) {
-  if (TUTORIAL_LEVELS.has(levelId)) return { lo: 85, hi: 100, tutorial: true };
-  if (BOSS_LEVELS.has(levelId)) return { lo: 40, hi: 55, boss: true };
-  if (levelId <= 9)  return { lo: 85, hi: 95, boss: false };
-  if (levelId <= 26) return { lo: 70, hi: 82, boss: false };
-  return { lo: 60, hi: 75, boss: false };
-}
-
 function flagFor(levelId, winPct, avgTurns) {
   const band = bandFor(levelId);
   const f = [];
   if (winPct < band.lo || winPct > band.hi) {
-    // Bosses are deferred to §3c scripted waves — report drift, don't call them broken.
-    if (band.boss) f.push('BOSS §3c');
-    else f.push(winPct < band.lo ? 'TOO HARD' : 'TOO EASY');
+    f.push(winPct < band.lo ? 'TOO HARD' : 'TOO EASY');
   }
   if (avgTurns != null && avgTurns > 70) f.push('TOO LONG');
   else if (avgTurns != null && avgTurns < 5) f.push('TOO SHORT');
@@ -77,14 +60,8 @@ function runOne(levelId) {
   const lm = new LevelManager();
   lm.goToLevel(levelId);
   const cfg = lm.current;
-  const runner = new SimulationRunner({
-    duration: cfg.duration, colors: cfg.colors, worldConfig: cfg.worldConfig,
-    levelId, skill, laneCount: cfg.laneCount, colCount: cfg.colCount,
-    laneTargetCarCount: cfg.laneTargetCarCount, spawnBudget: cfg.spawnBudget,
-    gridRows: cfg.gridRows, goals: cfg.goals ?? [],
-    initialCars: cfg.initialCars ?? null, spawnScript: cfg.spawnScript ?? null,   // §3c bosses
-    shooterColorWeights: cfg.shooterColorWeights ?? null,                         // §3c L10 v2
-  });
+  const runner = SimulationRunner.fromLevel(cfg, { skill });
+
 
   let wins = 0, winTurns = 0, totalKills = 0, totalShots = 0;
   for (let s = 0; s < runs; s++) {
@@ -101,7 +78,7 @@ function runOne(levelId) {
 
 // ── Run + table ────────────────────────────────────────────────────────────────
 console.log(`\nBalance sim — ${levelIds.length} level(s) × ${runs} runs  [skill: ${skill}]  (win = all goals met, no breach)`);
-console.log(`Bands @ average+boosterIQ0.70 — tutorial L1-3: exempt · FTUE L4-9: 85-95 · mid L10-26: 70-82 · late L27-40: 60-75 · bosses: 40-55 (§3c)\n`);
+console.log(`Bands @ average+boosterIQ0.70 — tutorial L1-3: exempt · FTUE L4-9: 85-95 · see tools/bands.mjs\n`);
 console.log('Lvl │ Goals                              │ Win%  │ Band  │ AvgTurns │ Kills/Shot │ Flag');
 console.log('────┼────────────────────────────────────┼───────┼───────┼──────────┼────────────┼──────────────────');
 

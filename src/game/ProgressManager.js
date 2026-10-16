@@ -3,13 +3,22 @@
 // Added fields (v1.1):
 //   colorblindMode       — bool; shape-symbol overlay enabled
 //   hapticsEnabled       — bool; haptic feedback enabled
+//   reducedMotion        — true/false once the player chose; null = follow the OS setting
 //   sfxVolume            — 0.0–1.0
 //   musicVolume          — 0.0–1.0
 //   loginStreak          — { count: N, lastLogin: 'YYYY-MM-DD' }
 //   ratingPromptShown    — bool; one-time app-rate prompt flag
 // (v1.1 hearts/heartsLastDepleted removed in v1.7 — the lives system was vestigial;
 //  see the _load migration and §3e City Repair which replaced it with cityState.)
+import { LEVEL_COUNT } from './LevelManager.js';
+import { localDateKey, previousLocalDateKey, utcDateKey } from './dateKeys.js';
+
+const previousUtcKey = (now) => utcDateKey(new Date(now.getTime() - 86400000));
+
 const STORAGE_KEY = 'lane-defense-v1';
+// Bump when a migration is added to _load. Written on every save so a future
+// build can tell which schema a stored save came from.
+export const SAVE_VERSION = 2;
 
 // 7-day reward sequence.  Exported so DailyRewardScreen can render labels.
 export const DAILY_REWARDS = [
@@ -26,10 +35,13 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function defaults() {
   return {
+    saveVersion:            SAVE_VERSION,
     unlockedLevel:          1,
     stars:                  {},
     coins:                  0,
-    boosters:               { swap: 3, freeze: 0 },
+    // Owned boosters (shop purchases, daily rewards). Carried into every level
+    // and debited only by what a level actually spends — see GameApp.
+    inventory:              { colorChange: 0, freeze: 0, bombs: 0 },
     dailyReward:            { day: 0, lastClaim: null },
     seenComboTip:           false,
     seenUnlocks:            {},
@@ -48,6 +60,7 @@ function defaults() {
     // the lives system was vestigial, gameplay had no hearts gate since FIX 3).
     colorblindMode:      false,
     hapticsEnabled:      true,
+    reducedMotion:       null,
     sfxVolume:           1.0,
     musicVolume:         1.0,
     loginStreak:         { count: 0, lastLogin: '' },
@@ -131,8 +144,38 @@ export class ProgressManager {
     return this._data.stars[String(levelId)] ?? 0;
   }
 
-  getBoosters() {
-    return { ...this._data.boosters };
+  // ── Owned booster inventory (persists across levels) ─────────────────────
+  getInventory() {
+    return { ...this._data.inventory };
+  }
+
+  /** Add (n > 0) or debit (n < 0) owned boosters; never below zero. */
+  addInventory(key, n) {
+    if (!(key in this._data.inventory) || !n) return;
+    this._data.inventory[key] = Math.max(0, (this._data.inventory[key] ?? 0) + Math.floor(n));
+    this._save();
+  }
+
+  // ── Shop: free coins for a rewarded video (capped per calendar day) ───────
+  static VIDEO_COINS = 25;
+  static VIDEO_COINS_PER_DAY = 3;
+
+  videoCoinsLeft(now = new Date()) {
+    const v = this._data.videoCoins;
+    const today = now.toDateString();
+    return ProgressManager.VIDEO_COINS_PER_DAY - (v?.date === today ? v.count : 0);
+  }
+
+  /** Grant the video reward. Returns the coins granted (0 if capped). */
+  claimVideoCoins(now = new Date()) {
+    if (this.videoCoinsLeft(now) <= 0) return 0;
+    const today = now.toDateString();
+    const v = this._data.videoCoins?.date === today ? this._data.videoCoins : { date: today, count: 0 };
+    this._data.videoCoins = { date: today, count: v.count + 1 };
+    this._data.coins += ProgressManager.VIDEO_COINS;
+    this._data.totalCoinsEarned += ProgressManager.VIDEO_COINS;
+    this._save();
+    return ProgressManager.VIDEO_COINS;
   }
 
   // ── Level progression ────────────────────────────────────────────────────
@@ -143,7 +186,7 @@ export class ProgressManager {
     if ((this._data.stars[key] ?? 0) < stars) {
       this._data.stars[key] = stars;
     }
-    if (levelId >= this._data.unlockedLevel && levelId < 40) {
+    if (levelId >= this._data.unlockedLevel && levelId < LEVEL_COUNT) {
       this._data.unlockedLevel = levelId + 1;
     }
     // §3d DDA: a win clears the mercy streak — next attempt starts at base.
@@ -178,14 +221,6 @@ export class ProgressManager {
     this._data.totalCoinsSpent = (this._data.totalCoinsSpent ?? 0) + Math.floor(amount);
     this._save();
     return true;
-  }
-
-  setBoosters(swap, freeze = 0) {
-    this._data.boosters = {
-      swap:   Math.max(0, swap),
-      freeze: Math.max(0, freeze),
-    };
-    this._save();
   }
 
   // ── Achievements ─────────────────────────────────────────────────────────
@@ -303,11 +338,13 @@ export class ProgressManager {
 
   get colorblindMode()  { return this._data.colorblindMode  ?? false; }
   get hapticsEnabled()  { return this._data.hapticsEnabled  ?? true; }
+  get reducedMotion()   { return this._data.reducedMotion   ?? null; }
   get sfxVolume()       { return this._data.sfxVolume       ?? 1.0; }
   get musicVolume()     { return this._data.musicVolume     ?? 1.0; }
 
   setColorblindMode(v)  { this._data.colorblindMode  = !!v;                    this._save(); }
   setHapticsEnabled(v)  { this._data.hapticsEnabled  = !!v;                    this._save(); }
+  setReducedMotion(v)   { this._data.reducedMotion   = !!v;                    this._save(); }
   setSfxVolume(v)       { this._data.sfxVolume        = Math.max(0, Math.min(1, +v)); this._save(); }
   setMusicVolume(v)     { this._data.musicVolume      = Math.max(0, Math.min(1, +v)); this._save(); }
 
@@ -369,18 +406,22 @@ export class ProgressManager {
 
   /** Call once per app open to update the streak.
    *  Returns { count, wasReset, prevCount } so callers can offer a shield. */
-  touchLoginStreak() {
-    const today  = new Date().toISOString().slice(0, 10);
+  touchLoginStreak(now = new Date()) {
+    const today  = localDateKey(now);
     const streak = this._data.loginStreak ?? { count: 0, lastLogin: '' };
     const last   = streak.lastLogin;
     const prev   = streak.count;
 
     if (last === today) return { count: prev, wasReset: false, prevCount: prev };
 
-    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-    const continued = last === yesterday;
+    // Saves from before the local-date change hold a UTC key; honour it for yesterday
+    // so nobody loses a streak to the migration.
+    const yesterday = previousLocalDateKey(now);
+    // Only a streak last written by the old UTC code (no `key` marker) gets the UTC fallback.
+    const legacy    = streak.key !== 'local';
+    const continued = last === yesterday || (legacy && last === previousUtcKey(now));
     const newCount  = continued ? prev + 1 : 1;
-    this._data.loginStreak = { count: newCount, lastLogin: today };
+    this._data.loginStreak = { count: newCount, lastLogin: today, key: 'local' };
     this._save();
     return { count: newCount, wasReset: !continued && prev > 0, prevCount: prev };
   }
@@ -390,7 +431,18 @@ export class ProgressManager {
   canClaimDaily() {
     const { lastClaim } = this._data.dailyReward;
     if (lastClaim === null) return true;
-    return (Date.now() - lastClaim) >= MS_PER_DAY;
+    const now = Date.now();
+    // A claim stamped in the FUTURE means the clock was moved back after claiming; that
+    // stamp is untrustworthy and used to lock the reward until real time caught up.
+    if (lastClaim > now + 5 * 60_000) return true;
+    return (now - lastClaim) >= MS_PER_DAY;
+  }
+
+  /** Milliseconds until the daily reward can be claimed again (0 = ready). */
+  dailyReadyIn(now = Date.now()) {
+    const { lastClaim } = this._data.dailyReward;
+    if (lastClaim === null || lastClaim > now + 5 * 60_000) return 0;
+    return Math.max(0, lastClaim + MS_PER_DAY - now);
   }
 
   // Apply current day's reward, advance counter, persist.
@@ -401,8 +453,8 @@ export class ProgressManager {
     const reward = DAILY_REWARDS[day];
 
     if      (reward.type === 'coins')  this._data.coins += reward.amount;
-    else if (reward.type === 'swap')   this._data.boosters.swap   += reward.amount;
-    else if (reward.type === 'freeze') this._data.boosters.freeze += reward.amount;
+    else if (reward.type === 'swap')   this._data.inventory.colorChange += reward.amount;
+    else if (reward.type === 'freeze') this._data.inventory.freeze += reward.amount;
 
     this._data.dailyReward.lastClaim = Date.now();
     this._data.dailyReward.day       = (day + 1) % 7;
@@ -443,8 +495,8 @@ export class ProgressManager {
     if (!this.hasStreakShield()) return false;
     this._data.streakShields = Math.max(0, (this._data.streakShields ?? 1) - 1);
     // Restore the streak as if today continues yesterday.
-    const today = new Date().toISOString().slice(0, 10);
-    this._data.loginStreak = { count: prevCount + 1, lastLogin: today };
+    const today = localDateKey();
+    this._data.loginStreak = { count: prevCount + 1, lastLogin: today, key: 'local' };
     this._save();
     return true;
   }
@@ -519,11 +571,40 @@ export class ProgressManager {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const d    = defaults();
-        const saved = JSON.parse(raw);
+        let saved;
+        try { saved = JSON.parse(raw); } catch { saved = null; }
+        if (saved === null || typeof saved !== 'object' || Array.isArray(saved)) {
+          // Unreadable save: keep the raw text under a side key so it can be
+          // recovered by hand, then start fresh. (Without this the next _save()
+          // silently overwrote the only copy.)
+          try { localStorage.setItem(STORAGE_KEY + '-corrupt', raw); } catch { /* full */ }
+          return defaults();
+        }
         Object.assign(d, saved);
+        // A partial or hand-edited save can carry null / wrong-typed fields
+        // (stars: null, failStreak: "x", coins: NaN ...). Anything that doesn't match the
+        // default's type falls back to the default instead of crashing a later call.
+        const def = defaults();
+        for (const [k, dv] of Object.entries(def)) {
+          const v = d[k];
+          if (dv === null || dv === undefined) continue;
+          const bad = Array.isArray(dv) ? !Array.isArray(v)
+            : typeof dv === 'object' ? (v === null || typeof v !== 'object' || Array.isArray(v))
+            : typeof dv === 'number' ? !Number.isFinite(v)
+            : typeof v !== typeof dv;
+          if (bad) d[k] = dv;
+        }
+        // Sanitize the scalars every screen does arithmetic on.
+        d.unlockedLevel = Number.isFinite(d.unlockedLevel) ? Math.max(1, Math.floor(d.unlockedLevel)) : 1;
+        d.coins         = Number.isFinite(d.coins) ? Math.max(0, Math.floor(d.coins)) : 0;
+        d.saveVersion   = SAVE_VERSION;
         // Deep-merge nested objects so new sub-fields survive schema additions.
-        d.boosters           = Object.assign(defaults().boosters,           saved.boosters           ?? {});
+        // One owned-booster store. Saves from before the inventory existed kept a
+        // separate `boosters` count: carry its freezes over, then drop the old field.
+        d.inventory          = Object.assign(defaults().inventory,          saved.inventory ?? { freeze: saved.boosters?.freeze ?? 0 });
+        delete d.boosters;
         d.dailyReward        = Object.assign(defaults().dailyReward,        saved.dailyReward        ?? {});
+        if (!Number.isInteger(d.dailyReward.day) || d.dailyReward.day < 0 || d.dailyReward.day > 6) d.dailyReward.day = 0;
         d.dailyChallenge     = Object.assign(defaults().dailyChallenge,     saved.dailyChallenge     ?? {});
         d.boosterUseCounts   = Object.assign(defaults().boosterUseCounts,   saved.boosterUseCounts   ?? {});
         d.achievements       = saved.achievements  ?? {};
@@ -536,7 +617,7 @@ export class ProgressManager {
         // truck moved 9 -> 6 (2026-08-01): pulled forward into L6-L8 so a car exists that
         // the bomb pool cannot reliably one-shot. Must match CarTypes.bandWeights and
         // tests/regression-level-start.test.js LEVEL_INTRO_TYPE — three-way contract.
-        const INTRO_LEVEL = { small: 1, big: 2, jeep: 5, truck: 6, bigrig: 13, tank: 15 };
+        const INTRO_LEVEL = { small: 1, big: 2, jeep: 5, truck: 8, bigrig: 12, tank: 15 };   // V2 schedule
         const introduced  = new Set(saved.introducedCarTypes ?? []);
         try {
           for (const t of JSON.parse(localStorage.getItem('lane_defense_seen_car_types') ?? '[]')) {

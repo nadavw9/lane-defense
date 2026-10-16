@@ -118,8 +118,8 @@ describe('sim and game resolve damage identically', () => {
     // Both sides take HP from CarDirector._buildCar; the sim copies car.hp verbatim
     // into its record. Pin the formula so a second copy cannot appear.
     const hpAt = (base, m) => Math.max(HP_MINIMUM, Math.round(base * m));
-    expect(hpAt(CAR_TYPES.small.hp, 0.63)).toBe(2);   // raw 1.26 -> clamped UP to the floor
-    expect(hpAt(CAR_TYPES.big.hp, 0.63)).toBe(3);
+    expect(hpAt(CAR_TYPES.small.hp, 0.3)).toBe(HP_MINIMUM);   // raw 0.3 -> clamped UP to the floor
+    expect(hpAt(CAR_TYPES.big.hp, 0.63)).toBe(1);
     const src = fs.readFileSync('src/simulation/SimulationRunner.js', 'utf8');
     expect(src, 'the sim must copy CarDirector hp, never recompute it')
       .toMatch(/hp:\s*car\.hp/);

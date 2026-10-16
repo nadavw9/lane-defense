@@ -5,6 +5,10 @@ export class BoosterState {
   constructor() {
     this.colorChange = 0;      // remaining COLOR CHANGE charges
     this.freeze = 0;           // remaining freeze charges
+    // Charges actually spent this level (reset at level start). Earned-in-level charges
+    // raise the remaining counts, so remaining-vs-taken under-debits the player's owned
+    // stock; the inventory is settled from what was USED instead (BoosterInventory).
+    this.used = { colorChange: 0, freeze: 0, bombs: 0 };
     // COLOR CHANGE is a two-tap booster: tap the button → tap a car (records its
     // colour) → tap a colour from the picker → all on-screen cars of the car's
     // original colour become the chosen colour.
@@ -49,6 +53,7 @@ export class BoosterState {
   consumeColorChange() {
     if (this.colorChange <= 0) return false;
     this.colorChange--;
+    this.used.colorChange++;
     this.colorChangeMode      = false;
     this.colorChangeFromColor = null;
     return true;
@@ -60,6 +65,7 @@ export class BoosterState {
   activateFreeze() {
     if (this.freeze <= 0) return false;
     this.freeze--;
+    this.used.freeze++;
     this.freezeShots = 1;
     return true;
   }
@@ -88,10 +94,19 @@ export class BoosterState {
     this.bombMode = false;
   }
 
+  // Give back a charge that consumeBomb() took but that never fired (empty or out-of-play
+  // lane). Un-counts it from `used` too: the inventory is settled from USE, so a refund that
+  // only restored `bombs` still billed the player an owned bomb for a bomb that did nothing.
+  refundBomb() {
+    this.bombs = Math.min(this.bombsMax, this.bombs + 1);
+    this.used.bombs = Math.max(0, this.used.bombs - 1);
+  }
+
   // Consume one bomb charge when the player places a bomb.  Returns true on success.
   consumeBomb() {
     if (this.bombs <= 0) return false;
     this.bombs--;
+    this.used.bombs++;
     this.bombMode = false;
     return true;
   }

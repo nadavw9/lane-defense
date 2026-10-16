@@ -10,13 +10,27 @@ import { HP_MINIMUM } from './DirectorConfig.js';
 // Base HP — reverted to the pre-gridRows-16 values after the balance sim showed the
 // raised HP overshot (tool-less win rate ~6%); hpMultiplier still applies live.
 export const CAR_TYPES = {
-  small:  { hp:  2, label: 'Motorbike', minSpawnRow: 0 },
-  big:    { hp:  4, label: 'Car',       minSpawnRow: 0 },
-  jeep:   { hp:  5, label: 'Van',       minSpawnRow: 1 },
-  truck:  { hp:  7, label: 'Tender',    minSpawnRow: 2 },
-  bigrig: { hp: 11, label: 'Big Rig',   minSpawnRow: 3 },
-  tank:   { hp: 20, label: 'Tank',      minSpawnRow: 4 },
+  small:  { hp:  1, label: 'Motorbike', minSpawnRow: 0 },
+  big:    { hp:  2, label: 'Car',       minSpawnRow: 0 },
+  jeep:   { hp:  3, label: 'Van',       minSpawnRow: 1 },
+  // Retired from spawning (the ladder is three rungs: 1, 2, 3 hits). Kept defined so
+  // old saves, art and the manual do not break; bandWeights() folds them into 'jeep'.
+  truck:  { hp:  3, label: 'Truck',     minSpawnRow: 2 },
+  bigrig: { hp:  3, label: 'Big Rig',   minSpawnRow: 3 },
+  tank:   { hp:  3, label: 'Tank',      minSpawnRow: 4 },
 };
+
+// ONE-HIT LADDER (docs/ONE_HIT_MODEL.md). Every bomb is one hit; a car's HP is the
+// number of hits it takes, and each hit shrinks it one rung: van (3) -> car (2) ->
+// motorbike (1). LADDER[hp - 1] is the vehicle a car with `hp` hits left looks like.
+export const LADDER = ['small', 'big', 'jeep'];
+
+/** The vehicle to DRAW for a car of `type` with `hp` hits left. */
+export function displayTypeFor(type, hp) {
+  const full = CAR_TYPES[type]?.hp;
+  if (full == null || hp >= full) return type;
+  return LADDER[Math.max(1, hp) - 1];
+}
 
 // ── Level-band weight tables ───────────────────────────────────────────────────
 // Each band unlocks additional types.  Phase still skews the distribution
@@ -156,31 +170,69 @@ const scaleRare = (phases, k) => Object.fromEntries(
   Object.entries(phases).map(([phase, ws]) => [phase, ws.map((w) =>
     (w.value === 'bigrig' || w.value === 'tank') ? { ...w, weight: Math.round(w.weight * k) } : w)]));
 const WEIGHTS_RARE_GOAL = scaleRare(WEIGHTS_FULL, 2.5);
-const RARE_GOAL_LEVELS = new Set([31, 32, 36, 39]);
+const RARE_GOAL_LEVELS = new Set([15]);   // V2: "Meet the tank" — tanks must actually show up
 
 // Exported for the level-config audit (tests/audit-level-config.test.js), which
 // verifies every destroyType goal targets a car type actually spawnable at that level.
 export function bandWeights(level) {
+  return foldToLadder(rawBandWeights(level));
+}
+
+// Truck, big rig and tank no longer exist as spawns: their weight joins the van, the
+// top rung of the ladder. Phases and weights are otherwise exactly as authored.
+const HEAVY_TYPES = new Set(['truck', 'bigrig', 'tank']);
+const _foldCache = new Map();
+function foldToLadder(table) {
+  if (_foldCache.has(table)) return _foldCache.get(table);
+  const out = Object.fromEntries(Object.entries(table).map(([phase, ws]) => {
+    const merged = [];
+    for (const w of ws) {
+      const value = HEAVY_TYPES.has(w.value) ? 'jeep' : w.value;
+      const hit = merged.find(m => m.value === value);
+      if (hit) hit.weight += w.weight; else merged.push({ ...w, value });
+    }
+    return [phase, merged];
+  }));
+  _foldCache.set(table, out);
+  return out;
+}
+
+function rawBandWeights(level) {
+  // V2 level table (2026-09-27, see LevelManager). Types arrive: bike L1, car L2,
+  // van L5, truck L8, big rig L12, tank L15.
   if (RARE_GOAL_LEVELS.has(level)) return WEIGHTS_RARE_GOAL;
   if (level === 1)  return WEIGHTS_L1;
   if (level <= 4)   return WEIGHTS_FTUE;
-  if (level <= 5)   return WEIGHTS_MID;
-  if (level <= 8)   return WEIGHTS_MID_TRUCK;   // L6-L8: truck pulled forward (LEVER B, 2026-08-01)
-  if (level <= 12)  return WEIGHTS_HARD;
-  if (level <= 14)  return WEIGHTS_HARD_PLUS;
-  if (level === 17) return WEIGHTS_L17_BIGRIG;
-  if (level === 30) return WEIGHTS_L30_TANK;   // §3c boss: tank-heavy (INFRA-B)
-  return WEIGHTS_FULL;
+  if (level <= 7)   return WEIGHTS_MID;
+  if (level <= 11)  return WEIGHTS_MID_TRUCK;   // trucks from L8 ("Heavy load")
+  if (level <= 14)  return WEIGHTS_HARD_PLUS;   // big rigs from L12
+  if (level === 18) return WEIGHTS_L17_BIGRIG;  // "Big rigs"
+  return WEIGHTS_FULL;                          // tank from L15
 }
 
-export function pickCarType(rng, level, phase, availableRows) {
+// Difficulty lives in WHICH cars spawn, never in how tough a given type is: a
+// Motorbike is 2 HP and a Car is 4 HP on every level. `heft` (0..1, per level)
+// tilts the band's weights toward heavier types (1) or lighter ones (0); 0.5 is
+// the band table as written. Only tilts among types the band already allows, so
+// the manual / intro cards (spawnableTypesFor) are unaffected.
+const HEFT_SPREAD = 4;
+export function heftWeights(weights, heft) {
+  if (heft == null || heft === 0.5) return weights;
+  const logs = weights.map(w => Math.log(CAR_TYPES[w.value]?.hp ?? 1));
+  const lo = Math.min(...logs), hi = Math.max(...logs);
+  if (hi === lo) return weights;
+  const s = (Math.max(0, Math.min(1, heft)) - 0.5) * HEFT_SPREAD;
+  return weights.map((w, i) => ({ ...w, weight: w.weight * Math.exp(s * ((logs[i] - lo) / (hi - lo) - 0.5)) }));
+}
+
+export function pickCarType(rng, level, phase, availableRows, heft) {
   const band = bandWeights(level ?? 1);
   let weights = band[phase] ?? band.BUILD;
   if (availableRows !== undefined) {
     const filtered = weights.filter(w => (CAR_TYPES[w.value]?.minSpawnRow ?? 0) <= availableRows);
     if (filtered.length > 0) weights = filtered;
   }
-  return rng.weightedPick(weights);
+  return rng.weightedPick(heftWeights(weights, heft));
 }
 
 // ── Canonical per-level HP ─────────────────────────────────────────────────────

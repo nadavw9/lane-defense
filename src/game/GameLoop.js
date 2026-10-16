@@ -5,12 +5,13 @@
 // Public API:
 //   deploy(colIdx, laneIdx) — called by DragDrop; resolves combat immediately
 //   restart()               — full level reset + reprime; called by screens
-import { PHASE_CONFIG, HP_MINIMUM } from '../director/DirectorConfig.js';
+import { PHASE_CONFIG, HP_MINIMUM, KILLS_PER_BOMB } from '../director/DirectorConfig.js';
 import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { Shooter } from '../models/Shooter.js';
 import { COLUMN_CAPACITY } from '../models/Column.js';
+import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak,
+         revealStagedCars, stepSize, freeSpawnRow } from '../director/TrafficRules.js';
 
-const KILLS_PER_BOMB      = 10;    // kills needed to earn one bomb charge
 const MULTI_KILLS_PER_BOMB = 3;    // multi-kills (2+ cars/shot) banked to earn a color bomb
 const BOMB_MAX_CHARGES    = 3;     // max bombs a player can hold
 const BOMB_FREEZE_DURATION = 2.0;  // seconds all cars are frozen after bomb detonation
@@ -93,26 +94,39 @@ export class GameLoop {
   set baseDuration(d) { this._baseDuration = d; }
 
   // Called by DragDrop → onDeploy (column source).
-  deploy(colIdx, laneIdx) {
+  // `expected` (optional): the shooter the player actually dragged. The column's
+  // top can change while a drag is held (an earned rainbow or a crisis inject
+  // replaces it when the previous shot resolves); firing col.top() then fired a
+  // bomb the player never picked. Refuse instead. Returns true when fired.
+  deploy(colIdx, laneIdx, expected = null) {
     const col     = this._gs.columns[colIdx];
     const shooter = col.top();
-    if (!shooter) return;
+    if (!shooter) return false;
+    if (expected && shooter !== expected) return false;
     // Slot occupancy is enforced by DragDrop; guard here defensively.
     // Turn-based: block new deploy if any shot is still in flight.
-    if (Object.values(this._gs.firingSlots).some(s => s !== null)) return;
-    if (this._gs.firingSlots[laneIdx]) return;
+    if (this._shotInFlight()) return false;
     col.consume();
     this._sDir.recordDeploy(this._gs.elapsed);
     this._startFiring(shooter, laneIdx, colIdx);
+    return true;
+  }
+
+  // A shot is travelling or waiting out its hit-stop.
+  _shotInFlight() {
+    return Object.values(this._gs.firingSlots).some(s => s !== null) || !!this._pendingShot;
   }
 
   // Called by DragDrop → onDeployFromBench (bench source).
   // Shooter is already extracted from BenchStorage by DragDrop.
+  // Turn-based like the queue: a bench shot fired while another shot was still
+  // in flight resolved two turns at once (and could change the queue mid-drag).
   deployFromBench(shooter, laneIdx) {
-    if (this._gs.firingSlots[laneIdx]) return;
+    if (this._shotInFlight()) return false;
     this._gs.benchUsed++;
     this._sDir.recordDeploy(this._gs.elapsed);
     this._startFiring(shooter, laneIdx, -1);
+    return true;
   }
 
   // Called by GameApp when the player places a BOMB booster on the road.
@@ -129,12 +143,15 @@ export class GameLoop {
   placeBombOnLane(laneIdx, tapRow = null) {
     const gs = this._gs;
     const bs = this._boosterState;
-    if (!bs?.consumeBomb()) return;
+    // A shot still in flight would resolve into the lane this clears — the queue
+    // bomb was consumed for nothing and no turn passed. Wait for it to land.
+    if (this._shotInFlight() || gs.isOver) return false;
+    if (!bs?.consumeBomb()) return false;
 
     const lane = (laneIdx >= 0 && laneIdx < gs.activeLaneCount) ? gs.lanes[laneIdx] : null;
     if (!lane || lane.cars.length === 0) {
       // Nothing to hit — refund the bomb so the player isn't penalized.
-      bs.bombs = Math.min(bs.bombsMax ?? 3, bs.bombs + 1);
+      if (bs.refundBomb) bs.refundBomb(); else bs.bombs = Math.min(bs.bombsMax ?? 3, bs.bombs + 1);
       return;
     }
 
@@ -151,6 +168,10 @@ export class GameLoop {
       (a, b) => Math.abs(a.row - target.row) - Math.abs(b.row - target.row));
     lane.cars.length = 0;
     for (const car of doomed) {
+      // Credit the level's goals (2026-09-27). Every other kill path does this;
+      // BOMB never did, so on goal levels its kills counted for nothing — while the
+      // simulator credited them, so balance assumed a BOMB players never got.
+      gs.applyKillToGoals(car.color, car.type, car.trait);
       const combo = gs.recordKill(false);
       this._onKill(combo);
       if (bs && gs.killsTowardBomb % KILLS_PER_BOMB === 0 && bs.bombs < BOMB_MAX_CHARGES) {
@@ -202,8 +223,10 @@ export class GameLoop {
     let dur = 0;
     if (colorBomb) {
       dur = 0.080;
-    } else if (frontCar && shooter.color === frontCar.color) {
-      dur = frontCar.hp <= shooter.damage ? 0.050 : 0.030;   // kill : non-kill
+    } else if (frontCar && canTarget(frontCar, shooter.color)) {
+      const dmg = shooter.damage * (this._powerShotReady() ? 2 : 1);
+      dur = (frontCar.armor ?? 0) > 0 ? 0.060                 // plates knocked off
+          : frontCar.hp <= dmg ? 0.050 : 0.030;               // kill : non-kill
     }
 
     if (dur > 0) {
@@ -231,7 +254,12 @@ export class GameLoop {
       if (!targetColor) return;
       const killed = this._fireColorBomb(targetColor);
       this._onColorBomb?.(targetColor, killed);
-      if (!gs.isOver) this._advanceGrid();   // one advance total, not per kill
+      if (gs.isOver) return;
+      // A rainbow that completes the goals wins NOW — the advance would run the
+      // breach check first (a finished level lost) or, under FREEZE, skip its
+      // win check entirely (goals at 0, level still running).
+      if (gs.goals.length > 0 && gs.isGoalMet()) { gs.endGame(true); this._onEnd(true); return; }
+      this._advanceGrid();   // one advance total, not per kill
       return;
     }
 
@@ -247,11 +275,18 @@ export class GameLoop {
       gs.freezeArmed = false;
     }
 
-    gs.recordDeploy(isCorrectColor);
+    gs.recordDeploy(isCorrectColor || (frontCar.armor ?? 0) > 0);
 
-    const { kills, carryOverKills, damageDealt, destroyed: destroyedFromCombat } = this._combat.resolve(shooter, lane);
+    // Hot Streak: a charged bomb is supercharged (double damage, carry-over
+    // through any colour). The charge is spent by this shot whatever it does.
+    const power = this._powerShotReady();
+    const res = this._combat.resolve(shooter, lane, { power });
+    const { kills, carryOverKills, damageDealt, destroyed: destroyedFromCombat } = res;
+    // A destroyed volatile shoves the other lanes' traffic one extra row on the
+    // advance this shot causes (see TrafficRules.surgeOtherLanes).
+    this._surgeFromLane = causesSurge(destroyedFromCombat) ? laneIdx : null;
 
-    if (damageDealt === 0) {
+    if (!res.hit) {
       this._onMiss(laneIdx, carGameX);
       this._updateColorChangeCombo(0);   // a wasted shot breaks the consecutive-combo streak
       // Color mismatch: wasted bomb slot, grid does NOT advance.
@@ -264,9 +299,22 @@ export class GameLoop {
       this._onComboFreeze?.();
     }
 
-    // Pass the kill COUNT (not just a boolean) so the renderer can escalate the
-    // shake / chroma / explosion size for multi-kills.
-    this._onHit(laneIdx, carGameX, shooter.color, damageDealt, kills);
+    if (res.armorBroken) {
+      // Plates knocked off: no damage, but it is a hit — traffic advances.
+      this._onArmorBreak?.(laneIdx, carGameX, shooter.color, res.armorLeft ?? 0);
+    } else {
+      // Pass the kill COUNT (not just a boolean) so the renderer can escalate the
+      // shake / chroma / explosion size for multi-kills.
+      this._onHit(laneIdx, carGameX, shooter.color, damageDealt, kills, power);
+    }
+
+    if (gs.streakEnabled) {
+      const next = nextStreak(gs.streak, gs.streakCharged, kills, power);
+      const justCharged = next.charged && !gs.streakCharged;
+      gs.streak = next.streak;
+      gs.streakCharged = next.charged;
+      this._onStreak?.(gs.streak, gs.streakCharged, { justCharged, usedPower: power });
+    }
 
     // Bullet-time on a big play: a 3+ kill shot briefly drops the renderer to 0.3x.
     if (kills >= 3) {
@@ -283,7 +331,7 @@ export class GameLoop {
 
       // Apply goal progress for each destroyed car
       for (const destroyed of destroyedFromCombat) {
-        gs.applyKillToGoals(destroyed.color, destroyed.type);
+        gs.applyKillToGoals(destroyed.color, destroyed.type, destroyed.trait);
       }
 
       for (let i = 0; i < kills; i++) {
@@ -325,16 +373,24 @@ export class GameLoop {
     if (!gs.isOver) this._advanceGrid();
   }
 
+  // True when the next resolved shot is the Hot Streak supercharged one.
+  _powerShotReady() {
+    return !!(this._gs.streakEnabled && this._gs.streakCharged);
+  }
+
   // Earn a rainbow color bomb: replace the "next bomb" (top shooter) of the
-  // strategically least-costly column — the active column whose top bomb has the
-  // LOWEST damage — with a rainbow color-bomb powerball. Picking the lowest-damage
-  // top means the player sacrifices the least useful bomb to gain the reward.
+  // strategically least-costly column — the active column whose top bomb matches the
+  // FEWEST cars on the board (every bomb is one hit now, so usefulness is the colour,
+  // not a damage number). The player sacrifices the least useful bomb to gain the reward.
   _earnColorBomb() {
     const gs = this._gs;
-    let bestCol = -1, lowestDmg = Infinity;
+    const onBoard = {};
+    for (let li = 0; li < gs.activeLaneCount; li++) for (const car of gs.lanes[li].cars) onBoard[car.color] = (onBoard[car.color] ?? 0) + 1;
+    let bestCol = -1, fewest = Infinity;
     for (let c = 0; c < gs.activeColCount; c++) {
       const top = gs.columns[c]?.top();
-      if (top && !top.isColorBomb && top.damage < lowestDmg) { lowestDmg = top.damage; bestCol = c; }
+      const n = top && !top.isColorBomb ? (onBoard[top.color] ?? 0) : Infinity;
+      if (n < fewest) { fewest = n; bestCol = c; }
     }
     if (bestCol === -1) bestCol = 0;  // fallback: first column
     const col     = gs.columns[bestCol];
@@ -360,7 +416,7 @@ export class GameLoop {
         const car = lane.cars[ci];
         killed.push({ laneIdx: li, position: car.position });  // capture before removal
         // Apply goal progress before removing the car
-        gs.applyKillToGoals(car.color, car.type);
+        gs.applyKillToGoals(car.color, car.type, car.trait);
         lane.cars.splice(ci, 1);
         const combo = gs.recordKill(false);
         this._onKill(combo);
@@ -385,6 +441,8 @@ export class GameLoop {
     gs.resetLevel();
     gs.phaseMan.update(0);
     this._accumulator = 0;
+    this._pendingShot = null;           // a shot mid hit-stop must not survive into the new level
+    this._surgeFromLane = null;         // a volatile kill on the last shot of a level must not surge the next one
     this._carDir.setProgress?.(0);      // spawnScript stage back to stage 1 (§3c)
     this._primeInitialCars();
     this._sDir.fillColumns(gs.activeCols, gs.asDirectorState(), gs.phaseMan.getParams());
@@ -443,19 +501,46 @@ export class GameLoop {
     const boosterFrozen = this._boosterState?.isFrozen() ?? false;
     const comboFrozen   = gs.comboFreezeShots > 0;
     if (boosterFrozen || comboFrozen) {
+      this._surgeFromLane = null;   // frozen traffic does not move, so nothing surges
       if (boosterFrozen) this._boosterState.consumeFreezeShot();
       if (comboFrozen)   gs.comboFreezeShots--;
       // Still refill columns and run viability guard, but cars don't move.
       const dirState = gs.asDirectorState();
       const phaseParams = gs.phaseMan.getParams();
       this._sDir.fillColumns(gs.activeCols, dirState, phaseParams);
-      this._enforceViableMove(gs);      return;
+      // A frozen shot can clear the whole road, or leave only row-0 staged cars hidden
+      // behind the goal band; with no advance and no refill nothing could ever be shot
+      // again (same soft-lock as the L1 empty road). Apply the empty-board rule here too.
+      const ROWS_F = gs.gridRows ?? 16;
+      const activeLanes = gs.lanes.slice(0, gs.activeLaneCount);
+      if (activeLanes.every(l => l.cars.length === 0)) this._refillLanes();
+      if (revealStagedCars(activeLanes.map(l => l.cars))) {
+        for (const l of activeLanes) for (const c of l.cars) c.position = this._rowToPosition(c.row, ROWS_F);
+      }
+      this._enforceViableMove(gs);
+      return;
     }
 
-    // 1. Move all cars forward one row.
+    // 1. Move traffic. Ordinary cars move one row, speeders two, and nobody
+    //    passes the car ahead (TrafficRules — the simulator runs the same code).
+    //    Chameleons then flip to their other colour.
+    let mended = 0;
+    for (let li = 0; li < gs.activeLaneCount; li++) {
+      const cars = gs.lanes[li].cars;   // front-first (Lane keeps it sorted)
+      advanceLaneCars(cars, null, stepSize(gs.stepsPerRow));
+      flipChameleons(cars);
+      mended += healMenders(cars);
+    }
+    if (mended > 0) this._onMend?.(mended);
+    // Volatile surge: every lane but the one that blew up moves one more row.
+    const surgeSrc = this._surgeFromLane;
+    this._surgeFromLane = null;
+    if (surgeSrc != null) {
+      surgeOtherLanes(Array.from({ length: gs.activeLaneCount }, (_, li) => gs.lanes[li].cars), surgeSrc, stepSize(gs.stepsPerRow));
+      this._onSurge?.(surgeSrc);
+    }
     for (let li = 0; li < gs.activeLaneCount; li++) {
       for (const car of gs.lanes[li].cars) {
-        car.row++;
         car.position = this._rowToPosition(car.row, ROWS);
         if (car.position > gs.maxCarPosition) gs.maxCarPosition = car.position;
       }
@@ -556,9 +641,26 @@ export class GameLoop {
 
     // Win check — mirrors _advanceGrid step 3 (goal-based or legacy kill goal).
     if (gs.goals.length > 0) {
-      if (gs.isGoalMet()) { gs.endGame(true); this._onEnd(true); }
+      if (gs.isGoalMet()) { gs.endGame(true); this._onEnd(true); return; }
     } else if (gs.totalKills >= gs.targetKills) {
-      gs.endGame(true); this._onEnd(true);
+      gs.endGame(true); this._onEnd(true); return;
+    }
+
+    // Empty-board soft-lock (2026-09-27). Lanes only refill inside _advanceGrid,
+    // which only runs after a resolved shot — and a shot needs a car to hit. If the
+    // clear left NO car on the board (L1 is a single lane), nothing could ever fire
+    // again. Refill in that case only: fresh spawns at the top, no advance. When
+    // other lanes still hold cars the board is playable and stays exactly as is,
+    // which keeps the live game aligned with the simulator's BOMB model.
+    if (gs.activeLanes.every(l => l.cars.length === 0)) { this._refillLanes(); return; }
+
+    // The clear can also leave ONLY staged cars (row 0, hidden behind the goal band) in the
+    // lanes that survived: the road then looks empty and nothing can be shot. Step them
+    // into view, exactly as every other post-shot path does (see revealStagedCars).
+    const active = gs.activeLanes;
+    if (revealStagedCars(active.map(l => l.cars))) {
+      const ROWS = gs.gridRows ?? 16;
+      for (const l of active) for (const c of l.cars) c.position = this._rowToPosition(c.row, ROWS);
     }
   }
 
@@ -584,15 +686,23 @@ export class GameLoop {
       const ROWS = gs.gridRows ?? 16;
       for (let li = 0; li < gs.activeLaneCount; li++) {
         const lane = gs.lanes[li];
-        while (lane.cars.length < target) {
-          let row = 0;
-          while (lane.cars.some(c => c.row === row)) row++;
-          if (row >= ROWS) break;   // lane physically full — nothing more to add
+        // One arrival per lane per advance: after a lane clear (BOMB booster) the road
+        // refills as traffic driving in from the top, not three cars popping in at once.
+        let arrivals = 0;
+        while (lane.cars.length < target && arrivals < 1) {
+          arrivals++;
+          const row = freeSpawnRow(lane.cars, stepSize(gs.stepsPerRow), ROWS);
+          if (row < 0) break;   // lane physically full — nothing more to add
           const car = this._carDir.generateCar(lane, 'CALM', gs.world, gs.colors, gs.gridRows);
           car.row = row;
           car.position = this._rowToPosition(row, ROWS);
           lane.addCar(car);
         }
+      }
+      // Never leave the player an empty-looking road (see revealStagedCars).
+      const active = gs.lanes.slice(0, gs.activeLaneCount);
+      if (revealStagedCars(active.map(l => l.cars))) {
+        for (const l of active) for (const c of l.cars) c.position = this._rowToPosition(c.row, ROWS);
       }
     } else {
       // Legacy mode: pick at most 1-2 random candidate lanes.
@@ -761,7 +871,7 @@ export class GameLoop {
     for (const col of activeCols) {
       if (matchesNeeded <= 0) break;
       const top = col.top();
-      if (!top || frontColors.includes(top.color)) continue;
+      if (!top || top.isColorBomb || frontColors.includes(top.color)) continue;
       top.color = frontColors[colorIdx % frontColors.length];
       colorIdx++;
       matchesNeeded--;
@@ -783,6 +893,16 @@ export class GameLoop {
     } else {
       this._consecutiveComboCount = 0;
     }
+  }
+
+  // Lanes holding at least one car COLOR CHANGE would actually recolour (the UI
+  // flashes these lanes).
+  colorChangeLanes(fromColor) {
+    const lanes = [];
+    this._gs.activeLanes.forEach((lane, i) => {
+      if (lane.cars.some((c) => c.color === fromColor)) lanes.push(i);
+    });
+    return lanes;
   }
 
   // FIX 4B: recolour every on-screen car whose colour is `fromColor` to `toColor`,
@@ -812,6 +932,7 @@ export class GameLoop {
   // skipped steps, then recolor for a fair fighting chance and guarantee a move.
   prepareForRescue() {
     const gs = this._gs;
+    this._surgeFromLane = null;
     this._refillLanes();
     const dirState    = gs.asDirectorState();
     const phaseParams = gs.phaseMan.getParams();
@@ -828,12 +949,15 @@ export class GameLoop {
     const frontColors = new Set();
     for (const lane of gs.activeLanes) {
       const fc = lane.frontCar();
+      if (fc && (fc.armor ?? 0) > 0) return;   // any bomb can hit armour — viable
       if (fc) frontColors.add(fc.color);
     }
     if (frontColors.size === 0) return; // no cars yet — nothing to enforce
 
-    // Check column tops.
+    // Check column tops. An earned RAINBOW matches any car: that is viable, and it
+    // must never be recoloured (it became a 0-damage "purple" bomb on the queue).
     for (const col of gs.activeCols) {
+      if (col.top()?.isColorBomb) return;
       if (frontColors.has(col.top()?.color)) return;
     }
     // Check bench slots (if bench is in play).
@@ -846,7 +970,7 @@ export class GameLoop {
     // No viable move — force-recolor the first non-empty column top.
     const target = [...frontColors][0];
     for (const col of gs.activeCols) {
-      if (col.top()) {
+      if (col.top() && !col.top().isColorBomb) {
         col.top().color = target;
         return;
       }

@@ -1,10 +1,10 @@
 // AudioManager — synthesized audio via Web Audio API (no asset files).
 //
 // Architecture:
-//   oscillators/sources → _master (0.45) → ctx.destination
-//   music sources       → _musicGain (0.65) → _master
+//   SFX sources   → _master (SFX volume) → _out (0.45) → ctx.destination
+//   music sources → _musicGain           → _out
 //
-// Muting _master silences everything (music + SFX) in one ramp.
+// Muting _out silences everything (music + SFX) in one ramp.
 //
 // ── Music tracks (looping) ───────────────────────────────────────────────────
 //   'title'              — slow Cmaj7 pad, 8-second loop
@@ -35,14 +35,20 @@ export class AudioManager {
 
     if (this._ctx) {
       // Single master gain — ramping to 0 silences everything at once.
-      this._master = this._ctx.createGain();
-      this._master.gain.value = MASTER_VOL;
-      this._master.connect(this._ctx.destination);
+      // _out is the final stage (MASTER_VOL; mute ramps it). _master is the SFX bus
+      // (the SFX volume slider) and _musicGain the music bus; both feed _out, so the
+      // SFX slider no longer scales the music and mute restores the exact level.
+      this._out = this._ctx.createGain();
+      this._out.gain.value = MASTER_VOL;
+      this._out.connect(this._ctx.destination);
 
-      // Music sub-gain sits between music sources and _master.
+      this._master = this._ctx.createGain();
+      this._master.gain.value = this._sfxVol;
+      this._master.connect(this._out);
+
       this._musicGain = this._ctx.createGain();
-      this._musicGain.gain.value = MUSIC_VOL;
-      this._musicGain.connect(this._master);
+      this._musicGain.gain.value = MUSIC_VOL * this._musicVol;
+      this._musicGain.connect(this._out);
 
       // 1-second white-noise buffer shared by all noise sources.
       this._noise = this._makeNoiseBuffer(1.0);
@@ -69,6 +75,7 @@ export class AudioManager {
       case 'wrong_bounce':     return this._wrongBounce();                 // 6A
       case 'kill_ding':        return this._killDing();                    // 6A
       case 'pip_fill':         return this._pipFill(opts.index ?? 0);      // 6A
+      case 'tutorial_ding':    return this._tutorialDing();
       case 'swap_whoosh':      return this._swapWhoosh();                  // 6A
       case 'freeze_tinkle':    return this._freezeTinkle();                // 6A
       case 'heartbeat':        return this._heartbeat();                   // 6A
@@ -85,6 +92,15 @@ export class AudioManager {
       case 'crisis_assist':    return this._crisisAssist();
       case 'color_bomb':       return this._colorBomb(opts.color ?? 'Red');
       case 'freeze_activate':  return this._freezeActivate();
+      // V2 (TrafficRules): special cars, Hot Streak, bosses
+      case 'armor_clang':      return this._armorClang();
+      case 'supercharge':      return this._supercharge();
+      case 'power_shot':       return this._powerShot();
+      case 'boss_light':       return this._bossLight(opts.left ?? 1);
+      case 'boss_destroyed':   return this._bossDestroyed();
+      // V3 traits
+      case 'surge':            return this._surge();
+      case 'mend':             return this._mend();
     }
   }
 
@@ -92,8 +108,8 @@ export class AudioManager {
   // Returns the new muted boolean.
   toggleMute() {
     this._muted = !this._muted;
-    if (this._master) {
-      this._master.gain.linearRampToValueAtTime(
+    if (this._out) {
+      this._out.gain.linearRampToValueAtTime(
         this._muted ? 0 : MASTER_VOL,
         this._ctx.currentTime + 0.04,
       );
@@ -106,11 +122,8 @@ export class AudioManager {
   /** Set SFX (master) volume 0.0–1.0. Preserved across mute/unmute. */
   setSfxVolume(v) {
     this._sfxVol = Math.max(0, Math.min(1, v));
-    if (!this._muted && this._master) {
-      this._master.gain.linearRampToValueAtTime(
-        MASTER_VOL * this._sfxVol,
-        this._ctx.currentTime + 0.04,
-      );
+    if (this._master) {
+      this._master.gain.linearRampToValueAtTime(this._sfxVol, this._ctx.currentTime + 0.04);
     }
   }
 
@@ -625,6 +638,121 @@ export class AudioManager {
   }
 
   // 6A: color-bomb pip fill — ascending C/E/G; the 3rd (full) blooms into a chord.
+  // ── V2 sounds ──────────────────────────────────────────────────────────────
+  // Metal plate knocked off: two detuned square partials with a fast decay (the
+  // "clang") over a short high noise tick.
+  // Volatile blast: low rising rumble, the road lurching forward.
+  _surge() {
+    const ctx = this._ctx, now = ctx.currentTime;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(70, now);
+    o.frequency.exponentialRampToValueAtTime(220, now + 0.4);
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(0.16, now + 0.08);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+    o.connect(g); g.connect(this._master); o.start(now); o.stop(now + 0.5);
+    this._noiseBurst(0.35, 900, now, 0.05);
+  }
+
+  // Mender repair: two soft rising blips.
+  _mend() {
+    const ctx = this._ctx, now = ctx.currentTime;
+    [[660, 0], [990, 0.09]].forEach(([f, d]) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine'; o.frequency.setValueAtTime(f, now + d);
+      g.gain.setValueAtTime(0.0001, now + d);
+      g.gain.exponentialRampToValueAtTime(0.1, now + d + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, now + d + 0.18);
+      o.connect(g); g.connect(this._master); o.start(now + d); o.stop(now + d + 0.2);
+    });
+  }
+
+  _armorClang() {
+    const ctx = this._ctx, now = ctx.currentTime;
+    for (const [f, v] of [[880, 0.12], [1318, 0.08], [2093, 0.05]]) {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'square'; o.frequency.setValueAtTime(f, now);
+      o.frequency.exponentialRampToValueAtTime(f * 0.92, now + 0.25);
+      g.gain.setValueAtTime(v, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+      o.connect(g); g.connect(this._master); o.start(now); o.stop(now + 0.3);
+    }
+    this._noiseBurst(0.25, 4000, now, 0.03);
+  }
+
+  // Streak charged: a rising sweep into a bright major chord.
+  _supercharge() {
+    const ctx = this._ctx, now = ctx.currentTime;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sawtooth'; o.frequency.setValueAtTime(220, now);
+    o.frequency.exponentialRampToValueAtTime(880, now + 0.28);
+    g.gain.setValueAtTime(0.0001, now); g.gain.exponentialRampToValueAtTime(0.12, now + 0.2);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.34);
+    o.connect(g); g.connect(this._master); o.start(now); o.stop(now + 0.36);
+    [880, 1108.7, 1318.5].forEach((f, i) => {
+      const oo = ctx.createOscillator(), gg = ctx.createGain();
+      oo.type = 'triangle'; oo.frequency.value = f;
+      const t = now + 0.26 + i * 0.03;
+      gg.gain.setValueAtTime(0.0001, t); gg.gain.exponentialRampToValueAtTime(0.16, t + 0.02);
+      gg.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+      oo.connect(gg); gg.connect(this._master); oo.start(t); oo.stop(t + 0.52);
+    });
+  }
+
+  // Supercharged impact: a deep thump plus the multi-kill explosion.
+  _powerShot() {
+    const ctx = this._ctx, now = ctx.currentTime;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(110, now);
+    o.frequency.exponentialRampToValueAtTime(38, now + 0.3);
+    g.gain.setValueAtTime(0.9, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.34);
+    o.connect(g); g.connect(this._master); o.start(now); o.stop(now + 0.36);
+    this._carDestroy(3);
+  }
+
+  // A boss light knocked out: a descending two-note "down" tone, lower as the
+  // boss nears the end of its sequence.
+  _bossLight(left = 1) {
+    const ctx = this._ctx, now = ctx.currentTime;
+    const base = 330 + Math.min(6, left) * 45;
+    [base, base * 0.75].forEach((f, i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'square'; o.frequency.value = f;
+      const t = now + i * 0.09;
+      g.gain.setValueAtTime(0.1, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+      o.connect(g); g.connect(this._master); o.start(t); o.stop(t + 0.13);
+    });
+    this._hitMatch();
+  }
+
+  // Boss destroyed: big explosion and a triumphant arpeggio.
+  _bossDestroyed() {
+    const ctx = this._ctx, now = ctx.currentTime;
+    this._carDestroy(4);
+    [523.3, 659.3, 784.0, 1046.5].forEach((f, i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'triangle'; o.frequency.value = f;
+      const t = now + 0.18 + i * 0.09;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.2, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+      o.connect(g); g.connect(this._master); o.start(t); o.stop(t + 0.42);
+    });
+  }
+
+  // Tutorial step chime. Lives here (not in its own throw-away AudioContext) so it obeys
+  // mute and the SFX volume and cannot leak a context per call.
+  _tutorialDing() {
+    const ctx = this._ctx, now = ctx.currentTime;
+    const osc = ctx.createOscillator(), gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, now);
+    osc.frequency.exponentialRampToValueAtTime(1320, now + 0.12);
+    gain.gain.setValueAtTime(0.25, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+    osc.connect(gain); gain.connect(this._master);
+    osc.start(now); osc.stop(now + 0.4);
+  }
+
   _pipFill(index = 0) {
     const ctx = this._ctx, now = ctx.currentTime;
     const notes = [523.3, 659.3, 784.0];

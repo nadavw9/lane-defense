@@ -125,6 +125,7 @@ export class CityEdges {
 
     this._container = new Container();
     this._layer.addChild(this._container);
+    this._backdrop = false;
 
     this._laneCount   = 4;
     this._buildingSet = 'tutorial';
@@ -149,16 +150,27 @@ export class CityEdges {
     this._buildingSet = BUILDING_SET_INFO[set] ? set : 'tutorial';
   }
 
-  // Swap the AI-generated world side-panel set. Accepts 'world1'..'world3' or a
+  // Swap the AI-generated world side-panel set. Accepts 'world1'..'world7' or a
   // scene-variant id like 'world2-b' (variants rotate per level). Stores it; the
   // subsequent setLaneCount() call in _startLevel redraws.
   setWorldPanel(world) {
-    if (/^world[123](-[abc])?$/.test(world ?? '')) this._worldPanel = world;
+    if (/^world[1-9](-[abc])?$/.test(world ?? '')) this._worldPanel = world;
   }
 
   _redraw() {
     this._container.removeChildren();
+    if (this._backdrop) return;   // a baked backdrop already contains the verges — draw nothing
     this._draw(this._laneCount);
+  }
+
+  // A baked gameplay backdrop (Road3D) already contains the verges, so the
+  // strips hide — they sit on the Pixi layer ABOVE the 3D canvas and would
+  // cover the bake. Stores the flag; the next setLaneCount() redraw applies it.
+  setBackdropActive(on) {
+    const was = this._backdrop;
+    this._backdrop = !!on;
+    this._container.visible = !this._backdrop;
+    if (was && !this._backdrop) this._redraw();   // falling back to the strips: draw them now
   }
 
   update(_dt) {}
@@ -292,9 +304,10 @@ export class CityEdges {
       ts.x = x0;
       ts.y = top;
       // Visual hierarchy (Royal Match rule): decor must RECEDE so gameplay pops.
-      // Dim the panels ~30% — the brightest/most saturated pixels on screen must
-      // be the cars and bombs, never the background buildings.
-      ts.tint = 0xb2b2b8;
+      // The 3D diorama strips are authored calmer than the old painted panels
+      // (no ink outline, softer greens), so they need only a light ~15% dim —
+      // the old 30% turned the lit scenery muddy.
+      ts.tint = 0xd8d8de;
       this._container.addChild(ts);
       return true;
     }

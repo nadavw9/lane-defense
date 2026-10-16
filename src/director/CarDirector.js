@@ -4,6 +4,7 @@
 import { PHASE_CONFIG, HP_MINIMUM } from './DirectorConfig.js';
 import { Car } from '../models/Car.js';
 import { CAR_TYPES, pickCarType, carHpFor } from './CarTypes.js';
+import { rollTrait } from './TrafficRules.js';
 
 export class CarDirector {
   constructor(config, rng) {
@@ -20,9 +21,6 @@ export class CarDirector {
     // Total pair HP is 2–4, so dmg≥3 (82% of shots) can chain-kill any pair.
     // The pair is placed every 3–7 normal cars so carry-over opportunities are
     // frequent enough to hit the 15–20% target without dominating the spawn queue.
-    this._carryOverCounters   = {}; // { laneId → cars since last pair }
-    this._carryOverThresholds = {}; // { laneId → next trigger count }
-    this._pendingPairColors   = {}; // { laneId → bait color } when reward car is due
   }
 
   // Update the current level so pickCarType uses the right type distribution.
@@ -63,37 +61,10 @@ export class CarDirector {
   // HP formula: BASE_HP × worldHpMultiplier × phaseHpMultiplier × variance(0.85–1.15)
   // Result is rounded and clamped to [HP_MINIMUM, HP_BASE.max].
   //
-  // Carry-over pairs are injected every CARRY_OVER_INTERVAL spawns: a weak bait
-  // car (HP 1–2) followed immediately on the next spawn call by a same-color
-  // reward car (also HP 1–2).  Total pair HP is 2–4, so any dmg≥3 shot can
-  // chain-kill both, creating a reliable carry-over opportunity.
   generateCar(lane, phase, worldConfig, colorPalette, gridRows) {
     const laneId = lane.id ?? lane;
 
-    // Lazy-init per-lane carry-over counters.
-    if (this._carryOverCounters[laneId] === undefined) {
-      this._carryOverCounters[laneId]   = 0;
-      this._carryOverThresholds[laneId] = this._nextCarryOverThreshold();
-    }
-
-    // If the previous car in this lane was a bait, emit the same-color reward car.
-    if (this._pendingPairColors[laneId] !== undefined) {
-      const color = this._pendingPairColors[laneId];
-      delete this._pendingPairColors[laneId];
-      return this._buildCarryOverCar(color, worldConfig);
-    }
-
-    // Normal spawn: pick color, increment counter.
     const color = this.assignColor(colorPalette, null);
-    this._carryOverCounters[laneId]++;
-
-    // Time to start a carry-over pair?
-    if (this._carryOverCounters[laneId] >= this._carryOverThresholds[laneId]) {
-      this._carryOverCounters[laneId]   = 0;
-      this._carryOverThresholds[laneId] = this._nextCarryOverThreshold();
-      this._pendingPairColors[laneId]   = color; // next spawn will match
-      return this._buildCarryOverCar(color, worldConfig); // bait car
-    }
 
     const availableRows = gridRows !== undefined ? gridRows - 1 : undefined;
     return this._buildCar(color, phase, worldConfig, availableRows);
@@ -171,7 +142,7 @@ export class CarDirector {
 
   _buildCar(color, phase, worldConfig, availableRows) {
     const type = this._pickScriptedType(availableRows)
-      ?? pickCarType(this._rng, this._level, phase, availableRows);
+      ?? pickCarType(this._rng, this._level, phase, availableRows, worldConfig?.heft);
     // Apply the level's hpMultiplier (carried on worldConfig, same value the
     // balance sim uses) so difficulty actually scales by level in live play.
     const multiplier = worldConfig?.hpMultiplier ?? 1.0;
@@ -180,7 +151,17 @@ export class CarDirector {
     const speed = worldConfig.speed.base +
       this._rng.nextFloat(-worldConfig.speed.variance, worldConfig.speed.variance);
 
-    return new Car({ color, hp, speed, type });
+    const car = new Car({ color, hp, speed, type });
+    return rollTrait(car, this._traits, this._rng, this._palette);
+  }
+
+  // V2 special cars: per-level trait table { speeder?, armored?, chameleon? }
+  // (probability per spawn) and the level palette (chameleon's second colour).
+  // null → no traits and no extra rng draws, so trait-free levels are unchanged.
+  setTraits(table, palette) {
+    const has = table && Object.values(table).some(p => p > 0);
+    this._traits  = has ? table : null;
+    this._palette = palette ?? null;
   }
 
   // Type pick from the active spawnScript stage's weights (null → caller falls
@@ -204,20 +185,4 @@ export class CarDirector {
     return this._rng.nextFloat(min, max);
   }
 
-  // Build a carry-over bait or reward car: HP 1–2, world-appropriate speed.
-  // HP is deliberately below HP_MINIMUM so that a dmg≥2 shot can chain-kill both
-  // (1+2=3, exploitable by any dmg≥3 = 82% of shots), creating reliable carry-over
-  // opportunities.  These are special mechanic cars — HP_MIN=4 applies to normal
-  // car spawning only.
-  _buildCarryOverCar(color, worldConfig) {
-    const hp    = this._rng.nextInt(1, 2);
-    const speed = worldConfig.speed.base +
-      this._rng.nextFloat(-worldConfig.speed.variance, worldConfig.speed.variance);
-    return new Car({ color, hp, speed, type: 'small' });
-  }
-
-  // Returns a random interval (3–7) before the next carry-over pair is injected.
-  _nextCarryOverThreshold() {
-    return this._rng.nextInt(3, 7);
-  }
 }

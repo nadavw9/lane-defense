@@ -27,6 +27,26 @@ L1 = 1 lane/column, L2 = 2, L3–L40 = 3, and every production level uses 8 rows
 schedule is morning L1–4, afternoon L5–8, sunset L9–12, misty L13–15, industrial L16–30, and
 nightHighway L31–40.
 
+## V3 Campaign Extension (2026-10-01)
+
+The campaign is now **100 levels in seven worlds**: W1 Toy Town L1-15, W2 Steel Yards L16-30,
+W3 Neon Nights L31-45, W4 Sun Valley L46-60 (desert), W5 Frost Pass L61-75, W6 Harbor Lights
+L76-90, W7 Starlight Strip L91-100. L1-40 stay in `LevelManager.js`; L41-100 are authored in
+`src/game/LateLevels.js` with `levelDsl.js` and carry generated heft / trait / goal scales
+(`src/game/lateTuning.js`, produced by `node tools/tune-levels.mjs --write`). Every level is
+checked against `tools/bands.mjs` by the average-skill sim (2026-10-01: all 100 in band; L4 a
+hair high). Car HP is fixed per type; difficulty moves through `worldConfig.heft` (spawn mix),
+trait probabilities and goal counts, never through `hpMultiplier`.
+
+Seven traits (`src/director/TrafficRules.js`): speeder (2 rows/turn), armored and plated
+(armour that any colour strips; plated takes two hits), chameleon (recolours each turn), mender
+(heals 1 HP a turn it is not hit), volatile (on death every other lane advances a row),
+phantom (colour hidden until row 4). Goal types: destroyTotal, destroyColor, destroyType,
+destroyTrait, defeatBoss. Bosses at L50/60/70/80/90/100 use colour sequences with `moveEvery`
+and `reArmor` knobs; they must be played on a device before release (see CLAUDE.md).
+
+Economy: 2 coins per car, boosters 20-40 coins, continue-with-coins 60, one owned-booster store.
+
 The visible bomb queue has three slots; the bench is a separate fixed four-slot storage area.
 A queue bomb damages a front car only when its color matches that car. The BOMB booster clears
 every car in the targeted lane regardless of color or row. City repair state is persisted by

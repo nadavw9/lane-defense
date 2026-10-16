@@ -90,12 +90,12 @@ const SECOND_TEXT_STYLE = {
 
 // Programmatic fallback colors (used when sprite loading failed).
 const COLOR_MAP = {
-  Red:    0xE24B4A,
-  Blue:   0x378ADD,
-  Green:  0x639922,
-  Yellow: 0xEF9F27,
-  Purple: 0x7F77DD,
-  Orange: 0xD85A30,
+  Red:    0xFF3D3D,
+  Blue:   0x2F8CFF,
+  Green:  0x2FCC55,
+  Yellow: 0xFFD42A,
+  Purple: 0xA35CFF,
+  Orange: 0xFF8A1C,
 };
 
 // Draw a cannon shape centred at (ox, oy) into Graphics g.
@@ -441,9 +441,7 @@ export class ShooterRenderer {
         const tex = Assets.get(url);
         if (tex && sp1.texture !== tex) { sp1.texture = tex; fitSprite(sp1, TOP_DIAM); }
         sp1.visible       = true;
-        topText.text      = isColorblind()
-          ? `${SHAPES[top.color] ?? ''}${top.damage}`
-          : String(top.damage);
+        topText.text      = isColorblind() ? (SHAPES[top.color] ?? '') : '';   // one hit: no number
         topText.visible   = true;
       } else {
         sp1.visible     = false;
@@ -467,6 +465,10 @@ export class ShooterRenderer {
     // projection.js's band/queue-scale must already be updated for this level
     // by the time this runs (via gameRenderer3D.setActiveLaneCount() → Scene3D).
     recomputeShooterLayout();
+    // The tray rect was captured once in the constructor (band 540). Every 3-lane level
+    // runs band 600 (breach line ~60px lower), so the outline sat on the hazard stripe.
+    this._trayY = Math.round(BREACH_LINE_Y) + 10;
+    this._trayH = BOOSTER_BAR_Y - this._trayY;
     this._laneCountCache = n;
     this._drawTray(n);
   }
@@ -531,8 +533,12 @@ export class ShooterRenderer {
       // World floor active: no Pixi surface — clear any stale texture-era chrome.
       this._trayEdge?.clear();
       this._trayMask?.clear();
-      this._tray.roundRect(trayX, this._trayY, trayW, this._trayH, 12);
-      this._tray.stroke({ color: 0x445566, width: 1, alpha: this._worldVariant ? 0.25 : 0.50 });
+      // 3D mode: no outline. The baked floor is the zone; a Pixi frame around it read as two
+      // stray lines running down from the pavement.
+      if (!this._mode3D) {
+        this._tray.roundRect(trayX, this._trayY, trayW, this._trayH, 12);
+        this._tray.stroke({ color: 0x445566, width: 1, alpha: this._worldVariant ? 0.25 : 0.50 });
+      }
     }
 
     // ── Slot sockets — bombs sit IN designed slots, not floating on a panel ──
@@ -575,7 +581,7 @@ export class ShooterRenderer {
       const color = COLOR_MAP[second.color] ?? 0x888888;
       drawCannon(g, color, SECOND_RADIUS * 2, 0.65, cx, SECOND_Y);
 
-      this._secondTexts[i].text    = String(second.damage);
+      this._secondTexts[i].text    = '';
       this._secondTexts[i].x       = cx;
       this._secondTexts[i].y       = SECOND_Y + SECOND_RADIUS + 8;
       this._secondTexts[i].alpha   = 0.65;
@@ -592,7 +598,7 @@ export class ShooterRenderer {
       drawCannon(g, color, THIRD_RADIUS * 2, 0.40);
       g.setTransform(0, 0);
 
-      this._thirdTexts[i].text    = String(third.damage);
+      this._thirdTexts[i].text    = '';
       this._thirdTexts[i].x       = cx;
       this._thirdTexts[i].y       = THIRD_Y + THIRD_RADIUS + 6;
       this._thirdTexts[i].alpha   = 0.40;
@@ -614,7 +620,7 @@ export class ShooterRenderer {
       circ.clear();
       drawCannon(circ, color, TOP_RADIUS * 2, 1.0);
       circ.visible    = true;
-      topText.text    = String(top.damage);
+      topText.text    = '';
       topText.y       = 6;   // nudge number onto the barrel
       topText.visible = true;
     } else {

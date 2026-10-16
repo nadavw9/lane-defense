@@ -16,12 +16,8 @@ function winRate(id) {
   const lm = new LevelManager();
   lm.goToLevel(id);
   const cfg = lm.current;
-  const runner = new SimulationRunner({
-    duration: cfg.duration, colors: cfg.colors, worldConfig: cfg.worldConfig,
-    levelId: id, skill: 'average', laneCount: cfg.laneCount, colCount: cfg.colCount,
-    laneTargetCarCount: cfg.laneTargetCarCount, spawnBudget: cfg.spawnBudget,
-    gridRows: cfg.gridRows, goals: cfg.goals,
-  });
+  const runner = SimulationRunner.fromLevel(cfg, { skill: 'average' });   // every config field (bosses, traits)
+
   let wins = 0;
   for (let s = 0; s < RUNS; s++) if (runner.runLevel(1 + s).won) wins++;
   return (wins / RUNS) * 100;

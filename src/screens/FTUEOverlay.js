@@ -12,14 +12,14 @@
 //            Plus dim mask (lanes 0-2, cols 0-2 already handled by mask).
 //        Other levels with hintText: auto-hiding text banner (8 s).
 //
-//   3. onFirstDeploy(damage?) — hides the L1 arrow; for early levels (L1-L5)
-//      shows a one-time "Deals [damage] damage!" tip at the shooter area.
+//   3. onFirstDeploy() — hides the L1 arrow and stops the hand demo. (The old "Deals N damage!"
+//      tip is gone: every bomb is one hit.)
 //   4. onFirstKill() — triggers the L2 combo hint.
 //
 // update(dt) must be called from the render ticker while the overlay is live.
 import { Container, Graphics, Text } from 'pixi.js';
 import { uiIcon } from '../renderer/UIIcon.js';
-import { PRIORITY } from '../renderer/PopupQueue.js';
+import { bodyText, GOLD } from '../renderer/PremiumUI.js';
 import {
   ROAD_TOP_Y, ROAD_BOTTOM_Y,
 } from '../renderer/LaneRenderer.js';
@@ -28,6 +28,7 @@ import {
   TOP_RADIUS,
 } from '../renderer/ShooterRenderer.js';
 import { BAR_Y } from '../renderer/BoosterBar.js';
+import { INK, WHITE, toyPanel } from '../renderer/ToyStyle.js';
 import { getColumnScreenX, getColumnScreenY, getLaneScreenX } from '../renderer/PositionRegistry.js';
 
 // FTUE hint banner sits just above the booster bar (its documented anchor).
@@ -66,8 +67,6 @@ export class FTUEOverlay {
     this._hudHints     = null;
     this._areaLabels   = null;
     this._comboHint    = null;
-    this._damageTip    = null;
-    this._damageTipT   = 0;
     this._comboHintT   = 0;
     this._comboHintOn  = false;
     this._handDemo     = null;
@@ -100,9 +99,8 @@ export class FTUEOverlay {
   // Hide/show the whole overlay (used to clear FTUE hints behind end-screens).
   setVisible(v) { this._container.visible = v; }
 
-  // Call after the first deploy.  For early levels, optionally shows a
-  // one-time damage tooltip near the shooter area.
-  onFirstDeploy(damage) {
+  // Call after the first deploy.
+  onFirstDeploy() {
     // Dismiss arrow hint on L1.
     if (this._isArrow && this._hintVisible) {
       this._hintVisible = false;
@@ -111,12 +109,6 @@ export class FTUEOverlay {
     }
     // Stop hand demo on deploy (player got it).
     this._stopHandDemo();
-
-    // Show damage tooltip for first deploy (levels 1-5 only).
-    if (damage != null && this._damageTip === null) {
-      this._damageTip = this._buildDamageTip(this._appW, damage);
-      this._damageTipT = 3;
-    }
   }
 
   // Call when the player scores their first kill (used by L2 combo hint).
@@ -181,23 +173,10 @@ export class FTUEOverlay {
       }
     }
 
-    // ── Damage tooltip float + fade ───────────────────────────────────────
-    if (this._damageTip && this._damageTipT > 0) {
-      this._damageTipT -= dt;
-      this._damageTip.y -= 22 * dt;
-      if (this._damageTipT < 1) {
-        this._damageTip.alpha = Math.max(0, this._damageTipT);
-      }
-      if (this._damageTipT <= 0) {
-        this._damageTip.destroy({ children: true });
-        this._damageTip = null;
-      }
-    }
-
     // ── Hand demo animation (L1) ─────────────────────────────────────────
     if (this._handDemo && !this._handDemo.done) {
       this._handDemo.t += dt;
-      const { emoji, trailG, startX, startY, endX, endY } = this._handDemo;
+      const { emoji, trailG, startX, startY, endX, endY, baseScale } = this._handDemo;
       const cycleT = this._handDemo.t % HAND_CYCLE;
 
       if (Math.floor(this._handDemo.t / HAND_CYCLE) >= HAND_LOOPS) {
@@ -210,14 +189,14 @@ export class FTUEOverlay {
           emoji.x     = startX;
           emoji.y     = startY;
           emoji.alpha = p;
-          emoji.scale.set(1);
+          emoji.scale.set(baseScale);
         } else if (cycleT < HAND_APPEAR + HAND_DRAG) {
           const p     = (cycleT - HAND_APPEAR) / HAND_DRAG;
           const eased = 1 - Math.pow(1 - p, 2);
           emoji.x     = startX + (endX - startX) * eased;
           emoji.y     = startY + (endY - startY) * eased;
           emoji.alpha = 1;
-          emoji.scale.set(1);
+          emoji.scale.set(baseScale);
           trailG.moveTo(startX, startY);
           trailG.lineTo(emoji.x, emoji.y);
           trailG.stroke({ color: 0xffee44, width: 2.5, alpha: 0.40 });
@@ -226,16 +205,16 @@ export class FTUEOverlay {
           emoji.x = endX;
           emoji.y = endY;
           emoji.alpha = 1;
-          emoji.scale.set(1 + Math.sin(p * Math.PI) * 0.12);
+          emoji.scale.set(baseScale * (1 + Math.sin(p * Math.PI) * 0.12));
         } else if (cycleT < HAND_APPEAR + HAND_DRAG + HAND_HOLD + HAND_FADE) {
           const p = (cycleT - HAND_APPEAR - HAND_DRAG - HAND_HOLD) / HAND_FADE;
           emoji.x     = endX;
           emoji.y     = endY;
           emoji.alpha = 1 - p;
-          emoji.scale.set(1);
+          emoji.scale.set(baseScale);
         } else {
           emoji.alpha = 0;
-          emoji.scale.set(1);
+          emoji.scale.set(baseScale);
         }
       }
     }
@@ -306,7 +285,7 @@ export class FTUEOverlay {
     const carsLbl = new Text({ text: '↓  INCOMING CARS  ↓', style: { ...style, fill: 0xff8866 } });
     carsLbl.anchor.set(0.5, 0);
     carsLbl.x = w / 2;
-    carsLbl.y = ROAD_TOP_Y + 4;
+    carsLbl.y = ROAD_TOP_Y + 190;   // on the open road, clear of the header band (tips dock there)
     grp.addChild(carsLbl);
 
     const shootersLbl = new Text({ text: '↑  YOUR BOMBS  ↑', style: { ...style, fill: 0x66aaff } });
@@ -314,22 +293,6 @@ export class FTUEOverlay {
     shootersLbl.x = w / 2;
     shootersLbl.y = SHOOTER_AREA_Y - 4;
     grp.addChild(shootersLbl);
-  }
-
-  // Floating "Deals X damage!" tooltip near the shooter area.
-  _buildDamageTip(w, damage) {
-    const tip = new Text({
-      text: `This bomb deals ${damage} damage!`,
-      style: {
-        fontSize: 15, fontWeight: 'bold', fill: 0xffffff, align: 'center',
-        dropShadow: { color: 0x000000, blur: 5, distance: 2, alpha: 0.9 },
-      },
-    });
-    tip.anchor.set(0.5, 1);
-    tip.x = w / 2;
-    tip.y = SHOOTER_AREA_Y - 8;
-    this._container.addChild(tip);
-    return tip;
   }
 
   // Combo explanation banner shown after first kill on L2.
@@ -367,21 +330,11 @@ export class FTUEOverlay {
     const grp = new Container();
     this._container.addChild(grp);
 
+    const txt = bodyText('Drag bombs to matching cars!', 16, 0xFFFFFF);
+    const bw = Math.min(appW - 40, txt.width + 44);
     const bg = new Graphics();
-    bg.roundRect(20, 0, appW - 40, 38, 10);
-    bg.fill({ color: 0x110800, alpha: 0.80 });
-    bg.roundRect(20, 0, appW - 40, 38, 10);
-    bg.stroke({ color: 0xffee44, width: 1.5, alpha: 0.70 });
+    bg.roundRect((appW - bw) / 2, 0, bw, 38, 19).fill({ color: 0x17143A, alpha: 0.96 }).stroke({ color: GOLD, width: 2.5 });
     grp.addChild(bg);
-
-    const txt = new Text({
-      text: 'Drag bombs to matching cars!',
-      style: {
-        fontSize: 15, fontWeight: 'bold', fill: 0xffee88, align: 'center',
-        dropShadow: { color: 0x000000, blur: 4, distance: 2, alpha: 0.9 },
-      },
-    });
-    txt.anchor.set(0.5, 0.5);
     txt.x = appW / 2;
     txt.y = 19;
     grp.addChild(txt);
@@ -412,7 +365,7 @@ export class FTUEOverlay {
     emoji.x = startX;
     emoji.y = startY;
 
-    this._handDemo = { grp, emoji, trailG, hitbox, startX, startY, endX, endY, t: 0, done: false };
+    this._handDemo = { grp, emoji, trailG, hitbox, startX, startY, endX, endY, t: 0, done: false, baseScale: emoji.scale.x };
   }
 
   _stopHandDemo() {
@@ -462,18 +415,18 @@ export class FTUEOverlay {
   }
 }
 
-// ── FeatureBanners — per-feature first-encounter tutorial pills ───────────────
-// Shows a compact white pill banner via PopupQueue (TUTORIAL priority) the first
-// time each named feature is encountered in a session.  Keys are persisted to
-// localStorage so each banner appears at most once across sessions.
+// ── FeatureBanners — once-per-lifetime "first time you meet X" gate ───────────────
+// Remembers which named features have already been explained (localStorage, so each
+// appears at most once across sessions) and hands the first encounter to `present`,
+// which GameApp wires to the centre GuideCard. It draws nothing itself: tips no longer
+// pop up at the top of the screen.
 //
 // Usage:
-//   const fb = new FeatureBanners(popupQueue, appW);
-//   fb.fire('first_shot', 'Good shot! Color must match the car.');
+//   const fb = new FeatureBanners((key, text) => showGuide(key, text));
+//   fb.fire('first_miss', 'No damage! Bomb color must match the car color.');
 export class FeatureBanners {
-  constructor(popupQueue, appW) {
-    this._pq   = popupQueue;
-    this._appW = appW;
+  constructor(present) {
+    this._present = present;
     try {
       this._seen = new Set(JSON.parse(localStorage.getItem('ftue_banners') ?? '[]'));
     } catch {
@@ -481,46 +434,18 @@ export class FeatureBanners {
     }
   }
 
-  // Show the pill once for key; no-op if already seen.
+  has(key)  { return this._seen.has(key); }
+  mark(key) { this._seen.add(key); this._persist(); }
+
+  // Explain once per key; no-op if already seen.
   fire(key, text) {
     if (this._seen.has(key)) return;
     this._seen.add(key);
     this._persist();
-    const appW = this._appW;
-    this._pq.enqueue(PRIORITY.TUTORIAL, (w) => FeatureBanners._buildPill(w ?? appW, text), 2.5);
+    this._present(key, text);
   }
 
   _persist() {
     try { localStorage.setItem('ftue_banners', JSON.stringify([...this._seen])); } catch {}
-  }
-
-  // Compact right-aligned toast: 200px wide, anchored to right edge.
-  // Positioned below the HUD bar (ZONE_Y[TUTORIAL]=76) so it never
-  // overlaps the level badge, hearts, or the gameplay road.
-  static _buildPill(w, text) {
-    const grp = new Container();
-    const PW = 210, PH = 38;
-    const PX = w - PW - 10;   // right-aligned, 10px from edge
-
-    const bg = new Graphics();
-    bg.roundRect(PX, 0, PW, PH, 10);
-    bg.fill({ color: 0x081830, alpha: 0.88 });
-    bg.roundRect(PX, 0, PW, PH, 10);
-    bg.stroke({ color: 0x44aaff, width: 1.5, alpha: 0.85 });
-    grp.addChild(bg);
-
-    const txt = new Text({
-      text,
-      style: {
-        fontSize: 12, fontWeight: 'bold', fill: 0xeef4ff, align: 'right',
-        wordWrap: true, wordWrapWidth: PW - 16,
-        dropShadow: { color: 0x000000, blur: 4, distance: 0, alpha: 0.60 },
-      },
-    });
-    txt.anchor.set(1.0, 0.5);   // right-aligned anchor
-    txt.x = PX + PW - 8;
-    txt.y = PH / 2;
-    grp.addChild(txt);
-    return grp;
   }
 }

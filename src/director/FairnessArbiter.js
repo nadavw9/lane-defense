@@ -4,13 +4,13 @@
 //
 // FR-1  At least 1 top shooter must color-match at least 1 front car.
 // FR-2  At most 3 of 4 front cars share the same color.
-// FR-3  Average shooter damage ≥ 50% of average front car HP.
-// FR-4  No car HP exceeds 2.5× the highest available shooter damage.
 // FR-5  At least 2 distinct colors in the top shooter row.
-import { FAIRNESS, HP_MINIMUM } from './DirectorConfig.js';
+// (FR-3 and FR-4 compared bomb damage with car HP. Every bomb is one hit now, so
+// there is no damage to balance against HP; see docs/ONE_HIT_MODEL.md.)
+import { FAIRNESS } from './DirectorConfig.js';
 
 export class FairnessArbiter {
-  // Validate and fix FR-2 and FR-4 for a car about to enter a lane.
+  // Validate and fix FR-2 for a car about to enter a lane.
   // Returns { fixed: false } when nothing needed changing, or
   // { fixed: true, fixes: [{rule, original, corrected}, ...] } for every fix applied.
   checkCar(car, gameState) {
@@ -19,13 +19,10 @@ export class FairnessArbiter {
     const fr2 = this._fixFR2(car, gameState);
     if (fr2) fixes.push(fr2);
 
-    const fr4 = this._fixFR4(car, gameState);
-    if (fr4) fixes.push(fr4);
-
     return fixes.length > 0 ? { fixed: true, fixes } : { fixed: false };
   }
 
-  // Validate and fix FR-1, FR-3, FR-5 for a shooter about to become a column top.
+  // Validate and fix FR-1 and FR-5 for a shooter about to become a column top.
   // shooter.column indicates which column slot this shooter fills in the top row.
   checkShooter(shooter, gameState) {
     const fixes = [];
@@ -34,9 +31,6 @@ export class FairnessArbiter {
     // runs last and prefers colors that still satisfy FR-1.
     const fr1 = this._fixFR1(shooter, gameState);
     if (fr1) fixes.push(fr1);
-
-    const fr3 = this._fixFR3(shooter, gameState);
-    if (fr3) fixes.push(fr3);
 
     const fr5 = this._fixFR5(shooter, gameState);
     if (fr5) fixes.push(fr5);
@@ -80,22 +74,6 @@ export class FairnessArbiter {
     return { rule: 'FR-2', original, corrected: car.color };
   }
 
-  // ─── FR-4 ─────────────────────────────────────────────────────────────────
-  // No car HP may exceed 2.5× the highest shooter damage currently in any column.
-
-  _fixFR4(car, gameState) {
-    const maxDamage = this._getMaxShooterDamage(gameState);
-    if (maxDamage === 0) return null; // no shooters yet — can't enforce
-
-    const cap = Math.floor(FAIRNESS.maxHpToDamageRatio * maxDamage);
-    if (car.hp <= cap) return null;
-
-    const original = car.hp;
-    car.hp = Math.max(HP_MINIMUM, cap);
-    car.maxHp = car.hp;
-    return { rule: 'FR-4', original, corrected: car.hp };
-  }
-
   // ─── FR-1 ─────────────────────────────────────────────────────────────────
   // At least one top-row shooter must color-match at least one front car.
   // If the hypothetical top row (other tops + this candidate) has no match,
@@ -121,39 +99,6 @@ export class FairnessArbiter {
     shooter.color = preferred ?? frontCars[0].color;
 
     return { rule: 'FR-1', original, corrected: shooter.color };
-  }
-
-  // ─── FR-3 ─────────────────────────────────────────────────────────────────
-  // Average top-row shooter damage must be ≥ 50% of average front car HP.
-  // Derives the minimum damage this specific shooter needs algebraically so the
-  // average clears the threshold, then clamps to [2, 8].
-
-  _fixFR3(shooter, gameState) {
-    const frontCars = this._getFrontCars(gameState);
-    if (frontCars.length === 0) return null;
-
-    const topRow = this._topRowWith(shooter, gameState);
-    if (topRow.length === 0) return null;
-
-    const avgHp     = frontCars.reduce((s, c) => s + c.hp, 0) / frontCars.length;
-    const avgDamage = topRow.reduce((s, sh) => s + sh.damage, 0) / topRow.length;
-    const required  = FAIRNESS.minDamageToHpRatio * avgHp;
-
-    if (avgDamage >= required) return null;
-
-    // Minimum damage for this shooter so the row average reaches `required`:
-    //   (sumOther + minDamage) / count >= required
-    //   minDamage >= required * count - sumOther
-    const others        = topRow.filter(s => s !== shooter);
-    const sumOther      = others.reduce((s, sh) => s + sh.damage, 0);
-    const minDamage     = Math.ceil(required * topRow.length - sumOther);
-    const clampedDamage = Math.min(8, Math.max(2, minDamage));
-
-    if (clampedDamage === shooter.damage) return null;
-
-    const original   = shooter.damage;
-    shooter.damage   = clampedDamage;
-    return { rule: 'FR-3', original, corrected: shooter.damage };
   }
 
   // ─── FR-5 ─────────────────────────────────────────────────────────────────
@@ -186,17 +131,6 @@ export class FairnessArbiter {
 
   _getFrontCars(gameState) {
     return gameState.lanes.map(l => l.frontCar()).filter(Boolean);
-  }
-
-  // Highest damage value across every shooter in every column.
-  _getMaxShooterDamage(gameState) {
-    let max = 0;
-    for (const col of gameState.columns) {
-      for (const s of col.shooters) {
-        if (s.damage > max) max = s.damage;
-      }
-    }
-    return max;
   }
 
   // Returns the hypothetical top row: substitute the candidate for its own column,

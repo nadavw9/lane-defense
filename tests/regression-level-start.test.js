@@ -55,11 +55,12 @@ describe('regression: every level starts in a valid state', () => {
       // 6b. Lane count. Everything from L4 up is the 3-lane board; L1-L3 ramp.
       if (cfg.id >= 4) expect(cfg.laneCount).toBe(3);
 
-      // 7. Lane target car count. L1 eases in with 1. Everything else is 2 or 3:
+      // 7. Lane target car count. L1 queues 3 (owner request 2026-10-12: the BOMB booster's lane
+      //    clear is invisible with one car in the lane; sim still 100%). Everything else is 2 or 3:
       //    on an 8-row board ltc4 floods (0-1% win), so density must fall with
       //    board depth. 3 is reserved for levels that need the extra pressure and
       //    is capped there — a 4 anywhere means someone re-flooded the board.
-      if (cfg.id === 1) expect(cfg.laneTargetCarCount).toBe(1);
+      if (cfg.id === 1) expect(cfg.laneTargetCarCount).toBe(3);
       else {
         expect(cfg.laneTargetCarCount).toBeGreaterThanOrEqual(2);
         expect(cfg.laneTargetCarCount).toBeLessThanOrEqual(3);
@@ -75,7 +76,7 @@ describe('regression: every level starts in a valid state', () => {
       //    unwinnable at any tuning). Difficulty is still carried by bomb power +
       //    car count, not opening geometry. See tests/opening-depth-parity.test.js
       //    for the full derivation + live/sim parity guard.
-      const expectedOpen = cfg.gridRows <= 10 ? [0, 1] : [0, 1, 2];
+      const expectedOpen = cfg.id === 1 && cfg.gridRows <= 10 ? [1, 2, 3] : cfg.gridRows <= 10 ? [0, 1] : [0, 1, 2];
       expect(openingCarsForLevel(cfg.id, cfg.gridRows)).toBe(expectedOpen.length);
       expect(openingRowsForLevel(cfg.id, cfg.gridRows)).toEqual(expectedOpen);
       // Opening cars never start on or past the breach line (row gridRows-1).
@@ -96,8 +97,8 @@ const LEVEL_INTRO_TYPE = {
   1:  'small',   // motorbike
   2:  'big',     // sedan
   5:  'jeep',    // van
-  6:  'truck',   // moved 9 -> 6 (2026-08-01) — see CarTypes.WEIGHTS_MID_TRUCK
-  13: 'bigrig',
+  8:  'truck',   // V2 (2026-09-27): L8 "Heavy load"
+  12: 'bigrig',  // V2: big rigs from L12
   15: 'tank',
 };
 
@@ -144,8 +145,11 @@ describe('regression: car-type introduction ordering', () => {
       }
     });
 
-    it(`'${type}' is actually available from L${introLevel} onward (intro is real)`, () => {
-      expect(typesAvailableAt(introLevel).has(type)).toBe(true);
+    // One-hit ladder: truck / bigrig / tank are retired from spawning (folded into the jeep).
+    const retired = ['truck', 'bigrig', 'tank'].includes(type);
+    it(`'${type}' ${retired ? 'is retired and never spawns' : `is actually available from L${introLevel} onward (intro is real)`}`, () => {
+      expect(typesAvailableAt(introLevel).has(type)).toBe(!retired);
+      if (retired) expect(typesAvailableAt(100).has(type)).toBe(false);
     });
   }
 });

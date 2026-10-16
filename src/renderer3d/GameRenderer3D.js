@@ -5,7 +5,6 @@
 //   r3d.onMiss(laneIdx)
 //   r3d.onShoot(laneIdx)
 //   r3d.onBreach()
-//   r3d.onShake()
 //   r3d.setCombo(combo)
 //   r3d.triggerDeployPunch(colIdx)
 //   r3d.resetLevel()
@@ -13,6 +12,7 @@
 import { Scene3D, posToZ } from './Scene3D.js';
 import { Lighting3D }    from './Lighting3D.js';
 import { levelTheme }    from './ThemeRegistry.js';
+import { AdaptiveQuality } from './AdaptiveQuality.js';
 import { Road3D }        from './Road3D.js';
 import { Skybox3D }      from './Skybox3D.js';
 import { Car3D }         from './Car3D.js';
@@ -25,12 +25,16 @@ import { PostFX3D }      from './PostFX3D.js';
 import { ScorchMarks3D } from './ScorchMarks3D.js';
 import { Environment3D } from './Environment3D.js';
 import { Ambient3D }     from './Ambient3D.js';
-import { computeFrustum } from './projection.js';
+import { computeFrustum, PX_PER_WU } from './projection.js';
+import { isReducedMotion } from '../game/MotionPrefs.js';
 
 export class GameRenderer3D {
   constructor(width, height) {
     this._width   = width;
     this._height  = height;
+    this._quality = new AdaptiveQuality();
+    this._appliedFactor = 1;
+    this._lastRenderAt = 0;
     this._canvas  = null;
     this._scene3d  = null;
     this._lighting = null;
@@ -41,6 +45,8 @@ export class GameRenderer3D {
     this._projectiles = null;
     this._particles   = null;
     this._cameraFX    = null;
+    this._stageOffX   = 0; this._stageOffY = 0;
+    this._timers      = new Set();
     this._laneFlash    = null;
     this._postFX       = null;
     this._scorchMarks  = null;
@@ -136,7 +142,31 @@ export class GameRenderer3D {
     this._road?.setTheme?.(theme);
   }
 
+  /** Pixi stage shake offset in stage px, pushed by GameApp every frame. */
+  setStageOffset(px, py) { this._stageOffX = px || 0; this._stageOffY = py || 0; }
+
+  _later(fn, ms) {
+    const id = setTimeout(() => { this._timers.delete(id); fn(); }, ms);
+    this._timers.add(id);
+  }
+
+  _clearTimers() {
+    for (const id of this._timers) clearTimeout(id);
+    this._timers.clear();
+  }
+
+  /** Bloom burst (impact glow). Reduced motion keeps the resting strength. */
+  _bloomBurst(v) { this._scene3d?.setBloomStrength(isReducedMotion() ? 0.65 : v); }
+
   resetLevel() {
+    this._clearTimers();
+    // Apply a pending render-scale UPGRADE between levels. _buildGameObjects only runs once
+    // per session, so deferring upgrades to it meant the scale could only ever go down: one
+    // transient slow window (shader compile, thermal blip) cost resolution for good.
+    if (this._mounted && this._quality && this._appliedFactor !== this._quality.factor) {
+      this._appliedFactor = this._quality.factor;
+      this._applyRenderScale();
+    }
     this._cars?.clearAll();
     this._projectiles?.reset();
     this._particles?.dispose();
@@ -208,18 +238,12 @@ export class GameRenderer3D {
   }
 
   onBreach() {
-    this._cameraFX?.startBreachZoom(0.50);
     this._cameraFX?.shake(0.30, 0.50);
     this._postFX?.setBreach(1.0);
     this._postFX?.triggerChroma(0.04, 0.60);
   }
 
-  onShake(magnitude = 0.10) {
-    this._cameraFX?.shake(magnitude, 0.20);
-  }
-
   setCombo(combo) {
-    this._cameraFX?.setCombo(combo);
     this._postFX?.setCombo(combo);
     this._skybox?.setCombo(combo);   // drives aurora amplitude + colour shift
     // Keep bloom at resting level regardless of combo — headlights bloom yellow above 0.65+
@@ -233,7 +257,7 @@ export class GameRenderer3D {
   /** Gold bloom burst when CRISIS assist fires — the cavalry has arrived. */
   triggerCrisisGlow(colIdx) {
     this._shooters?.triggerPunch(colIdx);
-    this._scene3d?.setBloomStrength(1.8);
+    this._bloomBurst(1.8);
     this._cameraFX?.shake(0.05, 0.20);
   }
 
@@ -249,7 +273,7 @@ export class GameRenderer3D {
     this._particles?.spawnBombExplosion(bombPos, laneIdx);
     const shakeMag = 0.30 + Math.min(carsHit, 6) * 0.04;
     this._cameraFX?.shake(shakeMag, 0.55);
-    this._scene3d?.setBloomStrength(1.5);
+    this._bloomBurst(1.5);
     this._postFX?.triggerChroma(0.05, 0.60);
     // Expanding ring decal on road surface + white screen flash
     this._road?.spawnBombRing(bombPos, 0xff8800, laneIdx);
@@ -280,7 +304,7 @@ export class GameRenderer3D {
 
     // ── Stage 2 — staggered detonations, front to back ────────────────────────
     order.forEach((k, i) => {
-      setTimeout(() => {
+      this._later(() => {
         this._particles?.spawnExplosion(k.laneIdx, color, 2.2, k.position);
         this._cameraFX?.shake(0.10, 0.12);   // small kick per pop
       }, FLASH_MS + i * STEP_MS);
@@ -288,9 +312,9 @@ export class GameRenderer3D {
 
     // ── Stage 3 — full-clear punctuation, once, after the last explosion ───────
     const lastMs = FLASH_MS + (order.length - 1) * STEP_MS;
-    setTimeout(() => {
+    this._later(() => {
       this._cameraFX?.shake(0.45, 0.65);
-      this._scene3d?.setBloomStrength(3.0);
+      this._bloomBurst(3.0);
       this._postFX?.triggerChroma(0.09, 1.00);
       this._postFX?.setFlash(0.55, 0.12);
     }, lastMs + 30);
@@ -301,21 +325,6 @@ export class GameRenderer3D {
 
   /** 3B: highlight the grabbed column's bomb (-1 = none). */
   setSelectedBomb(colIdx) { this._shooters?.setSelectedColumn(colIdx); }
-
-
-  // Project a queue slot's bomb (3D) to 2D screen pixels (stage coords) by running
-  // its world position through the actual camera — the ground-truth on-screen
-  // centre. Used by 2D overlays so they land exactly on the bomb.
-  getBombSlotScreenXY(col, row) {
-    const world = this._shooters?.getSlotWorldPosition(col, row);
-    const cam   = this._scene3d?.camera;
-    if (!world || !cam) return null;
-    world.project(cam);   // world → NDC [-1,1]
-    return {
-      x: (world.x * 0.5 + 0.5) * this._width,
-      y: (-world.y * 0.5 + 0.5) * this._height,
-    };
-  }
 
 
   /** Set the world {x,z} the next bomb in this lane should travel FROM (release point). */
@@ -338,7 +347,6 @@ export class GameRenderer3D {
 
   /** Sweep camera from high steep angle to gameplay position over 0.6 s. */
   startLevelIntro() {
-    this._cameraFX?.startLevelIntro();
     this._warmupShaders();
   }
 
@@ -378,6 +386,19 @@ export class GameRenderer3D {
     }
   }
 
+  /**
+   * One-time warm-up while the title screen is up: compile the shaders and upload the
+   * road/environment textures with a single hidden frame (the canvas is display:none, but
+   * WebGL still draws into its buffer). Without it that cost lands on the first level start,
+   * behind the black transition fade, and level 1 stared at a black screen for seconds.
+   */
+  prewarm() {
+    if (!this._mounted || !this._scene3d || this._prewarmed) return;
+    this._prewarmed = true;
+    this._warmupShaders();
+    try { this._scene3d.render(); } catch (e) { console.warn('[GameRenderer3D] prewarm frame skipped:', e); }
+  }
+
   setActiveLaneCount(n) {
     this._activeLaneCount = n;       // remembered so rebuilt Car3D can re-apply it
     this._scene3d?.setLaneCount(n);
@@ -410,9 +431,21 @@ export class GameRenderer3D {
 
   // Per-world road tile (url from assetManifest.WORLD_ROAD_URLS, null = default).
   setRoadTexture(url) { this._road?.setRoadTextureUrl?.(url); }
+  setBackdrop(url) {
+    this._backdropOn = !!url;
+    this._road?.setBackdropUrl?.(url);
+    this._shooters?.setFloorHidden?.(this._backdropOn);
+  }
 
   // Dispatch-zone floor — a 3D plane UNDER the bomb spheres (null = none).
-  setZoneTexture(url) { this._road?.setZoneTextureUrl?.(url); }
+  // Also dresses Shooter3D's floor plane — that is the surface actually visible
+  // under the bombs (it sits above Road3D's zone floor). Stored so a rebuilt
+  // Shooter3D re-applies it (stale-value register: same shape as gridRows).
+  setZoneTexture(url) {
+    this._zoneTexUrl = url ?? null;
+    this._road?.setZoneTextureUrl?.(url);
+    this._shooters?.setFloorTexture(this._zoneTexUrl);
+  }
 
   setActiveColCount(n) {
     // Stored as well as forwarded: _buildGameObjects() replaces _shooters with a
@@ -480,6 +513,16 @@ export class GameRenderer3D {
     this._environment?.update(dt);
     this._ambient?.update(dt);
     this._cameraFX?.update(dt);
+    {
+      // Bomb zone = camera shake offset + Pixi stage shake (px -> world), so it stays
+      // locked to the Pixi sockets. Translation only; the camera never zooms.
+      const fx = this._cameraFX;
+      const k = 1 / PX_PER_WU;
+      const dx = (fx?.offsetX ?? 0) + this._stageOffX * k;
+      const dz = (fx?.offsetZ ?? 0) + this._stageOffY * k;
+      this._shooters?.setZoneOffset(dx, dz);
+      this._road?.setZoneOffset(dx, dz);
+    }
     this._laneFlash?.update(dt);
     this._scorchMarks?.update(dt);
     this._particles?.update(dt);
@@ -512,6 +555,14 @@ export class GameRenderer3D {
   render() {
     if (!this._mounted) return;
     if (this._canvas?.style.display === 'none') return;
+    // Slow devices step the render scale down (and back up with headroom).
+    const now = performance.now();
+    if (this._lastRenderAt && this._quality.record(now - this._lastRenderAt)) {
+      // Downgrades apply at once (the player feels lag now). Upgrades wait for the next
+      // level start (resetLevel) so the resolution never pops mid-level.
+      if (this._quality.factor < this._appliedFactor) { this._appliedFactor = this._quality.factor; this._applyRenderScale(); }
+    }
+    this._lastRenderAt = now;
     this._scene3d.renderDual();
   }
 
@@ -519,6 +570,7 @@ export class GameRenderer3D {
 
   destroy() {
     if (!this._mounted) return;
+    this._clearTimers();
 
     this._cars?.clearAll();
     this._projectiles?.dispose();
@@ -584,11 +636,14 @@ export class GameRenderer3D {
     // Device (render-target) px per world unit — badge canvases are sized from
     // this so damage numbers rasterize at their true on-screen resolution.
     // Same pixel-ratio clamp as Scene3D's renderer.setPixelRatio.
+    if (this._appliedFactor !== this._quality.factor) { this._appliedFactor = this._quality.factor; this._applyRenderScale(); }   // pending upgrade
     const frustum = computeFrustum(this._width, this._height);
     const scale   = this._renderScale ?? Math.min(window.devicePixelRatio || 1, 2);
     const pxPerWu = (this._height * scale) / (2 * frustum.halfZe);
     this._cars        = new Car3D(scene, this._lanes);
     this._shooters    = new Shooter3D(scene, this._columns, pxPerWu);
+    if (this._zoneTexUrl) this._shooters.setFloorTexture(this._zoneTexUrl);
+    this._shooters.setFloorHidden?.(!!this._backdropOn);
     this._projectiles = new Projectile3D(scene, this._firingSlots, this._lanes);
     this._particles   = new Particles3D(scene, this._lighting, this._lanes);
     // Re-apply per-level geometry to the freshly-built renderers. Both MUST be
@@ -616,7 +671,8 @@ export class GameRenderer3D {
   _applyRenderScale() {
     if (!this._scene3d || !this._canvas) return;
     const cssH  = parseFloat(this._canvas.style.height) || this._height;
-    const ratio = Math.min(3, Math.max(1, (cssH / this._height) * (window.devicePixelRatio || 1)));
+    const full  = Math.min(2.5, (cssH / this._height) * (window.devicePixelRatio || 1));
+    const ratio = Math.max(1, full * this._appliedFactor);
     this._scene3d.setRenderScale(ratio);
     this._renderScale = ratio;
   }
@@ -625,8 +681,12 @@ export class GameRenderer3D {
     if (!this._canvas) return;
     const pixiCanvas = document.querySelector('canvas:not(#three-canvas)');
     if (pixiCanvas) {
+      // Size AND position: the Pixi canvas is centred in the safe area, not the
+      // window, so copying only the size would shift the road off the HUD.
       this._canvas.style.width  = pixiCanvas.style.width;
       this._canvas.style.height = pixiCanvas.style.height;
+      this._canvas.style.top    = pixiCanvas.style.top;
+      this._canvas.style.left   = pixiCanvas.style.left;
     } else {
       const scale = Math.min(window.innerWidth / this._width, window.innerHeight / this._height);
       this._canvas.style.width  = `${this._width  * scale}px`;

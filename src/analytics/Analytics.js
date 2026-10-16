@@ -8,6 +8,10 @@
 
 const DB_URL = 'https://lanedefense-analytics-default-rtdb.firebaseio.com';
 
+// Rules generation. Stamped on every row so data from the old numbered-bomb model never mixes
+// with the one-hit ladder when win rates are compared against the sim bands.
+export const RULES_MODEL = 'onehit-1';
+
 function _genUUID() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
@@ -19,6 +23,15 @@ function _genUUID() {
   });
 }
 
+// Off until the app has resolved consent (Google UMP via AdManager). Where the
+// law requires consent and the player has not given it, nothing is ever sent.
+let _enabled = false;
+export function setAnalyticsEnabled(v) { _enabled = !!v; }
+
+// The anonymous install ID, as the player can read it in Settings. A deletion
+// request by email quotes this value; it is the only way to find their rows.
+export function getInstallId() { return new Analytics()._playerId; }
+
 export class Analytics {
   constructor() {
     this._playerId = this._getOrCreatePlayerId();
@@ -28,6 +41,7 @@ export class Analytics {
   recordSessionStart() {
     this._post('events', {
       event:        'session_start',
+      model:        RULES_MODEL,
       playerId:     this._playerId,
       timestamp:    Date.now(),
       deviceWidth:  window.innerWidth,
@@ -65,6 +79,7 @@ export class Analytics {
       rescueUsed,
       boostersUsed,
       benchUsed,
+      model:         RULES_MODEL,
       timestamp:     Date.now(),
       deviceWidth:   window.innerWidth,
       deviceHeight:  window.innerHeight,
@@ -75,10 +90,13 @@ export class Analytics {
 
   _getOrCreatePlayerId() {
     const KEY = 'ld_player_id';
-    let id = localStorage.getItem(KEY);
+    // Storage can throw (disabled, quota, private mode). Analytics must never stop the
+    // game starting: fall back to a per-session id.
+    let id = null;
+    try { id = localStorage.getItem(KEY); } catch { /* unavailable */ }
     if (!id) {
       id = _genUUID();
-      localStorage.setItem(KEY, id);
+      try { localStorage.setItem(KEY, id); } catch { /* unavailable */ }
     }
     return id;
   }
@@ -86,6 +104,7 @@ export class Analytics {
   // POST to a Firebase REST collection. Errors are swallowed at both the
   // Promise level (network failure) and the synchronous level (fetch missing).
   _post(collection, payload) {
+    if (import.meta.env.DEV || !_enabled) return;   // dev/test runs and no-consent players send nothing
     try {
       fetch(`${DB_URL}/${collection}.json`, {
         method:  'POST',
@@ -100,12 +119,14 @@ export class Analytics {
 
 // Fire-and-forget discrete event logger. Wraps every failure so analytics
 // never affect gameplay.
+let _cachedId = null;   // anonymous install id, so per-player funnels (first-attempt win rate) can be built
 export function logEvent(eventName, data) {
+  if (import.meta.env.DEV || !_enabled) return;
   try {
     fetch(`${DB_URL}/events.json`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ event: eventName, ...data, ts: Date.now() }),
+      body:    JSON.stringify({ event: eventName, model: RULES_MODEL, playerId: _cachedId ??= getInstallId(), ...data, ts: Date.now() }),
     }).catch(() => {});
   } catch (_) {}
 }

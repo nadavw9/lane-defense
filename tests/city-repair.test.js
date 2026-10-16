@@ -68,7 +68,8 @@ describe('§3e migration — veteran save survives BOTH changes cleanly', () => 
   it('leaves every OTHER veteran field untouched', () => {
     const p = new ProgressManager();
     expect(p.coins).toBe(4200);
-    expect(p.getBoosters()).toEqual({ swap: 5, freeze: 2 });
+    expect(p.getInventory().freeze).toBe(2);          // legacy `boosters.freeze` carried into the one store
+    expect(p._data.boosters).toBeUndefined();
     expect(p._data.achievements).toEqual({ sharpshooter: true, combo_master: true });
     expect(p.getFailStreak(22)).toBe(3);
     expect(p._data.bestStats['12']).toEqual({ combo: 7, time: 41, stars: 3 });

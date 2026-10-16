@@ -10,8 +10,8 @@ describe('DailyChallengeManager.getChallenge()', () => {
     const c = mgr.getChallenge();
     expect(c).toHaveProperty('id', 'daily');
     expect(c).toHaveProperty('isDaily', true);
-    expect(c).toHaveProperty('laneCount', 4);
-    expect(c).toHaveProperty('colCount', 4);
+    expect(c).toHaveProperty('laneCount', 3);   // V2 board (2026-09-28)
+    expect(c).toHaveProperty('colCount', 3);
     expect(c).toHaveProperty('colors');
     expect(c).toHaveProperty('worldConfig');
     expect(c).toHaveProperty('duration');

@@ -10,6 +10,9 @@
 
 import * as THREE from 'three';
 import { laneToX, CELL } from './Scene3D.js';
+import { isColorblind } from '../game/ColorblindMode.js';
+import { isReducedMotion } from '../game/MotionPrefs.js';
+import { drawColorShapeBadge } from './colorShapeCanvas.js';
 import { BOMB_R, BOMB_ZONE_SCALE, bombSlotZ } from './projection.js';
 
 // ── Powerball texture cache (one loader shared across all slots) ───────────────
@@ -72,12 +75,12 @@ function badgeWorldH() { return 1.60 * BOMB_ZONE_SCALE; }
 
 // ── Color palette ──────────────────────────────────────────────────────────────
 const COLOR_HEX = {
-  Red:    0xFF1111,
-  Blue:   0x1166FF,
-  Green:  0x11CC11,
-  Yellow: 0xFFDD00,
-  Purple: 0xBB11FF,
-  Orange: 0xFF7700,
+  Red:    0xFF3D3D,
+  Blue:   0x2F8CFF,
+  Green:  0x2FCC55,
+  Yellow: 0xFFD42A,
+  Purple: 0xA35CFF,
+  Orange: 0xFF8A1C,
 };
 
 // ── Cross-browser rounded rect ─────────────────────────────────────────────────
@@ -95,34 +98,10 @@ function _roundRect(ctx, x, y, w, h, r) {
   }
 }
 
-// ── Badge drawing — NO background, just a bold white number with a heavy dark
-// stroke + drop-shadow so it reads on any bomb colour and never bleeds a dark
-// rectangle outside the round bomb sprite.
-function drawDamageBadge(ctx, W, H, damage) {
+// ── Badge drawing — every bomb is exactly one hit, so a bomb carries NO number: the
+// badge canvas is simply cleared (colour-blind mode draws its shape on it afterwards).
+function drawDamageBadge(ctx, W, H) {
   ctx.clearRect(0, 0, W, H);
-
-  const ph       = H * 0.78;
-  const fontSize = Math.round(ph * 0.92);
-  ctx.font         = `900 ${fontSize}px Arial`;
-  ctx.textAlign    = 'center';
-  ctx.textBaseline = 'middle';
-
-  // Thin crisp outline + a small soft shadow — readable on any bomb colour
-  // without forming a dark blob/background around the digit.
-  ctx.shadowColor   = 'rgba(0,0,0,0.55)';
-  ctx.shadowBlur    = Math.max(2, H * 0.05);
-  ctx.shadowOffsetX = 0;
-  ctx.shadowOffsetY = Math.max(1, H * 0.02);
-
-  // Proportional stroke — slightly heavier than body text so the digit reads
-  // as a game piece label at arm's length.
-  ctx.lineWidth   = Math.max(1.5, fontSize * 0.10);
-  ctx.strokeStyle = 'rgba(0,0,0,0.92)';
-  ctx.strokeText(String(damage), W / 2, H / 2 + 1);
-
-  ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText(String(damage), W / 2, H / 2 + 1);
 }
 
 // Rainbow color-bomb badge — dark pill with a gold star (no damage number).
@@ -187,6 +166,7 @@ export class Shooter3D {
 
 
     this._activeColCount = LANE_COUNT;
+    this._zoneDX = 0; this._zoneDZ = 0;   // camera + stage shake offset (world units)
     this._shakeT = 0;   // bomb-zone shake timer (wrong-shot feedback, 1D)
     this._selectedCol = -1;                              // 3B: grabbed-bomb column
   }
@@ -226,6 +206,16 @@ export class Shooter3D {
 
   setActiveColCount(n) { this._activeColCount = n; }
 
+  // Zone offset (2026-10-03). The bomb queue is a 3D object but its sockets, halos and
+  // drag targets are Pixi overlays anchored to rest geometry. Camera shake moves every
+  // 3D object and the stage shake moves the Pixi layer, so the zone is translated by
+  // the SUM of both (world units) to stay glued to its sockets. Translation only:
+  // the camera never zooms (see CameraFX), so no scale compensation exists.
+  setZoneOffset(dx, dz) {
+    this._zoneDX = dx || 0;
+    this._zoneDZ = dz || 0;
+  }
+
   // Get the world position of a queue slot (for DragDrop hit-test coordination)
   // Not used for rendering (3D doesn't do 2D hit-tests), but called by DragDrop for symmetry
   getQueueSlotCenter(colIdx, rowIdx) {
@@ -236,7 +226,7 @@ export class Shooter3D {
 
   // Brief horizontal jitter of the whole bomb queue — used on a wrong-colour shot
   // so the rejection reads in the bomb zone without shaking the whole screen. (1D)
-  shakeZone(dur = 0.18) { this._shakeT = dur; }
+  shakeZone(dur = 0.18) { if (!isReducedMotion()) this._shakeT = dur; }
 
   // 3B: which column's bomb is currently grabbed (-1 = none). The front bomb of
   // that column pops to 1.15x and the bombs behind it dim, for a focus effect.
@@ -262,8 +252,9 @@ export class Shooter3D {
       shakeX = Math.sin(this._shakeT * 80) * 0.22 * (this._shakeT / 0.18);
     }
     for (let li = 0; li < this._slots.length; li++) {
-      for (let si = 0; si < this._slots[li].length; si++) {        const g = this._slots[li][si].group;
-        if (g._baseX != null) g.position.x = g._baseX + shakeX;
+      for (let si = 0; si < this._slots[li].length; si++) {
+        const g = this._slots[li][si].group;
+        if (g._baseX != null) g.position.x = g._baseX + shakeX + this._zoneDX;
         // Bombs rest STILL. The old idle bob spanned only ±0.12 wu ≈ ±2.4 device
         // px — a sine that small renders as discrete 1px steps with ~0.5s dwells
         // at its extremes ("stuck then jumps"), and it dragged the big damage
@@ -286,8 +277,15 @@ export class Shooter3D {
         // slotZ(si) IS the canonical position and it is a multiply — there is no
         // reason to cache it. Reading it live makes ball and socket share one
         // source of truth by construction, which is what the guard test pins.
-        g.position.z = slotZ(si);
+        g.position.z = slotZ(si) + this._zoneDZ;
+        if (si > 0) g.scale.setScalar(this._slots[li][si]._baseScale);
       }
+    }
+
+    // The zone floor (slot tracks, ring art) takes the same offset as the balls.
+    if (this._bgPlane && this._bgDims) {
+      this._bgPlane.position.x = this._zoneDX;
+      this._bgPlane.position.z = this._bgDims.d / 2 + this._zoneDZ;
     }
 
     for (let li = 0; li < LANE_COUNT; li++) {
@@ -322,9 +320,11 @@ export class Shooter3D {
 
         // Sync sprite texture + badge on color/damage change
         const isCB = shooter.isColorBomb === true;
-        if (slot.lastColor !== shooter.color || slot.lastDamage !== damage) {
+        const cb = isColorblind();
+        if (slot.lastColor !== shooter.color || slot.lastDamage !== damage || slot.lastCb !== cb) {
           slot.lastColor  = shooter.color;
           slot.lastDamage = damage;
+          slot.lastCb     = cb;
           if (isCB) {
             // Rainbow: keep the prior powerball as a base; the rainbow swirl
             // overlay (below) dominates. Badge shows a gold star, not a number.
@@ -333,6 +333,12 @@ export class Shooter3D {
             slot.sphereMesh.material.map = _getPowerballTex(shooter.color);
             slot.sphereMesh.material.needsUpdate = true;
             drawDamageBadge(slot.badgeCtx, slot.badgeCanvas.width, slot.badgeCanvas.height, damage, hex);
+            // Colour-blind mode: the colour's shape in a white disc at the
+            // ball's lower right, clear of the centred number.
+            if (cb) {
+              const W = slot.badgeCanvas.width, H = slot.badgeCanvas.height;
+              drawColorShapeBadge(slot.badgeCtx, shooter.color, W * 0.72, H * 0.72, H * 0.24);
+            }
           }
           slot.badgeTex.needsUpdate = true;
         }
@@ -414,6 +420,34 @@ export class Shooter3D {
 
   // ── Private ─────────────────────────────────────────────────────────────────
 
+  /** Per-world floor under the bombs (url = zone-<world>-<variant>.png, null =
+   *  keep the workshop surface). Tiled at the art's own aspect across the full
+   *  plane width; a world floor is authored at display brightness, so the
+   *  workshop's ×2.5 colour boost is dropped. */
+  /** A baked backdrop (Road3D) paints the bomb depot itself — this plane sits
+   *  above the road and would cover it, so it hides while one is active. */
+  setFloorHidden(hidden) {
+    this._floorHidden = !!hidden;
+    if (this._bgPlane) this._bgPlane.visible = !this._floorHidden;
+  }
+
+  setFloorTexture(url) {
+    if (!this._bgPlane || !url || url === this._floorUrl) return;
+    this._floorUrl = url;
+    const mat = this._bgPlane.material;
+    _texLoader.load(url, (tex) => {
+      if (url !== this._floorUrl) { tex.dispose(); return; }   // superseded mid-load
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const aspect = tex.image.width / tex.image.height;
+      tex.repeat.set(1, this._bgDims.d / (this._bgDims.w / aspect));
+      mat.map?.dispose();
+      mat.map = tex;
+      mat.color.setRGB(1, 1, 1);
+      mat.needsUpdate = true;
+    });
+  }
+
   _createBgPlane() {
     // Covers full bomb zone: Z=0 (breach) to Z≈12.6 (past stash slot).
     // Width wider than widest frustum (≈19.3) so edges are never visible.
@@ -430,6 +464,7 @@ export class Shooter3D {
     _texLoader.load(
       `${import.meta.env.BASE_URL}sprites/designed/panel-workshop-surface.png`,
       (tex) => {
+        if (this._floorUrl) { tex.dispose(); return; }   // a world floor won the race
         tex.wrapS      = THREE.RepeatWrapping;
         tex.wrapT      = THREE.RepeatWrapping;
         tex.repeat.set(5, 3.15);
@@ -442,6 +477,7 @@ export class Shooter3D {
         mat.needsUpdate = true;
       },
     );
+    this._bgDims = { w: BG_W, d: BG_DEPTH };
     const geo  = new THREE.PlaneGeometry(BG_W, BG_DEPTH);
     const mesh = new THREE.Mesh(geo, mat);
     mesh.rotation.x = -Math.PI / 2;
@@ -534,7 +570,8 @@ export class Shooter3D {
       emptyMesh,  emptyMat,
       badgeCanvas, badgeCtx, badgeTex, badgeMesh, badgeMat,
       lastColor:  '',
-      lastDamage: -1,      _punching: false, _punchT: 0,
+      lastDamage: -1,
+      _punching: false, _punchT: 0,
       _baseScale: 1.0,
     };
   }

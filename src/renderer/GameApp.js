@@ -11,7 +11,13 @@
 // Data flow:
 //   InputManager → DragDrop → GameLoop.deploy() → GameState mutation
 //   GameState → CarRenderer / ShooterRenderer / HUDRenderer / ParticleSystem
-import { Application, Assets, Container, Graphics, Text, Ticker } from 'pixi.js';
+import { Application, Assets, Container, Graphics, Text, Ticker, TextStyle, FillGradient } from 'pixi.js';
+// Display fonts, bundled (no network needed on device): Fredoka for all UI
+// text, Lilita One for big titles (PremiumUI.TITLE_FONT).
+import '@fontsource/fredoka/500.css';
+import '@fontsource/fredoka/600.css';
+import '@fontsource/fredoka/700.css';
+import '@fontsource/lilita-one/400.css';
 
 import { GameRenderer3D }  from '../renderer3d/GameRenderer3D.js';
 import { assetLoader }     from '../renderer3d/AssetLoader.js';
@@ -21,7 +27,7 @@ import { spriteFlags }     from './SpriteFlags.js';
 import { CityBackground }  from './CityBackground.js';
 import { CityEdges }       from './CityEdges.js';
 import { CarRenderer }     from './CarRenderer.js';
-import { ShooterRenderer } from './ShooterRenderer.js';
+import { ShooterRenderer, SHOOTER_AREA_Y, SHOOTER_AREA_H } from './ShooterRenderer.js';
 import { HUDRenderer }     from './HUDRenderer.js';
 import { ParticleSystem }  from './ParticleSystem.js';
 import { LaneFlash }       from './LaneFlash.js';
@@ -30,12 +36,12 @@ import { ComboGlow }       from './ComboGlow.js';
 import { DragDrop }        from '../input/DragDrop.js';
 import { InputManager }    from '../input/InputManager.js';
 import { BenchStorage }    from '../game/BenchStorage.js';
-import { BenchRenderer }   from './BenchRenderer.js';
+import { BenchRenderer, benchY, benchSlotH } from './BenchRenderer.js';
 
 import { GameState }       from '../game/GameState.js';
 import { GameLoop }        from '../game/GameLoop.js';
 import { CombatResolver }  from '../game/CombatResolver.js';
-import { LevelManager, openingRowsForLevel, clampInitialCarsToDepth } from '../game/LevelManager.js';
+import { LevelManager, LEVEL_COUNT, openingRowsForLevel, clampInitialCarsToDepth, streakEnabledFor } from '../game/LevelManager.js';
 import { BoosterState }    from '../game/BoosterState.js';
 import { ProgressManager } from '../game/ProgressManager.js';
 import { applyDda }         from '../game/dda.js';
@@ -43,7 +49,7 @@ import { HapticsManager }  from '../game/HapticsManager.js';
 import { setColorblindMode } from '../game/ColorblindMode.js';
 
 import {
-  setActiveCounts, getLaneScreenX, getColumnScreenX, getColumnSlotScreenY,
+  setActiveCounts, getLaneScreenX, getColumnScreenX, getColumnScreenY, getColumnSlotScreenY,
   getLaneScreenBounds, getActiveLaneCount, getActiveColCount,
 } from './PositionRegistry.js';
 import { CarDirector }     from '../director/CarDirector.js';
@@ -57,11 +63,16 @@ import { Column }          from '../models/Column.js';
 import { WinScreen, calcStars }       from '../screens/WinScreen.js';
 import { LoseScreen }                  from '../screens/LoseScreen.js';
 import { RescueOverlay }              from '../screens/RescueOverlay.js';
+import { isReducedMotion, setReducedMotion } from '../game/MotionPrefs.js';
+import { RESCUE_COIN_COST, KILLS_PER_BOMB } from '../director/DirectorConfig.js';
 import { ColorPicker }                from '../screens/ColorPicker.js';
 import { PreLevelScreen }             from '../screens/PreLevelScreen.js';
 import { BoosterUnlockScreen }        from '../screens/BoosterUnlockScreen.js';
 import { FTUEOverlay, FeatureBanners } from '../screens/FTUEOverlay.js';
 import { OnboardingHints }    from '../screens/OnboardingHints.js';
+import { GuideCard }           from '../screens/GuideCard.js';
+import { tourSteps, stepsFor } from '../screens/guideContent.js';
+import { ModeHint } from './ModeHint.js';
 import { BoosterSpotlight }      from '../screens/BoosterSpotlight.js';
 import { TransitionOverlay }      from '../screens/TransitionOverlay.js';
 import { TitleScreen }            from '../screens/TitleScreen.js';
@@ -77,16 +88,21 @@ import { TutorialOrchestrator }   from '../screens/TutorialOrchestrator.js';
 import { AchievementsScreen }     from '../screens/AchievementsScreen.js';
 import { StatsScreen }            from '../screens/StatsScreen.js';
 import { AudioManager }           from '../audio/AudioManager.js';
-import { BoosterBar }             from './BoosterBar.js';
+import { BoosterBar, BAR_Y as BOOSTER_BAR_TOP_Y } from './BoosterBar.js';
+import { levelStartCards, reactiveAllowed } from '../screens/introSchedule.js';
 import { GoalCounterUI }          from './GoalCounterUI.js';
+import { StreakMeter }            from './StreakMeter.js';
 import { adManager }            from '../ads/AdManager.js';
 import { PopupQueue, PRIORITY }  from './PopupQueue.js';
-import { Analytics, logEvent }    from '../analytics/Analytics.js';
+import { Analytics, logEvent, setAnalyticsEnabled } from '../analytics/Analytics.js';
 import { AutoTuner }             from '../analytics/AutoTuner.js';
 import { AchievementManager }     from '../game/AchievementManager.js';
 import { DailyChallengeManager }  from '../game/DailyChallengeManager.js';
 import { CarTypeIntroCard, hasIntroCard } from '../screens/CarTypeIntroCard.js';
-import { spawnableTypesFor } from '../director/CarTypes.js';
+import { spawnableTypesFor, carHpFor } from '../director/CarTypes.js';
+import { roundButton as premiumRoundButton, ribbon as premiumRibbon } from './PremiumUI.js';
+import { inventorySpentByUse } from '../game/BoosterInventory.js';
+import { bombBallScreenRadius } from '../renderer3d/projection.js';
 import { ComboFX } from './ComboFX.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -97,8 +113,7 @@ const TOTAL_COLS  = 4;
 
 // Breach camera: zoom toward the breaching lane for this many seconds before
 // showing the rescue overlay.
-const BREACH_CAM_DURATION = 0.50; // seconds
-const BREACH_CAM_ZOOM     = 0.08; // fraction over 1.0 (8% zoom-in at peak)
+const BREACH_CAM_DURATION = 0.50; // seconds of breach hold before the rescue / lose screen
 
 // ── Floating chain-hit labels ─────────────────────────────────────────────────
 
@@ -137,13 +152,16 @@ function tickFloatingTexts(texts, dt) {
 
 // Spawn a short-lived floating text centred horizontally at (x, y).
 function spawnFloatingText(parent, x, y, text, color = 0xffffff) {
+  // Chunky title face with an ink outline, so callouts read over any road/theme.
   const t = new Text({
     text,
     style: {
-      fontSize:   18,
-      fontWeight: 'bold',
+      fontFamily: '"Lilita One", Fredoka, Arial, sans-serif',
+      fontSize:   22,
       fill:       color,
-      dropShadow: { color: 0x000000, blur: 5, distance: 2, alpha: 0.9 },
+      letterSpacing: 1,
+      stroke:     { color: INK, width: 5, join: 'round' },
+      dropShadow: { color: 0x000000, blur: 2, distance: 3, alpha: 0.45, angle: Math.PI / 2 },
     },
   });
   t.anchor.set(0.5);
@@ -161,38 +179,60 @@ function spawnFloatingText(parent, x, y, text, color = 0xffffff) {
 
 import {
   ALL_SPRITE_URLS, CRITICAL_SPRITE_URLS, WORLD_ROAD_URLS,
-  buildingSetForLevel, worldPanelForLevel, sceneVariantForLevel,
+  buildingSetForLevel, worldPanelForLevel, sceneVariantForLevel, backdropUrlFor,
 } from './assetManifest.js';
 import { uiIcon } from './UIIcon.js';
+import { INK, SUN, toyPanel } from './ToyStyle.js';
+import { fitToSafeArea } from './SafeArea.js';
+import { Capacitor } from '@capacitor/core';
+import { App as CapApp } from '@capacitor/app';
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 
 async function main() {
+  // Every Pixi Text without an explicit family uses Fredoka. Load the faces
+  // first: Pixi rasterises text once, so text drawn before the font arrives
+  // would stay in the fallback face.
+  TextStyle.defaultTextStyle.fontFamily = 'Fredoka, Arial, sans-serif';
+  try {
+    await Promise.race([
+      Promise.all(['500 20px Fredoka', '600 20px Fredoka', '700 20px Fredoka', '20px "Lilita One"'].map(f => document.fonts.load(f))),
+      new Promise(r => setTimeout(r, 2500)),
+    ]);
+  } catch { /* fall back to Arial */ }
   const app = new Application();
   await app.init({
     width:           APP_W,
     height:          APP_H,
     backgroundAlpha: 0,               // transparent so Three.js canvas shows through
-    antialias:       true,
-    resolution:      window.devicePixelRatio || 1,
+    // HUD at DPR > 2 buys nothing visible and costs fill rate on phones; MSAA is
+    // only worth it on low-density screens, where HUD curves would otherwise stair-step.
+    antialias:       (window.devicePixelRatio || 1) < 2,
+    resolution:      Math.min(window.devicePixelRatio || 1, 2),
     autoDensity:     true,
   });
   document.body.appendChild(app.canvas);
 
   // ── Fit canvas to viewport ────────────────────────────────────────────────
   // (Declared early so the loading screen is already correctly sized.)
+  // Letterboxed into the SAFE area (clear of notch, status and gesture bars —
+  // see SafeArea.js); the 3D canvas copies this size and position.
   const _fitCanvas = () => {
-    const scale = Math.min(window.innerWidth / APP_W, window.innerHeight / APP_H);
-    app.canvas.style.width     = `${APP_W * scale}px`;
-    app.canvas.style.height    = `${APP_H * scale}px`;
-    // Match THREE.js canvas positioning (position:absolute, centred via transform).
+    const box = fitToSafeArea(APP_W, APP_H);
+    app.canvas.style.width     = box.width;
+    app.canvas.style.height    = box.height;
     app.canvas.style.position  = 'absolute';
-    app.canvas.style.top       = '50%';
-    app.canvas.style.left      = '50%';
+    app.canvas.style.top       = box.top;
+    app.canvas.style.left      = box.left;
     app.canvas.style.transform = 'translate(-50%, -50%)';
   };
   _fitCanvas();
   window.addEventListener('resize', _fitCanvas);
+  // Capacitor publishes the insets shortly AFTER load (and again when the bars
+  // change) without a resize event. Re-run every resize listener a few times
+  // during start-up so the fit, the 3D canvas and the cached pointer rect all
+  // pick the real insets up together.
+  for (const ms of [300, 1000, 2500]) setTimeout(() => window.dispatchEvent(new Event('resize')), ms);
 
   // ── Loading screen ────────────────────────────────────────────────────────
   // Branded loading screen: dark gradient backdrop, the TRAFFIC BOMB title in the
@@ -280,17 +320,21 @@ async function main() {
   loadScreen.destroy({ children: true });
 
   // ── Analytics (fire-and-forget, anonymous) ────────────────────────────────
+  // Consent is resolved first (UMP); analytics send nothing until it allows.
   const analytics = new Analytics();
-  analytics.recordSessionStart();
 
   // ── Progress (localStorage) ──────────────────────────────────────────────
   const progress = new ProgressManager();
 
   // ── Haptics + Colorblind ─────────────────────────────────────────────────
   await adManager.init();
+  setAnalyticsEnabled(adManager.consentGranted);
+  adManager.onConsentChange = setAnalyticsEnabled;
+  analytics.recordSessionStart();
 
   const haptics = new HapticsManager();
   haptics.enabled = progress.hapticsEnabled;
+  setReducedMotion(progress.reducedMotion);
 
   // Apply saved colorblind preference immediately on startup.
   setColorblindMode(progress.colorblindMode);
@@ -366,6 +410,10 @@ async function main() {
 
   // ── Audio ─────────────────────────────────────────────────────────────────
   const audio = new AudioManager();
+  // Apply the saved volumes at boot: only the Settings sliders did, so a player who set
+  // Music to 0 got full-volume music after every restart.
+  audio.setSfxVolume(progress.sfxVolume);
+  audio.setMusicVolume(progress.musicVolume);
 
   // ── Boosters ──────────────────────────────────────────────────────────────
   // FIX 4E: booster counts no longer persist between levels — each level is seeded
@@ -396,25 +444,45 @@ async function main() {
   const goalCounterUI = new GoalCounterUI(layers.get('hudLayer'), APP_W, {
     onComplete: () => audio.play('coin_collect'),   // booster-earned SFX on goal complete
   });
+  // V2 Hot Streak meter (on the breach stripe). Anchors = every bomb the player
+  // could fire next: the column tops and any filled bench slot.
+  const streakMeter = new StreakMeter(layers.get('hudLayer'));
+  streakMeter.setAnchors(() => {
+    const out = [];
+    for (let c = 0; c < gs.activeColCount; c++) {
+      if (gs.columns[c]?.top()) out.push({ x: getColumnScreenX(c), y: getColumnScreenY(), r: bombBallScreenRadius() });
+    }
+    for (let i = 0; i < benchStorage.size; i++) {
+      if (benchStorage.getSlot(i)) { const p = benchRenderer.getSlotCenter(i); out.push({ x: p.x, y: p.y, r: 22 }); }
+    }
+    return out;
+  });
   const boosterBar    = new BoosterBar(
     layers, boosterState, gs, APP_W,
     () => {
       // COLOR CHANGE button — toggle "tap a car" mode; cancel dismisses the picker too.
       if (boosterState.colorChangeMode) { boosterState.cancelColorChange(); _dismissColorPicker(); return; }
+      if (boosterState.bombMode && boosterState.colorChange > 0) boosterState.cancelBomb();   // one armed mode at a time
       if (boosterState.activateColorChange()) {
         audio.play('booster_activate');
         boostersUsedThisLevel.push('colorchange');
         logEvent('booster_used', { booster: 'colorchange', levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber });
         tutOrch?.completeIfActive('colorchange');
-        featureBanners.fire('colorchange_use', 'Tap a car, pick a color — ALL cars of that color transform!');
       }
     },
-    () => { audio.play('booster_activate'); audio.play('freeze_tinkle'); boosterState.activateFreeze(); boostersUsedThisLevel.push('freeze'); logEvent('booster_used', { booster: 'freeze', levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber }); tutOrch?.completeIfActive('freeze'); },
+    () => {
+      // Already frozen: a second tap would spend a charge for the same frozen turn.
+      if (boosterState.isFrozen()) return;
+      audio.play('booster_activate'); audio.play('freeze_tinkle'); boosterState.activateFreeze(); boostersUsedThisLevel.push('freeze'); logEvent('booster_used', { booster: 'freeze', levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber }); tutOrch?.completeIfActive('freeze');
+    },
     () => {
       // BOMB button — toggle placement mode on/off.
       if (boosterState.bombMode) {
         boosterState.cancelBomb();
-      } else if (boosterState.activateBomb()) {
+      } else {
+        if (boosterState.bombs <= 0) return;
+        if (boosterState.colorChangeMode) { boosterState.cancelColorChange(); _dismissColorPicker(); }   // one armed mode at a time
+        boosterState.activateBomb();
         audio.play('booster_activate');
         boostersUsedThisLevel.push('bomb');
         logEvent('booster_used', { booster: 'bomb', levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber });
@@ -440,9 +508,19 @@ async function main() {
 
   // ── Popup queue — single source of truth for all banner popups ────────────
   const popupQueue = new PopupQueue(layers.get('hudLayer'), APP_W);
+  const modeHint   = new ModeHint(layers.get('hudLayer'), APP_W);
 
   // ── FTUE per-feature banners (once-per-lifetime, persisted to localStorage) ─
-  const featureBanners = new FeatureBanners(popupQueue, APP_W);
+  const featureBanners = new FeatureBanners((key, text) => _presentGuide(key, text));
+  // In-play teaching moments only count inside their fixed level window (introSchedule.js);
+  // outside it they are never shown, so nothing is first-explained late. Daily: never.
+  const fireReactive = (key, text) => {
+    if (currentLevelIsDaily || !reactiveAllowed(key, levelManager.levelNumber)) return false;
+    featureBanners.fire(key, text);
+    return true;
+  };
+  // Every explanation is a centre-screen GuideCard (see _presentGuide). Achievements are
+  // held until the win screen; nothing pops up at the top of the board any more.
 
   // ── Onboarding hints — three lifetime one-time tutorial MODAL cards (HP/book,
   //    match-damage, cars-advance). Rendered on app.stage, above the HUD. ───────
@@ -462,7 +540,9 @@ async function main() {
     if (_modalQueue.length === 0) {
       if (_modalActive) {
         _modalActive = false;
-        if (gameLoopStarted && !gs.isOver) gameLoop.resume();
+        // Resume only if nothing else holds the game: the pause menu (or a screen
+        // opened from it) owns the pause and resumes on its own RESUME.
+        if (gameLoopStarted && !gs.isOver && !pauseScreen && !settingsScreen && !carManualScreen && !levelSelectScreen) gameLoop.resume();
       }
       return;
     }
@@ -473,7 +553,67 @@ async function main() {
     const show = _modalQueue.shift();
     show(() => _runNextModal());
   }
+  // Everything that owns the input above the board (names, for QA hooks too).
+  function _boardBlockers() {
+    const b = [];
+    if (_modalActive) b.push('modal');
+    if (colorPicker) b.push('picker');
+    if (pauseScreen) b.push('pause');
+    if (settingsScreen) b.push('settings');
+    if (carManualScreen) b.push('carManual');
+    if (hpGuideOverlay) b.push('hpGuide');
+    if (howToPlayOverlay) b.push('howToPlay');
+    if (rescueOverlay) b.push('rescue');
+    if (winScreen) b.push('win');
+    if (unlockScreen) b.push('unlock');
+    if (carTypeIntroCard) b.push('introCard');
+    if (guideCard) b.push('guide');
+    if (gs?.isOver) b.push('over');
+    return b;
+  }
   function _clearModalQueue() { _modalQueue.length = 0; _modalActive = false; }
+  // ── Guide cards (centre-screen explanations) ─────────────────────────────────
+  // Live screen rects the cards point at. Functions, read at show time.
+  const _laneSpan = () => {
+    const n = getActiveLaneCount();
+    const a = getLaneScreenBounds(0), b = getLaneScreenBounds(Math.max(0, n - 1));
+    return { x: a.left, w: b.right - a.left };
+  };
+  const guideGeo = {
+    road:   () => { const l = _laneSpan(); return { x: l.x, y: ROAD_TOP_Y, w: l.w, h: ROAD_BOTTOM_Y - ROAD_TOP_Y }; },
+    breach: () => { const l = _laneSpan(); return { x: l.x - 4, y: ROAD_BOTTOM_Y - 12, w: l.w + 8, h: 24 }; },
+    bombs:  () => { const l = _laneSpan(); return { x: l.x, y: SHOOTER_AREA_Y + 6, w: l.w, h: SHOOTER_AREA_H - 6 }; },
+    goal:   () => goalCounterUI.plaqueRect() ?? { x: APP_W / 2 - 45, y: 6, w: 90, h: 82 },
+    bench:  () => ({ x: 12, y: benchY(), w: APP_W - 24, h: benchSlotH() }),
+    boosters: () => ({ x: 6, y: BOOSTER_BAR_TOP_Y, w: APP_W - 12, h: APP_H - BOOSTER_BAR_TOP_Y - 4 }),
+  };
+  let guideCard = null;
+  function _showGuide(steps, onDone = null) {
+    if (!steps || steps.length === 0) { onDone?.(); return; }
+    _enqueueModal((done) => {
+      guideCard = new GuideCard(app.stage, APP_W, APP_H, steps, {
+        audio,
+        onDone: () => { guideCard = null; onDone?.(); done(); },
+      });
+    });
+  }
+  // First-time cards: FeatureBanners calls this once per key.
+  function _presentGuide(key, text) { _showGuide(stepsFor(key, text, guideGeo)); }
+  // The level-1 walkthrough. Marked done only when the player reaches the last card,
+  // so quitting half-way does not burn it.
+  const _tourDone = () => featureBanners.has('tour');
+  const _markTourDone = () => featureBanners.mark('tour');
+  // Achievements earned during play wait here and are shown on the win screen.
+  const pendingAchievements = [];
+  const _awardAch = (a) => { pendingAchievements.push(a); };
+  function _showPendingAchievements() {
+    if (pendingAchievements.length === 0) return;
+    const list = pendingAchievements.splice(0);
+    // ONE card however many were earned: a chain of cards, each needing a tap, is noise.
+    const shown = list.slice(0, 3).map(a => `${a.name}: ${a.desc}`);
+    if (list.length > shown.length) shown.push(`+${list.length - shown.length} more in ACHIEVEMENTS`);
+    _showGuide([{ title: list.length === 1 ? 'ACHIEVEMENT!' : 'ACHIEVEMENTS!', text: shown.join('\n'), cta: 'NICE!' }]);
+  }
   // Back-compat alias: onboarding hint call sites use _showHintCard(show).
   const _showHintCard = _enqueueModal;
 
@@ -487,6 +627,26 @@ async function main() {
   // whenever a refill spawned a type (localStorage key + no backfill).
   let carTypeIntroCard    = null;  // active intro card (only one at a time)
   let carTypeIntroTimer   = null;  // setTimeout handle for level-start intro delay
+  let levelStartCardsTimer = null; // level-start tour / tip cards, shown after the splash
+
+  // Tear down every card/hint that can sit above the board, in an order that cannot
+  // resurrect one. CarTypeIntroCard._destroy() fires its onDismiss, whose done() runs
+  // _runNextModal(); with a card still queued that built the NEXT card, which the
+  // caller's `carTypeIntroCard = null` then orphaned (never updated, board playable
+  // under it). So: empty the queue first, null the ref, then destroy.
+  function _dismissAllCards() {
+    clearTimeout(carTypeIntroTimer); carTypeIntroTimer = null;
+    _clearModalQueue();
+    const card = carTypeIntroCard;
+    carTypeIntroCard = null;
+    card?._destroy();
+    const gc = guideCard;
+    guideCard = null;
+    gc?.destroy();
+    clearTimeout(levelStartCardsTimer); levelStartCardsTimer = null;
+    _clearModalQueue();
+    onboardingHints.destroy();
+  }
 
   // Canonical reveal order when one level introduces several new types at once.
   const INTRO_ORDER = ['small', 'big', 'jeep', 'truck', 'bigrig', 'tank'];
@@ -509,11 +669,16 @@ async function main() {
   let howToPlayOverlay   = null;
   let achievementsScreen = null;
   let statsScreen        = null;
+  // Back-action per open screen, registered where each screen is created, so the
+  // Android back button (and Escape on desktop) does exactly what that screen's
+  // own Back / Close button does. See _handleBack().
+  const _closers = {};
 
   // ── Achievement system ────────────────────────────────────────────────────
   const achievementManager    = new AchievementManager(progress);
   const dailyChallengeManager = new DailyChallengeManager();
-  const weeklyPlaylist        = dailyChallengeManager.getWeeklyPlaylist();
+  // Read per use, not captured at boot: the app can stay open across the Monday rollover.
+  const weeklyPlaylist = () => dailyChallengeManager.getWeeklyPlaylist();
 
   // ── Per-level daily/no-rescue flags ───────────────────────────────────────
   let currentLevelIsDaily  = false;
@@ -531,25 +696,14 @@ async function main() {
 
   // ── Pause button (|| icon, top-right of HUD, shown during gameplay) ──────
   const pauseBtn = (() => {
-    const HIT = 44;           // tap-target size (min 44px)
-    const g   = new Graphics();
-    // Background pill
-    g.roundRect(0, 0, HIT, HIT, 8);
-    g.fill({ color: 0x000000, alpha: 0.40 });
-    // Two vertical bars of the || symbol (centred in the 44px pill)
-    g.rect(14, 12, 6, 20);
-    g.fill({ color: 0xffffff, alpha: 0.90 });
-    g.rect(26, 12, 6, 20);
-    g.fill({ color: 0xffffff, alpha: 0.90 });
-    // Right gutter of the booster row, centred on the booster card centre (y=786).
-    g.x       = APP_W - HIT;
-    g.y       = 764;
-    g.eventMode = 'static';
-    g.cursor    = 'pointer';
-    g.visible   = false;
-    g.on('pointerdown', () => showPause());
-    g.on('pointerover',  () => { g.alpha = 0.70; });
-    g.on('pointerout',   () => { g.alpha = 1.00; });
+    // Header, top-right (where top games put it): the same round premium button
+    // as the car-HP button on the left. How-to-play lives in the pause menu.
+    const glyph = new Graphics();
+    glyph.roundRect(-7, -8, 5, 16, 1.5).fill(0xFFFFFF).stroke({ color: INK, width: 1.5 });
+    glyph.roundRect(2, -8, 5, 16, 1.5).fill(0xFFFFFF).stroke({ color: INK, width: 1.5 });
+    const g = premiumRoundButton(glyph, { r: 21, color: 0x3F63C8, onTap: () => showPause() });
+    g.x = APP_W - 32; g.y = 46;
+    g.visible = false;
     layers.get('hudLayer').addChild(g);
     return g;
   })();
@@ -579,28 +733,21 @@ async function main() {
   // ── Goal-bar flank buttons — HP guide (🚗 left) + how-to-play (❓ right) ────────
   // On the goal pill row (~y=47). Shown during gameplay; open a paused overlay.
   function _makeGoalBarBtn(glyph, x, onTap, iconName = null) {
-    const HIT = 38;
-    const g   = new Graphics();
-    g.roundRect(0, 0, HIT, HIT, 9);
-    g.fill({ color: 0x000000, alpha: 0.45 });
-    g.roundRect(0, 0, HIT, HIT, 9);
-    g.stroke({ color: 0xffffff, width: 1, alpha: 0.18 });
-    g.x = x; g.y = 28;
-    g.eventMode = 'static';
-    g.cursor    = 'pointer';
-    g.visible   = false;
-    g.on('pointerdown', onTap);
-    g.on('pointerover', () => { g.alpha = 0.75; });
-    g.on('pointerout',  () => { g.alpha = 1.00; });
-    const icon = iconName ? uiIcon(iconName, 24, glyph) : new Text({ text: glyph, style: { fontSize: 20 } });
-    icon.anchor.set(0.5, 0.5);
-    icon.x = HIT / 2; icon.y = HIT / 2;
-    g.addChild(icon);
+    // Round premium icon button (PremiumUI.roundButton), centred on the goal
+    // slots' row inside the header band.
+    const icon = iconName ? uiIcon(iconName, 24, glyph)
+      : new Text({ text: glyph, style: { fontFamily: '"Lilita One", Fredoka, Arial, sans-serif', fontSize: 24, fill: 0xFFFFFF,
+          stroke: { color: INK, width: 4, join: 'round' } } });
+    icon.anchor?.set?.(0.5, 0.5);
+    const g = premiumRoundButton(icon, { r: 21, color: 0x3F63C8, onTap });
+    g.x = x; g.y = 46;
+    g.visible = false;
     layers.get('hudLayer').addChild(g);
     return g;
   }
-  const hpGuideBtn   = _makeGoalBarBtn('🚗', 6,           () => showHpGuide(), 'car');
-  const howToPlayBtn = _makeGoalBarBtn('❓', APP_W - 44,  () => showHowToPlay());
+  const hpGuideBtn   = _makeGoalBarBtn('🚗', 32,          () => showHpGuide(), 'car');
+  // How-to-play moved into the pause menu; the header's right slot is pause.
+  const howToPlayBtn = { visible: false, destroyed: true };
 
   // (Color-bomb streak pip counter removed — color bombs are now earned by a
   //  single-shot MULTI-KILL of 2+ cars, not by a consecutive-shot streak. FIX 4.)
@@ -624,7 +771,7 @@ async function main() {
     // never a reference to LevelManager's config — a raw ref would let any
     // downstream write poison the balance source of truth, catastrophic for
     // shared presets. The fail-streak mercy factor (base 1.0) is folded into
-    // the copy's hpMultiplier here and nowhere else; the copy is what the
+    // the copy's heft (spawn mix) here and nowhere else; the copy is what the
     // Director reads. Daily challenge never gets mercy (non-numeric id → 0).
     const failStreak = typeof cfg.id === 'number' ? progress.getFailStreak(cfg.id) : 0;
     gs.world = applyDda(cfg.worldConfig, failStreak);
@@ -633,6 +780,7 @@ async function main() {
     // Turn-based target: use explicit targetKills or compute from duration.
     gs.targetKills = cfg.targetKills ?? Math.max(5, Math.round((cfg.duration ?? 60) * 0.12));
     gs.gridRows    = cfg.gridRows ?? 10;  // default 10 road slots
+    gs.stepsPerRow = cfg.stepsPerRow ?? 1;
     // Opening depth is gridRows-aware (2026-07-25 rows-8 pilot): shallow boards
     // get a shallower deal, or the opening alone floods the runway. Scripted
     // openings (L10/L40) go through the same depth rule. Both derived from the
@@ -650,13 +798,34 @@ async function main() {
     gs.goalProgress   = gs.goals.map(g => g.count);
     carDir.setLevel(typeof cfg.id === 'number' ? cfg.id : 1);
     carDir.setSpawnScript(cfg.spawnScript ?? null);   // §3c staged boss waves (INFRA-C)
+    carDir.setTraits(cfg.traits ?? null, cfg.colors);  // V2 special cars (TrafficRules)
+    gs.streakEnabled = streakEnabledFor(cfg);           // V2 Hot Streak
+    streakMeter.setEnabled(gs.streakEnabled);
+    streakMeter.reset();
     shooterDir.setColorBias(cfg.shooterColorWeights ?? null);   // §3c L10 v2 supply bias
   }
 
   // ── Core level-start routine ──────────────────────────────────────────────
   // Called both for normal levels (levelId: number) and for the daily challenge
   // (levelIdOrConfig: full config object with isDaily:true).
+  // ── Owned boosters (inventory) ─────────────────────────────────────────────
+  // A level starts with its ad grant PLUS the player's owned boosters. When it
+  // ends, only what was actually spent comes off the inventory; the ad grant is
+  // spent first (it is level-only). Idempotent per level: _levelInv clears on
+  // settle, so several exit paths may call it safely. A missed exit (app killed
+  // mid-level) costs the player nothing.
+  let _levelInv = null;
+  let _lossRecorded = false;   // _recordFinalLoss runs once per level
+  function _settleInventory() {
+    if (!_levelInv) return;
+    const { taken, grant } = _levelInv;
+    _levelInv = null;
+    const spent = inventorySpentByUse(taken, grant, boosterState.used);
+    for (const [key, used] of Object.entries(spent)) if (used > 0) progress.addInventory(key, -used);
+  }
+
   function _startLevel(levelIdOrConfig) {
+    _settleInventory();   // restart / next level: debit the previous attempt first
     // Tear down any lingering overlay screens.
     winScreen?.destroy();           winScreen        = null;
     rescueOverlay?.destroy();       rescueOverlay    = null;
@@ -664,11 +833,11 @@ async function main() {
     unlockScreen?.destroy();        unlockScreen     = null;
     boosterSpotlight?.destroy();    boosterSpotlight = null;
     tutOrch?.dismiss();
-    clearTimeout(carTypeIntroTimer); carTypeIntroTimer   = null;
-    carTypeIntroCard?._destroy();   carTypeIntroCard    = null;
+    _dismissAllCards();
     _dismissColorPicker();                 // FIX 4B: clear any open picker
     preLevelScreen?.destroy(); preLevelScreen = null;   // FIX 4D
-    _clearModalQueue();
+    _cancelLevelSplash();
+    breachCam = null;   // a breach camera from the previous attempt must not open a rescue on this one
 
     // Resolve config from either a number or a pre-built config object.
     let cfg;
@@ -697,16 +866,25 @@ async function main() {
     boosterState.queueActionUsed = false;  // free queue action available at level start
     const grant = _pendingBoosterGrant ?? { colorChange: 0, freeze: 0, bombs: 0 };
     _pendingBoosterGrant = null;
-    boosterState.colorChange = grant.colorChange ?? 0;
-    boosterState.freeze      = grant.freeze ?? 0;
-    boosterState.bombs       = Math.min(boosterState.bombsMax, grant.bombs ?? 0);
+    const inv = progress.getInventory();
+    const taken = {
+      colorChange: inv.colorChange ?? 0,
+      freeze:      inv.freeze ?? 0,
+      bombs:       Math.max(0, Math.min(inv.bombs ?? 0, boosterState.bombsMax - Math.min(boosterState.bombsMax, grant.bombs ?? 0))),
+    };
+    boosterState.colorChange = (grant.colorChange ?? 0) + taken.colorChange;
+    boosterState.freeze      = (grant.freeze ?? 0) + taken.freeze;
+    boosterState.bombs       = Math.min(boosterState.bombsMax, grant.bombs ?? 0) + taken.bombs;
+    boosterState.used = { colorChange: 0, freeze: 0, bombs: 0 };
+    _levelInv = { taken, grant: { colorChange: grant.colorChange ?? 0, freeze: grant.freeze ?? 0, bombs: Math.min(boosterState.bombsMax, grant.bombs ?? 0) } };
+    _lossRecorded = false;
     adManager.resetForLevel();
 
     applyLevelConfig(cfg);
-    // Queue-reorder unlock gate (L5+): set the 1-indexed level on GameState. Daily
-    // uses a high id so the advanced daily challenge always has reorder enabled.
+    // Bench-return unlock gate (L5+): set the 1-indexed level on GameState. Daily
+    // uses a high id so the advanced daily challenge always has bench-return enabled.
     gs.levelId = (typeof levelId === 'number') ? levelId : 99;
-    dragDrop.setReorderEnabled((typeof levelId === 'number' ? levelId : 99) >= 5);
+    dragDrop.setBenchReturnEnabled((typeof levelId === 'number' ? levelId : 99) >= 5);
     dragDrop.setGridRows(gs.gridRows);   // board depth drives the BOMB front-row tap margin
     // Use levelNumber for normal levels; 'D' label for daily challenge.
     hudRenderer.setLevel(currentLevelIsDaily ? 'D' : levelManager.levelNumber);
@@ -735,20 +913,19 @@ async function main() {
     boosterBar.setVisible(true);       // restore bar hidden by a prior end-screen
 
     // FTUE feature banners fired at level start when a feature first appears.
-    if ((cfg.laneCount ?? 4) >= 3) featureBanners.fire('multi_lane', 'New lane open! Each lane needs a matching-color bomb.');
-    if (benchUnlocked && levelId === 4) featureBanners.fire('bench_appear', 'Bench unlocked — store a bomb here for later!');
     setActiveCounts({ laneCount: cfg.laneCount ?? 4, colCount: cfg.colCount ?? 4 });
     // FIX 4: route the level's intro hint through the unified notification queue
     // (safe gap, one-at-a-time) instead of FTUEOverlay's own bottom banner — except
     // the L1 drag-arrow hint, which stays in the overlay because it points at the bomb.
     let ftueCfg = cfg;
+    let levelHint = null;
     if (cfg.hintText && !cfg.showArrow && typeof levelId === 'number') {
-      featureBanners.fire(`hint_L${levelId}`, cfg.hintText);
+      // NEW!/BOSS! intros are already the level card's headline (every level
+      // start goes through _showPreLevel); repeating them in-game only covered
+      // the board. Other hints still fire once as a tip.
+      if (!/^(NEW!|BOSS!|FINAL BOSS!)/.test(cfg.hintText)) levelHint = { key: `hint_L${levelId}`, text: cfg.hintText };
       ftueCfg = { ...cfg, hintText: null };
     }
-    // FTUEOverlay must be created AFTER setActiveCounts so that PositionRegistry
-    // returns correct lane/column screen positions for the current level geometry.
-    ftueOverlay = _makeFTUEOverlay(app.stage, APP_W, APP_H, ftueCfg);
     carRenderer.clearAll();
     gameRenderer3D.resetLevel();
     gameRenderer3D.applyTheme(levelId);
@@ -785,11 +962,24 @@ async function main() {
     cityEdges.setWorldPanel(worldVariant);                    // scene-variant panels
     cityEdges.setLaneCount(cfg.laneCount ?? 4);
     gameRenderer3D.setRoadTexture(WORLD_ROAD_URLS[world] ?? null);
+    // Baked full-scene backdrop, when one exists for this world/variant/lanes:
+    // it carries the road, verges and bomb depot, so the strips step aside.
+    const backdrop = backdropUrlFor(levelId, cfg.laneCount ?? 4);
+    gameRenderer3D.setBackdrop(backdrop);
+    cityEdges.setBackdropActive(!!backdrop);
     // Zone floor renders as a 3D plane UNDER the bombs (a Pixi floor would
     // occlude the 3D bomb spheres — front canvas covers back canvas).
     gameRenderer3D.setZoneTexture(`${import.meta.env.BASE_URL}sprites/designed/zone-${worldVariant}.png`);
     shooterRenderer.setWorld(worldVariant);                   // (sockets only now)
     shooterRenderer.setLaneCount(cfg.laneCount ?? 4);
+    // FTUEOverlay reads SHOOTER_AREA_Y, ROAD_BOTTOM_Y and the column/lane positions in its
+    // constructor. It must be built only now, AFTER the band, road geometry and shooter
+    // layout were refreshed for THIS level; before them (as it was) it captured the
+    // previous level's band and sat ~60px off on every band change.
+    // First run of L1: the WELCOME tour is the very first thing on screen, over the live board.
+    // The drag-arrow overlay is built only once the tour ends (see _markTourDone path below).
+    const tourPending = typeof levelIdOrConfig === 'number' && levelId === 1 && !_tourDone();
+    ftueOverlay = tourPending ? null : _makeFTUEOverlay(app.stage, APP_W, APP_H, ftueCfg);
     gameRenderer3D.startLevelIntro();
     gameRenderer3D.setCombo(0);
     _clearModalQueue();   // drop any queued cards from a previous level
@@ -810,12 +1000,16 @@ async function main() {
     // one after another in INTRO_ORDER. Fires after the splash clears (1.5 s), or
     // after the FTUE drag-arrow window on L1 (4.5 s = 1.35 s splash + 3 s FTUE).
     {
+      // L1's motorbike is the baseline car, not a "new" one: the card popped up
+      // 4.5 s in — mid-drag for a first-time player — and ate the drag. Mark it
+      // seen silently; cards start at L2 (the car).
+      if (levelId === 1 && !progress.getIntroducedCarTypes().has('small')) progress.markCarTypeIntroduced('small');
       const introduced = progress.getIntroducedCarTypes();
       const newTypes = INTRO_ORDER.filter(
         (t) => _levelCarTypes(cfg).has(t) && hasIntroCard(t) && !introduced.has(t),
       );
       if (newTypes.length > 0) {
-        const delay = levelId === 1 ? 4500 : 1500;
+        const delay = 1500;   // right after the level splash, before the first move
         carTypeIntroTimer = setTimeout(() => {
           carTypeIntroTimer = null;
           if (gs.isOver) return;
@@ -825,6 +1019,27 @@ async function main() {
           }
         }, delay);
       }
+    }
+
+    // Level-start explanations (L1 tour, new-lane card, the level's tip) wait for the splash
+    // to clear, then play one after another before the first move.
+    clearTimeout(levelStartCardsTimer);
+    if (typeof levelIdOrConfig === 'number') {
+      levelStartCardsTimer = setTimeout(() => {
+        levelStartCardsTimer = null;
+        if (gs.isOver) return;
+        if (tourPending) {
+          _showGuide(tourSteps(guideGeo), () => {
+            _markTourDone();
+            if (!gs.isOver && !ftueOverlay) ftueOverlay = _makeFTUEOverlay(app.stage, APP_W, APP_H, ftueCfg);
+          });
+        }
+        // Fixed-level teaching (introSchedule.js). A level with scheduled cards skips its
+        // generic tip: the cards already say it, and one level should not stack both.
+        const cards = levelStartCards(levelId);
+        for (const key of cards) featureBanners.fire(key, '');
+        if (levelHint && cards.length === 0) featureBanners.fire(levelHint.key, levelHint.text);
+      }, tourPending ? 150 : 1500);
     }
 
     pauseBtn.visible = true;
@@ -840,9 +1055,15 @@ async function main() {
 
     if (!currentLevelIsDaily && UNLOCK_LEVELS.includes(levelId) && !progress.hasSeenUnlock(levelId)) {
       gameLoop.pause();
-      unlockScreen = new BoosterUnlockScreen(app.stage, APP_W, APP_H, levelId, {
+      // The screen calls onPlay synchronously from its constructor when it has
+      // nothing to show (L4's entry is the bench tutorial, not a card) — so the
+      // assignment below must not resurrect a screen onPlay already closed.
+      let unlockClosed = false;
+      const scr = new BoosterUnlockScreen(app.stage, APP_W, APP_H, levelId, {
         onPlay: () => {
-          progress.markSeenUnlock(levelId);
+          unlockClosed = true;
+          // NOT marked seen here: quitting mid-tutorial used to burn the only bench
+          // tutorial. It is marked when the player actually stores a bomb (onBenchStore).
           unlockScreen?.destroy();
           unlockScreen = null;
           const spotBooster = SPOTLIGHT_BOOSTER[levelId];
@@ -855,18 +1076,26 @@ async function main() {
             });
           } else {
             gameLoop.resume();
-            // L4 bench tutorial
-            tutOrch?.start({
+            // L4 bench tutorial. It must NOT overlap the level's start card (SUPERCHARGE): the
+            // bench hand floated over the bombs while the card talked about something else.
+            // The cards open at 1.5 s; queue the bench spotlight behind them.
+            const _startBench = () => tutOrch?.start({
               id:        'bench',
-              text:      'New BENCH — drag a bomb here to store it for later!',
-              bounds:    { x: 0, y: 703, w: 390, h: 50 },
-              handStart: { x: 195, y: 672 },
-              handEnd:   { x: 195, y: 728 },
+              text:      'The BENCH has 4 slots: drag a bomb here to keep it for later, and drag it back out when you need its colour!',
+              bounds:    () => ({ x: 12, y: benchY(), w: APP_W - 24, h: benchSlotH() }),
+              handStart: { x: 195, y: benchY() - 70 },
+              handEnd:   { x: 195, y: benchY() + benchSlotH() / 2 - 8 },
               pauseGame: true,
             });
+            setTimeout(() => {
+              if (gs.isOver || levelManager.levelNumber !== levelId) return;
+              // done() first (it resumes the loop when the queue empties), then the tutorial pauses again.
+              _enqueueModal((done) => { done(); if (!gs.isOver) _startBench(); });
+            }, 1650);
           }
         },
       });
+      if (!unlockClosed) unlockScreen = scr; else scr.destroy?.();
     }
 
     // Start gameplay music from CALM; phase updates will crossfade as needed.
@@ -879,7 +1108,7 @@ async function main() {
     coinsAtLevelStart = progress.coins;
 
     // ── Level intro splash ("LEVEL X" bounce-in) ──────────────────────────
-    if (typeof levelIdOrConfig === 'number') {
+    if (typeof levelIdOrConfig === 'number' && !tourPending) {
       _showLevelIntroSplash(levelManager.levelNumber, () => {});
     }
 
@@ -893,47 +1122,48 @@ async function main() {
   }
 
   // ── Level intro splash — compact top-center pill badge (1.2 s) ───────────
+  let _levelSplash = null;   // live "LEVEL N" ribbon, so a restart / quit can remove it
+  function _cancelLevelSplash() {
+    if (!_levelSplash) return;
+    app.ticker.remove(_levelSplash.unsub);
+    if (!_levelSplash.c.destroyed) _levelSplash.c.destroy({ children: true });
+    _levelSplash = null;
+  }
   function _showLevelIntroSplash(levelNumber, onComplete) {
+    // Premium ribbon over the middle of the road (it used to be a dark pill at
+    // the top, colliding with the header-docked tips). Pops in, holds, fades.
     const c = new Container();
-    c.y = 66;   // pill top = 66-22 = 44 → flush with road top, never covers road or cars
+    c.y = Math.round((ROAD_TOP_Y + ROAD_BOTTOM_Y) / 2) - 40;
     app.stage.addChild(c);
-
-    const PW = 160, PH = 44;
-    const bg = new Graphics();
-    bg.roundRect(-PW / 2, -PH / 2, PW, PH, 12);
-    bg.fill({ color: 0x1a1a2e, alpha: 0.85 });
-    c.addChild(bg);
-
-    const txt = new Text({
-      text: `LEVEL ${levelNumber}`,
-      style: {
-        fontSize:   20,
-        fontWeight: 'bold',
-        fill:       0xffffff,
-        dropShadow: { color: 0x000000, blur: 6, distance: 0, alpha: 0.7 },
-      },
-    });
-    txt.anchor.set(0.5, 0.5);
-    c.addChild(txt);
-
+    c.addChild(premiumRibbon(`LEVEL ${levelNumber}`, 250, { size: 34 }));
     c.x     = APP_W / 2;
     c.alpha = 0;
 
     let t = 0;
-    const unsub = app.ticker.add((ticker) => {
+    _cancelLevelSplash();   // never two ribbons (restart within 1.2 s)
+    _levelSplash = { c, unsub: null };
+    // Pixi 8's ticker.add returns the TICKER, not the listener — removing that
+    // matched nothing, so this ran forever: destroy() and onComplete() every
+    // frame after the splash, one more listener per level. Keep the function.
+    const unsub = (ticker) => {
       t += ticker.deltaMS / 1000;
       if (t < 0.2) {
         c.alpha = t / 0.2;
+        c.scale.set(0.6 + 0.5 * Math.sin((t / 0.2) * Math.PI / 2));
       } else if (t < 1.0) {
         c.alpha = 1;
+        c.scale.set(1.1 - 0.1 * Math.min(1, (t - 0.2) / 0.15));
       } else if (t < 1.2) {
         c.alpha = 1 - (t - 1.0) / 0.2;
       } else {
         app.ticker.remove(unsub);
+        if (_levelSplash?.c === c) _levelSplash = null;
         c.destroy({ children: true });
         onComplete?.();   // FIX 1: reveal the objective only after the banner clears
       }
-    });
+    };
+    _levelSplash.unsub = unsub;
+    app.ticker.add(unsub);
   }
 
   // ── Car type intro (Royal Match "Meet the new blocker!" moment) ──────────
@@ -943,6 +1173,7 @@ async function main() {
       carTypeIntroCard = new CarTypeIntroCard(
         app.stage, APP_W, APP_H, typeKey,
         () => { carTypeIntroCard = null; done(); },
+        carHpFor(typeKey, gs.world?.hpMultiplier ?? 1.0),
       );
     });
   }
@@ -963,23 +1194,26 @@ async function main() {
   }
   function _showColorPicker(fromColor) {
     _dismissColorPicker();
+    colorPicker?.destroy();   // never orphan a live one (see showTitle)
     colorPicker = new ColorPicker(app.stage, APP_W, APP_H, gs.colors, fromColor, {
       onPick: (toColor) => {
-        // Lanes with a matching car BEFORE the recolor — flash them on success.
-        const changedLanes = [];
-        gs.activeLanes.forEach((lane, i) => {
-          if (lane.cars.some((c) => c.color === fromColor)) changedLanes.push(i);
-        });
+        // Lanes with a recolourable car BEFORE the recolor (so only they flash).
+        const changedLanes = gameLoop.colorChangeLanes(fromColor);
         const n = gameLoop.applyColorChange(fromColor, toColor);
         if (n > 0) {
           changedLanes.forEach((i) => gameRenderer3D.onImpact(i, toColor));   // 200ms flash → new tint
           audio.play('color_bomb', { color: toColor });
           haptics.medium();
           floatingTexts.push(spawnFloatingText(
-            layers.get('particleLayer'), APP_W / 2, 470, 'COLOR CHANGED!', 0xffe14a,
+            layers.get('particleLayer'), APP_W / 2, 470,
+            `${n} CAR${n === 1 ? '' : 'S'} NOW ${String(toColor).toUpperCase()}!`, 0xffe14a,
           ));
         } else {
           boosterState.cancelColorChange();
+          audio.play('hit_miss');
+          floatingTexts.push(spawnFloatingText(
+            layers.get('particleLayer'), APP_W / 2, 330, 'NOTHING TO CHANGE', 0xff8a8a,
+          ));
         }
         _dismissColorPicker();
       },
@@ -989,11 +1223,14 @@ async function main() {
 
   // ── Pre-level "Power Up?" ad offer (FIX 4D) ──────────────────────────────
   function _showPreLevel(levelId) {
-    const label = typeof levelId === 'number' ? `Level ${levelId}` : null;
+    const label = typeof levelId === 'number' ? `LEVEL ${levelId}` : null;
+    const levelCfg = (() => { if (typeof levelId !== 'number') return null; const lm = new LevelManager(); lm.goToLevel(levelId); return lm.current; })();
     const start = (bundle) => {
       _pendingBoosterGrant = bundle;
       preLevelScreen?.destroy();
       preLevelScreen = null;
+      levelSelectScreen?.destroy();
+      levelSelectScreen = null;
       transition.fadeOut(0.25, () => { _startLevel(levelId); transition.fadeIn(0.25, null); });
     };
     // §3d DDA mercy: after 2 consecutive fails, offer 1 free COLOR CHANGE (no ad)
@@ -1003,25 +1240,37 @@ async function main() {
     const freeBooster = failStreak >= 2
       ? { key: 'colorchange', emoji: '🎨', desc: 'Recolor', bundle: { colorChange: 1, freeze: 0, bombs: 0 } }
       : null;
+    preLevelScreen?.destroy();   // never orphan a live one (see showTitle)
     preLevelScreen = new PreLevelScreen(app.stage, APP_W, APP_H, label, {
       onSelect: (adCount, bundle) => {
         if (adCount <= 0) { start(bundle); return; }
         // Show `adCount` rewarded ads in sequence, then start with the bundle.
         let remaining = adCount;
         const showOne = () => {
+          if (!preLevelScreen) return;   // closed while the ad loaded: do not start a level behind the map
           if (remaining <= 0) { start(bundle); return; }
           remaining--;
-          adManager.showRewarded(() => showOne(), () => start(bundle));
+          // Skipped / failed / unavailable ad → no reward: start without the booster.
+          adManager.showRewarded(() => showOne(), () => start({ colorChange: 0, freeze: 0, bombs: 0 }));
         };
         showOne();
       },
+      onClose: () => { preLevelScreen?.destroy(); preLevelScreen = null; if (!levelSelectScreen) showLevelSelect(); },
       audio,
       freeBooster,
+      level: levelCfg,
+      owned: progress.getInventory(),
     });
   }
 
   // ── Screen: Title ─────────────────────────────────────────────────────────
   function showTitle() {
+    // Idempotent: a caller that returns to the title without tearing the old
+    // one down (TROPHIES → back did exactly that) would otherwise orphan a
+    // full-screen title over the next level — invisible to getScreens, and it
+    // swallows every booster tap.
+    titleScreen?.destroy();
+    titleScreen = null;
     pauseBtn.visible = false;
     bookBtn.visible  = false;
     audio.playMusic('title');
@@ -1042,6 +1291,7 @@ async function main() {
       onAchievements:     () => { showAchievements(() => { achievementsScreen?.destroy(); achievementsScreen = null; showTitle(); }); },
       onStats:            () => { showStats(); },
       loginStreak:        progress.loginStreak,
+      dailyChallengeDone: progress.isDailyChallengeCompleted(dailyChallengeManager.getTodayKey()),
       onSettings: () => {
         showSettings(() => {
           settingsScreen.destroy();
@@ -1053,14 +1303,16 @@ async function main() {
   }
 
   // ── Screen: Daily Reward ──────────────────────────────────────────────────
-  function showDailyReward() {
+  function showDailyReward(after = null) {
+    dailyRewardScreen?.destroy();   // never orphan a live one (see showTitle)
     dailyRewardScreen = new DailyRewardScreen(app.stage, APP_W, APP_H, progress, {
-      onClose: () => {
+      onClose: _closers.daily = () => {
         dailyRewardScreen.destroy();
         dailyRewardScreen = null;
         // Check if the daily_claim achievement was just earned.
         const newAch = achievementManager.check('daily_claim');
         newAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
+        if (after) { after(); return; }
         if (titleScreen) {
           titleScreen.destroy();
           titleScreen = null;
@@ -1073,6 +1325,8 @@ async function main() {
 
   // ── Screen: Level Select ──────────────────────────────────────────────────
   function showLevelSelect() {
+    levelSelectScreen?.destroy();   // idempotent — never orphan a map (see showTitle)
+    levelSelectScreen = null;
     pauseBtn.visible = false;
     goalCounterUI.setVisible(false);
     audio.playMusic('title');
@@ -1082,12 +1336,10 @@ async function main() {
     levelSelectScreen = new LevelSelectScreen(app.stage, APP_W, APP_H, progress, {
       onSelectLevel: (levelId) => {
         // Hearts/energy gate removed (FIX 3) — levels are always startable.
-        levelSelectScreen.destroy();
-        levelSelectScreen = null;
-        // FIX 4D: offer the optional "Power Up?" ad screen before the level starts.
+        // The level card opens OVER the map (the map is torn down on PLAY).
         _showPreLevel(levelId);
       },
-      onBack: () => {
+      onBack: _closers.levelSelect = () => {
         levelSelectScreen.destroy();
         levelSelectScreen = null;
         showTitle();
@@ -1107,14 +1359,15 @@ async function main() {
         });
       },
       audio,
-      weeklyLevels: weeklyPlaylist.levels,
+      weeklyLevels: weeklyPlaylist().levels,
       cityAnim: _pendingCityAnim,   // §3e repair pop (consumed once, then cleared)
     });
     _pendingCityAnim = null;
   }
   function showShop() {
+    shopScreen?.destroy();   // never orphan a live one (see showTitle)
     shopScreen = new ShopScreen(app.stage, APP_W, APP_H, progress, boosterState, {
-      onBack: () => {
+      onBack: _closers.shop = () => {
         shopScreen.destroy();
         shopScreen = null;
         showLevelSelect();
@@ -1123,6 +1376,12 @@ async function main() {
         const newAch = achievementManager.check('shop_purchase');
         newAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
       },
+      onDaily: () => {
+        shopScreen.destroy();
+        shopScreen = null;
+        showDailyReward(() => showShop());
+      },
+      onWatchAd: (onEarned) => adManager.showRewarded(onEarned, () => {}),
       audio,
     });
   }
@@ -1131,6 +1390,8 @@ async function main() {
   function showAchievements(onBack) {
     pauseBtn.visible = false;
     audio.playMusic('title');
+    _closers.achievements = onBack;
+    achievementsScreen?.destroy();   // never orphan a live one (see showTitle)
     achievementsScreen = new AchievementsScreen(app.stage, APP_W, APP_H, progress, {
       onBack,
       audio,
@@ -1143,10 +1404,11 @@ async function main() {
     audio.playMusic('title');
     titleScreen?.destroy();
     titleScreen = null;
+    statsScreen?.destroy();   // never orphan a live one (see showTitle)
     statsScreen = new StatsScreen(app.stage, APP_W, APP_H, {
       app,
       progressManager: progress,
-      onBack: () => {
+      onBack: _closers.stats = () => {
         statsScreen?.destroy();
         statsScreen = null;
         showTitle();
@@ -1171,7 +1433,29 @@ async function main() {
   // onClose is provided by the caller so the same screen works from both
   // the title gear and the in-game pause menu.
   function showSettings(onClose) {
-    settingsScreen = new SettingsScreen(app.stage, APP_W, APP_H, audio, { onClose }, progress, haptics);
+    _closers.settings = onClose;
+    settingsScreen?.destroy();   // never orphan a live one (see showTitle)
+    settingsScreen = new SettingsScreen(app.stage, APP_W, APP_H, audio, {
+      onClose,
+      // Help opens OVER settings; closing returns to settings as it was.
+      onHowToPlay: () => {
+        if (howToPlayOverlay) return;
+        howToPlayOverlay?.destroy();   // never orphan a live one (see showTitle)
+        howToPlayOverlay = new HowToPlayOverlay(app.stage, APP_W, APP_H, {
+          ticker: app.ticker,
+          onClose: _closers.howToPlay = () => { howToPlayOverlay?.destroy(); howToPlayOverlay = null; },
+        });
+      },
+      onCarGuide: () => {
+        if (carManualScreen) return;
+        carManualScreen?.destroy();   // never orphan a live one (see showTitle)
+        carManualScreen = new CarManualScreen(app.stage, APP_W, APP_H, {
+          seenTypes: progress.getIntroducedCarTypes(),
+          unlockedLevel: Math.max(progress.unlockedLevel ?? 1, gs?.levelId ?? 1),
+          onClose: _closers.carManual = () => { carManualScreen?.destroy(); carManualScreen = null; },
+        });
+      },
+    }, progress, haptics);
   }
 
   // ── Screen: Car Manual ────────────────────────────────────────────────────
@@ -1180,9 +1464,11 @@ async function main() {
     if (wasPlaying) gameLoop.pause();
     bookBtn.visible  = false;
     pauseBtn.visible = false;
+    carManualScreen?.destroy();   // never orphan a live one (see showTitle)
     carManualScreen = new CarManualScreen(app.stage, APP_W, APP_H, {
       seenTypes: progress.getIntroducedCarTypes(),
-      onClose: () => {
+      unlockedLevel: Math.max(progress.unlockedLevel ?? 1, gs?.levelId ?? 1),
+      onClose: _closers.carManual = () => {
         carManualScreen?.destroy();
         carManualScreen = null;
         if (fromPause) {
@@ -1216,8 +1502,9 @@ async function main() {
     // computes each type's real HP from these, so it cannot drift from the board.
     // gs.world is the DDA-adjusted copy the loop is actually spawning from, which
     // is what the player is looking at; the base config would be a different lie.
+    hpGuideOverlay?.destroy();   // never orphan a live one (see showTitle)
     hpGuideOverlay = new HpGuideOverlay(app.stage, APP_W, APP_H, {
-      onClose: () => { hpGuideOverlay?.destroy(); hpGuideOverlay = null; restore(); },
+      onClose: _closers.hpGuide = () => { hpGuideOverlay?.destroy(); hpGuideOverlay = null; restore(); },
       level: {
         levelId:      gs.levelId,
         hpMultiplier: gs.world?.hpMultiplier ?? 1.0,
@@ -1230,29 +1517,50 @@ async function main() {
   function showHowToPlay() {
     if (howToPlayOverlay) return;
     const { restore } = _openGoalOverlay();
+    howToPlayOverlay?.destroy();   // never orphan a live one (see showTitle)
     howToPlayOverlay = new HowToPlayOverlay(app.stage, APP_W, APP_H, {
       ticker: app.ticker,
-      onClose: () => { howToPlayOverlay?.destroy(); howToPlayOverlay = null; restore(); },
+      onClose: _closers.howToPlay = () => { howToPlayOverlay?.destroy(); howToPlayOverlay = null; restore(); },
     });
   }
 
   // ── Screen: Pause ─────────────────────────────────────────────────────────
   function showPause() {
+    // Pause is a single boolean, so opening the menu over a card / tutorial and then
+    // pressing RESUME released a pause the card or tutorial still owned (loop running
+    // under the "drag the bomb" spotlight). Those need their own explicit dismissal.
+    if (_boardBlockers().some(b => b === 'modal' || b === 'introCard' || b === 'unlock') || tutOrch?.isActive()) return false;
     gameLoop.pause();
     pauseBtn.visible = false;
     bookBtn.visible  = false;
+    pauseScreen?.destroy();   // never orphan a live one (see showTitle)
     pauseScreen = new PauseScreen(app.stage, APP_W, APP_H, {
-      onResume: () => {
+      onResume: _closers.pause = () => {
         pauseScreen.destroy();
         pauseScreen      = null;
         pauseBtn.visible = true;
         bookBtn.visible  = false;  // in-game manual button hidden; reachable via pause screen
         gameLoop.resume();
       },
+      onRestart: () => {
+        pauseScreen.destroy();
+        pauseScreen = null;
+        const id = currentLevelIsDaily ? currentLevelCfg : levelManager.levelNumber;
+        transition.fadeOut(0.25, () => { _startLevel(id); transition.fadeIn(0.25, null); });
+      },
       onCarManual: () => {
         pauseScreen.destroy();
         pauseScreen = null;
         showCarManual(true);
+      },
+      onHowToPlay: () => {
+        pauseScreen.destroy();
+        pauseScreen = null;
+        howToPlayOverlay?.destroy();   // never orphan a live one (see showTitle)
+        howToPlayOverlay = new HowToPlayOverlay(app.stage, APP_W, APP_H, {
+          ticker: app.ticker,
+          onClose: _closers.howToPlay = () => { howToPlayOverlay?.destroy(); howToPlayOverlay = null; showPause(); },
+        });
       },
       onSettings: () => {
         pauseScreen.destroy();
@@ -1264,8 +1572,18 @@ async function main() {
         });
       },
       onQuit: () => {
+        // Abandon signal for difficulty tuning: where players give up mid-level.
+        logEvent('level_quit', { levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber, turns: gs.turnCount, kills: gs.totalKills, goalLeft: gs.goalProgress?.reduce((a, r) => a + r, 0) ?? null });
+        _settleInventory();
         pauseScreen.destroy();
         pauseScreen = null;
+        // Nothing from the abandoned level may fire over the map: the car-intro
+        // timer, queued modal cards and tutorials (their dismissal also resumed
+        // the abandoned loop behind the map).
+        _dismissAllCards();
+        _cancelLevelSplash();
+        tutOrch?.dismiss();
+        gameLoop.pause();
         // Leave gameLoop paused — _startLevel() will resume it.
         transition.fadeOut(0.25, () => {
           showLevelSelect();
@@ -1278,6 +1596,8 @@ async function main() {
 
   // ── Screen: Win ───────────────────────────────────────────────────────────
   function showWin() {
+    _settleInventory();
+    tutOrch?.dismiss();
     pauseBtn.visible = false;
     bookBtn.visible  = false;
     // Clear gameplay UI behind the modal: suppress toasts (achievements still
@@ -1296,7 +1616,7 @@ async function main() {
     const coinsEarned = Math.max(0, gs.coins - coinsAtLevelStart);
     if (coinsEarned > 0) progress.addEarnedCoins(coinsEarned);
     const coinAch = achievementManager.check('coins_earned');
-    coinAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
+    coinAch.forEach(a => _awardAch(a));
 
     // Level-end achievements.
     const endAch = achievementManager.check('level_end', {
@@ -1307,15 +1627,23 @@ async function main() {
       rescueUsed:   gs.rescueUsed,
       boostersUsed: boostersUsedThisLevel.length > 0,
     });
-    endAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
+    endAch.forEach(a => _awardAch(a));
 
     let onNext;
     let improved   = [];
     let winLevelId = null;
     if (currentLevelIsDaily) {
-      progress.completeDailyChallenge(dailyDateKey);
-      const dcAch = achievementManager.check('daily_challenge');
-      dcAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
+      // The bonus goes through gs.coins: the wallet is re-saved from gs.coins
+      // below, which used to overwrite a bonus added straight to progress.
+      // First clear of the day only. Replays are allowed (for fun) but pay
+      // nothing — winning it again used to pay +25 every time: a coin farm.
+      if (!progress.isDailyChallengeCompleted(dailyDateKey)) {
+        progress.completeDailyChallenge(dailyDateKey, 0);
+        gs.coins += 25;
+        progress.addEarnedCoins(25);
+        const dcAch = achievementManager.check('daily_challenge');
+        dcAch.forEach(a => _awardAch(a));
+      }
       onNext = null;
     } else {
       const levelId = levelManager.levelNumber;
@@ -1330,9 +1658,10 @@ async function main() {
       if (priorCity !== 2) _pendingCityAnim = { building: bId, prior: priorCity };
 
       // Weekly playlist bonus: +15 coins for winning a featured level this week.
-      const { levels: featuredLevels, weekKey: wk } = weeklyPlaylist;
+      const { levels: featuredLevels, weekKey: wk } = weeklyPlaylist();
       if (featuredLevels.includes(levelId) && !progress.hasClaimedWeeklyLevel(levelId, wk)) {
         gs.coins += 15;
+        progress.addEarnedCoins(15);
         progress.markClaimedWeeklyLevel(levelId, wk);
         floatingTexts.push(spawnFloatingText(
           layers.get('particleLayer'), APP_W / 2, APP_H / 2 - 60,
@@ -1340,7 +1669,7 @@ async function main() {
         ));
         // weekly_hero achievement
         const weeklyAch = achievementManager.check('weekly_win');
-        weeklyAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
+        weeklyAch.forEach(a => _awardAch(a));
       }
       // Update personal best and detect new records.
       improved   = progress.updateBestStats(levelId, { combo: gs.maxSingleShotKills, time: gs.elapsed, stars });
@@ -1348,10 +1677,12 @@ async function main() {
       onNext = () => {
         winScreen.destroy();
         winScreen = null;
-        const nextId = Math.min(40, levelId + 1);
-        // Offer the pre-level "Power Up?" screen before the next level — same as
-        // starting a level fresh from the map (onSelectLevel → _showPreLevel).
-        _showPreLevel(nextId);
+        // After the final level there is no "next": NEXT used to replay L40.
+        // Go back to the map (the whole city repaired is the ending).
+        if (levelId >= LEVEL_COUNT) { showLevelSelect(); return; }
+        // Offer the pre-level card before the next level — same as starting a
+        // level fresh from the map (onSelectLevel → _showPreLevel).
+        _showPreLevel(levelId + 1);
       };
 
       // Rating prompt: show after first ever 3-star win (native integration TBD in Phase 4).
@@ -1365,6 +1696,7 @@ async function main() {
     progress.setCoins(gs.coins);
     gs.coins = Math.max(0, gs.coins - coinsAtLevelStart);
 
+    winScreen?.destroy();   // never orphan a live one (see showTitle)
     winScreen = new WinScreen(
       app.stage, APP_W, APP_H, gs,
       onNext,
@@ -1380,21 +1712,31 @@ async function main() {
       improved,
       winLevelId,
     );
+    // Achievements earned on the way wait for the end of the level, then show as a card.
+    const shownWin = winScreen;
+    setTimeout(() => { if (winScreen === shownWin) _showPendingAchievements(); }, 1600);
   }
-  function _showNoRescueLose() {
-    // §3d DDA: this is the FINAL-loss moment (a breach that gets rescued and
-    // then won never reaches here). Bump the fail streak so the next attempt's
-    // config copy gets the mercy factor. Daily challenge excluded inside
-    // recordLoss (non-numeric levelId), but guard here too for clarity.
-    // §3e City Repair damage fires HERE (final loss), not on first breach — a
-    // rescued-then-won breach is not a fail, so it must not scuff the city
-    // either (same single definition of failure as DDA). Only downgrades an
-    // already-repaired building (2→1) — replaying a beaten level and losing.
+  // The FINAL-loss moment, shared by every way a level can be failed: the
+  // no-rescue lose screen AND declining the rescue offer (RETRY / Give up) —
+  // those used to skip it, so a player who never watched the ad never built a
+  // fail streak (no DDA mercy, no free booster) and kept unspent inventory.
+  // §3d DDA: bump the fail streak so the next attempt gets the mercy factor
+  // (daily challenge excluded). §3e City Repair damage fires here too — a
+  // rescued-then-won breach is not a fail. Guarded so it counts once per level.
+  function _recordFinalLoss() {
+    _settleInventory();
+    if (_lossRecorded) return;
+    _lossRecorded = true;
     if (!currentLevelIsDaily) {
       const lvl = levelManager.levelNumber;
       progress.recordLoss(lvl);
       progress.damageBuilding(progress.buildingForLevel(lvl));
     }
+  }
+
+  function _showNoRescueLose() {
+    _recordFinalLoss();
+    tutOrch?.dismiss();
 
     pauseBtn.visible = false;
     bookBtn.visible  = false;
@@ -1402,8 +1744,7 @@ async function main() {
     popupQueue.setSuppressed(true);
     boosterBar.setVisible(false);
     ftueOverlay?.setVisible(false);
-    audio.stopMusic();
-    audio.play('lose_tone');
+    audio.stopMusic();   // (lose_tone already played at the breach — onEnd)
 
     let loseScreen = null;
     loseScreen = new LoseScreen(
@@ -1414,7 +1755,7 @@ async function main() {
           loseScreen = null;
           rescueOverlay = null;
           const cfg = currentLevelIsDaily ? dailyChallengeManager.getChallenge() : levelManager.levelNumber;
-          adManager.showInterstitial().then(() => {
+          adManager.showInterstitial(currentLevelIsDaily ? progress.unlockedLevel : levelManager.levelNumber).then(() => {
             transition.fadeOut(0.20, () => { _startLevel(cfg); transition.fadeIn(0.20, null); });
           });
         },
@@ -1422,7 +1763,7 @@ async function main() {
           loseScreen?.destroy();
           loseScreen = null;
           rescueOverlay = null;
-          adManager.showInterstitial().then(() => {
+          adManager.showInterstitial(currentLevelIsDaily ? progress.unlockedLevel : levelManager.levelNumber).then(() => {
             transition.fadeOut(0.20, () => { showLevelSelect(); transition.fadeIn(0.20, null); });
           });
         },
@@ -1441,43 +1782,52 @@ async function main() {
 
   // ── Screen: Rescue ────────────────────────────────────────────────────────
   function showRescue() {
+    tutOrch?.dismiss();
     pauseBtn.visible = false;
     // FIX 2: hide the booster bar + suppress toasts behind the game-over modal,
     // exactly like the win/final-lose screens do.
     boosterBar.setVisible(false);
     popupQueue.setSuppressed(true);
     audio.play('rescue_offer');
+    rescueOverlay?.destroy();   // never orphan a live one (see showTitle)
+    // Both continue paths (ad / coins) resume play identically.
+    const resumeAfterRescue = () => {
+      gs.rescue(10);
+      gameLoop.prepareForRescue();   // FIX 2: refill lanes + columns the breach skipped
+      shakeTime = 0;                 // settle any breach shake before play resumes
+      _dismissAllCards();            // a card that drained during the breach beat must not hold the loop
+      gameLoop.resume();
+      rescueOverlay.destroy();
+      rescueOverlay = null;
+      // Resuming play — restore the booster bar + toasts.
+      boosterBar.setVisible(true);
+      popupQueue.setSuppressed(false);
+      audio.resetMusicPhase();
+      audio.playMusic('gameplay_calm');
+      pauseBtn.visible = true;
+    };
     rescueOverlay = new RescueOverlay(app.stage, APP_W, APP_H, gs, {
       onRescueAd: () => {
         adManager.showRewarded(
           () => {
-            gs.rescue(10);
-            gameLoop.prepareForRescue();   // FIX 2: refill lanes + columns the breach skipped
-            rescueOverlay.destroy();
-            rescueOverlay = null;
-            // Resuming play — restore the booster bar + toasts.
-            boosterBar.setVisible(true);
-            popupQueue.setSuppressed(false);
-            audio.resetMusicPhase();
-            audio.playMusic('gameplay_calm');
-            pauseBtn.visible = true;
+            if (!rescueOverlay) return;    // already resolved (a second reward callback)
+            logEvent('rescue_used', { levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber, method: 'ad' });
+            resumeAfterRescue();
           },
           null,   // dismissed without reward — leave rescue overlay on screen
         );
       },
       onRescueCoins: () => {
-        gs.coins -= 50;
+        if (!rescueOverlay || gs.coins < RESCUE_COIN_COST) return;
+        gs.coins -= RESCUE_COIN_COST;
         progress.setCoins(gs.coins);
-        gs.rescue(10);
-        gameLoop.prepareForRescue();   // FIX 2: refill lanes + columns the breach skipped
-        rescueOverlay.destroy();
-        rescueOverlay = null;
-        audio.resetMusicPhase();
-        audio.playMusic('gameplay_calm');
-        pauseBtn.visible = true;
+        coinsAtLevelStart -= RESCUE_COIN_COST;   // the payment is not a loss of earnings this level
+        logEvent('rescue_used', { levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber, method: 'coins' });
+        resumeAfterRescue();
       },
       onRetry: () => {
         // RETRY — free, immediate restart of the current level (no ad).
+        _recordFinalLoss();
         rescueOverlay.destroy();
         rescueOverlay = null;
         const cfg = currentLevelIsDaily ? dailyChallengeManager.getChallenge() : levelManager.levelNumber;
@@ -1485,9 +1835,10 @@ async function main() {
       },
       onLevelSelect: () => {
         // Declined the one-time rescue → level failed; back to the map.
+        _recordFinalLoss();
         rescueOverlay.destroy();
         rescueOverlay = null;
-        adManager.showInterstitial().then(() => {
+        adManager.showInterstitial(currentLevelIsDaily ? progress.unlockedLevel : levelManager.levelNumber).then(() => {
           transition.fadeOut(0.20, () => { showLevelSelect(); transition.fadeIn(0.20, null); });
         });
       },
@@ -1510,8 +1861,7 @@ async function main() {
         haptics.comboMilestone();
       }
 
-      featureBanners.fire('first_kill', 'First kill! Chain kills quickly for combos and bonus coins.');
-      if (combo >= 3) featureBanners.fire('first_combo', 'COMBO! Rapid kills earn bonus coins and speed boosts.');
+      fireReactive('first_kill', '');
 
       // L2: notify FTUE overlay on first kill so it can show the combo hint.
       if (!firstKillDoneThisLevel) {
@@ -1519,21 +1869,12 @@ async function main() {
         // L2 combo hint routes through the unified queue (one-at-a-time, safe
         // gap) — FTUEOverlay's own bottom banner could stack over a queued
         // toast (design-audit CLUTTER item: two banners covering the game).
-        if (gs.levelId === 2) {
-          featureBanners.fire('combo_hint_L2',
-            'COMBO! Chain kills quickly for bonus coins and faster fire speed!');
-        }
       }
 
-      // One-time combo explanation popup the first time combo reaches 3.
-      if (combo >= 3 && !progress.seenComboTip) {
-        progress.markSeenComboTip();
-        popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildComboPopup(w), 3.0);
-      }
 
       // Achievement checks for kill events.
       const killAch = achievementManager.check('kill', { combo });
-      killAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
+      killAch.forEach(a => _awardAch(a));
     },
 
     onChainHit: (laneIdx, position) => {
@@ -1542,13 +1883,12 @@ async function main() {
       // so this no longer overlaps the cars.
       // chain_reaction achievement: 2+ kills from one shot.
       const chainAch = achievementManager.check('chain_kill');
-      chainAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
+      chainAch.forEach(a => _awardAch(a));
     },
 
     onShoot: (damage, laneIdx, colIdx) => {
       tutOrch?.completeIfActive('first_car');
       audio.play('shoot', { damage });
-      featureBanners.fire('first_shot', 'Direct hit! Color-matched shots deal damage to cars.');
 
       // On very first deploy: dismiss arrow hint and (for L1-L5) show damage tooltip.
       const tipDamage = (!firstDeployTooltipShown && levelManager.levelNumber <= 5)
@@ -1563,8 +1903,15 @@ async function main() {
       haptics.light();
     },
 
-    onHit: (laneIdx, gameX, color, damage, killCount) => {
+    onHit: (laneIdx, gameX, color, damage, killCount, power = false) => {
       const isKill = killCount > 0;
+      if (power) {
+        // Hot Streak supercharged shot landed.
+        audio.play('power_shot');
+        haptics.heavy();
+        shakeTime = Math.max(shakeTime, 0.25);
+        popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildFlashText(w, 'POWER SHOT!', 0xFF7A1F), 1.0);
+      }
       _lastShotKills = killCount;   // for the multi-kill popup (fired next via _onMultiKill)
       particles.spawnHit(laneIdx, gameX, color);
       particles.spawnDamageNumber(laneIdx, gameX, damage);
@@ -1594,15 +1941,18 @@ async function main() {
       // Show at most one card per hit; the other (if eligible) fires next hit.
       let _hintShownThisHit = false;
       // Hint C — first correct-colour shot on L1: explain that all cars advance.
+      // A tip, not a modal: a blocking card after the very first kill paused the
+      // board on the player's first success.
       if (levelManager.levelNumber === 1 && !progress.hintAdvanceShown) {
-        progress.markHintAdvance();
-        _showHintCard((done) => onboardingHints.showAdvance(done));
-        _hintShownThisHit = true;
+        progress.markHintAdvance();   // the tour already explains this
       }
       // Hint A — first time a car SURVIVES a hit (any level): point to the book.
       if (!_hintShownThisHit && !isKill && damage > 0 && !progress.hintHpMissShown) {
         progress.markHintHpMiss();
-        _showHintCard((done) => onboardingHints.showHpMiss(done));
+        // A banner, not a modal: with the one-hit ladder most first hits only SHRINK a car,
+        // so a blocking card here paused the board on the player's first hit (and stalled every
+        // fixture that shoots a multi-hit car on a fresh save).
+        fireReactive('hp_miss', '');
       }
     },
 
@@ -1610,7 +1960,7 @@ async function main() {
       particles.spawnMiss(laneIdx, gameX);
       gameRenderer3D.onMiss(laneIdx);
       audio.play('wrong_bounce');   // 6A/1D: descending "rejected" boing
-      featureBanners.fire('first_miss', 'No damage! Bomb color must match the car color.');
+      fireReactive('first_miss', '');
     },
 
     onEnd: (won, laneIdx) => {
@@ -1634,11 +1984,11 @@ async function main() {
 
       const _evtLevelId = currentLevelIsDaily ? 'daily' : levelManager.levelNumber;
       if (won) {
-        logEvent('level_completed', { levelId: _evtLevelId });
+        logEvent('level_completed', { levelId: _evtLevelId, stars: _evtLevelId === 'daily' ? null : calcStars(gs), turns: gs.turnCount, boosters: boostersUsedThisLevel.length, rescued: !!gs.rescueUsed });
         haptics.success();
         showWin();
       } else {
-        logEvent('level_failed', { levelId: _evtLevelId });
+        logEvent('level_failed', { levelId: _evtLevelId, turns: gs.turnCount, kills: gs.totalKills, goalLeft: gs.goalProgress?.reduce((a, r) => a + r, 0) ?? null, rescued: !!gs.rescueUsed });
         audio.stopMusic();
         audio.play('lose_tone');
         shakeTime = 0;
@@ -1649,6 +1999,7 @@ async function main() {
         // rescue. A second breach (rescue already used) → final game over.
         breachCam = { laneIdx: laneIdx ?? 0, t: 0, done: false,
                       skipRescue: noRescueThisLevel || gs.rescueUsed };
+        pauseBtn.visible = false;   // no pause/restart inside the breach beat
       }
     },
 
@@ -1661,31 +2012,42 @@ async function main() {
       haptics.medium();
       floatingTexts.push(spawnFloatingText(
         layers.get('particleLayer'),
-        (colIdx + 0.5) * (APP_W / 4), 560,
+        // Above the column that received the assist (2026-09-27). Was hardcoded to a
+        // 4-column X and Y=560 — wrong column at 3 lanes, and inside the queue since
+        // the queue moved. Both now come from the registry, like every other anchor.
+        getColumnScreenX(colIdx), getColumnScreenY() - 40,
         '⚡ CRISIS ASSIST', 0xffcc00,
       ));
       progress.incrementCrisisAssists();
       const crisisAch = achievementManager.check('crisis_assist');
-      crisisAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
+      crisisAch.forEach(a => _awardAch(a));
     },
   });
 
   // ── Bomb system callbacks ─────────────────────────────────────────────────
   // FIX 4C: a 3+ car chain kill earns a FREEZE charge.
+  // First FREEZE / COLOUR CHANGE earned (L1-10 only, see introSchedule): a centre card pointing at
+  // the booster bar, like the BOMB. Marks the L8/L9 start card as seen so it is not repeated.
+  const _teachEarned = (earnedKey, startKey) => {
+    if (gs.isOver || (gs.goals.length > 0 && gs.isGoalMet())) return;
+    if (fireReactive(earnedKey, '')) featureBanners.mark(startKey);
+  };
   gameLoop._onFreezeEarned = (kills) => {
+    _teachEarned('freeze_earned', 'freeze_booster');
     audio.play('freeze_tinkle');
     haptics.medium();   // booster earned
     floatingTexts.push(spawnFloatingText(
-      layers.get('particleLayer'), APP_W / 2, 700,
+      layers.get('particleLayer'), APP_W / 2, 470,
       `${kills}-CAR CHAIN! Freeze earned!`, 0x88ddff,
     ));
   };
   // Earned by chaining two strictly-consecutive multi-kills (GameLoop._updateColorChangeCombo).
   gameLoop._onColorChangeEarned = () => {
+    _teachEarned('colour_change_earned', 'colour_change_booster');
     audio.play('coin_collect');
     haptics.medium();   // booster earned
     floatingTexts.push(spawnFloatingText(
-      layers.get('particleLayer'), APP_W / 2, 700,
+      layers.get('particleLayer'), APP_W / 2, 470,
       '2× COMBO! Color Change ready!', 0xCC66FF,
     ));
   };
@@ -1694,18 +2056,18 @@ async function main() {
     haptics.medium();   // booster earned
     // Centered notification flash (centered so the longer text doesn't clip).
     floatingTexts.push(spawnFloatingText(
-      layers.get('particleLayer'), APP_W / 2, 748,
-      'BOMB READY! (10 kills)', 0xffaa00,
+      layers.get('particleLayer'), APP_W / 2, 470,   // mid-board: the tutorial caption owns the bottom
+      `BOMB READY! (${KILLS_PER_BOMB} kills)`, 0xffaa00,
     ));
     // Bounds/hand must match the BOMB booster card exactly (BoosterBar CARD_X[2]):
     // x 237-301 (centre 269), y 754-818. The fixed 3-button bar is identical on
     // every level, so these constants are correct for all 1/2/3/4-lane levels.
-    tutOrch?.start({
+    // Not on the shot that ends the level: the tutorial paused the loop and its
+    // spotlight stayed over the win screen and into the next level's card.
+    if (!gs.isOver && !(gs.goals.length > 0 && gs.isGoalMet()) && !currentLevelIsDaily && reactiveAllowed('bomb_earned', levelManager.levelNumber)) tutOrch?.start({
       id:        'bomb',
       text:      '💣 BOMB earned — tap it, then tap a lane to blast every car on it!',
-      bounds:    { x: 237, y: 754, w: 64, h: 64 },
-      handStart: { x: 269, y: 726 },
-      handEnd:   { x: 269, y: 790 },
+      bounds:    () => { const b = boosterBar?._bombBtn?.getBounds(); return b ? { x: b.x, y: b.y, w: b.width, h: b.height } : { x: 235, y: 764, w: 72, h: 77 }; },
       pauseGame: true,
     });
   };
@@ -1722,6 +2084,39 @@ async function main() {
         0xffdd00,
       ));
     }
+  };
+
+  // ── V2 callbacks: Hot Streak, armour, bosses (TrafficRules) ───────────────
+  gameLoop._onStreak = (streak, charged, { justCharged }) => {
+    streakMeter.setState(streak, charged);
+    if (streak > 0 && !charged) audio.play('pip_fill', { index: streak - 1 });
+    if (justCharged) {
+      audio.play('supercharge');
+      haptics.medium();
+      popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildFlashText(w, 'SUPERCHARGED!', 0xFF7A1F), 1.2);
+      fireReactive('streak_charged', '');
+    }
+  };
+  gameLoop._onArmorBreak = (laneIdx, gameX, _color, armorLeft = 0) => {
+    audio.play('armor_clang');
+    haptics.medium();
+    particles.spawnHit(laneIdx, gameX, 'Blue');
+    floatingTexts.push(spawnFloatingText(layers.get('particleLayer'),
+      getLaneScreenX(laneIdx), getColumnScreenY() - 90, armorLeft > 0 ? 'PLATE OFF!' : 'ARMOUR OFF!', 0xE6ECF5));
+    if (armorLeft > 0) fireReactive('plate_break', '');
+    else fireReactive('armor_break', '');
+  };
+  gameLoop._onSurge = (srcLane) => {
+    audio.play('surge');
+    haptics.heavy();
+    shakeTime = Math.max(shakeTime, 0.3);
+    floatingTexts.push(spawnFloatingText(layers.get('particleLayer'),
+      getLaneScreenX(srcLane), getColumnScreenY() - 90, 'SURGE!', 0xFF8A1C));
+    fireReactive('volatile_surge', '');
+  };
+  gameLoop._onMend = () => {
+    audio.play('mend');
+    fireReactive('mender_heal', '');
   };
 
   // ── Combo power-shot callbacks ────────────────────────────────────────────
@@ -1741,6 +2136,10 @@ async function main() {
     haptics.heavy();
   };
   gameLoop._onComboFreeze = () => {
+    // GameLoop resets the combo on a freeze but only the HUD/3D are told here; without
+    // this the x-N badge and the combo glow stayed lit at the old value.
+    hudRenderer.bumpCombo(0);
+    gameRenderer3D.setCombo(0);
     comboFX.triggerFreeze();
     popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildFlashText(w, 'FROZEN!', 0x88ddff), 1.5);
     audio.play('freeze_activate');
@@ -1780,23 +2179,21 @@ async function main() {
     popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildFlashText(w, '3 MULTI-KILLS!', 0xffe14a), 1.6);
     audio.play('color_bomb', { color: 'Rainbow' });
     haptics.heavy();
-    if (!progress.hintColorBombShown) {
-      progress.markHintColorBomb();
-      _enqueueModal((done) => onboardingHints.showColorBomb(done));
-    }
+    // Explained once, inside its window (L4-10); the L10 start card covers everyone else.
+    fireReactive('rainbow_bomb', '');
   };
 
   // ── Tutorial orchestrator (needs gameLoop ref, created here) ─────────────
-  tutOrch = new TutorialOrchestrator(app.stage, gameLoop);
+  tutOrch = new TutorialOrchestrator(app.stage, gameLoop, audio);
 
   // ── Input ────────────────────────────────────────────────────────────────
   const dragDrop = new DragDrop(
     layers, columns, gs.lanes, benchStorage, shooterRenderer, benchRenderer,
     {
-      onDeploy: (colIdx, laneIdx, release) => {
+      onDeploy: (colIdx, laneIdx, release, dragged) => {
         if (colIdx >= gs.activeColCount || laneIdx >= gs.activeLaneCount) return;
         gameRenderer3D.setDropStart(laneIdx, release);   // bomb travels FROM release
-        gameLoop.deploy(colIdx, laneIdx);
+        gameLoop.deploy(colIdx, laneIdx, dragged);
       },
       onBombPlaced: (x, y, laneIdx) => {
         // BOMB booster clears the tapped car's entire LANE — every car in it, any
@@ -1817,19 +2214,19 @@ async function main() {
         boosterState.setColorChangeCar(car.color);
         _showColorPicker(car.color);
       },
+      isShotInFlight: () => gameLoop._shotInFlight(),
       onDeployFromBench: (shooter, laneIdx, release) => {
-        if (laneIdx >= gs.activeLaneCount) return;
+        if (laneIdx >= gs.activeLaneCount) return false;
         gameRenderer3D.setDropStart(laneIdx, release);   // bomb travels FROM release
-        gameLoop.deployFromBench(shooter, laneIdx);
+        if (!gameLoop.deployFromBench(shooter, laneIdx)) return false;   // refused: DragDrop keeps the bomb on the bench
         // progress.incrementBenchUses() was called inside deployFromBench.
         const benchAch = achievementManager.check('bench_deploy');
-        benchAch.forEach(a => popupQueue.enqueue(PRIORITY.ACHIEVEMENT, (w) => _buildAchievementPopup(w, a), 3.0));
+        benchAch.forEach(a => _awardAch(a));
       },
       onBenchStore: (_colIdx) => {
         tutOrch?.completeIfActive('bench');
+        progress.markSeenUnlock(4);   // the L4 bench tutorial has done its job
         // Column refills automatically via ShooterDirector next tick.
-      },
-      onReorder: (_srcCol, _srcRow, _tgtCol, _tgtRow) => {
       },
       onColorMismatch: () => {
         audio.play('hit_miss');
@@ -1854,11 +2251,9 @@ async function main() {
       // match-damage modal card, and let the player drag once it's dismissed.
       onColumnPickup: () => {
         haptics.light();   // bomb pickup / drag start
-        if (levelManager.levelNumber === 1 && !progress.hintDamageShown) {
-          progress.markHintDamage();
-          _showHintCard((done) => onboardingHints.showDamage(done));
-          return true;   // intercept this pickup; the drag does not start
-        }
+        // (Hint B used to intercept the FIRST pickup on L1 with a modal card, so
+        // a new player's first drag did nothing. L1 bombs always out-damage its
+        // cars; the damage rule is taught by hint A the first time a hit fails.)
         return false;
       },
     },
@@ -1893,6 +2288,37 @@ async function main() {
   //      stutter spike (both tickers already cap dt at 50 ms, but pausing
   //      removes the issue entirely).
   let _hiddenWhilePlaying = false;
+  // ── Back button (Android hardware/gesture back, Escape on desktop) ──────────
+  // Mirrors each screen's own Back/Close button, top-most first. Without this the
+  // Android default applies: back exits the app, even in the middle of a level.
+  function _handleBack() {
+    const close = (open, key) => { if (open && _closers[key]) { _closers[key](); return true; } return false; };
+    // Overlays that can open over Settings close before Settings does.
+    if (close(carManualScreen, 'carManual') || close(hpGuideOverlay, 'hpGuide')
+      || close(howToPlayOverlay, 'howToPlay') || close(settingsScreen, 'settings')
+      || close(dailyRewardScreen, 'daily') || close(achievementsScreen, 'achievements')
+      || close(statsScreen, 'stats') || close(shopScreen, 'shop') || close(pauseScreen, 'pause')) return;
+    if (preLevelScreen) {
+      preLevelScreen.destroy();
+      preLevelScreen = null;
+      if (!levelSelectScreen) showLevelSelect();
+      return;
+    }
+    if (close(levelSelectScreen, 'levelSelect')) return;
+    // An armed booster / open colour picker: back cancels it (the Android habit),
+    // rather than being swallowed or pausing over it.
+    if (colorPicker) { boosterState.cancelColorChange(); _dismissColorPicker(); return; }
+    if (boosterState.colorChangeMode) { boosterState.cancelColorChange(); return; }
+    if (boosterState.bombMode) { boosterState.cancelBomb(); return; }
+    // Mid-level: back pauses (the pause menu then offers resume / quit).
+    if (gameLoopStarted && !gs.isOver && pauseBtn.visible && !colorPicker) { showPause(); return; }
+    // Title: leave the app. Everywhere else (win / lose / continue offer, colour
+    // picker, intro cards) back is swallowed — those need an explicit choice.
+    if (titleScreen && Capacitor.isNativePlatform()) CapApp.exitApp();
+  }
+  if (Capacitor.isNativePlatform()) CapApp.addListener('backButton', _handleBack);
+  window.addEventListener('keydown', (e) => { if (e.key === 'Escape') _handleBack(); });
+
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       // Pause logic tick when tab is hidden (only if actively playing).
@@ -1904,12 +2330,16 @@ async function main() {
       // Resume on return — but only if WE paused it (not the user).
       if (_hiddenWhilePlaying && pauseScreen === null) {
         _hiddenWhilePlaying = false;
-        gameLoop.resume();
+        // Coming back from another app: land on the pause menu rather than a
+        // board that is already running under a player who isn't looking yet.
+        // A card that opened while hidden owns the pause: its dismissal resumes the loop.
+        if (_modalActive) { /* stay paused under the card */ }
+        else if (!(pauseBtn.visible && !colorPicker && showPause() !== false)) gameLoop.resume();
       } else {
         _hiddenWhilePlaying = false;
       }
       // Resume AudioContext if the browser suspended it.
-      if (audio._ctx?.state === 'suspended') audio._ctx.resume().catch(() => {});
+      if (audio._ctx && audio._ctx.state !== 'running') audio._ctx.resume().catch(() => {});   // 'interrupted' (iOS call/Siri) too
     }
   });
 
@@ -1918,7 +2348,7 @@ async function main() {
     e.preventDefault();
     gameLoop.pause();
     // A tiny non-intrusive toast — same helper used elsewhere in GameApp.
-    _buildSimpleToast(app, APP_W, 'Display connection lost — tap to reload', 0x1a0a0a, 0xff8866);
+    _buildSimpleToast(app, APP_W, 'Display connection lost — reconnecting…', 0x1a0a0a, 0xff8866);
   });
   app.canvas.addEventListener('webglcontextrestored', () => {
     // Safest recovery is a reload; the game auto-saves progress to localStorage.
@@ -1931,7 +2361,7 @@ async function main() {
 
     // 3D scene update + render (runs when gameRenderer3D is visible/active).
     // dt is scaled by gs.timeScale so a 3+ multi-kill plays back in brief bullet-time.
-    const fxDt = dt * (gs.timeScale ?? 1);
+    const fxDt = gs.isOver ? dt : dt * (gs.timeScale ?? 1);   // bullet-time must not outlive the shot into win/lose screens
     // NOTE: this payload is a hand-built literal, so any field GameRenderer3D
     // reads but this object omits is silently `undefined` — a dead read with no
     // error, which is exactly how the gridRows sync went unnoticed (see
@@ -1963,10 +2393,16 @@ async function main() {
     unlockScreen?.update(dt);
     boosterSpotlight?.update(dt);
     tutOrch?.update(dt);
+    // Armed-booster prompt: what to tap next. Only while the board is live.
+    modeHint.set(gs.isOver || _boardBlockers().length > 0 ? null
+      : boosterState.bombMode ? 'TAP A LANE TO BLAST IT'
+      : boosterState.colorChangeMode && !colorPicker ? 'TAP A CAR TO RECOLOUR' : null);
+    modeHint.update(dt);
 
     // Modal cards (onboarding hints, car-type intro, color-bomb intro) all run
     // through the unified queue; block drag input while ANY card is up (FIX 2).
     onboardingHints.update(dt);
+    if (guideCard && !guideCard.update(dt)) guideCard = null;
     // Drive the active car-type intro card's animation. Its onDismiss nulls the
     // ref and advances the queue, so capture the ref to avoid nulling a NEW card
     // that the queue may have started during this same update.
@@ -1974,16 +2410,22 @@ async function main() {
       const _c = carTypeIntroCard;
       if (!_c.update(dt) && carTypeIntroCard === _c) carTypeIntroCard = null;
     }
-    dragDrop.inputBlocked = _modalActive || !!colorPicker;   // FIX 4B: block road drags while the picker is up
+    // Any screen or overlay above the board owns the input. Without this, taps on
+    // the pause menu / HUD buttons reached DragDrop too: with BOMB armed, tapping
+    // RESUME fired the bomb into the lane under the button. (Not gameLoop.paused:
+    // a pausing tutorial waits for a REAL drag, which must get through.)
+    dragDrop.minBoardTapY = goalCounterUI?.bandBottom ?? 0;
+    dragDrop.inputBlocked = _boardBlockers().length > 0;
 
     // Juice updates
     laneFlash.update(dt);
     comboGlow.update(dt, gs.combo);
     boosterBar.update(dt);
     if (gs.goalProgress) goalCounterUI.update(gs.goalProgress, dt);
+    streakMeter.update(dt);
     // Goal-bar help buttons share the pause button's gameplay visibility (overlays
     // hide pauseBtn while open, so these follow suit).
-    hpGuideBtn.visible = howToPlayBtn.visible = pauseBtn.visible;
+    hpGuideBtn.visible = pauseBtn.visible;
     transition.update(dt);
 
     // Core renderer updates
@@ -2006,46 +2448,35 @@ async function main() {
     popupQueue.setTutorialActive(!!(ftueOverlay || tutOrch?.isAnyActive()));
     popupQueue.update(dt);
 
-    // First-car FTUE banner: fires once the first enemy becomes visible.
-    if (gameLoopStarted && !gs.isOver && gs.lanes.some(l => l.cars.length > 0)) {
-      featureBanners.fire('first_car', 'Cars incoming! Drag a bomb to the lane with a matching color.');
-    }
-
-    // ── Breach camera ──────────────────────────────────────────────────────
+    // ── Breach beat → rescue flow ──────────────────────────────────────────
+    // A short hold (the shake plays over it) before the rescue / lose screen. No stage
+    // zoom: the 3D camera never zooms either, so the Pixi layer and the 3D scene can
+    // never disagree about where the road is.
     if (breachCam && !breachCam.done) {
       breachCam.t += dt;
-      const prog    = Math.min(1, breachCam.t / BREACH_CAM_DURATION);
-      const zoomAmt = BREACH_CAM_ZOOM * Math.sin(Math.PI * prog);
-      const scale   = 1 + zoomAmt;
-      const pivotX  = APP_W / 2;
-      const pivotY  = ROAD_BOTTOM_Y;
-
-      app.stage.scale.set(scale);
-      app.stage.pivot.set(pivotX, pivotY);
-      app.stage.position.set(pivotX, pivotY);
-
       if (breachCam.t >= BREACH_CAM_DURATION) {
         breachCam.done = true;
-        app.stage.scale.set(1);
-        app.stage.pivot.set(0, 0);
-        app.stage.position.set(0, 0);
         if (breachCam.skipRescue) {
           _showNoRescueLose();
         } else {
           showRescue();
         }
       }
-    } else {
-      if (shakeTime > 0) {
-        shakeTime = Math.max(0, shakeTime - dt);
-        const mag = (shakeTime / 0.35) * 7;
-        app.stage.x = (Math.random() - 0.5) * 2 * mag;
-        app.stage.y = (Math.random() - 0.5) * 2 * mag;
-      } else {
-        app.stage.x = 0;
-        app.stage.y = 0;
-      }
     }
+
+    // ── Stage shake (Pixi layer) — also pushed to the 3D bomb zone so it stays
+    // glued to its sockets while the stage jitters.
+    if (shakeTime > 0 && isReducedMotion()) shakeTime = 0;
+    if (shakeTime > 0) {
+      shakeTime = Math.max(0, shakeTime - dt);
+      const mag = (shakeTime / 0.35) * 7;
+      app.stage.x = (Math.random() - 0.5) * 2 * mag;
+      app.stage.y = (Math.random() - 0.5) * 2 * mag;
+    } else {
+      app.stage.x = 0;
+      app.stage.y = 0;
+    }
+    gameRenderer3D.setStageOffset(app.stage.x, app.stage.y);
 
     if (rescueOverlay)    rescueOverlay.update(dt);
     if (preLevelScreen)   preLevelScreen.update?.(dt);
@@ -2075,8 +2506,10 @@ async function main() {
     winScreen?.destroy();          winScreen          = null;
     rescueOverlay?.destroy();      rescueOverlay      = null;
     ftueOverlay?.destroy();        ftueOverlay        = null;
-    carTypeIntroCard?._destroy();  carTypeIntroCard   = null;
+    _dismissAllCards();
     preLevelScreen?.destroy();     preLevelScreen     = null;
+    howToPlayOverlay?.destroy();   howToPlayOverlay   = null;
+    hpGuideOverlay?.destroy();     hpGuideOverlay     = null;
     _dismissColorPicker();
   };
   // ── Dev navigation API ────────────────────────────────────────────────────
@@ -2094,10 +2527,17 @@ async function main() {
       showPreLevel: (n) => { _dbgCleanAll(); _showPreLevel(n); },
       showRescue:   () => { showRescue(); },
       showShop:     () => { showShop(); },
+      showPause:    () => { showPause(); },
       showTitle:    () => { showTitle(); },
       showSettings: () => { showSettings(() => showTitle()); },
       showDaily:    () => { showDailyReward(); },
       showStats:    () => { showStats(); },
+      cleanAll:     () => { _dbgCleanAll(); },
+      showAchievements: () => { showAchievements(() => { achievementsScreen?.destroy(); achievementsScreen = null; showTitle(); }); },
+      showHowToPlay: () => { showHowToPlay(); },
+      showHpGuide:  () => { showHpGuide(); },
+      showCarManual: () => { showCarManual(false); },
+      showCarIntro: (t) => { _triggerCarTypeIntro(t); },
       openColorPicker: () => {
         boosterState.colorChange = Math.max(1, boosterState.colorChange);
         boosterState.activateColorChange();
@@ -2105,10 +2545,38 @@ async function main() {
         _showColorPicker(gs.colors[0]);
       },
       getGs: () => gs,
+      // Which screens/overlays are up (autoplay QA bot: rescue / win / lose flows).
+      getScreens: () => ({ blockers: _boardBlockers(), daily: !!dailyRewardScreen, achievements: !!achievementsScreen, stats: !!statsScreen, settings: !!settingsScreen, shop: !!shopScreen, carManual: !!carManualScreen, howToPlay: !!howToPlayOverlay, paused: gameLoop.paused, win: !!winScreen, rescue: !!rescueOverlay, pause: !!pauseScreen, levelSelect: !!levelSelectScreen,
+        preLevel: !!preLevelScreen, title: !!titleScreen, modal: _modalActive, picker: !!colorPicker, introCard: !!carTypeIntroCard,
+        pauseBtn: pauseBtn.visible, boosters: { colorChange: boosterState.colorChange, freeze: boosterState.freeze, bombs: boosterState.bombs },
+        inventory: progress.getInventory(), coins: progress.coins }),
+      getBoosterState: () => boosterState,
+      startDaily: () => { [titleScreen, levelSelectScreen, winScreen].forEach(x => x?.destroy()); titleScreen = levelSelectScreen = winScreen = null; startDailyChallenge(); },
+      stageTop: (x, y) => {
+        const hit = app.renderer.events.rootBoundary.hitTest(x, y);
+        const chain = []; for (let o = hit; o; o = o.parent) { const bb = o.getBounds?.(); chain.push(`${o.constructor?.name}${o.label ? ':' + o.label : ''}[${o.eventMode}]${bb ? ` @${bb.x | 0},${bb.y | 0} ${bb.width | 0}x${bb.height | 0}` : ''}${o.texture?.label ? ' tex=' + o.texture.label : ''}${o.texture?.source?.label ? ' src=' + o.texture.source.label : ''} idx=${o.parent ? o.parent.children.indexOf(o) : -1}`); }
+        const ev = app.renderer.events;
+        return { chain, scale: app.stage.scale.x, pivot: [app.stage.pivot.x, app.stage.pivot.y], pos: [app.stage.x, app.stage.y],
+          stage: { em: app.stage.eventMode, ic: app.stage.interactiveChildren, vis: app.stage.visible, n: app.stage.children.length },
+          root: ev.rootBoundary.rootTarget === app.stage, feats: ev.features,
+          kids: app.stage.children.map(c => `${c.constructor.name}:${c.eventMode}:${c.visible ? 'v' : 'h'}:${c.interactiveChildren ? 'i' : 'x'}`) };
+      },
+      dbgRescue: () => {
+        const r = rescueOverlay; if (!r) return null; const c = r._container;
+        const walk = (o, d = 0) => d > 3 ? [] : [`${'  '.repeat(d)}${o.constructor.name}:${o.eventMode}:${o.visible ? 'v' : 'h'}:a${o.alpha?.toFixed(2)}:${o.destroyed ? 'DESTROYED' : ''}`, ...(o.children ?? []).slice(0, 6).flatMap(k => walk(k, d + 1))];
+        return { idx: app.stage.children.indexOf(c), built: r._panelBuilt, flash: r._flashLife, tree: walk(c), ticker: app.ticker.started, lastTime: app.ticker.lastTime, fps: app.ticker.FPS };
+      },
+      getColorPickerSwatches: () => colorPicker?.swatches ?? null,
+      getMapNode: (n) => levelSelectScreen?.nodePosition?.(n) ?? null,
+      getPreLevelPlayY: () => { const b = preLevelScreen?._play; if (!b) return null; const r = b.getBounds(); return r.y + r.height / 2; },
+      getWinNextY: () => { const b = winScreen?._nextBtn; if (!b) return null; const r = b.getBounds(); return r.y + r.height / 2; },
       // Profiling handle: lets a harness wrap DragDrop's handlers to attribute
       // input-path cost (see scripts/_perf-handlers.mjs). Dev-only, like the
       // rest of this block.
       getDragDrop: () => dragDrop,
+      getRenderer3D: () => gameRenderer3D,
+      getStage: () => app.stage,
+      forceStageShake: (t = 0.35) => { shakeTime = t; },
       // Bomb-queue 3D slot groups. Balls are Three meshes, sockets are Pixi
       // circles — two renderers, so their alignment can only be checked by
       // reading BOTH, which needs this handle.
@@ -2132,6 +2600,11 @@ async function main() {
       // pixel does nothing, which is how harnesses got stuck on the
       // "drag the bomb" screen with the loop paused underneath.
       dismissTutorial: () => { tutOrch?.dismiss?.(); return !gameLoop.paused; },
+      // Click NEXT / GOT IT on every centre card until none is left (QA bots).
+      guideStep: () => (guideCard ? guideCard.stepIndex : -1),
+      guideTitle: () => (guideCard ? (guideCard._steps[guideCard.stepIndex]?.title ?? null) : null),   // QA: which card is up
+      guideNext: () => { guideCard?._next(); return guideCard ? guideCard.stepIndex : -1; },
+      dismissGuides: () => { let n = 0; while (guideCard && n++ < 40) guideCard._next(); return !guideCard; },
       // Test hook: enqueue a sample achievement toast (verifies popup z-order /
       // end-screen suppression).
       fireTestAchievement: () => popupQueue.enqueue(
@@ -2234,6 +2707,8 @@ async function main() {
 
   // ── Boot: show title screen (game loop not started yet) ───────────────────
   showTitle();
+  // Compile the 3D scene while the player is on the title screen, not behind level 1's fade.
+  setTimeout(() => gameRenderer3D.prewarm?.(), 400);
 
   // ── Post-boot overlays (deferred so title is visible first) ───────────────
 
@@ -2273,41 +2748,6 @@ function _buildFlashText(w, text, colorHex) {
   return grp;
 }
 
-function _buildComboPopup(w) {
-  const grp = new Container();
-  const PW = 180, PH = 52;
-  const PX = (w - PW) / 2;
-
-  const bg = new Graphics();
-  bg.roundRect(PX, 0, PW, PH, 14);
-  bg.fill({ color: 0x1a0800, alpha: 0.82 });
-  bg.roundRect(PX, 0, PW, PH, 14);
-  bg.stroke({ color: 0xff9922, width: 1.5, alpha: 0.75 });
-  grp.addChild(bg);
-
-  const title = new Text({
-    text: 'COMBO ×3!',
-    style: { fontSize: 22, fontWeight: 'bold', fill: 0xffcc22,
-      dropShadow: { color: 0x000000, blur: 4, distance: 2, alpha: 0.9 } },
-  });
-  title.anchor.set(0.5, 0);
-  title.x = w / 2;
-  title.y = 4;
-  grp.addChild(title);
-
-  const body = new Text({
-    text: 'Chain kills for bonus coins!',
-    style: { fontSize: 11, fontWeight: 'bold', fill: 0xffe8aa, align: 'center',
-      wordWrap: true, wordWrapWidth: PW - 20,
-      dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 0.9 } },
-  });
-  body.anchor.set(0.5, 0);
-  body.x = w / 2;
-  body.y = 32;
-  grp.addChild(body);
-
-  return grp;
-}
 
 // Linear interpolate between two 0xRRGGBB colors. t=0 → a, t=1 → b.
 function _lerpHex(a, b, t) {
@@ -2396,61 +2836,44 @@ function _buildMultiKillPopup(w, killCount) {
 }
 
 function _buildAchievementPopup(w, achievement) {
-  // Compact top-right toast: 274×62px, 8px from right edge
-  const TW = 274, TH = 62, TX = w - TW - 8;
-
+  // Trophy pill that drops over the header band (PopupQueue docks it there), so
+  // it never covers the lanes. Indigo + gold like every other premium surface.
+  const TW = 258, TH = 58, TX = (w - TW) / 2;   // fits between the round header buttons
   const outer = new Container();
   const grp = new Container();
-  grp.x = w;  // start off-screen right for slide-in
+  grp.y = -TH - 20;                                   // start above the screen, drop in
   outer.addChild(grp);
 
   const bg = new Graphics();
-  bg.roundRect(TX, 0, TW, TH, 14);
-  bg.fill({ color: 0x0a0a1a, alpha: 0.88 });
-  bg.roundRect(TX, 0, TW, TH, 14);
-  bg.stroke({ color: 0xf5c842, width: 1.5, alpha: 0.85 });
+  bg.roundRect(TX + 2, 5, TW, TH, TH / 2).fill({ color: 0x000000, alpha: 0.35 });
+  bg.roundRect(TX, 0, TW, TH, TH / 2).fill(new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, textureSpace: 'local',
+    colorStops: [{ offset: 0, color: 0x4A3FA0 }, { offset: 1, color: 0x241F5A }] }));
+  bg.roundRect(TX + 10, 4, TW - 20, TH * 0.3, 10).fill({ color: 0xffffff, alpha: 0.12 });
+  bg.roundRect(TX, 0, TW, TH, TH / 2).stroke({ color: 0xFFC93C, width: 3 });
+  bg.circle(TX + TH / 2, TH / 2, TH / 2 - 7).fill(0x17143A).stroke({ color: 0xB9771C, width: 2 });
   grp.addChild(bg);
 
-  const icon = uiIcon('trophy', 32, '🏆');   // center-anchored → place at glyph-box centre
-  icon.x = TX + 10 + 16;
-  icon.y = (TH - 32) / 2 + 16;
+  const icon = uiIcon('trophy', 34, '🏆');
+  icon.x = TX + TH / 2; icon.y = TH / 2;
   grp.addChild(icon);
 
-  const textX = TX + 46;
-
-  const label = new Text({
-    text: 'ACHIEVEMENT UNLOCKED',
-    style: { fontSize: 9, fontWeight: 'bold', fill: 0xf5c842, letterSpacing: 1.0 },
-  });
-  label.x = textX;
-  label.y = 7;
+  const label = new Text({ text: 'TROPHY UNLOCKED', style: { fontSize: 11, fontWeight: '800', fill: 0xFFC93C, letterSpacing: 1.2 } });
+  label.x = TX + TH + 4; label.y = 9;
   grp.addChild(label);
-
-  const nameText = new Text({
-    text: achievement.name,
-    style: { fontSize: 14, fontWeight: 'bold', fill: 0xffeebb,
-      dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 0.9 } },
-  });
-  nameText.x = textX;
-  nameText.y = 22;
+  const nameText = new Text({ text: achievement.name, style: { fontFamily: '"Lilita One", Fredoka, Arial, sans-serif', fontSize: 21, fill: 0xFFFFFF,
+    stroke: { color: 0x1F1A33, width: 4, join: 'round' } } });
+  nameText.x = TX + TH + 4; nameText.y = 24;
   grp.addChild(nameText);
 
-  const descText = new Text({
-    text: achievement.desc,
-    style: { fontSize: 10, fill: 0xaa9966, fontWeight: 'normal', wordWrap: true, wordWrapWidth: TW - 56 },
-  });
-  descText.x = textX;
-  descText.y = 42;
-  grp.addChild(descText);
-
-  // Slide in from right
-  const slideListener = (ticker) => {
-    if (outer.destroyed) { Ticker.shared.remove(slideListener); return; }
-    grp.x = Math.max(0, grp.x - w * 8 * (ticker.deltaTime / 60));
-    if (grp.x <= 0) { grp.x = 0; Ticker.shared.remove(slideListener); }
+  const t0 = performance.now();
+  const drop = () => {
+    if (outer.destroyed) { Ticker.shared.remove(drop); return; }
+    const e = Math.min(1, (performance.now() - t0) / 320);
+    const k = 1 - Math.pow(1 - e, 3);
+    grp.y = (-TH - 20) * (1 - k) + Math.sin(e * Math.PI) * 4;
+    if (e >= 1) { grp.y = 0; Ticker.shared.remove(drop); }
   };
-  Ticker.shared.add(slideListener);
-
+  Ticker.shared.add(drop);
   return outer;
 }
 
@@ -2504,14 +2927,15 @@ function _buildSimpleToast(app, w, message, bgColor, textColor, onMount) {
 
   const TOTAL = 3.5;
   let elapsed = 0;
-  const unsub = app.ticker.add((ticker) => {
+  const unsub = (ticker) => {
     elapsed += ticker.deltaMS / 1000;
     if (elapsed > TOTAL - 0.8) grp.alpha = Math.max(0, (TOTAL - elapsed) / 0.8);
     if (elapsed >= TOTAL) {
       app.ticker.remove(unsub);
       grp.destroy({ children: true });
     }
-  });
+  };
+  app.ticker.add(unsub);
 }
 
 // ── Offline reward popup ───────────────────────────────────────────────────────

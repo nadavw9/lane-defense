@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "62122564058",
+    "firebase_url": "https://lanedefense-analytics-default-rtdb.firebaseio.com",
+    "project_id": "lanedefense-analytics",
+    "storage_bucket": "lanedefense-analytics.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:62122564058:android:ae405687ec3bb9fbc448e3",
+        "android_client_info": {
+          "package_name": "com.nadavw.trafficbomb"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDwTac9zQKZQEFdSE5Gm8Zv5JNY39oye4I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

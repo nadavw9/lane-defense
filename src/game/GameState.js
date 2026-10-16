@@ -34,6 +34,7 @@ export class GameState {
     // spawnBudget: total cars this level spawns; null = unlimited / legacy mode.
     // laneTargetCarCount: lanes refill up to this many cars at row 0.
     this.gridRows           = gridRows           ?? 16;
+    this.stepsPerRow        = 1;   // set per level by GameApp (TrafficRules.STEPS_PER_ROW); 1 = whole-row steps
     this.targetKills        = targetKills        ?? 10;
     this.spawnBudget        = spawnBudget        ?? null;
     this._initialSpawnBudget = spawnBudget       ?? null;
@@ -65,6 +66,11 @@ export class GameState {
     this.maxSingleShotKills = 0;
     // Combo freeze: how many grid advances to skip after a freeze power shot fires.
     this.comboFreezeShots = 0;
+    // V2 Hot Streak (TrafficRules): consecutive kill shots, and whether the next
+    // bomb is supercharged. streakEnabled is set per level by GameApp.
+    this.streakEnabled = false;
+    this.streak        = 0;
+    this.streakCharged = false;
 
     // ── Stats ─────────────────────────────────────────────────────────────
     this.totalKills     = 0;
@@ -185,10 +191,22 @@ export class GameState {
     const ROWS = this.gridRows ?? 16;
     const ROWS_BACK = Math.floor(ROWS * 0.4);
     for (const lane of this.lanes) {
-      for (const car of lane.cars) {
-        car.row      = Math.max(0, car.row - ROWS_BACK);
+      // Push traffic back, keeping every car on its own row in lane order: a flat
+      // max(0, row - k) stacked several cars on row 0 (drawn on top of each other).
+      // Cars that no longer fit behind row 0 leave the road (refill replaces them).
+      const cars = [...lane.cars].sort((a, b) => b.row - a.row);   // front first
+      let prev = Infinity;
+      const keep = [];
+      for (const car of cars) {
+        const row = Math.min(car.row - ROWS_BACK, prev - 1);
+        if (row < 0) continue;
+        car.row = row;
         car.position = ROWS <= 1 ? 0 : (car.row / (ROWS - 1)) * 100;
+        prev = row;
+        keep.push(car);
       }
+      lane.cars.length = 0;
+      for (const car of keep) lane.cars.push(car);
     }
   }
 
@@ -200,6 +218,8 @@ export class GameState {
     this.colorBombArmed  = false;
     this.freezeArmed     = false;
     this.comboFreezeShots = 0;
+    this.streak        = 0;
+    this.streakCharged = false;
     this.multiKillCount     = 0;
     this.maxSingleShotKills = 0;
     this.totalKills     = 0;
@@ -267,7 +287,8 @@ export class GameState {
   // destroyType car types: small, big, jeep, truck, bigrig, tank.
   // destroyColor goals check carColor.
   // destroyTotal goals always count down.
-  applyKillToGoals(carColor, carType) {
+  // destroyTrait goals count kills of special cars (carTrait: 'armored', 'mender', ...).
+  applyKillToGoals(carColor, carType, carTrait = null) {
     for (let i = 0; i < this.goals.length; i++) {
       const goal = this.goals[i];
       let matches = false;
@@ -278,6 +299,8 @@ export class GameState {
         matches = (carColor === goal.color);
       } else if (goal.type === 'destroyType') {
         matches = (carType === goal.carType);
+      } else if (goal.type === 'destroyTrait') {
+        matches = (carTrait != null && carTrait === goal.trait);
       }
 
       if (matches) {

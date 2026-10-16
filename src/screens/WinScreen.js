@@ -8,8 +8,11 @@
 //   • "PERFECT DEFENSE!" header on 3-star clean win
 //   • 1.5s button lock prevents accidental dismissal during outro animations
 //   • NEXT LEVEL button gently pulses once active to invite the tap
-import { Container, Graphics, Text, Sprite, Assets } from 'pixi.js';
+import { Container, Graphics, Text, Sprite, Assets, FillGradient } from 'pixi.js';
 import { uiIcon } from '../renderer/UIIcon.js';
+import { worldForLevel } from './levelMapLayout.js';
+import { LEVEL_COUNT } from '../game/LevelManager.js';
+import { panel as premiumPanel, ribbon, button as premiumButton, bodyText, titleText, well } from '../renderer/PremiumUI.js';
 
 const _B = import.meta.env.BASE_URL;
 
@@ -22,8 +25,8 @@ const CONFETTI_COLORS = [0xff4466, 0x44ff88, 0xffcc00, 0x44aaff, 0xff88ff, 0xff8
 // Goal/car palette (matches CLAUDE.md) — used to tint the win confetti by the
 // level's goals.
 const GOAL_PALETTE = {
-  Red: 0xE24B4A, Blue: 0x378ADD, Green: 0x639922,
-  Yellow: 0xEF9F27, Purple: 0x7F77DD, Orange: 0xD85A30,
+  Red: 0xFF3D3D, Blue: 0x2F8CFF, Green: 0x2FCC55,
+  Yellow: 0xFFD42A, Purple: 0xA35CFF, Orange: 0xFF8A1C,
 };
 
 // Colours of the level's destroyColor goals (falls back to the festive set).
@@ -287,26 +290,35 @@ export class WinScreen {
     }
 
     // City building repair animation — steps through states as coins count up
-    if (this._cityBldTarget > 0 && this._coinCountTarget > 0) {
-      const prog = this._coinCountCurrent / this._coinCountTarget;
+    if (this._cityBldTarget > 0) {
+      // Paced by the coin count-up; a 0-coin win still repairs, on a timer.
+      this._cityT = (this._cityT ?? 0) + dt;
+      const prog = this._coinCountTarget > 0
+        ? this._coinCountCurrent / this._coinCountTarget
+        : Math.max(0, (this._cityT - 0.6) / 1.2);
       const targetNow = prog >= 1.0 ? this._cityBldTarget
         : (prog >= 0.4 && this._cityBldTarget >= 1 ? 1 : 0);
       if (targetNow !== this._cityBldState) {
         this._setCityBldState(targetNow);
       }
     }
+    if (this._cityBldPop != null && this._cityBldSprite) {     // repaired: pop
+      this._cityBldPop += dt;
+      const p = Math.min(1, this._cityBldPop / 0.35);
+      const tex = this._cityBldSprite.texture;
+      const base = 64 / Math.max(tex.width, tex.height);
+      this._cityBldSprite.scale.set(base * (1 + 0.35 * Math.sin(Math.PI * p) * (1 - p * 0.5)));
+      if (p >= 1) { this._cityBldSprite.scale.set(base); this._cityBldPop = null; }
+    }
   }
 
   // ── Private ───────────────────────────────────────────────────────────────
 
   _enableButtons() {
-    for (const { btn, onClick } of this._pendingButtons) {
+    for (const { btn } of this._pendingButtons) {
       btn.eventMode = 'static';
       btn.cursor    = 'pointer';
       btn.alpha     = 1;
-      btn.on('pointerdown', onClick);
-      btn.on('pointerover',  () => { if (this._buttonsEnabled) btn.alpha = 0.75; });
-      btn.on('pointerout',   () => { if (this._buttonsEnabled) btn.alpha = 1; });
     }
   }
 
@@ -318,8 +330,12 @@ export class WinScreen {
     // Backdrop — catches all touches so gameplay beneath isn't accessible.
     // Strong dim (0.90) so the road / cars / booster bar do not bleed through.
     const backdrop = new Graphics();
-    backdrop.rect(0, 0, w, h);
-    backdrop.fill({ color: 0x000011, alpha: 0.90 });
+    // Deep violet celebration field (not black) with a warm glow behind the
+    // panel, so the gold burst reads as light rather than cream-on-black.
+    backdrop.rect(0, 0, w, h).fill(new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, textureSpace: 'local',
+      colorStops: [{ offset: 0, color: 0x2A1F66 }, { offset: 0.5, color: 0x3B2580 }, { offset: 1, color: 0x160F3A }] }));
+    backdrop.alpha = 0.96;
+    for (let i = 0; i < 10; i++) { const r = 300 - i * 24; backdrop.ellipse(w / 2, h / 2 - 40, r, r * 1.25).fill({ color: 0xFFB84A, alpha: 0.035 }); }
     backdrop.eventMode = 'static';
     this._container.addChild(backdrop);
 
@@ -347,8 +363,8 @@ export class WinScreen {
     // Panel — height sized so the action button always clears the last stat
     // row with a visible gap (see button placement below). Shifted up 36px so
     // the button stays high on screen; the modal backdrop blocks input anyway.
-    const panelW = 320;
-    const panelH = is3Star ? 430 : 390;
+    const panelW = 334;
+    const panelH = is3Star ? 512 : 462;
     const px = (w - panelW) / 2;
     const py = (h - panelH) / 2 - 36;
     const cx = w / 2;
@@ -361,45 +377,38 @@ export class WinScreen {
       burst.anchor.set(0.5);
       burst.scale.set((panelH + 150) / burstTex.height);
       burst.x = cx; burst.y = py + panelH / 2;
-      burst.alpha = 0.92;
+      burst.tint = 0xFFD470;
+      burst.alpha = 0.5;
+      burst.blendMode = 'add';
       this._container.addChild(burst);
     }
 
-    const panel = new Graphics();
-    panel.roundRect(px, py, panelW, panelH, 20);
-    panel.fill({ color: 0x0d1a2e, alpha: 0.97 });
-    panel.roundRect(px, py, panelW, panelH, 20);
-    panel.stroke({ color: is3Star ? 0xffcc00 : 0x44aaff, width: 2, alpha: is3Star ? 0.80 : 0.45 });
-    this._container.addChild(panel);
+    const pnl = premiumPanel(panelW, panelH);
+    pnl.x = px; pnl.y = py;
+    this._container.addChild(pnl);
 
-    let y = py + 34;
-
-    // Title
-    const title      = is3Star ? 'PERFECT DEFENSE!' : 'LEVEL COMPLETE';
-    const titleColor = is3Star ? 0xffcc00 : 0x44ff88;
-    const titleSize  = is3Star ? 22 : 26;
-    const titleTxt = this._text(title, cx, y, { fontSize: titleSize, fill: titleColor,
-      dropShadow: is3Star ? { color: 0xff8800, blur: 18, distance: 0, alpha: 0.8 } : undefined });
-    // Clamp so the title keeps a clear gap from the top-right city-repair icon.
-    // Icon left edge sits at cx+98 (px+panelW-62); title is centred on cx, so the
-    // gap = 98 - titleWidth/2. For a ≥12px gap → titleWidth ≤ 172 = panelW-148.
-    // (Nudging the icon right instead would crowd it against the panel border.)
-    const titleMaxW = panelW - 148;   // ≈172px → ≥12px gap before the corner icon
-    this._titleBaseScale = (titleTxt.width > titleMaxW) ? (titleMaxW / titleTxt.width) : 1;
-    this._title  = titleTxt;
+    // Ribbon title across the top edge (pops in, then pulses — see update()).
+    const finale = typeof levelId === 'number' && levelId >= LEVEL_COUNT;
+    const title = finale ? ribbon('CITY SAVED!', 260, { size: 30 })
+      : ribbon(is3Star ? 'PERFECT!' : 'LEVEL COMPLETE', is3Star ? 220 : 270, { size: is3Star ? 32 : 26 });
+    title.x = cx; title.y = py + 2;
+    this._container.addChild(title);
+    this._titleBaseScale = 1;
+    this._title  = title;
     this._titleT = 0;
-    titleTxt.scale.set(this._titleBaseScale * 0.5);   // starts small → pops in (see update)
-    y += 48;
+    title.scale.set(0.5);
+
+    let y = py + 92;
 
     // Stars
     this._buildStars(cx, y, stars, audio);
-    y += 72;
+    y += 78;
 
     // Stat rows — smaller to stay within tighter panel
-    const ROW_H = 38, ROW_GAP = 6;
+    const ROW_H = 42, ROW_GAP = 8;
     this._coinCountTarget  = gs.coins;
     this._coinCountCurrent = 0;
-    this._coinValText      = this._statRow(px + 14, y, panelW - 28, ROW_H, 'COINS EARNED', '+0', 0xf5c842, { name: 'coin', emoji: '◆' });
+    this._coinValText      = this._statRow(px + 22, y, panelW - 44, ROW_H, 'COINS EARNED', '+0', 0xf5c842, { name: 'coin', emoji: '◆' });
 
     // City building repair mini-animation — top-right corner of panel.
     // §3e: ANY win repairs the level's building (→ repaired), matching the
@@ -407,33 +416,42 @@ export class WinScreen {
     // stars, repaired only at 3) contradicted the map — a 1-star win showed the
     // corner at scaffold while the map showed the same building repaired.
     this._cityBldTarget = 2;
-    this._buildCityAnim(px + panelW - 62, py + 12);
     y += ROW_H + ROW_GAP;
-    this._statRow(px + 14, y, panelW - 28, ROW_H, 'BEST MULTI-KILL', `×${gs.maxSingleShotKills}`, 0xff8844, { name: 'lightning', emoji: '⚡' });
+    // City repair row: the building graphic animates rubble → scaffold → repaired.
+    this._statRow(px + 22, y, panelW - 44, ROW_H, 'CITY REPAIRED', '', 0xffcc00, { name: 'trophy', emoji: '🏆' });
+    this._cityLevelId = typeof levelId === 'number' ? levelId : (gs.levelId ?? null);
+    this._buildCityAnim(px + panelW - 22 - 58, y - 1);
+    y += ROW_H + ROW_GAP;
+    // A multi-kill of 0 or 1 is not a stat worth celebrating — show shots instead.
+    if ((gs.maxSingleShotKills ?? 0) >= 2) {
+      this._statRow(px + 22, y, panelW - 44, ROW_H, 'BEST MULTI-KILL', `×${gs.maxSingleShotKills}`, 0xff8844, { name: 'lightning', emoji: '⚡' });
+    } else {
+      this._statRow(px + 22, y, panelW - 44, ROW_H, 'CARS DESTROYED', String(gs.totalKills ?? 0), 0xff8844, { name: 'explosion', emoji: '💥' });
+    }
     if (is3Star) {
       y += ROW_H + ROW_GAP;
-      this._statRow(px + 14, y, panelW - 28, ROW_H, 'PERFECT CLEAR', 'Flawless!', 0xffcc00, { name: 'star-filled', emoji: '★' });
+      this._statRow(px + 22, y, panelW - 44, ROW_H, 'PERFECT CLEAR', 'Flawless!', 0xffcc00, { name: 'star-filled', emoji: '★' });
     }
     // Advance past the last stat row to the BUTTON CENTER position.
     // _button() centers the button on this y, so we add the row body (ROW_H),
     // an 18px gap, and the button's half-height (27) → 18px clear gap above it.
-    y += ROW_H + 18 + 27;
+    y += ROW_H + 22 + 34;
 
     // Buttons — registered as pending, enabled after BUTTON_ENABLE_DELAY.
     // Normal levels: only NEXT LEVEL (no LEVEL SELECT on win — matches Royal Match pattern).
     // Daily challenge (onNext=null): LEVEL SELECT is the only exit.
     if (onNext) {
-      this._button('NEXT LEVEL ▶', cx, y, 0x1a6a3a, 0x55ff99,
+      this._button(finale ? 'TO THE MAP' : 'NEXT LEVEL', cx, y, 0x1a6a3a, 0x55ff99,
         () => { audio?.play('button_tap'); onNext(); }, true);
     } else {
       this._button('LEVEL SELECT', cx, y, 0x1a2a3a, 0x88bbdd,
         () => { audio?.play('button_tap'); onMenu(); }, false);
     }
-    y += 64;
+    y += 58;
 
     // Share button (always visible, non-critical) — [share icon] SHARE, centered
     const shareBtn = new Container();
-    const shareTxt = new Text({ text: 'SHARE', style: { fontSize: 14, fontWeight: 'bold', fill: 0x66aaff } });
+    const shareTxt = new Text({ text: 'SHARE', style: { fontSize: 15, fontWeight: '700', fill: 0x9FC8FF } });
     shareTxt.anchor.set(0, 0.5);
     const shareIco = uiIcon('share', 16, '📤');
     const shTot = 16 + 4 + shareTxt.width;
@@ -452,7 +470,7 @@ export class WinScreen {
   }
 
   _buildStars(cx, cy, count, audio) {
-    const R = 28, GAP = 14;
+    const R = 34, GAP = 10;
     const totalW = 3 * R * 2 + 2 * GAP;
     const x0 = cx - totalW / 2 + R;
     for (let i = 0; i < 3; i++) {
@@ -469,7 +487,8 @@ export class WinScreen {
           tint: filled ? undefined : STAR_EMPTY_TINT }));
       if (!filled) { g.scale.set(0.78); g.alpha = 0.5; }
       g.x = x0 + i * (R * 2 + GAP);
-      g.y = cy;
+      g.y = cy + (i === 1 ? -12 : 4);
+      if (i === 1) g.scale.set(filled ? 1.18 : 0.9);
       this._container.addChild(g);
       if (filled) {
         // Fly in from below with an easeOutBack bounce, 120ms each, 150ms stagger.
@@ -494,24 +513,23 @@ export class WinScreen {
   }
 
   _statRow(x, y, w, h, label, value, color, icon = null) {
-    const bg = new Graphics();
-    bg.roundRect(x, y, w, h, 8);
-    bg.fill({ color: 0x081420, alpha: 0.85 });
+    const bg = well(w, h);
+    bg.x = x; bg.y = y;
     this._container.addChild(bg);
 
     let lblX = x + 12;
     if (icon) {   // [icon] label — icon keeps natural colors
-      const sp = uiIcon(icon.name, 17, icon.emoji, { emojiFill: 0x7799aa });
-      sp.x = x + 12 + 9; sp.y = y + h / 2;
+      const sp = uiIcon(icon.name, 24, icon.emoji, { emojiFill: 0x7799aa });
+      sp.x = x + 14 + 12; sp.y = y + h / 2;
       this._container.addChild(sp);
-      lblX = x + 12 + 22;
+      lblX = x + 14 + 30;
     }
-    const lbl = new Text({ text: label, style: { fontSize: 13, fontWeight: 'bold', fill: 0x7799aa } });
+    const lbl = new Text({ text: label, style: { fontSize: 15, fontWeight: '700', fill: 0xD6D0F5 } });
     lbl.anchor.set(0, 0.5);
     lbl.x = lblX; lbl.y = y + h / 2;
     this._container.addChild(lbl);
 
-    const val = new Text({ text: value, style: { fontSize: 18, fontWeight: 'bold', fill: color } });
+    const val = new Text({ text: value, style: { fontSize: 22, fontWeight: '700', fill: color, stroke: { color: 0x1F1A33, width: 4, join: 'round' } } });
     val.anchor.set(1, 0.5);
     val.x = x + w - 12; val.y = y + h / 2;
     this._container.addChild(val);
@@ -548,8 +566,6 @@ export class WinScreen {
 
     // Background pill
     const pill = new Graphics();
-    pill.roundRect(0, 0, 52, 44, 8);
-    pill.fill({ color: 0x081420, alpha: 0.75 });
     grp.addChild(pill);
 
     // The building graphics object (redrawn on state change)
@@ -567,69 +583,64 @@ export class WinScreen {
     this._cityBldState = state;
     const g = this._cityBldGfx;
     g.clear();
+    // The level's own baked building (the one the map shows), when it's loaded;
+    // the little vector house otherwise.
+    const lv = this._cityLevelId;
+    const tex = typeof lv === 'number'
+      ? Assets.get(`${import.meta.env.BASE_URL}sprites/designed/repair-${worldForLevel(lv).theme}-${state}-${lv % 3}.png`)
+      : null;
+    if (tex) {
+      if (!this._cityBldSprite) {
+        this._cityBldSprite = new Sprite(tex);
+        this._cityBldSprite.anchor.set(0.5, 0.62);
+        this._cityBldSprite.x = 26; this._cityBldSprite.y = 20;
+        this._cityBldGfx.parent.addChild(this._cityBldSprite);
+      }
+      this._cityBldSprite.texture = tex;
+      this._cityBldSprite.scale.set(80 / Math.max(tex.width, tex.height));   // pops out of the row a little: it is the reward
+      if (state === 2) this._cityBldPop = 0;
+      return;
+    }
     WinScreen._drawBldGraphic(g, 40, 28, state);
   }
 
   static _drawBldGraphic(g, bw, bh, state) {
-    const bx = 0, by = 0;
+    // A little house: rubble → scaffolding → repaired with a red roof and lit
+    // windows. Drawn bright so it reads on the dark stat well.
+    const INKC = 0x1F1A33;
     if (state === 0) {
-      // Damaged — jagged roofline
-      g.moveTo(bx,       by + 9);
-      g.lineTo(bx + 5,   by + 4);
-      g.lineTo(bx + 12,  by + 8);
-      g.lineTo(bx + 18,  by);
-      g.lineTo(bx + 25,  by + 5);
-      g.lineTo(bx + 32,  by + 2);
-      g.lineTo(bx + bw,  by + 9);
-      g.lineTo(bx + bw,  by + bh);
-      g.lineTo(bx,       by + bh);
-      g.closePath();
-      g.fill({ color: 0x1e2530, alpha: 0.90 });
+      g.poly([0, bh, 0, 12, 7, 6, 13, 11, 20, 3, 27, 9, 34, 5, bw, 12, bw, bh]).fill(0x7A6A5C).stroke({ color: INKC, width: 2 });
+      g.rect(8, bh - 8, 6, 5).fill(0x4E4238); g.rect(24, bh - 11, 8, 4).fill(0x4E4238);
     } else if (state === 1) {
-      // Scaffolding — grey + yellow bars
-      g.rect(bx, by, bw, bh);
-      g.fill({ color: 0x2e3a48, alpha: 0.92 });
-      for (let i = 0; i < 3; i++) {
-        g.rect(bx, by + 3 + i * 8, bw, 2.5);
-        g.fill({ color: 0xf0a020, alpha: 0.90 });
-      }
+      g.rect(2, 8, bw - 4, bh - 8).fill(0x9AA1AD).stroke({ color: INKC, width: 2 });
+      for (let i = 0; i < 3; i++) g.rect(0, 10 + i * 6, bw, 2.5).fill(0xF0A020);
+      for (const x of [4, bw / 2 - 1, bw - 6]) g.rect(x, 6, 2, bh - 6).fill(0xF0A020);
     } else {
-      // Complete — lit facade with warm windows
-      g.rect(bx, by, bw, bh);
-      g.fill({ color: 0x4a6070, alpha: 0.95 });
-      for (let col = 0; col < 3; col++) {
-        for (let row = 0; row < 2; row++) {
-          g.circle(bx + 7 + col * 12, by + 6 + row * 12, 3);
-          g.fill({ color: 0xffe08a, alpha: 1.0 });
-        }
-      }
+      g.poly([-2, 11, bw / 2, 0, bw + 2, 11]).fill(0xE0574A).stroke({ color: INKC, width: 2 });
+      g.rect(3, 11, bw - 6, bh - 11).fill(0xF6EBD9).stroke({ color: INKC, width: 2 });
+      for (const x of [8, bw - 16]) g.roundRect(x, 15, 8, 7, 1.5).fill(0xFFD76A).stroke({ color: INKC, width: 1.2 });
+      g.roundRect(bw / 2 - 4, bh - 9, 8, 9, 1.5).fill(0x8A5A3B).stroke({ color: INKC, width: 1.2 });
     }
   }
 
   _button(label, cx, y, bgColor, labelColor, onClick, isNext = false) {
-    const btnW = 220, btnH = 54;
+    const btnW = 240, btnH = 66;
     if (isNext) {
       // Ready-glow halo behind the NEXT button (added first → renders behind it).
       const glow = new Graphics();
-      glow.roundRect(-btnW / 2 - 10, -btnH / 2 - 10, btnW + 20, btnH + 20, 18);
-      glow.fill({ color: labelColor, alpha: 0.40 });
+      glow.roundRect(-btnW / 2 - 10, -btnH / 2 - 8, btnW + 20, btnH + 18, 30);
+      glow.fill({ color: 0x9CFF6A, alpha: 0.45 });
       glow.x = cx; glow.y = y; glow.alpha = 0;
       this._container.addChild(glow);
       this._nextGlow = glow;
     }
-    const btn  = new Graphics();
-    btn.roundRect(-btnW / 2, -btnH / 2, btnW, btnH, 14);
-    btn.fill(bgColor);
-    btn.x         = cx;
-    btn.y         = y;
-    btn.alpha     = 0.35;   // starts dimmed until BUTTON_ENABLE_DELAY
+    const icon = isNext ? uiIcon('play', 26, '▶') : null;
+    const btn = premiumButton(label, { variant: isNext ? 'green' : 'blue', w: btnW, h: btnH, size: 28, icon,
+      onTap: () => { if (this._buttonsEnabled) onClick(); } });
+    btn.x = cx; btn.y = y;
+    btn.alpha = 0.35;       // starts dimmed until BUTTON_ENABLE_DELAY
     btn.eventMode = 'none'; // non-interactive until enabled
-
-    const t = new Text({ text: label, style: { fontSize: 22, fontWeight: 'bold', fill: labelColor } });
-    t.anchor.set(0.5, 0.5);
-    btn.addChild(t);
     this._container.addChild(btn);
-
     this._pendingButtons.push({ btn, onClick });
     if (isNext) this._nextBtn = btn;
   }

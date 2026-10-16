@@ -8,13 +8,14 @@
 //   const s = new BoosterSpotlight(stage, appW, appH, 'swap', () => resume());
 //   // call s.update(dt) each frame; tap anywhere auto-calls onDismiss.
 import { Container, Graphics, Text } from 'pixi.js';
+import { KILLS_PER_BOMB } from '../director/DirectorConfig.js';
 import { BAR_Y } from '../renderer/BoosterBar.js';
 
 // ── Booster metadata ──────────────────────────────────────────────────────────
 const BOOSTER_INFO = {
   swap:   { label: 'SWAP UNLOCKED!',   desc: 'Exchange two\nbomb columns',             color: 0x66aaff },
   freeze: { label: 'FREEZE UNLOCKED!', desc: 'Your next shot:\ncars don\'t advance',      color: 0x44ccff },
-  bomb:   { label: 'BOMB READY!',      desc: 'Earned by killing 10 cars\ntap to blast!', color: 0xff8844 },
+  bomb:   { label: 'BOMB READY!',      desc: `Earned by killing ${KILLS_PER_BOMB} cars\ntap to blast!`, color: 0xff8844 },
 };
 
 // Button centres in screen px — matches new 52×52 icon card layout in BoosterBar.

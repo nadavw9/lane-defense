@@ -81,12 +81,11 @@ describe('generateShooter', () => {
     }
   })
 
-  it('damage is within valid range [2, 8]', () => {
+  it('every bomb is exactly one hit', () => {
     const d = makeDirector(3)
     for (let i = 0; i < 200; i++) {
       const s = d.generateShooter(makeColumn(), makeState(), STANDARD_PHASE)
-      expect(s.damage).toBeGreaterThanOrEqual(2)
-      expect(s.damage).toBeLessThanOrEqual(8)
+      expect(s.damage).toBe(1)
     }
   })
 
@@ -152,33 +151,6 @@ describe('generateShooter', () => {
     })
   })
 
-  describe('damage distribution by skew', () => {
-    it('hard skew produces lower average damage than easy skew', () => {
-      const avgDamage = (skew, seed = 77) => {
-        const d = makeDirector(seed)
-        const phase = { damageSkew: skew, spawnCooldown: { min: 1, max: 2 } }
-        let sum = 0
-        const SAMPLES = 500
-        for (let i = 0; i < SAMPLES; i++) sum += d.generateShooter(makeColumn(), makeState(), phase).damage
-        return sum / SAMPLES
-      }
-      expect(avgDamage('hard')).toBeLessThan(avgDamage('easy'))
-    })
-
-    it('standard skew average is between hard and easy', () => {
-      const avg = (skew) => {
-        const d = makeDirector(11)
-        const phase = { damageSkew: skew, spawnCooldown: { min: 1, max: 2 } }
-        let sum = 0
-        for (let i = 0; i < 500; i++) sum += d.generateShooter(makeColumn(), makeState(), phase).damage
-        return sum / 500
-      }
-      const hard = avg('hard'), std = avg('standard'), easy = avg('easy')
-      expect(std).toBeGreaterThan(hard)
-      expect(std).toBeLessThan(easy)
-    })
-  })
-
   it('fairness arbiter is applied (real arbiter fixes FR-1 violation)', () => {
     // All front cars: Green. All existing tops: Blue. Candidate: Blue.
     // FR-1 should fire and set color to Green.
@@ -206,76 +178,6 @@ describe('generateShooter', () => {
 })
 
 // ─── createDepthBait ─────────────────────────────────────────────────────────
-
-describe('createDepthBait', () => {
-  it('returns baitShooter and rewardShooter', () => {
-    const d = makeDirector()
-    const { baitShooter, rewardShooter } = d.createDepthBait(makeColumn(), makeState())
-    expect(baitShooter).toBeInstanceOf(Shooter)
-    expect(rewardShooter).toBeInstanceOf(Shooter)
-  })
-
-  it('baitShooter damage is in [2, 3]', () => {
-    const d = makeDirector(1)
-    for (let seed = 0; seed < 50; seed++) {
-      const dir = makeDirector(seed)
-      const { baitShooter } = dir.createDepthBait(makeColumn(), makeState())
-      expect(baitShooter.damage).toBeGreaterThanOrEqual(2)
-      expect(baitShooter.damage).toBeLessThanOrEqual(3)
-    }
-  })
-
-  it('rewardShooter damage is in [6, 8]', () => {
-    for (let seed = 0; seed < 50; seed++) {
-      const dir = makeDirector(seed)
-      const { rewardShooter } = dir.createDepthBait(makeColumn(), makeState())
-      expect(rewardShooter.damage).toBeGreaterThanOrEqual(6)
-      expect(rewardShooter.damage).toBeLessThanOrEqual(8)
-    }
-  })
-
-  it('both shooters have the correct column id', () => {
-    const col = makeColumn(3)
-    const d   = makeDirector()
-    const { baitShooter, rewardShooter } = d.createDepthBait(col, makeState())
-    expect(baitShooter.column).toBe(3)
-    expect(rewardShooter.column).toBe(3)
-  })
-
-  it('rewardShooter color matches a current front-car color when possible', () => {
-    // Front cars are all Red; reward should tend toward Red
-    const state = makeState({
-      laneSpecs: [
-        { color: 'Red', pos: 50 }, { color: 'Red', pos: 40 },
-        { color: 'Red', pos: 30 }, { color: 'Red', pos: 20 },
-      ],
-    })
-    let redCount = 0
-    for (let seed = 0; seed < 50; seed++) {
-      const { rewardShooter } = makeDirector(seed).createDepthBait(makeColumn(), state)
-      if (rewardShooter.color === 'Red') redCount++
-    }
-    // Majority should match front-car color
-    expect(redCount).toBeGreaterThan(30)
-  })
-
-  it('bait damage is strictly less than reward damage', () => {
-    for (let seed = 0; seed < 50; seed++) {
-      const { baitShooter, rewardShooter } = makeDirector(seed).createDepthBait(makeColumn(), makeState())
-      expect(baitShooter.damage).toBeLessThan(rewardShooter.damage)
-    }
-  })
-
-  it('bait color is from the palette', () => {
-    const d = makeDirector(9)
-    for (let i = 0; i < 100; i++) {
-      const { baitShooter } = d.createDepthBait(makeColumn(), makeState())
-      expect(PALETTE).toContain(baitShooter.color)
-    }
-  })
-})
-
-// ─── triggerCrisis ────────────────────────────────────────────────────────────
 
 describe('triggerCrisis', () => {
   // Build a state where the car is at 75% of the lane
@@ -342,7 +244,7 @@ describe('triggerCrisis', () => {
     expect(result.shooter.color).toBe('Red') // front car color in dangerState
   })
 
-  it('when triggered, shooter damage is >= CRISIS.minimumDamageOnAssist (5)', () => {
+  it('when triggered, the assist bomb is a normal one-hit bomb', () => {
     let result = null
     for (let seed = 0; seed < 100 && result === null; seed++) {
       const d = makeDirector(seed)
@@ -350,7 +252,7 @@ describe('triggerCrisis', () => {
       result = d.triggerCrisis(dangerState())
     }
     expect(result).not.toBeNull()
-    expect(result.shooter.damage).toBeGreaterThanOrEqual(CRISIS.minimumDamageOnAssist)
+    expect(result.shooter.damage).toBe(1)
   })
 
   it('when triggered, returns the correct dangerous lane', () => {
@@ -447,14 +349,13 @@ describe('fillColumns', () => {
     expect(col.shooters.length).toBe(COLUMN_DEPTH)
   })
 
-  it('all generated shooters have valid damage [2, 8]', () => {
+  it('all generated shooters are one-hit bombs', () => {
     const columns = [0, 1, 2, 3].map(i => makeColumn(i))
     const state   = makeState(); state.columns = columns
     makeDirector(5).fillColumns(columns, state, STANDARD_PHASE)
     for (const col of columns) {
       for (const s of col.shooters) {
-        expect(s.damage).toBeGreaterThanOrEqual(2)
-        expect(s.damage).toBeLessThanOrEqual(8)
+        expect(s.damage).toBe(1)
       }
     }
   })
@@ -465,43 +366,6 @@ describe('fillColumns', () => {
     makeDirector(8).fillColumns(columns, state, STANDARD_PHASE)
     for (const col of columns) {
       for (const s of col.shooters) expect(PALETTE).toContain(s.color)
-    }
-  })
-
-  it('depth-bait pairs appear within the column after enough refills', () => {
-    // Fill and consume repeatedly until a bait pair is injected.
-    // Bait appears every 3–5 shooters, so ≤10 fills should produce one.
-    const col   = makeColumn(0)
-    const state = makeState(); state.columns = [col, makeColWith('Blue',5,1), makeColWith('Green',5,2), makeColWith('Yellow',5,3)]
-    const d     = makeDirector(42)
-
-    let foundBait = false
-    for (let round = 0; round < 10 && !foundBait; round++) {
-      // Drain the column
-      while (col.top()) col.consume()
-      // Refill
-      d.fillColumns([col], state, STANDARD_PHASE)
-      // Check for a damage-2-or-3 shooter followed by damage-6-8
-      const dmgs = col.shooters.map(s => s.damage)
-      for (let i = 0; i < dmgs.length - 1; i++) {
-        if (dmgs[i] <= 3 && dmgs[i + 1] >= 6) { foundBait = true; break }
-      }
-    }
-    expect(foundBait).toBe(true)
-  })
-
-  it('depth-bait threshold is always within DEPTH_BAIT.frequencyRange [3, 5]', () => {
-    // After fillColumns, _nextBaitAt holds the freshly-set threshold for the
-    // NEXT refill cycle. It must always be in the [3, 5] spec range regardless of seed.
-    for (let seed = 0; seed < 50; seed++) {
-      const col   = makeColumn(0)
-      const state = makeState()
-      state.columns = [col, makeColWith('Blue',5,1), makeColWith('Green',5,2), makeColWith('Yellow',5,3)]
-      const d = makeDirector(seed)
-      d.fillColumns([col], state, STANDARD_PHASE)
-      const threshold = d._nextBaitAt[col.id]
-      expect(threshold).toBeGreaterThanOrEqual(DEPTH_BAIT.frequencyRange[0])
-      expect(threshold).toBeLessThanOrEqual(DEPTH_BAIT.frequencyRange[1])
     }
   })
 })

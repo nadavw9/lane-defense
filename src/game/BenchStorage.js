@@ -11,9 +11,13 @@ export class BenchStorage {
   // Returns the shooter in slot i, or null if the slot is empty.
   getSlot(i) { return this._slots[i] ?? null; }
 
-  // Store a shooter in the first empty slot.
-  // Returns the slot index used, or -1 if all slots are occupied.
-  store(shooter) {
+  // Store a shooter. `preferred` is the slot the player released over: it is used when
+  // empty, otherwise the first empty slot. Returns the slot index used, or -1 when full.
+  store(shooter, preferred = -1) {
+    if (preferred >= 0 && preferred < this._size && !this._slots[preferred]) {
+      this._slots[preferred] = shooter;
+      return preferred;
+    }
     for (let i = 0; i < this._size; i++) {
       if (!this._slots[i]) {
         this._slots[i] = shooter;

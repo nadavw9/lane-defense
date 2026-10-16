@@ -66,7 +66,6 @@ export function bombUrl(color) {
 const SLOT_BG    = 0x2A2540;
 const SLOT_EDGE  = INK;
 const HI_COLOR   = 0x44aaff;
-const HI_ALPHA   = 0.35;
 
 // Shooter color → hex for glow tint on occupied slots.
 const GLOW_MAP = {
@@ -91,6 +90,7 @@ export class BenchRenderer {
     this.draggingSlot = -1;
 
     this._highlight = -1;   // slot to draw blue ring on (-1 = none)
+    this._highlightValid = true;
     this._visible   = true; // hidden before bench unlocks (L6+)
 
     // Solid tray panel behind all slots — added first so it renders BEHIND the
@@ -141,8 +141,10 @@ export class BenchRenderer {
 
   // DragDrop calls this during drag to mark which empty slot is being targeted.
   // Pass -1 to clear all highlights.
-  setHighlight(slotIdx) {
+  // `valid` false = the drop would be refused (red instead of the ready glow).
+  setHighlight(slotIdx, valid = true) {
     this._highlight = slotIdx;
+    this._highlightValid = valid;
   }
 
   // Returns the centre (x, y) of bench slot i — used for fly-to animations.
@@ -198,12 +200,21 @@ export class BenchRenderer {
       g.roundRect(sx, BENCH_Y, sw, BENCH_SLOT_H, 7);
       g.fill({ color: SLOT_BG, alpha: bgAlpha });
 
-      // Border: blue highlight when this is the drop target, grey otherwise
-      if (this._highlight === i && isEmpty) {
+      // Border: ink edge, or the drop-target glow on the slot the bomb will land in.
+      const isTarget = this._highlight === i && (isEmpty || !this._highlightValid);
+      if (isTarget) {
+        const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 140);
+        const col   = this._highlightValid ? HI_COLOR : 0xFF4D4D;
+        // Lit well, then a crisp inner edge exactly on the slot outline, then a soft halo
+        // fading outward. All three share the slot's rounded rect so the lines stay true.
         g.roundRect(sx, BENCH_Y, sw, BENCH_SLOT_H, 7);
-        g.fill({ color: HI_COLOR, alpha: 0.12 });
+        g.fill({ color: col, alpha: 0.16 + 0.08 * pulse });
+        g.roundRect(sx - 3, BENCH_Y - 3, sw + 6, BENCH_SLOT_H + 6, 10);
+        g.stroke({ color: col, width: 2, alpha: 0.18 + 0.12 * pulse });
+        g.roundRect(sx - 1.5, BENCH_Y - 1.5, sw + 3, BENCH_SLOT_H + 3, 8.5);
+        g.stroke({ color: col, width: 2, alpha: 0.35 + 0.2 * pulse });
         g.roundRect(sx, BENCH_Y, sw, BENCH_SLOT_H, 7);
-        g.stroke({ color: HI_COLOR, width: 2, alpha: HI_ALPHA });
+        g.stroke({ color: 0xFFFFFF, width: 2, alpha: 0.85 });
       } else {
         g.roundRect(sx, BENCH_Y, sw, BENCH_SLOT_H, 7);
         g.stroke({ color: SLOT_EDGE, width: 2, alpha: borderAlph });
@@ -252,7 +263,7 @@ export class BenchRenderer {
         const r = Math.min(BENCH_SLOT_H * 0.36, 15);
         g.circle(cx, cy, r).fill({ color: 0x0C0A26, alpha: 0.75 });
         g.circle(cx, cy + 1.5, r - 1.5).stroke({ color: 0xFFFFFF, width: 1.2, alpha: 0.08 });
-        g.circle(cx, cy, r).stroke({ color: 0x4E4890, width: 2 });
+        g.circle(cx, cy, r).stroke({ color: (isTarget && this._highlightValid) ? 0xBFE3FF : 0x4E4890, width: 2 });
         g.rect(cx - r * 0.38, cy - 1, r * 0.76, 2).fill({ color: 0x7A74B0, alpha: 0.8 });
         g.rect(cx - 1, cy - r * 0.38, 2, r * 0.76).fill({ color: 0x7A74B0, alpha: 0.8 });
         this._texts[i].visible = false;

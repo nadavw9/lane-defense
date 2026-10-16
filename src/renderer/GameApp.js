@@ -1081,10 +1081,11 @@ async function main() {
             // The cards open at 1.5 s; queue the bench spotlight behind them.
             const _startBench = () => tutOrch?.start({
               id:        'bench',
-              text:      'The BENCH has 4 slots: drag a bomb here to keep it for later, and drag it back out when you need its colour!',
+              text:      'Drag a bomb down into the BENCH to save it for later.',
               bounds:    () => ({ x: 12, y: benchY(), w: APP_W - 24, h: benchSlotH() }),
-              handStart: { x: 195, y: benchY() - 70 },
-              handEnd:   { x: 195, y: benchY() + benchSlotH() / 2 - 8 },
+              // The hand shows the real gesture: from a bomb in the queue to an empty bench slot.
+              handStart: shooterRenderer.getQueueSlotCenter(1, 0),
+              handEnd:   { x: benchRenderer.getSlotCenter(1).x, y: benchRenderer.getSlotCenter(1).y - 8 },
               pauseGame: true,
             });
             setTimeout(() => {
@@ -2066,7 +2067,7 @@ async function main() {
     // spotlight stayed over the win screen and into the next level's card.
     if (!gs.isOver && !(gs.goals.length > 0 && gs.isGoalMet()) && !currentLevelIsDaily && reactiveAllowed('bomb_earned', levelManager.levelNumber)) tutOrch?.start({
       id:        'bomb',
-      text:      '💣 BOMB earned — tap it, then tap a lane to blast every car on it!',
+      text:      'BOMB earned! Tap it, then tap a lane.',
       bounds:    () => { const b = boosterBar?._bombBtn?.getBounds(); return b ? { x: b.x, y: b.y, w: b.width, h: b.height } : { x: 235, y: 764, w: 72, h: 77 }; },
       pauseGame: true,
     });
@@ -2551,6 +2552,7 @@ async function main() {
         pauseBtn: pauseBtn.visible, boosters: { colorChange: boosterState.colorChange, freeze: boosterState.freeze, bombs: boosterState.bombs },
         inventory: progress.getInventory(), coins: progress.coins }),
       getBoosterState: () => boosterState,
+      getBench: () => Array.from({ length: benchStorage.size }, (_, i) => benchStorage.getSlot(i)?.color ?? null),
       startDaily: () => { [titleScreen, levelSelectScreen, winScreen].forEach(x => x?.destroy()); titleScreen = levelSelectScreen = winScreen = null; startDailyChallenge(); },
       stageTop: (x, y) => {
         const hit = app.renderer.events.rootBoundary.hitTest(x, y);

@@ -68,10 +68,16 @@ gate = """    <script>
       })();
     </script>
 """ % src
-s = s.replace(mod.group(0), gate, 1)
-s = s.replace('    <script>', shim + '    <script>', 1) if False else s
-s = s.replace(gate, shim + gate, 1)
-open(p, 'w').write(s)
+if os.environ.get('NO_GATE'):
+    # Friends build: no QA overlay, straight to the title screen (storage shim only).
+    s = s.replace(mod.group(0), shim + mod.group(0), 1)
+    open(p, 'w').write(s)
+    gate = None
+else:
+  s = s.replace(mod.group(0), gate, 1)
+if gate is not None:
+  s = s.replace(gate, shim + gate, 1)
+  open(p, 'w').write(s)
 files = []
 for root, _, fs in os.walk(out):
     for f in fs:

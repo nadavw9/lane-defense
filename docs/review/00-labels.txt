@@ -1,1 +1,2 @@
-01=first FREEZE earned in L1: centre card, gold ring on booster bar (colour change identical)
+01=L4 step 1: SUPERCHARGE card alone, no hand
+02=L4 step 2 (after GOT IT): bench spotlight with its own caption, hand drags a bomb to the bench

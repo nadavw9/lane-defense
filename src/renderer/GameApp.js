@@ -1076,8 +1076,10 @@ async function main() {
             });
           } else {
             gameLoop.resume();
-            // L4 bench tutorial
-            tutOrch?.start({
+            // L4 bench tutorial. It must NOT overlap the level's start card (SUPERCHARGE): the
+            // bench hand floated over the bombs while the card talked about something else.
+            // The cards open at 1.5 s; queue the bench spotlight behind them.
+            const _startBench = () => tutOrch?.start({
               id:        'bench',
               text:      'The BENCH has 4 slots: drag a bomb here to keep it for later, and drag it back out when you need its colour!',
               bounds:    () => ({ x: 12, y: benchY(), w: APP_W - 24, h: benchSlotH() }),
@@ -1085,6 +1087,11 @@ async function main() {
               handEnd:   { x: 195, y: benchY() + benchSlotH() / 2 - 8 },
               pauseGame: true,
             });
+            setTimeout(() => {
+              if (gs.isOver || levelManager.levelNumber !== levelId) return;
+              // done() first (it resumes the loop when the queue empties), then the tutorial pauses again.
+              _enqueueModal((done) => { done(); if (!gs.isOver) _startBench(); });
+            }, 1650);
           }
         },
       });

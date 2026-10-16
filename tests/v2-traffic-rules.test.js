@@ -62,13 +62,14 @@ describe('Hot Streak supercharged shot', () => {
     expect(combat.resolve({ color: 'Red', damage: 3 }, mk(), { power: true }).kills).toBe(3);
   });
 
-  it('streak charges on every 3rd destroyed car, a non-kill hit leaves it alone, the charge is spent by one shot', () => {
+  it('streak charges after 3 destroying shots IN A ROW; a shot that destroys nothing breaks the run', () => {
     let s = { streak: 0, charged: false };
     s = nextStreak(s.streak, s.charged, 1, false); expect(s).toEqual({ streak: 1, charged: false });
-    s = nextStreak(s.streak, s.charged, 2, false); expect(s).toEqual({ streak: 2, charged: false });
+    s = nextStreak(s.streak, s.charged, 2, false); expect(s).toEqual({ streak: 2, charged: false });   // a multi-kill is ONE step
+    s = nextStreak(s.streak, s.charged, 0, false); expect(s).toEqual({ streak: 0, charged: false });   // shrink-only hit resets
+    s = nextStreak(s.streak, s.charged, 1, false); s = nextStreak(s.streak, s.charged, 1, false);
     s = nextStreak(s.streak, s.charged, 1, false); expect(s).toEqual({ streak: 0, charged: true });
-    s = nextStreak(s.streak, s.charged, 0, true);  expect(s).toEqual({ streak: 0, charged: false });
-    s = nextStreak(1, false, 0, false);            expect(s).toEqual({ streak: 1, charged: false });
+    s = nextStreak(s.streak, s.charged, 0, true);  expect(s).toEqual({ streak: 0, charged: false });   // the charge is spent by one shot
   });
 });
 

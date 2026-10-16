@@ -77,7 +77,7 @@ describe('in-play teaching windows', () => {
       for (const k of levelStartCards(l)) { taught.add(k); firstTaught[k] ??= l; }
       for (const [k, [a, b]] of Object.entries(REACTIVE_WINDOW)) if (l >= a && l <= b) { taught.add(k); firstTaught[k] ??= l; }
     }
-    for (const k of ['lane_2', 'lane_3', 'multi_color', 'combo', 'supercharge', 'reorder', 'goal_colour',
+    for (const k of ['lane_2', 'lane_3', 'multi_color', 'combo', 'supercharge', 'goal_colour',
       'freeze_booster', 'colour_change_booster', 'rainbow_bomb', 'first_kill', 'first_miss', 'hp_miss', 'streak_charged', 'armor_break'])
       expect(firstTaught[k], k).toBeLessThanOrEqual(11);
   });

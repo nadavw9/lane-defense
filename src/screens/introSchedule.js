@@ -14,7 +14,6 @@ export const LEVEL_START_CARDS = {
   2:  ['lane_2', 'multi_color', 'combo'],
   3:  ['lane_3'],
   4:  ['supercharge'],
-  5:  ['reorder'],
   6:  ['goal_colour'],
   8:  ['freeze_booster'],
   9:  ['colour_change_booster'],

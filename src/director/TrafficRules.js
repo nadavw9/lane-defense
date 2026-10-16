@@ -181,12 +181,14 @@ export function applyTrait(car, trait, rng, palette) {
  */
 export function nextStreak(streak, charged, kills, usedCharge) {
   if (usedCharge) charged = false;
-  // Every 3rd car destroyed charges the next bomb. A hit that only shrinks a car
-  // neither adds to nor breaks the count: with multi-hit cars a reset would make the
-  // charge nearly unreachable.
+  // Three shots IN A ROW that each destroy a car charge the next bomb. A shot that
+  // destroys nothing (wrong colour, or a hit that only shrinks a car) breaks the run.
+  // A multi-kill shot still counts as ONE step.
   if (kills > 0) {
     streak += 1;
     if (streak >= STREAK_TO_CHARGE) { charged = true; streak = 0; }
+  } else if (!usedCharge) {
+    streak = 0;
   }
   return { streak, charged };
 }

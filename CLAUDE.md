@@ -16,7 +16,7 @@ Route mechanical spec-execution to cheaper models; reserve Fable/Opus for design
 Bombs are exactly one hit and carry no number. A car's HP is its size: van 3 -> car 2 -> motorbike 1,
 each matching hit shrinks it one rung. Every correct shot still advances traffic, in HALF-row steps
 (`STEPS_PER_ROW = 2`, `TrafficRules.stepSize`). Bosses are gone (big-wave levels instead, `milestone: true`).
-Streak = every 3rd destroyed car. Mender heals one rung per two quiet moves. All 100 levels are sim-tuned
+Streak = 3 shots IN A ROW that each destroy a car (a shot that destroys nothing resets it; a multi-kill is one step). There is NO queue reorder/swap (removed 2026-10-16); the bench is the only queue action. Retuned after both changes. Mender heals one rung per two quiet moves. All 100 levels are sim-tuned
 via `node tools/tune-levels.mjs 1-100 300 --write` (writes `src/game/lateTuning.js`; L1-40 overlay is applied in
 `LevelManager`). Design and numbers: `docs/ONE_HIT_MODEL.md`. Anything below that talks about bomb
 damage numbers, boss levels (L10/20/30/40 as bosses), FR-3/FR-4 or the BOMB booster's boss rule describes the
@@ -37,7 +37,7 @@ level 1 does not stare at black.
 ### TEACHING IS HARD-CODED TO FIXED LEVELS (2026-10-14) — never "first time the player meets X"
 
 `src/screens/introSchedule.js` is the single schedule. `LEVEL_START_CARDS` (L2 lane/colour/combo, L3 lanes, L4
-supercharge, L5 reorder, L6 colour goal, L8 FREEZE, L9 COLOUR CHANGE, L10 RAINBOW; L1 = the tour; L4 bench =
+supercharge, L6 colour goal, L8 FREEZE, L9 COLOUR CHANGE, L10 RAINBOW; L1 = the tour; L4 bench =
 spotlight tutorial) open that level. `REACTIVE_WINDOW` lets in-play moments (first kill, wrong colour, power shot,
 armour/plate/mender/volatile) fire ONLY inside their level window, so a save that unlocks L30 is never taught late.
 Copy is `CARDS` in `guideContent.js`. `tests/intro-schedule.test.js` pins all of it, including that the visual fixtures

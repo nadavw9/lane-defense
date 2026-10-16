@@ -30,7 +30,7 @@ Status: IMPLEMENTED on branch `feat/one-hit-model` (owner-approved direction 202
    (`STEPS_PER_ROW = 2`). Road length, car size and spawn spacing (one car length) are unchanged.
    Speeders move two steps. Breach when `row > gridRows - 1`. Legacy `stepsPerRow = 1` is the default
    for configs that do not opt in (tests, old sims); every level and the daily challenge opt in.
-4. Hot Streak: every 3rd car you destroy charges the next bomb. The charged bomb hits TWICE and
+4. Hot Streak: destroy a car with 3 shots in a row (a non-destroying shot resets the run) and the next bomb is charged. The charged bomb hits TWICE and
    carries through any colour (resolver support unchanged). A hit that only shrinks a car neither adds
    to nor breaks the count.
 5. Traits keep their rules, with one change: a mender repairs ONE rung after TWO traffic moves

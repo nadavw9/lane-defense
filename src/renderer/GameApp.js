@@ -881,10 +881,10 @@ async function main() {
     adManager.resetForLevel();
 
     applyLevelConfig(cfg);
-    // Queue-reorder unlock gate (L5+): set the 1-indexed level on GameState. Daily
-    // uses a high id so the advanced daily challenge always has reorder enabled.
+    // Bench-return unlock gate (L5+): set the 1-indexed level on GameState. Daily
+    // uses a high id so the advanced daily challenge always has bench-return enabled.
     gs.levelId = (typeof levelId === 'number') ? levelId : 99;
-    dragDrop.setReorderEnabled((typeof levelId === 'number' ? levelId : 99) >= 5);
+    dragDrop.setBenchReturnEnabled((typeof levelId === 'number' ? levelId : 99) >= 5);
     dragDrop.setGridRows(gs.gridRows);   // board depth drives the BOMB front-row tap margin
     // Use levelNumber for normal levels; 'D' label for daily challenge.
     hudRenderer.setLevel(currentLevelIsDaily ? 'D' : levelManager.levelNumber);
@@ -2227,8 +2227,6 @@ async function main() {
         tutOrch?.completeIfActive('bench');
         progress.markSeenUnlock(4);   // the L4 bench tutorial has done its job
         // Column refills automatically via ShooterDirector next tick.
-      },
-      onReorder: (_srcCol, _srcRow, _tgtCol, _tgtRow) => {
       },
       onColorMismatch: () => {
         audio.play('hit_miss');

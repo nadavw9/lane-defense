@@ -142,7 +142,6 @@ export class DragDrop {
   //   onDeploy(colIdx, laneIdx)
   //   onDeployFromBench(shooter, laneIdx)
   //   onBenchStore(colIdx)
-  //   onReorder(sourceColIdx, sourceRow, targetColIdx, targetRow)  — queue reorder (L5+)
   //   onColorMismatch()
   //   onBenchFull()
   //   onLaneHover(laneIdx, colorHex)  — 3D road lane glow
@@ -157,7 +156,7 @@ export class DragDrop {
     shooterRenderer,
     benchRenderer,
     { onDeploy, onDeployFromBench, onBenchStore, onColorMismatch, onBenchFull, onBombPlaced,
-      onLaneHover, onLaneClear, getColorBombArmed, onColumnPickup, onColorChangeTap, onReorder,
+      onLaneHover, onLaneClear, getColorBombArmed, onColumnPickup, onColorChangeTap,
       isShotInFlight } = {},
     boosterState = null,
     _unused = null,
@@ -181,8 +180,7 @@ export class DragDrop {
     this._onColorChangeTap  = onColorChangeTap   ?? (() => {});
     this._onLaneHover       = onLaneHover        ?? (() => {});
     this._onLaneClear       = onLaneClear        ?? (() => {});
-    this._onReorder         = onReorder          ?? (() => {});
-    this._getColorBombArmed = getColorBombArmed  ?? null;
+        this._getColorBombArmed = getColorBombArmed  ?? null;
     // Returns true to INTERCEPT a column-top pickup (e.g. show a modal tutorial
     // card first) — the drag does not start in that case.
     this._onColumnPickup    = onColumnPickup     ?? (() => false);
@@ -191,11 +189,11 @@ export class DragDrop {
     // GameLoop also refuses a deploy while a shot waits out its hit-stop (firingSlots is
     // already clear then), so the input guard must ask the loop, not just the slots.
     this._isShotInFlight = isShotInFlight ?? (() => false);
-    this._reorderEnabled = false;   // L5+ queue-reorder / bench-return gate
+    this._benchReturnEnabled = false;   // L5+ bench-return gate
     // Board depth for the current level — drives the BOMB-booster front-row tap
     // margin (frontRowTapMargin), which is half a ROW interval and therefore
     // depends on how many rows the board has. Set per level by GameApp
-    // (setGridRows), same pattern as setReorderEnabled. Defaults to the 16-row
+    // (setGridRows), same pattern as setBenchReturnEnabled. Defaults to the 16-row
     // standard so any un-set path behaves exactly as before.
     this._gridRows = 16;
 
@@ -245,8 +243,8 @@ export class DragDrop {
 
   // ── Public API ─────────────────────────────────────────────────────────────
 
-  setReorderEnabled(enabled) {
-    this._reorderEnabled = !!enabled;
+  setBenchReturnEnabled(enabled) {
+    this._benchReturnEnabled = !!enabled;
   }
 
   // Board depth for the current level — see this._gridRows in the constructor.
@@ -291,19 +289,8 @@ export class DragDrop {
       return;
     }
 
-    // Queue slots are closer together (~42px) than the pickup radius (48px), so
-    // "first slot within radius" always grabbed the TOP bomb when the player
-    // pressed the 2nd one (and the 2nd when they pressed the 3rd): reorder could
-    // never move the bomb the player touched. Resolve to the NEAREST slot first.
+    // Only the TOP bomb of a column can be picked up: the queue cannot be reordered.
     const nearest = this._hitTestQueueSlot(x, y);
-    if (nearest && nearest.row > 0 && this._reorderEnabled && this._columns[nearest.col].shooters[nearest.row]) {
-      const { col: qCol, row: qRow } = nearest;
-      const shooter = this._columns[qCol].shooters[qRow];
-      if (this._onColumnPickup(shooter)) return;
-      const { x: cx, y: cy } = this._shooterRenderer.getQueueSlotCenter(qCol, qRow);
-      this._startDrag('column', qCol, qRow, shooter, cx, cy, x, y);
-      return;
-    }
 
     const col = nearest ? nearest.col : this._hitTestColumn(x, y);
 
@@ -313,21 +300,6 @@ export class DragDrop {
       if (this._onColumnPickup(shooter)) return;
       this._startDrag('column', col, 0, shooter, x, y, x, y);
       return;
-    }
-
-    // Queue reorder (L5+): hit-test any queue slot
-    if (this._reorderEnabled) {
-      const queueHit = this._hitTestQueueSlot(x, y);
-      if (queueHit !== null) {
-        const { col: qCol, row: qRow } = queueHit;
-        const shooter = this._columns[qCol].shooters[qRow];
-        if (shooter && this._onColumnPickup(shooter)) return;
-        if (shooter) {
-          const { x: cx, y: cy } = this._shooterRenderer.getQueueSlotCenter(qCol, qRow);
-          this._startDrag('column', qCol, qRow, shooter, cx, cy, x, y);
-          return;
-        }
-      }
     }
 
     const slot = this._benchRenderer?.hitTestSlot(x, y) ?? -1;
@@ -383,22 +355,6 @@ export class DragDrop {
     // own slot 0" and snapped back, or returned a bench bomb to the queue.
     const onRoad = y >= ROAD_TOP_Y && y <= ROAD_BOTTOM_Y;
 
-    // ── Reorder (L5+): drag queue slot to another queue slot ────────────────
-    if (!onRoad && this._dragSource === 'column' && this._reorderEnabled && this._dragSourceRow >= 0) {
-      const targetQueue = this._hitTestQueueSlot(x, y);
-      if (targetQueue !== null) {
-        const { col: tCol, row: tRow } = targetQueue;
-        // Check if source == target (no-op snap back)
-        if (this._dragSourceIdx === tCol && this._dragSourceRow === tRow) {
-          this._snapBack();
-          return;
-        }
-        // Valid reorder drop
-        this._handleQueueReorder(this._dragSourceIdx, this._dragSourceRow, tCol, tRow);
-        return;
-      }
-    }
-
     // ── Top bomb only: drag top to bench ────────────────────────────────────
     if (this._dragSource === 'column' && this._dragSourceRow === 0 && this._hitTestBenchArea(x, y)) {
       this._handleBenchDrop();
@@ -406,7 +362,7 @@ export class DragDrop {
     }
 
     // ── Bench → Queue return (L5+): drag bench bomb to a queue column ────────
-    if (!onRoad && this._dragSource === 'bench' && this._reorderEnabled) {
+    if (!onRoad && this._dragSource === 'bench' && this._benchReturnEnabled) {
       const queueHit = this._hitTestQueueSlot(x, y);
       if (queueHit !== null) {
         const { col: tCol } = queueHit;
@@ -580,65 +536,6 @@ export class DragDrop {
     if (this._boosterState) this._boosterState.queueActionUsed = true;
   }
 
-  _handleQueueReorder(srcCol, srcRow, tgtCol, tgtRow) {
-    // Queue action: reorder/swap. Gate by free action flag.
-    if (this._boosterState?.queueActionUsed) {
-      this._snapBack();
-      return;
-    }
-
-    const srcColumn = this._columns[srcCol];
-    const tgtColumn = this._columns[tgtCol];
-
-    const draggedShooter = srcColumn.shooters[srcRow];
-    if (!draggedShooter || draggedShooter !== this._dragShooter) {
-      this._snapBack();
-      return;
-    }
-
-    // If target is occupied, SWAP. Writes are index-guarded: draggedShooter's
-    // existence proves srcRow < length; the occupied-check proves tgtRow < length —
-    // so neither assignment can create a sparse array. The invariant check below
-    // is a defensive backstop in case a future race reaches this with stale indices.
-    let destRow;
-    if (tgtColumn.shooters[tgtRow] !== undefined) {
-      const targetShooter = tgtColumn.shooters[tgtRow];
-      srcColumn.shooters[srcRow] = targetShooter;
-      tgtColumn.shooters[tgtRow] = draggedShooter;
-      destRow = tgtRow;
-    } else {
-      // Target slot is empty — move bomb from src to tgt (append at bottom of target column)
-      srcColumn.shooters.splice(srcRow, 1);
-      tgtColumn.shooters.push(draggedShooter);
-      destRow = tgtColumn.shooters.length - 1;
-    }
-    // Defensive invariant: no holes, ever (a sparse array crashes
-    // the renderer on undefined.color). Repair + log instead of corrupting.
-    for (const colArr of [srcColumn.shooters, tgtColumn.shooters]) {
-      if (colArr.includes(undefined)) {
-        console.error('[DragDrop] sparse queue write repaired', { srcCol, srcRow, tgtCol, tgtRow });
-        const dense = colArr.filter(s => s !== undefined);
-        colArr.length = 0; colArr.push(...dense);
-      }
-    }
-
-    this._shooterRenderer.draggingColumn = -1;
-    this._onReorder(srcCol, srcRow, tgtCol, tgtRow);
-
-    // Fly the ghost to where the dragged bomb ACTUALLY landed (the target slot).
-    // It used to snap back to the SOURCE slot, so the player watched their bomb
-    // "return" while something simultaneously consumed it at the target (S2-B).
-    const { x: tx, y: ty } = this._shooterRenderer.getQueueSlotCenter(tgtCol, destRow);
-    if (this._ghost) this._ghost.scale.set(1.0);
-    this._startAnim(
-      this._ghost.x, this._ghost.y, tx, ty,
-      SNAP_DURATION, () => this._destroyGhost(),
-    );
-    this._state = 'snapping';
-    // Consume the free queue action.
-    if (this._boosterState) this._boosterState.queueActionUsed = true;
-  }
-
   _handleBenchToQueueReturn(benchSlotIdx, targetColIdx) {
     // Queue action: bench→queue return. Gate by free action flag.
     if (this._boosterState?.queueActionUsed) {
@@ -664,9 +561,6 @@ export class DragDrop {
 
     targetColumn.pushBottom(shooter);
     if (this._benchRenderer) this._benchRenderer.draggingSlot = -1;
-
-    // Notify via the onReorder callback (same as the queue-reorder path)
-    this._onReorder(-1, -1, targetColIdx, -1);
 
     // Fly the ghost to the bottom of the target column
     const { x: tx, y: ty } = this._shooterRenderer.getQueueSlotCenter(targetColIdx, targetColumn.shooters.length - 1);
@@ -711,7 +605,7 @@ export class DragDrop {
 
     if (this._dragSource === 'bench') {
       // Bench→Queue return (L5+): highlight valid queue columns with green, full ones with red
-      if (this._reorderEnabled) {
+      if (this._benchReturnEnabled) {
         const queueHit = this._hitTestQueueSlot(x, y);
         if (queueHit !== null) {
           const { col: tCol } = queueHit;
@@ -734,19 +628,6 @@ export class DragDrop {
         this._onLaneHover(laneIdx, _glow);   // 3C: green = valid drop, red = invalid
       }
       return;
-    }
-
-
-    // Column drag from a queue slot (reorder)
-    if (this._dragSource === 'column' && this._reorderEnabled && this._dragSourceRow >= 0) {
-      const queueTarget = this._hitTestQueueSlot(x, y);
-      if (queueTarget !== null) {
-        const { col: tCol, row: tRow } = queueTarget;
-        const isSameSlot = (this._dragSourceIdx === tCol && this._dragSourceRow === tRow);
-        // Highlight the target slot green for a valid reorder (different slot).
-        if (!isSameSlot) this._shooterRenderer.setReorderTarget(tCol, tRow, true);
-        return;
-      }
     }
 
 

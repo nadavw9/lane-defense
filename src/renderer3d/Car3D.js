@@ -349,18 +349,30 @@ function _menderTex() {
     ctx.fill();
   });
 }
-// Gift: gold disc with a red ribbon cross and bow — "destroy me for a booster".
+// Gift: a wrapped present (red box, gold ribbon, bow) — reads as "a gift" even small, and
+// never as the mender's plus. Drawn as a box, not a disc, so it differs from every other badge.
 function _giftTex() {
   return _canvasTex('gift', 128, (ctx, S) => {
-    const { c, r } = _badgeBase(ctx, S, '#FFC93C');
-    ctx.fillStyle = '#E8453C'; ctx.strokeStyle = INK_CSS; ctx.lineWidth = S * 0.02;
-    const w = r * 0.30;
-    ctx.beginPath(); ctx.rect(c - w / 2, c - r * 0.78, w, r * 1.56); ctx.rect(c - r * 0.78, c - w / 2, r * 1.56, w); ctx.fill();
-    for (const sx of [-1, 1]) {           // bow loops
-      ctx.beginPath(); ctx.ellipse(c + sx * r * 0.30, c - r * 0.42, r * 0.28, r * 0.17, sx * 0.5, 0, Math.PI * 2);
+    const ink = INK_CSS, lw = S * 0.05;
+    const bx = S * 0.20, bw = S * 0.60, by = S * 0.42, bh = S * 0.44;     // box
+    const lx = S * 0.15, lw2 = S * 0.70, ly = S * 0.30, lh = S * 0.15;   // lid
+    ctx.lineJoin = 'round';
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath(); ctx.roundRect(bx + S * 0.03, by + S * 0.04, bw, bh, S * 0.05); ctx.fill();
+    ctx.fillStyle = '#E8453C'; ctx.strokeStyle = ink; ctx.lineWidth = lw;
+    ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, S * 0.05); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.roundRect(lx, ly, lw2, lh, S * 0.04); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#FFD42A';
+    ctx.fillRect(S * 0.44, ly + lw / 2, S * 0.12, lh - lw);              // ribbon on the lid
+    ctx.fillRect(S * 0.44, by + lw / 2, S * 0.12, bh - lw);              // ribbon on the box
+    ctx.lineWidth = lw * 0.8;
+    for (const sx of [-1, 1]) {                                          // bow loops
+      ctx.beginPath(); ctx.ellipse(S * 0.5 + sx * S * 0.13, S * 0.21, S * 0.13, S * 0.08, sx * 0.45, 0, Math.PI * 2);
       ctx.fill(); ctx.stroke();
     }
-    ctx.beginPath(); ctx.arc(c, c - r * 0.38, r * 0.12, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(S * 0.5, S * 0.25, S * 0.06, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.fillRect(bx + S * 0.05, by + S * 0.05, S * 0.12, S * 0.05);       // glint
   });
 }
 // Volatile: hazard disc (orange, black bang) — "kill me and the other lanes surge".

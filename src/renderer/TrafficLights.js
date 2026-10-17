@@ -13,7 +13,9 @@ import { getLaneScreenX, getLaneScreenBounds } from './PositionRegistry.js';
 import { ROAD_BOTTOM_Y } from './LaneRenderer.js';
 
 const RED = 0xFF3D3D, GREEN = 0x2FCC55, DARK = 0x1A1630;
-const HOUSE_W = 52, HOUSE_H = 26;
+const HOUSE_W = 62, HOUSE_H = 30;
+// Above the crosswalk's lower edge, clear of the streak pips that sit on the breach line (centre lane).
+const LIGHT_DY = 44;
 
 export class TrafficLights {
   constructor(layer) {
@@ -48,7 +50,7 @@ export class TrafficLights {
   firstRect() {
     const L = this._lights?.[0];
     if (!L) return null;
-    const cx = getLaneScreenX(L.lane), cy = ROAD_BOTTOM_Y - 26;
+    const cx = getLaneScreenX(L.lane), cy = ROAD_BOTTOM_Y - LIGHT_DY;
     return { x: cx - HOUSE_W / 2 - 6, y: cy - HOUSE_H / 2 - 22, w: HOUSE_W + 12, h: HOUSE_H + 30 };
   }
 
@@ -62,34 +64,34 @@ export class TrafficLights {
       if (!st) continue;
       const cx = getLaneScreenX(it.lane);
       const b = getLaneScreenBounds(it.lane);
-      const cy = ROAD_BOTTOM_Y - 26;
+      const cy = ROAD_BOTTOM_Y - LIGHT_DY;
       it.c.position.set(0, 0);
 
       // Stop bar: a soft red band across the whole lane at the crosswalk.
       it.bar.clear();
       if (st.red) {
-        it.bar.roundRect(b.left + 4, cy - 7, b.right - b.left - 8, 14, 7).fill({ color: RED, alpha: 0.28 + 0.12 * pulse });
-        it.bar.roundRect(b.left + 4, cy - 7, b.right - b.left - 8, 14, 7).stroke({ color: RED, width: 2, alpha: 0.7 });
+        it.bar.roundRect(b.left + 4, cy - 9, b.right - b.left - 8, 18, 9).fill({ color: RED, alpha: 0.38 + 0.14 * pulse });
+        it.bar.roundRect(b.left + 4, cy - 9, b.right - b.left - 8, 18, 9).stroke({ color: RED, width: 2, alpha: 0.7 });
       }
 
       // Housing: dark pill, two lamps (red left, green right), the live one lit with a halo.
       const g = it.house;
       g.clear();
       const x = cx - HOUSE_W / 2, y = cy - HOUSE_H / 2;
-      g.roundRect(x, y + 2, HOUSE_W, HOUSE_H, 13).fill({ color: 0x000000, alpha: 0.35 });
-      g.roundRect(x, y, HOUSE_W, HOUSE_H, 13).fill(DARK).stroke({ color: INK, width: 2.5 });
-      const lamps = [[cx - 12, RED, st.red], [cx + 12, GREEN, !st.red]];
+      g.roundRect(x, y + 2, HOUSE_W, HOUSE_H, 15).fill({ color: 0x000000, alpha: 0.35 });
+      g.roundRect(x, y, HOUSE_W, HOUSE_H, 15).fill(DARK).stroke({ color: INK, width: 2.5 });
+      const lamps = [[cx - 15, RED, st.red], [cx + 15, GREEN, !st.red]];
       for (const [lx, col, on] of lamps) {
-        if (on) g.circle(lx, cy, 12).fill({ color: col, alpha: 0.22 + 0.18 * pulse });
-        g.circle(lx, cy, 8).fill(on ? col : 0x3A3552).stroke({ color: INK, width: 1.5 });
-        if (on) g.circle(lx - 2.5, cy - 2.5, 2.5).fill({ color: 0xFFFFFF, alpha: 0.8 });
+        if (on) g.circle(lx, cy, 15).fill({ color: col, alpha: 0.22 + 0.18 * pulse });
+        g.circle(lx, cy, 10).fill(on ? col : 0x3A3552).stroke({ color: INK, width: 1.5 });
+        if (on) g.circle(lx - 3, cy - 3, 3).fill({ color: 0xFFFFFF, alpha: 0.8 });
       }
 
       // Moves until it changes, on a small badge above the housing.
       const key = `${st.red ? 'r' : 'g'}${st.movesLeft}`;
       if (it.key !== key) { it.key = key; it.num.text = String(st.movesLeft); }
-      g.circle(cx, y - 8, 10).fill(st.red ? RED : GREEN).stroke({ color: INK, width: 2 });
-      it.num.position.set(cx, y - 8);
+      g.circle(cx, y - 9, 11).fill(st.red ? RED : GREEN).stroke({ color: INK, width: 2 });
+      it.num.position.set(cx, y - 9);
     }
   }
 }

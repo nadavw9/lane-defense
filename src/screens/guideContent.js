@@ -15,15 +15,13 @@
 import { KILLS_PER_BOMB } from '../director/DirectorConfig.js';
 
 export function tourSteps(geo) {
+  // Three cards, then play: what wins, what loses, and the one gesture. Top puzzle games teach
+  // with the board, not with reading; the rest arrives as one-line cards on the levels that use it.
   return [
     {
-      title: 'WELCOME!',
-      text: 'Stop the cars before they reach your base!',
-    },
-    {
-      title: 'THE ROAD',
-      text: 'Cars come down these lanes.',
-      target: geo.road,
+      title: 'THE GOAL',
+      text: 'Destroy this many cars on the road to WIN.',
+      target: geo.goal,
     },
     {
       title: 'THE RED LINE',
@@ -37,11 +35,6 @@ export function tourSteps(geo) {
       hand: 'drag',
       handFrom: () => { const b = geo.bombs(); return { x: b.x + b.w / 2, y: b.y + 14 }; },
       handTo:   () => { const r = geo.road();  return { x: r.x + r.w / 2, y: r.y + r.h - 70 }; },
-    },
-    {
-      title: 'THE GOAL',
-      text: 'Destroy this many cars to win.',
-      target: geo.goal,
       cta: "LET'S GO!",
     },
   ];

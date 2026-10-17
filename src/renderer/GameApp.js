@@ -74,6 +74,7 @@ import { GuideCard }           from '../screens/GuideCard.js';
 import { tourSteps, stepsFor } from '../screens/guideContent.js';
 import { streakGift, winsToNextTier, addBundles } from '../game/winStreak.js';
 import { TrafficLights } from './TrafficLights.js';
+import { FINALE_FROM, finaleLaneTarget } from '../director/TrafficRules.js';
 import { ModeHint } from './ModeHint.js';
 import { BoosterSpotlight }      from '../screens/BoosterSpotlight.js';
 import { TransitionOverlay }      from '../screens/TransitionOverlay.js';
@@ -501,6 +502,7 @@ async function main() {
   // ── Per-level booster tracking (for analytics) ───────────────────────────
   let boostersUsedThisLevel = [];
   let giftsThisLevel = 0;   // gift-car payouts this level (alternates FREEZE / COLOR SWAP)
+  let rushShown = false;    // FINAL RUSH announced this level
 
   // ── Per-level tutorial state ───────────────────────────────────────────────
   let firstDeployTooltipShown = false;
@@ -919,6 +921,7 @@ async function main() {
 
     boostersUsedThisLevel       = [];
     giftsThisLevel              = 0;
+    rushShown                   = false;
     firstDeployTooltipShown     = false;
     firstKillDoneThisLevel      = false;
     popupQueue.clear();
@@ -2417,6 +2420,19 @@ async function main() {
     // Traffic lights show the NEXT move; hidden behind end screens.
     trafficLights.setVisible(!gs.isOver);
     trafficLights.update(dt, gs.trafficMoves ?? 0);
+
+    // FINAL RUSH: the moment the level's last stretch gets busier (TrafficRules.finaleLaneTarget),
+    // say so once — the player should read the extra traffic as the climax, not as bad luck.
+    if (!rushShown && !gs.isOver && typeof currentLevelCfg?.id === 'number' && currentLevelCfg.id >= FINALE_FROM) {
+      const base = gs.laneTargetCarCount ?? 2;
+      const p = gameLoop._goalProgressPct();
+      if (finaleLaneTarget(base, p) > base) {
+        rushShown = true;
+        floatingTexts.push(spawnFloatingText(layers.get('particleLayer'), APP_W / 2, 215, 'FINAL RUSH!', 0xFF8A1C));
+        audio.play('combo_milestone', { combo: 7 });
+        haptics.medium();
+      }
+    }
 
     // Gift cars: every one destroyed (any kill path) pays out once — FREEZE, then COLOR SWAP, alternating.
     if ((gs.giftsPending ?? 0) > 0) {

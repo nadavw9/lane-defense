@@ -52,7 +52,11 @@ export const STREAK_TO_CHARGE = 3;
 // no longer road and no smaller cars. stepsPerRow = 1 is the legacy whole-row
 // model (what unit tests that do not opt in still run). With 2, rows are exact
 // halves in binary, so row arithmetic and === comparisons stay exact.
-export const STEPS_PER_ROW = 2;
+// 2026-10-17 BIG BOARD: 5 rows of 4 steps (was 8 rows of 2). The road is the same length,
+// so a row is 1.6x longer and every car renders 1.6x bigger; 20 steps from the far end to
+// the breach (was 16) keeps the pacing. Quarters are exact in binary, like halves were.
+export const STEPS_PER_ROW = 4;
+export const BOARD_ROWS = 5;
 export const stepSize = (stepsPerRow = 1) => 1 / Math.max(1, stepsPerRow || 1);
 
 /**

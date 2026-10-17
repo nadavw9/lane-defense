@@ -4,6 +4,7 @@
 import { describe, it, expect } from 'vitest';
 import { DailyChallengeManager, DAILY_CHALLENGES } from '../src/game/DailyChallengeManager.js';
 import { TRAITS } from '../src/director/TrafficRules.js';
+import { BOARD_ROWS } from '../src/director/TrafficRules.js';
 
 describe('daily challenges use V2 rules', () => {
   for (const def of DAILY_CHALLENGES) {
@@ -11,7 +12,7 @@ describe('daily challenges use V2 rules', () => {
       const cfg = DailyChallengeManager.configFor(def);
       expect(cfg.laneCount).toBe(3);
       expect(cfg.colCount).toBe(3);
-      expect(cfg.gridRows).toBe(8);
+      expect(cfg.gridRows).toBe(BOARD_ROWS);
       expect(cfg.colors.length).toBeGreaterThan(0);
       expect(cfg.colors.length).toBeLessThanOrEqual(4);
       expect(cfg.goals[0].type).toBe('destroyTotal');

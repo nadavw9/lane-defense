@@ -51,6 +51,9 @@ export const CARDS = {
   goal_colour:     { title: 'A COLOR GOAL', text: 'Only cars of this color count toward the goal.', target: 'goal' },
   freeze_booster:  { title: 'FREEZE', text: 'Tap FREEZE: your next shot moves no cars.', target: 'boosterFreeze' },
   colour_change_booster: { title: 'COLOR SWAP', text: 'Tap COLOR, tap a car, pick a color. All cars of that color change.', target: 'boosterColor' },
+  gift_car:        { title: 'GIFT CARS', text: 'Cars with a bow carry a gift. Destroy one for a free booster!', target: 'road' },
+  traffic_light:   { title: 'TRAFFIC LIGHT', text: 'On red, this lane stands still. The number shows the shots left.', target: 'light' },
+  convoy:          { title: 'CONVOY', text: 'One lane is all motorbikes. One hit each: clear them fast!', target: 'road' },
   rainbow_bomb:    { title: 'RAINBOW BOMB', text: '3 multi-kill shots in a row earn a RAINBOW bomb. It hits one color in every lane.', target: 'bombs' },
 
   freeze_earned:   { title: 'FREEZE EARNED!', text: '3+ cars with one bomb earned a FREEZE. Tap it for a free shot.', target: 'boosterFreeze' },

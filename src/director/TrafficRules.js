@@ -24,10 +24,11 @@
 
 // ORDER MATTERS: rollTrait walks this list accumulating probabilities, so appending
 // new traits keeps the random stream of every existing level byte-identical.
-export const TRAITS = ['speeder', 'armored', 'chameleon', 'plated', 'mender', 'volatile', 'phantom'];
+export const TRAITS = ['speeder', 'armored', 'chameleon', 'plated', 'mender', 'volatile', 'phantom', 'gift'];
 
 // Phantoms show their colour from this row on (row 0 is the hidden staging row).
-export const PHANTOM_REVEAL_ROW = 4;
+// 3 on the 5-row board = the last 8 steps before the breach, as row 4 was on the 8-row one.
+export const PHANTOM_REVEAL_ROW = 3;
 export function isHiddenPhantom(car) {
   return car?.trait === 'phantom' && car.row < PHANTOM_REVEAL_ROW;
 }
@@ -42,6 +43,7 @@ export const TRAIT_TYPES = {
   mender:    new Set(['small', 'big', 'jeep', 'truck']),
   volatile:  new Set(['big', 'jeep', 'truck']),
   phantom:   new Set(['small', 'big', 'jeep', 'truck', 'bigrig']),
+  gift:      new Set(['small', 'big', 'jeep']),
 };
 
 export const STREAK_TO_CHARGE = 3;
@@ -57,6 +59,63 @@ export const STREAK_TO_CHARGE = 3;
 // the breach (was 16) keeps the pacing. Quarters are exact in binary, like halves were.
 export const STEPS_PER_ROW = 4;
 export const BOARD_ROWS = 5;
+
+// ── Final rush ───────────────────────────────────────────────────────────────
+// A level is calm at the start and builds to a rush at the end: as the goal fills, the spawn
+// mix gets heavier and, from 75% of the goal, two-deep lanes take one more car. Played, it is
+// the level's climax; in numbers, losses move toward the end of the level, where a CONTINUE
+// is worth taking. Levels from FINALE_FROM on (the tutorial stretch stays flat).
+export const FINALE_FROM = 10;
+const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+/** Spawn-mix heft at goal progress p (0..1): eased early, heavier late. */
+export function finaleHeft(heft, p) {
+  if (heft == null) return heft;
+  return Math.max(0, Math.min(1, heft - 0.2 + 0.5 * smooth(0.4, 0.85, p ?? 0)));
+}
+/** Lane fill target at goal progress p: one more car per lane in the last 30%. */
+// One more car a lane in the last quarter, on levels that run two deep. Dense (three-deep) levels
+// are already full on a 5-row road: measured, +1 there floods it.
+export const finaleLaneTarget = (base, p) => base + (base <= 2 && (p ?? 0) >= 0.75 ? 1 : 0);
+
+// ── Continue (rescue) ────────────────────────────────────────────────────────
+// How far a CONTINUE pushes traffic back, in rows (40% of the road), and the push itself:
+// every car keeps its own row in lane order; cars that no longer fit behind row 0 leave the
+// road (the refill replaces them). Shared by GameState.rescue and the simulator.
+export const rescueRowsBack = (gridRows) => Math.floor((gridRows ?? 16) * 0.4);
+export function pushTrafficBack(cars, rowsBack) {
+  const sorted = [...cars].sort((a, b) => b.row - a.row);   // front first
+  let prev = Infinity;
+  const keep = [];
+  for (const car of sorted) {
+    const row = Math.min(car.row - rowsBack, prev - 1);
+    if (row < 0) continue;
+    car.row = row;
+    prev = row;
+    keep.push(car);
+  }
+  return keep;
+}
+
+// ── Traffic lights ───────────────────────────────────────────────────────────
+// A level may put a light over a lane: { lane, green, red, phase }. The light runs on TRAFFIC
+// MOVES (a shot that moves traffic; a frozen shot is not a move): `green` moves where the lane
+// drives, then `red` moves where it holds still. `move` is how many traffic moves have happened.
+/** Will this lane hold still on traffic move number `move`? */
+export function laneHeld(lights, lane, move) {
+  const L = lights?.find(l => l.lane === lane);
+  if (!L) return false;
+  const period = L.green + L.red;
+  return ((move + (L.phase ?? 0)) % period + period) % period >= L.green;
+}
+/** What the player sees for the NEXT move: { red, movesLeft } (moves until the light changes), or null. */
+export function lightState(lights, lane, move) {
+  const L = lights?.find(l => l.lane === lane);
+  if (!L) return null;
+  const red = laneHeld(lights, lane, move);
+  let n = 1;
+  while (n < L.green + L.red && laneHeld(lights, lane, move + n) === red) n++;
+  return { red, movesLeft: n };
+}
 export const stepSize = (stepsPerRow = 1) => 1 / Math.max(1, stepsPerRow || 1);
 
 /**

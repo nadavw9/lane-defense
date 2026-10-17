@@ -56,7 +56,15 @@ describe('campaign structure', () => {
     for (let id = 1; id <= 100; id++) {
       const b = bandFor(id);
       expect(b.lo).toBeLessThan(b.hi);
-      if (isMilestoneLevel(id)) expect(b.milestone).toBe(true);
+      if (isMilestoneLevel(id)) expect(['hard', 'superhard']).toContain(b.tier);
     }
+  });
+  it('the curve is a sawtooth: hard levels sit under their neighbours, relief levels over', () => {
+    for (let id = 15; id <= 95; id += 10) {
+      expect(bandFor(id).tier).toBe('hard');
+      expect(bandFor(id).hi).toBeLessThan(bandFor(id - 1).lo + 1);
+      expect(bandFor(id + 1).lo).toBeGreaterThan(bandFor(id).hi);
+    }
+    for (const id of [30, 40, 50, 60, 70, 80, 90, 100]) expect(bandFor(id).tier).toBe('superhard');
   });
 });

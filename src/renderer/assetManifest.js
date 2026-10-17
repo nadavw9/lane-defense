@@ -176,7 +176,7 @@ export const MAP_URLS = [
 
 // V2 intro art shown on the level card.
 export const V2_INTRO_URLS = [...new Set(TRAIT_KEYS.map(k => `${_B}${traitSpritePath(k)}`))]
-  .filter(u => !u.endsWith('car-purple-processed.png'));   // phantom reuses the sedan, already in CAR_URLS
+  .filter(u => !u.endsWith('car-purple-processed.png') && !u.endsWith('car-yellow-processed.png'));   // phantom / gift reuse sedans already in CAR_URLS
 
 export const ALL_SPRITE_URLS = [
   ...MAP_URLS, ...V2_INTRO_URLS,

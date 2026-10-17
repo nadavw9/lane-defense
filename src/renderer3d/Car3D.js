@@ -349,6 +349,32 @@ function _menderTex() {
     ctx.fill();
   });
 }
+// Gift: a wrapped present (red box, gold ribbon, bow) — reads as "a gift" even small, and
+// never as the mender's plus. Drawn as a box, not a disc, so it differs from every other badge.
+function _giftTex() {
+  return _canvasTex('gift', 128, (ctx, S) => {
+    const ink = INK_CSS, lw = S * 0.05;
+    const bx = S * 0.20, bw = S * 0.60, by = S * 0.42, bh = S * 0.44;     // box
+    const lx = S * 0.15, lw2 = S * 0.70, ly = S * 0.30, lh = S * 0.15;   // lid
+    ctx.lineJoin = 'round';
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath(); ctx.roundRect(bx + S * 0.03, by + S * 0.04, bw, bh, S * 0.05); ctx.fill();
+    ctx.fillStyle = '#E8453C'; ctx.strokeStyle = ink; ctx.lineWidth = lw;
+    ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, S * 0.05); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.roundRect(lx, ly, lw2, lh, S * 0.04); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#FFD42A';
+    ctx.fillRect(S * 0.44, ly + lw / 2, S * 0.12, lh - lw);              // ribbon on the lid
+    ctx.fillRect(S * 0.44, by + lw / 2, S * 0.12, bh - lw);              // ribbon on the box
+    ctx.lineWidth = lw * 0.8;
+    for (const sx of [-1, 1]) {                                          // bow loops
+      ctx.beginPath(); ctx.ellipse(S * 0.5 + sx * S * 0.13, S * 0.21, S * 0.13, S * 0.08, sx * 0.45, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+    }
+    ctx.beginPath(); ctx.arc(S * 0.5, S * 0.25, S * 0.06, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.fillRect(bx + S * 0.05, by + S * 0.05, S * 0.12, S * 0.05);       // glint
+  });
+}
 // Volatile: hazard disc (orange, black bang) — "kill me and the other lanes surge".
 function _volatileTex() {
   return _canvasTex('volatile', 128, (ctx, S) => {
@@ -597,6 +623,10 @@ export class Car3D {
       } else if (car.trait === 'volatile') {
         const s = 1 + 0.1 * Math.sin(now * 7);
         fx.badge.scale.set(s, s, 1);
+      } else if (car.trait === 'gift') {
+        const s = 1 + 0.14 * Math.sin(now * 4.5);   // a slow, happy bounce
+        fx.badge.scale.set(s, s, 1);
+        fx.badge.rotation.z = 0.12 * Math.sin(now * 3);
       }
     }
     if (fx.shade) {
@@ -995,11 +1025,11 @@ export class Car3D {
         return f;
       });
     }
-    if (car.trait === 'plated' || car.trait === 'phantom' || (car.trait === 'mender' && st === 'small')) {
+    if (car.trait === 'plated' || car.trait === 'phantom' || car.trait === 'gift' || (car.trait === 'mender' && st === 'small')) {
       const side = 1.25 / spriteScale;
       const badge = new THREE.Mesh(new THREE.PlaneGeometry(side, side),
         new THREE.MeshBasicMaterial({ map: car.trait === 'plated' ? _plateTex(car.armor ?? 2) : car.trait === 'mender' ? _menderTex()
-          : car.trait === 'volatile' ? _volatileTex() : _phantomTex(), transparent: true, depthWrite: false, toneMapped: false }));
+          : car.trait === 'volatile' ? _volatileTex() : car.trait === 'gift' ? _giftTex() : _phantomTex(), transparent: true, depthWrite: false, toneMapped: false }));
       badge.rotation.x = -Math.PI / 2;
       const p = imgToLocal(0.5, 0.40);
       badge.position.set(p.x, 0.14, p.z);

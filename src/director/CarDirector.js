@@ -4,7 +4,7 @@
 import { PHASE_CONFIG, HP_MINIMUM } from './DirectorConfig.js';
 import { Car } from '../models/Car.js';
 import { CAR_TYPES, pickCarType, carHpFor } from './CarTypes.js';
-import { rollTrait } from './TrafficRules.js';
+import { rollTrait, finaleHeft, finaleLaneTarget, FINALE_FROM } from './TrafficRules.js';
 
 export class CarDirector {
   constructor(config, rng) {
@@ -51,6 +51,17 @@ export class CarDirector {
     return this._spawnScript[this._spawnScript.length - 1];
   }
 
+  // The final rush is on for numbered levels from FINALE_FROM (TrafficRules).
+  _finaleOn() { return typeof this._level === 'number' && this._level >= FINALE_FROM; }
+
+  /** Lane fill target for the next refill: a scripted stage rate wins, else the level's own
+   *  target with the final rush on top. GameLoop and the simulator both call this. */
+  laneTarget(base) {
+    const scripted = this.scriptRate();
+    if (scripted != null) return scripted;
+    return this._finaleOn() ? finaleLaneTarget(base, this._progress) : base;
+  }
+
   // Per-stage lane-fill target override (L20 surge crests/lulls), or null.
   scriptRate() {
     const rate = this.scriptStage()?.rate;
@@ -67,8 +78,15 @@ export class CarDirector {
     const color = this.assignColor(colorPalette, null);
 
     const availableRows = gridRows !== undefined ? gridRows - 1 : undefined;
+    // Convoy lane: a line of motorbikes, one hit each, no special cars.
+    if (this._convoy?.has(laneId)) {
+      return new Car({ color, hp: carHpFor('small', worldConfig?.hpMultiplier ?? 1.0), speed: worldConfig.speed.base, type: 'small' });
+    }
     return this._buildCar(color, phase, worldConfig, availableRows);
   }
+
+  // Convoy lanes (lane indices) spawn only motorbikes. null / [] = none.
+  setConvoy(lanes) { this._convoy = lanes?.length ? new Set(lanes) : null; }
 
   // Pick a color from colorPalette.
   // colorBudget: array of {value, weight} objects for weighted selection, or null for uniform.
@@ -142,7 +160,8 @@ export class CarDirector {
 
   _buildCar(color, phase, worldConfig, availableRows) {
     const type = this._pickScriptedType(availableRows)
-      ?? pickCarType(this._rng, this._level, phase, availableRows, worldConfig?.heft);
+      ?? pickCarType(this._rng, this._level, phase, availableRows,
+        this._finaleOn() ? finaleHeft(worldConfig?.heft, this._progress) : worldConfig?.heft);
     // Apply the level's hpMultiplier (carried on worldConfig, same value the
     // balance sim uses) so difficulty actually scales by level in live play.
     const multiplier = worldConfig?.hpMultiplier ?? 1.0;

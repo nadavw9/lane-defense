@@ -8,6 +8,7 @@ const ENTRIES = {
   plated:    { name: 'PLATED',    sprite: 'armored-big-red',      rule: 'Two hits, any color, strip it' },
   mender:    { name: 'MENDER',    sprite: 'mender-big-green',     rule: 'Heals 1 HP a turn if not hit' },
   volatile:  { name: 'VOLATILE',  sprite: 'volatile-big-orange',  rule: 'Blows: other lanes surge 1 row' },
+  gift:      { name: 'GIFT',      sprite: 'car-yellow-processed', rule: 'Destroy it for a free booster' },
   phantom:   { name: 'PHANTOM',   sprite: 'car-purple-processed', rule: 'Color hidden until it nears', tint: 0x2A2548, mark: '?' },
 };
 

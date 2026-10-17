@@ -47,3 +47,32 @@ export function lv(id, name, letters, o = {}) {
     baseGoals: o.goals ?? total(o.total ?? 26),    // authored, before the tuning scale
   };
 }
+
+// ── Level identity (2026-10-17) ───────────────────────────────────────────────
+// Three board elements give levels a face you can see on the first frame:
+//   traffic light — a lane that holds still on red ({ lane, green, red, phase } in traffic moves)
+//   convoy        — a lane that only brings motorbikes (one hit each: fast, satisfying kills)
+//   gift car      — a car with a bow; destroying it pays out a booster (trait 'gift')
+// Each is introduced alone on a fixed level (L13 gift, L14 light, L24 convoy; see
+// introSchedule.js) and then recurs on a fixed rhythm. Big waves keep their own identity.
+export const GIFT_FROM = 13, LIGHT_FROM = 14, CONVOY_FROM = 24;
+const LIGHT = (lane, phase) => ({ lane, green: 3, red: 2, phase });
+
+export function identityFor(id, milestone = false) {
+  const out = { lights: null, convoy: null, gift: 0 };
+  if (typeof id !== 'number') return out;
+  if (id === GIFT_FROM) out.gift = 0.14;                     // the intro level shows several
+  else if (id > GIFT_FROM) out.gift = 0.05;
+  if (milestone) return out;
+  if (id === LIGHT_FROM) { out.lights = [LIGHT(1, 0)]; return out; }
+  if (id === CONVOY_FROM) { out.convoy = [1]; return out; }
+  if (id > LIGHT_FROM && id % 3 === 2) {
+    // From L35, every other light level has two lights, out of step (never both red at once).
+    out.lights = id >= 35 && id % 6 === 5
+      ? [LIGHT(0, 0), LIGHT(2, 2)]
+      : [LIGHT(Math.floor(id / 3) % 3, id % 5)];
+  } else if (id > CONVOY_FROM && id % 8 === 0) {
+    out.convoy = [id % 3];
+  }
+  return out;
+}

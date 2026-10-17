@@ -13,7 +13,7 @@ import { uiIcon } from '../renderer/UIIcon.js';
 import { ribbon, roundButton, titleText, bodyText, GOLD, GOLD_DEEP } from '../renderer/PremiumUI.js';
 import { INK, WHITE, shade, tint } from '../renderer/ToyStyle.js';
 import { MAP_WORLDS, mapNodes, worldForLevel } from './levelMapLayout.js';
-import { LEVEL_COUNT, isMilestoneLevel } from '../game/LevelManager.js';
+import { LEVEL_COUNT, levelDifficulty } from '../game/LevelManager.js';
 
 const _B = import.meta.env.BASE_URL;
 const NODE_R = 27;
@@ -123,7 +123,7 @@ export class LevelSelectScreen {
       const stars = p.getStars(n.levelId);
       const open = n.levelId <= unlocked;
       const isNext = n.levelId === unlocked && stars === 0;
-      this._node(n, { stars, open, isNext, accent, boss: isMilestoneLevel(n.levelId), weekly: this._weeklyLevels.includes(n.levelId) });
+      this._node(n, { stars, open, isNext, accent, tier: levelDifficulty(n.levelId), weekly: this._weeklyLevels.includes(n.levelId) });
     }
 
     this._header(world, accent);
@@ -140,14 +140,15 @@ export class LevelSelectScreen {
   /** Screen position of a level's node on the current page (QA / dev hooks). */
   nodePosition(levelId) { return this._nodePos?.[levelId] ?? null; }
 
-  _node(n, { stars, open, isNext, accent, boss, weekly }) {
+  _node(n, { stars, open, isNext, accent, tier, weekly }) {
+    const hard = tier === 'hard', superhard = tier === 'superhard';
     (this._nodePos ??= {})[n.levelId] = { x: n.x, y: n.y };
     const node = new Container();
     node.x = n.x; node.y = n.y;
     const g = new Graphics();
     // Played = the world's accent, the one to play next = PLAY green (it pulses,
-    // with the arrow), boss = red, locked = grey.
-    const face = !open ? 0x77738F : boss ? 0xE8453C : stars > 0 ? accent : 0x3DBB3A;
+    // with the arrow), HARD = red, SUPER HARD = purple, locked = grey.
+    const face = !open ? 0x77738F : superhard ? 0x8A3CE0 : hard ? 0xE8453C : stars > 0 ? accent : 0x3DBB3A;
     g.circle(2, 6, NODE_R + 4).fill({ color: 0x000000, alpha: 0.35 });
     g.circle(0, 3, NODE_R + 4).fill(open ? GOLD_DEEP : 0x4A475E);
     g.circle(0, 0, NODE_R + 4).fill(open ? faceGrad(GOLD) : faceGrad(0x9A97AE));
@@ -171,7 +172,8 @@ export class LevelSelectScreen {
 
     // Corner badge on its own disc, so it reads as a badge rather than a sprite
     // colliding with the node ring.
-    const badge = boss ? ['skull', 18, '💀', 0x3A1030] : (weekly && open) ? ['star-filled', 17, '⭐', 0x2B2760] : null;
+    const badge = superhard ? ['skull', 18, '💀', 0x3A1060] : hard ? ['fire', 18, '🔥', 0x5A1010]
+      : (weekly && open) ? ['star-filled', 17, '⭐', 0x2B2760] : null;
     if (badge) {
       const bx = NODE_R + 1, by = -NODE_R + 2;
       const bd = new Graphics();

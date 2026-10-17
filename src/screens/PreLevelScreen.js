@@ -15,6 +15,7 @@ import { boosterIcon, uiIcon } from '../renderer/UIIcon.js';
 import { panel, ribbon, button, roundButton, bodyText, titleText, backdrop, well, GOLD } from '../renderer/PremiumUI.js';
 import { INK, WHITE } from '../renderer/ToyStyle.js';
 import { traitInfo, traitSpritePath } from '../renderer/traitIcons.js';
+import { levelDifficulty } from '../game/LevelManager.js';
 
 const _B = import.meta.env.BASE_URL;
 const BOOSTERS = [
@@ -59,7 +60,9 @@ function goalIcon(goal) {
 function introSprite(intro, lv) {
   if (/BOSS/.test(intro)) return 'sprites/designed/boss.png';
   if (/Speeder/i.test(intro)) return 'sprites/designed/speeder-big-yellow.png';
-  if (/Armour/i.test(intro)) return 'sprites/designed/armored-big-blue.png';
+  if (/Armou?r/i.test(intro)) return 'sprites/designed/armored-big-blue.png';
+  if (/COLOR SWAP/i.test(intro)) return 'sprites/designed/booster-colorchange.png';
+  if (/BIG WAVE/.test(intro)) return 'sprites/ui/icon-skull.png';
   if (/Plated|plating/i.test(intro)) return traitSpritePath('plated');
   if (/Mender/i.test(intro)) return traitSpritePath('mender');
   if (/Volatile/i.test(intro)) return traitSpritePath('volatile');
@@ -73,7 +76,8 @@ function introSprite(intro, lv) {
 export class PreLevelScreen {
   // opts: { onSelect(adCount, bundle), onClose, audio, freeBooster, level }
   //   level = { id, name, goals, hintText } (the level config)
-  constructor(stage, appW, appH, levelLabel, { onSelect, onClose = null, audio, freeBooster = null, level = null, owned = null }) {
+  constructor(stage, appW, appH, levelLabel, { onSelect, onClose = null, audio, freeBooster = null, level = null, owned = null, streak = null }) {
+    this._streak = streak;   // { count, gift, toNext } — see src/game/winStreak.js
     this._owned = owned ?? {};
     this._container = new Container();
     stage.addChild(this._container);
@@ -113,9 +117,13 @@ export class PreLevelScreen {
     this._container.addChild(backdrop(w, h));
     const lv = this._level ?? {};
     const goals = lv.goals ?? [];
-    const intro = (lv.hintText && /^(NEW!|BOSS!|FINAL BOSS!)/.test(lv.hintText)) ? lv.hintText : null;
+    const intro = (lv.hintText && /^(NEW!|BOSS!|FINAL BOSS!|BIG WAVE!)/.test(lv.hintText)) ? lv.hintText : null;
+    const hard = !!intro && /^BIG WAVE!/.test(intro);   // big-wave intro box (red)
+    const tier = levelDifficulty(lv.id);                 // 'hard' | 'superhard' | 'normal' (same tiers the tuner uses)
+    const tierPill = tier !== 'normal';
 
-    const PW = 344, PH = 470 + (intro ? 100 : 0);
+    const streak = this._streak;
+    const PW = 344, PH = 470 + (intro ? 100 : 0) + (streak ? 62 : 0) + (tierPill ? 36 : 0);
     const card = new Container();
     card.x = w / 2; card.y = h / 2 + 10;
     card.pivot.set(PW / 2, PH / 2);
@@ -134,6 +142,24 @@ export class PreLevelScreen {
       card.addChild(nm);
     }
     y += 34;
+
+    // Difficulty pill: HARD (red) / SUPER HARD (purple), as on the map node. Said up front,
+    // so a loss reads as the level being hard, and a booster as the answer.
+    if (tierPill) {
+      const sup = tier === 'superhard';
+      const pw = sup ? 168 : 138, ph = 28;
+      const pill = new Graphics();
+      pill.roundRect(PW / 2 - pw / 2, y - 6, pw, ph, 14).fill(sup ? 0x8A3CE0 : 0xE8453C).stroke({ color: INK, width: 2.5 });
+      pill.roundRect(PW / 2 - pw / 2 + 6, y - 3, pw - 12, ph * 0.35, 8).fill({ color: 0xffffff, alpha: 0.25 });
+      card.addChild(pill);
+      const ic = uiIcon(sup ? 'skull' : 'fire', 18, sup ? '💀' : '🔥');
+      ic.x = PW / 2 - pw / 2 + 18; ic.y = y + 8;
+      card.addChild(ic);
+      const t = titleText(sup ? 'SUPER HARD' : 'HARD LEVEL', 16);
+      t.x = PW / 2 + 10; t.y = y + 8;
+      card.addChild(t);
+      y += 36;
+    }
 
     // Goals.
     const gl = bodyText('GOALS', 15, 0xC9C3F0, { outline: false });
@@ -155,19 +181,54 @@ export class PreLevelScreen {
     });
     y += gh + 18;
 
+    // Win streak: what the run of wins is worth on this level, or how close the first gift is.
+    if (streak) {
+      const sw = PW - 48, sh = 50, sx = 24;
+      const live = !!streak.gift;
+      const bar = new Graphics();
+      bar.roundRect(sx, y, sw, sh, 25).fill(live ? 0x7A2E12 : 0x2A2458).stroke({ color: live ? 0xFF9A3C : 0x5A54A0, width: 2.5 });
+      bar.roundRect(sx + 8, y + 4, sw - 16, sh * 0.38, 18).fill({ color: 0xffffff, alpha: 0.08 });
+      card.addChild(bar);
+      const fire = uiIcon('fire', 34, '🔥', live ? {} : { tint: 0x8A84C8 });
+      fire.x = sx + 30; fire.y = y + sh / 2;
+      card.addChild(fire);
+      if (live) {
+        const t = titleText(`WIN STREAK ×${streak.count}`, 18, GOLD);
+        t.anchor.set(0, 0.5); t.x = sx + 54; t.y = y + sh / 2;
+        card.addChild(t);
+        // The free boosters this streak brings, right-aligned, each with a small FREE tag.
+        const keys = [['freeze', 'freeze'], ['colorChange', 'colorchange']].filter(([k]) => streak.gift[k] > 0);
+        keys.forEach(([, icon], i) => {
+          const cx = sx + sw - 26 - i * 42;
+          const ic = boosterIcon(icon, 32, '?');
+          ic.x = cx; ic.y = y + sh / 2 - 2;
+          card.addChild(ic);
+          const tag = bodyText('FREE', 10, 0x9CFF8A, { outline: true });
+          tag.x = cx; tag.y = y + sh - 6;
+          card.addChild(tag);
+        });
+      } else {
+        const need = streak.toNext;
+        const t = bodyText(streak.count > 0 ? `Win ${need} more for a free FREEZE` : `Win ${need} in a row for a free FREEZE`, 14, 0xD8D3FF, { outline: false, weight: '700' });
+        t.anchor.set(0, 0.5); t.x = sx + 54; t.y = y + sh / 2;
+        card.addChild(t);
+      }
+      y += sh + 12;
+    }
+
     // New this level — the car (or boss) itself, and one line on its rule.
     if (intro) {
       const iw = PW - 48, ih = 86;
       const box = new Graphics();
-      box.roundRect(24, y, iw, ih, 16).fill({ color: 0xFFC93C, alpha: 0.14 }).stroke({ color: GOLD, width: 2 });
+      box.roundRect(24, y, iw, ih, 16).fill({ color: hard ? 0xFF3D3D : 0xFFC93C, alpha: hard ? 0.18 : 0.14 }).stroke({ color: hard ? 0xFF5A4A : GOLD, width: 2 });
       card.addChild(box);
       const pic = spriteFit(introSprite(intro, lv), /BOSS/.test(intro) ? 78 : 66);
       if (pic) { pic.x = 24 + 44; pic.y = y + ih / 2; card.addChild(pic); }
-      const tag = intro.match(/^(NEW!|BOSS!|FINAL BOSS!)/)[1];
-      const tg = titleText(tag, 18, GOLD);
+      const tag = hard ? 'BIG WAVE' : intro.match(/^(NEW!|BOSS!|FINAL BOSS!)/)[1];
+      const tg = titleText(tag, 18, hard ? 0xFF6A5A : GOLD);
       tg.anchor.set(0, 0.5); tg.x = 24 + 88; tg.y = y + 20;
       card.addChild(tg);
-      const txt = intro.replace(/^(NEW!|BOSS!|FINAL BOSS!)\s*/, '');
+      const txt = intro.replace(/^(NEW!|BOSS!|FINAL BOSS!|BIG WAVE!)\s*/, '');
       const t = bodyText(txt, 13, WHITE, { outline: false, align: 'left', wrap: iw - 100, weight: '600' });
       t.anchor.set(0, 0); t.x = 24 + 88; t.y = y + 32;
       card.addChild(t);

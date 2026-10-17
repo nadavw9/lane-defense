@@ -4,7 +4,7 @@
 //   · later worlds step down 2 points each (58-72, 56-70, 54-68, 52-66), never
 //   below that: an average player should still win a late level about half the time.
 //   Big waves (every tenth level): the ordinary band minus 10 points.
-import { isMilestoneLevel } from '../src/game/LevelManager.js';
+import { levelDifficulty, isReliefLevel } from '../src/game/LevelManager.js';
 
 export const TUTORIAL_LEVELS = new Set([1, 2, 3]);
 
@@ -17,10 +17,17 @@ function baseBand(levelId) {
   return { lo: 60 - 2 * step, hi: 75 - 2 * step };
 }
 
-// A BIG WAVE (every tenth level) is meant to be the hardest level of its block: its
-// band is ten points under the ordinary band for that part of the campaign.
+// Sawtooth (2026-10-17), the shape casual puzzle games use: ordinary levels sit in the band
+// above, HARD levels (every x5 from L15, and the L10/L20 big waves) 15 points under it, SUPER HARD
+// big waves (L30 on) 25 under, and the level after a hard one is a RELIEF level 6 points over
+// (capped at 95). Failing a hard level is the moment a continue or a booster is worth paying for;
+// the relief level after it gives the win back.
 export function bandFor(levelId) {
   const b = baseBand(levelId);
-  if (isMilestoneLevel(levelId)) return { lo: b.lo - 10, hi: b.hi - 10, milestone: true };
+  if (b.tutorial) return b;
+  const d = levelDifficulty(levelId);
+  if (d === 'superhard') return { lo: b.lo - 25, hi: b.hi - 25, milestone: true, tier: d };
+  if (d === 'hard') return { lo: b.lo - 15, hi: b.hi - 15, tier: d };
+  if (isReliefLevel(levelId)) return { lo: Math.min(88, b.lo + 6), hi: Math.min(95, b.hi + 6), tier: 'relief' };
   return b;
 }

@@ -72,6 +72,9 @@ import { FTUEOverlay, FeatureBanners } from '../screens/FTUEOverlay.js';
 import { OnboardingHints }    from '../screens/OnboardingHints.js';
 import { GuideCard }           from '../screens/GuideCard.js';
 import { tourSteps, stepsFor } from '../screens/guideContent.js';
+import { streakGift, winsToNextTier, addBundles } from '../game/winStreak.js';
+import { TrafficLights } from './TrafficLights.js';
+import { FINALE_FROM, finaleLaneTarget } from '../director/TrafficRules.js';
 import { ModeHint } from './ModeHint.js';
 import { BoosterSpotlight }      from '../screens/BoosterSpotlight.js';
 import { TransitionOverlay }      from '../screens/TransitionOverlay.js';
@@ -88,7 +91,7 @@ import { TutorialOrchestrator }   from '../screens/TutorialOrchestrator.js';
 import { AchievementsScreen }     from '../screens/AchievementsScreen.js';
 import { StatsScreen }            from '../screens/StatsScreen.js';
 import { AudioManager }           from '../audio/AudioManager.js';
-import { BoosterBar, BAR_Y as BOOSTER_BAR_TOP_Y } from './BoosterBar.js';
+import { BoosterBar, BAR_Y as BOOSTER_BAR_TOP_Y, boosterCardRect } from './BoosterBar.js';
 import { levelStartCards, reactiveAllowed } from '../screens/introSchedule.js';
 import { GoalCounterUI }          from './GoalCounterUI.js';
 import { StreakMeter }            from './StreakMeter.js';
@@ -447,6 +450,7 @@ async function main() {
   // V2 Hot Streak meter (on the breach stripe). Anchors = every bomb the player
   // could fire next: the column tops and any filled bench slot.
   const streakMeter = new StreakMeter(layers.get('hudLayer'));
+  const trafficLights = new TrafficLights(layers.get('particleLayer'));   // traffic-light levels
   streakMeter.setAnchors(() => {
     const out = [];
     for (let c = 0; c < gs.activeColCount; c++) {
@@ -497,6 +501,8 @@ async function main() {
 
   // ── Per-level booster tracking (for analytics) ───────────────────────────
   let boostersUsedThisLevel = [];
+  let giftsThisLevel = 0;   // gift-car payouts this level (alternates FREEZE / COLOR SWAP)
+  let rushShown = false;    // FINAL RUSH announced this level
 
   // ── Per-level tutorial state ───────────────────────────────────────────────
   let firstDeployTooltipShown = false;
@@ -585,6 +591,10 @@ async function main() {
     bombs:  () => { const l = _laneSpan(); return { x: l.x, y: SHOOTER_AREA_Y + 6, w: l.w, h: SHOOTER_AREA_H - 6 }; },
     goal:   () => goalCounterUI.plaqueRect() ?? { x: APP_W / 2 - 45, y: 6, w: 90, h: 82 },
     bench:  () => ({ x: 12, y: benchY(), w: APP_W - 24, h: benchSlotH() }),
+    light:         () => trafficLights.firstRect() ?? { x: 6, y: ROAD_BOTTOM_Y - 60, w: APP_W - 12, h: 60 },
+    boosterColor:  () => boosterCardRect(0),
+    boosterFreeze: () => boosterCardRect(1),
+    boosterBomb:   () => boosterCardRect(2),
     boosters: () => ({ x: 6, y: BOOSTER_BAR_TOP_Y, w: APP_W - 12, h: APP_H - BOOSTER_BAR_TOP_Y - 4 }),
   };
   let guideCard = null;
@@ -799,6 +809,10 @@ async function main() {
     carDir.setLevel(typeof cfg.id === 'number' ? cfg.id : 1);
     carDir.setSpawnScript(cfg.spawnScript ?? null);   // §3c staged boss waves (INFRA-C)
     carDir.setTraits(cfg.traits ?? null, cfg.colors);  // V2 special cars (TrafficRules)
+    carDir.setConvoy(cfg.convoy ?? null);              // motorbike-only lanes
+    gs.convoy = cfg.convoy ?? null;
+    gs.lights = cfg.lights ?? null;                    // traffic lights (TrafficRules.laneHeld)
+    trafficLights.setLights(gs.lights);
     gs.streakEnabled = streakEnabledFor(cfg);           // V2 Hot Streak
     streakMeter.setEnabled(gs.streakEnabled);
     streakMeter.reset();
@@ -906,6 +920,8 @@ async function main() {
     boosterBar.setButtonVisibility(true, true);
 
     boostersUsedThisLevel       = [];
+    giftsThisLevel              = 0;
+    rushShown                   = false;
     firstDeployTooltipShown     = false;
     firstKillDoneThisLevel      = false;
     popupQueue.clear();
@@ -923,7 +939,7 @@ async function main() {
       // NEW!/BOSS! intros are already the level card's headline (every level
       // start goes through _showPreLevel); repeating them in-game only covered
       // the board. Other hints still fire once as a tip.
-      if (!/^(NEW!|BOSS!|FINAL BOSS!)/.test(cfg.hintText)) levelHint = { key: `hint_L${levelId}`, text: cfg.hintText };
+      if (!/^(NEW!|BOSS!|FINAL BOSS!|BIG WAVE!)/.test(cfg.hintText)) levelHint = { key: `hint_L${levelId}`, text: cfg.hintText };
       ftueCfg = { ...cfg, hintText: null };
     }
     carRenderer.clearAll();
@@ -1081,10 +1097,11 @@ async function main() {
             // The cards open at 1.5 s; queue the bench spotlight behind them.
             const _startBench = () => tutOrch?.start({
               id:        'bench',
-              text:      'The BENCH has 4 slots: drag a bomb here to keep it for later, and drag it back out when you need its colour!',
+              text:      'Drag a bomb down into the BENCH to save it for later.',
               bounds:    () => ({ x: 12, y: benchY(), w: APP_W - 24, h: benchSlotH() }),
-              handStart: { x: 195, y: benchY() - 70 },
-              handEnd:   { x: 195, y: benchY() + benchSlotH() / 2 - 8 },
+              // The hand shows the real gesture: from a bomb in the queue to an empty bench slot.
+              handStart: shooterRenderer.getQueueSlotCenter(1, 0),
+              handEnd:   { x: benchRenderer.getSlotCenter(1).x, y: benchRenderer.getSlotCenter(1).y - 8 },
               pauseGame: true,
             });
             setTimeout(() => {
@@ -1225,8 +1242,12 @@ async function main() {
   function _showPreLevel(levelId) {
     const label = typeof levelId === 'number' ? `LEVEL ${levelId}` : null;
     const levelCfg = (() => { if (typeof levelId !== 'number') return null; const lm = new LevelManager(); lm.goToLevel(levelId); return lm.current; })();
+    // Win streak: back-to-back wins start the next level with free boosters, on top of
+    // whatever the player picks here (an ad that fails still keeps the streak gift).
+    const streak = typeof levelId === 'number' ? progress.winStreak : 0;
+    const streakBundle = typeof levelId === 'number' ? streakGift(streak) : null;
     const start = (bundle) => {
-      _pendingBoosterGrant = bundle;
+      _pendingBoosterGrant = addBundles(bundle, streakBundle);
       preLevelScreen?.destroy();
       preLevelScreen = null;
       levelSelectScreen?.destroy();
@@ -1258,6 +1279,7 @@ async function main() {
       onClose: () => { preLevelScreen?.destroy(); preLevelScreen = null; if (!levelSelectScreen) showLevelSelect(); },
       audio,
       freeBooster,
+      streak: typeof levelId === 'number' ? { count: streak, gift: streakBundle, toNext: winsToNextTier(streak) } : null,
       level: levelCfg,
       owned: progress.getInventory(),
     });
@@ -1574,6 +1596,7 @@ async function main() {
       onQuit: () => {
         // Abandon signal for difficulty tuning: where players give up mid-level.
         logEvent('level_quit', { levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber, turns: gs.turnCount, kills: gs.totalKills, goalLeft: gs.goalProgress?.reduce((a, r) => a + r, 0) ?? null });
+        if (!currentLevelIsDaily) progress.breakWinStreak();   // quitting a level ends the win streak
         _settleInventory();
         pauseScreen.destroy();
         pauseScreen = null;
@@ -1711,6 +1734,16 @@ async function main() {
       audio,
       improved,
       winLevelId,
+      currentLevelIsDaily ? 0 : progress.winStreak,
+      {
+        // Rewarded video: double this level's coins (credited on the ad's reward callback only).
+        onDoubleCoins: (() => {
+          const earned = gs.coins;
+          return (done) => adManager.showRewarded(
+            () => { progress.setCoins(progress.coins + earned); logEvent('ad_double_coins', { coins: earned }); done(true); },
+            () => done(false));
+        })(),
+      },
     );
     // Achievements earned on the way wait for the end of the level, then show as a card.
     const shownWin = winScreen;
@@ -1807,6 +1840,7 @@ async function main() {
       pauseBtn.visible = true;
     };
     rescueOverlay = new RescueOverlay(app.stage, APP_W, APP_H, gs, {
+      winStreak: currentLevelIsDaily ? 0 : progress.winStreak,
       onRescueAd: () => {
         adManager.showRewarded(
           () => {
@@ -2048,7 +2082,7 @@ async function main() {
     haptics.medium();   // booster earned
     floatingTexts.push(spawnFloatingText(
       layers.get('particleLayer'), APP_W / 2, 470,
-      '2× COMBO! Color Change ready!', 0xCC66FF,
+      '2× COMBO! COLOR SWAP ready!', 0xCC66FF,
     ));
   };
   gameLoop._onBombEarned = () => {
@@ -2066,7 +2100,7 @@ async function main() {
     // spotlight stayed over the win screen and into the next level's card.
     if (!gs.isOver && !(gs.goals.length > 0 && gs.isGoalMet()) && !currentLevelIsDaily && reactiveAllowed('bomb_earned', levelManager.levelNumber)) tutOrch?.start({
       id:        'bomb',
-      text:      '💣 BOMB earned — tap it, then tap a lane to blast every car on it!',
+      text:      'BOMB earned! Tap it, then tap a lane.',
       bounds:    () => { const b = boosterBar?._bombBtn?.getBounds(); return b ? { x: b.x, y: b.y, w: b.width, h: b.height } : { x: 235, y: 764, w: 72, h: 77 }; },
       pauseGame: true,
     });
@@ -2102,7 +2136,7 @@ async function main() {
     haptics.medium();
     particles.spawnHit(laneIdx, gameX, 'Blue');
     floatingTexts.push(spawnFloatingText(layers.get('particleLayer'),
-      getLaneScreenX(laneIdx), getColumnScreenY() - 90, armorLeft > 0 ? 'PLATE OFF!' : 'ARMOUR OFF!', 0xE6ECF5));
+      getLaneScreenX(laneIdx), getColumnScreenY() - 90, armorLeft > 0 ? 'PLATE OFF!' : 'ARMOR OFF!', 0xE6ECF5));
     if (armorLeft > 0) fireReactive('plate_break', '');
     else fireReactive('armor_break', '');
   };
@@ -2383,6 +2417,37 @@ async function main() {
 
     gameRenderer3D.render();
 
+    // Traffic lights show the NEXT move; hidden behind end screens.
+    trafficLights.setVisible(!gs.isOver);
+    trafficLights.update(dt, gs.trafficMoves ?? 0);
+
+    // FINAL RUSH: the moment the level's last stretch gets busier (TrafficRules.finaleLaneTarget),
+    // say so once — the player should read the extra traffic as the climax, not as bad luck.
+    if (!rushShown && !gs.isOver && typeof currentLevelCfg?.id === 'number' && currentLevelCfg.id >= FINALE_FROM) {
+      const base = gs.laneTargetCarCount ?? 2;
+      const p = gameLoop._goalProgressPct();
+      if (finaleLaneTarget(base, p) > base) {
+        rushShown = true;
+        floatingTexts.push(spawnFloatingText(layers.get('particleLayer'), APP_W / 2, 215, 'FINAL RUSH!', 0xFF8A1C));
+        audio.play('combo_milestone', { combo: 7 });
+        haptics.medium();
+      }
+    }
+
+    // Gift cars: every one destroyed (any kill path) pays out once — FREEZE, then COLOR SWAP, alternating.
+    if ((gs.giftsPending ?? 0) > 0) {
+      const n = gs.giftsPending;
+      gs.giftsPending = 0;
+      for (let i = 0; i < n; i++) {
+        const swap = (giftsThisLevel++ % 2) === 1;
+        if (swap) boosterState.colorChange++; else boosterState.freeze++;
+        floatingTexts.push(spawnFloatingText(layers.get('particleLayer'), APP_W / 2, 430 - i * 40,
+          swap ? 'GIFT! +1 COLOR SWAP' : 'GIFT! +1 FREEZE', 0xFFD24A));
+      }
+      audio.play('coin_collect');
+      haptics.medium();
+    }
+
     // Combo power-shot FX (vignette + floating text).
     comboFX.update(dt);
 
@@ -2396,7 +2461,7 @@ async function main() {
     // Armed-booster prompt: what to tap next. Only while the board is live.
     modeHint.set(gs.isOver || _boardBlockers().length > 0 ? null
       : boosterState.bombMode ? 'TAP A LANE TO BLAST IT'
-      : boosterState.colorChangeMode && !colorPicker ? 'TAP A CAR TO RECOLOUR' : null);
+      : boosterState.colorChangeMode && !colorPicker ? 'TAP A CAR TO RECOLOR' : null);
     modeHint.update(dt);
 
     // Modal cards (onboarding hints, car-type intro, color-bomb intro) all run
@@ -2551,6 +2616,7 @@ async function main() {
         pauseBtn: pauseBtn.visible, boosters: { colorChange: boosterState.colorChange, freeze: boosterState.freeze, bombs: boosterState.bombs },
         inventory: progress.getInventory(), coins: progress.coins }),
       getBoosterState: () => boosterState,
+      getBench: () => Array.from({ length: benchStorage.size }, (_, i) => benchStorage.getSlot(i)?.color ?? null),
       startDaily: () => { [titleScreen, levelSelectScreen, winScreen].forEach(x => x?.destroy()); titleScreen = levelSelectScreen = winScreen = null; startDailyChallenge(); },
       stageTop: (x, y) => {
         const hit = app.renderer.events.rootBoundary.hitTest(x, y);

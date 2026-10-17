@@ -9,6 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import { LevelManager, openingCarsForLevel, openingRowsForLevel } from '../src/game/LevelManager.js';
 import { pickCarType, CAR_TYPES } from '../src/director/CarTypes.js';
+import { BOARD_ROWS } from '../src/director/TrafficRules.js';
 
 const TOTAL_LEVELS = 40;
 const BOSS_LEVELS  = [10, 20, 30, 40];
@@ -50,7 +51,7 @@ describe('regression: every level starts in a valid state', () => {
       //    L1 — car size is FIT x rowPitchWu x pxPerWu and rowPitchWu is 26/gridRows,
       //    so 16 rows renders every car at HALF the size the rest of the game uses.
       //    The whole game is now one board depth.
-      expect(cfg.gridRows).toBe(8);
+      expect(cfg.gridRows).toBe(BOARD_ROWS);
 
       // 6b. Lane count. Everything from L4 up is the 3-lane board; L1-L3 ramp.
       if (cfg.id >= 4) expect(cfg.laneCount).toBe(3);
@@ -76,7 +77,9 @@ describe('regression: every level starts in a valid state', () => {
       //    unwinnable at any tuning). Difficulty is still carried by bomb power +
       //    car count, not opening geometry. See tests/opening-depth-parity.test.js
       //    for the full derivation + live/sim parity guard.
-      const expectedOpen = cfg.id === 1 && cfg.gridRows <= 10 ? [1, 2, 3] : cfg.gridRows <= 10 ? [0, 1] : [0, 1, 2];
+      //    2026-10-17: shallow boards open at [0,1,2] too (staging row + 2 visible). Under the one-hit
+      //    ladder with half-row steps the sim tunes all 100 levels in band with it (tools/tune-levels).
+      const expectedOpen = cfg.id === 1 && cfg.gridRows <= 10 ? [1, 2, 3] : [0, 1, 2];
       expect(openingCarsForLevel(cfg.id, cfg.gridRows)).toBe(expectedOpen.length);
       expect(openingRowsForLevel(cfg.id, cfg.gridRows)).toEqual(expectedOpen);
       // Opening cars never start on or past the breach line (row gridRows-1).

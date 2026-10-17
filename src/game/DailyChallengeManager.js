@@ -8,30 +8,30 @@
 // columns. Every challenge is now a real V2 board — 3 lanes, 8 rows, a car goal,
 // at most four colours — with ONE twist, and copy that says what actually happens.
 import { localDateKey } from './dateKeys.js';
-import { STEPS_PER_ROW } from '../director/TrafficRules.js';
+import { STEPS_PER_ROW, BOARD_ROWS } from '../director/TrafficRules.js';
 
 const CHALLENGES = [
   { name: 'Speeder Rush',   desc: 'Speeders everywhere — they move 2 steps a turn',
     colors: ['Red', 'Blue', 'Green'], heft: 0, traits: { speeder: 0.30 }, goal: 30 },
-  { name: 'Iron Wall',      desc: 'Armoured cars — any bomb knocks the plates off',
+  { name: 'Iron Wall',      desc: 'Armored cars — any bomb knocks the plates off',
     colors: ['Red', 'Blue', 'Green'], heft: 0, traits: { armored: 0.25 }, goal: 28 },
   { name: 'Monochrome',     desc: 'Only red cars — tougher, and they never stop coming',
     colors: ['Red'], heft: 0.37, traits: {}, goal: 36 },
-  { name: 'Chameleon Chaos', desc: 'Chameleons flip colour every turn — watch the light',
+  { name: 'Chameleon Chaos', desc: 'Chameleons flip color every turn — watch the light',
     colors: ['Red', 'Blue', 'Yellow'], heft: 0.61, traits: { chameleon: 0.30 }, goal: 28 },
   { name: 'Endurance',      desc: 'The long haul — destroy 45 cars',
     colors: ['Red', 'Blue', 'Green'], heft: 0.11, traits: { speeder: 0.06 }, goal: 45 },
-  { name: 'Four Colours',   desc: 'Red, blue, green and yellow all at once',
+  { name: 'Four Colors',   desc: 'Red, blue, green and yellow all at once',
     colors: ['Red', 'Blue', 'Green', 'Yellow'], heft: 0.5, traits: {}, goal: 30 },
   { name: 'Sudden Death',   desc: 'Tough traffic — and no continue if you breach',
     colors: ['Red', 'Blue', 'Green'], heft: 0.21, traits: { speeder: 0.08, armored: 0.08 }, goal: 26, noRescue: true },
-  { name: 'Ghost Road',     desc: 'Phantoms hide their colour until they roll closer',
+  { name: 'Ghost Road',     desc: 'Phantoms hide their color until they roll closer',
     colors: ['Red', 'Blue', 'Green'], heft: 0.6, traits: { phantom: 0.3 }, goal: 28 },
   { name: 'Pit Crew',       desc: 'Menders heal a point every turn you do not hit them',
     colors: ['Red', 'Blue', 'Green'], heft: 0.6, traits: { mender: 0.3 }, goal: 28 },
   { name: 'Chain Reaction', desc: 'When a fuel truck blows, every other lane lurches forward',
     colors: ['Red', 'Blue', 'Green'], heft: 0.35, traits: { volatile: 0.3 }, goal: 28 },
-  { name: 'Double Plate',   desc: 'Plated cars soak two hits of any colour',
+  { name: 'Double Plate',   desc: 'Plated cars soak two hits of any color',
     colors: ['Red', 'Blue', 'Green'], heft: 0.05, traits: { plated: 0.08 }, goal: 26 },
 ];
 
@@ -88,7 +88,7 @@ export class DailyChallengeManager {
       isDaily:    true,
       laneCount:  3,
       colCount:   3,
-      gridRows:   8,
+      gridRows:   BOARD_ROWS,
       stepsPerRow: STEPS_PER_ROW,
       spawnBudget: 12,
       laneTargetCarCount: 2,

@@ -23,7 +23,8 @@ export class RescueOverlay {
   //   onRescueCoins()  — "CONTINUE · coins" — shown only when the player can afford it
   //   onRetry()        — free full restart; caller destroys overlay and restarts the level
   //   onLevelSelect()  — decline; caller destroys overlay and returns to level select
-  constructor(stage, appW, appH, gs, { onRescueAd, onRescueCoins, onRetry, onLevelSelect }) {
+  constructor(stage, appW, appH, gs, { onRescueAd, onRescueCoins, onRetry, onLevelSelect, winStreak = 0 }) {
+    this._winStreak = winStreak;
     this._container = new Container();
     stage.addChild(this._container);
 
@@ -92,13 +93,21 @@ export class RescueOverlay {
     rb.x = PW / 2; rb.y = 2;
     card.addChild(rb);
 
-    // Warning medallion.
+    // How far the goal got, as a ring around the medallion: the closer the miss, the fuller the
+    // ring. A near-full ring is the reason a CONTINUE is worth a video.
+    const gLeft  = gs?.goalProgress?.reduce((a, r) => a + r, 0) ?? 0;
+    const gTotal = gs?.goals?.reduce((a, g) => a + g.count, 0) ?? 0;
+    const done   = gTotal > 0 ? Math.max(0, Math.min(1, 1 - gLeft / gTotal)) : 0;
     const mg = new Graphics();
     mg.circle(PW / 2, 108, 50).fill({ color: 0xFF3D3D, alpha: 0.18 });
-    mg.circle(PW / 2, 108, 38).fill(0xE8453C).stroke({ color: INK, width: 3.5 });
-    mg.ellipse(PW / 2, 92, 24, 11).fill({ color: WHITE, alpha: 0.28 });
+    mg.circle(PW / 2, 108, 46).stroke({ color: 0x2A1020, width: 9 });
+    if (done > 0) {
+      mg.moveTo(PW / 2, 108 - 46).arc(PW / 2, 108, 46, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * done).stroke({ color: GOLD, width: 9, cap: 'round' });
+    }
+    mg.circle(PW / 2, 108, 36).fill(0xE8453C).stroke({ color: INK, width: 3.5 });
+    mg.ellipse(PW / 2, 92, 22, 10).fill({ color: WHITE, alpha: 0.28 });
     card.addChild(mg);
-    const ex = titleText('!', 46);
+    const ex = titleText(done > 0 ? `${Math.round(done * 100)}%` : '!', done > 0 ? 24 : 46);
     ex.x = PW / 2; ex.y = 110;
     card.addChild(ex);
 
@@ -114,6 +123,12 @@ export class RescueOverlay {
       : close ? `Only ${goalLeft} cars left to win!` : 'Keep going from right here?', 16, GOLD, { outline: false });
     sub.x = PW / 2; sub.y = 212;
     card.addChild(sub);
+    // A live win streak is lost on RETRY / give up: say so, it is what a continue protects.
+    if (this._winStreak >= 2) {
+      const ws = bodyText(`Continue to keep your ${this._winStreak}-win streak`, 14, 0xFFB15C, { outline: false });
+      ws.x = PW / 2; ws.y = 234;
+      card.addChild(ws);
+    }
 
     // CONTINUE — one-time rewarded-ad rescue; resumes from the breach moment.
     const play = uiIcon('play', 26, '▶');

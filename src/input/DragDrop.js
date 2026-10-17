@@ -315,6 +315,11 @@ export class DragDrop {
     if (this._state !== 'dragging') return;
     this._ghost.x = x + this._offsetX;
     this._ghost.y = y + this._offsetY;
+    // Over the bench tray the held bomb shrinks so the glowing slot under it stays visible
+    // (the full-size ghost and its halo are wider than a slot and hid the target entirely).
+    const overBench = this._dragSource === 'column' && this._dragSourceRow === 0 && this._hitTestBenchArea(x, y);
+    const target = overBench ? 0.5 : 1.12;
+    this._ghost.scale.set(this._ghost.scale.x + (target - this._ghost.scale.x) * 0.4);
     this._updateHighlights(x, y);
   }
 
@@ -357,7 +362,7 @@ export class DragDrop {
 
     // ── Top bomb only: drag top to bench ────────────────────────────────────
     if (this._dragSource === 'column' && this._dragSourceRow === 0 && this._hitTestBenchArea(x, y)) {
-      this._handleBenchDrop();
+      this._handleBenchDrop(x);
       return;
     }
 
@@ -498,7 +503,20 @@ export class DragDrop {
     this._state = 'flying';
   }
 
-  _handleBenchDrop() {
+  // The empty bench slot nearest the finger (by x), or -1 when the bench is full. Hover glow and
+  // the actual drop both ask this, so the slot that glows is the slot the bomb lands in.
+  _benchTargetSlot(x) {
+    if (!this._benchStorage || !this._benchRenderer) return -1;
+    let best = -1, bestD = Infinity;
+    for (let i = 0; i < this._benchStorage.size; i++) {
+      if (this._benchStorage.getSlot(i)) continue;
+      const d = Math.abs(this._benchRenderer.getSlotCenter(i).x - x);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    return best;
+  }
+
+  _handleBenchDrop(dropX) {
     // Queue action: bench store (column→bench). Gate by free action flag.
     if (this._boosterState?.queueActionUsed) {
       this._snapBack();
@@ -523,7 +541,7 @@ export class DragDrop {
       return;
     }
     col.consume();
-    const slotIdx = this._benchStorage.store(shooter);
+    const slotIdx = this._benchStorage.store(shooter, this._benchTargetSlot(dropX));
     this._shooterRenderer.draggingColumn = -1;
     this._onBenchStore(this._dragSourceIdx);
     const { x: tx, y: ty } = this._benchRenderer.getSlotCenter(slotIdx);
@@ -592,14 +610,21 @@ export class DragDrop {
   }
 
   _updateHighlights(x, y) {
-    if (this.uiOverlayActive) {
-      this._clearHighlights();
-      this._benchRenderer?.setHighlight(-1);
+    this._clearHighlights();
+    this._benchRenderer?.setHighlight(-1);
+
+    // Over the bench tray: glow the slot the bomb will land in (same rule as the drop). Only the
+    // top bomb can be benched; a refused drop (action used / bench full) glows red. This runs
+    // before the overlay gate: a passing banner must not hide the one cue that says where a
+    // dropped bomb will go.
+    if (this._dragSource === 'column' && this._dragSourceRow === 0 && this._hitTestBenchArea(x, y)) {
+      const refused = !!this._boosterState?.queueActionUsed || !!this._benchStorage?.isFull;
+      const slot = refused ? (this._benchRenderer?.hitTestSlot(x, y) ?? -1) : this._benchTargetSlot(x);
+      if (slot !== -1) this._benchRenderer?.setHighlight(slot, !refused);
       return;
     }
 
-    this._clearHighlights();
-    this._benchRenderer?.setHighlight(-1);
+    if (this.uiOverlayActive) return;
 
     const colorHex = COLOR_MAP[this._dragShooter?.color] ?? 0x888888;
 
@@ -630,14 +655,6 @@ export class DragDrop {
       return;
     }
 
-
-    if (y > benchY() - 50) {
-      const slot = this._benchRenderer?.hitTestSlot(x, y) ?? -1;
-      if (slot !== -1 && !this._benchStorage?.getSlot(slot)) {
-        this._benchRenderer?.setHighlight(slot);
-      }
-      return;
-    }
 
     const laneIdx = this._hitTestLane(x, y);
     if (laneIdx !== -1) {

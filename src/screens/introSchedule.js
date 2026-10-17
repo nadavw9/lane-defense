@@ -18,6 +18,9 @@ export const LEVEL_START_CARDS = {
   8:  ['freeze_booster'],
   9:  ['colour_change_booster'],
   10: ['rainbow_bomb'],
+  13: ['gift_car'],
+  14: ['traffic_light'],
+  24: ['convoy'],
 };
 
 // Moments inside play that can only be explained from a live event. A key may fire only while

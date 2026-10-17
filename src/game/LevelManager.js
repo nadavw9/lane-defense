@@ -45,9 +45,9 @@ const PROGRESSION = [
     hintText: 'Drag the matching bomb to the lane', goals: total(10) },
 
   // L2 "Two colours": colour must match.
-  { id: 2, name: 'Two colours', laneCount: 2, colCount: 2, colors: ['Red', 'Blue'], worldConfig: W(1),
+  { id: 2, name: 'Two colors', laneCount: 2, colCount: 2, colors: ['Red', 'Blue'], worldConfig: W(1),
     duration: 70, spawnBudget: 8, laneTargetCarCount: 2, gridRows: 8,
-    hintText: 'Colours must match — a red bomb only hits red cars', goals: total(16) },
+    hintText: 'Colors must match — a red bomb only hits red cars', goals: total(16) },
 
   // L3 "Three lanes": watch the whole road.
   { id: 3, name: 'Three lanes', laneCount: 3, colCount: 3, colors: ['Red', 'Blue'], worldConfig: W(1),
@@ -58,7 +58,7 @@ const PROGRESSION = [
   // L4 "Hot Streak": destroy a car 3 shots in a row → supercharged bomb.
   { id: 4, name: 'Hot Streak', laneCount: 3, colCount: 3, colors: ['Red', 'Blue'], worldConfig: W(1),
     duration: 90, spawnBudget: 9, laneTargetCarCount: 2, gridRows: 8,
-    hintText: 'Destroy 3 cars to SUPERCHARGE a bomb: it hits twice, any colour', goals: total(22) },
+    hintText: 'Destroy 3 cars to SUPERCHARGE a bomb: it hits twice, any color', goals: total(22) },
 
   // L5 "Green light" (relief): a third colour, gentle traffic.
   { id: 5, name: 'Green light', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(1),
@@ -86,7 +86,7 @@ const PROGRESSION = [
   { id: 9, name: 'Sunday drive', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0),
     duration: 100, spawnBudget: 12, laneTargetCarCount: 2, gridRows: 8,
     traits: { speeder: 0.10 },
-    hintText: 'NEW! COLOUR CHANGE booster — recolour a whole colour of cars',
+    hintText: 'NEW! COLOR SWAP booster — recolor a whole color of cars',
     goals: [{ type: 'destroyColor', color: 'Blue', count: 5 }, { type: 'destroyColor', color: 'Green', count: 5 }] },
 
   // L10 BIG WAVE "Rush hour": the first milestone. Three cars deep in every lane, no
@@ -101,7 +101,7 @@ const PROGRESSION = [
   { id: 11, name: 'Steel plates', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.52),
     duration: 100, spawnBudget: 12, laneTargetCarCount: 2, gridRows: 8,
     traits: { armored: 0.18 },
-    hintText: 'NEW! Armoured cars — ANY colour knocks the plates off', goals: total(24) },
+    hintText: 'NEW! Armored cars — ANY color knocks the plates off', goals: total(24) },
 
   // L12 "Plates and pace": armour and speeders together.
   { id: 12, name: 'Plates and pace', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.14),
@@ -131,13 +131,13 @@ const PROGRESSION = [
   // L16 "Yellow shift" (relief): four colours.
   { id: 16, name: 'Yellow shift', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green', 'Yellow'], worldConfig: W(0.75),
     duration: 100, spawnBudget: 14, laneTargetCarCount: 2, gridRows: 8,
-    hintText: 'Yellow bombs — four colours now', goals: total(24) },
+    hintText: 'Yellow bombs — four colors now', goals: total(24) },
 
   // L17 "Shape shifters": CHAMELEONS flip colour every turn.
   { id: 17, name: 'Shape shifters', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Yellow'], worldConfig: W(0.59),
     duration: 100, spawnBudget: 14, laneTargetCarCount: 2, gridRows: 8,
     traits: { chameleon: 0.18 },
-    hintText: 'NEW! Chameleons switch colour every turn — the small light shows the next one',
+    hintText: 'NEW! Chameleons switch color every turn — the small light shows the next one',
     goals: total(26) },
 
   // L18 "Big rigs": long, heavy, armoured escorts.
@@ -155,7 +155,7 @@ const PROGRESSION = [
   { id: 20, name: 'Iron lane', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green', 'Yellow'], worldConfig: W(0),
     duration: 110, spawnBudget: 16, laneTargetCarCount: 3, gridRows: 8, milestone: true,
     traits: { armored: 0.20 },
-    hintText: 'BIG WAVE! Armoured cars in every lane',
+    hintText: 'BIG WAVE! Armored cars in every lane',
     goals: total(26) },
 
   // L21 "Night shift" (relief).
@@ -169,7 +169,7 @@ const PROGRESSION = [
     traits: { speeder: 0.16 }, goals: total(25) },
 
   // L23 "Colour flood": dense four-colour traffic with chameleons.
-  { id: 23, name: 'Colour flood', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green', 'Yellow'], worldConfig: W(0.19),
+  { id: 23, name: 'Color flood', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green', 'Yellow'], worldConfig: W(0.19),
     duration: 100, spawnBudget: 17, laneTargetCarCount: 3, gridRows: 8,
     traits: { chameleon: 0.14 }, goals: total(30) },
 
@@ -232,7 +232,7 @@ const PROGRESSION = [
     traits: { chameleon: 0.08 }, goals: total(26) },
 
   // L34 "Armoured column": a quarter of the traffic is plated.
-  { id: 34, name: 'Armoured column', laneCount: 3, colCount: 3, colors: ['Orange', 'Red', 'Yellow', 'Blue'], worldConfig: W(0.1),
+  { id: 34, name: 'Armored column', laneCount: 3, colCount: 3, colors: ['Orange', 'Red', 'Yellow', 'Blue'], worldConfig: W(0.1),
     duration: 100, spawnBudget: 21, laneTargetCarCount: 2, gridRows: 8,
     traits: { armored: 0.18 }, goals: total(27) },
 

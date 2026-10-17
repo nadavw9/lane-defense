@@ -140,7 +140,7 @@ export class SettingsScreen {
   _gameplayCard(y) {
     const h = 52 + 3 * 60 + 8;
     let ry = this._cardFrame(y, h, 'GAMEPLAY', 'gear');
-    ry = this._toggleRow('Colorblind shapes', 'Adds ● ▲ ■ ★ to every colour', ry,
+    ry = this._toggleRow('Colorblind shapes', 'Adds ● ▲ ■ ★ to every color', ry,
       this._progress?.colorblindMode ?? false,
       (v) => { this._progress?.setColorblindMode(v); setColorblindMode(v); this._audio?.play('button_tap'); });
     ry = this._toggleRow('Reduce motion', 'No screen shake or flashes', ry,

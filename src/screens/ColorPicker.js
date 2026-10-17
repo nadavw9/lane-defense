@@ -53,7 +53,7 @@ export class ColorPicker {
     this._container.addChild(panel);
 
     const title = new Text({
-      text: 'PICK A NEW COLOUR',
+      text: 'PICK A NEW COLOR',
       style: { fontFamily: '"Lilita One", Fredoka, Arial, sans-serif', fontSize: 19, fill: 0xFFC93C, letterSpacing: 1,
         stroke: { color: 0x1F1A33, width: 4, join: 'round' } },
     });

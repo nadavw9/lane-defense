@@ -20,7 +20,7 @@ const SLIDES = [
   { title: 'HOT STREAK', art: 'streak',
     body: 'Destroy 3 cars to charge a POWER SHOT: the next bomb hits twice, any color.' },
   { title: 'BOOSTERS', art: 'boosters',
-    body: 'Recolor repaints a whole color group, Freeze stops traffic, Bomb clears a lane.' },
+    body: 'Color Swap repaints a whole color group, Freeze stops traffic, Bomb clears a lane.' },
 ];
 
 export class HowToPlayOverlay {

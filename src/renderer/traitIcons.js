@@ -3,7 +3,7 @@
 
 const ENTRIES = {
   speeder:   { name: 'SPEEDER',   sprite: 'speeder-big-yellow',   rule: 'Moves 2 steps a turn' },
-  armored:   { name: 'ARMOURED',  sprite: 'armored-big-blue',     rule: 'Any color breaks the plates' },
+  armored:   { name: 'ARMORED',  sprite: 'armored-big-blue',     rule: 'Any color breaks the plates' },
   chameleon: { name: 'CHAMELEON', sprite: 'chameleon-big-green',  rule: 'Changes color every turn' },
   plated:    { name: 'PLATED',    sprite: 'armored-big-red',      rule: 'Two hits, any color, strip it' },
   mender:    { name: 'MENDER',    sprite: 'mender-big-green',     rule: 'Heals 1 HP a turn if not hit' },

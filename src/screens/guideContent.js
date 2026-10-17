@@ -50,29 +50,29 @@ export function tourSteps(geo) {
 // Titles and, where useful, a pointer at the part of the board the card is about.
 export const CARDS = {
   // ── Level-start cards (levels fixed in introSchedule.js) ──
-  lane_2:          { title: 'A SECOND LANE', text: 'Two lanes now. Aim each bomb at a car of its colour.', target: 'road' },
+  lane_2:          { title: 'A SECOND LANE', text: 'Two lanes now. Aim each bomb at a car of its color.', target: 'road' },
   lane_3:          { title: 'THREE LANES', text: 'Three lanes. Stop the car nearest the red line first!', target: 'road' },
-  multi_color:     { title: 'MATCH THE COLOUR', text: 'A bomb only hurts cars of its own colour.', target: 'bombs' },
+  multi_color:     { title: 'MATCH THE COLOR', text: 'A bomb only hurts cars of its own color.', target: 'bombs' },
   combo:           { title: 'COMBO!', text: 'Destroy cars quickly, one after another, for bonus coins.', target: 'goal' },
-  supercharge:     { title: 'SUPERCHARGE', text: 'Destroy a car 3 shots in a row to charge your next bomb. It hits twice, any colour.', target: 'bombs' },
-  goal_colour:     { title: 'A COLOUR GOAL', text: 'Only cars of this colour count toward the goal.', target: 'goal' },
+  supercharge:     { title: 'SUPERCHARGE', text: 'Destroy a car 3 shots in a row to charge your next bomb. It hits twice, any color.', target: 'bombs' },
+  goal_colour:     { title: 'A COLOR GOAL', text: 'Only cars of this color count toward the goal.', target: 'goal' },
   freeze_booster:  { title: 'FREEZE', text: 'Tap FREEZE: your next shot moves no cars.', target: 'boosterFreeze' },
-  colour_change_booster: { title: 'COLOUR CHANGE', text: 'Tap COLOUR, tap a car, pick a colour. All cars of that colour change.', target: 'boosterColor' },
-  rainbow_bomb:    { title: 'RAINBOW BOMB', text: '3 multi-kill shots in a row earn a RAINBOW bomb. It hits one colour in every lane.', target: 'bombs' },
+  colour_change_booster: { title: 'COLOR SWAP', text: 'Tap COLOR, tap a car, pick a color. All cars of that color change.', target: 'boosterColor' },
+  rainbow_bomb:    { title: 'RAINBOW BOMB', text: '3 multi-kill shots in a row earn a RAINBOW bomb. It hits one color in every lane.', target: 'bombs' },
 
   freeze_earned:   { title: 'FREEZE EARNED!', text: '3+ cars with one bomb earned a FREEZE. Tap it for a free shot.', target: 'boosterFreeze' },
-  colour_change_earned: { title: 'COLOUR CHANGE EARNED!', text: '2 multi-kill shots in a row earned a COLOUR CHANGE. Tap COLOUR to use it.', target: 'boosterColor' },
+  colour_change_earned: { title: 'COLOR SWAP EARNED!', text: '2 multi-kill shots in a row earned a COLOR SWAP. Tap COLOR to use it.', target: 'boosterColor' },
 
   // ── In-play moments (only inside their window, see introSchedule.js) ──
   first_kill:      { title: 'FIRST KILL!',     text: `Destroy ${KILLS_PER_BOMB} cars to earn a BOMB booster.`, target: 'goal' },
   first_combo:     null,   // taught by the L2 COMBO card
   combo_hint_L2:   null,   // folded into combo
-  first_miss:      { title: 'WRONG COLOUR',    text: 'No damage! A bomb only hurts cars of its own colour.' },
+  first_miss:      { title: 'WRONG COLOR',    text: 'No damage! A bomb only hurts cars of its own color.' },
   hp_miss:         { title: 'IT SHRANK!',      text: 'Big cars shrink with each hit until they are gone.' },
-  streak_charged:  { title: 'POWER SHOT!',     text: 'Your next bomb is charged. It hits twice, any colour.', target: 'bombs' },
+  streak_charged:  { title: 'POWER SHOT!',     text: 'Your next bomb is charged. It hits twice, any color.', target: 'bombs' },
   colorchange_use: null,   // taught by the L9 COLOUR CHANGE card
-  plate_break:     { title: 'HEAVY PLATING',   text: 'Two hits of any colour strip the plating.' },
-  armor_break:     { title: 'ARMOUR OFF!',     text: 'Now hit it with its own colour.' },
+  plate_break:     { title: 'HEAVY PLATING',   text: 'Two hits of any color strip the plating.' },
+  armor_break:     { title: 'ARMOR OFF!',     text: 'Now hit it with its own color.' },
   volatile_surge:  { title: 'VOLATILE!',       text: 'When it blows up, the other lanes lurch forward!' },
   mender_heal:     { title: 'MENDER',          text: 'Menders grow back a size when left alone.' },
   bench_appear:    null,   // the bench has its own spotlight tutorial (L4)

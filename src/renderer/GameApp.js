@@ -2106,7 +2106,7 @@ async function main() {
     haptics.medium();
     particles.spawnHit(laneIdx, gameX, 'Blue');
     floatingTexts.push(spawnFloatingText(layers.get('particleLayer'),
-      getLaneScreenX(laneIdx), getColumnScreenY() - 90, armorLeft > 0 ? 'PLATE OFF!' : 'ARMOUR OFF!', 0xE6ECF5));
+      getLaneScreenX(laneIdx), getColumnScreenY() - 90, armorLeft > 0 ? 'PLATE OFF!' : 'ARMOR OFF!', 0xE6ECF5));
     if (armorLeft > 0) fireReactive('plate_break', '');
     else fireReactive('armor_break', '');
   };
@@ -2400,7 +2400,7 @@ async function main() {
     // Armed-booster prompt: what to tap next. Only while the board is live.
     modeHint.set(gs.isOver || _boardBlockers().length > 0 ? null
       : boosterState.bombMode ? 'TAP A LANE TO BLAST IT'
-      : boosterState.colorChangeMode && !colorPicker ? 'TAP A CAR TO RECOLOUR' : null);
+      : boosterState.colorChangeMode && !colorPicker ? 'TAP A CAR TO RECOLOR' : null);
     modeHint.update(dt);
 
     // Modal cards (onboarding hints, car-type intro, color-bomb intro) all run

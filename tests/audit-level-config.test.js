@@ -9,6 +9,7 @@ import { describe, it, expect } from 'vitest';
 import { LevelManager } from '../src/game/LevelManager.js';
 import { CAR_TYPES, bandWeights } from '../src/director/CarTypes.js';
 import { TRAIT_TYPES } from '../src/director/TrafficRules.js';
+import { BOARD_ROWS } from '../src/director/TrafficRules.js';
 
 const PALETTE = ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'];
 
@@ -38,7 +39,7 @@ describe('audit: level configs (all 40)', () => {
         expect(cfg.laneCount).toBeLessThanOrEqual(4);
         expect(cfg.colCount).toBeGreaterThanOrEqual(1);
         expect(cfg.colCount).toBeLessThanOrEqual(4);
-        expect(cfg.gridRows ?? 16).toBeGreaterThanOrEqual(8);
+        expect(cfg.gridRows ?? 16).toBeGreaterThanOrEqual(BOARD_ROWS);
         expect(cfg.duration).toBeGreaterThan(0);
         expect(cfg.spawnBudget).toBeGreaterThan(0);
         expect(cfg.laneTargetCarCount ?? 2).toBeGreaterThanOrEqual(1);

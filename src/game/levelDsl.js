@@ -1,4 +1,5 @@
 // Shared level-authoring helpers — LevelManager (L1-40) and LateLevels (L41+).
+import { BOARD_ROWS } from '../director/TrafficRules.js';
 import { LATE_TUNING as tuning } from './lateTuning.js';
 
 const SPD = { base: 5.0, variance: 0.3 };
@@ -37,7 +38,7 @@ export function lv(id, name, letters, o = {}) {
   return {
     id, name, laneCount: 3, colCount: 3, colors: pal(letters),
     worldConfig: W(o.heft ?? t?.heft ?? 0.3),
-    duration: o.duration ?? 110, spawnBudget: o.budget ?? 24 + ramp, laneTargetCarCount: o.dense ? 3 : 2, gridRows: 8,
+    duration: o.duration ?? 110, spawnBudget: o.budget ?? 24 + ramp, laneTargetCarCount: o.dense ? 3 : 2, gridRows: BOARD_ROWS,
     ...(o.traits ? { traits: t?.ts ? scaleTraits(o.traits, t.ts) : o.traits, baseTraits: o.traits } : {}),
     ...(o.hint ? { hintText: o.hint } : {}),
     ...(o.milestone ? { milestone: true } : {}),

@@ -33,10 +33,10 @@ describe('opening depth — derivation', () => {
     expect(openingCarsForLevel(5)).toBe(3);
   });
 
-  it('shallows to 2 rows at or below the shallow threshold (gridRows <= 10)', () => {
+  it('opens 3 rows deep (staging + 2 visible) at or below the shallow threshold (gridRows <= 10)', () => {
     for (const rows of [10, 9, 8, 7, 6]) {
-      expect(openingRowsForLevel(5, rows), `@${rows}`).toEqual([0, 1]);
-      expect(openingCarsForLevel(5, rows), `@${rows}`).toBe(2);
+      expect(openingRowsForLevel(5, rows), `@${rows}`).toEqual([0, 1, 2]);
+      expect(openingCarsForLevel(5, rows), `@${rows}`).toBe(3);
     }
   });
 
@@ -78,8 +78,9 @@ describe('opening depth — scripted initialCars (L10/L40) obey the SAME rule', 
 
   it('drops rows past the shallow opening depth on shallow boards', () => {
     const clamped = clampInitialCarsToDepth(scripted, 8);
-    expect(clamped).toHaveLength(4);
-    for (const def of clamped) expect(def.row).toBeLessThanOrEqual(1);
+    const maxRow = openingRowsForLevel(5, 8).at(-1);   // the shallow opening's deepest row
+    expect(clamped).toEqual(scripted.filter(d => (d.row ?? 0) <= maxRow));
+    for (const def of clamped) expect(def.row).toBeLessThanOrEqual(maxRow);
   });
 
   it('handles null/empty without throwing (levels with no scripted opening)', () => {

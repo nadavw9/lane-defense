@@ -93,6 +93,8 @@ function defaults() {
     // downgraded 2→1 on a final loss (never to 0). Backfilled from stars for veteran
     // saves (see _load) so a returning player's city reflects their real progress.
     cityState: {},
+    // v1.8 — win streak (src/game/winStreak.js): consecutive wins on numbered levels.
+    winStreak: 0,
   };
 }
     
@@ -191,6 +193,16 @@ export class ProgressManager {
     }
     // §3d DDA: a win clears the mercy streak — next attempt starts at base.
     delete this._data.failStreak[key];
+    this._data.winStreak = (this._data.winStreak ?? 0) + 1;
+    this._save();
+  }
+
+  // ── Win streak (winStreak.js) ──────────────────────────────────────────────
+  get winStreak() { return this._data.winStreak ?? 0; }
+  /** A final loss or a quit ends the run of wins. */
+  breakWinStreak() {
+    if (!this._data.winStreak) return;
+    this._data.winStreak = 0;
     this._save();
   }
 
@@ -202,6 +214,7 @@ export class ProgressManager {
     if (typeof levelId !== 'number') return;
     const key = String(levelId);
     this._data.failStreak[key] = (this._data.failStreak[key] ?? 0) + 1;
+    this._data.winStreak = 0;
     this._save();
   }
 

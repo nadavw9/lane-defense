@@ -16,7 +16,7 @@ export const LATE_LEVELS = [
   // ═══ WORLD 3 — Neon Nights (L31-45): plated cars close it out ═════════════
 
   lv(41, 'Double plate', 'ORBY', { heft: 0.3, traits: { plated: 0.07 }, total: 26,
-    hint: 'NEW! Plated cars — it takes TWO hits, any colour, to strip the plating' }),
+    hint: 'NEW! Plated cars — it takes TWO hits, any color, to strip the plating' }),
   lv(42, 'Plate and shift', 'OPGB', { traits: { plated: 0.04, chameleon: 0.10 }, total: 28 }),
   lv(43, 'Dark road', 'RBGY', { traits: { plated: 0.03, speeder: 0.08 }, total: 24 }),           // relief
   lv(44, 'Shape hunt', 'ORYG', { traits: { plated: 0.06, chameleon: 0.14 },
@@ -50,7 +50,7 @@ export const LATE_LEVELS = [
   // ═══ WORLD 5 — Frost Pass (L61-75): phantoms in the whiteout ══════════════
 
   lv(61, 'Whiteout', 'PBGY', { traits: { phantom: 0.16 }, total: 24,
-    hint: 'NEW! Phantom cars — their colour stays hidden in the fog until they get close' }),
+    hint: 'NEW! Phantom cars — their color stays hidden in the fog until they get close' }),
   lv(62, 'Black ice', 'BRYP', { traits: { phantom: 0.12, speeder: 0.12 }, total: 26 }),
   lv(63, 'Thaw', 'GBYR', { traits: { phantom: 0.08 }, total: 24 }),                               // relief
   lv(64, 'Snow chains', 'PGBO', { traits: { armored: 0.12, phantom: 0.12 }, total: 28 }),

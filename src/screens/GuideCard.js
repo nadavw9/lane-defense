@@ -131,15 +131,23 @@ export class GuideCard {
     // Vertical placement: centred, unless that would sit on the target; then the
     // roomier side of the target (clamped inside the screen).
     let cy = H / 2;
-    if (target) {
+    // A drag demo needs its whole path visible: the card avoids the hand's path as well
+    // as the target (the hand used to slide under the card on the YOUR BOMBS step).
+    let avoid = target;
+    if (target && step.hand === 'drag' && step.handFrom && step.handTo) {
+      const f = step.handFrom(), t = step.handTo();
+      const top = Math.min(target.y, f.y, t.y) - 24, bottom = Math.max(target.y + target.h, f.y, t.y) + 40;
+      avoid = { x: target.x, y: top, w: target.w, h: bottom - top };
+    }
+    if (avoid) {
       const half = cardH / 2 + 10;
-      const overlaps = !(cy + half < target.y - 8 || cy - half > target.y + target.h + 8);
+      const overlaps = !(cy + half < avoid.y - 8 || cy - half > avoid.y + avoid.h + 8);
       if (overlaps) {
-        const above = target.y - 16;                       // free space above the target
-        const below = H - (target.y + target.h) - 16;      // and below it
+        const above = avoid.y - 16;                       // free space above the target
+        const below = H - (avoid.y + avoid.h) - 16;      // and below it
         cy = below >= above
-          ? Math.min(H - half - 8, target.y + target.h + 16 + half)
-          : Math.max(half + 8, target.y - 16 - half);
+          ? Math.min(H - half - 8, avoid.y + avoid.h + 16 + half)
+          : Math.max(half + 8, avoid.y - 16 - half);
       }
     }
     this._cardW = cardW; this._cardH = cardH;

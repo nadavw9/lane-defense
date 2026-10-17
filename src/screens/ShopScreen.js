@@ -17,7 +17,7 @@ import { ProgressManager } from '../game/ProgressManager.js';
 import { logEvent } from '../analytics/Analytics.js';
 
 export const SHOP_ITEMS = [
-  { key: 'colorChange', label: 'COLOR SWAP', desc: 'Recolor a whole colour', cost: 20, icon: 'colorchange', glow: 0xB070FF, face: [0x4A3A96, 0x2A2268] },
+  { key: 'colorChange', label: 'COLOR SWAP', desc: 'Recolor a whole color', cost: 20, icon: 'colorchange', glow: 0xB070FF, face: [0x4A3A96, 0x2A2268] },
   { key: 'freeze',      label: 'FREEZE',     desc: 'Traffic skips a turn',   cost: 30, icon: 'freeze',      glow: 0x5CC8FF, face: [0x2F4E9A, 0x1B2B66] },
   { key: 'bombs',       label: 'BOMB',       desc: 'Clears a whole lane',    cost: 40, icon: 'bomb',        glow: 0xFF7A3C, face: [0x6A3480, 0x3A1C58] },
   { key: 'shield',      label: 'SHIELD',     desc: 'Saves a daily streak',   cost: 30, icon: null,          glow: 0xFFC93C, face: [0x5A4A2A, 0x33291A] },

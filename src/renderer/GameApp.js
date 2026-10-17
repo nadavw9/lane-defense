@@ -72,6 +72,7 @@ import { FTUEOverlay, FeatureBanners } from '../screens/FTUEOverlay.js';
 import { OnboardingHints }    from '../screens/OnboardingHints.js';
 import { GuideCard }           from '../screens/GuideCard.js';
 import { tourSteps, stepsFor } from '../screens/guideContent.js';
+import { streakGift, winsToNextTier, addBundles } from '../game/winStreak.js';
 import { ModeHint } from './ModeHint.js';
 import { BoosterSpotlight }      from '../screens/BoosterSpotlight.js';
 import { TransitionOverlay }      from '../screens/TransitionOverlay.js';
@@ -88,7 +89,7 @@ import { TutorialOrchestrator }   from '../screens/TutorialOrchestrator.js';
 import { AchievementsScreen }     from '../screens/AchievementsScreen.js';
 import { StatsScreen }            from '../screens/StatsScreen.js';
 import { AudioManager }           from '../audio/AudioManager.js';
-import { BoosterBar, BAR_Y as BOOSTER_BAR_TOP_Y } from './BoosterBar.js';
+import { BoosterBar, BAR_Y as BOOSTER_BAR_TOP_Y, boosterCardRect } from './BoosterBar.js';
 import { levelStartCards, reactiveAllowed } from '../screens/introSchedule.js';
 import { GoalCounterUI }          from './GoalCounterUI.js';
 import { StreakMeter }            from './StreakMeter.js';
@@ -585,6 +586,9 @@ async function main() {
     bombs:  () => { const l = _laneSpan(); return { x: l.x, y: SHOOTER_AREA_Y + 6, w: l.w, h: SHOOTER_AREA_H - 6 }; },
     goal:   () => goalCounterUI.plaqueRect() ?? { x: APP_W / 2 - 45, y: 6, w: 90, h: 82 },
     bench:  () => ({ x: 12, y: benchY(), w: APP_W - 24, h: benchSlotH() }),
+    boosterColor:  () => boosterCardRect(0),
+    boosterFreeze: () => boosterCardRect(1),
+    boosterBomb:   () => boosterCardRect(2),
     boosters: () => ({ x: 6, y: BOOSTER_BAR_TOP_Y, w: APP_W - 12, h: APP_H - BOOSTER_BAR_TOP_Y - 4 }),
   };
   let guideCard = null;
@@ -923,7 +927,7 @@ async function main() {
       // NEW!/BOSS! intros are already the level card's headline (every level
       // start goes through _showPreLevel); repeating them in-game only covered
       // the board. Other hints still fire once as a tip.
-      if (!/^(NEW!|BOSS!|FINAL BOSS!)/.test(cfg.hintText)) levelHint = { key: `hint_L${levelId}`, text: cfg.hintText };
+      if (!/^(NEW!|BOSS!|FINAL BOSS!|BIG WAVE!)/.test(cfg.hintText)) levelHint = { key: `hint_L${levelId}`, text: cfg.hintText };
       ftueCfg = { ...cfg, hintText: null };
     }
     carRenderer.clearAll();
@@ -1081,10 +1085,11 @@ async function main() {
             // The cards open at 1.5 s; queue the bench spotlight behind them.
             const _startBench = () => tutOrch?.start({
               id:        'bench',
-              text:      'The BENCH has 4 slots: drag a bomb here to keep it for later, and drag it back out when you need its colour!',
+              text:      'Drag a bomb down into the BENCH to save it for later.',
               bounds:    () => ({ x: 12, y: benchY(), w: APP_W - 24, h: benchSlotH() }),
-              handStart: { x: 195, y: benchY() - 70 },
-              handEnd:   { x: 195, y: benchY() + benchSlotH() / 2 - 8 },
+              // The hand shows the real gesture: from a bomb in the queue to an empty bench slot.
+              handStart: shooterRenderer.getQueueSlotCenter(1, 0),
+              handEnd:   { x: benchRenderer.getSlotCenter(1).x, y: benchRenderer.getSlotCenter(1).y - 8 },
               pauseGame: true,
             });
             setTimeout(() => {
@@ -1225,8 +1230,12 @@ async function main() {
   function _showPreLevel(levelId) {
     const label = typeof levelId === 'number' ? `LEVEL ${levelId}` : null;
     const levelCfg = (() => { if (typeof levelId !== 'number') return null; const lm = new LevelManager(); lm.goToLevel(levelId); return lm.current; })();
+    // Win streak: back-to-back wins start the next level with free boosters, on top of
+    // whatever the player picks here (an ad that fails still keeps the streak gift).
+    const streak = typeof levelId === 'number' ? progress.winStreak : 0;
+    const streakBundle = typeof levelId === 'number' ? streakGift(streak) : null;
     const start = (bundle) => {
-      _pendingBoosterGrant = bundle;
+      _pendingBoosterGrant = addBundles(bundle, streakBundle);
       preLevelScreen?.destroy();
       preLevelScreen = null;
       levelSelectScreen?.destroy();
@@ -1258,6 +1267,7 @@ async function main() {
       onClose: () => { preLevelScreen?.destroy(); preLevelScreen = null; if (!levelSelectScreen) showLevelSelect(); },
       audio,
       freeBooster,
+      streak: typeof levelId === 'number' ? { count: streak, gift: streakBundle, toNext: winsToNextTier(streak) } : null,
       level: levelCfg,
       owned: progress.getInventory(),
     });
@@ -1574,6 +1584,7 @@ async function main() {
       onQuit: () => {
         // Abandon signal for difficulty tuning: where players give up mid-level.
         logEvent('level_quit', { levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber, turns: gs.turnCount, kills: gs.totalKills, goalLeft: gs.goalProgress?.reduce((a, r) => a + r, 0) ?? null });
+        if (!currentLevelIsDaily) progress.breakWinStreak();   // quitting a level ends the win streak
         _settleInventory();
         pauseScreen.destroy();
         pauseScreen = null;
@@ -1711,6 +1722,7 @@ async function main() {
       audio,
       improved,
       winLevelId,
+      currentLevelIsDaily ? 0 : progress.winStreak,
     );
     // Achievements earned on the way wait for the end of the level, then show as a card.
     const shownWin = winScreen;
@@ -1807,6 +1819,7 @@ async function main() {
       pauseBtn.visible = true;
     };
     rescueOverlay = new RescueOverlay(app.stage, APP_W, APP_H, gs, {
+      winStreak: currentLevelIsDaily ? 0 : progress.winStreak,
       onRescueAd: () => {
         adManager.showRewarded(
           () => {
@@ -2066,7 +2079,7 @@ async function main() {
     // spotlight stayed over the win screen and into the next level's card.
     if (!gs.isOver && !(gs.goals.length > 0 && gs.isGoalMet()) && !currentLevelIsDaily && reactiveAllowed('bomb_earned', levelManager.levelNumber)) tutOrch?.start({
       id:        'bomb',
-      text:      '💣 BOMB earned — tap it, then tap a lane to blast every car on it!',
+      text:      'BOMB earned! Tap it, then tap a lane.',
       bounds:    () => { const b = boosterBar?._bombBtn?.getBounds(); return b ? { x: b.x, y: b.y, w: b.width, h: b.height } : { x: 235, y: 764, w: 72, h: 77 }; },
       pauseGame: true,
     });
@@ -2102,7 +2115,7 @@ async function main() {
     haptics.medium();
     particles.spawnHit(laneIdx, gameX, 'Blue');
     floatingTexts.push(spawnFloatingText(layers.get('particleLayer'),
-      getLaneScreenX(laneIdx), getColumnScreenY() - 90, armorLeft > 0 ? 'PLATE OFF!' : 'ARMOUR OFF!', 0xE6ECF5));
+      getLaneScreenX(laneIdx), getColumnScreenY() - 90, armorLeft > 0 ? 'PLATE OFF!' : 'ARMOR OFF!', 0xE6ECF5));
     if (armorLeft > 0) fireReactive('plate_break', '');
     else fireReactive('armor_break', '');
   };
@@ -2396,7 +2409,7 @@ async function main() {
     // Armed-booster prompt: what to tap next. Only while the board is live.
     modeHint.set(gs.isOver || _boardBlockers().length > 0 ? null
       : boosterState.bombMode ? 'TAP A LANE TO BLAST IT'
-      : boosterState.colorChangeMode && !colorPicker ? 'TAP A CAR TO RECOLOUR' : null);
+      : boosterState.colorChangeMode && !colorPicker ? 'TAP A CAR TO RECOLOR' : null);
     modeHint.update(dt);
 
     // Modal cards (onboarding hints, car-type intro, color-bomb intro) all run
@@ -2551,6 +2564,7 @@ async function main() {
         pauseBtn: pauseBtn.visible, boosters: { colorChange: boosterState.colorChange, freeze: boosterState.freeze, bombs: boosterState.bombs },
         inventory: progress.getInventory(), coins: progress.coins }),
       getBoosterState: () => boosterState,
+      getBench: () => Array.from({ length: benchStorage.size }, (_, i) => benchStorage.getSlot(i)?.color ?? null),
       startDaily: () => { [titleScreen, levelSelectScreen, winScreen].forEach(x => x?.destroy()); titleScreen = levelSelectScreen = winScreen = null; startDailyChallenge(); },
       stageTop: (x, y) => {
         const hit = app.renderer.events.rootBoundary.hitTest(x, y);

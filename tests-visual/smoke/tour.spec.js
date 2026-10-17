@@ -33,7 +33,7 @@ test('L1 tour: steps through, then releases the board; not shown again', async (
     if (now === -1) break;
     seen.push(now);
   }
-  expect(seen.length, 'tour should have several cards').toBeGreaterThanOrEqual(5);
+  expect(seen.length, 'tour should have its three cards').toBeGreaterThanOrEqual(3);
   expect(seen).toEqual(seen.map((_, i) => i));        // 0,1,2,... in order, no skips
 
   await expect.poll(() => game.page.evaluate(() => window._nav.getGameLoop().paused), { timeout: 10_000 }).toBe(false);

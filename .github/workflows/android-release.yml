@@ -1,0 +1,77 @@
+name: Android release AAB
+
+# Builds the SIGNED Play Store bundle (.aab) as a PRIVATE workflow artifact (only people with
+# access to the repo can download it; nothing is published). Needs four repository secrets, set once:
+#   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+# Run it from the Actions tab: Android release AAB > Run workflow.
+on:
+  workflow_dispatch:
+    inputs:
+      ads:
+        description: 'Ad mode baked into the build (test or live)'
+        default: test
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  aab:
+    runs-on: ubuntu-latest
+    env:
+      VITE_ADS_MODE: ${{ github.event.inputs.ads || 'test' }}
+    steps:
+      - name: Check signing secrets
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KP: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KA: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KK: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          for v in KS KP KA KK; do
+            if [ -z "${!v}" ]; then echo "::error::Signing secrets are not set"; exit 1; fi
+          done
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - run: npm ci
+      - run: npm run build
+      - run: npx cap sync android
+
+      - name: Write keystore
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KP: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KA: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KK: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "$KS" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          {
+            echo "storeFile=$RUNNER_TEMP/release.keystore"
+            echo "storePassword=$KP"
+            echo "keyAlias=$KA"
+            echo "keyPassword=$KK"
+          } > android/keystore.properties
+
+      - name: Build signed bundle
+        working-directory: android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew bundleRelease --no-daemon -PversionCode=$((100 + GITHUB_RUN_NUMBER)) -PversionName=1.1.${GITHUB_RUN_NUMBER}
+          rm -f keystore.properties "$RUNNER_TEMP/release.keystore"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TrafficBomb-aab-v${{ github.run_number }}-ads-${{ env.VITE_ADS_MODE }}
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 30

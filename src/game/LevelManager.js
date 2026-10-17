@@ -33,6 +33,7 @@
 import { LATE_TUNING } from './lateTuning.js';
 import { W, total, scaleGoal, identityFor } from './levelDsl.js';
 import { LATE_LEVELS } from './LateLevels.js';
+import { TOUR_LEVELS } from './TourLevels.js';
 import { STEPS_PER_ROW, BOARD_ROWS } from '../director/TrafficRules.js';
 
 const PROGRESSION = [
@@ -271,6 +272,9 @@ const PROGRESSION = [
 
   // ═══ WORLDS 3-7 continue in LateLevels.js (L41-L100) ═══════════════════════
   ...LATE_LEVELS,
+
+  // ═══ WORLDS 8-14, the second tour, in TourLevels.js (L101-L200) ═════════════
+  ...TOUR_LEVELS,
 ];
 
 // Every numbered level runs on half-row steps: each correct shot moves traffic half a

@@ -2,7 +2,7 @@
 // map background bake (scripts/render-3d-sprites.mjs map), so the baked road
 // runs exactly through the nodes the screen draws.
 //
-// One page per game world (15 / 15 / 10 levels). Nodes snake bottom → top in
+// One page per game world (15 levels each, 10 on a tour's last world). Nodes snake bottom → top in
 // rows of four; each level's city-repair building sits on a plot just above
 // its node.
 
@@ -23,6 +23,17 @@ const WORLD_DEFS = [
   { first: 61, last: 75,  name: 'Frost Pass',      theme: 'world5' },
   { first: 76, last: 90,  name: 'Harbor Lights',   theme: 'world6' },
   { first: 91, last: 100, name: 'Starlight Strip', theme: 'world7' },
+  // Second tour (L101-200, src/game/TourLevels.js): each world revisits an earlier world's
+  // art. `theme` is the ART key (map, backdrops, repair buildings), so every page here must
+  // have the same level count as the world it borrows from: the baked map road runs
+  // through mapNodes(), which depends only on that count.
+  { first: 101, last: 115, name: 'Rush Hour',       theme: 'world1' },
+  { first: 116, last: 130, name: 'Night Shift',     theme: 'world2' },
+  { first: 131, last: 145, name: 'Neon Rain',       theme: 'world3' },
+  { first: 146, last: 160, name: 'Sandstorm',       theme: 'world4' },
+  { first: 161, last: 175, name: 'Glacier Road',    theme: 'world5' },
+  { first: 176, last: 190, name: 'Storm Harbor',    theme: 'world6' },
+  { first: 191, last: 200, name: 'Galaxy Finale',   theme: 'world7' },
 ];
 
 export const MAP_WORLDS = WORLD_DEFS

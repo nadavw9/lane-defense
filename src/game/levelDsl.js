@@ -31,7 +31,7 @@ export const pal = (letters) => [...letters].map(c => COLOR[c]);
  * budget and goals grow with the id; `dense` raises traffic to three cars a lane.
  */
 export function lv(id, name, letters, o = {}) {
-  const ramp = Math.floor((id - 40) / 6);
+  const ramp = Math.floor((Math.min(id, 100) - 40) / 6);   // the second tour (L101+) holds L100's budget
   const t = tuning?.[id];                       // sim-tuned numbers (lateTuning.js)
   const scaleTraits = (tr, k) => Object.fromEntries(Object.entries(tr).map(([n, p]) => [n, +(p * k).toFixed(4)]));
   const goals = (o.goals ?? total(o.total ?? 26)).map(g => scaleGoal(g, t?.gs ?? 1));

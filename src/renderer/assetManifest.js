@@ -16,7 +16,7 @@ const _B = import.meta.env.BASE_URL;   // '' in dev, '/lane-defense/' on GH Page
 
 // Worlds that exist in the campaign right now (derived from the level table, so a
 // world's art is preloaded exactly when its levels are). ['world1', ...] / [1, ...]
-const WORLD_THEMES = MAP_WORLDS.map(w => w.theme);
+const WORLD_THEMES = [...new Set(MAP_WORLDS.map(w => w.theme))];   // later tours reuse art
 const WORLD_NUMS   = WORLD_THEMES.map(t => Number(t.slice(5)));
 // Worlds 4+ have no side strips or panels: their baked backdrops cover the whole
 // scene (road, verges, depot), so only worlds 1-3 ship the legacy strip art.

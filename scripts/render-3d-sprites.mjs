@@ -155,7 +155,9 @@ if (mode === 'verges') {
 } else if (mode === 'map' || mode === 'mappreview') {
   // Level-map backgrounds (one per world page) + repair building sprites.
   //   map-<world>.png (780×1688), repair-<world>-<state>-<variant>.png (300×300)
-  for (const w of MAP_WORLDS.filter(w => !process.argv[4] || w.theme === process.argv[4])) {
+  // A later tour reuses a world's art on an identical node layout: bake each theme once.
+  const firstOfTheme = MAP_WORLDS.filter((w, i, all) => all.findIndex(o => o.theme === w.theme) === i);
+  for (const w of firstOfTheme.filter(w => !process.argv[4] || w.theme === process.argv[4])) {
     const road = mapRoadPath(w.page), nodes = mapNodes(w.page);
     const url = await page.evaluate(([t, road, nodes]) => window.studio.map(t, 1, { road, nodes }), [w.theme, road, nodes]);
     const out = mode === 'map' ? `${OUT}/map-${w.theme}.png` : `${outArg ?? '.'}/map-${w.theme}.png`;

@@ -260,13 +260,15 @@ export class LevelSelectScreen {
     coins.anchor.set(0, 0.5); coins.x = 42; coins.y = 75;
     this._container.addChild(coins);
 
+    // Page counter centred between the arrows ("8 / 14"). A dot per world stopped fitting:
+    // seven dots already ran under the next arrow, fourteen ran off the screen.
     const cx = w / 2;
-    for (let i = 0; i < MAP_WORLDS.length; i++) {
-      const d = new Graphics();
-      const on = i + 1 === this._page;
-      d.circle(cx + (i - 1) * 20, 75, on ? 6.5 : 5).fill(on ? GOLD : 0x5E5A80).stroke({ color: INK, width: 2 });
-      this._container.addChild(d);
-    }
+    const counter = new Graphics();
+    counter.roundRect(cx - 34, 62, 68, 26, 13).fill(0x14112F).stroke({ color: GOLD_DEEP, width: 2 });
+    this._container.addChild(counter);
+    const pageText = bodyText(`${this._page} / ${MAP_WORLDS.length}`, 15, 0xFFE08A);
+    pageText.anchor.set(0.5); pageText.x = cx; pageText.y = 75;
+    this._container.addChild(pageText);
     if (this._page > 1) {
       const prev = roundButton(uiIcon('back', 16, '◀'), { r: 14, color: 0x3A3662, onTap: () => this._switch(this._page - 1) });
       prev.x = cx - 58; prev.y = 75;

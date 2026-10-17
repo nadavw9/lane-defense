@@ -220,7 +220,7 @@ Claude may choose either. But "it works" is not equivalent to
 
 ## 3. What This Is
 
-Hybrid-casual mobile puzzle-defense game. Cars in colored lanes advance toward the player one row per correct shot. Player drags color-coded bombs onto lanes — color must match the front car to deal damage. Turn-based grid, not real-time. 100 levels across 7 worlds (L1-40 hand-tuned, L41-100 authored in `src/game/LateLevels.js` and sim-tuned). Live on GitHub Pages; native Android via Capacitor.
+Hybrid-casual mobile puzzle-defense game. Cars in colored lanes advance toward the player one row per correct shot. Player drags color-coded bombs onto lanes — color must match the front car to deal damage. Turn-based grid, not real-time. 200 levels across 14 worlds (L1-40 hand-tuned, L41-100 authored in `src/game/LateLevels.js`, L101-200 — the second tour, reusing world 1-7 art — in `src/game/TourLevels.js`; all sim-tuned). Live on GitHub Pages; native Android via Capacitor.
 
 - **Live URL:** https://nadavw9.github.io/lane-defense/
 - **Repo:** https://github.com/nadavw9/lane-defense
@@ -329,13 +329,14 @@ Always `${import.meta.env.BASE_URL}sprites/...`. Hardcoded `/sprites/...` causes
 | L61-75 | frost | World 5 Frost Pass |
 | L76-90 | harbor | World 6 Harbor Lights |
 | L91-100 | cosmos | World 7 Starlight Strip |
+| L101-200 | as L1-100 | Worlds 8-14, the second tour (`levelTheme(id - 100)`, art reused) |
 
 ---
 
 ## 6. Current State
 
 ### Tests
-**1533 passing**, 1 skipped, 5 todo — 81 files (+2 skipped). Run: `npx vitest run`. All headless (no
+**2801 passing**, 1 skipped, 5 todo — 88 files (+2 skipped; the level-config audit now runs on all 200 levels). Run: `npx vitest run`. All headless (no
 render tests).
 Visual smoke (`npm run test:visual`, Playwright) is separate and is a blocking CI gate.
 
@@ -685,7 +686,7 @@ API can reject the call, wait for it to be acceptable first (`game.waitForIdle()
 inferring rejection from an unchanged board.
 
 ### What is done
-- **100 levels**: L1–L40 in `LevelManager.js`, L41–L100 in `LateLevels.js` (authored with `levelDsl.js`, heft/trait/goal scales generated into `lateTuning.js` by `node tools/tune-levels.mjs --write`). Seven worlds; worlds 4-7 art is baked (`render-3d-sprites.mjs backdrop|map`, `render-world-tiles.mjs`).
+- **200 levels**: L1–L40 in `LevelManager.js`, L41–L100 in `LateLevels.js`, L101–L200 (second tour, worlds 8-14 on reused art) in `TourLevels.js` (authored with `levelDsl.js`, heft/trait/goal scales generated into `lateTuning.js` by `node tools/tune-levels.mjs --write`). Seven worlds; worlds 4-7 art is baked (`render-3d-sprites.mjs backdrop|map`, `render-world-tiles.mjs`).
 - **Seven traits** (`TrafficRules.js`): speeder, armored, chameleon, plated, mender, volatile, phantom; goal types destroyTotal/Color/Type/Trait + defeatBoss. Bands in `tools/bands.mjs`; every level is checked in-band (2026-10-01).
 - **Economy (2026-10-01)**: 2 coins per car (was 10), shop 20-40, continue-with-coins 60 (`RESCUE_COIN_COST`); one booster store (`inventory`). Interstitials paced by `src/ads/adPolicy.js`. Daily/streak use the local day (`src/game/dateKeys.js`). Adaptive 3D render scale (`AdaptiveQuality.js`), reduce-motion setting (`MotionPrefs.js`).
 - **Car type intro cards** (`src/screens/CarTypeIntroCard.js`) — fires at: L1 small, L2 big, L5 jeep, L9 truck, L13 bigrig, L15 tank

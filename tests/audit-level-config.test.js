@@ -6,7 +6,7 @@
 // Pure config checks — fast, deterministic, no simulation.
 
 import { describe, it, expect } from 'vitest';
-import { LevelManager } from '../src/game/LevelManager.js';
+import { LevelManager, LEVEL_COUNT } from '../src/game/LevelManager.js';
 import { CAR_TYPES, bandWeights } from '../src/director/CarTypes.js';
 import { TRAIT_TYPES } from '../src/director/TrafficRules.js';
 import { BOARD_ROWS } from '../src/director/TrafficRules.js';
@@ -29,8 +29,8 @@ function spawnableTypes(levelId) {
   return types;
 }
 
-describe('audit: level configs (all 40)', () => {
-  for (let id = 1; id <= 40; id++) {
+describe('audit: level configs (every level)', () => {
+  for (let id = 1; id <= LEVEL_COUNT; id++) {
     describe(`L${id}`, () => {
       const cfg = levelConfig(id);
 

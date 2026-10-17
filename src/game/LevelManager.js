@@ -31,7 +31,7 @@
 // turn-based game; it is kept only because the config shape requires it.
 
 import { LATE_TUNING } from './lateTuning.js';
-import { W, total, scaleGoal } from './levelDsl.js';
+import { W, total, scaleGoal, identityFor } from './levelDsl.js';
 import { LATE_LEVELS } from './LateLevels.js';
 import { STEPS_PER_ROW, BOARD_ROWS } from '../director/TrafficRules.js';
 
@@ -154,7 +154,7 @@ const PROGRESSION = [
   // L20 BIG WAVE "Iron lane": armoured cars in a dense, four-colour wave.
   { id: 20, name: 'Iron lane', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green', 'Yellow'], worldConfig: W(0),
     duration: 110, spawnBudget: 16, laneTargetCarCount: 3, gridRows: BOARD_ROWS, milestone: true,
-    traits: { armored: 0.20 },
+    traits: { armored: 0.15 },
     hintText: 'BIG WAVE! Armored cars in every lane',
     goals: total(26) },
 
@@ -170,7 +170,7 @@ const PROGRESSION = [
 
   // L23 "Colour flood": dense four-colour traffic with chameleons.
   { id: 23, name: 'Color flood', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green', 'Yellow'], worldConfig: W(0.19),
-    duration: 100, spawnBudget: 17, laneTargetCarCount: 3, gridRows: BOARD_ROWS,
+    duration: 100, spawnBudget: 17, laneTargetCarCount: 2, gridRows: BOARD_ROWS,   // 2 deep: a traffic-light level on the big board
     traits: { chameleon: 0.14 }, goals: total(30) },
 
   // L24 "Convoy": trucks in armour, three to a lane.
@@ -278,6 +278,19 @@ const PROGRESSION = [
 // without lengthening the road or shrinking the cars (see docs/ONE_HIT_MODEL.md).
 for (const cfg of PROGRESSION) cfg.stepsPerRow ??= STEPS_PER_ROW;
 
+// Level identity (2026-10-17): traffic lights, gift cars and motorbike convoys, from ONE rule
+// (levelDsl.identityFor) so the map reads as a sequence of distinct levels. Applied before the
+// tuning overlay so the sim tunes every level with its lights / convoy / gifts in place.
+for (const cfg of PROGRESSION) {
+  const idn = identityFor(cfg.id, !!cfg.milestone);
+  if (idn.lights) cfg.lights = idn.lights;
+  if (idn.convoy) cfg.convoy = idn.convoy;
+  if (idn.gift > 0) {
+    cfg.traits = { ...(cfg.traits ?? {}), gift: idn.gift };
+    if (cfg.baseTraits) cfg.baseTraits = { ...cfg.baseTraits, gift: idn.gift };
+  }
+}
+
 // Sim-tuned numbers (lateTuning.js, written by tools/tune-levels.mjs) for the hand-authored
 // L1-40: goal scale and spawn-mix heft. L41+ apply theirs in levelDsl.lv(). The authored goals
 // stay on cfg.baseGoals so the tuner always starts from the design, never from its own output.
@@ -381,6 +394,20 @@ export function levelConfigFor(id) { return PROGRESSION.find(cfg => cfg.id === i
 // new rule. (These were boss fights before docs/ONE_HIT_MODEL.md.)
 export function isMilestoneLevel(id) {
   return !!levelConfigFor(id)?.milestone;
+}
+
+// Difficulty label the player sees (map node, pre-level card) — the same tiers tools/bands.mjs
+// tunes to, so the label always tells the truth. Sawtooth: every level ending in 5 (from L15)
+// is HARD, every big wave is HARD (L10, L20) then SUPER HARD (L30 on), and the level after
+// each is a relief level (an easier band, no label).
+export function levelDifficulty(id) {
+  if (typeof id !== 'number') return 'normal';
+  if (isMilestoneLevel(id)) return id >= 30 ? 'superhard' : 'hard';
+  if (id >= 15 && id % 10 === 5) return 'hard';
+  return 'normal';
+}
+export function isReliefLevel(id) {
+  return typeof id === 'number' && id >= 11 && (id % 10 === 1 || (id >= 16 && id % 10 === 6));
 }
 
 export class LevelManager {

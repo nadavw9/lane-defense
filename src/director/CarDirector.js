@@ -67,8 +67,15 @@ export class CarDirector {
     const color = this.assignColor(colorPalette, null);
 
     const availableRows = gridRows !== undefined ? gridRows - 1 : undefined;
+    // Convoy lane: a line of motorbikes, one hit each, no special cars.
+    if (this._convoy?.has(laneId)) {
+      return new Car({ color, hp: carHpFor('small', worldConfig?.hpMultiplier ?? 1.0), speed: worldConfig.speed.base, type: 'small' });
+    }
     return this._buildCar(color, phase, worldConfig, availableRows);
   }
+
+  // Convoy lanes (lane indices) spawn only motorbikes. null / [] = none.
+  setConvoy(lanes) { this._convoy = lanes?.length ? new Set(lanes) : null; }
 
   // Pick a color from colorPalette.
   // colorBudget: array of {value, weight} objects for weighted selection, or null for uniform.

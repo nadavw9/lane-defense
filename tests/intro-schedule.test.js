@@ -25,11 +25,18 @@ describe('level-start cards', () => {
     expect(new Set(all).size).toBe(all.length);
   });
   it('all core teaching lands by L10, in the agreed order', () => {
-    expect(Math.max(...Object.keys(LEVEL_START_CARDS).map(Number))).toBeLessThanOrEqual(10);
+    const ELEMENT_CARDS = ['gift_car', 'traffic_light', 'convoy'];   // board elements, taught on their own levels
+    const core = Object.entries(LEVEL_START_CARDS).filter(([, ks]) => ks.some(k => !ELEMENT_CARDS.includes(k)));
+    expect(Math.max(...core.map(([l]) => Number(l)))).toBeLessThanOrEqual(10);
     const at = (k) => Number(Object.entries(LEVEL_START_CARDS).find(([, ks]) => ks.includes(k))[0]);
     expect(at('lane_2')).toBeLessThan(at('lane_3'));
     expect(at('freeze_booster')).toBeLessThan(at('colour_change_booster'));
     expect(at('colour_change_booster')).toBeLessThan(at('rainbow_bomb'));
+  });
+  it('gift cars, traffic lights and convoys are explained on the level that first has them', () => {
+    expect(levelStartCards(firstLevel(c => (c.traits?.gift ?? 0) > 0))).toContain('gift_car');
+    expect(levelStartCards(firstLevel(c => !!c.lights))).toContain('traffic_light');
+    expect(levelStartCards(firstLevel(c => !!c.convoy))).toContain('convoy');
   });
   it('lanes and colours are explained on the level that first has them', () => {
     expect(levelStartCards(firstLevel(c => c.laneCount >= 2))).toContain('lane_2');

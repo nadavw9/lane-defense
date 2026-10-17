@@ -33,7 +33,7 @@ import {
 } from '../director/DirectorConfig.js';
 import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { openingRowsForLevel, clampInitialCarsToDepth, streakEnabledFor } from '../game/LevelManager.js';
-import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak,
+import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak, laneHeld,
          revealStagedCars, stepSize, freeSpawnRow } from '../director/TrafficRules.js';
 
 const DT = 1 / 60; // seconds per simulation tick (used for fire cooldowns only)
@@ -98,7 +98,7 @@ export const laneView = (lane) => (lane.__view ??= {
 // N=2 is corroborated independently: the shipped Danger Aura pulses red on cars within
 // 2 rows of the breach gate (CLAUDE.md S6), so this models the player reacting to the
 // warning the game already gives them, rather than a number fitted to the outcome.
-const BOMB_THREAT_ROWS = 2;
+const BOMB_THREAT_ROWS = 1;   // rows from the breach (5-row board: 1 row = 4 steps, as 2 rows were on 8)
 
 const SKILL_PROFILES = {
   optimal:  { accuracy: 1.00, useCycle: true,  cycleDelay: 0.10, boosterIQ: 0.00 },
@@ -168,6 +168,8 @@ export class SimulationRunner {
       // sim must model scripted bosses identically to the live game or it can't
       // measure them. Both wire into the SAME CarDirector implementation.
       initialCars:        levelConfig.initialCars        ?? null,   // INFRA-A scripted opening
+      lights:             levelConfig.lights             ?? null,   // traffic lights (TrafficRules.laneHeld)
+      convoy:             levelConfig.convoy             ?? null,   // motorbike-only lanes
       spawnScript:        levelConfig.spawnScript        ?? null,   // INFRA-C staged waves
       shooterColorWeights: levelConfig.shooterColorWeights ?? null, // §3c L10 v2 supply bias
       // V2 (TrafficRules): special-car trait table and Hot Streak. streak null →
@@ -209,6 +211,7 @@ export class SimulationRunner {
     if (this._cfg.levelId != null) carDir.setLevel(this._cfg.levelId);
     carDir.setSpawnScript(this._cfg.spawnScript);   // §3c INFRA-C (same impl as live game)
     carDir.setTraits(this._cfg.traits, colors);       // V2 special cars (same impl as live game)
+    carDir.setConvoy(this._cfg.convoy);               // convoy lanes (same impl as live game)
     const streakOn = typeof this._cfg.streak === 'boolean' ? this._cfg.streak
       : (this._cfg.levelId != null ? streakEnabledFor({ id: this._cfg.levelId }) : false);
     // A car record carries the V2 trait state alongside row/hp/type/color.
@@ -279,6 +282,8 @@ export class SimulationRunner {
           || (g.type === 'destroyTrait' && trait != null && trait === g.trait);
         if (match) goalProgress[i] = Math.max(0, goalProgress[i] - 1);
       }
+      // Gift car: the live game hands out a booster; model it as a FREEZE charge.
+      if (trait === 'gift' && boosterIQ > 0) freezeCharges = Math.min(2, freezeCharges + 1);
     };
     const goalsMet = () => hasGoals && goalProgress.every(r => r === 0);
 
@@ -381,14 +386,19 @@ export class SimulationRunner {
 
     // ONE correct shot → advance ALL cars 1 row, breach-check, refill. Per shot.
     let surgeFrom = null;   // lane index of a volatile killed by this shot, if any
+    let trafficMoves = 0;   // traffic lights run on these (frozen shots are not moves)
     const _advanceOneRow = (phase) => {
       totalAdvances++;
       // FREEZE: an activated freeze skips this advance entirely — cars don't move
       // forward, no breach, no refill (mirrors "your next shot is free, no cars advance").
       if (freezeSkips > 0) { freezeSkips--; surgeFrom = null; return; }
       // Same traffic rules as GameLoop._advanceGrid: speeders move 2, nobody
-      // passes the car ahead, chameleons flip colour.
-      for (const lane of discreteLanes) { advanceLaneCars(lane.cars, null, STEP); flipChameleons(lane.cars); healMenders(lane.cars); }
+      // passes the car ahead, chameleons flip colour, a red light holds its lane.
+      const move = trafficMoves++;
+      for (const lane of discreteLanes) {
+        if (!laneHeld(this._cfg.lights, lane.id, move)) advanceLaneCars(lane.cars, null, STEP);
+        flipChameleons(lane.cars); healMenders(lane.cars);
+      }
       if (surgeFrom !== null) {   // volatile surge — same helper the live game calls
         surgeOtherLanes(discreteLanes.map(l => l.cars), surgeFrom, STEP);
         surgeFrom = null;
@@ -671,6 +681,7 @@ export class SimulationRunner {
       initialCars: cfg.initialCars ?? null, spawnScript: cfg.spawnScript ?? null,
       shooterColorWeights: cfg.shooterColorWeights ?? null,
       traits: cfg.traits ?? null,
+      lights: cfg.lights ?? null, convoy: cfg.convoy ?? null,
       streak: typeof cfg.streak === 'boolean' ? cfg.streak : null,
       ...opts,
     });

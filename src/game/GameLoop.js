@@ -9,7 +9,7 @@ import { PHASE_CONFIG, HP_MINIMUM, KILLS_PER_BOMB } from '../director/DirectorCo
 import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { Shooter } from '../models/Shooter.js';
 import { COLUMN_CAPACITY } from '../models/Column.js';
-import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak,
+import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak, laneHeld,
          revealStagedCars, stepSize, freeSpawnRow } from '../director/TrafficRules.js';
 
 const MULTI_KILLS_PER_BOMB = 3;    // multi-kills (2+ cars/shot) banked to earn a color bomb
@@ -525,9 +525,11 @@ export class GameLoop {
     //    passes the car ahead (TrafficRules — the simulator runs the same code).
     //    Chameleons then flip to their other colour.
     let mended = 0;
+    const move = gs.trafficMoves ?? 0;   // traffic lights run on traffic moves (TrafficRules.laneHeld)
+    gs.trafficMoves = move + 1;
     for (let li = 0; li < gs.activeLaneCount; li++) {
       const cars = gs.lanes[li].cars;   // front-first (Lane keeps it sorted)
-      advanceLaneCars(cars, null, stepSize(gs.stepsPerRow));
+      if (!laneHeld(gs.lights, li, move)) advanceLaneCars(cars, null, stepSize(gs.stepsPerRow));
       flipChameleons(cars);
       mended += healMenders(cars);
     }

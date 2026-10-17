@@ -58,7 +58,7 @@ export const LATE_LEVELS = [
     goals: [goalTrait('phantom', 4), goalColor('Purple', 6)] }),
   lv(66, 'Icicle', 'BYPR', { traits: { plated: 0.05, phantom: 0.10 }, total: 28 }),
   lv(67, 'Blizzard', 'GPOB', { traits: { phantom: 0.14, chameleon: 0.12 }, total: 28 }),
-  lv(68, 'Frostbite', 'RBYP', { traits: { mender: 0.10, phantom: 0.12 }, total: 30, dense: true }),
+  lv(68, 'Frostbite', 'RBYP', { traits: { mender: 0.10, phantom: 0.12 }, total: 30 }),
   lv(69, 'Cabin', 'GYBR', { traits: { phantom: 0.06, speeder: 0.08 }, total: 24 }),               // relief
   lv(70, 'Whiteout rush', 'BPYR', { traits: { phantom: 0.12 }, duration: 125, total: 32, dense: true, milestone: true,
     hint: 'BIG WAVE! Phantoms hide in the fog' }),

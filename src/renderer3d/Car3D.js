@@ -349,6 +349,20 @@ function _menderTex() {
     ctx.fill();
   });
 }
+// Gift: gold disc with a red ribbon cross and bow — "destroy me for a booster".
+function _giftTex() {
+  return _canvasTex('gift', 128, (ctx, S) => {
+    const { c, r } = _badgeBase(ctx, S, '#FFC93C');
+    ctx.fillStyle = '#E8453C'; ctx.strokeStyle = INK_CSS; ctx.lineWidth = S * 0.02;
+    const w = r * 0.30;
+    ctx.beginPath(); ctx.rect(c - w / 2, c - r * 0.78, w, r * 1.56); ctx.rect(c - r * 0.78, c - w / 2, r * 1.56, w); ctx.fill();
+    for (const sx of [-1, 1]) {           // bow loops
+      ctx.beginPath(); ctx.ellipse(c + sx * r * 0.30, c - r * 0.42, r * 0.28, r * 0.17, sx * 0.5, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+    }
+    ctx.beginPath(); ctx.arc(c, c - r * 0.38, r * 0.12, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  });
+}
 // Volatile: hazard disc (orange, black bang) — "kill me and the other lanes surge".
 function _volatileTex() {
   return _canvasTex('volatile', 128, (ctx, S) => {
@@ -597,6 +611,10 @@ export class Car3D {
       } else if (car.trait === 'volatile') {
         const s = 1 + 0.1 * Math.sin(now * 7);
         fx.badge.scale.set(s, s, 1);
+      } else if (car.trait === 'gift') {
+        const s = 1 + 0.14 * Math.sin(now * 4.5);   // a slow, happy bounce
+        fx.badge.scale.set(s, s, 1);
+        fx.badge.rotation.z = 0.12 * Math.sin(now * 3);
       }
     }
     if (fx.shade) {
@@ -995,11 +1013,11 @@ export class Car3D {
         return f;
       });
     }
-    if (car.trait === 'plated' || car.trait === 'phantom' || (car.trait === 'mender' && st === 'small')) {
+    if (car.trait === 'plated' || car.trait === 'phantom' || car.trait === 'gift' || (car.trait === 'mender' && st === 'small')) {
       const side = 1.25 / spriteScale;
       const badge = new THREE.Mesh(new THREE.PlaneGeometry(side, side),
         new THREE.MeshBasicMaterial({ map: car.trait === 'plated' ? _plateTex(car.armor ?? 2) : car.trait === 'mender' ? _menderTex()
-          : car.trait === 'volatile' ? _volatileTex() : _phantomTex(), transparent: true, depthWrite: false, toneMapped: false }));
+          : car.trait === 'volatile' ? _volatileTex() : car.trait === 'gift' ? _giftTex() : _phantomTex(), transparent: true, depthWrite: false, toneMapped: false }));
       badge.rotation.x = -Math.PI / 2;
       const p = imgToLocal(0.5, 0.40);
       badge.position.set(p.x, 0.14, p.z);

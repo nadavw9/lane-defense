@@ -41,6 +41,10 @@ export class GameState {
     this.laneTargetCarCount = laneTargetCarCount ?? 2;
     this.initialCars        = null;
     this.openingRows        = [0, 1, 2]; // opening cars per lane, rows from top (set per level)
+    this.lights             = null;      // traffic lights [{ lane, green, red, phase }] (set per level)
+    this.convoy             = null;      // lanes that only spawn motorbikes (set per level)
+    this.trafficMoves       = 0;         // traffic moves so far — the lights run on these
+    this.giftsPending       = 0;         // gift cars destroyed, not yet rewarded (GameApp drains)
 
     // ── Level Goals (Level Goal System) ────────────────────────────────────
     // goals: array of goal objects { type, color?, carType?, count }
@@ -234,6 +238,8 @@ export class GameState {
     this.killsTowardBomb  = 0;
     this.bombFreezeUntil  = -Infinity;
     this.turnCount        = 0;
+    this.trafficMoves     = 0;
+    this.giftsPending     = 0;
     this.spawnBudget      = this._initialSpawnBudget;
     this.rescueUsed    = false;
     this.isOver        = false;
@@ -289,6 +295,7 @@ export class GameState {
   // destroyTotal goals always count down.
   // destroyTrait goals count kills of special cars (carTrait: 'armored', 'mender', ...).
   applyKillToGoals(carColor, carType, carTrait = null) {
+    if (carTrait === 'gift') this.giftsPending++;   // every kill path passes through here
     for (let i = 0; i < this.goals.length; i++) {
       const goal = this.goals[i];
       let matches = false;

@@ -676,7 +676,7 @@ export class GameLoop {
     // Feed kill-progress to the spawnScript (§3c INFRA-C) BEFORE spawning, so the
     // stage (weights + rate) matches the moment. Mirrored in SimulationRunner.
     this._carDir.setProgress?.(this._goalProgressPct());
-    const target = this._carDir.scriptRate?.() ?? gs.laneTargetCarCount ?? 2;
+    const target = this._carDir.laneTarget?.(gs.laneTargetCarCount ?? 2) ?? gs.laneTargetCarCount ?? 2;   // final rush (TrafficRules)
 
     if (gs.spawnBudget !== null) {
       // Budget mode: top EVERY active lane up to laneTargetCarCount each advance.

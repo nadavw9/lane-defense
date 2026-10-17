@@ -33,7 +33,7 @@ import {
 } from '../director/DirectorConfig.js';
 import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { openingRowsForLevel, clampInitialCarsToDepth, streakEnabledFor } from '../game/LevelManager.js';
-import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak, laneHeld,
+import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak, laneHeld, pushTrafficBack, rescueRowsBack,
          revealStagedCars, stepSize, freeSpawnRow } from '../director/TrafficRules.js';
 
 const DT = 1 / 60; // seconds per simulation tick (used for fire cooldowns only)
@@ -169,6 +169,9 @@ export class SimulationRunner {
       // measure them. Both wire into the SAME CarDirector implementation.
       initialCars:        levelConfig.initialCars        ?? null,   // INFRA-A scripted opening
       lights:             levelConfig.lights             ?? null,   // traffic lights (TrafficRules.laneHeld)
+      // CONTINUES the simulated player takes after a breach (0 = the first breach ends the run).
+      // Each one is the live CONTINUE: breaching cars leave, traffic is pushed back.
+      continues:          levelConfig.continues          ?? 0,
       convoy:             levelConfig.convoy             ?? null,   // motorbike-only lanes
       spawnScript:        levelConfig.spawnScript        ?? null,   // INFRA-C staged waves
       shooterColorWeights: levelConfig.shooterColorWeights ?? null, // §3c L10 v2 supply bias
@@ -365,7 +368,7 @@ export class SimulationRunner {
     const _refillLanes = (phase) => {
       // §3c INFRA-C rate: the spawnScript stage may override the lane-fill target
       // (L20 surge crests/lulls). Same line as GameLoop._refillLanes — parity.
-      const target = carDir.scriptRate() ?? this._cfg.laneTargetCarCount;
+      const target = carDir.laneTarget(this._cfg.laneTargetCarCount);   // same call as GameLoop (final rush)
       for (const lane of discreteLanes) {
         let added = false;
         let arrivals = 0;   // one arrival per lane per advance — parity with GameLoop._refillLanes
@@ -420,6 +423,8 @@ export class SimulationRunner {
 
     let turns  = 0;
     let stalls = 0;
+    let continuesUsed  = 0;
+    let progressAtLoss = null;   // goal progress (0..1) at the FIRST breach: how close the loss was
     while (turns < MAX_TURNS) {
       turns++;
 
@@ -427,7 +432,20 @@ export class SimulationRunner {
       //   1. LOSS: a car breached (lostAt !== null) → won=false
       //   2. WIN: all goals complete (goal mode) / kill target reached (legacy)
       //   3. TIMEOUT: MAX_TURNS safety cap
-      if (lostAt !== null) break;
+      if (lostAt !== null && continuesUsed < this._cfg.continues) {
+        // The first breach is recorded for near-miss analysis, then the CONTINUE plays out.
+        progressAtLoss ??= hasGoals ? 1 - goalProgress.reduce((s, r) => s + r, 0) / Math.max(1, totalGoalCount) : carsKilled / Math.max(1, KILL_TARGET);
+        continuesUsed++;
+        for (const lane of discreteLanes) {
+          lane.cars = pushTrafficBack(lane.cars.filter(c => c.row <= BREACH_ROW - 1), rescueRowsBack(BREACH_ROW));
+        }
+        lostAt = null;
+        _refillLanes(phaseMan.getCurrentPhase());
+      }
+      if (lostAt !== null) {
+        progressAtLoss ??= hasGoals ? 1 - goalProgress.reduce((s, r) => s + r, 0) / Math.max(1, totalGoalCount) : carsKilled / Math.max(1, KILL_TARGET);
+        break;
+      }
       if (hasGoals ? goalsMet() : carsKilled >= KILL_TARGET) break;
 
       // Phase from progress (goal completion in goal mode, else kills/target) so the
@@ -613,7 +631,7 @@ export class SimulationRunner {
       }
 
       maxAdvPerTick = Math.max(maxAdvPerTick, totalAdvances - advBefore);
-      if (lostAt !== null) break;
+      if (lostAt !== null) continue;   // the loop head records the loss and plays a CONTINUE if one is left
 
       // Pass C — cyclers (avg/skilled/optimal) churn idle columns toward a match.
       if (profile.useCycle) {
@@ -667,6 +685,8 @@ export class SimulationRunner {
       bombKills,
       powerShots,
       armorBreaks,
+      continuesUsed,
+      progressAtLoss,
     };
   }
 

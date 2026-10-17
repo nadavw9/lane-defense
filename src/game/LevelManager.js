@@ -112,7 +112,7 @@ const PROGRESSION = [
   { id: 13, name: 'Breather', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.04),
     duration: 100, spawnBudget: 13, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
     traits: { armored: 0.08, speeder: 0.08 },
-    goals: [{ type: 'destroyColor', color: 'Red', count: 10 }, { type: 'destroyColor', color: 'Blue', count: 10 }] },
+    goals: [{ type: 'destroyColor', color: 'Red', count: 10 }, { type: 'destroyTotal', count: 16 }] },   // a breather: one colour goal
 
   // L14 "Cold snap": FREEZE booster; denser traffic that wants it.
   { id: 14, name: 'Cold snap', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.26),

@@ -5,6 +5,7 @@
 // Rule: nothing outside GameLoop ever writes to GameState.
 import { COMBO_WINDOW, DEPLOY_DILATION,
          COINS_PER_CAR, FREEZE_THRESHOLD } from '../director/DirectorConfig.js';
+import { pushTrafficBack, rescueRowsBack } from '../director/TrafficRules.js';
 
 export class GameState {
   // laneCount / colCount — how many of the 4 lanes/columns are active.
@@ -193,22 +194,11 @@ export class GameState {
     this.recoveryUntil = this.elapsed + 5;
 
     const ROWS = this.gridRows ?? 16;
-    const ROWS_BACK = Math.floor(ROWS * 0.4);
+    const ROWS_BACK = rescueRowsBack(ROWS);
     for (const lane of this.lanes) {
-      // Push traffic back, keeping every car on its own row in lane order: a flat
-      // max(0, row - k) stacked several cars on row 0 (drawn on top of each other).
-      // Cars that no longer fit behind row 0 leave the road (refill replaces them).
-      const cars = [...lane.cars].sort((a, b) => b.row - a.row);   // front first
-      let prev = Infinity;
-      const keep = [];
-      for (const car of cars) {
-        const row = Math.min(car.row - ROWS_BACK, prev - 1);
-        if (row < 0) continue;
-        car.row = row;
-        car.position = ROWS <= 1 ? 0 : (car.row / (ROWS - 1)) * 100;
-        prev = row;
-        keep.push(car);
-      }
+      // Push traffic back (TrafficRules.pushTrafficBack — the simulator runs the same rule).
+      const keep = pushTrafficBack(lane.cars, ROWS_BACK);
+      for (const car of keep) car.position = ROWS <= 1 ? 0 : (car.row / (ROWS - 1)) * 100;
       lane.cars.length = 0;
       for (const car of keep) lane.cars.push(car);
     }

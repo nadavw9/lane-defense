@@ -1732,6 +1732,15 @@ async function main() {
       improved,
       winLevelId,
       currentLevelIsDaily ? 0 : progress.winStreak,
+      {
+        // Rewarded video: double this level's coins (credited on the ad's reward callback only).
+        onDoubleCoins: (() => {
+          const earned = gs.coins;
+          return (done) => adManager.showRewarded(
+            () => { progress.setCoins(progress.coins + earned); logEvent('ad_double_coins', { coins: earned }); done(true); },
+            () => done(false));
+        })(),
+      },
     );
     // Achievements earned on the way wait for the end of the level, then show as a card.
     const shownWin = winScreen;

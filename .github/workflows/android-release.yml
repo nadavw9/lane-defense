@@ -3,8 +3,10 @@ name: Android release AAB
 # Builds the SIGNED Play Store bundle (.aab) as a PRIVATE workflow artifact (only people with
 # access to the repo can download it; nothing is published). Needs four repository secrets, set once:
 #   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
-# Run it from the Actions tab: Android release AAB > Run workflow.
+# Run it from the Actions tab (Android release AAB > Run workflow) or push to `android-release`.
 on:
+  push:
+    branches: [android-release]   # a push here builds too (dispatch needs the file on master)
   workflow_dispatch:
     inputs:
       ads:

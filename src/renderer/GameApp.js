@@ -73,6 +73,8 @@ import { OnboardingHints }    from '../screens/OnboardingHints.js';
 import { GuideCard }           from '../screens/GuideCard.js';
 import { tourSteps, stepsFor } from '../screens/guideContent.js';
 import { streakGift, winsToNextTier, addBundles } from '../game/winStreak.js';
+import { TrafficLights } from './TrafficLights.js';
+import { FINALE_FROM, finaleLaneTarget } from '../director/TrafficRules.js';
 import { ModeHint } from './ModeHint.js';
 import { BoosterSpotlight }      from '../screens/BoosterSpotlight.js';
 import { TransitionOverlay }      from '../screens/TransitionOverlay.js';
@@ -448,6 +450,7 @@ async function main() {
   // V2 Hot Streak meter (on the breach stripe). Anchors = every bomb the player
   // could fire next: the column tops and any filled bench slot.
   const streakMeter = new StreakMeter(layers.get('hudLayer'));
+  const trafficLights = new TrafficLights(layers.get('particleLayer'));   // traffic-light levels
   streakMeter.setAnchors(() => {
     const out = [];
     for (let c = 0; c < gs.activeColCount; c++) {
@@ -498,6 +501,8 @@ async function main() {
 
   // ── Per-level booster tracking (for analytics) ───────────────────────────
   let boostersUsedThisLevel = [];
+  let giftsThisLevel = 0;   // gift-car payouts this level (alternates FREEZE / COLOR SWAP)
+  let rushShown = false;    // FINAL RUSH announced this level
 
   // ── Per-level tutorial state ───────────────────────────────────────────────
   let firstDeployTooltipShown = false;
@@ -586,6 +591,7 @@ async function main() {
     bombs:  () => { const l = _laneSpan(); return { x: l.x, y: SHOOTER_AREA_Y + 6, w: l.w, h: SHOOTER_AREA_H - 6 }; },
     goal:   () => goalCounterUI.plaqueRect() ?? { x: APP_W / 2 - 45, y: 6, w: 90, h: 82 },
     bench:  () => ({ x: 12, y: benchY(), w: APP_W - 24, h: benchSlotH() }),
+    light:         () => trafficLights.firstRect() ?? { x: 6, y: ROAD_BOTTOM_Y - 60, w: APP_W - 12, h: 60 },
     boosterColor:  () => boosterCardRect(0),
     boosterFreeze: () => boosterCardRect(1),
     boosterBomb:   () => boosterCardRect(2),
@@ -803,6 +809,10 @@ async function main() {
     carDir.setLevel(typeof cfg.id === 'number' ? cfg.id : 1);
     carDir.setSpawnScript(cfg.spawnScript ?? null);   // §3c staged boss waves (INFRA-C)
     carDir.setTraits(cfg.traits ?? null, cfg.colors);  // V2 special cars (TrafficRules)
+    carDir.setConvoy(cfg.convoy ?? null);              // motorbike-only lanes
+    gs.convoy = cfg.convoy ?? null;
+    gs.lights = cfg.lights ?? null;                    // traffic lights (TrafficRules.laneHeld)
+    trafficLights.setLights(gs.lights);
     gs.streakEnabled = streakEnabledFor(cfg);           // V2 Hot Streak
     streakMeter.setEnabled(gs.streakEnabled);
     streakMeter.reset();
@@ -910,6 +920,8 @@ async function main() {
     boosterBar.setButtonVisibility(true, true);
 
     boostersUsedThisLevel       = [];
+    giftsThisLevel              = 0;
+    rushShown                   = false;
     firstDeployTooltipShown     = false;
     firstKillDoneThisLevel      = false;
     popupQueue.clear();
@@ -1723,6 +1735,15 @@ async function main() {
       improved,
       winLevelId,
       currentLevelIsDaily ? 0 : progress.winStreak,
+      {
+        // Rewarded video: double this level's coins (credited on the ad's reward callback only).
+        onDoubleCoins: (() => {
+          const earned = gs.coins;
+          return (done) => adManager.showRewarded(
+            () => { progress.setCoins(progress.coins + earned); logEvent('ad_double_coins', { coins: earned }); done(true); },
+            () => done(false));
+        })(),
+      },
     );
     // Achievements earned on the way wait for the end of the level, then show as a card.
     const shownWin = winScreen;
@@ -2061,7 +2082,7 @@ async function main() {
     haptics.medium();   // booster earned
     floatingTexts.push(spawnFloatingText(
       layers.get('particleLayer'), APP_W / 2, 470,
-      '2× COMBO! Color Change ready!', 0xCC66FF,
+      '2× COMBO! COLOR SWAP ready!', 0xCC66FF,
     ));
   };
   gameLoop._onBombEarned = () => {
@@ -2395,6 +2416,37 @@ async function main() {
     gameRenderer3D.setSelectedBomb(shooterRenderer.draggingColumn ?? -1);
 
     gameRenderer3D.render();
+
+    // Traffic lights show the NEXT move; hidden behind end screens.
+    trafficLights.setVisible(!gs.isOver);
+    trafficLights.update(dt, gs.trafficMoves ?? 0);
+
+    // FINAL RUSH: the moment the level's last stretch gets busier (TrafficRules.finaleLaneTarget),
+    // say so once — the player should read the extra traffic as the climax, not as bad luck.
+    if (!rushShown && !gs.isOver && typeof currentLevelCfg?.id === 'number' && currentLevelCfg.id >= FINALE_FROM) {
+      const base = gs.laneTargetCarCount ?? 2;
+      const p = gameLoop._goalProgressPct();
+      if (finaleLaneTarget(base, p) > base) {
+        rushShown = true;
+        floatingTexts.push(spawnFloatingText(layers.get('particleLayer'), APP_W / 2, 215, 'FINAL RUSH!', 0xFF8A1C));
+        audio.play('combo_milestone', { combo: 7 });
+        haptics.medium();
+      }
+    }
+
+    // Gift cars: every one destroyed (any kill path) pays out once — FREEZE, then COLOR SWAP, alternating.
+    if ((gs.giftsPending ?? 0) > 0) {
+      const n = gs.giftsPending;
+      gs.giftsPending = 0;
+      for (let i = 0; i < n; i++) {
+        const swap = (giftsThisLevel++ % 2) === 1;
+        if (swap) boosterState.colorChange++; else boosterState.freeze++;
+        floatingTexts.push(spawnFloatingText(layers.get('particleLayer'), APP_W / 2, 430 - i * 40,
+          swap ? 'GIFT! +1 COLOR SWAP' : 'GIFT! +1 FREEZE', 0xFFD24A));
+      }
+      audio.play('coin_collect');
+      haptics.medium();
+    }
 
     // Combo power-shot FX (vignette + floating text).
     comboFX.update(dt);

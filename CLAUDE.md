@@ -22,6 +22,15 @@ via `node tools/tune-levels.mjs 1-100 300 --write` (writes `src/game/lateTuning.
 damage numbers, boss levels (L10/20/30/40 as bosses), FR-3/FR-4 or the BOMB booster's boss rule describes the
 OLD model and is provenance until this branch merges.
 
+### BIG BOARD (2026-10-17, branch `feat/big-board`) — 5 rows x 4 steps
+
+`TrafficRules.BOARD_ROWS = 5`, `STEPS_PER_ROW = 4` (was 8 rows x 2). Same road length, so every car is
+1.6x bigger; 20 steps from the far end to the breach. Opening is staging row + 2 visible (`[0,1,2]`).
+All levels retuned with `node tools/tune-levels.mjs 1-100 300 --write`. Sim harnesses must pass the
+level's `stepsPerRow` (whole-row steps on a 5-row board breach almost at once). Also on this line of
+work: win streak (`src/game/winStreak.js`), bench drop-into-slot, HARD LEVEL banner, 3-card L1 tour,
+US spelling + COLOR SWAP naming, `android-release.yml` (signed AAB as a private artifact; secrets set).
+
 ### GUIDE CARDS — all explanations are centre-screen, never at the top (2026-10-12)
 
 Every tip is a `GuideCard` (`src/screens/GuideCard.js`): centred card, NEXT button, optional gold ring on a

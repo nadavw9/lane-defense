@@ -15,6 +15,7 @@ import { boosterIcon, uiIcon } from '../renderer/UIIcon.js';
 import { panel, ribbon, button, roundButton, bodyText, titleText, backdrop, well, GOLD } from '../renderer/PremiumUI.js';
 import { INK, WHITE } from '../renderer/ToyStyle.js';
 import { traitInfo, traitSpritePath } from '../renderer/traitIcons.js';
+import { levelDifficulty } from '../game/LevelManager.js';
 
 const _B = import.meta.env.BASE_URL;
 const BOOSTERS = [
@@ -117,10 +118,12 @@ export class PreLevelScreen {
     const lv = this._level ?? {};
     const goals = lv.goals ?? [];
     const intro = (lv.hintText && /^(NEW!|BOSS!|FINAL BOSS!|BIG WAVE!)/.test(lv.hintText)) ? lv.hintText : null;
-    const hard = !!intro && /^BIG WAVE!/.test(intro);   // milestone level: say it is hard, up front
+    const hard = !!intro && /^BIG WAVE!/.test(intro);   // big-wave intro box (red)
+    const tier = levelDifficulty(lv.id);                 // 'hard' | 'superhard' | 'normal' (same tiers the tuner uses)
+    const tierPill = tier !== 'normal';
 
     const streak = this._streak;
-    const PW = 344, PH = 470 + (intro ? 100 : 0) + (streak ? 62 : 0);
+    const PW = 344, PH = 470 + (intro ? 100 : 0) + (streak ? 62 : 0) + (tierPill ? 36 : 0);
     const card = new Container();
     card.x = w / 2; card.y = h / 2 + 10;
     card.pivot.set(PW / 2, PH / 2);
@@ -139,6 +142,24 @@ export class PreLevelScreen {
       card.addChild(nm);
     }
     y += 34;
+
+    // Difficulty pill: HARD (red) / SUPER HARD (purple), as on the map node. Said up front,
+    // so a loss reads as the level being hard, and a booster as the answer.
+    if (tierPill) {
+      const sup = tier === 'superhard';
+      const pw = sup ? 168 : 138, ph = 28;
+      const pill = new Graphics();
+      pill.roundRect(PW / 2 - pw / 2, y - 6, pw, ph, 14).fill(sup ? 0x8A3CE0 : 0xE8453C).stroke({ color: INK, width: 2.5 });
+      pill.roundRect(PW / 2 - pw / 2 + 6, y - 3, pw - 12, ph * 0.35, 8).fill({ color: 0xffffff, alpha: 0.25 });
+      card.addChild(pill);
+      const ic = uiIcon(sup ? 'skull' : 'fire', 18, sup ? '💀' : '🔥');
+      ic.x = PW / 2 - pw / 2 + 18; ic.y = y + 8;
+      card.addChild(ic);
+      const t = titleText(sup ? 'SUPER HARD' : 'HARD LEVEL', 16);
+      t.x = PW / 2 + 10; t.y = y + 8;
+      card.addChild(t);
+      y += 36;
+    }
 
     // Goals.
     const gl = bodyText('GOALS', 15, 0xC9C3F0, { outline: false });
@@ -203,7 +224,7 @@ export class PreLevelScreen {
       card.addChild(box);
       const pic = spriteFit(introSprite(intro, lv), /BOSS/.test(intro) ? 78 : 66);
       if (pic) { pic.x = 24 + 44; pic.y = y + ih / 2; card.addChild(pic); }
-      const tag = hard ? 'HARD LEVEL' : intro.match(/^(NEW!|BOSS!|FINAL BOSS!)/)[1];
+      const tag = hard ? 'BIG WAVE' : intro.match(/^(NEW!|BOSS!|FINAL BOSS!)/)[1];
       const tg = titleText(tag, 18, hard ? 0xFF6A5A : GOLD);
       tg.anchor.set(0, 0.5); tg.x = 24 + 88; tg.y = y + 20;
       card.addChild(tg);

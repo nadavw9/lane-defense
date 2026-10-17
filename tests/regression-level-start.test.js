@@ -9,6 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import { LevelManager, openingCarsForLevel, openingRowsForLevel } from '../src/game/LevelManager.js';
 import { pickCarType, CAR_TYPES } from '../src/director/CarTypes.js';
+import { BOARD_ROWS } from '../src/director/TrafficRules.js';
 
 const TOTAL_LEVELS = 40;
 const BOSS_LEVELS  = [10, 20, 30, 40];
@@ -50,7 +51,7 @@ describe('regression: every level starts in a valid state', () => {
       //    L1 — car size is FIT x rowPitchWu x pxPerWu and rowPitchWu is 26/gridRows,
       //    so 16 rows renders every car at HALF the size the rest of the game uses.
       //    The whole game is now one board depth.
-      expect(cfg.gridRows).toBe(8);
+      expect(cfg.gridRows).toBe(BOARD_ROWS);
 
       // 6b. Lane count. Everything from L4 up is the 3-lane board; L1-L3 ramp.
       if (cfg.id >= 4) expect(cfg.laneCount).toBe(3);

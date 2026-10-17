@@ -76,14 +76,15 @@ describe('simulation on half-row steps', () => {
   it('runs a real level to a finish and takes more shots than whole-row steps', () => {
     const lm = new LevelManager(); lm.goToLevel(5);
     const half = lm.current;
-    const whole = { ...half, stepsPerRow: 1 };
+    const coarse = { ...half, stepsPerRow: Math.max(1, half.stepsPerRow / 2) };
     const shots = (cfg) => {
       const r = SimulationRunner.fromLevel(cfg, { skill: 'average' });
       let total = 0, n = 0;
       for (let i = 1; i <= 40; i++) { const o = r.runLevel(i); if (o.won) { total += o.totalAdvances; n++; } }
       return total / Math.max(1, n);
     };
+    // The shipped step size finishes levels; coarser steps on the same road give fewer shots.
     expect(shots(half)).toBeGreaterThan(0);
-    expect(shots(whole)).toBeGreaterThan(0);
+    expect(shots(half)).toBeGreaterThanOrEqual(shots(coarse));
   });
 });

@@ -47,6 +47,7 @@ function runnerFor(cfg) {
     laneTargetCarCount: cfg.laneTargetCarCount,
     spawnBudget:        cfg.spawnBudget,
     gridRows:           cfg.gridRows,
+    stepsPerRow:        cfg.stepsPerRow,   // the level's real step size (whole rows on a 5-row board breach at once)
   });
 }
 

@@ -194,7 +194,8 @@ describe('regression: shot contracts (real GameLoop)', () => {
 // shot across a solid consecutive run, not board survival.
 describe('regression: FR-1 viability holds across consecutive shots (L9)', () => {
   it('after every shot, at least one column top matches a front car colour', () => {
-    const { gs, lanes, columns, loop } = buildLevel(9);
+    const { cfg, gs, lanes, columns, loop } = buildLevel(9);
+    gs.stepsPerRow = cfg.stepsPerRow;   // the level's real step size (the contracts above pin whole-row moves)
     loop.restart();   // primes the uniform 3-car/lane opening and runs _enforceViableMove
 
     let shots = 0;

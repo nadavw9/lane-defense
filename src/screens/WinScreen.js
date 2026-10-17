@@ -148,8 +148,9 @@ export class WinScreen {
    *                             (e.g. ['stars', 'combo']); empty = no new records
    * @param {number} levelId   — for the share message (optional)
    */
-  constructor(stage, appW, appH, gs, onNext, onMenu, audio, improved = [], levelId = null, winStreak = 0) {
+  constructor(stage, appW, appH, gs, onNext, onMenu, audio, improved = [], levelId = null, winStreak = 0, { onDoubleCoins = null } = {}) {
     this._winStreak = winStreak;
+    this._onDoubleCoins = onDoubleCoins;   // (done(ok)) => runs a rewarded video; doubles the coins on success
     this._appW = appW;
     this._appH = appH;
 
@@ -366,7 +367,8 @@ export class WinScreen {
     // the button stays high on screen; the modal backdrop blocks input anyway.
     const panelW = 334;
     const showStreak = (this._winStreak ?? 0) >= 2;   // a streak row once it is worth something
-    const panelH = (is3Star ? 512 : 462) + (showStreak ? 50 : 0);
+    const offerDouble = !!this._onDoubleCoins && (gs.coins ?? 0) > 0;   // the classic win-screen video: x2 coins
+    const panelH = (is3Star ? 512 : 462) + (showStreak ? 50 : 0) + (offerDouble ? 62 : 0);
     const px = (w - panelW) / 2;
     const py = (h - panelH) / 2 - 36;
     const cx = w / 2;
@@ -454,6 +456,31 @@ export class WinScreen {
         () => { audio?.play('button_tap'); onMenu(); }, false);
     }
     y += 58;
+
+    // DOUBLE COINS — one rewarded video, offered once. Gold, under the main action, so it reads
+    // as a bonus rather than the way forward.
+    if (offerDouble) {
+      y += 4;
+      const dbl = premiumButton('DOUBLE COINS', { variant: 'gold', w: 230, h: 52, size: 22, icon: uiIcon('play', 22, '▶'),
+        onTap: () => {
+          if (!this._buttonsEnabled || dbl._used) return;
+          dbl._used = true;
+          dbl.alpha = 0.5;
+          this._onDoubleCoins((ok) => {
+            if (this._container.destroyed) return;
+            if (ok) {
+              this._coinCountTarget *= 2;          // the count-up runs on to the doubled total
+              this._audio?.play('coin_collect');
+              dbl.visible = false;
+            } else { dbl._used = false; dbl.alpha = 1; }
+          });
+        } });
+      dbl.x = cx; dbl.y = y;
+      dbl.alpha = 0.35; dbl.eventMode = 'none';
+      this._container.addChild(dbl);
+      this._pendingButtons.push({ btn: dbl, onClick: null });
+      y += 62;
+    }
 
     // Share button (always visible, non-critical) — [share icon] SHARE, centered
     const shareBtn = new Container();

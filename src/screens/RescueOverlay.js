@@ -23,7 +23,8 @@ export class RescueOverlay {
   //   onRescueCoins()  — "CONTINUE · coins" — shown only when the player can afford it
   //   onRetry()        — free full restart; caller destroys overlay and restarts the level
   //   onLevelSelect()  — decline; caller destroys overlay and returns to level select
-  constructor(stage, appW, appH, gs, { onRescueAd, onRescueCoins, onRetry, onLevelSelect }) {
+  constructor(stage, appW, appH, gs, { onRescueAd, onRescueCoins, onRetry, onLevelSelect, winStreak = 0 }) {
+    this._winStreak = winStreak;
     this._container = new Container();
     stage.addChild(this._container);
 
@@ -114,6 +115,12 @@ export class RescueOverlay {
       : close ? `Only ${goalLeft} cars left to win!` : 'Keep going from right here?', 16, GOLD, { outline: false });
     sub.x = PW / 2; sub.y = 212;
     card.addChild(sub);
+    // A live win streak is lost on RETRY / give up: say so, it is what a continue protects.
+    if (this._winStreak >= 2) {
+      const ws = bodyText(`Continue to keep your ${this._winStreak}-win streak`, 14, 0xFFB15C, { outline: false });
+      ws.x = PW / 2; ws.y = 234;
+      card.addChild(ws);
+    }
 
     // CONTINUE — one-time rewarded-ad rescue; resumes from the breach moment.
     const play = uiIcon('play', 26, '▶');

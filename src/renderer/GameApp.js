@@ -72,6 +72,7 @@ import { FTUEOverlay, FeatureBanners } from '../screens/FTUEOverlay.js';
 import { OnboardingHints }    from '../screens/OnboardingHints.js';
 import { GuideCard }           from '../screens/GuideCard.js';
 import { tourSteps, stepsFor } from '../screens/guideContent.js';
+import { streakGift, winsToNextTier, addBundles } from '../game/winStreak.js';
 import { ModeHint } from './ModeHint.js';
 import { BoosterSpotlight }      from '../screens/BoosterSpotlight.js';
 import { TransitionOverlay }      from '../screens/TransitionOverlay.js';
@@ -926,7 +927,7 @@ async function main() {
       // NEW!/BOSS! intros are already the level card's headline (every level
       // start goes through _showPreLevel); repeating them in-game only covered
       // the board. Other hints still fire once as a tip.
-      if (!/^(NEW!|BOSS!|FINAL BOSS!)/.test(cfg.hintText)) levelHint = { key: `hint_L${levelId}`, text: cfg.hintText };
+      if (!/^(NEW!|BOSS!|FINAL BOSS!|BIG WAVE!)/.test(cfg.hintText)) levelHint = { key: `hint_L${levelId}`, text: cfg.hintText };
       ftueCfg = { ...cfg, hintText: null };
     }
     carRenderer.clearAll();
@@ -1229,8 +1230,12 @@ async function main() {
   function _showPreLevel(levelId) {
     const label = typeof levelId === 'number' ? `LEVEL ${levelId}` : null;
     const levelCfg = (() => { if (typeof levelId !== 'number') return null; const lm = new LevelManager(); lm.goToLevel(levelId); return lm.current; })();
+    // Win streak: back-to-back wins start the next level with free boosters, on top of
+    // whatever the player picks here (an ad that fails still keeps the streak gift).
+    const streak = typeof levelId === 'number' ? progress.winStreak : 0;
+    const streakBundle = typeof levelId === 'number' ? streakGift(streak) : null;
     const start = (bundle) => {
-      _pendingBoosterGrant = bundle;
+      _pendingBoosterGrant = addBundles(bundle, streakBundle);
       preLevelScreen?.destroy();
       preLevelScreen = null;
       levelSelectScreen?.destroy();
@@ -1262,6 +1267,7 @@ async function main() {
       onClose: () => { preLevelScreen?.destroy(); preLevelScreen = null; if (!levelSelectScreen) showLevelSelect(); },
       audio,
       freeBooster,
+      streak: typeof levelId === 'number' ? { count: streak, gift: streakBundle, toNext: winsToNextTier(streak) } : null,
       level: levelCfg,
       owned: progress.getInventory(),
     });
@@ -1578,6 +1584,7 @@ async function main() {
       onQuit: () => {
         // Abandon signal for difficulty tuning: where players give up mid-level.
         logEvent('level_quit', { levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber, turns: gs.turnCount, kills: gs.totalKills, goalLeft: gs.goalProgress?.reduce((a, r) => a + r, 0) ?? null });
+        if (!currentLevelIsDaily) progress.breakWinStreak();   // quitting a level ends the win streak
         _settleInventory();
         pauseScreen.destroy();
         pauseScreen = null;
@@ -1715,6 +1722,7 @@ async function main() {
       audio,
       improved,
       winLevelId,
+      currentLevelIsDaily ? 0 : progress.winStreak,
     );
     // Achievements earned on the way wait for the end of the level, then show as a card.
     const shownWin = winScreen;
@@ -1811,6 +1819,7 @@ async function main() {
       pauseBtn.visible = true;
     };
     rescueOverlay = new RescueOverlay(app.stage, APP_W, APP_H, gs, {
+      winStreak: currentLevelIsDaily ? 0 : progress.winStreak,
       onRescueAd: () => {
         adManager.showRewarded(
           () => {

@@ -148,7 +148,8 @@ export class WinScreen {
    *                             (e.g. ['stars', 'combo']); empty = no new records
    * @param {number} levelId   — for the share message (optional)
    */
-  constructor(stage, appW, appH, gs, onNext, onMenu, audio, improved = [], levelId = null) {
+  constructor(stage, appW, appH, gs, onNext, onMenu, audio, improved = [], levelId = null, winStreak = 0) {
+    this._winStreak = winStreak;
     this._appW = appW;
     this._appH = appH;
 
@@ -364,7 +365,8 @@ export class WinScreen {
     // row with a visible gap (see button placement below). Shifted up 36px so
     // the button stays high on screen; the modal backdrop blocks input anyway.
     const panelW = 334;
-    const panelH = is3Star ? 512 : 462;
+    const showStreak = (this._winStreak ?? 0) >= 2;   // a streak row once it is worth something
+    const panelH = (is3Star ? 512 : 462) + (showStreak ? 50 : 0);
     const px = (w - panelW) / 2;
     const py = (h - panelH) / 2 - 36;
     const cx = w / 2;
@@ -431,6 +433,10 @@ export class WinScreen {
     if (is3Star) {
       y += ROW_H + ROW_GAP;
       this._statRow(px + 22, y, panelW - 44, ROW_H, 'PERFECT CLEAR', 'Flawless!', 0xffcc00, { name: 'star-filled', emoji: '★' });
+    }
+    if (showStreak) {
+      y += ROW_H + ROW_GAP;
+      this._statRow(px + 22, y, panelW - 44, ROW_H, 'WIN STREAK', `×${this._winStreak}`, 0xFF9A3C, { name: 'fire', emoji: '🔥' });
     }
     // Advance past the last stat row to the BUTTON CENTER position.
     // _button() centers the button on this y, so we add the row body (ROW_H),

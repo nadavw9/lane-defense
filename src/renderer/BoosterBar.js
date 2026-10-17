@@ -51,6 +51,8 @@ const PRESS_MIN     = 0.88;
 
 const CARD_X = Array.from({ length: NUM_CARDS }, (_, i) => BAR_XOFF + i * (CARD_W + CARD_GAP));
 // Indices: 0=COLOR CHANGE, 1=FREEZE, 2=BOMB
+/** Screen rect of one booster card (guide cards ring exactly the booster they teach). */
+export function boosterCardRect(i) { return { x: CARD_X[i], y: CARD_Y, w: CARD_W, h: CARD_H - CARD_LIP }; }
 // Toy Town card faces — each booster owns one saturated colour (palette-aligned).
 const COLOR_CHANGE_ACCENT = 0xA35CFF;   // purple  (palette Purple)
 const FREEZE_ACCENT       = 0x2FB4FF;   // ice cyan

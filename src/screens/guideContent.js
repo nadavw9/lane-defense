@@ -56,12 +56,12 @@ export const CARDS = {
   combo:           { title: 'COMBO!', text: 'Destroy cars quickly, one after another, for bonus coins.', target: 'goal' },
   supercharge:     { title: 'SUPERCHARGE', text: 'Destroy a car 3 shots in a row to charge your next bomb. It hits twice, any colour.', target: 'bombs' },
   goal_colour:     { title: 'A COLOUR GOAL', text: 'Only cars of this colour count toward the goal.', target: 'goal' },
-  freeze_booster:  { title: 'FREEZE', text: 'Tap FREEZE: your next shot moves no cars.', target: 'boosters' },
-  colour_change_booster: { title: 'COLOUR CHANGE', text: 'Tap COLOUR, tap a car, pick a colour. All cars of that colour change.', target: 'boosters' },
+  freeze_booster:  { title: 'FREEZE', text: 'Tap FREEZE: your next shot moves no cars.', target: 'boosterFreeze' },
+  colour_change_booster: { title: 'COLOUR CHANGE', text: 'Tap COLOUR, tap a car, pick a colour. All cars of that colour change.', target: 'boosterColor' },
   rainbow_bomb:    { title: 'RAINBOW BOMB', text: '3 multi-kill shots in a row earn a RAINBOW bomb. It hits one colour in every lane.', target: 'bombs' },
 
-  freeze_earned:   { title: 'FREEZE EARNED!', text: '3+ cars with one bomb earned a FREEZE. Tap it for a free shot.', target: 'boosters' },
-  colour_change_earned: { title: 'COLOUR CHANGE EARNED!', text: '2 multi-kill shots in a row earned a COLOUR CHANGE. Tap COLOUR to use it.', target: 'boosters' },
+  freeze_earned:   { title: 'FREEZE EARNED!', text: '3+ cars with one bomb earned a FREEZE. Tap it for a free shot.', target: 'boosterFreeze' },
+  colour_change_earned: { title: 'COLOUR CHANGE EARNED!', text: '2 multi-kill shots in a row earned a COLOUR CHANGE. Tap COLOUR to use it.', target: 'boosterColor' },
 
   // ── In-play moments (only inside their window, see introSchedule.js) ──
   first_kill:      { title: 'FIRST KILL!',     text: `Destroy ${KILLS_PER_BOMB} cars to earn a BOMB booster.`, target: 'goal' },

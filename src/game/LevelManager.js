@@ -321,7 +321,7 @@ const OPENING_ROWS = [0, 1, 2];
 // drops a row. NO-OP at gridRows 16 (returns [0,1,2] exactly as before), so
 // L1-L3 and L9-L40 are byte-identical until they're converted.
 const SHALLOW_ROWS_THRESHOLD = 10;
-const OPENING_ROWS_SHALLOW   = [0, 1];
+const OPENING_ROWS_SHALLOW   = [0, 1, 2];   // 2026-10-17: one more visible car per lane, so a level opens on traffic, not empty road
 // L1 opens with three cars ALL on screen (rows 1-3; row 0 is the hidden staging row), so the
 // first-timer sees a queue and the BOMB booster's lane clear has something to clear.
 const L1_OPENING_ROWS        = [1, 2, 3];

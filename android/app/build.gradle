@@ -13,8 +13,9 @@ android {
         applicationId "com.nadavw.trafficbomb"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 2
-        versionName "1.0.1"
+        // CI passes -PversionCode / -PversionName (each Play upload needs a higher code).
+        versionCode((project.findProperty("versionCode") ?: "2") as Integer)
+        versionName((project.findProperty("versionName") ?: "1.0.1") as String)
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!.scc:.:!CVS:!thumbs.db:!picasa.ini:!*~'

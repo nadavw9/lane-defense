@@ -31,6 +31,14 @@ level's `stepsPerRow` (whole-row steps on a 5-row board breach almost at once). 
 work: win streak (`src/game/winStreak.js`), bench drop-into-slot, HARD LEVEL banner, 3-card L1 tour,
 US spelling + COLOR SWAP naming, `android-release.yml` (signed AAB as a private artifact; secrets set).
 
+**Phone updates = Play internal testing (2026-10-18, same as The Math Wolf).** `android-release.yml` (workflow_dispatch,
+inputs ads/track/status) builds the signed AAB and uploads it with `r0adkll/upload-google-play` to the `internal` track
+using the `PLAY_SERVICE_ACCOUNT_JSON` secret (service account `play-upload@trafficbomb-ci...`, invited in Play Console
+with Release to testing tracks). Dispatch on the branch to ship: `gh api -X POST
+repos/nadavw9/lane-defense/actions/workflows/android-release.yml/dispatches -f ref=<branch> -f 'inputs[ads]=test'
+-f 'inputs[track]=internal' -f 'inputs[status]=completed'`. Testers = the "Traffic Bomb testers" list; versionCode = 100 + run
+number (105 = first internal upload). The debug APK (android-apk branch) cannot sit on a phone that has the Play build.
+
 ### FTUE PACING (2026-10-18, branch `feat/ftue-pacing`) — one new thing per level, boosters one at a time
 
 Owner-approved after Candy Crush / Royal Match research. `src/game/boosterUnlocks.js` is the ONE schedule:

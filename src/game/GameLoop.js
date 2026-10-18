@@ -277,8 +277,8 @@ export class GameLoop {
 
     gs.recordDeploy(isCorrectColor || (frontCar.armor ?? 0) > 0);
 
-    // Hot Streak: a charged bomb is supercharged (double damage, carry-over
-    // through any colour). The charge is spent by this shot whatever it does.
+    // Hot Streak: a charged bomb is supercharged (double damage; the second hit carries over
+    // only to a same-colour car). The charge is spent by this shot whatever it does.
     const power = this._powerShotReady();
     const res = this._combat.resolve(shooter, lane, { power });
     const { kills, carryOverKills, damageDealt, destroyed: destroyedFromCombat } = res;

@@ -33,9 +33,9 @@ describe('traffic lights', () => {
     const lm = new LevelManager(); lm.goToLevel(LIGHT_FROM);
     const cfg = lm.current;
     expect(cfg.lights).toBeTruthy();
-    const withLights = SimulationRunner.fromLevel(cfg).runLevel(3);
-    const without = SimulationRunner.fromLevel({ ...cfg, lights: null }).runLevel(3);
-    expect(withLights).not.toEqual(without);
+    // Over several seeds: one short run can end before the light has turned red at all.
+    const runs = (c) => Array.from({ length: 8 }, (_, i) => SimulationRunner.fromLevel(c).runLevel(i + 1));
+    expect(runs(cfg)).not.toEqual(runs({ ...cfg, lights: null }));
   });
 });
 

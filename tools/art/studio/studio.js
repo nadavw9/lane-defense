@@ -1141,6 +1141,97 @@ window.studio = {
     clearObj(obj);
     return out.toDataURL('image/png');
   },
+  // App-icon concepts (2026-10-18, owner: "happier, livelier"). Transparent subject only;
+  // scripts/icon-concepts.mjs paints the background tile.
+  appIconConcept(name, { px = 1024, outline = 14, faces = true } = {}) {
+    const g = new THREE.Group();
+    const n = new THREE.Vector3(0, Math.cos(TILT), Math.sin(TILT));       // toward the camera
+    const right = new THREE.Vector3(1, 0, 0);
+    const up = new THREE.Vector3(0, Math.sin(TILT), -Math.cos(TILT));     // screen up
+    const basis = new THREE.Matrix4().makeBasis(right, up, n);
+    // A face on a sphere (centre c, radius r): eyes, pupils, shine, smile, cheeks.
+    const face = (parent, c, r, { look = [0.08, -0.05], pupil = 0x1A1630 } = {}) => {
+      if (!faces) return;
+      const at = (a, b, lift = 0) => n.clone().add(right.clone().multiplyScalar(a)).add(up.clone().multiplyScalar(b))
+        .normalize().multiplyScalar(r + lift).add(c);
+      const white = new THREE.MeshStandardMaterial({ color: 0xFFFFFF, roughness: 0.35 });
+      const black = new THREE.MeshStandardMaterial({ color: pupil, roughness: 0.3 });
+      const pink = new THREE.MeshBasicMaterial({ color: 0xFF8FA8, transparent: true, opacity: 0.85 });
+      for (const sx of [-1, 1]) {
+        const eye = new THREE.Mesh(new THREE.SphereGeometry(r * 0.2, 24, 16), white);
+        eye.scale.set(0.9, 1.15, 0.45);
+        eye.position.copy(at(sx * 0.3, 0.12, -r * 0.02));
+        eye.quaternion.setFromRotationMatrix(basis);
+        const pu = new THREE.Mesh(new THREE.SphereGeometry(r * 0.11, 20, 14), black);
+        pu.scale.set(1, 1.15, 0.5);
+        pu.position.copy(at(sx * 0.3 + look[0], 0.12 + look[1], r * 0.05));
+        pu.quaternion.setFromRotationMatrix(basis);
+        const sh = new THREE.Mesh(new THREE.SphereGeometry(r * 0.04, 12, 8), new THREE.MeshBasicMaterial({ color: 0xFFFFFF }));
+        sh.position.copy(at(sx * 0.3 + look[0] - 0.04, 0.17 + look[1], r * 0.09));
+        const ck = new THREE.Mesh(new THREE.CircleGeometry(r * 0.1, 20), pink);
+        ck.position.copy(at(sx * 0.5, -0.12, r * 0.01));
+        ck.quaternion.setFromRotationMatrix(basis);
+        parent.add(eye, pu, sh, ck);
+      }
+      const smile = new THREE.Mesh(new THREE.TorusGeometry(r * 0.2, r * 0.045, 10, 32, Math.PI), black);
+      smile.geometry.rotateZ(Math.PI);
+      smile.position.copy(at(0, -0.06, r * 0.0));
+      smile.quaternion.setFromRotationMatrix(basis);
+      parent.add(smile);
+    };
+    const burstOn = (bomb) => {
+      bomb.traverse(o => { if (o.isMesh && o.material === M.spark) o.visible = false; });
+      const burst = new THREE.Group();
+      const rayM = new THREE.MeshBasicMaterial({ color: 0xFFC53A });
+      for (let i = 0; i < 8; i++) {
+        const ray = rbox(0.07, 0.07, i % 2 ? 0.34 : 0.52, 0.03, rayM);
+        ray.position.z = (i % 2 ? 0.34 : 0.52) / 2;
+        const arm = new THREE.Group(); arm.add(ray); arm.rotation.y = (i / 8) * Math.PI * 2; burst.add(arm);
+      }
+      burst.add(new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 8), new THREE.MeshBasicMaterial({ color: 0xFFFBE6 })));
+      burst.rotation.x = TILT;
+      burst.position.set(0.84, 2.4, -0.42);
+      bomb.add(burst);
+    };
+    if (name === 'mascot') {
+      const bomb = buildBomb(PALETTE.Red); burstOn(bomb);
+      face(bomb, new THREE.Vector3(0, 1, 0), 1);
+      bomb.scale.setScalar(1.6);
+      g.add(bomb);
+    } else if (name === 'lineup') {
+      const cols = [PALETTE.Yellow, PALETTE.Blue, PALETTE.Green];
+      [-2.7, 0, 2.7].forEach((x, i) => {
+        const car = BUILD.big(cols[i]);
+        car.scale.set(1.2, 1.05, 0.9);
+        car.position.set(x, 0, -1.9 - (i === 1 ? 0.6 : 0));
+        g.add(car);
+      });
+      const bomb = buildBomb(PALETTE.Red); burstOn(bomb);
+      face(bomb, new THREE.Vector3(0, 1, 0), 1);
+      bomb.scale.setScalar(1.7);
+      bomb.position.set(0, 0, 2.6);
+      g.add(bomb);
+    } else if (name === 'jump') {
+      const car = BUILD.big(PALETTE.Blue);
+      car.scale.set(1.2, 1.05, 0.9);
+      car.rotation.set(0.25, 0.5, -0.35);
+      car.position.set(0.6, 1.4, -0.6);
+      const bomb = buildBomb(PALETTE.Red); burstOn(bomb);
+      face(bomb, new THREE.Vector3(0, 1, 0), 1, { look: [0.1, 0.06] });
+      bomb.scale.setScalar(1.25);
+      bomb.position.set(-1.5, 0, 1.4);
+      g.add(car, bomb);
+    }
+    const obj = place(g);
+    obj.traverse(o => { if (o.isMesh && o.material?.isMeshBasicMaterial) o.castShadow = false; });
+    const box = new THREE.Box3().setFromObject(obj);
+    const span = Math.max(box.max.x - box.min.x, box.max.z - box.min.z);
+    frame(obj, (px - 2 * (outline + 20)) / (span * 1.1), outline + 20, px);
+    const W = renderer.domElement.width, H = renderer.domElement.height;
+    const out = compose(renderPasses(obj, W, H), W, H, outline, name === 'lineup');   // airborne / lone subjects: no ground shadow
+    clearObj(obj);
+    return out.toDataURL('image/png');
+  },
   // Square booster icon, subject fitted with a margin for the outline.
   icon(name, { px = 160, outline = 5 } = {}) {
     const obj = place(ICONS[name]());

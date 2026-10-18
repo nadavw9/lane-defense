@@ -17,8 +17,9 @@ export class CombatResolver {
   //   destroyed      — array of { color, type } for each destroyed car
   //   armorBroken    — the shot knocked the plates off an armoured car (no damage)
   //
-  // opts.power — the Hot Streak supercharged shot: double damage, and the
-  //              carry-over continues through cars of any colour.
+  // opts.power — the Hot Streak supercharged shot: double damage. Its second hit carries over
+  //              only to a car of the SAME colour, like any carry-over (owner, 2026-10-18: a hit
+  //              landing on a different-colour car read as breaking the colour rule).
   resolve(shooter, lane, opts = {}) {
     const frontCar = lane.frontCar();
     if (!frontCar) return MISS;
@@ -35,7 +36,7 @@ export class CombatResolver {
 
     const power = !!opts.power;
 
-    const res = this._applyDamage(shooter.damage * (power ? 2 : 1), shooter.color, lane, power);
+    const res = this._applyDamage(shooter.damage * (power ? 2 : 1), shooter.color, lane);
     res.hit = true;
     return res;
   }
@@ -44,9 +45,8 @@ export class CombatResolver {
 
   // Cascade damage through the front cars of the lane.
   // Colour is re-checked on every car after the first: overflow that reaches a
-  // mismatched car stops dead — unless `pierce` (a supercharged shot). Armour
-  // always stops the cascade.
-  _applyDamage(damage, shooterColor, lane, pierce = false) {
+  // mismatched car stops dead. Armour always stops the cascade.
+  _applyDamage(damage, shooterColor, lane) {
     let remaining      = damage;
     let kills          = 0;
     let carryOverKills = 0;
@@ -58,7 +58,7 @@ export class CombatResolver {
 
       if (kills > 0) {
         if ((car.armor ?? 0) > 0) break;
-        if (!pierce && car.color !== shooterColor) break;
+        if (car.color !== shooterColor) break;
       }
 
       const hp = car.hp;

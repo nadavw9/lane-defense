@@ -59,7 +59,7 @@ const PROGRESSION = [
   // L4 "Hot Streak": destroy a car 3 shots in a row → supercharged bomb.
   { id: 4, name: 'Hot Streak', laneCount: 3, colCount: 3, colors: ['Red', 'Blue'], worldConfig: W(1),
     duration: 90, spawnBudget: 9, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    hintText: 'Destroy 3 cars to SUPERCHARGE a bomb: it hits twice, any color', goals: total(22) },
+    hintText: 'Destroy 3 cars in a row to SUPERCHARGE a bomb: it hits twice', goals: total(22) },
 
   // L5 "Green light" (relief): a third colour, gentle traffic.
   { id: 5, name: 'Green light', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(1),
@@ -119,8 +119,9 @@ const PROGRESSION = [
     goals: [{ type: 'destroyColor', color: 'Red', count: 10 }, { type: 'destroyTotal', count: 16 }] },   // a breather: one colour goal
 
   // L14 "Cold snap": FREEZE booster; denser traffic that wants it.
+  // L14 introduces the traffic light: two deep, so the new rule is learned on a calm road.
   { id: 14, name: 'Cold snap', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.26),
-    duration: 100, spawnBudget: 13, laneTargetCarCount: 3, gridRows: BOARD_ROWS,
+    duration: 100, spawnBudget: 13, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
     traits: { speeder: 0.10 },
     goals: total(26) },
 
@@ -158,9 +159,9 @@ const PROGRESSION = [
   // L20 BIG WAVE "Iron lane": armoured cars in a dense, four-colour wave.
   { id: 20, name: 'Iron lane', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green', 'Yellow'], worldConfig: W(0),
     duration: 110, spawnBudget: 16, laneTargetCarCount: 3, gridRows: BOARD_ROWS, milestone: true,
-    traits: { armored: 0.15 },
+    traits: { armored: 0.12 },
     hintText: 'BIG WAVE! Armored cars in every lane',
-    goals: total(26) },
+    goals: total(22) },
 
   // L21 "Night shift" (relief).
   { id: 21, name: 'Night shift', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Yellow'], worldConfig: W(0.63),

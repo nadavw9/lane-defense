@@ -29,8 +29,8 @@ export const LATE_LEVELS = [
     hint: 'NEW! Menders — left alone, they grow back a size. Keep shooting them!' }),
   lv(47, 'Quick fix', 'BYOR', { traits: { mender: 0.12, speeder: 0.10 }, total: 26 }),
   lv(48, 'Heat haze', 'RGPY', { traits: { mender: 0.08, chameleon: 0.08 }, total: 24 }),           // relief
-  lv(49, 'Repair crew', 'GOPR', { traits: { mender: 0.18, armored: 0.08 },
-    goals: [goalTrait('mender', 4), goalColor('Green', 7)] }),
+  lv(49, 'Repair crew', 'GOPR', { traits: { mender: 0.16, armored: 0.06 },
+    goals: [goalTrait('mender', 4), goalColor('Green', 6)] }),
   lv(50, 'Sun rush', 'RYOG', { traits: { mender: 0.14 }, duration: 120, total: 32, dense: true, milestone: true,
     hint: 'BIG WAVE! Menders patch up the escorts. Finish cars fast' }),
   lv(51, 'Mirage', 'BYPO', { traits: { chameleon: 0.16, mender: 0.08 }, total: 28 }),

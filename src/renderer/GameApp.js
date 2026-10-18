@@ -1785,7 +1785,7 @@ async function main() {
       audio,
       improved,
       winLevelId,
-      currentLevelIsDaily ? 0 : progress.winStreak,
+      (currentLevelIsDaily || !boosterOffered('freeze', null, progress.unlockedLevel)) ? 0 : progress.winStreak,   // the streak shows once it pays (FREEZE offered)
       {
         // Rewarded video: double this level's coins (credited on the ad's reward callback only).
         onDoubleCoins: (() => {
@@ -1891,7 +1891,7 @@ async function main() {
       pauseBtn.visible = true;
     };
     rescueOverlay = new RescueOverlay(app.stage, APP_W, APP_H, gs, {
-      winStreak: currentLevelIsDaily ? 0 : progress.winStreak,
+      winStreak: (currentLevelIsDaily || !boosterOffered('freeze', null, progress.unlockedLevel)) ? 0 : progress.winStreak,
       onRescueAd: () => {
         adManager.showRewarded(
           () => {
@@ -2692,6 +2692,7 @@ async function main() {
       },
       getColorPickerSwatches: () => colorPicker?.swatches ?? null,
       getMapNode: (n) => levelSelectScreen?.nodePosition?.(n) ?? null,
+      getTitlePlayY: () => { const b = titleScreen?._playBtn; if (!b || !b.visible || b.scale.x < 0.95) return null; const r = b.getBounds(); return r.y + r.height / 2; },
       getPreLevelPlayY: () => { const b = preLevelScreen?._play; if (!b) return null; const r = b.getBounds(); return r.y + r.height / 2; },
       getWinNextY: () => { const b = winScreen?._nextBtn; if (!b) return null; const r = b.getBounds(); return r.y + r.height / 2; },
       // Profiling handle: lets a harness wrap DragDrop's handlers to attribute

@@ -56,10 +56,14 @@ describe('Hot Streak supercharged shot', () => {
     expect(res.kills).toBe(1);
   });
 
-  it('carries over through cars of any colour; a normal shot stops at the first mismatch', () => {
-    const mk = () => laneOf(car({ color: 'Red', hp: 1 }), car({ color: 'Blue', hp: 1 }), car({ color: 'Green', hp: 1 }));
-    expect(combat.resolve({ color: 'Red', damage: 3 }, mk()).kills).toBe(1);
-    expect(combat.resolve({ color: 'Red', damage: 3 }, mk(), { power: true }).kills).toBe(3);
+  it('its second hit carries over only to a same-colour car, like any carry-over (owner, 2026-10-18)', () => {
+    const mixed = () => laneOf(car({ color: 'Red', hp: 1 }), car({ color: 'Blue', hp: 1 }));
+    expect(combat.resolve({ color: 'Red', damage: 1 }, mixed(), { power: true }).kills).toBe(1);
+    const lane = mixed();
+    combat.resolve({ color: 'Red', damage: 1 }, lane, { power: true });
+    expect(lane.frontCar().hp).toBe(1);                       // the blue car behind is untouched
+    const same = () => laneOf(car({ color: 'Red', hp: 1 }), car({ color: 'Red', hp: 1 }));
+    expect(combat.resolve({ color: 'Red', damage: 1 }, same(), { power: true }).kills).toBe(2);
   });
 
   it('streak charges after 3 destroying shots IN A ROW; a shot that destroys nothing breaks the run', () => {

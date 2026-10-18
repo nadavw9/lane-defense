@@ -1,3 +1,7 @@
-Padlock stray-line fix (2026-10-18). Owner saw two long lines from the locked boosters up the screen.
-01=BEFORE (owner's phone, L1) / AFTER (L6): the lines ran from each padlock's shackle up past the red line; after, none
-02=AFTER close-up of the two locked cards: clean shackles, no line out of either. Cause: the shackle arc continued the card's path (no beginPath) and started with a zero-length segment that some phone GPUs draw as a long spike. Same fix in the map, shop, car-manual, achievements locks and the rescue timer ring
+Logo + pacing review set (2026-10-18). BEFORE = the build on your phone (1.1.6), AFTER = 1.1.7.
+01=App/store icon BEFORE/AFTER: the new R1 icon, a car flung out of a BOOM by the red bomb over a lane (grass, lane dashes, red-white breach line)
+02=Title BEFORE/AFTER (a save at L6): the icon's picture now sits on the road above PLAY and pops in on the first visit; only MAP shows under PLAY at this stage
+03=Title AFTER at L16: DAILY (from L8) and TROPHIES (from L15) have appeared, each with a NEW tag until first tapped; CHALLENGE comes at L20, STATS at L25
+04=Board BEFORE/AFTER: no coin counter during play any more (coins show on the win screen and in the shop); the locked COLOR SWAP now says LV 21
+05=L3 AFTER: two lanes (the third lane now arrives at L6), motorbikes only (the car arrives at L4), a two-lane backdrop baked for it
+06=Icon set AFTER: store icon, phone splash, adaptive icon (lane background + car layer), round mask, small launcher size

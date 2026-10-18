@@ -31,6 +31,22 @@ level's `stepsPerRow` (whole-row steps on a 5-row board breach almost at once). 
 work: win streak (`src/game/winStreak.js`), bench drop-into-slot, HARD LEVEL banner, 3-card L1 tour,
 US spelling + COLOR SWAP naming, `android-release.yml` (signed AAB as a private artifact; secrets set).
 
+### FTUE PACING (2026-10-18, branch `feat/ftue-pacing`) — one new thing per level, boosters one at a time
+
+Owner-approved after Candy Crush / Royal Match research. `src/game/boosterUnlocks.js` is the ONE schedule:
+BOMB L1 (earned every 6 kills, pointer tutorial), FREEZE L8 and COLOR SWAP L12 (3 free into the inventory on
+arrival, card on that level; offered before levels only from the NEXT level), rainbow bomb from L10. Every
+booster path reads it: bar (padlock + "LV 8", tap says when), level card (only offered tiles; L1 has NO card),
+shop (lock plates), win streak / mercy / gift-car payouts, and the in-play earns (`gs.unlocks`, GameLoop +
+SimulationRunner). Content moves: car (2 hits) L2 -> L3, bench L4 -> L6 (`BENCH_FROM`), colour-goal card L9,
+COLOR SWAP L12; L10 is the first hard level at band -8 (not -15). One start card per level (pinned in
+`tests/intro-schedule.test.js`). New vehicles (car L3, van L5) get the animated shrink card
+(`CarTypeIntroCard`). Title PLAY opens the next level's card (MAP is a separate button); a win's NEXT goes to
+the map, where your toy car (it replaced the gold arrow) drives to the next node and that level's card opens
+by itself (`LevelSelectScreen` drive; QA `_nav.showLevelSelect({drive:{from,to},onArrive})`). Step ruler:
+numbers beside the road (`StepRuler`, Pixi, OUTSIDE the road) + faint step lines / warm last steps on the road
+(`StepGrid3D`, a 3D plane UNDER the cars). Bots: `ftue-play.mjs` follows the new flow.
+
 ### GUIDE CARDS — all explanations are centre-screen, never at the top (2026-10-12)
 
 Every tip is a `GuideCard` (`src/screens/GuideCard.js`): centred card, NEXT button, optional gold ring on a
@@ -689,7 +705,7 @@ inferring rejection from an unchanged board.
 - **200 levels**: L1–L40 in `LevelManager.js`, L41–L100 in `LateLevels.js`, L101–L200 (second tour, worlds 8-14 on reused art) in `TourLevels.js` (authored with `levelDsl.js`, heft/trait/goal scales generated into `lateTuning.js` by `node tools/tune-levels.mjs --write`). Seven worlds; worlds 4-7 art is baked (`render-3d-sprites.mjs backdrop|map`, `render-world-tiles.mjs`).
 - **Seven traits** (`TrafficRules.js`): speeder, armored, chameleon, plated, mender, volatile, phantom; goal types destroyTotal/Color/Type/Trait + defeatBoss. Bands in `tools/bands.mjs`; every level is checked in-band (2026-10-01).
 - **Economy (2026-10-01)**: 2 coins per car (was 10), shop 20-40, continue-with-coins 60 (`RESCUE_COIN_COST`); one booster store (`inventory`). Interstitials paced by `src/ads/adPolicy.js`. Daily/streak use the local day (`src/game/dateKeys.js`). Adaptive 3D render scale (`AdaptiveQuality.js`), reduce-motion setting (`MotionPrefs.js`).
-- **Car type intro cards** (`src/screens/CarTypeIntroCard.js`) — fires at: L1 small, L2 big, L5 jeep, L9 truck, L13 bigrig, L15 tank
+- **Car type intro cards** (`src/screens/CarTypeIntroCard.js`) — animated shrink demo, fires at: L3 car, L5 van (truck/bigrig/tank no longer spawn)
 - **V2 redesign (2026-09-27, branch `feat/v2-design`)** — Hot Streak (3 kill shots →
   supercharged bomb: x2 damage, carry-over through any colour), special cars (speeder,
   armoured, chameleon), boss vehicles with colour sequences (L10/20/30/40), a new 40-level

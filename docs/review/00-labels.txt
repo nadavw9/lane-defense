@@ -1,10 +1,4 @@
-FTUE pacing review set (2026-10-18). BEFORE = master, AFTER = feat/ftue-pacing.
-01=L1 booster bar BEFORE/AFTER: before all three boosters live; after only BOMB, COLOR and FREEZE show a padlock and the level they arrive (LV 12 / LV 8)
-02=L5 board BEFORE/AFTER: after has the numbered step ruler left of the road (pulsing pip = nearest car), faint step lines and warm last 4 steps on the road; the bench is gone (now arrives at L6)
-03=Title BEFORE/AFTER: PLAY now goes to the next level; LEVEL N pill under it; new MAP button first in the row
-04=Level 2 card BEFORE/AFTER: after offers only the BOMB (the one booster met so far)
-05=New vehicle card BEFORE/AFTER: before a static CAR + 2 HITS (auto-dismiss); after a road strip where bombs shrink the car, hit pips, 'Every hit shrinks it one size', GOT IT. Now at L3 (was L2)
-06=New vehicle card animation frames (car -> motorbike -> boom, loops)
-07=Win L5 -> map: building repairs, the car hops down, drives to node 6, parks above it, level 6 card opens by itself
-08=Win L15 -> map across worlds: drives out of Toy Town, Steel Yards page, in to node 16, card opens
-09=The two step-grid options shown to the owner (left = ruler, chosen; right = numbers in lanes, dropped)
+Vehicle card review set (2026-10-18). Owner asked: show the car hit and its shrink side by side, every grade in a row.
+01=L3 CAR card BEFORE/AFTER: before one road strip where the car shrinks in place; after the whole ladder in a row CAR -> bomb -> MOTORBIKE -> bomb -> BOOM, true relative sizes, each step lights up in turn
+02=L5 VAN card: VAN -> bomb -> CAR -> bomb -> MOTORBIKE -> bomb -> BOOM, '3 HITS TO DESTROY'. Look for: all four pictures fit the strip, labels under each
+03=L5 van card animation frames (~0.7s apart): the lit step walks van -> car -> motorbike -> boom; later rungs wait dimmed until reached, the bomb before each lit rung hops

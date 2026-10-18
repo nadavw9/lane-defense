@@ -705,7 +705,7 @@ inferring rejection from an unchanged board.
 - **200 levels**: L1–L40 in `LevelManager.js`, L41–L100 in `LateLevels.js`, L101–L200 (second tour, worlds 8-14 on reused art) in `TourLevels.js` (authored with `levelDsl.js`, heft/trait/goal scales generated into `lateTuning.js` by `node tools/tune-levels.mjs --write`). Seven worlds; worlds 4-7 art is baked (`render-3d-sprites.mjs backdrop|map`, `render-world-tiles.mjs`).
 - **Seven traits** (`TrafficRules.js`): speeder, armored, chameleon, plated, mender, volatile, phantom; goal types destroyTotal/Color/Type/Trait + defeatBoss. Bands in `tools/bands.mjs`; every level is checked in-band (2026-10-01).
 - **Economy (2026-10-01)**: 2 coins per car (was 10), shop 20-40, continue-with-coins 60 (`RESCUE_COIN_COST`); one booster store (`inventory`). Interstitials paced by `src/ads/adPolicy.js`. Daily/streak use the local day (`src/game/dateKeys.js`). Adaptive 3D render scale (`AdaptiveQuality.js`), reduce-motion setting (`MotionPrefs.js`).
-- **Car type intro cards** (`src/screens/CarTypeIntroCard.js`) — animated shrink demo, fires at: L3 car, L5 van (truck/bigrig/tank no longer spawn)
+- **Car type intro cards** (`src/screens/CarTypeIntroCard.js`) — the whole shrink ladder in a row (vehicle -> bomb -> smaller rung -> ... -> BOOM, true relative sizes, steps light up in turn), fires at: L3 car, L5 van (truck/bigrig/tank no longer spawn)
 - **V2 redesign (2026-09-27, branch `feat/v2-design`)** — Hot Streak (3 kill shots →
   supercharged bomb: x2 damage, carry-over through any colour), special cars (speeder,
   armoured, chameleon), boss vehicles with colour sequences (L10/20/30/40), a new 40-level

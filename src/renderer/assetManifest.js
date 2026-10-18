@@ -107,6 +107,7 @@ export const TUTORIAL_URLS = ['01-goal', '02-shot', '04-boosters']
 export const TITLE_ART_URLS = [
   `${_B}sprites/designed/title-background.png`,
   `${_B}sprites/designed/title-logo.png`,
+  `${_B}sprites/designed/app-hero.png`,
 ];
 
 export const WORLD_PANEL_URLS = STRIP_NUMS.flatMap(w => [

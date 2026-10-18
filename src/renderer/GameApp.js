@@ -2692,6 +2692,7 @@ async function main() {
       },
       getColorPickerSwatches: () => colorPicker?.swatches ?? null,
       getMapNode: (n) => levelSelectScreen?.nodePosition?.(n) ?? null,
+      getTitlePlayY: () => { const b = titleScreen?._playBtn; if (!b || !b.visible || b.scale.x < 0.95) return null; const r = b.getBounds(); return r.y + r.height / 2; },
       getPreLevelPlayY: () => { const b = preLevelScreen?._play; if (!b) return null; const r = b.getBounds(); return r.y + r.height / 2; },
       getWinNextY: () => { const b = winScreen?._nextBtn; if (!b) return null; const r = b.getBounds(); return r.y + r.height / 2; },
       // Profiling handle: lets a harness wrap DragDrop's handlers to attribute

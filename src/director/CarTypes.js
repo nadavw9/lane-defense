@@ -198,10 +198,10 @@ function foldToLadder(table) {
 }
 
 function rawBandWeights(level) {
-  // V2 level table (2026-09-27, see LevelManager). Types arrive: bike L1, car L2,
-  // van L5, truck L8, big rig L12, tank L15.
+  // Types arrive (2026-10-18 pacing, one new thing per level): motorbike L1-2, car L3
+  // (L2 already teaches colour matching), van L5. Heavier bands fold into the van.
   if (RARE_GOAL_LEVELS.has(level)) return WEIGHTS_RARE_GOAL;
-  if (level === 1)  return WEIGHTS_L1;
+  if (level <= 2)   return WEIGHTS_L1;
   if (level <= 4)   return WEIGHTS_FTUE;
   if (level <= 7)   return WEIGHTS_MID;
   if (level <= 11)  return WEIGHTS_MID_TRUCK;   // trucks from L8 ("Heavy load")

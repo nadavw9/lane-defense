@@ -98,7 +98,7 @@ describe('regression: every level starts in a valid state', () => {
 // schedule changes, change ProgressManager's INTRO_LEVEL with it.
 const LEVEL_INTRO_TYPE = {
   1:  'small',   // motorbike
-  2:  'big',     // sedan
+  3:  'big',     // sedan (2026-10-18 pacing: L2 teaches colour matching only)
   5:  'jeep',    // van
   8:  'truck',   // V2 (2026-09-27): L8 "Heavy load"
   12: 'bigrig',  // V2: big rigs from L12

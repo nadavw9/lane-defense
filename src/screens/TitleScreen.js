@@ -54,6 +54,7 @@ export class TitleScreen {
     onPlay, onDaily, hasDailyReward, onDailyChallenge,
     onAchievements, onStats, onSettings, audio,
     loginStreak = 0, dailyChallengeDone = false,
+    onMap = null, nextLevel = null,
   }) {
     this._container = new Container();
     this._carLayer  = new Container();
@@ -65,6 +66,8 @@ export class TitleScreen {
     this._elapsed   = 0;
 
     stage.addChild(this._container);
+    this._onMap = onMap;
+    this._nextLevel = nextLevel;
     this._build(appW, appH, onPlay, onDaily, hasDailyReward, onDailyChallenge,
                 onAchievements, onStats, onSettings, audio, loginStreak, dailyChallengeDone);
   }
@@ -173,22 +176,36 @@ export class TitleScreen {
     btn.x = btnCX; btn.y = btnCY + btnH / 2;
     this._container.addChild(btn);
     this._playBtn = btn;
+    // PLAY goes straight to the next level; the pill under it says which one.
+    const nextLevel = this._nextLevel, onMap = this._onMap;
+    if (nextLevel != null) {
+      const lt = bodyText(`LEVEL ${nextLevel}`, 16, 0xFFE08A);
+      const pw = lt.width + 28;
+      const pill = new Graphics();
+      pill.roundRect(-pw / 2, -13, pw, 26, 13).fill({ color: 0x17143A, alpha: 0.85 }).stroke({ color: 0xC9962A, width: 2 });
+      pill.addChild(lt);
+      pill.x = btnCX; pill.y = btnCY + btnH + 18;
+      this._container.addChild(pill);
+      this._levelPill = pill;
+      pill.visible = false;
+    }
     // Hidden until the intro bomb-drop finishes (CHANGE 2).
     btn.visible = false; playGlow.visible = false;
 
     // ── Secondary: a row of round icon buttons with captions ───────────────
     const items = [];
+    if (onMap) items.push({ glyph: mapGlyph, label: 'MAP', color: 0x3DBB3A, fn: onMap });
     if (onDaily) items.push({ icon: 'gift', emoji: '🎁', label: hasDailyReward ? 'DAILY!' : 'DAILY', color: hasDailyReward ? 0xF0A020 : 0x2F7FE0, fn: onDaily, badge: hasDailyReward });
     if (onDailyChallenge) items.push({ icon: 'lightning', emoji: '⚡', label: 'CHALLENGE', color: 0x8B4FE0, fn: onDailyChallenge, done: dailyChallengeDone });
     if (onAchievements) items.push({ icon: 'trophy', emoji: '🏆', label: 'TROPHIES', color: 0x2F7FE0, fn: onAchievements });
     if (onStats) items.push({ icon: 'chart', emoji: '📊', label: 'STATS', color: 0x2F7FE0, fn: onStats });
-    const rowY = btnCY + btnH + 70, gapX = 84;
+    const rowY = btnCY + btnH + 82, gapX = items.length > 4 ? 76 : 84;
     items.forEach((it, i) => {
       const x = w / 2 + (i - (items.length - 1) / 2) * gapX;
-      const rbtn = roundButton(uiIcon(it.icon, 34, it.emoji), { r: 30, color: it.color, onTap: () => { audio?.play('button_tap'); it.fn(); } });
+      const rbtn = roundButton(it.glyph ? it.glyph() : uiIcon(it.icon, 34, it.emoji), { r: 30, color: it.color, onTap: () => { audio?.play('button_tap'); it.fn(); } });
       rbtn.x = x; rbtn.y = rowY;
       this._container.addChild(rbtn);
-      const cap = bodyText(it.label, 13, 0xFFFFFF);
+      const cap = bodyText(it.label, items.length > 4 ? 11 : 13, 0xFFFFFF);
       cap.x = x; cap.y = rowY + 44;
       // Dark pill behind each caption so it reads on the busy town art.
       const capBg = new Graphics();
@@ -229,6 +246,7 @@ export class TitleScreen {
     // once per session; coming back to the title shows PLAY immediately.
     if (_introPlayed) {
       btn.visible = true; playGlow.visible = true;
+      if (this._levelPill) this._levelPill.visible = true;
       this._intro = null;
     } else {
       _introPlayed = true;
@@ -308,7 +326,7 @@ export class TitleScreen {
         I.phase = 'reveal'; I.t = 0;
         I.car.visible = false;
         I.burst.clear();
-        this._playBtn.visible = true; this._playGlow.visible = true;
+        this._playBtn.visible = true; this._playGlow.visible = true; if (this._levelPill) this._levelPill.visible = true;
         this._playBtn.scale.set(0.2);
       }
       return;
@@ -479,4 +497,19 @@ export class TitleScreen {
     }
   }
 
+}
+
+// Folded map glyph for the MAP button (no map sprite in the UI set): three panels, a road
+// and a red pin, in the toy ink style.
+function mapGlyph() {
+  const g = new Graphics();
+  const P = [[-15, -11], [-5, -14], [5, -11], [15, -14], [15, 12], [5, 15], [-5, 12], [-15, 15]];
+  g.poly([P[0][0], P[0][1], P[1][0], P[1][1], P[6][0], P[6][1], P[7][0], P[7][1]]).fill(0xF4E3B5);
+  g.poly([P[1][0], P[1][1], P[2][0], P[2][1], P[5][0], P[5][1], P[6][0], P[6][1]]).fill(0xE2CC8F);
+  g.poly([P[2][0], P[2][1], P[3][0], P[3][1], P[4][0], P[4][1], P[5][0], P[5][1]]).fill(0xF4E3B5);
+  g.moveTo(-12, 10).bezierCurveTo(-4, 2, 2, 8, 12, -6).stroke({ color: 0x8A7A5A, width: 2.5 });
+  g.poly(P.flat()).stroke({ color: 0x1F1A33, width: 2.5, join: 'round' });
+  g.circle(6, -5, 4.5).fill(0xE8453C).stroke({ color: 0x1F1A33, width: 2 });
+  g.circle(5, -6, 1.4).fill(0xFFFFFF);
+  return g;
 }

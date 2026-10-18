@@ -31,6 +31,14 @@ describe('campaign structure', () => {
     expect(next - 1).toBe(LEVEL_COUNT);
   });
 
+  it('a world that reuses another world\'s art has the same page size (the baked map road)', () => {
+    for (const w of MAP_WORLDS) {
+      const owner = MAP_WORLDS.find(o => o.theme === w.theme);
+      expect(w.last - w.first, `${w.name} vs ${owner.name}`).toBe(owner.last - owner.first);
+      expect(mapNodes(w.page)).toEqual(mapNodes(owner.page).map((n, i) => ({ ...n, levelId: w.first + i })));
+    }
+  });
+
   it('every level maps to a world page', () => {
     for (let id = 1; id <= LEVEL_COUNT; id++) {
       const w = worldForLevel(id);
@@ -53,18 +61,18 @@ describe('campaign structure', () => {
   });
 
   it('every level has a win-rate band and big waves get the lower band', () => {
-    for (let id = 1; id <= 100; id++) {
+    for (let id = 1; id <= LEVEL_COUNT; id++) {
       const b = bandFor(id);
       expect(b.lo).toBeLessThan(b.hi);
       if (isMilestoneLevel(id)) expect(['hard', 'superhard']).toContain(b.tier);
     }
   });
   it('the curve is a sawtooth: hard levels sit under their neighbours, relief levels over', () => {
-    for (let id = 15; id <= 95; id += 10) {
+    for (let id = 15; id <= LEVEL_COUNT - 5; id += 10) {
       expect(bandFor(id).tier).toBe('hard');
       expect(bandFor(id).hi).toBeLessThan(bandFor(id - 1).lo + 1);
       expect(bandFor(id + 1).lo).toBeGreaterThan(bandFor(id).hi);
     }
-    for (const id of [30, 40, 50, 60, 70, 80, 90, 100]) expect(bandFor(id).tier).toBe('superhard');
+    for (let id = 30; id <= LEVEL_COUNT; id += 10) expect(bandFor(id).tier).toBe('superhard');
   });
 });

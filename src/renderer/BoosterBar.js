@@ -4,6 +4,7 @@
 import { Graphics, Text, Sprite, Assets } from 'pixi.js';
 import { INK, PLUM_DEEP, SUN, toyPanel, toyLabel } from './ToyStyle.js';
 import { bodyText } from './PremiumUI.js';
+import { unlockLevelOf } from '../game/boosterUnlocks.js';
 
 const _B = import.meta.env.BASE_URL;
 function boosterUrl(name) { return `${_B}sprites/designed/booster-${name}.png`; }
@@ -78,8 +79,16 @@ export class BoosterBar {
     this._freezeBtn = _makeCard(this._layer, CARD_X[1], FREEZE_ACCENT, 'freeze', 'FREEZE', onFreeze);
     this._bombBtn   = _makeBombCard(this._layer, CARD_X[2], onBomb);
 
-    this._colorChangeBtn._unlocked = false;
-    this._freezeBtn._unlocked      = false;
+    this._colorChangeBtn._unlocked = true;
+    this._freezeBtn._unlocked      = true;
+    this._bombBtn._unlocked        = true;
+    this._rainbowOn = true;
+    // A locked booster: grey card, padlock and the level it arrives on. A tap says when.
+    for (const [btn, key] of [[this._colorChangeBtn, 'colorChange'], [this._freezeBtn, 'freeze'], [this._bombBtn, 'bombs']]) {
+      btn._lock = _makeLock(btn, unlockLevelOf(key));
+      btn._lockKey = key;
+      btn.on('pointerdown', () => { if (!btn._unlocked) this._spawnLockedText(btn, unlockLevelOf(key)); });
+    }
 
     this._bombGlow = new Graphics();
     this._layer.addChild(this._bombGlow);
@@ -101,9 +110,24 @@ export class BoosterBar {
     this._bombFlashT = 0;
   }
 
+  /** Which boosters exist on this level ({ colorChange, freeze, bombs, rainbow }, boosterUnlocks.js). */
+  setUnlocks(unl) {
+    this._colorChangeBtn._unlocked = unl?.colorChange !== false;
+    this._freezeBtn._unlocked      = unl?.freeze !== false;
+    this._bombBtn._unlocked        = unl?.bombs !== false;
+    this._rainbowOn                = unl?.rainbow !== false;
+    for (const b of [this._colorChangeBtn, this._freezeBtn, this._bombBtn]) {
+      if (b._lock) b._lock.visible = !b._unlocked;
+      for (const ch of b.children) if (ch !== b._lock && ch !== b.label && ch !== b.labelBadge) ch.alpha = b._unlocked ? 1 : 0.35;
+      if (b.label) b.label.visible = b._unlocked;
+      if (b.nameLabel) b.nameLabel.visible = b._unlocked;   // the lock plate says "LV 8" there
+      if (b.labelBadge) b.labelBadge.visible = b._unlocked && b.label.text !== 'CANCEL';
+    }
+  }
+
+  /** Back-compat: COLOR / FREEZE visibility only. */
   setButtonVisibility(colorChange, freeze) {
-    this._colorChangeBtn._unlocked = colorChange;
-    this._freezeBtn._unlocked      = freeze;
+    this.setUnlocks({ colorChange, freeze, bombs: this._bombBtn._unlocked, rainbow: this._rainbowOn });
   }
 
   // Show/hide the entire bar (used to clear it behind end-screen modals).
@@ -141,13 +165,15 @@ export class BoosterBar {
 
     // Empty / locked cards stay solid enough to read as buttons (toy style has no
     // ghost UI) — the dimmer step still separates "none left" from "ready".
-    this._colorChangeBtn.alpha = !this._colorChangeBtn._unlocked ? 0.35 : s.colorChange <= 0 ? 0.55 : s.colorChangeMode ? 0.75 : 1.0;
-    this._freezeBtn.alpha = !this._freezeBtn._unlocked ? 0.35 : (s.freeze <= 0 || s.isFrozen())  ? 0.55 : 1.0;
-    this._bombBtn.alpha   = (s.bombs <= 0 && !s.bombMode) ? 0.55 : s.bombMode ? 0.75 : 1.0;
+    this._colorChangeBtn.alpha = !this._colorChangeBtn._unlocked ? 1 : s.colorChange <= 0 ? 0.55 : s.colorChangeMode ? 0.75 : 1.0;
+    this._freezeBtn.alpha = !this._freezeBtn._unlocked ? 1 : (s.freeze <= 0 || s.isFrozen())  ? 0.55 : 1.0;
+    this._bombBtn.alpha   = !this._bombBtn._unlocked ? 1 : (s.bombs <= 0 && !s.bombMode) ? 0.55 : s.bombMode ? 0.75 : 1.0;
+    if (this._colorChangeBtn.labelBadge && !this._colorChangeBtn._unlocked) this._colorChangeBtn.labelBadge.visible = false;
+    if (this._freezeBtn.labelBadge && !this._freezeBtn._unlocked) this._freezeBtn.labelBadge.visible = false;
 
     // ── Bomb card glow / pulse ────────────────────────────────────────────────
     this._bombPulse += dt * 3.5;
-    const pulseAlpha = s.bombs > 0 ? (0.30 + 0.20 * Math.sin(this._bombPulse)) : 0.10;
+    const pulseAlpha = !this._bombBtn._unlocked ? 0 : s.bombs > 0 ? (0.30 + 0.20 * Math.sin(this._bombPulse)) : 0.10;
     const glowColor  = s.bombMode ? 0xff3300 : 0xffaa00;
 
     this._bombGlow.clear();
@@ -185,6 +211,7 @@ export class BoosterBar {
     const filled = Math.min(NEED, this._gs?.multiKillCount ?? 0);
     const PCX = 203, PY = BAR_Y - 9, PR = 4, PGAP = 13;
     this._pips.clear();
+    this._pips.visible = this._rainbowOn;   // the rainbow bomb arrives at L10
     // Label: a small rainbow bomb disc — three multi-kills earn one.
     {
       const rx = PCX - ((NEED - 1) * PGAP) / 2 - 17, R = 6.5;
@@ -222,6 +249,17 @@ export class BoosterBar {
   }
 
   // ── Private ──────────────────────────────────────────────────────────────────
+
+  _spawnLockedText(btn, level) {
+    if (this._readyText) { this._readyText.destroy(); this._readyText = null; }
+    const t = bodyText(`UNLOCKS AT LEVEL ${level}`, 15, 0xFFFFFF);
+    t.anchor.set(0.5, 1);
+    t.x = Math.min(390 - 92, Math.max(92, btn._baseX ?? btn.x) + CARD_W / 2);
+    t.y = BAR_Y - 4;
+    this._readyTextT = 1.4;
+    this._layer.addChild(t);
+    this._readyText = t;
+  }
 
   _spawnReadyText() {
     if (this._readyText) { this._readyText.destroy(); this._readyText = null; }
@@ -283,6 +321,7 @@ function _addNameLabel(card, name, accentColor) {
   tx.x = CARD_W / 2;
   tx.y = CARD_H - CARD_LIP - 3;
   card.addChild(tx);
+  card.nameLabel = tx;
 }
 
 // Icon: PNG sprite when loaded (preferred), else programmatic glyph fallback.
@@ -323,7 +362,7 @@ function _makeCard(layer, x, accentColor, iconName, name, onClick) {
   card.eventMode = 'static';
   card.cursor    = 'pointer';
   card.on('pointerdown', () => { card._pressT = 0; });   // start press animation
-  card.on('pointerdown', onClick);
+  card.on('pointerdown', (e) => { if (card._unlocked !== false) onClick(e); });
   return card;
 }
 
@@ -365,8 +404,31 @@ function _makeBombCard(layer, x, onClick) {
 
   card.eventMode = 'static';
   card.cursor    = 'pointer';
-  card.on('pointerdown', onClick);
+  card._baseX    = x;
+  card.on('pointerdown', (e) => { if (card._unlocked !== false) onClick(e); });
   return card;
+}
+
+// Padlock + "LV 8" plate over a locked booster card (hidden once the booster arrives).
+function _makeLock(card, level) {
+  const g = new Graphics();
+  const cx = CARD_W / 2, cy = 22;
+  g.roundRect(0, 0, CARD_W, CARD_H - CARD_LIP, CARD_R).fill({ color: 0x1A1630, alpha: 0.55 });
+  // shackle
+  g.moveTo(cx - 8, cy - 2).arc(cx, cy - 2, 8, Math.PI, 0).stroke({ color: INK, width: 6 });
+  g.moveTo(cx - 8, cy - 2).arc(cx, cy - 2, 8, Math.PI, 0).stroke({ color: 0xE9E6F2, width: 3 });
+  // body
+  g.roundRect(cx - 12, cy - 3, 24, 19, 4).fill(SUN).stroke({ color: INK, width: 2.5 });
+  g.circle(cx, cy + 5, 2.6).fill(INK);
+  g.rect(cx - 1, cy + 6, 2, 5).fill(INK);
+  card.addChild(g);
+  const t = new Text({ text: `LV ${level}`, style: toyLabel(LABEL_SIZE) });
+  t.anchor.set(0.5, 1);
+  t.x = CARD_W / 2;
+  t.y = CARD_H - CARD_LIP - 3;
+  g.addChild(t);
+  g.visible = false;
+  return g;
 }
 
 // ── Icon drawing functions ────────────────────────────────────────────────────

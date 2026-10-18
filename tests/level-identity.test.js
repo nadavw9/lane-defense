@@ -4,7 +4,7 @@ import { identityFor, GIFT_FROM, LIGHT_FROM, CONVOY_FROM } from '../src/game/lev
 import { CarDirector } from '../src/director/CarDirector.js';
 import { SeededRandom } from '../src/utils/SeededRandom.js';
 import { GameState } from '../src/game/GameState.js';
-import { LevelManager, levelDifficulty } from '../src/game/LevelManager.js';
+import { LevelManager, levelDifficulty, LEVEL_COUNT } from '../src/game/LevelManager.js';
 import { SimulationRunner } from '../src/simulation/SimulationRunner.js';
 
 const L = (lane, phase = 0) => ({ lane, green: 3, red: 2, phase });
@@ -23,7 +23,7 @@ describe('traffic lights', () => {
     expect(lightState(lights, 0, 0)).toBeNull();
   });
   it('two-light levels are never red on both lights at once', () => {
-    for (let id = 35; id <= 100; id++) {
+    for (let id = 35; id <= LEVEL_COUNT; id++) {
       const lights = identityFor(id).lights;
       if (!lights || lights.length < 2) continue;
       for (let m = 0; m < 10; m++) expect(lights.every(l => laneHeld(lights, l.lane, m))).toBe(false);

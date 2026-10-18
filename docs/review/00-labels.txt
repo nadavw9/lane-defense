@@ -1,0 +1,8 @@
+01=Map page 1 BEFORE (origin/master c46a3f1). Look at the header: the NEXT arrow sits on top of the 4th page dot.
+02=Map page 1 AFTER. The dots are replaced by a "1 / 14" counter centred between the arrows. Nothing else on the map changed.
+03=Map page 7 (Starlight Strip) BEFORE. Seven dots, last page, no next arrow.
+04=Map page 7 AFTER. "7 / 14" counter, and a NEXT arrow now leads on to world 8.
+05=NEW map page 8 "Rush Hour" (L101-115). Reuses Toy Town art; check the road runs through every node (same 15-node layout as world 1).
+06=NEW map page 14 "Galaxy Finale" (L191-200). Reuses Starlight Strip art; 10 nodes like world 7. Look: 195 HARD flame, 200 SUPER HARD skull.
+07=NEW L150 "Desert wave" in play (Sun Valley art via levelTheme(150 - 100)). Big wave: dense board.
+08=NEW L175 "Ice age" in play (Frost Pass art). Look: phantom car (?) and chameleon (swap icon) render on the reused world.

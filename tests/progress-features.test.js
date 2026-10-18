@@ -225,7 +225,7 @@ describe('ProgressManager introducedCarTypes', () => {
 
   it('corrupt legacy key is ignored, backfill still applies', () => {
     const store = {
-      'lane-defense-v1': JSON.stringify({ unlockedLevel: 3 }),
+      'lane-defense-v1': JSON.stringify({ unlockedLevel: 4 }),   // past L3, where the car arrives (2026-10-18)
       'lane_defense_seen_car_types': '{not json',
     };
     withStorage(store);

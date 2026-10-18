@@ -13,6 +13,7 @@
 //   L16-30: industrial — steel grey + orange hazard, World 2 Industrial Zone
 //   L31-45: nightHighway — near-black sky, headlight fog, World 3 Night Highway
 //   L46-60: desert, L61-75: frost, L76-90: harbor, L91-100: cosmos (Worlds 4-7)
+//   L101-200: the second tour, same mapping as L1-100 (Worlds 8-14)
 
 export const THEMES = {
   // Morning: warm cream-gold dominates. Soft sage greenery, hazy horizon.
@@ -115,6 +116,8 @@ export const THEMES = {
 
 // Map level id to a theme.
 export function levelTheme(levelId) {
+  // L101-200 is the second tour: it revisits worlds 1-7 level for level (levelMapLayout).
+  if (levelId > 100) return levelTheme(((levelId - 1) % 100) + 1);
   if (levelId <= 4)  return THEMES.morning;
   if (levelId <= 8)  return THEMES.afternoon;
   if (levelId <= 12) return THEMES.sunset;

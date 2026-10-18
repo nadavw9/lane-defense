@@ -24,23 +24,31 @@ describe('level-start cards', () => {
     const all = Object.values(LEVEL_START_CARDS).flat();
     expect(new Set(all).size).toBe(all.length);
   });
-  it('all core teaching lands by L10, in the agreed order', () => {
+  it('all core teaching lands by L12, one card per level, in the agreed order (2026-10-18 pacing)', () => {
     const ELEMENT_CARDS = ['gift_car', 'traffic_light', 'convoy'];   // board elements, taught on their own levels
     const core = Object.entries(LEVEL_START_CARDS).filter(([, ks]) => ks.some(k => !ELEMENT_CARDS.includes(k)));
-    expect(Math.max(...core.map(([l]) => Number(l)))).toBeLessThanOrEqual(10);
+    expect(Math.max(...core.map(([l]) => Number(l)))).toBeLessThanOrEqual(12);
+    for (const [l, ks] of Object.entries(LEVEL_START_CARDS)) expect(ks.length, `L${l}`).toBe(1);
     const at = (k) => Number(Object.entries(LEVEL_START_CARDS).find(([, ks]) => ks.includes(k))[0]);
-    expect(at('lane_2')).toBeLessThan(at('lane_3'));
-    expect(at('freeze_booster')).toBeLessThan(at('colour_change_booster'));
-    expect(at('colour_change_booster')).toBeLessThan(at('rainbow_bomb'));
+    expect(at('multi_color')).toBeLessThan(at('supercharge'));
+    expect(at('freeze_booster')).toBeLessThan(at('rainbow_bomb'));
+    expect(at('rainbow_bomb')).toBeLessThan(at('colour_change_booster'));
+  });
+  it('booster cards sit on the level each booster arrives (boosterUnlocks.js)', async () => {
+    const { BOOSTER_UNLOCK_LEVEL, RAINBOW_FROM } = await import('../src/game/boosterUnlocks.js');
+    expect(levelStartCards(BOOSTER_UNLOCK_LEVEL.freeze)).toContain('freeze_booster');
+    expect(levelStartCards(BOOSTER_UNLOCK_LEVEL.colorChange)).toContain('colour_change_booster');
+    expect(levelStartCards(RAINBOW_FROM)).toContain('rainbow_bomb');
+    expect(REACTIVE_WINDOW.freeze_earned[0]).toBe(BOOSTER_UNLOCK_LEVEL.freeze);
+    expect(REACTIVE_WINDOW.colour_change_earned[0]).toBe(BOOSTER_UNLOCK_LEVEL.colorChange);
+    expect(REACTIVE_WINDOW.rainbow_bomb[0]).toBe(RAINBOW_FROM);
   });
   it('gift cars, traffic lights and convoys are explained on the level that first has them', () => {
     expect(levelStartCards(firstLevel(c => (c.traits?.gift ?? 0) > 0))).toContain('gift_car');
     expect(levelStartCards(firstLevel(c => !!c.lights))).toContain('traffic_light');
     expect(levelStartCards(firstLevel(c => !!c.convoy))).toContain('convoy');
   });
-  it('lanes and colours are explained on the level that first has them', () => {
-    expect(levelStartCards(firstLevel(c => c.laneCount >= 2))).toContain('lane_2');
-    expect(levelStartCards(firstLevel(c => c.laneCount >= 3))).toContain('lane_3');
+  it('colours are explained on the level that first has them (extra lanes need no card)', () => {
     expect(levelStartCards(firstLevel(c => c.colors.length >= 2))).toContain('multi_color');
   });
   it('the colour goal is explained on the first colour-goal level', () => {
@@ -74,9 +82,9 @@ describe('in-play teaching windows', () => {
     expect(REACTIVE_WINDOW.mender_heal).toEqual([at('mender'), at('mender')]);
     expect(REACTIVE_WINDOW.volatile_surge).toEqual([at('volatile'), at('volatile')]);
   });
-  it('core in-play teaching never reaches past L10', () => {
-    for (const k of ['first_kill', 'bomb_earned', 'first_miss', 'hp_miss', 'streak_charged', 'rainbow_bomb'])
-      expect(REACTIVE_WINDOW[k][1], k).toBeLessThanOrEqual(10);
+  it('core in-play teaching never reaches past L12', () => {
+    for (const k of ['first_kill', 'bomb_earned', 'first_miss', 'streak_charged', 'rainbow_bomb'])
+      expect(REACTIVE_WINDOW[k][1], k).toBeLessThanOrEqual(12);
   });
   it('play L1..L40 in order: every card key is taught at or before the level that needs it', () => {
     const taught = new Set(); const firstTaught = {};
@@ -84,9 +92,9 @@ describe('in-play teaching windows', () => {
       for (const k of levelStartCards(l)) { taught.add(k); firstTaught[k] ??= l; }
       for (const [k, [a, b]] of Object.entries(REACTIVE_WINDOW)) if (l >= a && l <= b) { taught.add(k); firstTaught[k] ??= l; }
     }
-    for (const k of ['lane_2', 'lane_3', 'multi_color', 'combo', 'supercharge', 'goal_colour',
-      'freeze_booster', 'colour_change_booster', 'rainbow_bomb', 'first_kill', 'first_miss', 'hp_miss', 'streak_charged', 'armor_break'])
-      expect(firstTaught[k], k).toBeLessThanOrEqual(11);
+    for (const k of ['multi_color', 'supercharge', 'goal_colour',
+      'freeze_booster', 'colour_change_booster', 'rainbow_bomb', 'first_kill', 'first_miss', 'streak_charged', 'armor_break'])
+      expect(firstTaught[k], k).toBeLessThanOrEqual(12);
   });
 });
 

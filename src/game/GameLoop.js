@@ -320,9 +320,10 @@ export class GameLoop {
     if (kills >= 3) {
       gs.timeScale       = 0.3;
       gs.slowMoRemaining = 0.20;
-      // FIX 4C: a single bomb that chains 3+ kills earns one FREEZE charge.
+      // FIX 4C: a single bomb that chains 3+ kills earns one FREEZE charge — once FREEZE
+      // exists for the player (boosterUnlocks.js: arrives at L8).
       const bs = this._boosterState;
-      if (bs) { bs.freeze++; this._onFreezeEarned?.(kills); }
+      if (bs && gs.unlocks?.freeze !== false) { bs.freeze++; this._onFreezeEarned?.(kills); }
     }
 
     if (kills > 0) {
@@ -357,7 +358,8 @@ export class GameLoop {
     // Multi-kill reward: a shot that destroys 2+ cars (via carry-over) is a
     // "multi-kill". Banking MULTI_KILLS_PER_BOMB of them in a level earns one
     // rainbow color bomb (rarer + more earned than a per-shot reward).
-    if (kills >= 2) {
+    // Not before the rainbow bomb is introduced (boosterUnlocks.RAINBOW_FROM).
+    if (kills >= 2 && gs.unlocks?.rainbow !== false) {
       gs.multiKillCount++;
       this._onMultiKill?.(gs.multiKillCount, MULTI_KILLS_PER_BOMB);
       if (gs.multiKillCount >= MULTI_KILLS_PER_BOMB) {
@@ -890,7 +892,7 @@ export class GameLoop {
       if (this._consecutiveComboCount >= 2) {
         this._consecutiveComboCount = 0;
         const bs = this._boosterState;
-        if (bs) { bs.colorChange++; this._onColorChangeEarned?.(); }
+        if (bs && this._gs.unlocks?.colorChange !== false) { bs.colorChange++; this._onColorChangeEarned?.(); }
       }
     } else {
       this._consecutiveComboCount = 0;

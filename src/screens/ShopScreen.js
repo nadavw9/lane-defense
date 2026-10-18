@@ -15,6 +15,7 @@ import { roundButton, button, bodyText, titleText, ribbon, screenBg, GOLD_DEEP }
 import { INK } from '../renderer/ToyStyle.js';
 import { ProgressManager } from '../game/ProgressManager.js';
 import { logEvent } from '../analytics/Analytics.js';
+import { boosterUnlocked, unlockLevelOf, BOOSTER_UNLOCK_LEVEL } from '../game/boosterUnlocks.js';
 
 export const SHOP_ITEMS = [
   { key: 'colorChange', label: 'COLOR SWAP', desc: 'Recolor a whole color', cost: 20, icon: 'colorchange', glow: 0xB070FF, face: [0x4A3A96, 0x2A2268] },
@@ -215,9 +216,16 @@ export class ShopScreen {
     c.addChild(burst);
     this._pulses.push(Object.assign(burst, { speed: 3.2, amp: 0.05 }));
 
-    const btn = this._priceButton(SHOP_PACK.cost, 118, 52, () => this._buyPack(btn));
-    btn.x = x + w - 84; btn.y = y + 92;
-    c.addChild(btn);
+    const packLocked = SHOP_PACK.keys.some(k => !boosterUnlocked(k, null, this._progress?.unlockedLevel ?? 1));
+    if (packLocked) {
+      const last = Math.max(...SHOP_PACK.keys.map(unlockLevelOf));
+      c.addChild(lockPlate(`LEVEL ${last}`, x + w - 84, y + 92, 118));
+      burst.visible = false;
+    } else {
+      const btn = this._priceButton(SHOP_PACK.cost, 118, 52, () => this._buyPack(btn));
+      btn.x = x + w - 84; btn.y = y + 92;
+      c.addChild(btn);
+    }
     c.addChild(burst);   // sticker sits on top of the button
   }
 
@@ -255,9 +263,16 @@ export class ShopScreen {
     desc.anchor.set(0.5); desc.x = x + w / 2; desc.y = y + 123;
     c.addChild(desc);
 
-    const btn = this._priceButton(item.cost, w - 30, 42, () => this._buy(item, btn));
-    btn.x = x + w / 2; btn.y = y + h - 24;
-    c.addChild(btn);
+    // A booster the player has not met yet is not for sale: a lock and the level it arrives on.
+    const locked = item.key in BOOSTER_UNLOCK_LEVEL && !boosterUnlocked(item.key, null, this._progress?.unlockedLevel ?? 1);
+    if (locked) {
+      holder.alpha = 0.4;
+      c.addChild(lockPlate(`LEVEL ${unlockLevelOf(item.key)}`, x + w / 2, y + h - 24, w - 30));
+    } else {
+      const btn = this._priceButton(item.cost, w - 30, 42, () => this._buy(item, btn));
+      btn.x = x + w / 2; btn.y = y + h - 24;
+      c.addChild(btn);
+    }
     this._tiles[item.key] = { holder, x: x + w / 2, y: y + 56 };
   }
 
@@ -455,4 +470,21 @@ function fmtCountdown(ms) {
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
   const pad = (n) => String(n).padStart(2, '0');
   return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${pad(m)}:${pad(sec)}`;
+}
+
+// Grey "locked until LEVEL N" plate in place of a price button.
+function lockPlate(text, cx, cy, w) {
+  const c = new Container();
+  c.x = cx; c.y = cy;
+  const g = new Graphics();
+  g.roundRect(-w / 2, -20, w, 40, 20).fill(0x3A3552).stroke({ color: INK, width: 2.5 });
+  g.roundRect(-w / 2 + 6, -17, w - 12, 12, 6).fill({ color: 0xffffff, alpha: 0.12 });
+  const lx = -w / 2 + 24;
+  g.moveTo(lx - 6, -3).arc(lx, -3, 6, Math.PI, 0).stroke({ color: 0xE9E6F2, width: 3 });
+  g.roundRect(lx - 9, -4, 18, 14, 3).fill(0xFFD42A).stroke({ color: INK, width: 2 });
+  c.addChild(g);
+  const t = titleText(text, 16);
+  t.anchor.set(0.5); t.x = 12; t.y = 1;
+  c.addChild(t);
+  return c;
 }

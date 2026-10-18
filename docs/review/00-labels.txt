@@ -1,8 +1,10 @@
-01=Map page 1 BEFORE (origin/master c46a3f1). Look at the header: the NEXT arrow sits on top of the 4th page dot.
-02=Map page 1 AFTER. The dots are replaced by a "1 / 14" counter centred between the arrows. Nothing else on the map changed.
-03=Map page 7 (Starlight Strip) BEFORE. Seven dots, last page, no next arrow.
-04=Map page 7 AFTER. "7 / 14" counter, and a NEXT arrow now leads on to world 8.
-05=NEW map page 8 "Rush Hour" (L101-115). Reuses Toy Town art; check the road runs through every node (same 15-node layout as world 1).
-06=NEW map page 14 "Galaxy Finale" (L191-200). Reuses Starlight Strip art; 10 nodes like world 7. Look: 195 HARD flame, 200 SUPER HARD skull.
-07=NEW L150 "Desert wave" in play (Sun Valley art via levelTheme(150 - 100)). Big wave: dense board.
-08=NEW L175 "Ice age" in play (Frost Pass art). Look: phantom car (?) and chameleon (swap icon) render on the reused world.
+FTUE pacing review set (2026-10-18). BEFORE = master, AFTER = feat/ftue-pacing.
+01=L1 booster bar BEFORE/AFTER: before all three boosters live; after only BOMB, COLOR and FREEZE show a padlock and the level they arrive (LV 12 / LV 8)
+02=L5 board BEFORE/AFTER: after has the numbered step ruler left of the road (pulsing pip = nearest car), faint step lines and warm last 4 steps on the road; the bench is gone (now arrives at L6)
+03=Title BEFORE/AFTER: PLAY now goes to the next level; LEVEL N pill under it; new MAP button first in the row
+04=Level 2 card BEFORE/AFTER: after offers only the BOMB (the one booster met so far)
+05=New vehicle card BEFORE/AFTER: before a static CAR + 2 HITS (auto-dismiss); after a road strip where bombs shrink the car, hit pips, 'Every hit shrinks it one size', GOT IT. Now at L3 (was L2)
+06=New vehicle card animation frames (car -> motorbike -> boom, loops)
+07=Win L5 -> map: building repairs, the car hops down, drives to node 6, parks above it, level 6 card opens by itself
+08=Win L15 -> map across worlds: drives out of Toy Town, Steel Yards page, in to node 16, card opens
+09=The two step-grid options shown to the owner (left = ruler, chosen; right = numbers in lanes, dropped)

@@ -103,6 +103,6 @@ jobs:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: com.nadavw.trafficbomb
           releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
-          track: ${{ github.event.inputs.track }}
+          tracks: ${{ github.event.inputs.track }}
           status: ${{ github.event.inputs.status }}
           releaseName: 1.1.${{ github.run_number }} ${{ github.ref_name }}   # Play caps names at 50 chars

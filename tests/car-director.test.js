@@ -60,7 +60,7 @@ describe('generateCar — HP formula', () => {
     const SAMPLES = 400
     const avgHp = (phase) => {
       const d = makeDirector(99)
-      d.setLevel(2)  // L1 is bikes-only (CLIMAX===CALM); test FTUE band at L2+
+      d.setLevel(3)  // L1-2 are bikes-only (CLIMAX===CALM); test FTUE band at L3+
       let sum = 0
       for (let i = 0; i < SAMPLES; i++) sum += d.generateCar(makeLane(), phase, W1, PALETTE).hp
       return sum / SAMPLES

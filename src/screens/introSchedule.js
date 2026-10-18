@@ -11,13 +11,15 @@
 // Cards that open the level (after the splash, before the first move), in order.
 // L1's walkthrough is the tour (guideContent.tourSteps), not listed here.
 export const LEVEL_START_CARDS = {
-  2:  ['lane_2', 'multi_color', 'combo'],
-  3:  ['lane_3'],
+  // One new thing per level (2026-10-18 pacing). Vehicles that shrink (car L3, van L5) are
+  // introduced by their animated NEW VEHICLE card, not listed here; the bench (L6) has its
+  // own spotlight tutorial.
+  2:  ['multi_color'],
   4:  ['supercharge'],
-  6:  ['goal_colour'],
   8:  ['freeze_booster'],
-  9:  ['colour_change_booster'],
+  9:  ['goal_colour'],
   10: ['rainbow_bomb'],
+  12: ['colour_change_booster'],
   13: ['gift_car'],
   14: ['traffic_light'],
   24: ['convoy'],
@@ -26,19 +28,18 @@ export const LEVEL_START_CARDS = {
 // Moments inside play that can only be explained from a live event. A key may fire only while
 // the player is on a level inside [min, max]; outside the window it is simply never shown.
 //   first_kill / bomb_earned  L1 (a 10-car goal guarantees both)
-//   first_miss / hp_miss      L2 (first second colour, first bigger car)
+//   first_miss                L2 (the first second colour)
 //   streak_charged            L4-5 (Hot Streak starts at L4)
-//   rainbow_bomb              earned from L4 on; the L10 start card covers anyone who has not earned one
+//   freeze / swap / rainbow earned  from the level each one arrives (boosterUnlocks.js)
 //   armor_break / plate_break / mender_heal / volatile_surge  the level that introduces the trait
 export const REACTIVE_WINDOW = {
   first_kill:     [1, 1],
   bomb_earned:    [1, 1],
   first_miss:     [2, 2],
-  hp_miss:        [2, 2],
-  freeze_earned:  [1, 10],   // first FREEZE earned in play; the L8 start card covers anyone who has not
-  colour_change_earned: [1, 10],   // same for COLOUR CHANGE (L9 card)
+  freeze_earned:  [8, 11],
+  colour_change_earned: [12, 15],
   streak_charged: [4, 5],
-  rainbow_bomb:   [4, 10],
+  rainbow_bomb:   [10, 12],
   armor_break:    [11, 11],
   plate_break:    [41, 41],
   mender_heal:    [46, 46],

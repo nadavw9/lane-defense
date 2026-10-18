@@ -9,6 +9,7 @@
 //   r3d.triggerDeployPunch(colIdx)
 //   r3d.resetLevel()
 
+import { StepGrid3D } from './StepGrid3D.js';
 import { Scene3D, posToZ } from './Scene3D.js';
 import { Lighting3D }    from './Lighting3D.js';
 import { levelTheme }    from './ThemeRegistry.js';
@@ -98,6 +99,7 @@ export class GameRenderer3D {
     this._skybox   = new Skybox3D(this._scene3d.scene);
     this._skybox._group.visible = false;  // sky/hills geometry not suited for top-down view
     this._road     = new Road3D(this._scene3d.scene);
+    this._stepGrid = new StepGrid3D(this._scene3d.scene);   // step cells under the cars
     this._cameraFX    = new CameraFX(this._scene3d.camera);
     this._laneFlash   = new LaneFlash3D(this._scene3d.scene);
     this._scorchMarks = new ScorchMarks3D(this._scene3d.scene);
@@ -428,6 +430,9 @@ export class GameRenderer3D {
     this._gridRows = gridRows;
     this._cars?.setGridRows(gridRows);
   }
+
+  /** The step grid on the road (StepGrid3D): rebuilt per level after lanes and rows are set. */
+  setStepGrid(laneCount, gridRows, stepsPerRow) { this._stepGrid?.configure(laneCount, gridRows, stepsPerRow); }
 
   // Per-world road tile (url from assetManifest.WORLD_ROAD_URLS, null = default).
   setRoadTexture(url) { this._road?.setRoadTextureUrl?.(url); }

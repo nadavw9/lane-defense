@@ -27,7 +27,8 @@ export function bandFor(levelId) {
   if (b.tutorial) return b;
   const d = levelDifficulty(levelId);
   if (d === 'superhard') return { lo: b.lo - 25, hi: b.hi - 25, milestone: true, tier: d };
-  if (d === 'hard') return { lo: b.lo - 15, hi: b.hi - 15, tier: d };
+  // L10 is the player's FIRST hard level (2026-10-18 pacing): a softer step, 8 under not 15.
+  if (d === 'hard') { const off = levelId === 10 ? 8 : 15; return { lo: b.lo - off, hi: b.hi - off, tier: d }; }
   if (isReliefLevel(levelId)) return { lo: Math.min(88, b.lo + 6), hi: Math.min(95, b.hi + 6), tier: 'relief' };
   return b;
 }

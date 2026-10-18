@@ -1,76 +1,71 @@
-// CarTypeIntroCard — Royal Match "Meet the new blocker!" style intro overlay.
-// Shows once per car type EVER (seen-state persisted in
-// ProgressManager.introducedCarTypes; GameApp fires cards at level start only).
-// Gameplay is paused while the card is on screen. Auto-dismisses after DISPLAY_MS.
+// CarTypeIntroCard — "NEW VEHICLE!" card, shown once per vehicle at the start of the level
+// that first has it (L3 car, L5 van; seen-state in ProgressManager.introducedCarTypes).
+//
+// 2026-10-18: the card SHOWS the shrink rule instead of stating a number. On a little strip
+// of road the new vehicle takes bombs from below, one at a time, and every hit shrinks it a
+// size (van -> car -> motorbike -> boom), while a row of hit pips empties. It loops until
+// the player taps GOT IT, so a player who does not read still sees how the car works.
+// Gameplay is paused while the card is up (modal queue).
 //
 // Usage:
-//   const card = new CarTypeIntroCard(stage, APP_W, APP_H, typeKey, onDismiss);
-//   app.ticker.add(ticker => { if (!card.update(ticker.deltaMS / 1000)) { app.ticker.remove(...); } });
+//   const card = new CarTypeIntroCard(stage, APP_W, APP_H, typeKey, onDismiss, hp);
+//   ticker: if (!card.update(dt)) -> finished and destroyed.
 
 import { Container, Graphics, Sprite, Assets } from 'pixi.js';
-import { panel, ribbon, titleText, bodyText, backdrop, GOLD } from '../renderer/PremiumUI.js';
-import { INK, shade } from '../renderer/ToyStyle.js';
-import { uiIcon } from '../renderer/UIIcon.js';
-import { CAR_TYPES } from '../director/CarTypes.js';
+import { panel, ribbon, titleText, bodyText, backdrop, button, GOLD } from '../renderer/PremiumUI.js';
+import { INK, SUN } from '../renderer/ToyStyle.js';
+import { CAR_TYPES, LADDER } from '../director/CarTypes.js';
 
 const BASE_URL = import.meta.env.BASE_URL ?? '';
 
-// ── Per-type display data ─────────────────────────────────────────────────────
-// hp comes from CAR_TYPES (single source of truth) — the card shows base HP;
-// live cars scale it by the level's hpMultiplier.
-const TYPE_INFO = {
-  small:  { name: 'MOTORBIKE', hp: CAR_TYPES.small.hp,  color: 0x3DBB3A, sprite: 'sprites/designed/bike-red.png'          },
-  big:    { name: 'CAR',       hp: CAR_TYPES.big.hp,    color: 0x9CC42A, sprite: 'sprites/designed/car-red-processed.png' },
-  jeep:   { name: 'VAN',       hp: CAR_TYPES.jeep.hp,   color: 0xF2B21B, sprite: 'sprites/designed/van-red.png'           },
-  truck:  { name: 'TRUCK',     hp: CAR_TYPES.truck.hp,  color: 0xF07A1C, sprite: 'sprites/designed/truck-red.png'         },
-  bigrig: { name: 'BIG RIG',   hp: CAR_TYPES.bigrig.hp, color: 0xE8453C, sprite: 'sprites/designed/bigrig-red.png'        },
-  tank:   { name: 'TANK',      hp: CAR_TYPES.tank.hp,   color: 0xB02A5A, sprite: 'sprites/designed/tank.png'              },
+// Rung sprites (red, so the matching bomb reads as "same colour").
+const RUNG = {
+  small: { name: 'MOTORBIKE', sprite: 'sprites/designed/bike-red.png' },
+  big:   { name: 'CAR',       sprite: 'sprites/designed/car-red-processed.png' },
+  jeep:  { name: 'VAN',       sprite: 'sprites/designed/van-red.png' },
 };
+const BOMB_SPRITE = 'sprites/designed/powerball-red.png';
+const BOOM_SPRITE = 'sprites/designed/explosion.png';
+const PX_PER_SRC = 0.24;   // sprite px -> card px (keeps the real size ratio between rungs)
 
-const DISPLAY_MS    = 2500;
-const ANIM_IN_MS    = 220;
-const ANIM_OUT_MS   = 180;
+// Loop timing (s).
+const HOLD   = 0.75;   // look at the vehicle before each bomb
+const FLY    = 0.32;   // bomb travels up the road
+const POP    = 0.22;   // shrink pop after a hit
+const BOOM_T = 0.65;   // explosion on the last hit
+const REST   = 0.55;   // empty road before the loop restarts
 
-// Sprite display dimensions
-const SPR_W = 130;
-const SPR_H = 150;
+const CW = 330, CH = 520;
+const ROAD = { x: 95, y: 70, w: 140, h: 236 };     // the road strip inside the card
+const CAR_Y = ROAD.y + 92;                           // where the vehicle sits
+const BOMB_Y0 = ROAD.y + ROAD.h - 26;                // bomb start (bottom of the strip)
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-// True if the type has intro display data. Seen-state lives in
-// ProgressManager.introducedCarTypes (with a migration from the legacy
-// 'lane_defense_seen_car_types' localStorage key this module used to own).
 export function hasIntroCard(typeKey) {
-  return typeKey in TYPE_INFO;
+  // Only vehicles that still spawn and are not the baseline motorbike get a card.
+  return typeKey === 'big' || typeKey === 'jeep';
 }
 
-// ── Card class ────────────────────────────────────────────────────────────────
-
 export class CarTypeIntroCard {
-  // hp: this level's actual HP for the type (GameApp passes carHpFor(...)); the
-  // base value is only a fallback, so the card never disagrees with the board.
   constructor(stage, appW, appH, typeKey, onDismiss, hp = null) {
-    const info = TYPE_INFO[typeKey];
-    if (!info) { onDismiss?.(); return; }
-
+    if (!hasIntroCard(typeKey)) { onDismiss?.(); return; }
     this._onDismiss = onDismiss;
-    this._elapsed   = 0;
     this._dismissed = false;
-
-    const W = appW, H = appH;
-    const CW = 320, CH = 400;
+    this._t = 0;
+    this._in = 0;
+    const full = hp ?? CAR_TYPES[typeKey].hp;
+    this._full = full;
+    this._type = typeKey;
 
     const c = new Container();
-    c.eventMode = 'static';
-    c.on('pointerdown', () => this._dismiss());
     stage.addChild(c);
     this._container = c;
-    c.addChild(backdrop(W, H, 0.74));
+    const dim = backdrop(appW, appH, 0.78);
+    dim.eventMode = 'static';
+    c.addChild(dim);
 
-    // Card (pivot at its centre so the pop-in scales from the middle).
     const card = new Container();
     card.pivot.set(CW / 2, CH / 2);
-    card.position.set(W / 2, H / 2 - 20);
+    card.position.set(appW / 2, appH / 2 - 10);
     c.addChild(card);
     this._card = card;
     card.addChild(panel(CW, CH));
@@ -78,125 +73,162 @@ export class CarTypeIntroCard {
     rb.x = CW / 2; rb.y = 2;
     card.addChild(rb);
 
-    // Sunburst behind the vehicle.
-    const stageY = 138;
-    const glow = new Graphics();
-    glow.circle(0, 0, 96).fill({ color: info.color, alpha: 0.22 });
-    glow.circle(0, 0, 66).fill({ color: 0xFFFFFF, alpha: 0.10 });
-    glow.x = CW / 2; glow.y = stageY;
-    card.addChild(glow);
-    const rays = new Graphics();
-    for (let i = 0; i < 12; i++) {
-      const a0 = (i / 12) * Math.PI * 2, a1 = a0 + Math.PI / 12;
-      rays.poly([0, 0, Math.cos(a0) * 118, Math.sin(a0) * 118, Math.cos(a1) * 118, Math.sin(a1) * 118]).fill({ color: GOLD, alpha: 0.16 });
+    // ── The road strip ─────────────────────────────────────────────────────
+    const road = new Graphics();
+    road.roundRect(ROAD.x - 6, ROAD.y - 6, ROAD.w + 12, ROAD.h + 12, 18).fill(0x1A1630);
+    road.roundRect(ROAD.x, ROAD.y, ROAD.w, ROAD.h, 14).fill(0x3B3F4A);
+    road.rect(ROAD.x + 6, ROAD.y, 4, ROAD.h).fill({ color: 0xFFFFFF, alpha: 0.55 });
+    road.rect(ROAD.x + ROAD.w - 10, ROAD.y, 4, ROAD.h).fill({ color: 0xFFFFFF, alpha: 0.55 });
+    for (let y = ROAD.y + 10; y < ROAD.y + ROAD.h - 10; y += 28) road.rect(ROAD.x + ROAD.w / 2 - 2, y, 4, 14).fill({ color: 0xFFFFFF, alpha: 0.18 });
+    card.addChild(road);
+    // the vehicle and the bomb live in a masked layer so nothing spills off the strip
+    const stageL = new Container();
+    const mask = new Graphics();
+    mask.roundRect(ROAD.x, ROAD.y, ROAD.w, ROAD.h, 14).fill(0xffffff);
+    stageL.mask = mask;
+    card.addChild(mask, stageL);
+    this._stage = stageL;
+
+    this._rungs = {};
+    for (const k of LADDER) {
+      const holder = new Container();
+      holder.x = ROAD.x + ROAD.w / 2; holder.y = CAR_Y;
+      holder.visible = false;
+      stageL.addChild(holder);
+      this._rungs[k] = holder;
+      this._load(RUNG[k].sprite, holder, PX_PER_SRC);
     }
-    rays.x = CW / 2; rays.y = stageY;
-    card.addChild(rays);
-    this._rays = rays;
+    this._bomb = new Container();
+    this._bomb.x = ROAD.x + ROAD.w / 2;
+    this._load(BOMB_SPRITE, this._bomb, null, 42);
+    stageL.addChild(this._bomb);
+    this._boom = new Container();
+    this._boom.x = ROAD.x + ROAD.w / 2; this._boom.y = CAR_Y;
+    this._load(BOOM_SPRITE, this._boom, null, 120);
+    stageL.addChild(this._boom);
+    this._flash = new Graphics();
+    stageL.addChild(this._flash);
 
-    const spr = new Container();
-    spr.x = CW / 2; spr.y = stageY;
-    card.addChild(spr);
-    this._spr = spr;
-    Assets.load(`${BASE_URL}${info.sprite}`).then(tex => {
-      if (this._dismissed || spr.destroyed) return;
-      const s = new Sprite(tex);
-      s.anchor.set(0.5);
-      s.scale.set(Math.min(SPR_W / s.width, SPR_H / s.height));
-      spr.addChild(s);
-    }).catch(() => {});
-
-    const name = titleText(info.name, 44);
-    name.x = CW / 2; name.y = 262;
-    if (name.width > CW - 40) name.scale.set((CW - 40) / name.width);
+    // ── Name, hit pips, caption ────────────────────────────────────────────
+    const name = titleText(RUNG[typeKey].name, 40);
+    name.x = CW / 2; name.y = ROAD.y + ROAD.h + 34;
     card.addChild(name);
 
-    // HP badge.
-    const bw = 132, bh = 38, bx = CW / 2 - bw / 2, by = 294;
-    const badge = new Graphics();
-    badge.roundRect(bx, by + 3, bw, bh, bh / 2).fill(shade(info.color, 0.55));
-    badge.roundRect(bx, by, bw, bh - 2, bh / 2).fill(info.color);
-    badge.roundRect(bx + 8, by + 4, bw - 16, bh * 0.3, 6).fill({ color: 0xFFFFFF, alpha: 0.3 });
-    badge.roundRect(bx, by, bw, bh, bh / 2).stroke({ color: INK, width: 3 });
-    card.addChild(badge);
-    const hpTxt = titleText(`${hp ?? info.hp} ${(hp ?? info.hp) === 1 ? 'HIT' : 'HITS'}`, 20);
-    const heart = uiIcon('heart', 22, '❤', { emojiFill: 0xff4466 });
-    const tot = 22 + 8 + hpTxt.width;
-    heart.x = CW / 2 - tot / 2 + 11; heart.y = by + bh / 2 - 1;
-    hpTxt.x = CW / 2 - tot / 2 + 30 + hpTxt.width / 2; hpTxt.y = by + bh / 2 - 1;
-    card.addChild(heart, hpTxt);
+    this._pips = new Graphics();
+    card.addChild(this._pips);
+    this._pipY = ROAD.y + ROAD.h + 72;
+    const hits = bodyText(`${full} HITS`, 18, SUN);
+    hits.anchor.set(0, 0.5);
+    this._hitsLabel = hits;
+    card.addChild(hits);
 
-    const tap = bodyText('Tap to continue', 13, 0xC9C3F0, { outline: false, weight: '600' });
-    tap.x = CW / 2; tap.y = CH - 44;
-    card.addChild(tap);
+    const cap = bodyText('Every hit shrinks it one size', 16, 0xFFFFFF, { outline: false, weight: '700' });
+    cap.x = CW / 2; cap.y = this._pipY + 34;
+    card.addChild(cap);
 
-    // Timer bar.
-    const barBg = new Graphics();
-    barBg.roundRect(30, CH - 26, CW - 60, 8, 4).fill({ color: 0x0C0A26, alpha: 0.8 });
-    card.addChild(barBg);
-    const barFill = new Graphics();
-    card.addChild(barFill);
-    this._barFill  = barFill;
-    this._barX     = 30;
-    this._barY     = CH - 26;
-    this._barMaxW  = CW - 60;
-    this._barColor = GOLD;
+    const ok = button('GOT IT', { variant: 'green', w: 190, h: 58, size: 28, onTap: () => this._dismiss() });
+    ok.x = CW / 2; ok.y = CH - 46;
+    card.addChild(ok);
 
     c.alpha = 0;
-    card.scale.set(0.70);
-    this._animIn  = true;
-    this._animOut = false;
+    card.scale.set(0.7);
+    this._reset();
   }
 
-  // Returns false when the card has finished and been destroyed.
+  _load(path, holder, scale, fit = null) {
+    const put = (tex) => {
+      if (this._dismissed || holder.destroyed) return;
+      const s = new Sprite(tex);
+      s.anchor.set(0.5);
+      s.scale.set(fit ? fit / Math.max(tex.width, tex.height) : scale);
+      holder.addChild(s);
+    };
+    const tex = Assets.get(`${BASE_URL}${path}`);
+    if (tex) put(tex); else Assets.load(`${BASE_URL}${path}`).then(put).catch(() => {});
+  }
+
+  // Loop state: hp left, phase and its clock.
+  _reset() { this._hp = this._full; this._phase = 'hold'; this._pt = 0; this._showRung(); }
+
+  _showRung() {
+    const k = this._hp > 0 ? LADDER[this._hp - 1] : null;
+    for (const [key, h] of Object.entries(this._rungs)) { h.visible = key === k; h.scale.set(1); }
+    this._bomb.visible = false;
+    this._boom.visible = false;
+    this._drawPips();
+  }
+
+  _drawPips() {
+    const g = this._pips, n = this._full, r = 9, gap = 26;
+    const total = (n - 1) * gap + r * 2 + 10 + this._hitsLabel.width;
+    const x0 = CW / 2 - total / 2 + r;
+    g.clear();
+    for (let i = 0; i < n; i++) {
+      const on = i < this._hp;
+      g.circle(x0 + i * gap, this._pipY, r).fill(on ? 0xFF3D3D : 0x3A3552).stroke({ color: INK, width: 2.5 });
+      if (on) g.circle(x0 + i * gap - 3, this._pipY - 3, 2.6).fill({ color: 0xFFFFFF, alpha: 0.7 });
+    }
+    this._hitsLabel.x = x0 + (n - 1) * gap + r + 10;
+    this._hitsLabel.y = this._pipY;
+  }
+
+  // Returns false once the card is finished and destroyed.
   update(dt) {
     if (this._dismissed || !this._container) return false;
-    this._elapsed += dt * 1000;
-
-    // Animate in
-    if (this._animIn) {
-      const prog = Math.min(1, this._elapsed / ANIM_IN_MS);
-      const e    = 1 - Math.pow(1 - prog, 3);
+    this._t += dt;
+    if (this._in < 1) {
+      this._in = Math.min(1, this._in + dt / 0.22);
+      const e = 1 - Math.pow(1 - this._in, 3);
       this._container.alpha = e;
-      const s = 0.70 + 0.30 * e + (prog < 0.6 ? (0.6 - prog) * 0.12 : 0);
-      if (this._card) this._card.scale.set(s);
-      if (prog >= 1) this._animIn = false;
+      this._card.scale.set(0.7 + 0.3 * e + (this._in < 0.6 ? (0.6 - this._in) * 0.12 : 0));
     }
+    this._pt += dt;
+    const cur = this._hp > 0 ? this._rungs[LADDER[this._hp - 1]] : null;
+    if (cur) cur.y = CAR_Y + Math.sin(this._t * 5) * 1.5;   // idling
+    this._flash.clear();
 
-    if (this._rays) this._rays.rotation += dt * 0.35;
-    if (this._spr) this._spr.y = 138 + Math.sin(this._elapsed / 260) * 4;
-
-    // Timer bar drains over the display window
-    const displayElapsed = Math.max(0, this._elapsed - ANIM_IN_MS);
-    const fillFrac = Math.max(0, 1 - displayElapsed / DISPLAY_MS);
-    if (this._barFill) {
-      this._barFill.clear();
-      const fw = this._barMaxW * fillFrac;
-      if (fw > 2) {
-        this._barFill.roundRect(this._barX, this._barY, fw, 8, 4);
-        this._barFill.fill({ color: this._barColor, alpha: 0.90 });
+    switch (this._phase) {
+      case 'hold':
+        if (this._pt >= HOLD) { this._phase = 'fly'; this._pt = 0; this._bomb.visible = true; }
+        break;
+      case 'fly': {
+        const p = Math.min(1, this._pt / FLY);
+        const e = p * p;
+        this._bomb.y = BOMB_Y0 + (CAR_Y + 30 - BOMB_Y0) * e;
+        this._bomb.scale.set(1 - 0.15 * p);
+        if (p >= 1) {
+          this._bomb.visible = false;
+          this._hp--;
+          this._phase = this._hp > 0 ? 'pop' : 'boom';
+          this._pt = 0;
+          this._showRung();
+          if (this._hp <= 0) this._boom.visible = true;
+        }
+        break;
       }
-    }
-
-    // Animate out
-    if (!this._animOut && this._elapsed >= ANIM_IN_MS + DISPLAY_MS) {
-      this._animOut = true;
-    }
-    if (this._animOut) {
-      const outProg = Math.min(1, (this._elapsed - ANIM_IN_MS - DISPLAY_MS) / ANIM_OUT_MS);
-      this._container.alpha = 1 - outProg;
-      if (outProg >= 1) {
-        this._destroy();
-        return false;
+      case 'pop': {
+        const p = Math.min(1, this._pt / POP);
+        if (cur) cur.scale.set(1 + 0.28 * Math.sin(Math.PI * p));
+        this._flash.circle(ROAD.x + ROAD.w / 2, CAR_Y, 46 * (1 - p) + 10).fill({ color: 0xFFFFFF, alpha: 0.55 * (1 - p) });
+        if (p >= 1) { this._phase = 'hold'; this._pt = 0; }
+        break;
       }
+      case 'boom': {
+        const p = Math.min(1, this._pt / BOOM_T);
+        this._boom.scale.set(0.5 + 0.8 * p);
+        this._boom.alpha = 1 - p * p;
+        if (p >= 1) { this._boom.visible = false; this._phase = 'rest'; this._pt = 0; }
+        break;
+      }
+      case 'rest':
+        if (this._pt >= REST) this._reset();
+        break;
     }
-
     return true;
   }
 
   _dismiss() {
     if (this._dismissed) return;
-    this._dismissed = true;
     this._destroy();
   }
 

@@ -46,6 +46,9 @@ export class GameState {
     this.convoy             = null;      // lanes that only spawn motorbikes (set per level)
     this.trafficMoves       = 0;         // traffic moves so far — the lights run on these
     this.giftsPending       = 0;         // gift cars destroyed, not yet rewarded (GameApp drains)
+    // Which boosters exist for the player on this level (boosterUnlocks.unlocksFor). null =
+    // all of them (tests, sim and anything that never sets it keep the old behaviour).
+    this.unlocks            = null;
 
     // ── Level Goals (Level Goal System) ────────────────────────────────────
     // goals: array of goal objects { type, color?, carType?, count }

@@ -67,9 +67,11 @@ const PROGRESSION = [
     hintText: 'Green bombs join the fight', goals: total(20) },
 
   // L6 "Park it": a colour goal (the bench itself is taught at L4).
-  { id: 6, name: 'Red alert', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(1),
+  // L6 "Park it": the bench is this level's one new thing (2026-10-18 pacing), so the goal is
+  // a plain total; colour goals start at L9 with their card.
+  { id: 6, name: 'Park it', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(1),
     duration: 100, spawnBudget: 10, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    goals: [{ type: 'destroyColor', color: 'Red', count: 10 }] },
+    goals: total(20) },
 
   // L7 "Rush hour": SPEEDERS move two rows a turn.
   { id: 7, name: 'Rush hour', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.03),
@@ -87,7 +89,7 @@ const PROGRESSION = [
   { id: 9, name: 'Sunday drive', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0),
     duration: 100, spawnBudget: 12, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
     traits: { speeder: 0.10 },
-    hintText: 'NEW! COLOR SWAP booster — recolor a whole color of cars',
+    hintText: 'Only blue and green cars count toward this goal',
     goals: [{ type: 'destroyColor', color: 'Blue', count: 5 }, { type: 'destroyColor', color: 'Green', count: 5 }] },
 
   // L10 BIG WAVE "Rush hour": the first milestone. Three cars deep in every lane, no
@@ -107,7 +109,8 @@ const PROGRESSION = [
   // L12 "Plates and pace": armour and speeders together.
   { id: 12, name: 'Plates and pace', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.14),
     duration: 100, spawnBudget: 13, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    traits: { armored: 0.12, speeder: 0.12 }, goals: total(18) },
+    traits: { armored: 0.12, speeder: 0.12 },
+    hintText: 'NEW! COLOR SWAP booster — recolor a whole color of cars', goals: total(18) },
 
   // L13 "Breather" (relief).
   { id: 13, name: 'Breather', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.04),

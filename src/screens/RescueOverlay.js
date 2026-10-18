@@ -102,7 +102,7 @@ export class RescueOverlay {
     mg.circle(PW / 2, 108, 50).fill({ color: 0xFF3D3D, alpha: 0.18 });
     mg.circle(PW / 2, 108, 46).stroke({ color: 0x2A1020, width: 9 });
     if (done > 0) {
-      mg.moveTo(PW / 2, 108 - 46).arc(PW / 2, 108, 46, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * done).stroke({ color: GOLD, width: 9, cap: 'round' });
+      mg.beginPath().arc(PW / 2, 108, 46, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * done).stroke({ color: GOLD, width: 9, join: 'round', cap: 'round' });
     }
     mg.circle(PW / 2, 108, 36).fill(0xE8453C).stroke({ color: INK, width: 3.5 });
     mg.ellipse(PW / 2, 92, 22, 10).fill({ color: WHITE, alpha: 0.28 });

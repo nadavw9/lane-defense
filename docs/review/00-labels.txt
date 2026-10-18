@@ -1,4 +1,3 @@
-Vehicle card review set (2026-10-18). Owner asked: show the car hit and its shrink side by side, every grade in a row.
-01=L3 CAR card BEFORE/AFTER: before one road strip where the car shrinks in place; after the whole ladder in a row CAR -> bomb -> MOTORBIKE -> bomb -> BOOM, true relative sizes, each step lights up in turn
-02=L5 VAN card: VAN -> bomb -> CAR -> bomb -> MOTORBIKE -> bomb -> BOOM, '3 HITS TO DESTROY'. Look for: all four pictures fit the strip, labels under each
-03=L5 van card animation frames (~0.7s apart): the lit step walks van -> car -> motorbike -> boom; later rungs wait dimmed until reached, the bomb before each lit rung hops
+Padlock stray-line fix (2026-10-18). Owner saw two long lines from the locked boosters up the screen.
+01=BEFORE (owner's phone, L1) / AFTER (L6): the lines ran from each padlock's shackle up past the red line; after, none
+02=AFTER close-up of the two locked cards: clean shackles, no line out of either. Cause: the shackle arc continued the card's path (no beginPath) and started with a zero-length segment that some phone GPUs draw as a long spike. Same fix in the map, shop, car-manual, achievements locks and the rescue timer ring

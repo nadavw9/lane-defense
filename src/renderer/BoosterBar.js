@@ -415,8 +415,8 @@ function _makeLock(card, level) {
   const cx = CARD_W / 2, cy = 22;
   g.roundRect(0, 0, CARD_W, CARD_H - CARD_LIP, CARD_R).fill({ color: 0x1A1630, alpha: 0.55 });
   // shackle
-  g.moveTo(cx - 8, cy - 2).arc(cx, cy - 2, 8, Math.PI, 0).stroke({ color: INK, width: 6 });
-  g.moveTo(cx - 8, cy - 2).arc(cx, cy - 2, 8, Math.PI, 0).stroke({ color: 0xE9E6F2, width: 3 });
+  g.beginPath().arc(cx, cy - 2, 8, Math.PI, 0).stroke({ color: INK, width: 6, join: 'round', cap: 'round' });
+  g.beginPath().arc(cx, cy - 2, 8, Math.PI, 0).stroke({ color: 0xE9E6F2, width: 3, join: 'round', cap: 'round' });
   // body
   g.roundRect(cx - 12, cy - 3, 24, 19, 4).fill(SUN).stroke({ color: INK, width: 2.5 });
   g.circle(cx, cy + 5, 2.6).fill(INK);

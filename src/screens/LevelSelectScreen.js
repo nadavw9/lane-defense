@@ -346,8 +346,8 @@ export class LevelSelectScreen {
     } else {
       const lock = new Graphics();
       lock.roundRect(-9, -3, 18, 14, 3).fill(0xE9E6F2).stroke({ color: INK, width: 2 });
-      lock.moveTo(-6, -3).arc(0, -3, 6, Math.PI, 0).stroke({ color: INK, width: 5 });
-      lock.moveTo(-6, -3).arc(0, -3, 6, Math.PI, 0).stroke({ color: 0xE9E6F2, width: 2.5 });
+      lock.beginPath().arc(0, -3, 6, Math.PI, 0).stroke({ color: INK, width: 5, join: 'round', cap: 'round' });
+      lock.beginPath().arc(0, -3, 6, Math.PI, 0).stroke({ color: 0xE9E6F2, width: 2.5, join: 'round', cap: 'round' });
       node.addChild(lock);
     }
 

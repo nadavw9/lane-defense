@@ -130,6 +130,6 @@ export class AchievementsScreen {
 function lockGlyph() {
   const g = new Graphics();
   g.roundRect(-7, -2, 14, 11, 3).fill(0x8C86BA);
-  g.moveTo(-5, -2).arc(0, -2, 5, Math.PI, 0).stroke({ color: 0x8C86BA, width: 2.5 });
+  g.beginPath().arc(0, -2, 5, Math.PI, 0).stroke({ color: 0x8C86BA, width: 2.5, join: 'round', cap: 'round' });
   return g;
 }

@@ -41,7 +41,7 @@ import { BenchRenderer, benchY, benchSlotH } from './BenchRenderer.js';
 import { GameState }       from '../game/GameState.js';
 import { GameLoop }        from '../game/GameLoop.js';
 import { CombatResolver }  from '../game/CombatResolver.js';
-import { LevelManager, LEVEL_COUNT, openingRowsForLevel, clampInitialCarsToDepth, streakEnabledFor } from '../game/LevelManager.js';
+import { LevelManager, LEVEL_COUNT, openingRowsForLevel, clampInitialCarsToDepth, streakEnabledFor, BENCH_FROM_LEVEL } from '../game/LevelManager.js';
 import { BoosterState }    from '../game/BoosterState.js';
 import { ProgressManager } from '../game/ProgressManager.js';
 import { applyDda }         from '../game/dda.js';
@@ -68,7 +68,7 @@ import { RESCUE_COIN_COST, KILLS_PER_BOMB } from '../director/DirectorConfig.js'
 import { ColorPicker }                from '../screens/ColorPicker.js';
 import { PreLevelScreen }             from '../screens/PreLevelScreen.js';
 import { BoosterUnlockScreen }        from '../screens/BoosterUnlockScreen.js';
-import { unlocksFor, arrivingBooster, boosterOffered, filterOffered, UNLOCK_GIFT } from '../game/boosterUnlocks.js';
+import { unlocksFor, arrivingBooster, boosterOffered, filterOffered, winStreakOn, UNLOCK_GIFT } from '../game/boosterUnlocks.js';
 import { FTUEOverlay, FeatureBanners } from '../screens/FTUEOverlay.js';
 import { OnboardingHints }    from '../screens/OnboardingHints.js';
 import { GuideCard }           from '../screens/GuideCard.js';
@@ -669,7 +669,7 @@ async function main() {
   let rescueOverlay    = null;
   let unlockScreen     = null;
   let levelUnlocks     = unlocksFor(1, 1);   // boosters that exist on the current level (boosterUnlocks.js)
-  const BENCH_FROM     = 6;                  // the bench arrives on L6 (2026-10-18 pacing)
+  const BENCH_FROM     = BENCH_FROM_LEVEL;   // the bench arrives on L13 (LevelManager, 2026-10-18 re-spacing)
   let boosterSpotlight = null;
 
   // ── Meta screens ─────────────────────────────────────────────────────────
@@ -1266,14 +1266,14 @@ async function main() {
     // whatever the player picks here (an ad that fails still keeps the streak gift).
     const reached = progress.unlockedLevel ?? 1;
     // Only boosters that have arrived AND been taught are offered before a level
-    // (boosterUnlocks.boosterOffered): BOMB from L2, FREEZE from L9, COLOR SWAP from L13.
+    // (boosterUnlocks.boosterOffered): nothing before L6, then BOMB, FREEZE from L9, COLOR SWAP from L22.
     const offered = {
       colorchange: boosterOffered('colorChange', levelId, reached),
       freeze:      boosterOffered('freeze', levelId, reached),
       bomb:        boosterOffered('bombs', levelId, reached),
     };
-    // The win streak pays in FREEZE / COLOR SWAP, so it only shows once FREEZE is offered.
-    const streakOn = typeof levelId === 'number' && offered.freeze;
+    // The win streak shows and pays from WIN_STREAK_FROM (boosterUnlocks).
+    const streakOn = typeof levelId === 'number' && winStreakOn(levelId, reached);
     const streak = streakOn ? progress.winStreak : 0;
     const streakBundle = streakOn ? filterOffered(streakGift(streak), levelId, reached) : null;
     const start = (bundle) => {
@@ -1785,7 +1785,7 @@ async function main() {
       audio,
       improved,
       winLevelId,
-      (currentLevelIsDaily || !boosterOffered('freeze', null, progress.unlockedLevel)) ? 0 : progress.winStreak,   // the streak shows once it pays (FREEZE offered)
+      (currentLevelIsDaily || !winStreakOn(null, progress.unlockedLevel)) ? 0 : progress.winStreak,   // the streak shows once it pays (WIN_STREAK_FROM)
       {
         // Rewarded video: double this level's coins (credited on the ad's reward callback only).
         onDoubleCoins: (() => {
@@ -1891,7 +1891,7 @@ async function main() {
       pauseBtn.visible = true;
     };
     rescueOverlay = new RescueOverlay(app.stage, APP_W, APP_H, gs, {
-      winStreak: (currentLevelIsDaily || !boosterOffered('freeze', null, progress.unlockedLevel)) ? 0 : progress.winStreak,
+      winStreak: (currentLevelIsDaily || !winStreakOn(null, progress.unlockedLevel)) ? 0 : progress.winStreak,
       onRescueAd: () => {
         adManager.showRewarded(
           () => {

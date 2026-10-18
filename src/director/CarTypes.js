@@ -124,16 +124,6 @@ const WEIGHTS_HARD_PLUS = {
   RELIEF:   [{ value: 'small', weight: 30 }, { value: 'big', weight: 40 }, { value: 'jeep', weight: 20 }, { value: 'truck', weight: 10 }],
 };
 
-// L17 BigRig-heavy, no tank. BigRigs reward sustained accuracy — multiple hits
-// prompts organic color-bomb discovery.
-const WEIGHTS_L17_BIGRIG = {
-  CALM:     [{ value: 'small', weight: 20 }, { value: 'big', weight: 30 }, { value: 'jeep', weight: 25 }, { value: 'bigrig', weight: 25 }],
-  BUILD:    [{ value: 'small', weight: 5  }, { value: 'big', weight: 20 }, { value: 'jeep', weight: 25 }, { value: 'bigrig', weight: 50 }],
-  PRESSURE: [{ value: 'big',  weight: 10 }, { value: 'jeep', weight: 20 }, { value: 'truck', weight: 20 }, { value: 'bigrig', weight: 50 }],
-  CLIMAX:   [{ value: 'jeep', weight: 10 }, { value: 'truck', weight: 20 }, { value: 'bigrig', weight: 70 }],
-  RELIEF:   [{ value: 'small', weight: 30 }, { value: 'big', weight: 40 }, { value: 'jeep', weight: 20 }, { value: 'bigrig', weight: 10 }],
-};
-
 // L30 boss "Industrial Finale" (WS3 §3c, INFRA-B): tank-heavy — ≈40% tanks across
 // the level (VISION rule 5: the designed challenge is planning multi-shot sequences
 // under weight). Remainder bigrig/truck/jeep keeps the board genuinely heavy.
@@ -170,7 +160,7 @@ const scaleRare = (phases, k) => Object.fromEntries(
   Object.entries(phases).map(([phase, ws]) => [phase, ws.map((w) =>
     (w.value === 'bigrig' || w.value === 'tank') ? { ...w, weight: Math.round(w.weight * k) } : w)]));
 const WEIGHTS_RARE_GOAL = scaleRare(WEIGHTS_FULL, 2.5);
-const RARE_GOAL_LEVELS = new Set([15]);   // V2: "Meet the tank" — tanks must actually show up
+const RARE_GOAL_LEVELS = new Set();   // (was L15 "Meet the tank"; tanks fold into the van, which now arrives at L18)
 
 // Exported for the level-config audit (tests/audit-level-config.test.js), which
 // verifies every destroyType goal targets a car type actually spawnable at that level.
@@ -198,16 +188,16 @@ function foldToLadder(table) {
 }
 
 function rawBandWeights(level) {
-  // Types arrive (2026-10-18 pacing, one new thing per level): motorbike L1-2, car L3
-  // (L2 already teaches colour matching), van L5. Heavier bands fold into the van.
+  // Types arrive (2026-10-18 re-spacing, one new thing per level with a quiet level between):
+  // motorbike L1-3, car L4, van L18. The van's share then grows band by band (the heavier
+  // historical bands fold into the van).
   if (RARE_GOAL_LEVELS.has(level)) return WEIGHTS_RARE_GOAL;
-  if (level <= 2)   return WEIGHTS_L1;
-  if (level <= 4)   return WEIGHTS_FTUE;
-  if (level <= 7)   return WEIGHTS_MID;
-  if (level <= 11)  return WEIGHTS_MID_TRUCK;   // trucks from L8 ("Heavy load")
-  if (level <= 14)  return WEIGHTS_HARD_PLUS;   // big rigs from L12
-  if (level === 18) return WEIGHTS_L17_BIGRIG;  // "Big rigs"
-  return WEIGHTS_FULL;                          // tank from L15
+  if (level <= 3)   return WEIGHTS_L1;
+  if (level <= 17)  return WEIGHTS_FTUE;
+  if (level <= 21)  return WEIGHTS_MID;
+  if (level <= 25)  return WEIGHTS_MID_TRUCK;
+  if (level <= 29)  return WEIGHTS_HARD_PLUS;
+  return WEIGHTS_FULL;
 }
 
 // Difficulty lives in WHICH cars spawn, never in how tough a given type is: a

@@ -204,7 +204,7 @@ export const CRITICAL_SPRITE_URLS = new Set([...CAR_URLS, ...SHOOTER_URLS, ...BO
 // so they are NOT in the Pixi preload list.
 const BACKDROPS = new Set([
   ...WORLD_NUMS.flatMap(w => ['a', 'b', 'c'].map(v => `world${w}-${v}-3`)),
-  'world1-b-1', 'world1-c-2',
+  'world1-b-1', 'world1-a-2', 'world1-b-2', 'world1-c-2',   // L1 one lane; L2-L5 two lanes
 ]);
 export function backdropUrlFor(levelId, laneCount) {
   const key = `${worldPanelForLevel(levelId)}-${sceneVariantForLevel(levelId)}-${laneCount}`;

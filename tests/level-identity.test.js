@@ -60,10 +60,12 @@ describe('convoy and gift cars', () => {
     const lightLevels = Array.from({ length: 100 }, (_, i) => i + 1).filter(id => identityFor(id).lights);
     expect(lightLevels.length).toBeGreaterThan(15);
   });
-  it('difficulty tiers: hard on x5 from L15, super hard big waves from L30', () => {
+  it('difficulty tiers: hard on x5 from L15, big waves hard to L40, super hard from L50', () => {
     expect(levelDifficulty(14)).toBe('normal');
     expect(levelDifficulty(15)).toBe('hard');
     expect(levelDifficulty(10)).toBe('hard');
-    expect(levelDifficulty(30)).toBe('superhard');
+    expect(levelDifficulty(30)).toBe('hard');
+    expect(levelDifficulty(40)).toBe('hard');
+    expect(levelDifficulty(50)).toBe('superhard');
   });
 });

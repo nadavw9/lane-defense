@@ -2,18 +2,16 @@
 // table comment below and docs/VISION.md) plus the opening-depth helpers the
 // live game and the simulator share.
 //
-// Feature unlocks still keyed by level elsewhere: bench L4+ (GameApp), queue
-// reorder L5+ (GameApp), Hot Streak L4+ (streakEnabledFor below).
+// Feature unlocks keyed by level elsewhere: bench BENCH_FROM_LEVEL (L13), Hot Streak
+// STREAK_FROM_LEVEL (L11), boosters in boosterUnlocks.js. The pacing rule is in the L1-40 header.
 
 // ── Level progression (all 40) — V2 redesign, 2026-09-27 ──────────────────────
 //
-// Every level has ONE idea, named in its comment. The V2 pieces arrive one at a
-// time and are then mixed: Hot Streak (L4), Speeder (L7), boss (L10), Armoured
-// (L11), Tank (L15), Chameleon (L17). A level never shows more than FOUR colours:
-// with three bomb columns, five and six colours turned play into waiting for the
-// right bomb (the V1 late game was won or lost on the opening deal in ~10 turns).
-// Colours still arrive on schedule — Yellow L16, Purple L25, Orange L31 — and the
-// late game rotates four-colour palettes so every colour stays in play.
+// Every level has ONE idea, named in its comment, and new ideas arrive one at a time with a
+// practice level between (schedule in the World 1 header below). A level never shows more than
+// FOUR colours: with three bomb columns, five and six colours turned play into waiting for the
+// right bomb. Colours arrive on schedule — Blue L2, Green L16, Yellow L31, Orange L48, Purple L53 —
+// and the late game rotates four-colour palettes so every colour stays in play.
 //
 // Levels are longer (goals of 20-36 cars, ~25-45 turns) so a level is a run with
 // a middle, not a coin flip. Difficulty comes from the spawn mix (worldConfig.heft: heavier types more often), density
@@ -39,240 +37,214 @@ import { STEPS_PER_ROW, BOARD_ROWS } from '../director/TrafficRules.js';
 const PROGRESSION = [
 
   // ═══ WORLD 1 — Tutorial City (L1-15) ═══════════════════════════════════════
+  //
+  // Pacing (2026-10-18, after the top-games research, docs/review 00-labels): ONE new thing
+  // per level with a quiet practice level between, nothing new on a HARD level (L10/15/20/...),
+  // and new things land on the easy "relief" levels (x1, x6) where possible. The schedule:
+  //   L1 bomb + BOMB booster · L2 colors · L4 car · L6 third lane · L8 FREEZE · L11 supercharge
+  //   L13 bench · L16 third color · L18 van · L21 COLOR SWAP · L23 speeders · L26 color goal
+  //   L28 armor · L31 fourth color · L33 rainbow bomb · L36 gift cars · L38 traffic light
+  // Chameleons, convoys, purple and orange come after L40. Practice levels only mix what the
+  // player has already met. heft / goal scale are sim-tuned in lateTuning.js.
 
   // L1 "First shot": one lane, one colour. Cannot really be lost.
   { id: 1, name: 'First shot', laneCount: 1, colCount: 1, colors: ['Red'], worldConfig: W(1),
     duration: 60, spawnBudget: 5, laneTargetCarCount: 3, gridRows: BOARD_ROWS, showArrow: true,   // 3 queued: the BOMB booster's lane clear must be visible
     hintText: 'Drag the matching bomb to the lane', goals: total(10) },
 
-  // L2 "Two colours": colour must match.
+  // L2 "Two colors": colour must match. NEW: a second colour (and its lane).
   { id: 2, name: 'Two colors', laneCount: 2, colCount: 2, colors: ['Red', 'Blue'], worldConfig: W(1),
     duration: 70, spawnBudget: 8, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    hintText: 'Colors must match — a red bomb only hits red cars', goals: total(16) },
+    hintText: 'Colors must match — a red bomb only hits red cars', goals: total(14) },
 
-  // L3 "Three lanes": watch the whole road.
-  { id: 3, name: 'Three lanes', laneCount: 3, colCount: 3, colors: ['Red', 'Blue'], worldConfig: W(1),
-    duration: 90, spawnBudget: 9, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
+  // L3 "Warm up": practice the match on two lanes.
+  { id: 3, name: 'Warm up', laneCount: 2, colCount: 2, colors: ['Red', 'Blue'], worldConfig: W(1),
+    duration: 80, spawnBudget: 9, laneTargetCarCount: 2, gridRows: BOARD_ROWS, goals: total(16) },
+
+  // L4 "Bigger cars": NEW: the car (2 hits). Its animated card opens the level.
+  { id: 4, name: 'Bigger cars', laneCount: 2, colCount: 2, colors: ['Red', 'Blue'], worldConfig: W(1),
+    duration: 90, spawnBudget: 9, laneTargetCarCount: 3, gridRows: BOARD_ROWS, goals: total(18) },
+
+  // L5 "Steady": practice with cars.
+  { id: 5, name: 'Steady', laneCount: 2, colCount: 2, colors: ['Red', 'Blue'], worldConfig: W(1),
+    duration: 90, spawnBudget: 10, laneTargetCarCount: 3, gridRows: BOARD_ROWS, goals: total(22) },
+
+  // L6 "Three lanes": NEW: a third lane. Watch the whole road.
+  { id: 6, name: 'Three lanes', laneCount: 3, colCount: 3, colors: ['Red', 'Blue'], worldConfig: W(1),
+    duration: 90, spawnBudget: 10, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
     hintText: 'Every hit moves ALL traffic one step. Stop the closest car first!', showAreaLabels: true,
-    goals: total(20) },
+    goals: total(18) },
 
-  // L4 "Hot Streak": destroy a car 3 shots in a row → supercharged bomb.
-  { id: 4, name: 'Hot Streak', laneCount: 3, colCount: 3, colors: ['Red', 'Blue'], worldConfig: W(1),
-    duration: 90, spawnBudget: 9, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    hintText: 'Destroy 3 cars in a row to SUPERCHARGE a bomb: it hits twice', goals: total(22) },
+  // L7 "Wide road": practice on three lanes.
+  { id: 7, name: 'Wide road', laneCount: 3, colCount: 3, colors: ['Red', 'Blue'], worldConfig: W(1),
+    duration: 100, spawnBudget: 11, laneTargetCarCount: 2, gridRows: BOARD_ROWS, goals: total(20) },
 
-  // L5 "Green light" (relief): a third colour, gentle traffic.
-  { id: 5, name: 'Green light', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(1),
-    duration: 100, spawnBudget: 10, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    hintText: 'Green bombs join the fight', goals: total(20) },
-
-  // L6 "Park it": a colour goal (the bench itself is taught at L4).
-  // L6 "Park it": the bench is this level's one new thing (2026-10-18 pacing), so the goal is
-  // a plain total; colour goals start at L9 with their card.
-  { id: 6, name: 'Park it', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(1),
-    duration: 100, spawnBudget: 10, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    goals: total(20) },
-
-  // L7 "Rush hour": SPEEDERS move two rows a turn.
-  { id: 7, name: 'Rush hour', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.03),
+  // L8 "Cold snap": NEW: the FREEZE booster (3 free on arrival, boosterUnlocks.js).
+  { id: 8, name: 'Cold snap', laneCount: 3, colCount: 3, colors: ['Red', 'Blue'], worldConfig: W(1),
     duration: 100, spawnBudget: 11, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    traits: { speeder: 0.10 },
-    hintText: 'NEW! Speeders move 2 steps a turn — take them out first', goals: total(24) },
-
-  // L8 "Heavy load": trucks take more than one bomb.
-  { id: 8, name: 'Heavy load', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.44),
-    duration: 100, spawnBudget: 11, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    traits: { speeder: 0.08 },
     hintText: 'NEW! FREEZE booster — your next shot is free, traffic holds', goals: total(20) },
 
-  // L9 "Sunday drive" (relief).
-  { id: 9, name: 'Sunday drive', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0),
-    duration: 100, spawnBudget: 12, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    traits: { speeder: 0.10 },
-    hintText: 'Only blue and green cars count toward this goal',
-    goals: [{ type: 'destroyColor', color: 'Blue', count: 5 }, { type: 'destroyColor', color: 'Green', count: 5 }] },
+  // L9 "Sunday drive": practice before the first big wave.
+  { id: 9, name: 'Sunday drive', laneCount: 3, colCount: 3, colors: ['Red', 'Blue'], worldConfig: W(1),
+    duration: 100, spawnBudget: 12, laneTargetCarCount: 2, gridRows: BOARD_ROWS, goals: total(20) },
 
-  // L10 BIG WAVE "Rush hour": the first milestone. Three cars deep in every lane, no
-  // new rule. The lesson is keeping all three lanes moving at once.
-  { id: 10, name: 'Rush hour', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(1),
+  // L10 BIG WAVE "Rush hour": the first HARD level. Three cars deep in every lane, nothing new:
+  // the lesson is keeping all three lanes moving at once.
+  { id: 10, name: 'Rush hour', laneCount: 3, colCount: 3, colors: ['Red', 'Blue'], worldConfig: W(1),
     duration: 110, spawnBudget: 12, laneTargetCarCount: 3, gridRows: BOARD_ROWS, milestone: true,
-    traits: { speeder: 0.08 },
     hintText: 'BIG WAVE! Traffic is three deep. Keep every lane moving',
-    goals: total(24) },
-
-  // L11 "Steel plates": ARMOURED cars — any bomb knocks the plates off.
-  { id: 11, name: 'Steel plates', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.52),
-    duration: 100, spawnBudget: 12, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    traits: { armored: 0.18 },
-    hintText: 'NEW! Armored cars — ANY color knocks the plates off', goals: total(24) },
-
-  // L12 "Plates and pace": armour and speeders together.
-  { id: 12, name: 'Plates and pace', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.14),
-    duration: 100, spawnBudget: 13, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    traits: { armored: 0.12, speeder: 0.12 },
-    hintText: 'NEW! COLOR SWAP booster — recolor a whole color of cars', goals: total(18) },
-
-  // L13 "Breather" (relief).
-  { id: 13, name: 'Breather', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.04),
-    duration: 100, spawnBudget: 13, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    traits: { armored: 0.08, speeder: 0.08 },
-    goals: [{ type: 'destroyColor', color: 'Red', count: 10 }, { type: 'destroyTotal', count: 16 }] },   // a breather: one colour goal
-
-  // L14 "Cold snap": FREEZE booster; denser traffic that wants it.
-  // L14 introduces the traffic light: two deep, so the new rule is learned on a calm road.
-  { id: 14, name: 'Cold snap', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.26),
-    duration: 100, spawnBudget: 13, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    traits: { speeder: 0.10 },
-    goals: total(26) },
-
-  // L15 "Meet the tank": the heaviest car arrives.
-  { id: 15, name: 'Meet the tank', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.12),
-    duration: 110, spawnBudget: 14, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    traits: { armored: 0.10 },
     goals: total(22) },
+
+  // L11 "Hot streak" (relief): NEW: supercharge — 3 kills in a row charge a bomb.
+  { id: 11, name: 'Hot streak', laneCount: 3, colCount: 3, colors: ['Red', 'Blue'], worldConfig: W(1),
+    duration: 100, spawnBudget: 12, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
+    hintText: 'Destroy 3 cars in a row to SUPERCHARGE a bomb: it hits twice', goals: total(22) },
+
+  // L12 "Momentum": practice the streak.
+  { id: 12, name: 'Momentum', laneCount: 3, colCount: 3, colors: ['Red', 'Blue'], worldConfig: W(0.8),
+    duration: 100, spawnBudget: 13, laneTargetCarCount: 2, gridRows: BOARD_ROWS, goals: total(22) },
+
+  // L13 "Park it": NEW: the bench (BENCH_FROM, spotlight tutorial).
+  { id: 13, name: 'Park it', laneCount: 3, colCount: 3, colors: ['Red', 'Blue'], worldConfig: W(0.8),
+    duration: 100, spawnBudget: 13, laneTargetCarCount: 2, gridRows: BOARD_ROWS, goals: total(22) },
+
+  // L14 "Breather": practice with the bench.
+  { id: 14, name: 'Breather', laneCount: 3, colCount: 3, colors: ['Red', 'Blue'], worldConfig: W(0.7),
+    duration: 100, spawnBudget: 13, laneTargetCarCount: 2, gridRows: BOARD_ROWS, goals: total(24) },
+
+  // L15 HARD "Gridlock": a dense two-colour road, nothing new.
+  { id: 15, name: 'Gridlock', laneCount: 3, colCount: 3, colors: ['Red', 'Blue'], worldConfig: W(0.6),
+    duration: 110, spawnBudget: 14, laneTargetCarCount: 3, gridRows: BOARD_ROWS, goals: total(30) },
 
   // ═══ WORLD 2 — Industrial Zone (L16-30) ════════════════════════════════════
 
-  // L16 "Yellow shift" (relief): four colours.
-  { id: 16, name: 'Yellow shift', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green', 'Yellow'], worldConfig: W(0.75),
+  // L16 "Green light" (relief): NEW: a third colour.
+  { id: 16, name: 'Green light', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(1),
     duration: 100, spawnBudget: 14, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    hintText: 'Yellow bombs — four colors now', goals: total(24) },
+    hintText: 'Green bombs join the fight', goals: total(22) },
 
-  // L17 "Shape shifters": CHAMELEONS flip colour every turn.
-  { id: 17, name: 'Shape shifters', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Yellow'], worldConfig: W(0.59),
-    duration: 100, spawnBudget: 14, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    traits: { chameleon: 0.18 },
-    hintText: 'NEW! Chameleons switch color every turn — the small light shows the next one',
-    goals: total(26) },
+  // L17 "Three of a kind": practice three colours.
+  { id: 17, name: 'Three of a kind', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.7),
+    duration: 100, spawnBudget: 14, laneTargetCarCount: 2, gridRows: BOARD_ROWS, goals: total(24) },
 
-  // L18 "Big rigs": long, heavy, armoured escorts.
-  { id: 18, name: 'Big rigs', laneCount: 3, colCount: 3, colors: ['Red', 'Green', 'Yellow'], worldConfig: W(0.13),
-    duration: 100, spawnBudget: 15, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    traits: { armored: 0.10 },
-    goals: total(24) },
+  // L18 "Big rigs": NEW: the van (3 hits). Its animated card opens the level.
+  { id: 18, name: 'Big rigs', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.6),
+    duration: 100, spawnBudget: 15, laneTargetCarCount: 2, gridRows: BOARD_ROWS, goals: total(22) },
 
-  // L19 "Mixed traffic": every special car at once.
-  { id: 19, name: 'Mixed traffic', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green', 'Yellow'], worldConfig: W(0.06),
-    duration: 100, spawnBudget: 15, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    traits: { speeder: 0.08, armored: 0.08, chameleon: 0.08 }, goals: total(22) },
+  // L19 "Heavy load": practice with vans.
+  { id: 19, name: 'Heavy load', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.4),
+    duration: 100, spawnBudget: 15, laneTargetCarCount: 2, gridRows: BOARD_ROWS, goals: total(22) },
 
-  // L20 BIG WAVE "Iron lane": armoured cars in a dense, four-colour wave.
-  { id: 20, name: 'Iron lane', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green', 'Yellow'], worldConfig: W(0),
+  // L20 BIG WAVE "Iron lane": HARD, three deep, nothing new.
+  { id: 20, name: 'Iron lane', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.3),
     duration: 110, spawnBudget: 16, laneTargetCarCount: 3, gridRows: BOARD_ROWS, milestone: true,
-    traits: { armored: 0.12 },
-    hintText: 'BIG WAVE! Armored cars in every lane',
-    goals: total(22) },
+    hintText: 'BIG WAVE! Three deep, three colors', goals: total(22) },
 
-  // L21 "Night shift" (relief).
-  { id: 21, name: 'Night shift', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Yellow'], worldConfig: W(0.63),
+  // L21 "Night shift" (relief): NEW: the COLOR SWAP booster (3 free on arrival).
+  { id: 21, name: 'Night shift', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.7),
     duration: 100, spawnBudget: 16, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    traits: { chameleon: 0.08, speeder: 0.08 }, goals: total(24) },
+    hintText: 'NEW! COLOR SWAP booster — recolor a whole color of cars', goals: total(22) },
 
-  // L22 "Speed trap": a quarter of the traffic is speeders.
-  { id: 22, name: 'Speed trap', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green', 'Yellow'], worldConfig: W(0.15),
-    duration: 100, spawnBudget: 16, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    traits: { speeder: 0.16 }, goals: total(25) },
+  // L22 "Shift change": practice.
+  { id: 22, name: 'Shift change', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.4),
+    duration: 100, spawnBudget: 16, laneTargetCarCount: 2, gridRows: BOARD_ROWS, goals: total(24) },
 
-  // L23 "Colour flood": dense four-colour traffic with chameleons.
-  { id: 23, name: 'Color flood', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green', 'Yellow'], worldConfig: W(0.19),
-    duration: 100, spawnBudget: 17, laneTargetCarCount: 2, gridRows: BOARD_ROWS,   // 2 deep: a traffic-light level on the big board
-    traits: { chameleon: 0.14 }, goals: total(30) },
-
-  // L24 "Convoy": trucks in armour, three to a lane.
-  { id: 24, name: 'Convoy', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green', 'Yellow'], worldConfig: W(0.2),
+  // L23 "Speed trap": NEW: SPEEDERS move two steps a turn.
+  { id: 23, name: 'Speed trap', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.5),
     duration: 100, spawnBudget: 17, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    traits: { armored: 0.15 },
-    goals: total(17) },
+    traits: { speeder: 0.12 },
+    hintText: 'NEW! Speeders move 2 steps a turn — take them out first', goals: total(24) },
 
-  // L25 "Purple haze" (relief): Purple arrives.
-  { id: 25, name: 'Purple haze', laneCount: 3, colCount: 3, colors: ['Blue', 'Green', 'Yellow', 'Purple'], worldConfig: W(0.57),
+  // L24 "Fast lane": practice with speeders.
+  { id: 24, name: 'Fast lane', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.3),
     duration: 100, spawnBudget: 17, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    hintText: 'Purple bombs join the fight', goals: total(26) },
+    traits: { speeder: 0.14 }, goals: total(28) },
 
-  // L26 "Heavy metal": armoured big rigs.
-  { id: 26, name: 'Heavy metal', laneCount: 3, colCount: 3, colors: ['Red', 'Green', 'Yellow', 'Purple'], worldConfig: W(0.06),
+  // L25 HARD "Rush hour II": speeders in dense traffic.
+  { id: 25, name: 'Rush hour II', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.3),
+    duration: 110, spawnBudget: 17, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
+    traits: { speeder: 0.12 }, goals: total(24) },
+
+  // L26 "Paint job" (relief): NEW: a colour goal — only two colours count.
+  { id: 26, name: 'Paint job', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.7),
     duration: 100, spawnBudget: 18, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    traits: { armored: 0.14 },
-    goals: total(23) },
+    traits: { speeder: 0.06 },
+    hintText: 'Only blue and green cars count toward this goal',
+    goals: [{ type: 'destroyColor', color: 'Blue', count: 8 }, { type: 'destroyColor', color: 'Green', count: 8 }] },
 
-  // L27 "Rush hour II": speeders and chameleons.
-  { id: 27, name: 'Rush hour II', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Yellow', 'Purple'], worldConfig: W(0.19),
+  // L27 "Mixed traffic": practice.
+  { id: 27, name: 'Mixed traffic', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.3),
     duration: 100, spawnBudget: 18, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    traits: { speeder: 0.12, chameleon: 0.10 }, goals: total(30) },
+    traits: { speeder: 0.10 }, goals: total(26) },
 
-  // L28 "The grinder": heavier traffic, armour in the mix.
-  { id: 28, name: 'The grinder', laneCount: 3, colCount: 3, colors: ['Red', 'Green', 'Yellow', 'Purple'], worldConfig: W(0.42),
-    duration: 110, spawnBudget: 18, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    traits: { armored: 0.08 },
-    goals: total(24) },
+  // L28 "Steel plates": NEW: ARMORED cars — any bomb knocks the plates off.
+  { id: 28, name: 'Steel plates', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.4),
+    duration: 100, spawnBudget: 18, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
+    traits: { armored: 0.16 },
+    hintText: 'NEW! Armored cars — ANY color knocks the plates off', goals: total(24) },
 
-  // L29 "Shift change" (relief).
-  { id: 29, name: 'Shift change', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Yellow', 'Purple'], worldConfig: W(0.61),
+  // L29 "Plates and pace": armour and speeders together.
+  { id: 29, name: 'Plates and pace', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.3),
     duration: 100, spawnBudget: 19, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    traits: { speeder: 0.08, chameleon: 0.08 }, goals: total(26) },
+    traits: { armored: 0.10, speeder: 0.10 }, goals: total(26) },
 
-  // L30 BIG WAVE "Long haul": a long, dense wave with speeders in the mix.
-  { id: 30, name: 'Long Haul', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Yellow', 'Purple'], worldConfig: W(0.36),
+  // L30 BIG WAVE "Long haul": HARD (not super hard: none before L50), a long dense wave.
+  { id: 30, name: 'Long Haul', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.3),
     duration: 120, spawnBudget: 20, laneTargetCarCount: 3, gridRows: BOARD_ROWS, milestone: true,
-    traits: { speeder: 0.18 },
-    hintText: 'BIG WAVE! A long run, and speeders in the mix',
-    goals: total(30) },
+    traits: { speeder: 0.06 },
+    hintText: 'BIG WAVE! A long run, speeders in the mix',
+    goals: total(20) },
 
   // ═══ WORLD 3 — The Highway (L31-40) ════════════════════════════════════════
 
-  // L31 "Night highway": Orange arrives.
-  { id: 31, name: 'Night highway', laneCount: 3, colCount: 3, colors: ['Orange', 'Red', 'Blue', 'Green'], worldConfig: W(0.05),
+  // L31 "Yellow shift" (relief): NEW: a fourth colour.
+  { id: 31, name: 'Yellow shift', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green', 'Yellow'], worldConfig: W(0.8),
     duration: 100, spawnBudget: 20, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    traits: { speeder: 0.08, armored: 0.08 },
-    hintText: 'Orange bombs — the Night Highway', goals: total(28) },
+    hintText: 'Yellow bombs — four colors now', goals: total(24) },
 
-  // L32 "Neon rush": speeders everywhere.
-  { id: 32, name: 'Neon rush', laneCount: 3, colCount: 3, colors: ['Orange', 'Purple', 'Yellow', 'Blue'], worldConfig: W(0.12),
+  // L32 "Neon rush": practice four colours.
+  { id: 32, name: 'Neon rush', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green', 'Yellow'], worldConfig: W(0.4),
     duration: 100, spawnBudget: 20, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    traits: { speeder: 0.15 }, goals: total(30) },
+    traits: { speeder: 0.10 }, goals: total(26) },
 
-  // L33 "Cruise control" (relief).
-  { id: 33, name: 'Cruise control', laneCount: 3, colCount: 3, colors: ['Orange', 'Green', 'Purple', 'Red'], worldConfig: W(0.71),
+  // L33 "Rainbow road": NEW: the RAINBOW bomb (3 multi-kill shots in a row earn one).
+  { id: 33, name: 'Rainbow road', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green', 'Yellow'], worldConfig: W(0.5),
+    duration: 100, spawnBudget: 21, laneTargetCarCount: 2, gridRows: BOARD_ROWS, goals: total(26) },
+
+  // L34 "Armored column": practice.
+  { id: 34, name: 'Armored column', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green', 'Yellow'], worldConfig: W(0.3),
     duration: 100, spawnBudget: 21, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    traits: { chameleon: 0.08 }, goals: total(26) },
+    traits: { armored: 0.14 }, goals: total(27) },
 
-  // L34 "Armoured column": a quarter of the traffic is plated.
-  { id: 34, name: 'Armored column', laneCount: 3, colCount: 3, colors: ['Orange', 'Red', 'Yellow', 'Blue'], worldConfig: W(0.1),
-    duration: 100, spawnBudget: 21, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    traits: { armored: 0.18 }, goals: total(27) },
+  // L35 HARD "Night convoy": heavy traffic at speed.
+  { id: 35, name: 'Night convoy', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green', 'Yellow'], worldConfig: W(0.3),
+    duration: 110, spawnBudget: 21, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
+    traits: { speeder: 0.10, armored: 0.08 }, goals: total(32) },
 
-  // L35 "Shifting lights": chameleons everywhere.
-  { id: 35, name: 'Shifting lights', laneCount: 3, colCount: 3, colors: ['Orange', 'Purple', 'Green', 'Yellow'], worldConfig: W(0.47),
-    duration: 100, spawnBudget: 21, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    traits: { chameleon: 0.22 }, goals: total(30) },
+  // L36 "Cruise control" (relief): NEW: gift cars (levelDsl GIFT_FROM).
+  { id: 36, name: 'Cruise control', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green', 'Yellow'], worldConfig: W(0.7),
+    duration: 100, spawnBudget: 22, laneTargetCarCount: 2, gridRows: BOARD_ROWS, goals: total(26) },
 
-  // L36 "Night convoy": heavy traffic at speed.
-  { id: 36, name: 'Night convoy', laneCount: 3, colCount: 3, colors: ['Orange', 'Red', 'Purple', 'Blue'], worldConfig: W(0.23),
-    duration: 110, spawnBudget: 22, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    traits: { armored: 0.10 },
-    goals: total(26) },
-
-  // L37 "Last exit" (relief).
-  { id: 37, name: 'Last exit', laneCount: 3, colCount: 3, colors: ['Orange', 'Yellow', 'Blue', 'Green'], worldConfig: W(0.05),
+  // L37 "Last exit": practice.
+  { id: 37, name: 'Last exit', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green', 'Yellow'], worldConfig: W(0.3),
     duration: 100, spawnBudget: 22, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
     traits: { speeder: 0.08, armored: 0.08 }, goals: total(28) },
 
-  // L38 "Everything": every special car, three to a lane.
-  { id: 38, name: 'Everything', laneCount: 3, colCount: 3, colors: ['Orange', 'Red', 'Green', 'Purple'], worldConfig: W(0.11),
-    duration: 110, spawnBudget: 23, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    traits: { speeder: 0.10, armored: 0.10, chameleon: 0.10 }, goals: total(26) },
+  // L38 "Red light": NEW: the traffic light (levelDsl LIGHT_FROM), on a calm two-deep road.
+  { id: 38, name: 'Red light', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green', 'Yellow'], worldConfig: W(0.5),
+    duration: 110, spawnBudget: 23, laneTargetCarCount: 2, gridRows: BOARD_ROWS, goals: total(26) },
 
   // L39 "Final approach": heavy and mixed.
-  { id: 39, name: 'Final approach', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Yellow', 'Orange'], worldConfig: W(0.1),
+  { id: 39, name: 'Final approach', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Yellow', 'Green'], worldConfig: W(0.2),
     duration: 110, spawnBudget: 23, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    traits: { speeder: 0.12, armored: 0.12, chameleon: 0.12 }, goals: total(20) },
+    traits: { speeder: 0.10, armored: 0.10 }, goals: total(24) },
 
-  // L40 BIG WAVE "Grand finale": the last hand-built level of the first four worlds.
-  { id: 40, name: 'Grand finale', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Yellow', 'Orange'], worldConfig: W(0),
+  // L40 BIG WAVE "Grand finale": HARD, everything so far, three deep.
+  { id: 40, name: 'Grand finale', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Yellow', 'Green'], worldConfig: W(0.2),
     duration: 120, spawnBudget: 24, laneTargetCarCount: 3, gridRows: BOARD_ROWS, milestone: true,
-    traits: { speeder: 0.06, chameleon: 0.06 },
+    traits: { armored: 0.05 },
     hintText: 'BIG WAVE! Everything you have learned, three deep',
-    goals: total(30) },
+    goals: total(20) },
 
   // ═══ WORLDS 3-7 continue in LateLevels.js (L41-L100) ═══════════════════════
   ...LATE_LEVELS,
@@ -357,10 +329,12 @@ const L1_OPENING_ROWS        = [1, 2, 3];
  * @param {number|*} id        level id (non-numeric = generic/daily probe config)
  * @param {number}   gridRows  board depth; defaults to the 16-row standard
  */
-// V2 Hot Streak is live from this level on (L1-L3 teach the basics first).
+// V2 Hot Streak is live from this level on (introduced with its card at L11).
 // A level may override with `streak: true|false`. Daily/generic configs: on.
 // THE single source — GameApp and SimulationRunner both call this.
-export const STREAK_FROM_LEVEL = 4;
+export const STREAK_FROM_LEVEL = 11;
+// The bench (park a bomb for later) arrives on this level with its spotlight tutorial.
+export const BENCH_FROM_LEVEL = 13;
 export function streakEnabledFor(cfg) {
   if (typeof cfg?.streak === 'boolean') return cfg.streak;
   return typeof cfg?.id === 'number' ? cfg.id >= STREAK_FROM_LEVEL : true;
@@ -406,11 +380,11 @@ export function isMilestoneLevel(id) {
 
 // Difficulty label the player sees (map node, pre-level card) — the same tiers tools/bands.mjs
 // tunes to, so the label always tells the truth. Sawtooth: every level ending in 5 (from L15)
-// is HARD, every big wave is HARD (L10, L20) then SUPER HARD (L30 on), and the level after
+// is HARD, every big wave is HARD (L10-L40) then SUPER HARD (L50 on), and the level after
 // each is a relief level (an easier band, no label).
 export function levelDifficulty(id) {
   if (typeof id !== 'number') return 'normal';
-  if (isMilestoneLevel(id)) return id >= 30 ? 'superhard' : 'hard';
+  if (isMilestoneLevel(id)) return id >= 50 ? 'superhard' : 'hard';   // no SUPER HARD before L50 (research: Royal Match L59)
   if (id >= 15 && id % 10 === 5) return 'hard';
   return 'normal';
 }

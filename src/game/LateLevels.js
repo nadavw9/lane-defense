@@ -1,9 +1,9 @@
 // L41-L100: the long game. Worlds 3-7 (see levelMapLayout.WORLD_DEFS).
 //
 // One idea per level, one BIG WAVE (dense milestone) every tenth. New special cars arrive with their
-// world and are then mixed with everything that came before:
-//   plated  L41 (Neon Nights)     mender   L46 (Sun Valley)
-//   phantom L61 (Frost Pass)      volatile L76 (Harbor Lights)
+// world and are then mixed with everything that came before (L1-40 schedule in LevelManager.js):
+//   plated  L41 · convoy L43 · mender L46 · orange L48 · chameleon L51 · purple L53
+//   phantom L61 (Frost Pass) · volatile L76 (Harbor Lights)
 // Big waves: L50 Sun rush, L60 Dune rush, L70 Whiteout rush, L80 Harbor rush,
 // L90 Dread rush, L100 Starlight rush.
 //
@@ -15,27 +15,29 @@ export const LATE_LEVELS = [
 
   // ═══ WORLD 3 — Neon Nights (L31-45): plated cars close it out ═════════════
 
-  lv(41, 'Double plate', 'ORBY', { heft: 0.3, traits: { plated: 0.07 }, total: 26,
+  lv(41, 'Double plate', 'RBGY', { heft: 0.3, traits: { plated: 0.07 }, total: 26,
     hint: 'NEW! Plated cars — it takes TWO hits, any color, to strip the plating' }),
-  lv(42, 'Plate and shift', 'OPGB', { traits: { plated: 0.04, chameleon: 0.10 }, total: 28 }),
-  lv(43, 'Dark road', 'RBGY', { traits: { plated: 0.03, speeder: 0.08 }, total: 24 }),           // relief
-  lv(44, 'Shape hunt', 'ORYG', { traits: { plated: 0.06, chameleon: 0.14 },
-    goals: [goalTrait('chameleon', 3), goalTotal(16)] }),
-  lv(45, 'Neon finale', 'ORPB', { traits: { speeder: 0.05, armored: 0.05, plated: 0.03, chameleon: 0.05 }, total: 28 }),
+  lv(42, 'Plate and shift', 'RBGY', { traits: { plated: 0.04, speeder: 0.06 }, total: 28 }),
+  lv(43, 'Dark road', 'RBGY', { traits: { plated: 0.03, speeder: 0.08 }, total: 24 }),           // convoy arrives (levelDsl CONVOY_FROM)
+  lv(44, 'Plate hunt', 'RYGB', { traits: { plated: 0.08, armored: 0.04 }, total: 24 }),
+  lv(45, 'Neon finale', 'RBGY', { traits: { speeder: 0.05, armored: 0.05, plated: 0.03 }, total: 28 }),
 
   // ═══ WORLD 4 — Sun Valley (L46-60): menders and the desert ════════════════
 
-  lv(46, 'Oasis', 'RGYO', { traits: { mender: 0.16 }, total: 24,
+  lv(46, 'Oasis', 'RGYB', { traits: { mender: 0.16 }, total: 24,
     hint: 'NEW! Menders — left alone, they grow back a size. Keep shooting them!' }),
-  lv(47, 'Quick fix', 'BYOR', { traits: { mender: 0.12, speeder: 0.10 }, total: 26 }),
-  lv(48, 'Heat haze', 'RGPY', { traits: { mender: 0.08, chameleon: 0.08 }, total: 24 }),           // relief
+  lv(47, 'Quick fix', 'BYGR', { traits: { mender: 0.12, speeder: 0.10 }, total: 26 }),
+  lv(48, 'Heat haze', 'RGOY', { traits: { mender: 0.08 }, total: 24,            // relief: orange arrives
+    hint: 'Orange bombs join the fight' }),
   lv(49, 'Repair crew', 'GOPR', { traits: { mender: 0.16, armored: 0.06 },
     goals: [goalTrait('mender', 4), goalColor('Green', 6)] }),
   lv(50, 'Sun rush', 'RYOG', { traits: { mender: 0.14 }, duration: 120, total: 32, dense: true, milestone: true,
     hint: 'BIG WAVE! Menders patch up the escorts. Finish cars fast' }),
-  lv(51, 'Mirage', 'BYPO', { traits: { chameleon: 0.16, mender: 0.08 }, total: 28 }),
-  lv(52, 'Dust storm', 'RYOP', { traits: { speeder: 0.18 }, total: 28 }),
-  lv(53, 'Caravan', 'GORY', { traits: { plated: 0.05, mender: 0.10 }, total: 26 }),
+  lv(51, 'Mirage', 'BYOR', { traits: { chameleon: 0.16 }, total: 28,             // relief: chameleons arrive
+    hint: 'NEW! Chameleons switch color every turn — the small light shows the next one' }),
+  lv(52, 'Dust storm', 'RYOG', { traits: { speeder: 0.18 }, total: 28 }),
+  lv(53, 'Caravan', 'GPRY', { traits: { plated: 0.05, mender: 0.10 }, total: 26,    // purple arrives
+    hint: 'Purple bombs join the fight' }),
   lv(54, 'Canyon run', 'BOGP', { traits: { speeder: 0.08, mender: 0.08, armored: 0.05 }, total: 30 }),
   lv(55, 'Cool shade', 'RBYG', { traits: { mender: 0.06 }, total: 24 }),                          // relief
   lv(56, 'Sandblast', 'RPYG', { traits: { plated: 0.06, chameleon: 0.10 },

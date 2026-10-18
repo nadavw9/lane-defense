@@ -630,7 +630,7 @@ export class ProgressManager {
         // truck moved 9 -> 6 (2026-08-01): pulled forward into L6-L8 so a car exists that
         // the bomb pool cannot reliably one-shot. Must match CarTypes.bandWeights and
         // tests/regression-level-start.test.js LEVEL_INTRO_TYPE — three-way contract.
-        const INTRO_LEVEL = { small: 1, big: 3, jeep: 5, truck: 8, bigrig: 12, tank: 15 };   // 2026-10-18 pacing: the car arrives at L3
+        const INTRO_LEVEL = { small: 1, big: 4, jeep: 18, truck: 19, bigrig: 20, tank: 21 };   // 2026-10-18 re-spacing: car L4, van L18
         const introduced  = new Set(saved.introducedCarTypes ?? []);
         try {
           for (const t of JSON.parse(localStorage.getItem('lane_defense_seen_car_types') ?? '[]')) {

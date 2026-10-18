@@ -73,6 +73,7 @@ describe('campaign structure', () => {
       expect(bandFor(id).hi).toBeLessThan(bandFor(id - 1).lo + 1);
       expect(bandFor(id + 1).lo).toBeGreaterThan(bandFor(id).hi);
     }
-    for (let id = 30; id <= LEVEL_COUNT; id += 10) expect(bandFor(id).tier).toBe('superhard');
+    for (let id = 10; id < 50; id += 10) expect(bandFor(id).tier).toBe('hard');          // no SUPER HARD before L50
+    for (let id = 50; id <= LEVEL_COUNT; id += 10) expect(bandFor(id).tier).toBe('superhard');
   });
 });

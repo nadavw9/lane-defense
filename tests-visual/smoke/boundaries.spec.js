@@ -207,10 +207,10 @@ test('L2 (2-lane): drag from queue deploys into the intended lane', async ({ gam
   }
 });
 
-// L5: 4→3 lanes, THREE_LANE_REDESIGN_BATCH.md §2 pilot (2026-07-23) — outermost
-// lanes are 0 and 2, not 0 and 3.
-test('L5 (3-lane): drag deploys land on outermost lanes (0 and 2)', async ({ game }) => {
-  await game.startLevel(5);
+// L7: the first plain 3-lane level after the third lane arrives (L6, 2026-10-18) — outermost
+// lanes are 0 and 2.
+test('L7 (3-lane): drag deploys land on outermost lanes (0 and 2)', async ({ game }) => {
+  await game.startLevel(7);
   for (const lane of [0, 2]) {
     await game.dismissOverlays(3);
     const r = await dragDeploy(game, lane, lane);
@@ -218,8 +218,8 @@ test('L5 (3-lane): drag deploys land on outermost lanes (0 and 2)', async ({ gam
   }
 });
 
-test('L5: lane bounds tile the road with no gaps (tap-mapping invariant)', async ({ game }) => {
-  await game.startLevel(5);
+test('L7: lane bounds tile the road with no gaps (tap-mapping invariant)', async ({ game }) => {
+  await game.startLevel(7);
   const pos = await game.positions();
   // Adjacent lane bounds must be contiguous: a tap anywhere on the road maps to
   // exactly one lane, with no dead zones between lanes.

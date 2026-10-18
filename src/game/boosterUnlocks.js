@@ -3,19 +3,24 @@
 // the in-play earns, so no path can hand out (or show) a booster the game has not
 // introduced yet.
 //
-// Owner-approved pacing (2026-10-18), after Candy Crush / Royal Match: one new thing per
-// level, and boosters arrive one at a time.
+// Pacing (2026-10-18, owner-approved, re-spaced after the top-games research the same day):
+// one new thing per level with a quiet level between, boosters one at a time, nothing new
+// on a HARD level.
 //   BOMB         L1   earned in play (every KILLS_PER_BOMB kills) and taught with a pointer
 //   FREEZE       L8   3 free on arrival, first use guided; offered before levels from L9
-//   COLOR SWAP   L12  3 free on arrival, first use guided; offered before levels from L13
-//   RAINBOW      L10  the earned rainbow bomb (3 multi-kill shots) starts here
+//   COLOR SWAP   L21  3 free on arrival, first use guided; offered before levels from L22
+//   RAINBOW      L33  the earned rainbow bomb (3 multi-kill shots) starts here
+// Nothing is offered for an ad before OFFERS_FROM (leaders unlock boosters at L6-8), and the
+// win-streak gift waits for WIN_STREAK_FROM (Royal Match's starts at L32).
 //
 // "Reached" is the furthest the player has got: max(level being played, unlockedLevel).
 // Replaying L3 after reaching L20 has every booster. The daily challenge is not a
 // numeric level, so it uses only unlockedLevel.
 
-export const BOOSTER_UNLOCK_LEVEL = Object.freeze({ bombs: 1, freeze: 8, colorChange: 12 });
-export const RAINBOW_FROM = 10;
+export const BOOSTER_UNLOCK_LEVEL = Object.freeze({ bombs: 1, freeze: 8, colorChange: 21 });
+export const RAINBOW_FROM = 33;
+export const OFFERS_FROM = 6;                      // first level a booster may be offered
+export const WIN_STREAK_FROM = 30;                 // first level the win streak shows and pays
 export const UNLOCK_GIFT = 3;                       // free boosters on arrival
 export const BOOSTER_KEYS = Object.freeze(['colorChange', 'freeze', 'bombs']);
 
@@ -36,7 +41,13 @@ export function boosterUnlocked(key, levelId, unlockedLevel = 0) {
  */
 export function boosterOffered(key, levelId, unlockedLevel = 0) {
   const at = BOOSTER_UNLOCK_LEVEL[key];
-  return at != null && reachedLevel(levelId, unlockedLevel) > at;
+  const r = reachedLevel(levelId, unlockedLevel);
+  return at != null && r > at && r >= OFFERS_FROM;
+}
+
+/** The win streak (and its free boosters) is live once the player has reached WIN_STREAK_FROM. */
+export function winStreakOn(levelId, unlockedLevel = 0) {
+  return reachedLevel(levelId, unlockedLevel) >= WIN_STREAK_FROM;
 }
 
 /** The level a booster arrives on, for the locked "LV 8" tag. */

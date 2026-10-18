@@ -10,6 +10,7 @@ import { LevelManager } from '../src/game/LevelManager.js';
 const geo = new Proxy({}, { get: () => () => ({ x: 0, y: 0, w: 1, h: 1 }) });
 const cfgs = (() => { const lm = new LevelManager(); return Array.from({ length: 100 }, (_, i) => { lm.goToLevel(i + 1); return lm.current; }); })();
 const firstLevel = (pred) => cfgs.find(pred)?.id;
+const levelStartCardLevel = (k) => Number(Object.entries(LEVEL_START_CARDS).find(([, ks]) => ks.includes(k))[0]);
 
 describe('level-start cards', () => {
   it('every scheduled key has a titled card with copy and a target that exists', () => {
@@ -24,15 +25,37 @@ describe('level-start cards', () => {
     const all = Object.values(LEVEL_START_CARDS).flat();
     expect(new Set(all).size).toBe(all.length);
   });
-  it('all core teaching lands by L12, one card per level, in the agreed order (2026-10-18 pacing)', () => {
-    const ELEMENT_CARDS = ['gift_car', 'traffic_light', 'convoy'];   // board elements, taught on their own levels
-    const core = Object.entries(LEVEL_START_CARDS).filter(([, ks]) => ks.some(k => !ELEMENT_CARDS.includes(k)));
-    expect(Math.max(...core.map(([l]) => Number(l)))).toBeLessThanOrEqual(12);
-    for (const [l, ks] of Object.entries(LEVEL_START_CARDS)) expect(ks.length, `L${l}`).toBe(1);
+  it('one card per level, a quiet level between cards, none on a HARD level (2026-10-18 re-spacing)', async () => {
+    const { levelDifficulty } = await import('../src/game/LevelManager.js');
+    const levels = Object.keys(LEVEL_START_CARDS).map(Number).sort((a, b) => a - b);
+    for (const l of levels) {
+      expect(LEVEL_START_CARDS[l].length, `L${l}`).toBe(1);
+      expect(levelDifficulty(l), `L${l} is hard`).toBe('normal');
+    }
+    for (let i = 1; i < levels.length; i++) expect(levels[i] - levels[i - 1], `L${levels[i - 1]} -> L${levels[i]}`).toBeGreaterThanOrEqual(2);
     const at = (k) => Number(Object.entries(LEVEL_START_CARDS).find(([, ks]) => ks.includes(k))[0]);
-    expect(at('multi_color')).toBeLessThan(at('supercharge'));
-    expect(at('freeze_booster')).toBeLessThan(at('rainbow_bomb'));
-    expect(at('rainbow_bomb')).toBeLessThan(at('colour_change_booster'));
+    expect(at('multi_color')).toBeLessThan(at('freeze_booster'));
+    expect(at('freeze_booster')).toBeLessThan(at('supercharge'));
+    expect(at('colour_change_booster')).toBeLessThan(at('rainbow_bomb'));
+  });
+  it('no level in L1-40 brings two new things (cards, vehicles, lanes, colours, traits)', async () => {
+    const { spawnableTypesFor } = await import('../src/director/CarTypes.js');
+    const { BENCH_FROM_LEVEL } = await import('../src/game/LevelManager.js');
+    const seen = { types: new Set(), traits: new Set(), colors: 0, lanes: 0 };
+    let last = 0;
+    for (let l = 1; l <= 40; l++) {
+      const c = cfgs[l - 1];
+      let news = levelStartCards(l).filter(k => !['multi_color', 'lane_3'].includes(k)).length;   // those name the colour / lane change below
+      for (const t of spawnableTypesFor(l, c.gridRows, c)) if (!seen.types.has(t)) { if (l > 1) news++; seen.types.add(t); }
+      for (const t of Object.keys(c.traits ?? {})) if ((c.traits[t] ?? 0) > 0 && t !== 'gift' && !seen.traits.has(t)) { news++; seen.traits.add(t); }
+      if (c.colors.length > seen.colors) { if (l > 1) news++; seen.colors = c.colors.length; }
+      if (c.laneCount > seen.lanes && l > 2) { news++; }
+      seen.lanes = Math.max(seen.lanes, c.laneCount);
+      if (l === BENCH_FROM_LEVEL) news++;
+      expect(news, `L${l}`).toBeLessThanOrEqual(1);
+      if (news && l > 1) { expect(l - last, `L${last} -> L${l}`).toBeGreaterThanOrEqual(2); }
+      if (news) last = l;
+    }
   });
   it('booster cards sit on the level each booster arrives (boosterUnlocks.js)', async () => {
     const { BOOSTER_UNLOCK_LEVEL, RAINBOW_FROM } = await import('../src/game/boosterUnlocks.js');
@@ -82,9 +105,9 @@ describe('in-play teaching windows', () => {
     expect(REACTIVE_WINDOW.mender_heal).toEqual([at('mender'), at('mender')]);
     expect(REACTIVE_WINDOW.volatile_surge).toEqual([at('volatile'), at('volatile')]);
   });
-  it('core in-play teaching never reaches past L12', () => {
-    for (const k of ['first_kill', 'bomb_earned', 'first_miss', 'streak_charged', 'rainbow_bomb'])
-      expect(REACTIVE_WINDOW[k][1], k).toBeLessThanOrEqual(12);
+  it('each in-play window is short and starts where its mechanic starts', () => {
+    for (const [k, [a, b]] of Object.entries(REACTIVE_WINDOW)) expect(b - a, k).toBeLessThanOrEqual(3);
+    expect(REACTIVE_WINDOW.streak_charged[0]).toBe(levelStartCardLevel('supercharge'));
   });
   it('play L1..L40 in order: every card key is taught at or before the level that needs it', () => {
     const taught = new Set(); const firstTaught = {};
@@ -92,9 +115,9 @@ describe('in-play teaching windows', () => {
       for (const k of levelStartCards(l)) { taught.add(k); firstTaught[k] ??= l; }
       for (const [k, [a, b]] of Object.entries(REACTIVE_WINDOW)) if (l >= a && l <= b) { taught.add(k); firstTaught[k] ??= l; }
     }
-    for (const k of ['multi_color', 'supercharge', 'goal_colour',
-      'freeze_booster', 'colour_change_booster', 'rainbow_bomb', 'first_kill', 'first_miss', 'streak_charged', 'armor_break'])
-      expect(firstTaught[k], k).toBeLessThanOrEqual(12);
+    for (const k of ['multi_color', 'supercharge', 'goal_colour', 'freeze_booster', 'colour_change_booster',
+      'rainbow_bomb', 'gift_car', 'traffic_light', 'first_kill', 'first_miss', 'streak_charged', 'armor_break'])
+      expect(firstTaught[k], k).toBeLessThanOrEqual(40);
   });
 });
 

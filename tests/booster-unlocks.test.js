@@ -1,10 +1,11 @@
-// Booster pacing (2026-10-18, owner-approved): BOMB at L1, FREEZE at L8, COLOR SWAP at L12,
-// the rainbow bomb from L10. A booster is live on its arrival level (taught there, with free
-// ones) and offered before levels only AFTER it. Locked boosters are never earned in play.
+// Booster pacing (2026-10-18, re-spaced after the top-games research): BOMB at L1, FREEZE at
+// L8, COLOR SWAP at L21, the rainbow bomb from L33. A booster is live on its arrival level
+// (taught there, with free ones) and offered before levels only AFTER it, and never before
+// OFFERS_FROM (L6). The win streak waits for L30. Locked boosters are never earned in play.
 import { describe, it, expect, vi } from 'vitest';
 import {
-  BOOSTER_UNLOCK_LEVEL, RAINBOW_FROM, boosterUnlocked, boosterOffered, unlocksFor,
-  filterOffered, arrivingBooster, reachedLevel,
+  BOOSTER_UNLOCK_LEVEL, RAINBOW_FROM, OFFERS_FROM, WIN_STREAK_FROM, boosterUnlocked, boosterOffered,
+  unlocksFor, filterOffered, arrivingBooster, reachedLevel, winStreakOn,
 } from '../src/game/boosterUnlocks.js';
 import { GameLoop }        from '../src/game/GameLoop.js';
 import { GameState }       from '../src/game/GameState.js';
@@ -21,16 +22,24 @@ import { Car }             from '../src/models/Car.js';
 
 describe('schedule', () => {
   it('arrives at the agreed levels', () => {
-    expect(BOOSTER_UNLOCK_LEVEL).toEqual({ bombs: 1, freeze: 8, colorChange: 12 });
-    expect(RAINBOW_FROM).toBe(10);
+    expect(BOOSTER_UNLOCK_LEVEL).toEqual({ bombs: 1, freeze: 8, colorChange: 21 });
+    expect(RAINBOW_FROM).toBe(33);
+    expect(OFFERS_FROM).toBe(6);
+    expect(WIN_STREAK_FROM).toBe(30);
   });
   it('level 1 has only the bomb, and nothing is offered before it', () => {
     expect(unlocksFor(1, 1)).toEqual({ bombs: true, freeze: false, colorChange: false, rainbow: false });
     for (const k of ['bombs', 'freeze', 'colorChange']) expect(boosterOffered(k, 1, 1), k).toBe(false);
   });
-  it('the bomb is offered before L2 on', () => {
-    expect(boosterOffered('bombs', 2, 2)).toBe(true);
-    expect(boosterOffered('freeze', 2, 2)).toBe(false);
+  it('nothing is offered for an ad before L6; the bomb is from L6 on', () => {
+    for (let l = 1; l < 6; l++) expect(boosterOffered('bombs', l, l), `L${l}`).toBe(false);
+    expect(boosterOffered('bombs', 6, 6)).toBe(true);
+    expect(boosterOffered('freeze', 6, 6)).toBe(false);
+  });
+  it('the win streak shows and pays from L30', () => {
+    expect(winStreakOn(29, 29)).toBe(false);
+    expect(winStreakOn(30, 30)).toBe(true);
+    expect(winStreakOn(5, 40)).toBe(true);
   });
   it('FREEZE is live on L8 but offered only from L9', () => {
     expect(boosterUnlocked('freeze', 7, 7)).toBe(false);
@@ -38,20 +47,21 @@ describe('schedule', () => {
     expect(boosterOffered('freeze', 8, 8)).toBe(false);
     expect(boosterOffered('freeze', 9, 9)).toBe(true);
   });
-  it('COLOR SWAP is live on L12 but offered only from L13', () => {
-    expect(boosterUnlocked('colorChange', 11, 11)).toBe(false);
-    expect(boosterUnlocked('colorChange', 12, 12)).toBe(true);
-    expect(boosterOffered('colorChange', 12, 12)).toBe(false);
-    expect(boosterOffered('colorChange', 13, 13)).toBe(true);
+  it('COLOR SWAP is live on L21 but offered only from L22', () => {
+    expect(boosterUnlocked('colorChange', 20, 20)).toBe(false);
+    expect(boosterUnlocked('colorChange', 21, 21)).toBe(true);
+    expect(boosterOffered('colorChange', 21, 21)).toBe(false);
+    expect(boosterOffered('colorChange', 22, 22)).toBe(true);
   });
   it('a replay of an early level keeps everything the player has reached', () => {
-    expect(reachedLevel(3, 20)).toBe(20);
-    expect(unlocksFor(3, 20)).toEqual({ bombs: true, freeze: true, colorChange: true, rainbow: true });
-    expect(boosterOffered('colorChange', 3, 20)).toBe(true);
+    expect(reachedLevel(3, 40)).toBe(40);
+    expect(unlocksFor(3, 40)).toEqual({ bombs: true, freeze: true, colorChange: true, rainbow: true });
+    expect(boosterOffered('colorChange', 3, 40)).toBe(true);
   });
   it('the daily challenge uses only how far the player has got', () => {
     expect(unlocksFor('daily', 5).freeze).toBe(false);
     expect(unlocksFor('daily', 30).colorChange).toBe(true);
+    expect(unlocksFor('daily', 30).rainbow).toBe(false);
   });
   it('filterOffered drops what is not offered, and returns null when nothing is left', () => {
     expect(filterOffered({ freeze: 1, colorChange: 1, bombs: 0 }, 9, 9)).toEqual({ freeze: 1, colorChange: 0, bombs: 0 });
@@ -60,7 +70,8 @@ describe('schedule', () => {
   });
   it('FREEZE and COLOR SWAP arrive with free ones on their level; the bomb is earned instead', () => {
     expect(arrivingBooster(8)).toBe('freeze');
-    expect(arrivingBooster(12)).toBe('colorChange');
+    expect(arrivingBooster(21)).toBe('colorChange');
+    expect(arrivingBooster(12)).toBeNull();
     expect(arrivingBooster(1)).toBeNull();
     expect(arrivingBooster(9)).toBeNull();
     expect(arrivingBooster('daily')).toBeNull();
@@ -106,13 +117,13 @@ describe('earns', () => {
     loop._resolveShot({ color: 'Red', damage: 8 }, 0);
     expect(bs.freeze).toBe(1);
   });
-  it('two multi-kills in a row earn no COLOR SWAP before L12', () => {
-    const { loop, bs } = setup(unlocksFor(11, 11));
+  it('two multi-kills in a row earn no COLOR SWAP before L21', () => {
+    const { loop, bs } = setup(unlocksFor(20, 20));
     loop._updateColorChangeCombo(2); loop._updateColorChangeCombo(2);
     expect(bs.colorChange).toBe(0);
   });
-  it('multi-kills do not charge the rainbow bomb before L10', () => {
-    const { gs, lanes, loop } = setup(unlocksFor(9, 9));
+  it('multi-kills do not charge the rainbow bomb before L33', () => {
+    const { gs, lanes, loop } = setup(unlocksFor(32, 32));
     lineUp(lanes[0], 2);
     loop._resolveShot({ color: 'Red', damage: 5 }, 0);
     expect(gs.multiKillCount).toBe(0);

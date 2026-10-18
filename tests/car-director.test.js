@@ -60,7 +60,7 @@ describe('generateCar — HP formula', () => {
     const SAMPLES = 400
     const avgHp = (phase) => {
       const d = makeDirector(99)
-      d.setLevel(3)  // L1-2 are bikes-only (CLIMAX===CALM); test FTUE band at L3+
+      d.setLevel(4)  // L1-3 are bikes-only (CLIMAX===CALM); the car arrives at L4
       let sum = 0
       for (let i = 0; i < SAMPLES; i++) sum += d.generateCar(makeLane(), phase, W1, PALETTE).hp
       return sum / SAMPLES
@@ -120,16 +120,16 @@ describe('HP range', () => {
   })
 
   it('no car ever exceeds HP_BASE.max (3 hits)', () => {
-    // Level 15+ CLIMAX spawns the biggest rung (jeep, 3 hits); no car should exceed the cap.
+    // From L30 CLIMAX spawns the biggest rung (van, 3 hits) often; no car should exceed the cap.
     const d = makeDirector(1)
-    d.setLevel(15)   // unlock full type band including tanks
+    d.setLevel(30)   // the full band (the van arrives at L18)
     const cars = []
     for (let i = 0; i < 100; i++) {
       const car = d.generateCar(makeLane(), 'CLIMAX', W1, PALETTE)
       cars.push(car)
       expect(car.hp).toBeLessThanOrEqual(HP_BASE.max)
     }
-    // At least some L15+ CLIMAX cars should be on the top rung (HP=3=HP_BASE.max).
+    // At least some L30 CLIMAX cars should be on the top rung (HP=3=HP_BASE.max).
     expect(cars.some(c => c.hp === HP_BASE.max)).toBe(true)
   })
 

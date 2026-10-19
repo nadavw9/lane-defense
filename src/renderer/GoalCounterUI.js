@@ -13,6 +13,8 @@ import { INK, PLUM, WHITE, toyPanel, shade, tint } from './ToyStyle.js';
 import { FillGradient } from 'pixi.js';
 import { traitInfo } from './traitIcons.js';
 import { shapeFor } from '../game/ColorblindMode.js';
+import { tokenPoint, TOKEN, shownAfterLanding, needsCatchUp } from './goalTokens.js';
+import { isReducedMotion } from '../game/MotionPrefs.js';
 
 const _B = import.meta.env.BASE_URL;
 
@@ -75,6 +77,66 @@ export class GoalCounterUI {
     // Particle FX layer (above the cards, re-stacked on top in _layoutCards).
     this._fx = new Graphics();
     this._container.addChild(this._fx);
+
+    // Kill tokens (collect()): fly from the explosion to the counter; the shown number drops as
+    // each one lands, so every explosion visibly feeds the count (owner request 2026-10-19).
+    this._tokenLayer = new Container();
+    this._container.addChild(this._tokenLayer);
+    this._tokens = [];
+    this._sinceBehind = 0;
+  }
+
+  /** A shot destroyed `n` cars at screen (x, y): send that many tokens to the counter. */
+  collect(x, y, n = 1, color = 0xFFC93C) {
+    if (!this._cards.length || isReducedMotion()) return;   // reduced motion: the count just ticks
+    for (let i = 0; i < n; i++) {
+      const ghosts = [0.45, 0.25].map(a => {
+        const gh = new Graphics();
+        gh.circle(0, 0, 9).fill({ color, alpha: a });
+        gh.x = x; gh.y = y; gh.visible = false;
+        this._tokenLayer.addChild(gh);
+        return gh;
+      });
+      const g = new Graphics();
+      g.circle(0, 0, 19).fill({ color: WHITE, alpha: 0.30 });
+      g.circle(0, 0, 14).fill({ color, alpha: 0.45 });
+      g.circle(0, 0, 10).fill(color).stroke({ color: INK, width: 2.5 });
+      g.circle(-3, -3, 3).fill({ color: WHITE, alpha: 0.8 });
+      g.x = x; g.y = y;
+      this._tokenLayer.addChild(g);
+      this._tokens.push({ g, ghosts, from: { x, y }, t: -i * TOKEN.stagger });
+    }
+  }
+
+  // Fly the tokens; returns how many landed this frame.
+  _stepTokens(dt) {
+    const target = this._cards[0];
+    let landed = 0;
+    for (let k = this._tokens.length - 1; k >= 0; k--) {
+      const tk = this._tokens[k];
+      tk.t += dt;
+      if (tk.t < 0) { tk.g.visible = false; continue; }
+      tk.g.visible = true;
+      const p = tk.t / TOKEN.flight;
+      const to = target ? { x: target.x, y: target.y } : tk.from;
+      const pt = tokenPoint(tk.from, to, p);
+      tk.g.x = pt.x; tk.g.y = pt.y;
+      tk.g.scale.set(1.2 - 0.5 * Math.min(1, p));
+      tk.ghosts.forEach((gh, j) => { const q = tokenPoint(tk.from, to, p - 0.09 * (j + 1)); gh.x = q.x; gh.y = q.y; gh.visible = p > 0.09 * (j + 1); });
+      if (p >= 1) {
+        tk.g.destroy(); tk.ghosts.forEach(gh => gh.destroy());
+        this._tokens.splice(k, 1); landed++;
+      }
+    }
+    return landed;
+  }
+
+  _clearTokens() {
+    for (const tk of this._tokens) { tk.g.destroy(); tk.ghosts?.forEach(gh => gh.destroy()); }
+    this._tokens = [];
+    for (const m of this._minus ?? []) m.t.destroy();
+    this._minus = [];
+    this._sinceBehind = 0;
   }
 
   // Rect of the gold goal plaque in stage coordinates (the tour spotlights it), or null
@@ -100,6 +162,7 @@ export class GoalCounterUI {
   }
 
   setGoals(goals) {
+    this._clearTokens();
     this._goals = goals ?? [];
     this._goalProgress = this._goals.map(g => g.count);
 
@@ -133,9 +196,30 @@ export class GoalCounterUI {
     if (!goalProgress || goalProgress.length !== this._cards.length) return;
     this._goalProgress = goalProgress;
 
+    // The SHOWN count trails the real one: it drops when a kill token lands (or catches up after
+    // TOKEN.grace when a kill sent none, e.g. a booster), with a punch each time it drops.
+    let landed = this._stepTokens(dt);
+    const behind = this._cards.some((c, i) => (c._shown ?? 0) > Math.max(0, goalProgress[i]));
+    this._sinceBehind = behind ? this._sinceBehind + dt : 0;
+    const catchUp = this._cards.some((c, i) => needsCatchUp(c._shown ?? 0, Math.max(0, goalProgress[i]), this._tokens.length, this._sinceBehind));
+    const totalShown = this._cards.reduce((a, c) => a + (c._shown ?? 0), 0);
+
     for (let i = 0; i < this._cards.length; i++) {
       const card = this._cards[i];
-      const remaining = Math.max(0, goalProgress[i]);
+      const actual = Math.max(0, goalProgress[i]);
+      if (card._shown == null || card._shown < actual) card._shown = actual;   // first frame / goal reset
+      const before = card._shown;
+      for (let l = 0; l < landed; l++) card._shown = shownAfterLanding(card._shown, actual);
+      if (catchUp) card._shown = actual;
+      if (card._shown < before) {
+        card._punchT = 0.32;
+        if (card._popT < 0) card._dropPopT = 0;   // the whole card pops (unless the completion pop runs)
+        const m = new Text({ text: `-${before - card._shown}`, style: { fontFamily: '"Lilita One", Fredoka, Arial, sans-serif', fontSize: 20, fill: 0xFFC93C, stroke: { color: INK, width: 4 } } });
+        m.anchor.set(0.5); m.x = card.x + CARD_W / 2 + 4; m.y = card.y + 6;
+        this._tokenLayer.addChild(m);
+        (this._minus ??= []).push({ t: m, age: 0 });
+      }
+      const remaining = card._shown;
       const isComplete = remaining === 0;
       const justCompleted = isComplete && (this._prevProgress[i] ?? remaining) > 0 && !card._completed;
 
@@ -156,6 +240,13 @@ export class GoalCounterUI {
         } else {
           card._countText.text = String(remaining);
           card._countText.visible = true; card._check.visible = false;
+          // Punch on every drop; gold and pulsing once only a few are left, so the end is obvious.
+          const few = totalShown > 0 && totalShown <= 3;
+          let s = 1;
+          if (card._punchT > 0) { card._punchT = Math.max(0, card._punchT - dt); s += 0.7 * Math.sin(Math.PI * (1 - card._punchT / 0.32)); }
+          if (few) s += 0.08 * Math.sin((this._pulseT = (this._pulseT ?? 0) + dt) * 9);
+          card._countText.scale.set(s);
+          card._countText.style.fill = card._punchT > 0 || few ? 0xFFC93C : WHITE;
           card._checkmark = false;
           if (card._completed) { card._completed = false; this._drawCardBg(card, false, 0); }  // goal reset
         }
@@ -176,6 +267,20 @@ export class GoalCounterUI {
       }
 
       card.alpha = 1.0;   // no dimming — the green tint conveys "done"
+    }
+
+    // Card drop-pop (1.0 -> 1.18 -> 1.0) and the "-N" floaters drifting down and fading.
+    for (const card of this._cards) {
+      if (card._dropPopT == null || card._popT >= 0) continue;
+      card._dropPopT += dt;
+      const p = card._dropPopT / 0.28;
+      if (p >= 1) { card.scale.set(1); card._dropPopT = null; } else card.scale.set(1 + 0.18 * Math.sin(Math.PI * p));
+    }
+    for (let k = (this._minus ?? []).length - 1; k >= 0; k--) {
+      const m = this._minus[k];
+      m.age += dt;
+      m.t.y += dt * 26; m.t.alpha = Math.max(0, 1 - m.age / 0.8);
+      if (m.age >= 0.8) { m.t.destroy(); this._minus.splice(k, 1); }
     }
 
     this._stepBursts(dt);

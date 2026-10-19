@@ -2,7 +2,7 @@
 // Icons are PNG sprites (booster-{colorchange,freeze,bomb}.png); each card shows a
 // ×N count badge and an 18px name label. Bomb glow pulses when bombs available.
 import { Graphics, Text, Sprite, Assets } from 'pixi.js';
-import { INK, PLUM_DEEP, SUN, toyPanel, toyLabel } from './ToyStyle.js';
+import { INK, PLUM_DEEP, SUN, toyPanel, toyLabel, drawShackle } from './ToyStyle.js';
 import { bodyText } from './PremiumUI.js';
 import { unlockLevelOf } from '../game/boosterUnlocks.js';
 
@@ -415,8 +415,7 @@ function _makeLock(card, level) {
   const cx = CARD_W / 2, cy = 22;
   g.roundRect(0, 0, CARD_W, CARD_H - CARD_LIP, CARD_R).fill({ color: 0x1A1630, alpha: 0.55 });
   // shackle
-  g.beginPath().arc(cx, cy - 2, 8, Math.PI, 0).stroke({ color: INK, width: 6, join: 'round', cap: 'round' });
-  g.beginPath().arc(cx, cy - 2, 8, Math.PI, 0).stroke({ color: 0xE9E6F2, width: 3, join: 'round', cap: 'round' });
+  drawShackle(g, cx, cy - 2, 8, { ink: INK, inkW: 6, color: 0xE9E6F2, w: 3 });
   // body
   g.roundRect(cx - 12, cy - 3, 24, 19, 4).fill(SUN).stroke({ color: INK, width: 2.5 });
   g.circle(cx, cy + 5, 2.6).fill(INK);

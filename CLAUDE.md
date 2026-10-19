@@ -74,6 +74,18 @@ places 1st ~49%, first race ~95%) against the band-centre win rates — retune t
 Design + survival math: `docs/superpowers/specs/2026-10-19-race-design.md`. QA: `_nav.race()`,
 `_nav.setRace(r)`, `_nav.showRace()`; captures `scripts/_race-shots.mjs`.
 
+### STARS FROM POINTS (2026-10-20, branch `feat/stars-and-goals`)
+
+Stars no longer come from how far cars got (`maxCarPosition`, all but impossible on the big board) and a
+continue no longer caps at 1. `src/game/score.js`: each kill shot pays 100/car + 50 per extra car + a combo
+bonus (25 per kill shot in a row, cap 150); a shot that destroys nothing breaks the combo. GameLoop and
+SimulationRunner score the same way. Per-level `[one, two, three]` targets are GENERATED into
+`src/game/starTargets.js` by `node tools/tune-stars.mjs 1-200 300 --write` (one = goal cars x 100, so a win
+always lights the first star; two/three = 35th/75th percentile of simulated winning scores; tutorial levels
+softer). Re-run it after any retune. In play the goal plaque's bar is a gold STAR BAR (stars evenly spaced,
+`starBarFill`); the win screen shows a SCORE row. Level card says the goal in words (`src/screens/goalText.js`);
+the L1 tour has a MOVES LEFT card on the step ruler.
+
 ### GUIDE CARDS — all explanations are centre-screen, never at the top (2026-10-12)
 
 Every tip is a `GuideCard` (`src/screens/GuideCard.js`): centred card, NEXT button, optional gold ring on a

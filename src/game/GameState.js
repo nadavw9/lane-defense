@@ -99,6 +99,8 @@ export class GameState {
 
     // ── Win-screen stats ──────────────────────────────────────────────────
     this.maxCombo       = 0;    // highest combo reached this level
+    this.score          = 0;    // points this level (score.js): stars come from this
+    this.scoreChain     = 0;    // destroying shots in a row (the score combo)
     this.maxCarPosition = 0;    // highest position any car reached (0-100 units)
 
     // ── Rescue ────────────────────────────────────────────────────────────
@@ -211,6 +213,8 @@ export class GameState {
   resetLevel() {
     this.elapsed       = 0;
     this.combo         = 0;
+    this.score         = 0;
+    this.scoreChain    = 0;
     this.lastKillTime  = -Infinity;
     this.colorBombArmed  = false;
     this.freezeArmed     = false;

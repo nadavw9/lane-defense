@@ -1,3 +1,8 @@
-01=BEFORE, the owner's phone (build 1.1.8, L3): stray white lines from the LV12 / LV8 padlocks to the screen centre; a column of 13 numbered step pips on the left; the goal counter ("8") just changes its number.
-02=AFTER, real-time frames 83 ms apart (L3, second shot). Frame 6: the kill. Frames 6-9: a token in the car's colour flies from the explosion up to the goal counter. Frame 11: the counter drops 11 -> 10 with a gold pop (and a "-1" floats under it). With 3 or fewer left the number stays gold and pulses.
-03=AFTER, whole screen: the step ruler is small coloured dots with ONE glowing badge level with the most advanced car ("11" = moves before it reaches the red line); the padlocks are drawn as filled shapes (no stroked arcs) - check on the phone that the lines are gone, they never reproduced on desktop.
+Stars from points, star bar, goal caption, moves-left card (2026-10-20). Left = BEFORE, right = AFTER.
+01 = L5 level card. Look for: the new line under the goal tile, "Destroy 9 cars of any color".
+02 = L1 in play. Look for: under the goal number, the green goal bar is now a gold STAR BAR with 3 stars; it fills with every point (car kills + combos). The step ruler with its glowing number is on the left on L1 (it was already there; now the tour explains it, see 03).
+03 = L1 first-run tour, new card "MOVES LEFT": the gold ring is on the step ruler, "This number = moves before the nearest car reaches the red line."
+04 = Star bar mid-level: L5 at 1,000 points = 2 stars lit; L2 at 2,225 points = all 3 stars lit.
+05 = Win screens: stars now come from the SCORE (new row). 2 stars shows "1,000 / 1,050" = points for the next star. 3 stars = PERFECT!. A continue no longer caps you at 1 star.
+06 = L26 level card, two color goals: "Destroy 3 blue cars + 3 green cars".
+No BEFORE for the win screen: the old one had no score row; its stars came from how far the cars got.

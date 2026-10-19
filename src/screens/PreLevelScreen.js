@@ -16,6 +16,7 @@ import { panel, ribbon, button, roundButton, bodyText, titleText, backdrop, well
 import { INK, WHITE } from '../renderer/ToyStyle.js';
 import { traitInfo, traitSpritePath } from '../renderer/traitIcons.js';
 import { levelDifficulty } from '../game/LevelManager.js';
+import { goalSentence } from './goalText.js';
 
 const _B = import.meta.env.BASE_URL;
 const BOOSTERS = [
@@ -127,7 +128,7 @@ export class PreLevelScreen {
 
     const streak = this._streak;
     const boosters = this._boosters;
-    const PW = 344, PH = 470 + (intro ? 100 : 0) + (streak ? 62 : 0) + (tierPill ? 36 : 0) - (boosters.length ? 0 : 136);
+    const PW = 344, PH = 498 + (intro ? 100 : 0) + (streak ? 62 : 0) + (tierPill ? 36 : 0) - (boosters.length ? 0 : 136);
     const card = new Container();
     card.x = w / 2; card.y = h / 2 + 10;
     card.pivot.set(PW / 2, PH / 2);
@@ -183,7 +184,15 @@ export class PreLevelScreen {
       n.x = gx + gw / 2; n.y = y + gh - 16;
       card.addChild(n);
     });
-    y += gh + 18;
+    y += gh + 8;
+    // The goal in words, so the tiles never have to be decoded (owner 2026-10-20).
+    const say = goalSentence(goals);
+    if (say) {
+      const gt = bodyText(say, 16, WHITE, { outline: false, wrap: PW - 48, weight: '700' });
+      gt.x = PW / 2; gt.y = y + 10;
+      card.addChild(gt);
+    }
+    y += 38;
 
     // Win streak: what the run of wins is worth on this level, or how close the first gift is.
     if (streak) {

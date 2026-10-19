@@ -20,6 +20,11 @@ describe('level-1 tour', () => {
     expect(steps.at(-1).cta).toBeTruthy();
     for (const s of steps) { expect(s.title).toBeTruthy(); expect(s.text).toBeTruthy(); }
   });
+  it('shows the moves-left number on the first level (owner 2026-10-20)', () => {
+    const r = steps.find(s => s.target === geo.ruler);
+    expect(r).toBeTruthy();
+    expect(`${r.title} ${r.text}`.toLowerCase()).toMatch(/moves/);
+  });
   it('drag step has both ends', () => {
     const d = steps.find(s => s.hand === 'drag');
     expect(d.handFrom()).toHaveProperty('x');

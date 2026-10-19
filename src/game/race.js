@@ -174,3 +174,22 @@ export function sanitizeRace(o) {
     result: res ? { outcome: res.outcome, place: res.place } : null, claimed: !!o.claimed,
   };
 }
+
+/**
+ * The map's RACE button: null = hidden (not unlocked, or nothing to show). `badge` is the red
+ * dot: a decided race to claim, or races exist and the player has not seen the intro yet.
+ */
+export function raceButtonState({ race, unlockedLevel, levelCount, finalBeaten, introSeen }) {
+  if (!raceUnlocked(unlockedLevel)) return null;
+  if (race?.result) return { mode: 'claim', wins: race.wins, hearts: race.hearts, badge: true };
+  if (race) return { mode: 'racing', wins: race.wins, hearts: race.hearts, badge: false };
+  if (!canStartRace(unlockedLevel, levelCount, finalBeaten)) return null;
+  return { mode: 'start', wins: 0, hearts: RACE_HEARTS, badge: !introSeen };
+}
+
+/** Which race card opens on its own when the map appears: 'intro' | 'result' | null. */
+export function raceAutoOpen({ race, introSeen, justUnlocked }) {
+  if (race?.result) return 'result';
+  if (justUnlocked && !introSeen) return 'intro';
+  return null;
+}

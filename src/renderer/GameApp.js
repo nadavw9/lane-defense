@@ -80,6 +80,9 @@ import { BoosterSpotlight }      from '../screens/BoosterSpotlight.js';
 import { TransitionOverlay }      from '../screens/TransitionOverlay.js';
 import { TitleScreen }            from '../screens/TitleScreen.js';
 import { LevelSelectScreen }      from '../screens/LevelSelectScreen.js';
+import { RaceScreen }             from '../screens/RaceScreen.js';
+import { countsForRace, recordRaceAttempt, syncRace, startRace, canStartRace, raceUnlocked,
+  raceButtonState, raceAutoOpen, raceStandings } from '../game/race.js';
 import { ShopScreen }             from '../screens/ShopScreen.js';
 import { DailyRewardScreen }      from '../screens/DailyRewardScreen.js';
 import { SettingsScreen }         from '../screens/SettingsScreen.js';
@@ -679,6 +682,7 @@ async function main() {
   let howToPlayOverlay   = null;
   let achievementsScreen = null;
   let statsScreen        = null;
+  let raceScreen         = null;
   // Back-action per open screen, registered where each screen is created, so the
   // Android back button (and Escape on desktop) does exactly what that screen's
   // own Back / Close button does. See _handleBack().
@@ -830,6 +834,10 @@ async function main() {
   // mid-level) costs the player nothing.
   let _levelInv = null;
   let _lossRecorded = false;   // _recordFinalLoss runs once per level
+  // Traffic Race (src/game/race.js): is this level the running race's frontier level, and has its
+  // attempt been recorded yet (once per level, like the loss). _raceJustUnlocked opens the intro
+  // card on the next map visit after the win that unlocks races.
+  let _raceCounts = false, _raceSettled = false, _raceJustUnlocked = false;
   function _settleInventory() {
     if (!_levelInv) return;
     const { taken, grant } = _levelInv;
@@ -839,6 +847,7 @@ async function main() {
   }
 
   function _startLevel(levelIdOrConfig) {
+    raceScreen?.destroy(); raceScreen = null;
     _settleInventory();   // restart / next level: debit the previous attempt first
     // Tear down any lingering overlay screens.
     winScreen?.destroy();           winScreen        = null;
@@ -892,6 +901,11 @@ async function main() {
     boosterState.used = { colorChange: 0, freeze: 0, bombs: 0 };
     _levelInv = { taken, grant: { colorChange: grant.colorChange ?? 0, freeze: grant.freeze ?? 0, bombs: Math.min(boosterState.bombsMax, grant.bombs ?? 0) } };
     _lossRecorded = false;
+    {
+      const race = progress.getRace();
+      _raceCounts = !!race && !race.result && countsForRace(levelId, progress.unlockedLevel, progress.getStars(levelId));
+      _raceSettled = false;
+    }
     adManager.resetForLevel();
 
     applyLevelConfig(cfg);
@@ -1293,6 +1307,8 @@ async function main() {
     // swallows every booster tap.
     titleScreen?.destroy();
     titleScreen = null;
+    raceScreen?.destroy();
+    raceScreen = null;
     pauseBtn.visible = false;
     bookBtn.visible  = false;
     audio.playMusic('title');
@@ -1355,7 +1371,20 @@ async function main() {
     layers.get('backgroundLayer').visible = false;  // hide CityBackground behind LevelSelect (F-07)
     layers.get('laneLayer').visible       = false;
     layers.get('carLayer').visible        = false;
+    // Traffic Race: catch the rivals up with the clock (a passed deadline decides the race here).
+    let race = progress.getRace();
+    if (race && !race.result) {
+      race = syncRace(race, Date.now());
+      progress.setRace(race);
+      if (race.result) logEvent('race_end', { outcome: race.result.outcome, place: race.result.place, attempts: race.attempts, hearts: race.hearts });
+    }
+    const raceButton = raceButtonState({ race, unlockedLevel: progress.unlockedLevel, levelCount: LEVEL_COUNT,
+      finalBeaten: progress.getStars(LEVEL_COUNT) > 0, introSeen: progress.raceIntroSeen });
+    const raceAuto = raceAutoOpen({ race, introSeen: progress.raceIntroSeen, justUnlocked: _raceJustUnlocked });
+    _raceJustUnlocked = false;
     levelSelectScreen = new LevelSelectScreen(app.stage, APP_W, APP_H, progress, {
+      race: raceButton,
+      onRace: () => showRace(),
       onSelectLevel: (levelId) => {
         // Hearts/energy gate removed (FIX 3) — levels are always startable.
         // The level card opens OVER the map (the map is torn down on PLAY).
@@ -1384,7 +1413,45 @@ async function main() {
       weeklyLevels: weeklyPlaylist().levels,
       cityAnim: _pendingCityAnim,   // §3e repair pop (consumed once, then cleared)
     });
+    // The race card opens on its own after the city repair pop has played.
+    if (raceAuto) {
+      const map = levelSelectScreen;
+      setTimeout(() => { if (levelSelectScreen === map && !preLevelScreen && !raceScreen) showRace(); }, _pendingCityAnim ? 1400 : 350);
+    }
     _pendingCityAnim = null;
+  }
+
+  // ── Screen: Traffic Race card (over the map) ─────────────────────────────
+  function showRace() {
+    raceScreen?.destroy();
+    const race = progress.getRace();
+    const intro = !progress.raceIntroSeen;
+    progress.markRaceIntroSeen();
+    const close = _closers.race = () => { raceScreen?.destroy(); raceScreen = null; };
+    raceScreen = new RaceScreen(app.stage, APP_W, APP_H, {
+      race, intro, now: Date.now(),
+      canStart: canStartRace(progress.unlockedLevel, LEVEL_COUNT, progress.getStars(LEVEL_COUNT) > 0),
+      audio,
+      onClose: () => { close(); showLevelSelect(); },
+      onStart: () => {
+        const r = startRace({ now: Date.now(), seed: (Math.random() * 2 ** 32) >>> 0, first: progress.racesStarted === 0 });
+        progress.noteRaceStarted();
+        progress.setRace(r);
+        logEvent('race_start', { first: r.first });
+        audio.play('button_tap');
+        showRace();
+      },
+      onPlay: () => { close(); _showPreLevel(progress.unlockedLevel); },
+      onClaim: () => {
+        const decided = progress.getRace();
+        const prize = progress.claimRacePrize();
+        logEvent('race_claim', { place: decided?.result?.place ?? null, coins: prize?.coins ?? 0 });
+        if (prize) audio.play('win_fanfare');
+        if (decided?.result?.place === 1) achievementManager.check('race_won').forEach(a => _awardAch(a));
+        close();
+        showLevelSelect();   // fresh coins and a START button for the next race
+      },
+    });
   }
   function showShop() {
     shopScreen?.destroy();   // never orphan a live one (see showTitle)
@@ -1596,7 +1663,7 @@ async function main() {
       onQuit: () => {
         // Abandon signal for difficulty tuning: where players give up mid-level.
         logEvent('level_quit', { levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber, turns: gs.turnCount, kills: gs.totalKills, goalLeft: gs.goalProgress?.reduce((a, r) => a + r, 0) ?? null });
-        if (!currentLevelIsDaily) progress.breakWinStreak();   // quitting a level ends the win streak
+        if (!currentLevelIsDaily) { progress.breakWinStreak(); _raceAttempt(false); }   // quitting ends the win streak and costs a race heart
         _settleInventory();
         pauseScreen.destroy();
         pauseScreen = null;
@@ -1655,6 +1722,7 @@ async function main() {
     let onNext;
     let improved   = [];
     let winLevelId = null;
+    let winRace    = null;   // { wins, place } when this win counted for a running race
     if (currentLevelIsDaily) {
       // The bonus goes through gs.coins: the wallet is re-saved from gs.coins
       // below, which used to overwrite a bonus added straight to progress.
@@ -1676,7 +1744,14 @@ async function main() {
       // level-select entry plays the brief repair pop; a replay-win (2→2) is silent.
       const bId       = progress.buildingForLevel(levelId);
       const priorCity = progress.getCityState()[String(bId)] ?? 0;
+      const raceWasUnlocked = raceUnlocked(progress.unlockedLevel);
       progress.recordWin(levelId, stars);
+      if (!raceWasUnlocked && raceUnlocked(progress.unlockedLevel)) _raceJustUnlocked = true;
+      const raceOut = _raceAttempt(true);
+      if (raceOut) {
+        const rows = raceStandings(raceOut.race);
+        winRace = { wins: raceOut.race.wins, place: raceOut.race.result?.place ?? (rows.findIndex(r => r.you) + 1) };
+      }
       progress.repairBuilding(bId);
       if (priorCity !== 2) _pendingCityAnim = { building: bId, prior: priorCity };
 
@@ -1736,6 +1811,7 @@ async function main() {
       winLevelId,
       currentLevelIsDaily ? 0 : progress.winStreak,
       {
+        race: winRace,
         // Rewarded video: double this level's coins (credited on the ad's reward callback only).
         onDoubleCoins: (() => {
           const earned = gs.coins;
@@ -1756,6 +1832,18 @@ async function main() {
   // §3d DDA: bump the fail streak so the next attempt gets the mercy factor
   // (daily challenge excluded). §3e City Repair damage fires here too — a
   // rescued-then-won breach is not a fail. Guarded so it counts once per level.
+  // One attempt on the race's frontier level, recorded once: a win moves the player, a final loss
+  // or a quit costs a heart. Returns { race, events } or null when this level is not a race level.
+  function _raceAttempt(won) {
+    if (!_raceCounts || _raceSettled) return null;
+    _raceSettled = true;
+    const race = progress.getRace();
+    if (!race) return null;
+    const out = recordRaceAttempt(race, { won, now: Date.now() });
+    progress.setRace(out.race);
+    if (out.race.result) logEvent('race_end', { outcome: out.race.result.outcome, place: out.race.result.place, attempts: out.race.attempts, hearts: out.race.hearts });
+    return out;
+  }
   function _recordFinalLoss() {
     _settleInventory();
     if (_lossRecorded) return;
@@ -1764,6 +1852,7 @@ async function main() {
       const lvl = levelManager.levelNumber;
       progress.recordLoss(lvl);
       progress.damageBuilding(progress.buildingForLevel(lvl));
+      _raceAttempt(false);
     }
   }
 
@@ -1803,7 +1892,7 @@ async function main() {
         audio,
       },
       gs,
-      null,   // FIX 3: no hearts/lives row on the final game-over screen
+      _raceCounts ? (progress.getRace()?.hearts ?? 0) : null,   // race hearts left (FIX 3: no lives row otherwise)
     );
 
     // Reuse rescueOverlay slot so _startLevel cleans up correctly.
@@ -1841,6 +1930,7 @@ async function main() {
     };
     rescueOverlay = new RescueOverlay(app.stage, APP_W, APP_H, gs, {
       winStreak: currentLevelIsDaily ? 0 : progress.winStreak,
+      raceHearts: _raceCounts && !_raceSettled ? (progress.getRace()?.hearts ?? 0) : 0,
       onRescueAd: () => {
         adManager.showRewarded(
           () => {
@@ -2338,6 +2428,7 @@ async function main() {
       if (!levelSelectScreen) showLevelSelect();
       return;
     }
+    if (close(raceScreen, 'race')) { if (!levelSelectScreen) showLevelSelect(); return; }
     if (close(levelSelectScreen, 'levelSelect')) return;
     // An armed booster / open colour picker: back cancels it (the Android habit),
     // rather than being swallowed or pausing over it.
@@ -2456,6 +2547,7 @@ async function main() {
     laneRenderer.update(gs.elapsed);
     cityEdges.update(dt);
     unlockScreen?.update(dt);
+    raceScreen?.update(dt);
     boosterSpotlight?.update(dt);
     tutOrch?.update(dt);
     // Armed-booster prompt: what to tap next. Only while the board is live.
@@ -2568,6 +2660,7 @@ async function main() {
     carManualScreen?.destroy();    carManualScreen    = null;
     achievementsScreen?.destroy(); achievementsScreen = null;
     statsScreen?.destroy();        statsScreen        = null;
+    raceScreen?.destroy();         raceScreen         = null;
     winScreen?.destroy();          winScreen          = null;
     rescueOverlay?.destroy();      rescueOverlay      = null;
     ftueOverlay?.destroy();        ftueOverlay        = null;
@@ -2588,6 +2681,10 @@ async function main() {
       showWin: () => showWin(),
       showLose: () => _showNoRescueLose(),
       showLevelSelect: () => showLevelSelect(),
+      // Traffic Race QA: read / replace the saved race, open the card.
+      race: () => progress.getRace(),
+      setRace: (r) => progress.setRace(r),
+      showRace: () => showRace(),
       // FIX 4D/4B/1 dev hooks for screenshot verification.
       showPreLevel: (n) => { _dbgCleanAll(); _showPreLevel(n); },
       showRescue:   () => { showRescue(); },
@@ -2611,7 +2708,7 @@ async function main() {
       },
       getGs: () => gs,
       // Which screens/overlays are up (autoplay QA bot: rescue / win / lose flows).
-      getScreens: () => ({ blockers: _boardBlockers(), daily: !!dailyRewardScreen, achievements: !!achievementsScreen, stats: !!statsScreen, settings: !!settingsScreen, shop: !!shopScreen, carManual: !!carManualScreen, howToPlay: !!howToPlayOverlay, paused: gameLoop.paused, win: !!winScreen, rescue: !!rescueOverlay, pause: !!pauseScreen, levelSelect: !!levelSelectScreen,
+      getScreens: () => ({ blockers: _boardBlockers(), daily: !!dailyRewardScreen, achievements: !!achievementsScreen, stats: !!statsScreen, settings: !!settingsScreen, shop: !!shopScreen, carManual: !!carManualScreen, howToPlay: !!howToPlayOverlay, paused: gameLoop.paused, win: !!winScreen, rescue: !!rescueOverlay, pause: !!pauseScreen, levelSelect: !!levelSelectScreen, race: !!raceScreen,
         preLevel: !!preLevelScreen, title: !!titleScreen, modal: _modalActive, picker: !!colorPicker, introCard: !!carTypeIntroCard,
         pauseBtn: pauseBtn.visible, boosters: { colorChange: boosterState.colorChange, freeze: boosterState.freeze, bombs: boosterState.bombs },
         inventory: progress.getInventory(), coins: progress.coins }),

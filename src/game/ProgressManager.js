@@ -101,6 +101,7 @@ function defaults() {
     race: null,
     raceIntroSeen: false,
     racesWon: 0,
+    racesStarted: 0,   // only the very first race is the friendly one
   };
 }
     
@@ -218,6 +219,8 @@ export class ProgressManager {
   get raceIntroSeen() { return !!this._data.raceIntroSeen; }
   markRaceIntroSeen() { this._data.raceIntroSeen = true; this._save(); }
   get racesWon() { return this._data.racesWon ?? 0; }
+  get racesStarted() { return this._data.racesStarted ?? 0; }
+  noteRaceStarted() { this._data.racesStarted = this.racesStarted + 1; this._save(); }
   /** Pay a decided race's prize (null if it earned none) and clear it. Pays at most once. */
   claimRacePrize() {
     const race = this.getRace();

@@ -180,3 +180,35 @@ describe('race: calibration against the game\'s win rates', () => {
     expect(simulate(true)).toBeGreaterThanOrEqual(0.60);
   }, 30_000);
 });
+
+import { raceButtonState, raceAutoOpen } from '../src/game/race.js';
+
+describe('race: what the map shows', () => {
+  const base = { race: null, unlockedLevel: 40, levelCount: 200, finalBeaten: false, introSeen: true };
+  it('no button before the unlock', () => {
+    expect(raceButtonState({ ...base, unlockedLevel: 30 })).toBeNull();
+  });
+  it('a race can start: START, with a dot until the intro has been seen', () => {
+    expect(raceButtonState(base)).toEqual({ mode: 'start', wins: 0, hearts: 3, badge: false });
+    expect(raceButtonState({ ...base, introSeen: false }).badge).toBe(true);
+  });
+  it('no button when no race can start and none is running (end of the campaign)', () => {
+    expect(raceButtonState({ ...base, unlockedLevel: 198 })).toBeNull();
+  });
+  it('a running race shows wins and hearts; a decided one asks to be claimed', () => {
+    let r = frozen();
+    ({ race: r } = recordRaceAttempt(r, { won: true, now: T0 + MIN }));
+    ({ race: r } = recordRaceAttempt(r, { won: false, now: T0 + 2 * MIN }));
+    expect(raceButtonState({ ...base, race: r })).toEqual({ mode: 'racing', wins: 1, hearts: 2, badge: false });
+    ({ race: r } = recordRaceAttempt(r, { won: false, now: T0 + 3 * MIN }));
+    ({ race: r } = recordRaceAttempt(r, { won: false, now: T0 + 4 * MIN }));
+    expect(raceButtonState({ ...base, race: r })).toEqual({ mode: 'claim', wins: 1, hearts: 0, badge: true });
+  });
+  it('the card opens by itself for the unlock moment and for a decided race, never otherwise', () => {
+    expect(raceAutoOpen({ race: null, introSeen: false, justUnlocked: true })).toBe('intro');
+    expect(raceAutoOpen({ race: null, introSeen: false, justUnlocked: false })).toBeNull();   // veterans get the dot
+    expect(raceAutoOpen({ race: null, introSeen: true, justUnlocked: true })).toBeNull();
+    expect(raceAutoOpen({ race: fresh(), introSeen: true, justUnlocked: false })).toBeNull();
+    expect(raceAutoOpen({ race: syncRace(fresh(), T0 + RACE_MS), introSeen: true, justUnlocked: false })).toBe('result');
+  });
+});

@@ -74,3 +74,13 @@ describe('Race Champion achievement', () => {
     expect(got.map(a => a.id)).toEqual(['race_champion']);
   });
 });
+
+describe('first race flag', () => {
+  it('counts started races so only the very first is the friendly one', () => {
+    withStorage(null);
+    const p = new ProgressManager();
+    expect(p.racesStarted).toBe(0);
+    p.noteRaceStarted();
+    expect(new ProgressManager().racesStarted).toBe(1);
+  });
+});

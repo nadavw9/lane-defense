@@ -27,6 +27,14 @@ L1 = 1 lane/column, L2 = 2, L3–L40 = 3, and every production level uses 8 rows
 schedule is morning L1–4, afternoon L5–8, sunset L9–12, misty L13–15, industrial L16–30, and
 nightHighway L31–40.
 
+## Traffic Race (2026-10-19, branch `feat/race`)
+
+A recurring race on the map from L31 on: first to win 6 new levels against 4 cartoon rivals in 24 h,
+3 race hearts (a final loss or quit on the frontier level costs one; the continue offer saves it).
+Prizes: 1st 500 coins + 2 of each booster, 2nd 150 + FREEZE, 3rd 50, 4th-5th 20. Survival with the
+current bands (6 wins / 3 hearts): 42% finish never continuing, ~65% continuing half the time, ~86%
+always. Full design: `docs/superpowers/specs/2026-10-19-race-design.md`.
+
 ## V3 Campaign Extension (2026-10-01)
 
 The campaign is now **100 levels in seven worlds**: W1 Toy Town L1-15, W2 Steel Yards L16-30,

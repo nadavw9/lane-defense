@@ -14,7 +14,7 @@ const ROW_H = 76, ROW_GAP = 10, PAD = 16;
 
 // One icon per trophy so the list isn't eighteen identical cups.
 const ICON = {
-  first_blood: 'explosion', combo_starter: 'fire', combo_master: 'fire', combo_legend: 'fire',
+  first_blood: 'explosion', combo_starter: 'fire', combo_master: 'fire', combo_legend: 'fire', race_champion: 'car',
   bench_warmer: 'hand', sharpshooter: 'target', survivor: 'shield', speed_demon: 'timer',
   collector: 'coin', shopkeeper: 'gift', big_spender: 'coin', dedicated: 'star-filled',
   streak_master: 'star-filled', chain_reaction: 'lightning', crisis_saved: 'heart',

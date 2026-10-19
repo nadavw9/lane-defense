@@ -14,6 +14,7 @@ import { ribbon, roundButton, titleText, bodyText, GOLD, GOLD_DEEP } from '../re
 import { INK, WHITE, shade, tint } from '../renderer/ToyStyle.js';
 import { MAP_WORLDS, mapNodes, mapRoadPath, worldForLevel } from './levelMapLayout.js';
 import { LEVEL_COUNT, levelDifficulty } from '../game/LevelManager.js';
+import { RACE_GOAL } from '../game/race.js';
 
 const _B = import.meta.env.BASE_URL;
 const NODE_R = 27;
@@ -77,14 +78,14 @@ function sprite(path, w = null) {
 
 export class LevelSelectScreen {
   constructor(stage, appW, appH, progress,
-    { onSelectLevel, onBack, onShop, onAchievements, audio, weeklyLevels = [], cityAnim = null, drive = null, onArrive = null }) {
+    { onSelectLevel, onBack, onShop, onAchievements, audio, weeklyLevels = [], cityAnim = null, drive = null, onArrive = null, race = null, onRace = null }) {
     this._container = new Container();
     stage.addChild(this._container);
     this._appW = appW;
     this._appH = appH;
     this._progress = progress;
     this._weeklyLevels = weeklyLevels;
-    this._callbacks = { onSelectLevel, onBack, onShop, onAchievements, audio };
+    this._callbacks = { onSelectLevel, onBack, onShop, onAchievements, audio, race, onRace };
     this._cityAnim = cityAnim;
     this._t = 0;
     this._current = null;       // { node, marker } of the next level to play
@@ -460,11 +461,37 @@ export class LevelSelectScreen {
       next.x = cx + 58; next.y = 75;
       this._container.addChild(next);
     }
+    // Traffic Race (src/game/race.js raceButtonState): a pill between the NEXT arrow and the
+    // trophies, the one header slot free on every page, so it never covers a level node.
+    if (cb.race && cb.onRace) this._buildRaceButton(cb.race, cb);
     if (cb.onAchievements) {
       const tr = roundButton(uiIcon('trophy', 20, '🏆'), { r: 15, color: 0x8B4FE0, onTap: () => { cb.audio?.play('button_tap'); cb.onAchievements(); } });
       tr.x = w - 28; tr.y = 75;
       this._container.addChild(tr);
     }
+  }
+
+  _buildRaceButton(state, cb) {
+    const b = new Container();
+    b.x = 307; b.y = 75;
+    const g = new Graphics();
+    g.roundRect(-36, -14, 72, 28, 14).fill(0xF08A24).stroke({ color: INK, width: 2.5 });
+    g.roundRect(-32, -11, 64, 9, 5).fill({ color: 0xFFFFFF, alpha: 0.25 });
+    b.addChild(g);
+    const icon = uiIcon('car', 18, '🏁'); icon.x = -21; icon.y = 0;
+    const label = state.mode === 'racing' ? `${state.wins}/${RACE_GOAL}` : state.mode === 'claim' ? 'PRIZE' : 'RACE!';
+    const tx = bodyText(label, 13, 0xFFFFFF);
+    tx.anchor.set(0, 0.5); tx.x = -10; tx.y = 0;
+    b.addChild(icon, tx);
+    if (state.badge) {
+      const dot = new Graphics();
+      dot.circle(32, -12, 6.5).fill(0xE8453C).stroke({ color: INK, width: 2 });
+      b.addChild(dot);
+    }
+    b.eventMode = 'static'; b.cursor = 'pointer';
+    b.on('pointertap', () => { cb.audio?.play('button_tap'); cb.onRace(); });
+    this._raceButton = b;
+    this._container.addChild(b);
   }
 
   _switch(page, quiet = false) {

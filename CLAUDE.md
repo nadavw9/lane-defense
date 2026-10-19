@@ -62,6 +62,18 @@ Step ruler beside the road (`StepRuler`) + step lines under the cars (`StepGrid3
 App icon R1 (car flung out of a BOOM over a lane): `node scripts/render-app-icons.mjs` (adaptive
 background = the lane, `public/sprites/designed/app-hero.png` = the title hero). Bots: `ftue-play.mjs`.
 
+### TRAFFIC RACE (2026-10-19, branch `feat/race`) — Candy-Crush-style race, unlocks after L30
+
+You + 4 cartoon rivals (never presented as real players), first to win 6 NEW levels in 24 h, 3 race-only
+hearts. Rules: `src/game/race.js` (pure, seeded); saved as `progress.race` (sanitized on every read).
+GameApp hooks: `_startLevel` decides `_raceCounts` (frontier level, first win only), `showWin` /
+`_recordFinalLoss` / pause-quit call `_raceAttempt` once per level; RescueOverlay says a continue keeps
+the race heart; LoseScreen's old LIVES row now shows race hearts. Card: `src/screens/RaceScreen.js`;
+map pill in LevelSelectScreen's header. Rival pace is CALIBRATED by `tests/race.test.js` (a finisher
+places 1st ~49%, first race ~95%) against the band-centre win rates — retune there if bands change.
+Design + survival math: `docs/superpowers/specs/2026-10-19-race-design.md`. QA: `_nav.race()`,
+`_nav.setRace(r)`, `_nav.showRace()`; captures `scripts/_race-shots.mjs`.
+
 ### GUIDE CARDS — all explanations are centre-screen, never at the top (2026-10-12)
 
 Every tip is a `GuideCard` (`src/screens/GuideCard.js`): centred card, NEXT button, optional gold ring on a

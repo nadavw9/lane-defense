@@ -12,6 +12,7 @@
 //  see the _load migration and §3e City Repair which replaced it with cityState.)
 import { LEVEL_COUNT } from './LevelManager.js';
 import { localDateKey, previousLocalDateKey, utcDateKey } from './dateKeys.js';
+import { sanitizeRace, racePrize } from './race.js';
 
 const previousUtcKey = (now) => utcDateKey(new Date(now.getTime() - 86400000));
 
@@ -95,6 +96,12 @@ function defaults() {
     cityState: {},
     // v1.8 — win streak (src/game/winStreak.js): consecutive wins on numbered levels.
     winStreak: 0,
+    // v1.9 — Traffic Race (src/game/race.js). `race` is validated by sanitizeRace on every read,
+    // never trusted; null = no race. racesWon counts first places.
+    race: null,
+    raceIntroSeen: false,
+    racesWon: 0,
+    racesStarted: 0,   // only the very first race is the friendly one
   };
 }
     
@@ -204,6 +211,32 @@ export class ProgressManager {
     if (!this._data.winStreak) return;
     this._data.winStreak = 0;
     this._save();
+  }
+
+  // ── Traffic Race (race.js) ─────────────────────────────────────────────────
+  getRace() { return sanitizeRace(this._data.race); }
+  setRace(race) { this._data.race = race ?? null; this._save(); }
+  get raceIntroSeen() { return !!this._data.raceIntroSeen; }
+  markRaceIntroSeen() { this._data.raceIntroSeen = true; this._save(); }
+  get racesWon() { return this._data.racesWon ?? 0; }
+  get racesStarted() { return this._data.racesStarted ?? 0; }
+  noteRaceStarted() { this._data.racesStarted = this.racesStarted + 1; this._save(); }
+  /** Pay a decided race's prize (null if it earned none) and clear it. Pays at most once. */
+  claimRacePrize() {
+    const race = this.getRace();
+    if (!race?.result) return null;
+    const prize = racePrize(race);
+    if (prize) {
+      this._data.coins += prize.coins;
+      this._data.totalCoinsEarned += prize.coins;
+      for (const [k, n] of Object.entries(prize.boosters ?? {})) {
+        if (k in this._data.inventory) this._data.inventory[k] += n;
+      }
+      if (race.result.place === 1) this._data.racesWon = this.racesWon + 1;
+    }
+    this._data.race = null;
+    this._save();
+    return prize;
   }
 
   // ── DDA fail-streak (§3d) ──────────────────────────────────────────────────

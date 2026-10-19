@@ -5,3 +5,18 @@ Logo + pacing review set (2026-10-18). BEFORE = the build on your phone (1.1.6),
 04=Board BEFORE/AFTER: no coin counter during play any more (coins show on the win screen and in the shop); the locked COLOR SWAP now says LV 21
 05=L3 AFTER: two lanes (the third lane now arrives at L6), motorbikes only (the car arrives at L4), a two-lane backdrop baked for it
 06=Icon set AFTER: store icon, phone splash, adaptive icon (lane background + car layer), round mask, small launcher size
+
+--- Traffic Race (feat/race) ---
+01=Map header BEFORE (origin/master, L31 save). Seven page dots; the NEXT arrow covers dot 4.
+02=Map header AFTER. "3 / 7" page counter (same fix as feat/more-levels) and the orange RACE! pill between NEXT and the trophy, red dot until the intro is seen. Check it covers no level node.
+03=NEW race card, first time (auto-opens once after beating L30). Rules, 1st-place prize, START RACE. Look: prize strip fully visible above the button.
+04=NEW map while racing: the pill reads 3/6.
+05=NEW race card mid-race: standings best-first, YOU highlighted, cars ease from the start line to their step, 2 of 3 hearts, time left, PLAY NEXT LEVEL. Look: names never collide with the win counts.
+06=Win screen BEFORE.
+07=Win screen AFTER: TRAFFIC RACE row "4/6 · 3rd" when the win counted for the race.
+08=Continue offer BEFORE: "Continue to keep your 4-win streak".
+09=Continue offer AFTER on a race level: "Continue to keep your race heart (2 left)" (last heart: red warning line).
+10=Final loss BEFORE.
+11=Final loss AFTER on a race level: RACE HEARTS LEFT row (was a dead 5-heart LIVES row from the removed lives system).
+12=NEW won race: the card opens by itself on the next map visit; 1st-place prize and CLAIM (no close button: claiming is the way out).
+13=NEW out of hearts: no prize, OK, a new race can start right away.

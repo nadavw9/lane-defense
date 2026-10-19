@@ -10,6 +10,7 @@
 //   • NEXT LEVEL button gently pulses once active to invite the tap
 import { Container, Graphics, Text, Sprite, Assets, FillGradient } from 'pixi.js';
 import { uiIcon } from '../renderer/UIIcon.js';
+import { RACE_GOAL } from '../game/race.js';
 import { worldForLevel } from './levelMapLayout.js';
 import { LEVEL_COUNT } from '../game/LevelManager.js';
 import { panel as premiumPanel, ribbon, button as premiumButton, bodyText, titleText, well } from '../renderer/PremiumUI.js';
@@ -148,8 +149,9 @@ export class WinScreen {
    *                             (e.g. ['stars', 'combo']); empty = no new records
    * @param {number} levelId   — for the share message (optional)
    */
-  constructor(stage, appW, appH, gs, onNext, onMenu, audio, improved = [], levelId = null, winStreak = 0, { onDoubleCoins = null } = {}) {
+  constructor(stage, appW, appH, gs, onNext, onMenu, audio, improved = [], levelId = null, winStreak = 0, { onDoubleCoins = null, race = null } = {}) {
     this._winStreak = winStreak;
+    this._race = race;   // { wins, place } when this win counted for a Traffic Race
     this._onDoubleCoins = onDoubleCoins;   // (done(ok)) => runs a rewarded video; doubles the coins on success
     this._appW = appW;
     this._appH = appH;
@@ -368,7 +370,8 @@ export class WinScreen {
     const panelW = 334;
     const showStreak = (this._winStreak ?? 0) >= 2;   // a streak row once it is worth something
     const offerDouble = !!this._onDoubleCoins && (gs.coins ?? 0) > 0;   // the classic win-screen video: x2 coins
-    const panelH = (is3Star ? 512 : 462) + (showStreak ? 50 : 0) + (offerDouble ? 62 : 0);
+    const showRace = !!this._race;
+    const panelH = (is3Star ? 512 : 462) + (showStreak ? 50 : 0) + (showRace ? 50 : 0) + (offerDouble ? 62 : 0);
     const px = (w - panelW) / 2;
     const py = (h - panelH) / 2 - 36;
     const cx = w / 2;
@@ -439,6 +442,11 @@ export class WinScreen {
     if (showStreak) {
       y += ROW_H + ROW_GAP;
       this._statRow(px + 22, y, panelW - 44, ROW_H, 'WIN STREAK', `×${this._winStreak}`, 0xFF9A3C, { name: 'fire', emoji: '🔥' });
+    }
+    if (showRace) {
+      y += ROW_H + ROW_GAP;
+      const ord = ['1st', '2nd', '3rd', '4th', '5th'][this._race.place - 1] ?? '';
+      this._statRow(px + 22, y, panelW - 44, ROW_H, 'TRAFFIC RACE', `${this._race.wins}/${RACE_GOAL} · ${ord}`, 0xF08A24, { name: 'car', emoji: '🏁' });
     }
     // Advance past the last stat row to the BUTTON CENTER position.
     // _button() centers the button on this y, so we add the row body (ROW_H),

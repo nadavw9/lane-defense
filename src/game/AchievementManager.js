@@ -24,6 +24,8 @@ export const ACHIEVEMENTS = [
   { id: 'no_mercy',         name: 'No Mercy',         desc: 'Win without using any boosters or rescue' },
   { id: 'big_spender',      name: 'Big Spender',      desc: 'Spend 200 coins in the shop' },
   { id: 'daily_challenger', name: 'Daily Challenger', desc: 'Complete 5 daily challenges' },
+  // ── v1.9 ───────────────────────────────────────────────────────────────────
+  { id: 'race_champion',    name: 'Race Champion',    desc: 'Finish first in a Traffic Race' },
 ];
 
 export class AchievementManager {
@@ -89,6 +91,10 @@ export class AchievementManager {
 
       case 'weekly_win':
         award('weekly_hero');
+        break;
+
+      case 'race_won':
+        award('race_champion');
         break;
 
       case 'login_streak':

@@ -212,20 +212,20 @@ describe('ProgressManager introducedCarTypes', () => {
   });
 
   it('migration backfills from progression: past a type intro level = introduced', () => {
-    const store = { 'lane-defense-v1': JSON.stringify({ unlockedLevel: 12 }) };
+    const store = { 'lane-defense-v1': JSON.stringify({ unlockedLevel: 20 }) };
     withStorage(store);
     const p = new ProgressManager();
     const seen = p.getIntroducedCarTypes();
-    // completed L1..L11 → met small(L1), big(L2), jeep(L5), truck(L8) — V2 schedule
+    // completed L1..L19 → met small(L1), big(L4), jeep(L18), and the retired truck mark (L19)
     for (const t of ['small', 'big', 'jeep', 'truck']) expect(seen.has(t)).toBe(true);
-    // bigrig intros AT L12 (not yet played), tank at L15
+    // bigrig mark AT L20 (not yet played), tank at L21
     expect(seen.has('bigrig')).toBe(false);
     expect(seen.has('tank')).toBe(false);
   });
 
   it('corrupt legacy key is ignored, backfill still applies', () => {
     const store = {
-      'lane-defense-v1': JSON.stringify({ unlockedLevel: 3 }),
+      'lane-defense-v1': JSON.stringify({ unlockedLevel: 5 }),   // past L4, where the car arrives (2026-10-18)
       'lane_defense_seen_car_types': '{not json',
     };
     withStorage(store);

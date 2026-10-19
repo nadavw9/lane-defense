@@ -136,6 +136,10 @@ export class HUDRenderer {
     this._coinsText.x = appWidth - 46;   // right edge sits left of the pause button (x=344)
     this._coinsText.y = ROW_MID;
     this._layer.addChild(this._coinsText);
+    // No currency on screen while playing (research 2026-10-18: the leaders keep coins to the
+    // win screen and the shop). Kept built so the win flow and tests can still read the count.
+    this._coinDisc.visible = false;
+    this._coinsText.visible = false;
 
     // ── Frozen indicator (centred pill over upper road when freeze active) ──
     this._frozenBadgeGfx = new Graphics();

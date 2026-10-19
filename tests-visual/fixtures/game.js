@@ -66,7 +66,7 @@ export class GamePage {
           const keys = ['tour', 'lane_2', 'lane_3', 'multi_color', 'combo', 'supercharge',  'goal_colour',
             'freeze_booster', 'colour_change_booster','freeze_earned','colour_change_earned', 'rainbow_bomb', 'first_kill', 'first_miss', 'hp_miss',
             'streak_charged', 'plate_break', 'armor_break', 'volatile_surge', 'mender_heal', 'gift_car', 'traffic_light', 'convoy'];
-          for (let i = 1; i <= 100; i++) keys.push(`hint_L${i}`);
+          for (let i = 1; i <= 200; i++) keys.push(`hint_L${i}`);
           localStorage.setItem('ftue_banners', JSON.stringify(keys));
         } catch { /* storage blocked */ }
       });

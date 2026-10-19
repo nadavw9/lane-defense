@@ -11,35 +11,37 @@
 // Cards that open the level (after the splash, before the first move), in order.
 // L1's walkthrough is the tour (guideContent.tourSteps), not listed here.
 export const LEVEL_START_CARDS = {
-  2:  ['lane_2', 'multi_color', 'combo'],
-  3:  ['lane_3'],
-  4:  ['supercharge'],
-  6:  ['goal_colour'],
+  // One new thing per level with a practice level between (2026-10-18 re-spacing after the
+  // top-games research). Vehicles that shrink (car L4, van L18) are introduced by their
+  // animated NEW VEHICLE card, not listed here; the bench (L13) has its own spotlight tutorial.
+  2:  ['multi_color'],
+  6:  ['lane_3'],
   8:  ['freeze_booster'],
-  9:  ['colour_change_booster'],
-  10: ['rainbow_bomb'],
-  13: ['gift_car'],
-  14: ['traffic_light'],
-  24: ['convoy'],
+  11: ['supercharge'],
+  21: ['colour_change_booster'],
+  26: ['goal_colour'],
+  33: ['rainbow_bomb'],
+  36: ['gift_car'],
+  38: ['traffic_light'],
+  43: ['convoy'],
 };
 
 // Moments inside play that can only be explained from a live event. A key may fire only while
 // the player is on a level inside [min, max]; outside the window it is simply never shown.
 //   first_kill / bomb_earned  L1 (a 10-car goal guarantees both)
-//   first_miss / hp_miss      L2 (first second colour, first bigger car)
-//   streak_charged            L4-5 (Hot Streak starts at L4)
-//   rainbow_bomb              earned from L4 on; the L10 start card covers anyone who has not earned one
+//   first_miss                L2 (the first second colour)
+//   streak_charged            L11-12 (Hot Streak starts at L11)
+//   freeze / swap / rainbow earned  from the level each one arrives (boosterUnlocks.js)
 //   armor_break / plate_break / mender_heal / volatile_surge  the level that introduces the trait
 export const REACTIVE_WINDOW = {
   first_kill:     [1, 1],
   bomb_earned:    [1, 1],
   first_miss:     [2, 2],
-  hp_miss:        [2, 2],
-  freeze_earned:  [1, 10],   // first FREEZE earned in play; the L8 start card covers anyone who has not
-  colour_change_earned: [1, 10],   // same for COLOUR CHANGE (L9 card)
-  streak_charged: [4, 5],
-  rainbow_bomb:   [4, 10],
-  armor_break:    [11, 11],
+  freeze_earned:  [8, 11],
+  colour_change_earned: [21, 24],
+  streak_charged: [11, 12],
+  rainbow_bomb:   [33, 35],
+  armor_break:    [28, 28],
   plate_break:    [41, 41],
   mender_heal:    [46, 46],
   volatile_surge: [76, 76],

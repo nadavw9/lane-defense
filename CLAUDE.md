@@ -31,6 +31,49 @@ level's `stepsPerRow` (whole-row steps on a 5-row board breach almost at once). 
 work: win streak (`src/game/winStreak.js`), bench drop-into-slot, HARD LEVEL banner, 3-card L1 tour,
 US spelling + COLOR SWAP naming, `android-release.yml` (signed AAB as a private artifact; secrets set).
 
+**Phone updates = Play internal testing (2026-10-18, same as The Math Wolf).** `android-release.yml` (workflow_dispatch,
+inputs ads/track/status) builds the signed AAB and uploads it with `r0adkll/upload-google-play` to the `internal` track
+using the `PLAY_SERVICE_ACCOUNT_JSON` secret (service account `play-upload@trafficbomb-ci...`, invited in Play Console
+with Release to testing tracks). Dispatch on the branch to ship: `gh api -X POST
+repos/nadavw9/lane-defense/actions/workflows/android-release.yml/dispatches -f ref=<branch> -f 'inputs[ads]=test'
+-f 'inputs[track]=internal' -f 'inputs[status]=completed'`. Testers = the "Traffic Bomb testers" list; versionCode = 100 + run
+number (105 = first internal upload). The debug APK (android-apk branch) cannot sit on a phone that has the Play build.
+
+### FTUE PACING (2026-10-18, branch `feat/ftue-pacing`) — one new thing per level, a quiet level between
+
+Re-spaced the same day after independent research on the top Play Store puzzle games (Royal Match,
+Toon Blast, Candy Crush, Pixel Flow, Color Block Jam; report + comparison doc shared with the owner).
+Rules, pinned by `tests/intro-schedule.test.js` ("no level in L1-40 brings two new things"):
+at most ONE new thing per level, a practice level between new things, nothing new on a HARD level,
+new things on relief levels (x1/x6) where possible. Schedule (LevelManager L1-40 header):
+L1 bomb + BOMB booster · L2 colors · L4 car · L6 third lane · L8 FREEZE · L11 supercharge ·
+L13 bench (`BENCH_FROM_LEVEL`) · L16 third color · L18 van · L21 COLOR SWAP · L23 speeders ·
+L26 color goal · L28 armor · L31 yellow · L33 rainbow bomb · L36 gift cars · L38 traffic light ·
+L41 plated · L43 convoy · L46 mender · L48 orange · L51 chameleon · L53 purple.
+`src/game/boosterUnlocks.js` is the ONE booster schedule (BOMB L1, FREEZE L8, COLOR SWAP L21, rainbow
+L33; `OFFERS_FROM = 6`: nothing offered for an ad before L6; `WIN_STREAK_FROM = 30`). No SUPER HARD before
+L50 (`levelDifficulty`). Interstitials from L14 (`adPolicy`). Title: MAP from the start, DAILY L8,
+TROPHIES L15, CHALLENGE L20, STATS L25 (`TitleScreen.TITLE_UNLOCK`, NEW tag until tapped). No coin
+counter during play (HUDRenderer). Vehicle cards (`CarTypeIntroCard`, the shrink ladder side by side)
+fire from content: car L4, van L18. Two-lane backdrops for L3/L4 baked (`backdrop world1 a|b 2`).
+Title PLAY opens the next level's card (MAP is a separate button); a win's NEXT goes to the map, where
+your toy car drives to the next node and that level's card opens by itself (`LevelSelectScreen` drive).
+Step ruler beside the road (`StepRuler`) + step lines under the cars (`StepGrid3D`).
+App icon R1 (car flung out of a BOOM over a lane): `node scripts/render-app-icons.mjs` (adaptive
+background = the lane, `public/sprites/designed/app-hero.png` = the title hero). Bots: `ftue-play.mjs`.
+
+### TRAFFIC RACE (2026-10-19, branch `feat/race`) — Candy-Crush-style race, unlocks after L30
+
+You + 4 cartoon rivals (never presented as real players), first to win 6 NEW levels in 24 h, 3 race-only
+hearts. Rules: `src/game/race.js` (pure, seeded); saved as `progress.race` (sanitized on every read).
+GameApp hooks: `_startLevel` decides `_raceCounts` (frontier level, first win only), `showWin` /
+`_recordFinalLoss` / pause-quit call `_raceAttempt` once per level; RescueOverlay says a continue keeps
+the race heart; LoseScreen's old LIVES row now shows race hearts. Card: `src/screens/RaceScreen.js`;
+map pill in LevelSelectScreen's header. Rival pace is CALIBRATED by `tests/race.test.js` (a finisher
+places 1st ~49%, first race ~95%) against the band-centre win rates — retune there if bands change.
+Design + survival math: `docs/superpowers/specs/2026-10-19-race-design.md`. QA: `_nav.race()`,
+`_nav.setRace(r)`, `_nav.showRace()`; captures `scripts/_race-shots.mjs`.
+
 ### GUIDE CARDS — all explanations are centre-screen, never at the top (2026-10-12)
 
 Every tip is a `GuideCard` (`src/screens/GuideCard.js`): centred card, NEXT button, optional gold ring on a
@@ -45,9 +88,9 @@ level 1 does not stare at black.
 
 ### TEACHING IS HARD-CODED TO FIXED LEVELS (2026-10-14) — never "first time the player meets X"
 
-`src/screens/introSchedule.js` is the single schedule. `LEVEL_START_CARDS` (L2 lane/colour/combo, L3 lanes, L4
-supercharge, L6 colour goal, L8 FREEZE, L9 COLOUR CHANGE, L10 RAINBOW; L1 = the tour; L4 bench =
-spotlight tutorial) open that level. `REACTIVE_WINDOW` lets in-play moments (first kill, wrong colour, power shot,
+`src/screens/introSchedule.js` is the single schedule. `LEVEL_START_CARDS` (L2 colors, L6 third lane, L8
+FREEZE, L11 supercharge, L21 COLOR SWAP, L26 color goal, L33 rainbow, L36 gift, L38 light, L43 convoy;
+L1 = the tour; L13 bench = spotlight tutorial) open that level. `REACTIVE_WINDOW` lets in-play moments (first kill, wrong colour, power shot,
 armour/plate/mender/volatile) fire ONLY inside their level window, so a save that unlocks L30 is never taught late.
 Copy is `CARDS` in `guideContent.js`. `tests/intro-schedule.test.js` pins all of it, including that the visual fixtures
 seed every card key (add a new card -> add its key to `tests-visual/fixtures/game.js`). QA: `_nav.guideTitle()`.
@@ -220,7 +263,7 @@ Claude may choose either. But "it works" is not equivalent to
 
 ## 3. What This Is
 
-Hybrid-casual mobile puzzle-defense game. Cars in colored lanes advance toward the player one row per correct shot. Player drags color-coded bombs onto lanes — color must match the front car to deal damage. Turn-based grid, not real-time. 100 levels across 7 worlds (L1-40 hand-tuned, L41-100 authored in `src/game/LateLevels.js` and sim-tuned). Live on GitHub Pages; native Android via Capacitor.
+Hybrid-casual mobile puzzle-defense game. Cars in colored lanes advance toward the player one row per correct shot. Player drags color-coded bombs onto lanes — color must match the front car to deal damage. Turn-based grid, not real-time. 200 levels across 14 worlds (L1-40 hand-tuned, L41-100 authored in `src/game/LateLevels.js`, L101-200 — the second tour, reusing world 1-7 art — in `src/game/TourLevels.js`; all sim-tuned). Live on GitHub Pages; native Android via Capacitor.
 
 - **Live URL:** https://nadavw9.github.io/lane-defense/
 - **Repo:** https://github.com/nadavw9/lane-defense
@@ -329,13 +372,14 @@ Always `${import.meta.env.BASE_URL}sprites/...`. Hardcoded `/sprites/...` causes
 | L61-75 | frost | World 5 Frost Pass |
 | L76-90 | harbor | World 6 Harbor Lights |
 | L91-100 | cosmos | World 7 Starlight Strip |
+| L101-200 | as L1-100 | Worlds 8-14, the second tour (`levelTheme(id - 100)`, art reused) |
 
 ---
 
 ## 6. Current State
 
 ### Tests
-**1533 passing**, 1 skipped, 5 todo — 81 files (+2 skipped). Run: `npx vitest run`. All headless (no
+**2801 passing**, 1 skipped, 5 todo — 88 files (+2 skipped; the level-config audit now runs on all 200 levels). Run: `npx vitest run`. All headless (no
 render tests).
 Visual smoke (`npm run test:visual`, Playwright) is separate and is a blocking CI gate.
 
@@ -685,10 +729,10 @@ API can reject the call, wait for it to be acceptable first (`game.waitForIdle()
 inferring rejection from an unchanged board.
 
 ### What is done
-- **100 levels**: L1–L40 in `LevelManager.js`, L41–L100 in `LateLevels.js` (authored with `levelDsl.js`, heft/trait/goal scales generated into `lateTuning.js` by `node tools/tune-levels.mjs --write`). Seven worlds; worlds 4-7 art is baked (`render-3d-sprites.mjs backdrop|map`, `render-world-tiles.mjs`).
+- **200 levels**: L1–L40 in `LevelManager.js`, L41–L100 in `LateLevels.js`, L101–L200 (second tour, worlds 8-14 on reused art) in `TourLevels.js` (authored with `levelDsl.js`, heft/trait/goal scales generated into `lateTuning.js` by `node tools/tune-levels.mjs --write`). Seven worlds; worlds 4-7 art is baked (`render-3d-sprites.mjs backdrop|map`, `render-world-tiles.mjs`).
 - **Seven traits** (`TrafficRules.js`): speeder, armored, chameleon, plated, mender, volatile, phantom; goal types destroyTotal/Color/Type/Trait + defeatBoss. Bands in `tools/bands.mjs`; every level is checked in-band (2026-10-01).
 - **Economy (2026-10-01)**: 2 coins per car (was 10), shop 20-40, continue-with-coins 60 (`RESCUE_COIN_COST`); one booster store (`inventory`). Interstitials paced by `src/ads/adPolicy.js`. Daily/streak use the local day (`src/game/dateKeys.js`). Adaptive 3D render scale (`AdaptiveQuality.js`), reduce-motion setting (`MotionPrefs.js`).
-- **Car type intro cards** (`src/screens/CarTypeIntroCard.js`) — fires at: L1 small, L2 big, L5 jeep, L9 truck, L13 bigrig, L15 tank
+- **Car type intro cards** (`src/screens/CarTypeIntroCard.js`) — the whole shrink ladder in a row (vehicle -> bomb -> smaller rung -> ... -> BOOM, true relative sizes, steps light up in turn), fires at: L3 car, L5 van (truck/bigrig/tank no longer spawn)
 - **V2 redesign (2026-09-27, branch `feat/v2-design`)** — Hot Streak (3 kill shots →
   supercharged bomb: x2 damage, carry-over through any colour), special cars (speeder,
   armoured, chameleon), boss vehicles with colour sequences (L10/20/30/40), a new 40-level

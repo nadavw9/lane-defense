@@ -12,6 +12,7 @@
 // AI strategy: for each column, fire the top shooter at the most advanced lane
 // whose front car matches the shooter's color.  Skill profiles add accuracy
 // rolls to model real human behavior.
+import { unlocksFor } from '../game/boosterUnlocks.js';
 import { SeededRandom }    from '../utils/SeededRandom.js';
 import { FairnessArbiter } from '../director/FairnessArbiter.js';
 import { CarDirector }     from '../director/CarDirector.js';
@@ -34,7 +35,7 @@ import {
 import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { openingRowsForLevel, clampInitialCarsToDepth, streakEnabledFor } from '../game/LevelManager.js';
 import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak, laneHeld, pushTrafficBack, rescueRowsBack,
-         revealStagedCars, stepSize, freeSpawnRow } from '../director/TrafficRules.js';
+         revealStagedCars, stepSize, freeSpawnRow, placeArrival } from '../director/TrafficRules.js';
 
 const DT = 1 / 60; // seconds per simulation tick (used for fire cooldowns only)
 
@@ -270,6 +271,10 @@ export class SimulationRunner {
     let   bombKills        = 0;       // instrumentation: cars removed by BOMB
     let   nextBombKill     = KILLS_PER_BOMB;
     let   colorChangeCharges = 0;     // earned ~per 2 consecutive multi-kills, cap 2
+    // Boosters that do not exist yet on this level are not earned (boosterUnlocks.js).
+    const _unl = this._cfg.levelId != null ? unlocksFor(this._cfg.levelId, this._cfg.levelId) : null;
+    const canFreeze = !_unl || _unl.freeze;
+    const canSwap   = !_unl || _unl.colorChange;
 
     // ── Level goals (mirrors GameState.applyKillToGoals / isGoalMet) ──────────
     const goals        = this._cfg.goals ?? [];
@@ -286,7 +291,7 @@ export class SimulationRunner {
         if (match) goalProgress[i] = Math.max(0, goalProgress[i] - 1);
       }
       // Gift car: the live game hands out a booster; model it as a FREEZE charge.
-      if (trait === 'gift' && boosterIQ > 0) freezeCharges = Math.min(2, freezeCharges + 1);
+      if (trait === 'gift' && boosterIQ > 0 && canFreeze) freezeCharges = Math.min(2, freezeCharges + 1);
     };
     const goalsMet = () => hasGoals && goalProgress.every(r => r === 0);
 
@@ -379,7 +384,9 @@ export class SimulationRunner {
           const car = carDir.generateCar({ id: lane.id }, phase, worldConfig, colors, this._cfg.gridRows);
           // No re-multiplication: car.hp already carries hpMultiplier (see the
           // opening-block parity note). Carry-over bait cars keep their 1-2 hp.
-          lane.cars.push(rec(car, row));
+          const r = rec(car, row);
+          placeArrival(lane.cars, r, row);   // parity with GameLoop._refillLanes: arrivals take the back
+          lane.cars.push(r);
           added = true;
         }
         if (added) lane.cars.sort((a, b) => b.row - a.row);   // cars[0] = front (highest row)
@@ -579,9 +586,9 @@ export class SimulationRunner {
             if (currentCombo > maxCombo) maxCombo = currentCombo;
             // ── Booster EARN (skill-gated; mirrors shipped earn rules) ──────────
             if (boosterIQ > 0) {
-              if (currentCombo % 3 === 0 && freezeCharges < 2) freezeCharges++;               // 3-kill chain → freeze
+              if (canFreeze && currentCombo % 3 === 0 && freezeCharges < 2) freezeCharges++;               // 3-kill chain → freeze
               if (carsKilled >= nextBombKill && bombCharges < 3) { bombCharges++; nextBombKill += KILLS_PER_BOMB; }  // KILLS_PER_BOMB kills → bomb
-              if (currentCombo % 4 === 0 && colorChangeCharges < 2) colorChangeCharges++;      // ~2 consecutive multi-kills → color change
+              if (canSwap && currentCombo % 4 === 0 && colorChangeCharges < 2) colorChangeCharges++;      // ~2 consecutive multi-kills → color change
             }
           }
         }

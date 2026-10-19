@@ -1,59 +1,39 @@
-// TitleScreen — bright, colorful, kids-friendly splash screen.
+// TitleScreen — the first screen.
 //
-// Design:
-//   • Sky-blue gradient background with fluffy cloud shapes
-//   • Big chunky "LANE DEFENSE" title in yellow/orange with black stroke
-//   • Animated colorful cars zooming across the screen
-//   • Large green PLAY button
-//   • Secondary buttons in pastel colors
+//   • The town background art and the TRAFFIC BOMB logo
+//   • The hero: the app icon's car flung out of a BOOM (app-hero.png, baked by
+//     scripts/render-app-icons.mjs), popped in on the first visit, then bobbing
+//   • PLAY (opens the next level) with a LEVEL N pill
+//   • MAP, then DAILY / TROPHIES / CHALLENGE / STATS as the player reaches TITLE_UNLOCK
 import { Container, Graphics, Text, Sprite, Assets, Rectangle } from 'pixi.js';
 import { uiIcon, uiPlate } from '../renderer/UIIcon.js';
 import { button as premiumButton, roundButton, bodyText } from '../renderer/PremiumUI.js';
 
-const CAR_COLORS  = [0xFF3D3D, 0x2F8CFF, 0x2FCC55, 0xFFD42A, 0xA35CFF, 0xFF8A1C];
 const SKY_TOP     = 0x4FC3F7;   // light sky blue
 const SKY_BOTTOM  = 0x81D4FA;   // slightly lighter horizon
 const GROUND_COL  = 0x66BB6A;   // fresh green ground
 const CLOUD_COL   = 0xFFFFFF;
 
 const BASE_URL = import.meta.env.BASE_URL ?? '';
-// Real car sprites (preloaded by GameApp) used for the animated road cars.
-const CAR_SPRITE_COLORS = ['red', 'blue', 'green', 'orange', 'purple', 'yellow'];
-const CAR_HEX = { red: 0xFF3D3D, blue: 0x2F8CFF, green: 0x2FCC55,
-                  orange: 0xFF8A1C, purple: 0xA35CFF, yellow: 0xFFD42A };
 
-// Build a car as a real sprite (preloaded), sized to a target on-screen HEIGHT and
-// facing rightward (direction of travel — the intro car drives left→right toward the
-// bomb). The source art is a top-down car facing DOWN (95×122), so we rotate -90°
-// (counter-clockwise) to face EAST; after that rotation the texture WIDTH maps to the
-// on-screen height. Falls back to a proportioned rectangle.
-const CAR_ASPECT = 122 / 95;   // length / height after the ±90° rotation
-function makeCarSprite(color, targetH = 22) {
-  // Prefer the cleaner designed/ '-processed' car (glossier, clean cut); fall back
-  // to the rough cars/ sprite if that colour's processed variant isn't loaded.
-  const tex = Assets.get(`${BASE_URL}sprites/designed/car-${color}-processed.png`)
-           ?? Assets.get(`${BASE_URL}sprites/cars/car-${color}.png`);
-  if (tex) {
-    const spr = new Sprite(tex);
-    spr.anchor.set(0.5, 0.5);
-    spr.rotation = -Math.PI / 2;          // down-facing art → faces right (travel dir)
-    spr.scale.set(targetH / tex.width);   // texture width becomes on-screen height
-    return spr;
-  }
-  const g = new Graphics();
-  const L = targetH * CAR_ASPECT, H = targetH;
-  g.roundRect(-L / 2, -H / 2, L, H, 4);          g.fill(CAR_HEX[color] ?? 0xFF3D3D);
-  g.roundRect(L * 0.05, -H / 2 + 2, L * 0.3, H - 4, 2); g.fill({ color: 0xFFFFFF, alpha: 0.32 });
-  return g;
+let _introPlayed = false;   // the hero pop-in intro plays on the first title visit only
+
+// Level the player must have reached before each secondary title button shows.
+export const TITLE_UNLOCK = { daily: 8, trophies: 15, challenge: 20, stats: 25 };
+const SEEN_KEY = 'title_buttons_seen';
+function readSeen() {
+  try { return new Set(JSON.parse(localStorage.getItem(SEEN_KEY) ?? '[]')); } catch { return new Set(); }
 }
-
-let _introPlayed = false;   // the bomb-drop intro plays on the first title visit only
+function markSeen(key) {
+  try { const s = readSeen(); s.add(key); localStorage.setItem(SEEN_KEY, JSON.stringify([...s])); } catch { /* storage blocked */ }
+}
 
 export class TitleScreen {
   constructor(stage, appW, appH, {
     onPlay, onDaily, hasDailyReward, onDailyChallenge,
     onAchievements, onStats, onSettings, audio,
     loginStreak = 0, dailyChallengeDone = false,
+    onMap = null, nextLevel = null,
   }) {
     this._container = new Container();
     this._carLayer  = new Container();
@@ -65,6 +45,8 @@ export class TitleScreen {
     this._elapsed   = 0;
 
     stage.addChild(this._container);
+    this._onMap = onMap;
+    this._nextLevel = nextLevel;
     this._build(appW, appH, onPlay, onDaily, hasDailyReward, onDailyChallenge,
                 onAchievements, onStats, onSettings, audio, loginStreak, dailyChallengeDone);
   }
@@ -123,10 +105,10 @@ export class TitleScreen {
     // ── Logo (AI-generated) — replaces the programmatic gradient title text ──
     const logoTex = Assets.get(`${BASE_URL}sprites/designed/title-logo.png`);
     if (logoTex) {
-      const scale = Math.min(1, 350 / logoTex.width);   // cap to ~350px wide
+      const scale = Math.min(1, 320 / logoTex.width);   // cap to ~320px wide
       const dispW = logoTex.width * scale;
       const dispH = logoTex.height * scale;
-      const cx = w / 2, cy = h * 0.24;                  // upper third, centred
+      const cx = w / 2, cy = h * 0.17;                  // top, above the hero
 
       // Soft vignette behind the logo (a radial falloff, not a box) so it reads
       // over the busy city without a hard-edged panel.
@@ -150,15 +132,30 @@ export class TitleScreen {
           fillGradientStops: [0, 1], align: 'center', letterSpacing: 3,
           stroke: { color: 0x4A1A00, width: 5 } },
       });
-      title.anchor.set(0.5, 0.5); title.x = w / 2; title.y = h * 0.24;
+      title.anchor.set(0.5, 0.5); title.x = w / 2; title.y = h * 0.17;
       this._container.addChild(title);
       this._titleRef = title;
     }
     this._shimG = null;   // no shimmer sweep over the image logo
 
+    // ── Hero: the app icon's picture (car flung out of a BOOM by a red bomb), so the store
+    // icon, the splash and the title read as one game (owner, 2026-10-18). It sits on the
+    // road band of the background and bobs gently once the intro has popped it in.
+    const heroTex = Assets.get(`${BASE_URL}sprites/designed/app-hero.png`);
+    if (heroTex) {
+      const hero = new Sprite(heroTex);
+      hero.anchor.set(0.5);
+      this._heroScale = 190 / heroTex.width;
+      hero.scale.set(this._heroScale);
+      hero.x = w / 2; hero.y = h * 0.405;
+      this._heroY = hero.y;
+      this._container.addChild(hero);
+      this._hero = hero;
+    }
+
     // ── PLAY button (revealed after the intro bomb-drop) ─────────────────────
     const btnW = 308, btnH = 88;        // +10% larger (was 280×80)
-    const btnCX = w / 2, btnCY = h * 0.51;
+    const btnCX = w / 2, btnCY = h * 0.535;
 
     // Pulsing golden glow ring behind the button — drawn each frame in
     // _tickPlayGlow (same base+sin "ready glow" pattern as the booster bar).
@@ -173,29 +170,55 @@ export class TitleScreen {
     btn.x = btnCX; btn.y = btnCY + btnH / 2;
     this._container.addChild(btn);
     this._playBtn = btn;
+    // PLAY goes straight to the next level; the pill under it says which one.
+    const nextLevel = this._nextLevel, onMap = this._onMap;
+    if (nextLevel != null) {
+      const lt = bodyText(`LEVEL ${nextLevel}`, 16, 0xFFE08A);
+      const pw = lt.width + 28;
+      const pill = new Graphics();
+      pill.roundRect(-pw / 2, -13, pw, 26, 13).fill({ color: 0x17143A, alpha: 0.85 }).stroke({ color: 0xC9962A, width: 2 });
+      pill.addChild(lt);
+      pill.x = btnCX; pill.y = btnCY + btnH + 18;
+      this._container.addChild(pill);
+      this._levelPill = pill;
+      pill.visible = false;
+    }
     // Hidden until the intro bomb-drop finishes (CHANGE 2).
     btn.visible = false; playGlow.visible = false;
 
     // ── Secondary: a row of round icon buttons with captions ───────────────
+    // A new player sees PLAY and MAP; the rest open one at a time (TITLE_UNLOCK), each with a
+    // NEW tag until first tapped (research 2026-10-18: leaders show ~one meta action before L20).
+    const reached = this._nextLevel ?? Infinity;
+    const open = (k) => reached >= TITLE_UNLOCK[k];
     const items = [];
-    if (onDaily) items.push({ icon: 'gift', emoji: '🎁', label: hasDailyReward ? 'DAILY!' : 'DAILY', color: hasDailyReward ? 0xF0A020 : 0x2F7FE0, fn: onDaily, badge: hasDailyReward });
-    if (onDailyChallenge) items.push({ icon: 'lightning', emoji: '⚡', label: 'CHALLENGE', color: 0x8B4FE0, fn: onDailyChallenge, done: dailyChallengeDone });
-    if (onAchievements) items.push({ icon: 'trophy', emoji: '🏆', label: 'TROPHIES', color: 0x2F7FE0, fn: onAchievements });
-    if (onStats) items.push({ icon: 'chart', emoji: '📊', label: 'STATS', color: 0x2F7FE0, fn: onStats });
-    const rowY = btnCY + btnH + 70, gapX = 84;
+    if (onMap) items.push({ glyph: mapGlyph, label: 'MAP', color: 0x3DBB3A, fn: onMap });
+    if (onDaily && open('daily')) items.push({ key: 'daily', icon: 'gift', emoji: '🎁', label: hasDailyReward ? 'DAILY!' : 'DAILY', color: hasDailyReward ? 0xF0A020 : 0x2F7FE0, fn: onDaily, badge: hasDailyReward });
+    if (onAchievements && open('trophies')) items.push({ key: 'trophies', icon: 'trophy', emoji: '🏆', label: 'TROPHIES', color: 0x2F7FE0, fn: onAchievements });
+    if (onDailyChallenge && open('challenge')) items.push({ key: 'challenge', icon: 'lightning', emoji: '⚡', label: 'CHALLENGE', color: 0x8B4FE0, fn: onDailyChallenge, done: dailyChallengeDone });
+    if (onStats && open('stats')) items.push({ key: 'stats', icon: 'chart', emoji: '📊', label: 'STATS', color: 0x2F7FE0, fn: onStats });
+    const seen = readSeen();
+    for (const it of items) if (it.key && reached !== Infinity && !seen.has(it.key)) it.isNew = true;
+    const rowY = btnCY + btnH + 82, gapX = items.length > 4 ? 76 : 84;
     items.forEach((it, i) => {
       const x = w / 2 + (i - (items.length - 1) / 2) * gapX;
-      const rbtn = roundButton(uiIcon(it.icon, 34, it.emoji), { r: 30, color: it.color, onTap: () => { audio?.play('button_tap'); it.fn(); } });
+      const rbtn = roundButton(it.glyph ? it.glyph() : uiIcon(it.icon, 34, it.emoji), { r: 30, color: it.color, onTap: () => { audio?.play('button_tap'); if (it.isNew) markSeen(it.key); it.fn(); } });
       rbtn.x = x; rbtn.y = rowY;
       this._container.addChild(rbtn);
-      const cap = bodyText(it.label, 13, 0xFFFFFF);
+      const cap = bodyText(it.label, items.length > 4 ? 11 : 13, 0xFFFFFF);
       cap.x = x; cap.y = rowY + 44;
       // Dark pill behind each caption so it reads on the busy town art.
       const capBg = new Graphics();
       capBg.roundRect(x - cap.width / 2 - 8, rowY + 34, cap.width + 16, 21, 10.5)
         .fill({ color: 0x17143A, alpha: 0.78 }).stroke({ color: 0x000000, width: 1.5, alpha: 0.35 });
       this._container.addChild(capBg, cap);
-      if (it.badge) {
+      if (it.isNew) {   // just unlocked: a small NEW tag until the first tap
+        const tag = new Graphics();
+        tag.roundRect(x - 2, rowY - 38, 40, 18, 9).fill(0xE8453C).stroke({ color: 0x1F1A33, width: 2 });
+        const tt = bodyText('NEW', 11, 0xFFFFFF, { outline: false, weight: '900' });
+        tt.x = x + 18; tt.y = rowY - 29;
+        this._container.addChild(tag, tt);
+      } else if (it.badge) {
         const dot = new Graphics();
         dot.circle(x + 22, rowY - 22, 8).fill(0xE8453C).stroke({ color: 0x1F1A33, width: 2 });
         this._container.addChild(dot);
@@ -229,6 +252,7 @@ export class TitleScreen {
     // once per session; coming back to the title shows PLAY immediately.
     if (_introPlayed) {
       btn.visible = true; playGlow.visible = true;
+      if (this._levelPill) this._levelPill.visible = true;
       this._intro = null;
     } else {
       _introPlayed = true;
@@ -236,90 +260,54 @@ export class TitleScreen {
     }
   }
 
-  // ── Intro: a bomb drops on a passing car, then the PLAY button appears ──────
+  // ── Intro: the hero pops in with a burst, then the PLAY button appears ───────
   _buildIntro(w, h) {
-    const carY = h * 0.455;   // mid-screen, below the title, above the PLAY button
-
-    // The car the bomb will hit — drives in toward the impact point (larger focal car).
-    const car = makeCarSprite('blue', 40);
-    car.x = w * 0.26; car.y = carY;
-    this._container.addChild(car);
-
-    // The powerball bomb — starts above the title, hidden until it drops.
-    let bomb;
-    const bombTex = Assets.get(`${BASE_URL}sprites/designed/powerball-red.png`);
-    if (bombTex) {
-      bomb = new Sprite(bombTex);
-      bomb.anchor.set(0.5);
-      bomb.scale.set(42 / Math.max(bombTex.width, bombTex.height));
-    } else {
-      bomb = new Graphics();
-      bomb.circle(0, 0, 20).fill(0xFF3D3D);
-      bomb.circle(-6, -6, 7).fill({ color: 0xFFFFFF, alpha: 0.6 });
-    }
-    bomb.x = w / 2; bomb.y = h * 0.10; bomb.visible = false;
-    this._container.addChild(bomb);
-
     const burst = new Graphics();
     this._container.addChild(burst);
-
-    this._intro = {
-      phase: 'wait', t: 0, car, bomb, burst,
-      carY, impactX: w / 2, bombStartY: h * 0.10, carX0: car.x, particles: [],
-    };
+    if (this._hero) this._hero.scale.set(0);
+    this._intro = { phase: 'wait', t: 0, burst, particles: [] };
   }
 
   _tickIntro(dt) {
+    // Idle bob of the hero once the intro is over (or when it never ran this session).
+    if (this._hero && (!this._intro || this._intro.phase === 'done')) {
+      this._hero.y = this._heroY + Math.sin(this._elapsed * 2.2) * 4;
+      this._hero.rotation = Math.sin(this._elapsed * 1.6) * 0.035;
+    }
     const I = this._intro;
     if (!I || I.phase === 'done') return;
     I.t += dt;
 
     if (I.phase === 'wait') {
-      I.car.x += 70 * dt;                 // car drifts toward centre
-      if (I.t >= 0.35) { I.phase = 'fall'; I.t = 0; I.carX0 = I.car.x; I.bomb.visible = true; }
-      return;
-    }
-
-    if (I.phase === 'fall') {
-      const DUR = 0.55;
-      const p   = Math.min(1, I.t / DUR);
-      I.bomb.x  = I.impactX;
-      I.bomb.y  = I.bombStartY + (p * p) * (I.carY - I.bombStartY);   // ease-in drop
-      I.car.x   = I.carX0 + p * (I.impactX - I.carX0);               // meets the bomb
-      if (p >= 1) {
-        I.phase = 'burst'; I.t = 0;
-        I.bomb.visible = false;
-        I.car.vx = 80; I.car.vrot = 11;
-        this._spawnIntroParticles(I, I.impactX, I.carY);
+      if (I.t >= 0.3) {
+        I.phase = 'pop'; I.t = 0;
+        this._spawnIntroParticles(I, this._appW / 2, this._heroY ?? this._appH * 0.405);
       }
       return;
     }
 
-    if (I.phase === 'burst') {
-      const DUR = 0.5;
-      const p   = Math.min(1, I.t / DUR);
-      // Car spins out and fades.
-      I.car.rotation += I.car.vrot * dt;
-      I.car.x        += I.car.vx * dt;
-      I.car.scale.set(I.car.scale.x * (1 - 1.4 * dt));
-      I.car.alpha     = Math.max(0, 1 - p);
+    if (I.phase === 'pop') {
+      const DUR = 0.45;
+      const p = Math.min(1, I.t / DUR);
+      const e = 1 - Math.pow(1 - p, 3);
+      if (this._hero) this._hero.scale.set(this._heroScale * (e + 0.22 * Math.sin(Math.PI * p)));
       this._drawIntroParticles(I, dt);
       if (p >= 1) {
         I.phase = 'reveal'; I.t = 0;
-        I.car.visible = false;
-        I.burst.clear();
-        this._playBtn.visible = true; this._playGlow.visible = true;
+        if (this._hero) this._hero.scale.set(this._heroScale);
+        this._playBtn.visible = true; this._playGlow.visible = true; if (this._levelPill) this._levelPill.visible = true;
         this._playBtn.scale.set(0.2);
       }
       return;
     }
 
     if (I.phase === 'reveal') {
+      this._drawIntroParticles(I, dt);
       const DUR = 0.3;
       const p   = Math.min(1, I.t / DUR);
       const pop = 1 + 0.18 * Math.sin(Math.PI * p);     // slight overshoot
       this._playBtn.scale.set(p * pop);
-      if (p >= 1) { this._playBtn.scale.set(1); I.phase = 'done'; }
+      if (p >= 1) { this._playBtn.scale.set(1); I.burst.clear(); I.phase = 'done'; }
     }
   }
 
@@ -479,4 +467,19 @@ export class TitleScreen {
     }
   }
 
+}
+
+// Folded map glyph for the MAP button (no map sprite in the UI set): three panels, a road
+// and a red pin, in the toy ink style.
+function mapGlyph() {
+  const g = new Graphics();
+  const P = [[-15, -11], [-5, -14], [5, -11], [15, -14], [15, 12], [5, 15], [-5, 12], [-15, 15]];
+  g.poly([P[0][0], P[0][1], P[1][0], P[1][1], P[6][0], P[6][1], P[7][0], P[7][1]]).fill(0xF4E3B5);
+  g.poly([P[1][0], P[1][1], P[2][0], P[2][1], P[5][0], P[5][1], P[6][0], P[6][1]]).fill(0xE2CC8F);
+  g.poly([P[2][0], P[2][1], P[3][0], P[3][1], P[4][0], P[4][1], P[5][0], P[5][1]]).fill(0xF4E3B5);
+  g.moveTo(-12, 10).bezierCurveTo(-4, 2, 2, 8, 12, -6).stroke({ color: 0x8A7A5A, width: 2.5 });
+  g.poly(P.flat()).stroke({ color: 0x1F1A33, width: 2.5, join: 'round' });
+  g.circle(6, -5, 4.5).fill(0xE8453C).stroke({ color: 0x1F1A33, width: 2 });
+  g.circle(5, -6, 1.4).fill(0xFFFFFF);
+  return g;
 }

@@ -27,6 +27,34 @@ L1 = 1 lane/column, L2 = 2, L3–L40 = 3, and every production level uses 8 rows
 schedule is morning L1–4, afternoon L5–8, sunset L9–12, misty L13–15, industrial L16–30, and
 nightHighway L31–40.
 
+## Second Tour, L101-200 (2026-10-18, branch `feat/more-levels`)
+
+**200 levels in fourteen worlds.** Worlds 8-14 revisit the settings of worlds 1-7 with no new
+rules: W8 Rush Hour L101-115 (Toy Town art), W9 Night Shift L116-130 (Steel Yards), W10 Neon
+Rain L131-145 (Neon Nights), W11 Sandstorm L146-160 (Sun Valley), W12 Glacier Road L161-175
+(Frost Pass), W13 Storm Harbor L176-190 (Harbor Lights), W14 Galaxy Finale L191-200 (Starlight
+Strip). Authored in `src/game/TourLevels.js` with the same cadence as L41-100: a BIG WAVE every
+tenth (SUPER HARD), HARD on every x5, relief on x1 / x6. Each world leans on two or three traits
+and spotlights each with a destroyTrait goal; colour, van (`jeep`) and total goals rotate. Lights,
+convoys and gift cars come from `levelDsl.identityFor` as everywhere else.
+
+Art is REUSED: `WORLD_DEFS.theme` is the art key, so world 8 draws world 1's map, backdrops and
+repair buildings, and every second-tour page has the same level count as the world it borrows
+(the baked map road runs through `mapNodes`, which depends only on that count; pinned in
+`tests/campaign-structure.test.js`). `levelTheme(id > 100)` maps to `levelTheme(id - 100)`.
+Distinct art per new world is open work for the owner to direct.
+
+Tuned with `node tools/tune-levels.mjs 101-200 300 --write`: all 100 in band (L169 re-authored
+once: 69.7% over a 52-67 band, now 58.7%). Spot-checked with `tools/balance-sim.js` at 500 runs.
+
+## Traffic Race (2026-10-19, branch `feat/race`)
+
+A recurring race on the map from L31 on: first to win 6 new levels against 4 cartoon rivals in 24 h,
+3 race hearts (a final loss or quit on the frontier level costs one; the continue offer saves it).
+Prizes: 1st 500 coins + 2 of each booster, 2nd 150 + FREEZE, 3rd 50, 4th-5th 20. Survival with the
+current bands (6 wins / 3 hearts): 42% finish never continuing, ~65% continuing half the time, ~86%
+always. Full design: `docs/superpowers/specs/2026-10-19-race-design.md`.
+
 ## V3 Campaign Extension (2026-10-01)
 
 The campaign is now **100 levels in seven worlds**: W1 Toy Town L1-15, W2 Steel Yards L16-30,

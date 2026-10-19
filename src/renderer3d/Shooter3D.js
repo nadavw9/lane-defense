@@ -14,6 +14,7 @@ import { isColorblind } from '../game/ColorblindMode.js';
 import { isReducedMotion } from '../game/MotionPrefs.js';
 import { drawColorShapeBadge } from './colorShapeCanvas.js';
 import { BOMB_R, BOMB_ZONE_SCALE, bombSlotZ } from './projection.js';
+import { queueMoves, slotOffset, moveDuration } from './queueMotion.js';
 
 // ── Powerball texture cache (one loader shared across all slots) ───────────────
 const _texLoader  = new THREE.TextureLoader();
@@ -169,6 +170,38 @@ export class Shooter3D {
     this._zoneDX = 0; this._zoneDZ = 0;   // camera + stage shake offset (world units)
     this._shakeT = 0;   // bomb-zone shake timer (wrong-shot feedback, 1D)
     this._selectedCol = -1;                              // 3B: grabbed-bomb column
+    // Refill motion (queueMotion.js): last frame's shooters per column, and the move each slot
+    // is playing ({ mv, t }). Bombs slide between slots instead of snapping.
+    this._prevQ  = [];
+    this._motion = [];
+  }
+
+  /** Forget the previous queue (level start): the next fill snaps into place, no slide. */
+  resetMotion() { this._prevQ = []; this._motion = []; }
+
+  _motionOffset(li, si) {
+    const m = this._motion[li]?.[si];
+    return m ? slotOffset(m.mv, si, m.t) : 0;
+  }
+
+  // Compare the column with last frame (by Shooter identity) and start / advance slot moves.
+  _syncMotion(li, dt) {
+    const cur  = (this._columns[li]?.shooters ?? []).slice(0, SLOT_COUNT);
+    const prev = this._prevQ[li] ?? [];
+    const st   = this._motion[li] ?? [];
+    for (const m of st) if (m) m.t += dt;
+    if (cur.length !== prev.length || cur.some((x, i) => x !== prev[i])) {
+      const moves = isReducedMotion() ? cur.map(() => null) : queueMoves(prev, cur);
+      this._motion[li] = moves.map((mv, si) => {
+        if (!mv) return cur[si] === prev[si] ? (st[si] ?? null) : null;
+        // A bomb already mid-slide continues from where it is drawn, not from its old slot.
+        if (mv.kind === 'up' || mv.kind === 'down') mv = { ...mv, from: mv.from + this._motionOffset(li, mv.from) };
+        return { mv, t: 0 };
+      });
+      this._prevQ[li] = cur;
+    }
+    const m = this._motion[li];
+    if (m) for (let si = 0; si < m.length; si++) if (m[si] && m[si].t >= moveDuration(m[si].mv)) m[si] = null;
   }
 
   // ── Public API ─────────────────────────────────────────────────────────────────
@@ -251,6 +284,8 @@ export class Shooter3D {
       this._shakeT = Math.max(0, this._shakeT - dt);
       shakeX = Math.sin(this._shakeT * 80) * 0.22 * (this._shakeT / 0.18);
     }
+    const pitch = slotZ(1) - slotZ(0);
+    for (let li = 0; li < this._activeColCount; li++) this._syncMotion(li, dt);
     for (let li = 0; li < this._slots.length; li++) {
       for (let si = 0; si < this._slots[li].length; si++) {
         const g = this._slots[li][si].group;
@@ -277,7 +312,7 @@ export class Shooter3D {
         // slotZ(si) IS the canonical position and it is a multiply — there is no
         // reason to cache it. Reading it live makes ball and socket share one
         // source of truth by construction, which is what the guard test pins.
-        g.position.z = slotZ(si) + this._zoneDZ;
+        g.position.z = slotZ(si) + this._zoneDZ + this._motionOffset(li, si) * pitch;
         if (si > 0) g.scale.setScalar(this._slots[li][si]._baseScale);
       }
     }
@@ -321,6 +356,10 @@ export class Shooter3D {
         // Sync sprite texture + badge on color/damage change
         const isCB = shooter.isColorBomb === true;
         const cb = isColorblind();
+        if (slot.lastShooter === shooter && slot.lastColor != null && slot.lastColor !== shooter.color && !isReducedMotion()) {
+          slot._morphT = 0;   // the same bomb changed colour: play it as a transform, never a silent swap
+        }
+        slot.lastShooter = shooter;
         if (slot.lastColor !== shooter.color || slot.lastDamage !== damage || slot.lastCb !== cb) {
           slot.lastColor  = shooter.color;
           slot.lastDamage = damage;
@@ -359,6 +398,14 @@ export class Shooter3D {
           // 3B: the grabbed column's front bomb pops to 1.15x (focus); others rest.
           const sel = (li === this._selectedCol) ? 1.15 : 1.0;
           slot.group.scale.setScalar(sel * slot._baseScale);
+        }
+        // Transform: a quick pop and one spin when a bomb changes colour in place.
+        if (slot._morphT != null) {
+          slot._morphT += dt;
+          const MORPH = 0.42, k = Math.min(1, slot._morphT / MORPH);
+          slot.group.scale.multiplyScalar(1 + 0.45 * Math.sin(Math.PI * k));
+          slot.sphereMesh.rotation.z = Math.PI * 2 * (1 - Math.pow(1 - k, 3));
+          if (k >= 1) { slot._morphT = null; slot.sphereMesh.rotation.z = 0; }
         }
 
         // Opacity: dim bombs queued behind the grabbed column (0.7).

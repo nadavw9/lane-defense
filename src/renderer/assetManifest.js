@@ -16,7 +16,7 @@ const _B = import.meta.env.BASE_URL;   // '' in dev, '/lane-defense/' on GH Page
 
 // Worlds that exist in the campaign right now (derived from the level table, so a
 // world's art is preloaded exactly when its levels are). ['world1', ...] / [1, ...]
-const WORLD_THEMES = MAP_WORLDS.map(w => w.theme);
+const WORLD_THEMES = [...new Set(MAP_WORLDS.map(w => w.theme))];   // later tours reuse art
 const WORLD_NUMS   = WORLD_THEMES.map(t => Number(t.slice(5)));
 // Worlds 4+ have no side strips or panels: their baked backdrops cover the whole
 // scene (road, verges, depot), so only worlds 1-3 ship the legacy strip art.
@@ -107,6 +107,7 @@ export const TUTORIAL_URLS = ['01-goal', '02-shot', '04-boosters']
 export const TITLE_ART_URLS = [
   `${_B}sprites/designed/title-background.png`,
   `${_B}sprites/designed/title-logo.png`,
+  `${_B}sprites/designed/app-hero.png`,
 ];
 
 export const WORLD_PANEL_URLS = STRIP_NUMS.flatMap(w => [
@@ -203,7 +204,7 @@ export const CRITICAL_SPRITE_URLS = new Set([...CAR_URLS, ...SHOOTER_URLS, ...BO
 // so they are NOT in the Pixi preload list.
 const BACKDROPS = new Set([
   ...WORLD_NUMS.flatMap(w => ['a', 'b', 'c'].map(v => `world${w}-${v}-3`)),
-  'world1-b-1', 'world1-c-2',
+  'world1-b-1', 'world1-a-2', 'world1-b-2', 'world1-c-2',   // L1 one lane; L2-L5 two lanes
 ]);
 export function backdropUrlFor(levelId, laneCount) {
   const key = `${worldPanelForLevel(levelId)}-${sceneVariantForLevel(levelId)}-${laneCount}`;

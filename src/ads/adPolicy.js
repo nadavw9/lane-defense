@@ -4,7 +4,7 @@
 // chose to watch a rewarded ad, never twice within two minutes, and only on every
 // second eligible moment — a loss streak should not become an ad streak.
 
-export const INTERSTITIAL_FIRST_LEVEL = 8;       // no interstitials before this level
+export const INTERSTITIAL_FIRST_LEVEL = 14;      // no interstitials before this level (Color Block Jam: L14)
 export const INTERSTITIAL_MIN_GAP_MS = 120_000;
 export const AFTER_REWARDED_GRACE_MS  = 120_000;
 export const INTERSTITIAL_EVERY       = 2;       // every Nth eligible moment

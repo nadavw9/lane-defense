@@ -10,7 +10,7 @@ import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { Shooter } from '../models/Shooter.js';
 import { COLUMN_CAPACITY } from '../models/Column.js';
 import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak, laneHeld,
-         revealStagedCars, stepSize, freeSpawnRow } from '../director/TrafficRules.js';
+         revealStagedCars, stepSize, freeSpawnRow, placeArrival } from '../director/TrafficRules.js';
 
 const MULTI_KILLS_PER_BOMB = 3;    // multi-kills (2+ cars/shot) banked to earn a color bomb
 const BOMB_MAX_CHARGES    = 3;     // max bombs a player can hold
@@ -107,6 +107,7 @@ export class GameLoop {
     // Turn-based: block new deploy if any shot is still in flight.
     if (this._shotInFlight()) return false;
     col.consume();
+    this._lastFiredCol = colIdx;   // the viability guard may only touch this column (see _enforceViableMove)
     this._sDir.recordDeploy(this._gs.elapsed);
     this._startFiring(shooter, laneIdx, colIdx);
     return true;
@@ -124,6 +125,7 @@ export class GameLoop {
   deployFromBench(shooter, laneIdx) {
     if (this._shotInFlight()) return false;
     this._gs.benchUsed++;
+    this._lastFiredCol = null;     // a bench shot moved no queue column
     this._sDir.recordDeploy(this._gs.elapsed);
     this._startFiring(shooter, laneIdx, -1);
     return true;
@@ -277,8 +279,8 @@ export class GameLoop {
 
     gs.recordDeploy(isCorrectColor || (frontCar.armor ?? 0) > 0);
 
-    // Hot Streak: a charged bomb is supercharged (double damage, carry-over
-    // through any colour). The charge is spent by this shot whatever it does.
+    // Hot Streak: a charged bomb is supercharged (double damage; the second hit carries over
+    // only to a same-colour car). The charge is spent by this shot whatever it does.
     const power = this._powerShotReady();
     const res = this._combat.resolve(shooter, lane, { power });
     const { kills, carryOverKills, damageDealt, destroyed: destroyedFromCombat } = res;
@@ -320,9 +322,10 @@ export class GameLoop {
     if (kills >= 3) {
       gs.timeScale       = 0.3;
       gs.slowMoRemaining = 0.20;
-      // FIX 4C: a single bomb that chains 3+ kills earns one FREEZE charge.
+      // FIX 4C: a single bomb that chains 3+ kills earns one FREEZE charge — once FREEZE
+      // exists for the player (boosterUnlocks.js: arrives at L8).
       const bs = this._boosterState;
-      if (bs) { bs.freeze++; this._onFreezeEarned?.(kills); }
+      if (bs && gs.unlocks?.freeze !== false) { bs.freeze++; this._onFreezeEarned?.(kills); }
     }
 
     if (kills > 0) {
@@ -357,7 +360,8 @@ export class GameLoop {
     // Multi-kill reward: a shot that destroys 2+ cars (via carry-over) is a
     // "multi-kill". Banking MULTI_KILLS_PER_BOMB of them in a level earns one
     // rainbow color bomb (rarer + more earned than a per-shot reward).
-    if (kills >= 2) {
+    // Not before the rainbow bomb is introduced (boosterUnlocks.RAINBOW_FROM).
+    if (kills >= 2 && gs.unlocks?.rainbow !== false) {
       gs.multiKillCount++;
       this._onMultiKill?.(gs.multiKillCount, MULTI_KILLS_PER_BOMB);
       if (gs.multiKillCount >= MULTI_KILLS_PER_BOMB) {
@@ -438,6 +442,7 @@ export class GameLoop {
     gs.duration = this._baseDuration;   // undo any rescue-added time
     this._consecutiveComboCount = 0;    // COLOR CHANGE combo streak resets each level
     this._nearMissArmed = true;         // near-miss drama re-armed for the fresh level
+    this._lastFiredCol = null;
     gs.resetLevel();
     gs.phaseMan.update(0);
     this._accumulator = 0;
@@ -696,8 +701,10 @@ export class GameLoop {
           const row = freeSpawnRow(lane.cars, stepSize(gs.stepsPerRow), ROWS);
           if (row < 0) break;   // lane physically full — nothing more to add
           const car = this._carDir.generateCar(lane, 'CALM', gs.world, gs.colors, gs.gridRows);
-          car.row = row;
-          car.position = this._rowToPosition(row, ROWS);
+          // The new car takes the back of the lane; cars behind the gap drive forward into it.
+          placeArrival(lane.cars, car, row);
+          for (const c of lane.cars) c.position = this._rowToPosition(c.row, ROWS);
+          car.position = this._rowToPosition(car.row, ROWS);
           lane.addCar(car);
         }
       }
@@ -890,7 +897,7 @@ export class GameLoop {
       if (this._consecutiveComboCount >= 2) {
         this._consecutiveComboCount = 0;
         const bs = this._boosterState;
-        if (bs) { bs.colorChange++; this._onColorChangeEarned?.(); }
+        if (bs && this._gs.unlocks?.colorChange !== false) { bs.colorChange++; this._onColorChangeEarned?.(); }
       }
     } else {
       this._consecutiveComboCount = 0;
@@ -945,7 +952,11 @@ export class GameLoop {
 
   // Guarantee the player always has at least one viable move:
   // at least one source (column top or bench slot) must color-match a front car.
-  // If not, force-recolor the first available column top to a matching color.
+  // If not, recolour ONE column top to the colour of the most dangerous front car (closest to
+  // the breach). Which top: the column the player just fired from (its queue is moving anyway),
+  // else the column under that dangerous lane. It used to be "the first non-empty column" —
+  // column 0 every time — so a bomb in a column the player never touched changed colour right
+  // after a shot elsewhere (owner report 2026-10-19). Shooter3D shows the change as a transform.
   _enforceViableMove(gs) {
     // Collect front car colors.
     const frontColors = new Set();
@@ -969,14 +980,25 @@ export class GameLoop {
       }
     }
 
-    // No viable move — force-recolor the first non-empty column top.
-    const target = [...frontColors][0];
-    for (const col of gs.activeCols) {
-      if (col.top() && !col.top().isColorBomb) {
-        col.top().color = target;
-        return;
+    // No viable move. The most dangerous front car sets the colour (ties: leftmost lane).
+    let danger = -1, dangerRow = -Infinity;
+    gs.activeLanes.forEach((lane, li) => {
+      const fc = lane.frontCar();
+      if (fc && fc.row > dangerRow) { danger = li; dangerRow = fc.row; }
+    });
+    const target = gs.activeLanes[danger].frontCar().color;
+    const usable = (ci) => { const t = gs.activeCols[ci]?.top(); return !!t && !t.isColorBomb; };
+    const n = gs.activeCols.length;
+    let ci = this._lastFiredCol;
+    if (!(ci != null && ci < n && usable(ci))) {
+      // The column under the dangerous lane, else the nearest usable one to it.
+      const home = Math.min(danger, n - 1);
+      ci = null;
+      for (let d = 0; d < n && ci == null; d++) {
+        if (usable(home - d)) ci = home - d; else if (usable(home + d)) ci = home + d;
       }
     }
+    if (ci != null) gs.activeCols[ci].top().color = target;
   }
 
   // Start each active lane with one car at row 0 (the far end), or place

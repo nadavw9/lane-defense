@@ -14,7 +14,7 @@ const colour = (h) => h.gs.colors[0];
 
 describe('BOMB booster end states', () => {
   it('clears a full lane and the lane refills with ONE arrival per turn, never several at once', () => {
-    const h = buildGame(levelCfg(5), { seed: 4 }); empty(h);
+    const h = buildGame(levelCfg(7), { seed: 4 }); empty(h);
     for (const r of [1, 2, 3]) put(h, 0, colour(h), r);
     put(h, 1, colour(h), 3); put(h, 2, colour(h), 3);
     arm(h); h.loop.placeBombOnLane(0, 2);
@@ -30,7 +30,7 @@ describe('BOMB booster end states', () => {
   });
 
   it('clearing the ONLY car of the last needed goal wins immediately', () => {
-    const h = buildGame(levelCfg(5), { seed: 4 }); empty(h);
+    const h = buildGame(levelCfg(7), { seed: 4 }); empty(h);
     h.gs.goals = [{ type: 'destroyTotal', count: 2 }]; h.gs.goalProgress = [2];
     put(h, 0, colour(h), 3); put(h, 0, colour(h), 5);
     arm(h); h.loop.placeBombOnLane(0, 5);
@@ -39,7 +39,7 @@ describe('BOMB booster end states', () => {
   });
 
   it('a lane clear that leaves other lanes holding only HIDDEN row-0 cars still shows a target', () => {
-    const h = buildGame(levelCfg(5), { seed: 4 }); empty(h);
+    const h = buildGame(levelCfg(7), { seed: 4 }); empty(h);
     put(h, 0, colour(h), 2); put(h, 0, colour(h), 3);
     put(h, 1, colour(h), 0); put(h, 2, colour(h), 0);
     arm(h); h.loop.placeBombOnLane(0, 3);
@@ -48,7 +48,7 @@ describe('BOMB booster end states', () => {
   });
 
   it('bombing the only occupied lane on a multi-lane board refills (never an empty road)', () => {
-    const h = buildGame(levelCfg(5), { seed: 4 }); empty(h);
+    const h = buildGame(levelCfg(7), { seed: 4 }); empty(h);
     put(h, 1, colour(h), 4);
     arm(h); h.loop.placeBombOnLane(1, 4);
     expect(h.gs.activeLanes.flatMap(l => l.cars).filter(c => c.row >= 1).length).toBeGreaterThan(0);
@@ -63,7 +63,7 @@ describe('BOMB booster end states', () => {
   });
 
   it('is refused (and the charge kept) while a shot is in flight, and after the level ended', () => {
-    const h = buildGame(levelCfg(5), { seed: 4 });
+    const h = buildGame(levelCfg(7), { seed: 4 });
     const m = findMatch(h.gs, h.bench); expect(m).toBeTruthy();
     h.loop.deploy(m.ci, m.li);
     h.bs.bombs = 2; h.bs.activateBomb();
@@ -89,7 +89,7 @@ describe('BOMB booster end states', () => {
   });
 
   it('charges never exceed the cap even when a lane clear earns several', () => {
-    const h = buildGame(levelCfg(5), { seed: 4 }); empty(h);
+    const h = buildGame(levelCfg(7), { seed: 4 }); empty(h);
     h.bs.bombsMax = 3; h.gs.killsTowardBomb = 0;
     for (let r = 0; r < 7; r++) put(h, 0, colour(h), r);
     put(h, 1, colour(h), 3);
@@ -98,7 +98,7 @@ describe('BOMB booster end states', () => {
   });
 
   it('credits colour, type and trait goals for every car it removes', () => {
-    const h = buildGame(levelCfg(5), { seed: 4 }); empty(h);
+    const h = buildGame(levelCfg(7), { seed: 4 }); empty(h);
     const c0 = colour(h);
     h.gs.goals = [{ type: 'destroyColor', color: c0, count: 3 }, { type: 'destroyTotal', count: 3 }];
     h.gs.goalProgress = [3, 3];
@@ -110,7 +110,7 @@ describe('BOMB booster end states', () => {
 
 describe('BOMB during hit-stop', () => {
   it('is refused while the landed shot waits out its hit-stop, then works', () => {
-    const h = buildGame(levelCfg(5), { seed: 4 });
+    const h = buildGame(levelCfg(7), { seed: 4 });
     const m = findMatch(h.gs, h.bench); h.loop.deploy(m.ci, m.li);
     let guard = 0;
     while (!h.loop._pendingShot && guard++ < 100) h.loop._step(1 / 60);
@@ -125,7 +125,7 @@ describe('BOMB during hit-stop', () => {
 
 describe('FREEZE booster end states', () => {
   it('holds the next HIT only: a miss keeps the freeze, the hit spends it, traffic then moves again', () => {
-    const h = buildGame(levelCfg(5), { seed: 4 });
+    const h = buildGame(levelCfg(7), { seed: 4 });
     h.bs.freeze = 1; h.bs.activateFreeze();
     const rowsBefore = h.gs.activeLanes.flatMap(l => l.cars.map(c => c.row));
     const m = findMatch(h.gs, h.bench);
@@ -140,7 +140,7 @@ describe('FREEZE booster end states', () => {
   });
 
   it('freeze + final kill: the win is declared, not swallowed by the frozen branch', () => {
-    const h = buildGame(levelCfg(5), { seed: 4 }); empty(h);
+    const h = buildGame(levelCfg(7), { seed: 4 }); empty(h);
     h.gs.goals = [{ type: 'destroyTotal', count: 1 }]; h.gs.goalProgress = [1];
     put(h, 0, colour(h), 3);
     h.gs.columns[0].shooters.length = 0;
@@ -152,7 +152,7 @@ describe('FREEZE booster end states', () => {
   });
 
   it('freeze then BOMB: the freeze survives the bomb (bomb is not a shot)', () => {
-    const h = buildGame(levelCfg(5), { seed: 4 });
+    const h = buildGame(levelCfg(7), { seed: 4 });
     h.bs.freeze = 1; h.bs.activateFreeze();
     arm(h); h.loop.placeBombOnLane(0, 3);
     expect(h.bs.isFrozen()).toBe(true);
@@ -173,7 +173,7 @@ describe('FREEZE booster end states', () => {
 
 describe('COLOUR CHANGE booster end states', () => {
   it('same colour, absent colour or missing args: no change and no charge spent', () => {
-    const h = buildGame(levelCfg(5), { seed: 4 });
+    const h = buildGame(levelCfg(7), { seed: 4 });
     h.bs.colorChange = 1;
     expect(h.loop.applyColorChange(colour(h), colour(h))).toBe(0);
     expect(h.loop.applyColorChange('Nope', colour(h))).toBe(0);
@@ -182,7 +182,7 @@ describe('COLOUR CHANGE booster end states', () => {
   });
 
   it('recolours every car of a colour in every lane and spends exactly one charge', () => {
-    const h = buildGame(levelCfg(5), { seed: 4 }); empty(h);
+    const h = buildGame(levelCfg(7), { seed: 4 }); empty(h);
     const [a, b] = h.gs.colors;
     put(h, 0, a, 2); put(h, 1, a, 3); put(h, 2, b, 3); put(h, 0, a, 4);
     h.bs.colorChange = 2; h.bs.activateColorChange(); h.bs.setColorChangeCar(a);
@@ -193,7 +193,7 @@ describe('COLOUR CHANGE booster end states', () => {
   });
 
   it('recolouring toward a colour the player has no bomb for still leaves a playable board', () => {
-    const h = buildGame(levelCfg(5), { seed: 4 });
+    const h = buildGame(levelCfg(7), { seed: 4 });
     const present = [...new Set(h.gs.activeLanes.flatMap(l => l.cars.map(c => c.color)))];
     for (const to of h.gs.colors) {
       for (const from of present) { h.bs.colorChange = 1; h.loop.applyColorChange(from, to); }

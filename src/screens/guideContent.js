@@ -45,12 +45,12 @@ export const CARDS = {
   // ── Level-start cards (levels fixed in introSchedule.js) ──
   lane_2:          { title: 'A SECOND LANE', text: 'Two lanes now. Aim each bomb at a car of its color.', target: 'road' },
   lane_3:          { title: 'THREE LANES', text: 'Three lanes. Stop the car nearest the red line first!', target: 'road' },
-  multi_color:     { title: 'MATCH THE COLOR', text: 'A bomb only hurts cars of its own color.', target: 'bombs' },
+  multi_color:     { title: 'MATCH THE COLOR', text: 'Two lanes, two colors. A bomb only hurts cars of its own color.', target: 'bombs' },
   combo:           { title: 'COMBO!', text: 'Destroy cars quickly, one after another, for bonus coins.', target: 'goal' },
-  supercharge:     { title: 'SUPERCHARGE', text: 'Destroy a car 3 shots in a row to charge your next bomb. It hits twice, any color.', target: 'bombs' },
+  supercharge:     { title: 'SUPERCHARGE', text: 'Destroy a car 3 shots in a row to charge your next bomb. It hits twice!', target: 'bombs' },
   goal_colour:     { title: 'A COLOR GOAL', text: 'Only cars of this color count toward the goal.', target: 'goal' },
-  freeze_booster:  { title: 'FREEZE', text: 'Tap FREEZE: your next shot moves no cars.', target: 'boosterFreeze' },
-  colour_change_booster: { title: 'COLOR SWAP', text: 'Tap COLOR, tap a car, pick a color. All cars of that color change.', target: 'boosterColor' },
+  freeze_booster:  { title: 'NEW BOOSTER: FREEZE', text: '3 free! Tap FREEZE: your next shot moves no cars.', target: 'boosterFreeze' },
+  colour_change_booster: { title: 'NEW BOOSTER: COLOR SWAP', text: '3 free! Tap COLOR, tap a car, pick a color. All cars of that color change.', target: 'boosterColor' },
   gift_car:        { title: 'GIFT CARS', text: 'Cars with a bow carry a gift. Destroy one for a free booster!', target: 'road' },
   traffic_light:   { title: 'TRAFFIC LIGHT', text: 'On red, this lane stands still. The number shows the shots left.', target: 'light' },
   convoy:          { title: 'CONVOY', text: 'One lane is all motorbikes. One hit each: clear them fast!', target: 'road' },
@@ -64,8 +64,8 @@ export const CARDS = {
   first_combo:     null,   // taught by the L2 COMBO card
   combo_hint_L2:   null,   // folded into combo
   first_miss:      { title: 'WRONG COLOR',    text: 'No damage! A bomb only hurts cars of its own color.' },
-  hp_miss:         { title: 'IT SHRANK!',      text: 'Big cars shrink with each hit until they are gone.' },
-  streak_charged:  { title: 'POWER SHOT!',     text: 'Your next bomb is charged. It hits twice, any color.', target: 'bombs' },
+  hp_miss:         null,   // the animated NEW VEHICLE card (L3 car, L5 van) already shows the shrink
+  streak_charged:  { title: 'POWER SHOT!',     text: 'Your next bomb is charged. It hits twice!', target: 'bombs' },
   colorchange_use: null,   // taught by the L9 COLOUR CHANGE card
   plate_break:     { title: 'HEAVY PLATING',   text: 'Two hits of any color strip the plating.' },
   armor_break:     { title: 'ARMOR OFF!',     text: 'Now hit it with its own color.' },

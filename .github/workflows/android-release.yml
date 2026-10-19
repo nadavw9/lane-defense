@@ -4,12 +4,26 @@ name: Android release AAB
 # access to the repo can download it; nothing is published). Needs four repository secrets, set once:
 #   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
 # Run it from the Actions tab: Android release AAB > Run workflow.
+#
+# Play upload (2026-10-18, same flow as The Math Wolf): with the PLAY_SERVICE_ACCOUNT_JSON secret
+# set, the bundle also goes straight to a Play track (default: internal testing), so the owner's
+# phone updates itself from the Play Store. track=none keeps the old artifact-only behaviour.
+# status=draft is only for an app Play still treats as a draft (never reviewed); Play rejects
+# 'completed' releases there.
 on:
   workflow_dispatch:
     inputs:
       ads:
         description: 'Ad mode baked into the build (test or live)'
         default: test
+        required: true
+      track:
+        description: 'Play track to upload to (internal, alpha = closed testing, none = artifact only)'
+        default: internal
+        required: true
+      status:
+        description: 'Release status on that track (completed, or draft while the app is a draft)'
+        default: completed
         required: true
 
 permissions:
@@ -75,3 +89,20 @@ jobs:
           name: TrafficBomb-aab-v${{ github.run_number }}-ads-${{ env.VITE_ADS_MODE }}
           path: android/app/build/outputs/bundle/release/app-release.aab
           retention-days: 30
+
+      - name: Upload to Google Play
+        if: ${{ github.event.inputs.track != 'none' }}
+        env:
+          SA: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$SA" ]; then echo "::error::PLAY_SERVICE_ACCOUNT_JSON is not set (bundle is still in the artifacts)"; exit 1; fi
+
+      - uses: r0adkll/upload-google-play@v1
+        if: ${{ github.event.inputs.track != 'none' }}
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.nadavw.trafficbomb
+          releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
+          tracks: ${{ github.event.inputs.track }}
+          status: ${{ github.event.inputs.status }}
+          releaseName: 1.1.${{ github.run_number }} ${{ github.ref_name }}   # Play caps names at 50 chars

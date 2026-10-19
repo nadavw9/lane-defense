@@ -4,7 +4,7 @@ import { identityFor, GIFT_FROM, LIGHT_FROM, CONVOY_FROM } from '../src/game/lev
 import { CarDirector } from '../src/director/CarDirector.js';
 import { SeededRandom } from '../src/utils/SeededRandom.js';
 import { GameState } from '../src/game/GameState.js';
-import { LevelManager, levelDifficulty } from '../src/game/LevelManager.js';
+import { LevelManager, levelDifficulty, LEVEL_COUNT } from '../src/game/LevelManager.js';
 import { SimulationRunner } from '../src/simulation/SimulationRunner.js';
 
 const L = (lane, phase = 0) => ({ lane, green: 3, red: 2, phase });
@@ -23,7 +23,7 @@ describe('traffic lights', () => {
     expect(lightState(lights, 0, 0)).toBeNull();
   });
   it('two-light levels are never red on both lights at once', () => {
-    for (let id = 35; id <= 100; id++) {
+    for (let id = 35; id <= LEVEL_COUNT; id++) {
       const lights = identityFor(id).lights;
       if (!lights || lights.length < 2) continue;
       for (let m = 0; m < 10; m++) expect(lights.every(l => laneHeld(lights, l.lane, m))).toBe(false);
@@ -33,9 +33,9 @@ describe('traffic lights', () => {
     const lm = new LevelManager(); lm.goToLevel(LIGHT_FROM);
     const cfg = lm.current;
     expect(cfg.lights).toBeTruthy();
-    const withLights = SimulationRunner.fromLevel(cfg).runLevel(3);
-    const without = SimulationRunner.fromLevel({ ...cfg, lights: null }).runLevel(3);
-    expect(withLights).not.toEqual(without);
+    // Over several seeds: one short run can end before the light has turned red at all.
+    const runs = (c) => Array.from({ length: 8 }, (_, i) => SimulationRunner.fromLevel(c).runLevel(i + 1));
+    expect(runs(cfg)).not.toEqual(runs({ ...cfg, lights: null }));
   });
 });
 
@@ -60,10 +60,12 @@ describe('convoy and gift cars', () => {
     const lightLevels = Array.from({ length: 100 }, (_, i) => i + 1).filter(id => identityFor(id).lights);
     expect(lightLevels.length).toBeGreaterThan(15);
   });
-  it('difficulty tiers: hard on x5 from L15, super hard big waves from L30', () => {
+  it('difficulty tiers: hard on x5 from L15, big waves hard to L40, super hard from L50', () => {
     expect(levelDifficulty(14)).toBe('normal');
     expect(levelDifficulty(15)).toBe('hard');
     expect(levelDifficulty(10)).toBe('hard');
-    expect(levelDifficulty(30)).toBe('superhard');
+    expect(levelDifficulty(30)).toBe('hard');
+    expect(levelDifficulty(40)).toBe('hard');
+    expect(levelDifficulty(50)).toBe('superhard');
   });
 });

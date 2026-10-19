@@ -6,6 +6,7 @@
 //   • Hearts display: shows remaining lives
 import { Container, Graphics, Text, Sprite, Assets } from 'pixi.js';
 import { uiIcon } from '../renderer/UIIcon.js';
+import { RACE_HEARTS } from '../game/race.js';
 import { panel as premiumPanel, ribbon, button as premiumButton, well } from '../renderer/PremiumUI.js';
 
 const _B = import.meta.env.BASE_URL;
@@ -14,7 +15,7 @@ import { ROAD_BOTTOM_Y } from '../renderer/LaneRenderer.js';
 export class LoseScreen {
   // callbacks: { onRetry, onMenu }
   // gs: GameState snapshot (for stats), optional
-  // heartsRemaining: number (0-5), optional
+  // heartsRemaining: Traffic Race hearts left (0..RACE_HEARTS) on a race level, else null
   constructor(stage, appW, appH, { onRetry, onMenu, audio }, gs = null, heartsRemaining = null) {
     this._container = new Container();
     stage.addChild(this._container);
@@ -145,9 +146,9 @@ export class LoseScreen {
       cy += rowH + 22;
     }
 
-    // Hearts
+    // Traffic Race hearts left after this loss (the only hearts in the game; see race.js)
     if (heartsRemaining !== null) {
-      this._text('LIVES REMAINING', cx, cy + 4, { fontSize: 11, fill: 0x667788, fontWeight: 'bold' });
+      this._text(heartsRemaining > 0 ? 'RACE HEARTS LEFT' : 'OUT OF THE RACE', cx, cy + 4, { fontSize: 12, fill: heartsRemaining > 0 ? 0xFF8899 : 0xFF5566, fontWeight: 'bold' });
       cy += 20;
       this._drawHearts(cx, cy + 8, heartsRemaining);
       cy += 36;
@@ -168,7 +169,7 @@ export class LoseScreen {
   }
 
   _drawHearts(cx, cy, count) {
-    const MAX = 5, sz = 18, gap = 6;
+    const MAX = RACE_HEARTS, sz = 22, gap = 8;
     const x0  = cx - (MAX * sz + (MAX - 1) * gap) / 2;
     for (let i = 0; i < MAX; i++) {
       // filled = natural red heart; empty = dark-tinted heart

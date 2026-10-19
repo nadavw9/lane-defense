@@ -11,9 +11,10 @@ import { test, expect } from '../fixtures/game.js';
 const CASES = [
   { level: 1, lanes: 1 },
   { level: 2, lanes: 2 },
-  { level: 3, lanes: 3 },
-  // L5: 4→3 lanes, THREE_LANE_REDESIGN_BATCH.md §2 pilot (2026-07-23).
-  { level: 5, lanes: 3 },
+  // 2026-10-18 re-spacing: two lanes L2-L5, the third lane arrives at L6.
+  { level: 3, lanes: 2 },
+  { level: 5, lanes: 2 },
+  { level: 7, lanes: 3 },
   // No 4-lane level remains above L3 after the L9-L40 conversion.
   { level: 9,  lanes: 3 },   // 2026-08-08: L9-L40 converted to the 3-lane board
   { level: 20, lanes: 3 },   // converted boss case
@@ -75,10 +76,10 @@ for (const { level, lanes } of CASES) {
   });
 }
 
-test('L5: deploying into lane i damages lane i (not a neighbour)', async ({ game }) => {
-  await game.startLevel(5);
+test('L7: deploying into lane i damages lane i (not a neighbour)', async ({ game }) => {
+  await game.startLevel(7);
 
-  // L5 is 3-lane (THREE_LANE_REDESIGN_BATCH.md §2 pilot, 2026-07-23) — leftmost
+  // L7 is 3-lane (the third lane arrives at L6, 2026-10-18 re-spacing) — leftmost
   // and rightmost are 0 and 2, not 0 and 3.
   for (const lane of [0, 2]) {   // leftmost and rightmost — where offset bugs bite
     // Make col 0's top bomb a guaranteed match for the target lane's front car,

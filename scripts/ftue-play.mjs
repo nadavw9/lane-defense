@@ -1,6 +1,7 @@
-// First-time player QA: a brand-new save walks the real UI — title PLAY, map
-// node, level card PLAY, real mouse drags, win screen NEXT — for levels 1..N,
-// screenshotting every screen and flagging anything that stops a new player.
+// First-time player QA: a brand-new save walks the real UI — title PLAY (L1 starts at once),
+// real mouse drags, win screen NEXT -> the map drive -> the next level's card opening on its
+// own -> PLAY — for levels 1..N, screenshotting every screen and flagging anything that stops
+// a new player. (2026-10-18 flow; before it, PLAY went to the map.)
 //   QA_URL=http://localhost:5174/ node scripts/ftue-play.mjs <outDir> [levels=5]
 import { chromium } from 'playwright';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -23,28 +24,36 @@ const S = () => p.evaluate(() => {
     visible: gs ? gs.lanes.slice(0, gs.activeLaneCount).flatMap(l => l.cars).filter(c => c.row >= 1).length : 0,
     blocked: n.getDragDrop()?.inputBlocked };
 });
-await p.waitForTimeout(5000);                          // title intro
+// Title intro: PLAY appears only after the bomb-drop (slow headless). Wait for it to be tappable.
+let playY = null;
+for (let i = 0; i < 180 && playY == null; i++) { await p.waitForTimeout(500); playY = await p.evaluate(() => window._nav.getTitlePlayY?.() ?? null); }
 await shot('title');
-await p.mouse.click(195, 474);                         // PLAY
-await p.waitForTimeout(2000);
-await shot('map');
+if (playY == null) log.push('title: PLAY never became tappable');
+await p.mouse.click(195, playY ?? 474);                 // PLAY: a new save goes straight into L1
+await p.waitForTimeout(2500);
+await shot('after-play');
 const tries = {};
 for (let lv = 1; lv <= N; lv++) {
   tries[lv] = (tries[lv] ?? 0) + 1;
   let s = await S();
-  if (!s.preLevel) {
-    // Tap the level's node on the map (read its position from the map screen).
+  const inLevel = (st) => st.lvl === lv && !st.over && !st.preLevel && !st.levelSelect && !st.title;
+  // After a win the map drive runs and the card opens by itself; L1 starts straight from PLAY.
+  for (let w = 0; w < 100 && !s.preLevel && !inLevel(s); w++) { await p.waitForTimeout(300); s = await S(); }
+  if (!s.preLevel && !inLevel(s)) {
+    log.push(`L${lv}: neither the level nor its card opened on its own`);
     const node = await p.evaluate((n) => window._nav.getMapNode?.(n) ?? null, lv);
     if (node) await p.mouse.click(node.x, node.y); else await p.evaluate((n) => window._nav.showPreLevel(n), lv);
-    await p.waitForTimeout(1500);
+    await p.waitForTimeout(1500); s = await S();
   }
-  await shot(`L${lv}-card`);
-  const playY = await p.evaluate(() => window._nav.getPreLevelPlayY());
-  if (playY == null) log.push(`L${lv}: level card did not open`);
-  await p.mouse.click(195, playY ?? 609);                 // card PLAY (real tap)
-  await p.waitForTimeout(2500);
-  s = await S();
-  if (s.preLevel) log.push(`L${lv}: PLAY tap did not start the level`);
+  if (s.preLevel) {
+    await shot(`L${lv}-card`);
+    const playY = await p.evaluate(() => window._nav.getPreLevelPlayY());
+    if (playY == null) log.push(`L${lv}: level card did not open`);
+    await p.mouse.click(195, playY ?? 609);                 // card PLAY (real tap)
+    await p.waitForTimeout(2500);
+    s = await S();
+    if (s.preLevel) log.push(`L${lv}: PLAY tap did not start the level`);
+  }
   await shot(`L${lv}-start`);
   const t0 = Date.now(); let drags = 0, idleNoTarget = 0;
   while (drags < 90 && Date.now() - t0 < 1500000) {   // bounded by turns, not wall clock (headless is ~1 fps)
@@ -81,7 +90,13 @@ for (let lv = 1; lv <= N; lv++) {
   s = await S();
   await shot(`L${lv}-end-${s.won ? 'win' : 'lose'}`);
   log.push(`L${lv}: ${s.won ? 'WIN' : s.over ? 'LOSE' : 'STUCK'} after ${drags} drags, turn ${s.turn}`);
-  if (s.win) { await p.waitForTimeout(2500); await p.mouse.click(195, (await p.evaluate(() => window._nav.getWinNextY?.() ?? 560))); await p.waitForTimeout(2000); await shot(`L${lv}-after-next`); }
+  if (s.win) {
+    await p.waitForTimeout(2500);
+    // achievement / trophy cards can sit over the win screen: clear them, then tap NEXT for real
+    for (let i = 0; i < 10 && (await S()).modal; i++) { await p.evaluate(() => window._nav.dismissGuides()); await p.waitForTimeout(400); }
+    let ny = null; for (let i = 0; i < 20 && ny == null; i++) { ny = await p.evaluate(() => window._nav.getWinNextY?.() ?? null); if (ny == null) await p.waitForTimeout(300); }
+    await p.mouse.click(195, ny ?? 560); await p.waitForTimeout(2000); await shot(`L${lv}-after-next`);
+  }
   else {
     await p.evaluate(() => window._nav.cleanAll()); await p.evaluate(() => window._nav.showLevelSelect()); await p.waitForTimeout(1500);
     if (tries[lv] < 2) lv--;   // a loss locks the next level: replay this one once

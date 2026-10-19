@@ -31,7 +31,7 @@ export const pal = (letters) => [...letters].map(c => COLOR[c]);
  * budget and goals grow with the id; `dense` raises traffic to three cars a lane.
  */
 export function lv(id, name, letters, o = {}) {
-  const ramp = Math.floor((id - 40) / 6);
+  const ramp = Math.floor((Math.min(id, 100) - 40) / 6);   // the second tour (L101+) holds L100's budget
   const t = tuning?.[id];                       // sim-tuned numbers (lateTuning.js)
   const scaleTraits = (tr, k) => Object.fromEntries(Object.entries(tr).map(([n, p]) => [n, +(p * k).toFixed(4)]));
   const goals = (o.goals ?? total(o.total ?? 26)).map(g => scaleGoal(g, t?.gs ?? 1));
@@ -53,9 +53,9 @@ export function lv(id, name, letters, o = {}) {
 //   traffic light — a lane that holds still on red ({ lane, green, red, phase } in traffic moves)
 //   convoy        — a lane that only brings motorbikes (one hit each: fast, satisfying kills)
 //   gift car      — a car with a bow; destroying it pays out a booster (trait 'gift')
-// Each is introduced alone on a fixed level (L13 gift, L14 light, L24 convoy; see
+// Each is introduced alone on a fixed level (L36 gift, L38 light, L43 convoy; see
 // introSchedule.js) and then recurs on a fixed rhythm. Big waves keep their own identity.
-export const GIFT_FROM = 13, LIGHT_FROM = 14, CONVOY_FROM = 24;
+export const GIFT_FROM = 36, LIGHT_FROM = 38, CONVOY_FROM = 43;
 const LIGHT = (lane, phase) => ({ lane, green: 3, red: 2, phase });
 
 export function identityFor(id, milestone = false) {

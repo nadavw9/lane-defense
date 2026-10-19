@@ -29,7 +29,7 @@ const browser = await chromium.launch({
 });
 const page = await browser.newPage();
 page.on('pageerror', e => console.error('PAGEERROR', e.message));
-await page.goto('http://localhost:5173/tools/art/studio/studio.html');
+await page.goto(process.env.STUDIO_URL ?? 'http://localhost:5173/tools/art/studio/studio.html');
 await page.waitForFunction(() => window.studio?.ready, null, { timeout: 60000 });
 const { types, colors } = await page.evaluate(() => ({ types: window.studio.types, colors: window.studio.colors }));
 
@@ -129,7 +129,7 @@ if (mode === 'verges') {
   for (const world of wArg ? [wArg] : ['world1', 'world2', 'world3', 'world4', 'world5', 'world6', 'world7']) {
     for (const v of vArg ? [vArg] : ['a', 'b', 'c']) jobs.push([world, v, Number(nArg ?? 3)]);
   }
-  if (!wArg && mode === 'backdrop') jobs.push(['world1', 'b', 1], ['world1', 'c', 2]);   // L1 / L2
+  if (!wArg && mode === 'backdrop') jobs.push(['world1', 'b', 1], ['world1', 'a', 2], ['world1', 'b', 2], ['world1', 'c', 2]);   // L1, L2-L5
   for (const [world, v, n] of jobs) {
     P.setActiveLaneCount(n);
     const F = P.computeFrustum();
@@ -155,7 +155,9 @@ if (mode === 'verges') {
 } else if (mode === 'map' || mode === 'mappreview') {
   // Level-map backgrounds (one per world page) + repair building sprites.
   //   map-<world>.png (780×1688), repair-<world>-<state>-<variant>.png (300×300)
-  for (const w of MAP_WORLDS.filter(w => !process.argv[4] || w.theme === process.argv[4])) {
+  // A later tour reuses a world's art on an identical node layout: bake each theme once.
+  const firstOfTheme = MAP_WORLDS.filter((w, i, all) => all.findIndex(o => o.theme === w.theme) === i);
+  for (const w of firstOfTheme.filter(w => !process.argv[4] || w.theme === process.argv[4])) {
     const road = mapRoadPath(w.page), nodes = mapNodes(w.page);
     const url = await page.evaluate(([t, road, nodes]) => window.studio.map(t, 1, { road, nodes }), [w.theme, road, nodes]);
     const out = mode === 'map' ? `${OUT}/map-${w.theme}.png` : `${outArg ?? '.'}/map-${w.theme}.png`;

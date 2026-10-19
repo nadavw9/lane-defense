@@ -76,7 +76,10 @@ function introSprite(intro, lv) {
 export class PreLevelScreen {
   // opts: { onSelect(adCount, bundle), onClose, audio, freeBooster, level }
   //   level = { id, name, goals, hintText } (the level config)
-  constructor(stage, appW, appH, levelLabel, { onSelect, onClose = null, audio, freeBooster = null, level = null, owned = null, streak = null }) {
+  constructor(stage, appW, appH, levelLabel, { onSelect, onClose = null, audio, freeBooster = null, level = null, owned = null, streak = null, offered = null }) {
+    // Which booster tiles to show ({ colorchange, freeze, bomb } booleans, boosterUnlocks.js);
+    // null = all three (old callers).
+    this._boosters = BOOSTERS.filter(b => !offered || offered[b.key] || freeBooster?.key === b.key);
     this._streak = streak;   // { count, gift, toNext } — see src/game/winStreak.js
     this._owned = owned ?? {};
     this._container = new Container();
@@ -123,7 +126,8 @@ export class PreLevelScreen {
     const tierPill = tier !== 'normal';
 
     const streak = this._streak;
-    const PW = 344, PH = 470 + (intro ? 100 : 0) + (streak ? 62 : 0) + (tierPill ? 36 : 0);
+    const boosters = this._boosters;
+    const PW = 344, PH = 470 + (intro ? 100 : 0) + (streak ? 62 : 0) + (tierPill ? 36 : 0) - (boosters.length ? 0 : 136);
     const card = new Container();
     card.x = w / 2; card.y = h / 2 + 10;
     card.pivot.set(PW / 2, PH / 2);
@@ -235,14 +239,16 @@ export class PreLevelScreen {
       y += ih + 14;
     }
 
-    // Booster offer.
+    // Booster offer — only the boosters the player has met (one tile on L2-8, two on L9-12).
+    if (boosters.length) {
     const bl = bodyText('START WITH A BOOSTER', 14, 0xC9C3F0, { outline: false });
     bl.x = PW / 2; bl.y = y;
     card.addChild(bl);
     y += 16;
+    }
     const bw = 90, bh = 104, bgap = 12;
-    const bt = BOOSTERS.length * bw + (BOOSTERS.length - 1) * bgap;
-    BOOSTERS.forEach((b, i) => {
+    const bt = boosters.length * bw + (boosters.length - 1) * bgap;
+    boosters.forEach((b, i) => {
       const bx = (PW - bt) / 2 + i * (bw + bgap);
       const isFree = this._free?.key === b.key;
       const tile = new Container();
@@ -284,7 +290,7 @@ export class PreLevelScreen {
       tile.on('pointerup', () => { tile.scale.set(1); this._choose(isFree ? 0 : 1, b.bundle); });
       card.addChild(tile);
     });
-    y += bh + 30;
+    if (boosters.length) y += bh + 30;
 
     // PLAY (includes the free gift when there is one).
     const playBundle = this._free?.bundle ?? { colorChange: 0, freeze: 0, bombs: 0 };

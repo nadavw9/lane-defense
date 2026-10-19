@@ -23,8 +23,9 @@ export class RescueOverlay {
   //   onRescueCoins()  — "CONTINUE · coins" — shown only when the player can afford it
   //   onRetry()        — free full restart; caller destroys overlay and restarts the level
   //   onLevelSelect()  — decline; caller destroys overlay and returns to level select
-  constructor(stage, appW, appH, gs, { onRescueAd, onRescueCoins, onRetry, onLevelSelect, winStreak = 0 }) {
+  constructor(stage, appW, appH, gs, { onRescueAd, onRescueCoins, onRetry, onLevelSelect, winStreak = 0, raceHearts = 0 }) {
     this._winStreak = winStreak;
+    this._raceHearts = raceHearts;   // > 0: this level is a Traffic Race level and a loss costs a heart
     this._container = new Container();
     stage.addChild(this._container);
 
@@ -102,7 +103,7 @@ export class RescueOverlay {
     mg.circle(PW / 2, 108, 50).fill({ color: 0xFF3D3D, alpha: 0.18 });
     mg.circle(PW / 2, 108, 46).stroke({ color: 0x2A1020, width: 9 });
     if (done > 0) {
-      mg.moveTo(PW / 2, 108 - 46).arc(PW / 2, 108, 46, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * done).stroke({ color: GOLD, width: 9, cap: 'round' });
+      mg.beginPath().arc(PW / 2, 108, 46, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * done).stroke({ color: GOLD, width: 9, join: 'round', cap: 'round' });
     }
     mg.circle(PW / 2, 108, 36).fill(0xE8453C).stroke({ color: INK, width: 3.5 });
     mg.ellipse(PW / 2, 92, 22, 10).fill({ color: WHITE, alpha: 0.28 });
@@ -124,7 +125,13 @@ export class RescueOverlay {
     sub.x = PW / 2; sub.y = 212;
     card.addChild(sub);
     // A live win streak is lost on RETRY / give up: say so, it is what a continue protects.
-    if (this._winStreak >= 2) {
+    // In a Traffic Race the heart is the bigger stake (a continue also keeps the streak).
+    if (this._raceHearts > 0) {
+      const n = this._raceHearts;
+      const ws = bodyText(n === 1 ? 'Continue: it is your LAST race heart!' : `Continue to keep your race heart (${n} left)`, 14, 0xFF7A7A, { outline: false });
+      ws.x = PW / 2; ws.y = 234;
+      card.addChild(ws);
+    } else if (this._winStreak >= 2) {
       const ws = bodyText(`Continue to keep your ${this._winStreak}-win streak`, 14, 0xFFB15C, { outline: false });
       ws.x = PW / 2; ws.y = 234;
       card.addChild(ws);

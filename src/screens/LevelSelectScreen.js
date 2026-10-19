@@ -11,7 +11,7 @@
 import { Container, Graphics, Sprite, Assets, FillGradient } from 'pixi.js';
 import { uiIcon } from '../renderer/UIIcon.js';
 import { ribbon, roundButton, titleText, bodyText, GOLD, GOLD_DEEP } from '../renderer/PremiumUI.js';
-import { INK, WHITE, shade, tint } from '../renderer/ToyStyle.js';
+import { INK, WHITE, shade, tint, drawShackle } from '../renderer/ToyStyle.js';
 import { MAP_WORLDS, mapNodes, mapRoadPath, worldForLevel } from './levelMapLayout.js';
 import { LEVEL_COUNT, levelDifficulty } from '../game/LevelManager.js';
 import { RACE_GOAL } from '../game/race.js';
@@ -347,8 +347,7 @@ export class LevelSelectScreen {
     } else {
       const lock = new Graphics();
       lock.roundRect(-9, -3, 18, 14, 3).fill(0xE9E6F2).stroke({ color: INK, width: 2 });
-      lock.beginPath().arc(0, -3, 6, Math.PI, 0).stroke({ color: INK, width: 5, join: 'round', cap: 'round' });
-      lock.beginPath().arc(0, -3, 6, Math.PI, 0).stroke({ color: 0xE9E6F2, width: 2.5, join: 'round', cap: 'round' });
+      drawShackle(lock, 0, -3, 6, { ink: INK, inkW: 5, color: 0xE9E6F2, w: 2.5 });
       node.addChild(lock);
     }
 

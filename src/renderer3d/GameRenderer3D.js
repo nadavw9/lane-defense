@@ -206,6 +206,9 @@ export class GameRenderer3D {
    * shot reacts proportionally bigger than a 1-car shot. The car squash/flash has
    * already played via onImpact.
    */
+  /** Road position (0..100) of the lane's front car as last seen, i.e. where its explosion is. */
+  lastHitPosition(laneIdx) { return this._laneCarPosCache[laneIdx] ?? 50; }
+
   onHit(laneIdx, color, damage, killCount = 0) {
     this._particles?.spawnHit(laneIdx, color);
     if (killCount > 0) {

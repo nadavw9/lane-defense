@@ -8,7 +8,7 @@ import { Container, Graphics } from 'pixi.js';
 import { ACHIEVEMENTS } from '../game/AchievementManager.js';
 import { uiIcon } from '../renderer/UIIcon.js';
 import { screenBg, screenHeader, card, bar, titleText, bodyText, GOLD, GREEN } from '../renderer/PremiumUI.js';
-import { INK } from '../renderer/ToyStyle.js';
+import { INK, drawShackle } from '../renderer/ToyStyle.js';
 
 const ROW_H = 76, ROW_GAP = 10, PAD = 16;
 
@@ -130,6 +130,6 @@ export class AchievementsScreen {
 function lockGlyph() {
   const g = new Graphics();
   g.roundRect(-7, -2, 14, 11, 3).fill(0x8C86BA);
-  g.beginPath().arc(0, -2, 5, Math.PI, 0).stroke({ color: 0x8C86BA, width: 2.5, join: 'round', cap: 'round' });
+  drawShackle(g, 0, -2, 5, { color: 0x8C86BA, w: 2.5 });
   return g;
 }

@@ -74,3 +74,27 @@ export function toyLabel(fontSize, fill = WHITE) {
     stroke: { color: INK, width: Math.max(3, Math.round(fontSize / 5)), join: 'round' },
   };
 }
+
+// ── Padlock shackle ──────────────────────────────────────────────────────────
+// A shackle is a FILLED half-ring (polygon + round-end circles), never a stroked arc: stroked arcs
+// with round caps/joins drew stray lines from every padlock to the screen centre on the owner's
+// phone (2026-10-19), and a beginPath() before each arc did not cure it on device.
+
+/** Flat [x, y, ...] of a half-ring band over (cx, cy): outer arc left->right, inner arc back. */
+export function shacklePoints(cx, cy, r, width, steps = 12) {
+  const ro = r + width / 2, ri = r - width / 2, pts = [];
+  for (let i = 0; i <= steps; i++) { const a = Math.PI + (Math.PI * i) / steps; pts.push(cx + ro * Math.cos(a), cy + ro * Math.sin(a)); }
+  for (let i = steps; i >= 0; i--) { const a = Math.PI + (Math.PI * i) / steps; pts.push(cx + ri * Math.cos(a), cy + ri * Math.sin(a)); }
+  return pts;
+}
+
+/** Draw a shackle into Graphics `g`: an optional ink outline band under a coloured band. */
+export function drawShackle(g, cx, cy, r, { color, w, ink = null, inkW = 0 }) {
+  const band = (fill, width) => {
+    g.beginPath().poly(shacklePoints(cx, cy, r, width)).fill(fill);
+    g.beginPath().circle(cx - r, cy, width / 2).fill(fill);
+    g.beginPath().circle(cx + r, cy, width / 2).fill(fill);
+  };
+  if (ink != null && inkW > 0) band(ink, inkW);
+  band(color, w);
+}

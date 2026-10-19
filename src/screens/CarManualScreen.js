@@ -8,7 +8,7 @@ import { Container, Graphics, Sprite, Assets } from 'pixi.js';
 import { uiIcon } from '../renderer/UIIcon.js';
 import { CAR_TYPES } from '../director/CarTypes.js';
 import { panel, ribbon, button, roundButton, titleText, bodyText, backdrop, well, GOLD, RIBBON } from '../renderer/PremiumUI.js';
-import { INK, shade } from '../renderer/ToyStyle.js';
+import { INK, shade, drawShackle } from '../renderer/ToyStyle.js';
 import { TRAIT_KEYS, traitInfo, traitSpritePath } from '../renderer/traitIcons.js';
 import { LEVEL_COUNT, levelConfigFor } from '../game/LevelManager.js';
 
@@ -106,7 +106,7 @@ export class CarManualScreen {
     const g = new Graphics();
     g.circle(x, y, r).fill(0x1C1946).stroke({ color: 0x0C0A26, width: 2.5 });
     g.roundRect(x - 9, y - 3, 18, 14, 3).fill(0x6E68A0);
-    g.beginPath().arc(x, y - 4, 7, Math.PI, 0).stroke({ color: 0x6E68A0, width: 3.5, join: 'round', cap: 'round' });
+    drawShackle(g, x, y - 4, 7, { color: 0x6E68A0, w: 3.5 });
     this._container.addChild(g);
   }
 

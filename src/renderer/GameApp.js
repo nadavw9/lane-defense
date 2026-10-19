@@ -121,6 +121,8 @@ const TOTAL_COLS  = 4;
 
 // Breach camera: zoom toward the breaching lane for this many seconds before
 // showing the rescue overlay.
+// Kill tokens fly to the goal counter in the car's colour (the Toy Town palette, CLAUDE.md §10).
+const KILL_TOKEN_HEX = { Red: 0xFF3D3D, Blue: 0x2F8CFF, Green: 0x2FCC55, Yellow: 0xFFD42A, Purple: 0xA35CFF, Orange: 0xFF8A1C };
 const BREACH_CAM_DURATION = 0.50; // seconds of breach hold before the rescue / lose screen
 
 // ── Floating chain-hit labels ─────────────────────────────────────────────────
@@ -2095,6 +2097,8 @@ async function main() {
       gameRenderer3D.onHit(laneIdx, color, damage, killCount);
       if (isKill) {
         particles.spawnExplosion(laneIdx, gameX, color);
+        // Each destroyed car flies to the goal counter, which ticks down as it lands.
+        goalCounterUI.collect(getLaneScreenX(laneIdx), posToScreenY(gameRenderer3D.lastHitPosition(laneIdx)), killCount, KILL_TOKEN_HEX[color] ?? 0xFFC93C);
         audio.play('car_destroy', { kills: killCount });   // 6B: escalates with kills
         audio.play('kill_ding');                            // 6A: bright kill ding
         if (killCount === 1) haptics.medium();   // single kill; multi-kill (2+) → heavy via _onMultiKill

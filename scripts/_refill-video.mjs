@@ -14,14 +14,14 @@ const b = await chromium.launch({ headless: false, args: ['--use-gl=angle', '--e
 const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, recordVideo: { dir: vdir, size: { width: 390, height: 844 } } });
 const p = await ctx.newPage();
 const t0 = Date.now();
-await p.addInitScript(() => {
+await p.addInitScript((save) => {
   const keys = ['tour', 'lane_2', 'lane_3', 'multi_color', 'combo', 'supercharge', 'goal_colour', 'freeze_booster', 'colour_change_booster',
     'freeze_earned', 'colour_change_earned', 'rainbow_bomb', 'first_kill', 'first_miss', 'hp_miss', 'streak_charged', 'plate_break', 'armor_break',
     'volatile_surge', 'mender_heal', 'gift_car', 'traffic_light', 'convoy'];
   for (let i = 1; i <= 200; i++) keys.push(`hint_L${i}`);
   localStorage.setItem('ftue_banners', JSON.stringify(keys));
-  localStorage.setItem('lane-defense-v1', JSON.stringify({ unlockedLevel: 60, introducedCarTypes: ['small', 'big', 'jeep', 'truck', 'bigrig', 'tank'] }));
-});
+  localStorage.setItem('lane-defense-v1', JSON.stringify({ unlockedLevel: save, introducedCarTypes: ['small', 'big', 'jeep', 'truck', 'bigrig', 'tank'] }));
+}, Number(process.env.SAVE_LEVEL ?? 60));
 await p.goto(URL, { waitUntil: 'networkidle' });
 await p.waitForFunction(() => !!window._nav, null, { timeout: 120000 });
 await p.waitForTimeout(2000);

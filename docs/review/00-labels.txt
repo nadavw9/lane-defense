@@ -1,30 +1,3 @@
-Logo + pacing review set (2026-10-18). BEFORE = the build on your phone (1.1.6), AFTER = 1.1.7.
-01=App/store icon BEFORE/AFTER: the new R1 icon, a car flung out of a BOOM by the red bomb over a lane (grass, lane dashes, red-white breach line)
-02=Title BEFORE/AFTER (a save at L6): the icon's picture now sits on the road above PLAY and pops in on the first visit; only MAP shows under PLAY at this stage
-03=Title AFTER at L16: DAILY (from L8) and TROPHIES (from L15) have appeared, each with a NEW tag until first tapped; CHALLENGE comes at L20, STATS at L25
-04=Board BEFORE/AFTER: no coin counter during play any more (coins show on the win screen and in the shop); the locked COLOR SWAP now says LV 21
-05=L3 AFTER: two lanes (the third lane now arrives at L6), motorbikes only (the car arrives at L4), a two-lane backdrop baked for it
-06=Icon set AFTER: store icon, phone splash, adaptive icon (lane background + car layer), round mask, small launcher size
-
---- Traffic Race (feat/race) ---
-01=Map header BEFORE (origin/master, L31 save). Seven page dots; the NEXT arrow covers dot 4.
-02=Map header AFTER. "3 / 7" page counter (same fix as feat/more-levels) and the orange RACE! pill between NEXT and the trophy, red dot until the intro is seen. Check it covers no level node.
-03=NEW race card, first time (auto-opens once after beating L30). Rules, 1st-place prize, START RACE. Look: prize strip fully visible above the button.
-04=NEW map while racing: the pill reads 3/6.
-05=NEW race card mid-race: standings best-first, YOU highlighted, cars ease from the start line to their step, 2 of 3 hearts, time left, PLAY NEXT LEVEL. Look: names never collide with the win counts.
-06=Win screen BEFORE.
-07=Win screen AFTER: TRAFFIC RACE row "4/6 · 3rd" when the win counted for the race.
-08=Continue offer BEFORE: "Continue to keep your 4-win streak".
-09=Continue offer AFTER on a race level: "Continue to keep your race heart (2 left)" (last heart: red warning line).
-10=Final loss BEFORE.
-11=Final loss AFTER on a race level: RACE HEARTS LEFT row (was a dead 5-heart LIVES row from the removed lives system).
-12=NEW won race: the card opens by itself on the next map visit; 1st-place prize and CLAIM (no close button: claiming is the way out).
-13=NEW out of hearts: no prize, OK, a new race can start right away.
-
---- Refill motion (feat/refill-motion) ---
-All frames are real-time video (headed Chromium, GPU) cut at 20 fps = 50 ms apart, L17.
-01=Bomb queue right after firing column 0's top. TOP row = before (origin/master): the column jumps in one frame. BOTTOM row = after: the two bombs slide up a slot and the new bomb rises in from below the last socket (frames 1-4), settling with a small clunk.
-02=NEW: the viability guard's recolour, now on the column the player just fired from (middle column here), plays as a transform: the bomb pops and spins once (~0.4 s) instead of silently changing colour.
-03=NEW: a crisis-assist bomb pushed in on top of the right column drops in from above the socket while the bombs below slide down a slot (second row, frames 9-11).
-04=Cars after a kill. TOP = before, BOTTOM = after. A refill car's slot is row 0, the staging row that sits half under the HUD band, so most of its drive-in happens behind the HUD in BOTH versions. After: it starts beyond the top of the screen, waits 0.12 s for the explosion to read, then drives in over 0.62 s and brakes; only the last part shows. Owner to judge on device.
-05=THE car fix. One lane, a car waiting in the staging row at the top and a visible gap below it, then one refill. TOP = before: the new car (blue bike) materialises inside the visible gap, under the red car, and slides a little - "a new car just appears". BOTTOM = after (Candy Crush order): the waiting car drives DOWN into the gap like any advancing car (frames 5-8), and the new car (yellow) arrives from under the top edge into the staging row (frames 12-17). Same occupied rows; all 100 levels retuned for the new order (100/100 in band).
+01=BEFORE, the owner's phone (build 1.1.8, L3): stray white lines from the LV12 / LV8 padlocks to the screen centre; a column of 13 numbered step pips on the left; the goal counter ("8") just changes its number.
+02=AFTER, real-time frames 83 ms apart (L3, second shot). Frame 6: the kill. Frames 6-9: a token in the car's colour flies from the explosion up to the goal counter. Frame 11: the counter drops 11 -> 10 with a gold pop (and a "-1" floats under it). With 3 or fewer left the number stays gold and pulses.
+03=AFTER, whole screen: the step ruler is small coloured dots with ONE glowing badge level with the most advanced car ("11" = moves before it reaches the red line); the padlocks are drawn as filled shapes (no stroked arcs) - check on the phone that the lines are gone, they never reproduced on desktop.

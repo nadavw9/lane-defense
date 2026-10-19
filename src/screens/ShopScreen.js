@@ -12,7 +12,7 @@
 import { Container, Graphics, FillGradient, Ticker } from 'pixi.js';
 import { uiIcon, boosterIcon } from '../renderer/UIIcon.js';
 import { roundButton, button, bodyText, titleText, ribbon, screenBg, GOLD_DEEP } from '../renderer/PremiumUI.js';
-import { INK } from '../renderer/ToyStyle.js';
+import { INK, drawShackle } from '../renderer/ToyStyle.js';
 import { ProgressManager } from '../game/ProgressManager.js';
 import { logEvent } from '../analytics/Analytics.js';
 import { boosterUnlocked, unlockLevelOf, BOOSTER_UNLOCK_LEVEL } from '../game/boosterUnlocks.js';
@@ -480,7 +480,7 @@ function lockPlate(text, cx, cy, w) {
   g.roundRect(-w / 2, -20, w, 40, 20).fill(0x3A3552).stroke({ color: INK, width: 2.5 });
   g.roundRect(-w / 2 + 6, -17, w - 12, 12, 6).fill({ color: 0xffffff, alpha: 0.12 });
   const lx = -w / 2 + 24;
-  g.beginPath().arc(lx, -3, 6, Math.PI, 0).stroke({ color: 0xE9E6F2, width: 3, join: 'round', cap: 'round' });
+  drawShackle(g, lx, -3, 6, { color: 0xE9E6F2, w: 3 });
   g.roundRect(lx - 9, -4, 18, 14, 3).fill(0xFFD42A).stroke({ color: INK, width: 2 });
   c.addChild(g);
   const t = titleText(text, 16);

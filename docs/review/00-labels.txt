@@ -20,3 +20,11 @@ Logo + pacing review set (2026-10-18). BEFORE = the build on your phone (1.1.6),
 11=Final loss AFTER on a race level: RACE HEARTS LEFT row (was a dead 5-heart LIVES row from the removed lives system).
 12=NEW won race: the card opens by itself on the next map visit; 1st-place prize and CLAIM (no close button: claiming is the way out).
 13=NEW out of hearts: no prize, OK, a new race can start right away.
+
+--- Refill motion (feat/refill-motion) ---
+All frames are real-time video (headed Chromium, GPU) cut at 20 fps = 50 ms apart, L17.
+01=Bomb queue right after firing column 0's top. TOP row = before (origin/master): the column jumps in one frame. BOTTOM row = after: the two bombs slide up a slot and the new bomb rises in from below the last socket (frames 1-4), settling with a small clunk.
+02=NEW: the viability guard's recolour, now on the column the player just fired from (middle column here), plays as a transform: the bomb pops and spins once (~0.4 s) instead of silently changing colour.
+03=NEW: a crisis-assist bomb pushed in on top of the right column drops in from above the socket while the bombs below slide down a slot (second row, frames 9-11).
+04=Cars after a kill. TOP = before, BOTTOM = after. A refill car's slot is row 0, the staging row that sits half under the HUD band, so most of its drive-in happens behind the HUD in BOTH versions. After: it starts beyond the top of the screen, waits 0.12 s for the explosion to read, then drives in over 0.62 s and brakes; only the last part shows. Owner to judge on device.
+05=THE car fix. One lane, a car waiting in the staging row at the top and a visible gap below it, then one refill. TOP = before: the new car (blue bike) materialises inside the visible gap, under the red car, and slides a little - "a new car just appears". BOTTOM = after (Candy Crush order): the waiting car drives DOWN into the gap like any advancing car (frames 5-8), and the new car (yellow) arrives from under the top edge into the staging row (frames 12-17). Same occupied rows; all 100 levels retuned for the new order (100/100 in band).

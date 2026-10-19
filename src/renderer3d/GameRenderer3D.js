@@ -162,6 +162,7 @@ export class GameRenderer3D {
 
   resetLevel() {
     this._clearTimers();
+    this._shooters?.resetMotion();   // the new level's queue snaps in, it does not slide
     // Apply a pending render-scale UPGRADE between levels. _buildGameObjects only runs once
     // per session, so deferring upgrades to it meant the scale could only ever go down: one
     // transient slow window (shader compile, thermal blip) cost resolution for good.

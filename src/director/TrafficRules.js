@@ -130,6 +130,22 @@ export function freeSpawnRow(cars, step = 1, rows = Infinity) {
   return -1;
 }
 
+/**
+ * Seat an arriving car at the BACK of its lane, Candy-Crush style. `row` is the free slot
+ * freeSpawnRow found; every car behind it (smaller row) moves forward into the next occupied
+ * slot and the new car takes the rearmost one, so it enters from behind the top edge instead of
+ * popping into a visible mid-road gap in front of a car the player has already seen. The set
+ * of occupied rows is exactly what freeSpawnRow gave, so spacing and density do not change.
+ * Mutates the rows of `cars` (any order) and `car`. Shared by GameLoop and SimulationRunner.
+ */
+export function placeArrival(cars, car, row) {
+  const behind = cars.filter(c => c.row < row).sort((a, b) => a.row - b.row);
+  if (!behind.length) { car.row = row; return; }
+  const slots = [...behind.map(c => c.row), row];
+  car.row = slots[0];
+  behind.forEach((c, i) => { c.row = slots[i + 1]; });
+}
+
 /** Can a bomb of `bombColor` be fired at this (front) car? */
 export function canTarget(car, bombColor, isColorBomb = false) {
   if (!car) return false;

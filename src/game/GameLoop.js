@@ -107,6 +107,7 @@ export class GameLoop {
     // Turn-based: block new deploy if any shot is still in flight.
     if (this._shotInFlight()) return false;
     col.consume();
+    this._lastFiredCol = colIdx;   // the viability guard may only touch this column (see _enforceViableMove)
     this._sDir.recordDeploy(this._gs.elapsed);
     this._startFiring(shooter, laneIdx, colIdx);
     return true;
@@ -124,6 +125,7 @@ export class GameLoop {
   deployFromBench(shooter, laneIdx) {
     if (this._shotInFlight()) return false;
     this._gs.benchUsed++;
+    this._lastFiredCol = null;     // a bench shot moved no queue column
     this._sDir.recordDeploy(this._gs.elapsed);
     this._startFiring(shooter, laneIdx, -1);
     return true;
@@ -438,6 +440,7 @@ export class GameLoop {
     gs.duration = this._baseDuration;   // undo any rescue-added time
     this._consecutiveComboCount = 0;    // COLOR CHANGE combo streak resets each level
     this._nearMissArmed = true;         // near-miss drama re-armed for the fresh level
+    this._lastFiredCol = null;
     gs.resetLevel();
     gs.phaseMan.update(0);
     this._accumulator = 0;
@@ -945,7 +948,11 @@ export class GameLoop {
 
   // Guarantee the player always has at least one viable move:
   // at least one source (column top or bench slot) must color-match a front car.
-  // If not, force-recolor the first available column top to a matching color.
+  // If not, recolour ONE column top to the colour of the most dangerous front car (closest to
+  // the breach). Which top: the column the player just fired from (its queue is moving anyway),
+  // else the column under that dangerous lane. It used to be "the first non-empty column" —
+  // column 0 every time — so a bomb in a column the player never touched changed colour right
+  // after a shot elsewhere (owner report 2026-10-19). Shooter3D shows the change as a transform.
   _enforceViableMove(gs) {
     // Collect front car colors.
     const frontColors = new Set();
@@ -969,14 +976,25 @@ export class GameLoop {
       }
     }
 
-    // No viable move — force-recolor the first non-empty column top.
-    const target = [...frontColors][0];
-    for (const col of gs.activeCols) {
-      if (col.top() && !col.top().isColorBomb) {
-        col.top().color = target;
-        return;
+    // No viable move. The most dangerous front car sets the colour (ties: leftmost lane).
+    let danger = -1, dangerRow = -Infinity;
+    gs.activeLanes.forEach((lane, li) => {
+      const fc = lane.frontCar();
+      if (fc && fc.row > dangerRow) { danger = li; dangerRow = fc.row; }
+    });
+    const target = gs.activeLanes[danger].frontCar().color;
+    const usable = (ci) => { const t = gs.activeCols[ci]?.top(); return !!t && !t.isColorBomb; };
+    const n = gs.activeCols.length;
+    let ci = this._lastFiredCol;
+    if (!(ci != null && ci < n && usable(ci))) {
+      // The column under the dangerous lane, else the nearest usable one to it.
+      const home = Math.min(danger, n - 1);
+      ci = null;
+      for (let d = 0; d < n && ci == null; d++) {
+        if (usable(home - d)) ci = home - d; else if (usable(home + d)) ci = home + d;
       }
     }
+    if (ci != null) gs.activeCols[ci].top().color = target;
   }
 
   // Start each active lane with one car at row 0 (the far end), or place

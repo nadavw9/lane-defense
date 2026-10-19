@@ -1462,10 +1462,12 @@ async function main() {
       weeklyLevels: weeklyPlaylist().levels,
       cityAnim: _pendingCityAnim,   // §3e repair pop (consumed once, then cleared)
       drive,                        // your car drives from the level just won to the next one
-      onArrive,                     // ...then the next level's card opens on its own
+      // ...then the next level's card opens on its own — unless the race card is due: it opens at the
+      // end of the drive instead (its PLAY NEXT LEVEL leads on), so two cards never stack.
+      onArrive: raceAuto && drive ? () => { if (!raceScreen) showRace(); } : onArrive,
     });
-    // The race card opens on its own after the city repair pop has played.
-    if (raceAuto) {
+    // With no drive, the race card opens on its own after the city repair pop has played.
+    if (raceAuto && !drive) {
       const map = levelSelectScreen;
       setTimeout(() => { if (levelSelectScreen === map && !preLevelScreen && !raceScreen) showRace(); }, _pendingCityAnim ? 1400 : 350);
     }

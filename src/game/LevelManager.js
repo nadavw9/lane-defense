@@ -167,8 +167,7 @@ const PROGRESSION = [
 
   // L26 "Paint job" (relief): NEW: a colour goal — only two colours count.
   { id: 26, name: 'Paint job', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.7),
-    duration: 100, spawnBudget: 18, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    traits: { speeder: 0.06 },
+    duration: 100, spawnBudget: 18, laneTargetCarCount: 2, gridRows: BOARD_ROWS,   // no speeders: it teaches the colour goal (relief, in band after the 2026-10-19 arrival-order retune)
     hintText: 'Only blue and green cars count toward this goal',
     goals: [{ type: 'destroyColor', color: 'Blue', count: 8 }, { type: 'destroyColor', color: 'Green', count: 8 }] },
 

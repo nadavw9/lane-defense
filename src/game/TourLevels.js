@@ -51,7 +51,7 @@ export const TOUR_LEVELS = [
   lv(122, 'Conveyor', 'ROGB', { traits: { speeder: 0.12, armored: 0.10 }, total: 28 }),
   lv(123, 'Welding sparks', 'YPOR', { traits: { volatile: 0.08, plated: 0.04 }, total: 28 }),
   lv(124, 'Scrap yard', 'GBRO', { traits: { mender: 0.16, plated: 0.04 },
-    goals: [goalTrait('mender', 4), goalColor('Orange', 5)] }),
+    goals: [goalTrait('mender', 5), goalColor('Orange', 7)] }),
   lv(125, 'Overtime', 'RPYB', { traits: { armored: 0.12, mender: 0.10, plated: 0.04 }, total: 30 }),   // hard
   lv(126, 'Shift change', 'OGBY', { traits: { armored: 0.05, speeder: 0.05 }, total: 24 }),      // relief
   lv(127, 'Crane hook', 'BRPG', { traits: { chameleon: 0.12, armored: 0.10 }, total: 28 }),
@@ -72,7 +72,7 @@ export const TOUR_LEVELS = [
   lv(137, 'Taillights', 'RPOY', { traits: { speeder: 0.14, phantom: 0.08 },
     goals: [goalColor('Red', 6), goalTotal(20)] }),
   lv(138, 'Hologram', 'BGOP', { traits: { chameleon: 0.14, phantom: 0.10 },
-    goals: [goalTrait('phantom', 4), goalTotal(18)] }),
+    goals: [goalTrait('phantom', 5), goalTotal(22)] }),
   lv(139, 'Wet asphalt', 'YRBO', { traits: { armored: 0.08, speeder: 0.12 }, total: 30 }),
   lv(140, 'Neon wave', 'PBRY', { traits: { phantom: 0.12, chameleon: 0.06 }, duration: 135, total: 32, dense: true, milestone: true,
     hint: 'BIG WAVE! Phantoms in the neon rain' }),

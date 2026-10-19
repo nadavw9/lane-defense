@@ -15,6 +15,7 @@ import { traitInfo } from './traitIcons.js';
 import { shapeFor } from '../game/ColorblindMode.js';
 import { tokenPoint, TOKEN, shownAfterLanding, needsCatchUp } from './goalTokens.js';
 import { isReducedMotion } from '../game/MotionPrefs.js';
+import { starBarFill, starsLit } from '../game/score.js';
 
 const _B = import.meta.env.BASE_URL;
 
@@ -43,6 +44,11 @@ const CARD_DONE_COLOR = 0xC9F5D3;   // soft mint when the goal is met
 const PANEL_TOP_Y   = 12;   // first card row top
 const BAND_BG_COLOR = PLUM;
 const MAX_CARDS_PER_ROW = 3;
+// The star bar under the goal slots (owner 2026-10-19: "a bar with 1 2 and 3 stars per level that
+// progresses with each point you get for car shooting and combos"). The plaque is at least this
+// wide so the three stars have room even on a one-goal level.
+const STAR_PLAQUE_MIN_W = 176;
+const STAR_R = 13;
 
 export class GoalCounterUI {
   constructor(parentLayer, stageWidth, opts = {}) {
@@ -62,6 +68,14 @@ export class GoalCounterUI {
     this._container.addChild(this._bar);
     this._barBox = null;
     this._barShown = -1;
+    // Score and the level's three star targets (setStarTargets); null = the old goal bar.
+    this._score = 0;
+    this._starTargets = null;
+    this._lit = 0;
+    this._stars = [];          // { c, on, off, popT } at 1/3, 2/3 and the end of the bar
+    this._starLayer = new Container();
+    this._container.addChild(this._starLayer);
+    this._plus = [];           // "+125" floaters over the bar
 
     // Board depth, for the band's row-0 occlusion floor (see _layoutCards).
     // Defaults to 16 = every level's depth before the rows-8 pilot, so an
@@ -192,9 +206,20 @@ export class GoalCounterUI {
   }
 
   // Update remaining counts + completion state. dt (seconds) drives the celebration.
-  update(goalProgress, dt = 0) {
+  /** This level's [one, two, three] score targets: the bar becomes the star bar. */
+  setStarTargets(targets) {
+    this._starTargets = targets ? [...targets] : null;
+    this._score = 0; this._lit = 0; this._barShown = -1;
+    for (const p of this._plus) p.t.destroy();
+    this._plus = [];
+    this._layoutStars();
+  }
+
+  update(goalProgress, dt = 0, score = this._score) {
     if (!goalProgress || goalProgress.length !== this._cards.length) return;
     this._goalProgress = goalProgress;
+    if (score > this._score) this._spawnPlus(score - this._score);
+    this._score = score;
 
     // The SHOWN count trails the real one: it drops when a kill token lands (or catches up after
     // TOKEN.grace when a kill sent none, e.g. a booster), with a punch each time it drops.
@@ -287,12 +312,17 @@ export class GoalCounterUI {
     this._drawBar(dt);
   }
 
-  // Overall goal progress (kills made / kills needed), eased toward the target.
+  // The star bar (score toward the level's three stars), or, without targets, overall goal
+  // progress. Eased toward the target so every point visibly pushes it.
   _drawBar(dt) {
     if (!this._barBox) return;
-    const total = this._goals.reduce((a, g) => a + (g.count ?? 0), 0) || 1;
-    const left  = this._goalProgress.reduce((a, r) => a + Math.max(0, r), 0);
-    const target = 1 - left / total;
+    let target;
+    if (this._starTargets) target = starBarFill(this._score, this._starTargets);
+    else {
+      const total = this._goals.reduce((a, g) => a + (g.count ?? 0), 0) || 1;
+      const left  = this._goalProgress.reduce((a, r) => a + Math.max(0, r), 0);
+      target = 1 - left / total;
+    }
     this._barShown = this._barShown < 0 ? target : this._barShown + (target - this._barShown) * Math.min(1, dt * 8);
     const { x, y, w, h } = this._barBox;
     const g = this._bar;
@@ -300,12 +330,77 @@ export class GoalCounterUI {
     g.roundRect(x, y, w, h, h / 2).fill({ color: 0x0C0A26, alpha: 0.85 });
     const fw = Math.max(0, (w - 4) * this._barShown);
     if (fw > 1) {
-      g.roundRect(x + 2, y + 2, Math.max(h - 4, fw), h - 4, (h - 4) / 2).fill(this._barGrad ??= new FillGradient({
-        type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, textureSpace: 'local',
-        colorStops: [{ offset: 0, color: 0x9CF06A }, { offset: 1, color: 0x2FA33A }] }));
+      g.roundRect(x + 2, y + 2, Math.max(h - 4, fw), h - 4, (h - 4) / 2).fill(this._starTargets
+        ? (this._starGrad ??= new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, textureSpace: 'local',
+          colorStops: [{ offset: 0, color: 0xFFE27A }, { offset: 1, color: 0xE59A1E }] }))
+        : (this._barGrad ??= new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, textureSpace: 'local',
+          colorStops: [{ offset: 0, color: 0x9CF06A }, { offset: 1, color: 0x2FA33A }] })));
       g.roundRect(x + 4, y + 3, Math.max(0, fw - 4), (h - 4) * 0.35, 2).fill({ color: WHITE, alpha: 0.35 });
     }
     g.roundRect(x, y, w, h, h / 2).stroke({ color: INK, width: 1.5 });
+    this._stepStars(dt);
+  }
+
+  // A star lights (gold, pop, sparkle burst) the moment the bar's fill reaches it.
+  _stepStars(dt) {
+    if (!this._starTargets || this._stars.length === 0) return;
+    const shownLit = Math.min(starsLit(this._score, this._starTargets), Math.floor(this._barShown * 3 + 0.03));   // the eased fill only approaches a star
+    if (shownLit < this._lit) this._lit = shownLit;   // a restart
+    while (this._lit < shownLit) {
+      const st = this._stars[this._lit++];
+      st.popT = 0;
+      this._spawnBurst(st.c.x, st.c.y, 0xFFC93C);
+      this._onComplete?.();
+    }
+    for (let i = 0; i < this._stars.length; i++) {
+      const st = this._stars[i];
+      st.on.visible = i < this._lit; st.off.visible = i >= this._lit;
+      let sc = 1;
+      if (st.popT >= 0) {
+        st.popT += dt;
+        const p = st.popT / 0.4;
+        if (p >= 1) st.popT = -1; else sc = 1 + 0.8 * Math.sin(Math.PI * p);
+      }
+      st.c.scale.set(sc);
+    }
+    for (let k = this._plus.length - 1; k >= 0; k--) {
+      const pl = this._plus[k];
+      pl.age += dt;
+      pl.t.y -= dt * 22; pl.t.alpha = Math.max(0, 1 - Math.max(0, pl.age - 0.35) / 0.5);
+      if (pl.age >= 0.85) { pl.t.destroy(); this._plus.splice(k, 1); }
+    }
+  }
+
+  // "+125": the points a shot just scored, rising off the bar's leading edge.
+  _spawnPlus(n) {
+    if (!this._barBox || !this._starTargets) return;
+    const { x, y, w } = this._barBox;
+    const t = new Text({ text: `+${n}`, style: { fontFamily: '"Lilita One", Fredoka, Arial, sans-serif', fontSize: 15, fill: 0xFFE9A0, stroke: { color: INK, width: 3.5 } } });
+    t.anchor.set(0.5);
+    t.x = x + Math.max(14, Math.min(w - 14, w * starBarFill(this._score, this._starTargets)));
+    t.y = y - 4;
+    this._starLayer.addChild(t);
+    this._plus.push({ t, age: 0 });
+  }
+
+  // Three stars evenly along the bar (starBarFill puts the targets at 1/3, 2/3 and the end).
+  _layoutStars() {
+    for (const st of this._stars) st.c.destroy({ children: true });
+    this._stars = [];
+    if (!this._starTargets || !this._barBox) return;
+    const { x, y, w, h } = this._barBox;
+    for (let i = 0; i < 3; i++) {
+      const c = new Container();
+      const off = uiIcon('star-empty', STAR_R * 2, '☆', { tint: 0x9A95C8 });
+      const on  = uiIcon('star-filled', STAR_R * 2 + 2, '★', { emojiFill: 0xFFC93C });
+      on.visible = false;
+      c.addChild(off, on);
+      c.x = x + w * (i + 1) / 3 - (i === 2 ? STAR_R - 2 : 0);
+      c.y = y + h / 2;
+      this._starLayer.addChild(c);
+      this._stars.push({ c, on, off, popT: -1 });
+    }
+    this._lit = 0;
   }
 
   _goalColor(goal) {
@@ -541,8 +636,8 @@ export class GoalCounterUI {
 
     // Gold plaque around the goal slots, with the progress bar under them.
     const n  = Math.min(cardsPerRow, this._cards.length);
-    const pw = n * CARD_W + (n - 1) * CARD_GAP + 20;
-    const ph = totalRowsNeeded * CARD_H + (totalRowsNeeded - 1) * CARD_GAP + 26;
+    const pw = Math.max(STAR_PLAQUE_MIN_W, n * CARD_W + (n - 1) * CARD_GAP + 20);
+    const ph = totalRowsNeeded * CARD_H + (totalRowsNeeded - 1) * CARD_GAP + 34;
     const px = (W - pw) / 2, py = PANEL_TOP_Y - 8;
     const pq = this._plaque;
     pq.clear();
@@ -553,8 +648,9 @@ export class GoalCounterUI {
     pq.roundRect(px, py, pw, ph, 20).stroke({ color: INK, width: 2.5 });
     pq.roundRect(px + 5, py + 5, pw - 10, ph - 10, 16).fill(0x2B2760);
     pq.roundRect(px + 5, py + 5, pw - 10, ph - 10, 16).stroke({ color: shade(0xB9771C, 0.6), width: 1.5 });
-    this._barBox = { x: px + 14, y: py + ph - 14, w: pw - 28, h: 9 };
+    this._barBox = { x: px + 16, y: py + ph - 18, w: pw - 34, h: 11 };
     this._barShown = -1;
+    this._layoutStars();
 
     let cardIndex = 0;
     for (let row = 0; row < totalRowsNeeded; row++) {
@@ -575,6 +671,7 @@ export class GoalCounterUI {
     }
     // Keep the particle FX layer above all cards, and reset completion tracking.
     this._container.addChild(this._bar);
+    this._container.addChild(this._starLayer);
     this._container.addChild(this._fx);
     this._prevProgress = this._goalProgress.slice();
     this._bursts = [];

@@ -9,6 +9,7 @@ import { PHASE_CONFIG, HP_MINIMUM, KILLS_PER_BOMB } from '../director/DirectorCo
 import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { Shooter } from '../models/Shooter.js';
 import { COLUMN_CAPACITY } from '../models/Column.js';
+import { shotPoints, nextChain, POINTS } from './score.js';
 import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak, laneHeld,
          revealStagedCars, stepSize, freeSpawnRow, placeArrival } from '../director/TrafficRules.js';
 
@@ -175,6 +176,7 @@ export class GameLoop {
       // simulator credited them, so balance assumed a BOMB players never got.
       gs.applyKillToGoals(car.color, car.type, car.trait);
       const combo = gs.recordKill(false);
+      gs.score += POINTS.car;            // booster kills pay the car value (no combo step)
       this._onKill(combo);
       if (bs && gs.killsTowardBomb % KILLS_PER_BOMB === 0 && bs.bombs < BOMB_MAX_CHARGES) {
         bs.bombs++;
@@ -289,6 +291,7 @@ export class GameLoop {
     this._surgeFromLane = causesSurge(destroyedFromCombat) ? laneIdx : null;
 
     if (!res.hit) {
+      gs.scoreChain = 0;                 // a wasted shot breaks the score combo
       this._onMiss(laneIdx, carGameX);
       this._updateColorChangeCombo(0);   // a wasted shot breaks the consecutive-combo streak
       // Color mismatch: wasted bomb slot, grid does NOT advance.
@@ -309,6 +312,10 @@ export class GameLoop {
       // shake / chroma / explosion size for multi-kills.
       this._onHit(laneIdx, carGameX, shooter.color, damageDealt, kills, power);
     }
+
+    // Score (score.js): the shot's cars, any multi-kill bonus and the combo chain.
+    gs.score += shotPoints(kills, gs.scoreChain);
+    gs.scoreChain = nextChain(gs.scoreChain, kills);
 
     if (gs.streakEnabled) {
       const next = nextStreak(gs.streak, gs.streakCharged, kills, power);
@@ -423,6 +430,7 @@ export class GameLoop {
         gs.applyKillToGoals(car.color, car.type, car.trait);
         lane.cars.splice(ci, 1);
         const combo = gs.recordKill(false);
+        gs.score += POINTS.car;            // booster kills pay the car value (no combo step)
         this._onKill(combo);
         if (bs && gs.killsTowardBomb % KILLS_PER_BOMB === 0 && bs.bombs < BOMB_MAX_CHARGES) {
           bs.bombs++;

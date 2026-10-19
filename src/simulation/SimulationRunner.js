@@ -36,6 +36,7 @@ import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { openingRowsForLevel, clampInitialCarsToDepth, streakEnabledFor } from '../game/LevelManager.js';
 import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak, laneHeld, pushTrafficBack, rescueRowsBack,
          revealStagedCars, stepSize, freeSpawnRow, placeArrival } from '../director/TrafficRules.js';
+import { shotPoints, nextChain, POINTS } from '../game/score.js';
 
 const DT = 1 / 60; // seconds per simulation tick (used for fire cooldowns only)
 
@@ -263,6 +264,8 @@ export class SimulationRunner {
     let   streak           = 0;       // V2 Hot Streak: consecutive kill shots
     let   streakCharged    = false;   // the next bomb is supercharged
     let   powerShots       = 0;       // instrumentation: supercharged shots fired
+    let   score            = 0;       // parity with GameLoop (score.js): drives the star targets
+    let   scoreChain       = 0;
     let   armorBreaks      = 0;       // instrumentation: armour plates knocked off
     let   freezeCharges    = 0;       // earned 3-kill chain → +1, cap 2
     let   freezeSkips      = 0;       // pending advance-skips from an activated freeze
@@ -499,7 +502,7 @@ export class SimulationRunner {
             bombsFired++;
             // Parity with GameLoop.placeBombOnLane: the whole lane goes.
             for (const car of bestLane.cars) {
-              carsKilled++; bombKills++; applyKillToGoals(car.color, car.type, car.trait);
+              carsKilled++; bombKills++; score += POINTS.car; applyKillToGoals(car.color, car.type, car.trait);
             }
             bestLane.cars.length = 0;
             // Parity with GameLoop._settleAfterClear: an empty board refills
@@ -577,6 +580,8 @@ export class SimulationRunner {
           if (res.armorBroken) armorBreaks++;
           surgeFrom = causesSurge(res.destroyed) ? lane.id : null;
           if (streakOn) ({ streak, charged: streakCharged } = nextStreak(streak, streakCharged, res.kills, power));
+          score += shotPoints(res.kills, scoreChain);   // parity with GameLoop._resolveShot
+          scoreChain = nextChain(scoreChain, res.kills);
           carryOvers += res.carryOverKills;
           for (const dead of res.destroyed) {
             carsKilled++;
@@ -691,6 +696,7 @@ export class SimulationRunner {
       bombsFired,
       bombKills,
       powerShots,
+      score,
       armorBreaks,
       continuesUsed,
       progressAtLoss,

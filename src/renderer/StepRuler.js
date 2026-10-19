@@ -82,6 +82,13 @@ export class StepRuler {
 
   setVisible(v) { this._root.visible = v; }
 
+  // Stage rect of the ruler (the L1 tour points at it), or null when this board has none.
+  rect() {
+    if (!this._cfg) return null;
+    const b = this._root.getLocalBounds();
+    return b.width > 0 ? { x: b.x - 6, y: b.y - 6, w: b.width + 12, h: b.height + 12 } : null;
+  }
+
   update(dt, gs) {
     this._t += dt;
     const mk = this._marker;

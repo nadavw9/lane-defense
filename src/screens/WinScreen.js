@@ -14,6 +14,7 @@ import { RACE_GOAL } from '../game/race.js';
 import { worldForLevel } from './levelMapLayout.js';
 import { LEVEL_COUNT } from '../game/LevelManager.js';
 import { panel as premiumPanel, ribbon, button as premiumButton, bodyText, titleText, well } from '../renderer/PremiumUI.js';
+import { starsFor, starTargetsFor } from '../game/score.js';
 
 const _B = import.meta.env.BASE_URL;
 
@@ -59,11 +60,12 @@ async function _shareWin(levelId, stars, combo) {
   } catch { /* share cancelled — ignore */ }
 }
 
+// Stars come from the level's score (src/game/score.js): every destroyed car and every combo adds
+// points, and the level's three targets turn them into 1-3 stars. They used to come from how far the
+// cars got, which the big board made all but impossible (owner, 2026-10-19).
 export function calcStars(gs) {
-  if (gs.rescueUsed)          return 1;
-  if (gs.maxCarPosition < 60) return 3;
-  if (gs.maxCarPosition < 80) return 2;
-  return 1;
+  const goal = (gs.goals ?? []).reduce((a, g) => a + (g.count ?? 0), 0);
+  return starsFor(gs.score ?? 0, gs.starTargets ?? starTargetsFor(gs.levelId, goal));
 }
 
 // ── Confetti particle system ───────────────────────────────────────────────────
@@ -371,7 +373,7 @@ export class WinScreen {
     const showStreak = (this._winStreak ?? 0) >= 2;   // a streak row once it is worth something
     const offerDouble = !!this._onDoubleCoins && (gs.coins ?? 0) > 0;   // the classic win-screen video: x2 coins
     const showRace = !!this._race;
-    const panelH = (is3Star ? 512 : 462) + (showStreak ? 50 : 0) + (showRace ? 50 : 0) + (offerDouble ? 62 : 0);
+    const panelH = 512 + (showStreak ? 50 : 0) + (showRace ? 50 : 0) + (offerDouble ? 62 : 0);
     const px = (w - panelW) / 2;
     const py = (h - panelH) / 2 - 36;
     const cx = w / 2;
@@ -435,10 +437,11 @@ export class WinScreen {
     } else {
       this._statRow(px + 22, y, panelW - 44, ROW_H, 'CARS DESTROYED', String(gs.totalKills ?? 0), 0xff8844, { name: 'explosion', emoji: '💥' });
     }
-    if (is3Star) {
-      y += ROW_H + ROW_GAP;
-      this._statRow(px + 22, y, panelW - 44, ROW_H, 'PERFECT CLEAR', 'Flawless!', 0xffcc00, { name: 'star-filled', emoji: '★' });
-    }
+    // The points the stars came from (src/game/score.js), and the next star's target when short of three.
+    y += ROW_H + ROW_GAP;
+    const tg = gs.starTargets ?? null;
+    const scoreTxt = `${(gs.score ?? 0).toLocaleString('en-US')}${tg && stars < 3 ? ` / ${tg[stars].toLocaleString('en-US')}` : ''}`;
+    this._statRow(px + 22, y, panelW - 44, ROW_H, 'SCORE', scoreTxt, 0xffcc00, { name: 'star-filled', emoji: '★' });
     if (showStreak) {
       y += ROW_H + ROW_GAP;
       this._statRow(px + 22, y, panelW - 44, ROW_H, 'WIN STREAK', `×${this._winStreak}`, 0xFF9A3C, { name: 'fire', emoji: '🔥' });

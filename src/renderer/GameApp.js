@@ -99,6 +99,7 @@ import { AudioManager }           from '../audio/AudioManager.js';
 import { BoosterBar, BAR_Y as BOOSTER_BAR_TOP_Y, boosterCardRect } from './BoosterBar.js';
 import { levelStartCards, reactiveAllowed } from '../screens/introSchedule.js';
 import { GoalCounterUI }          from './GoalCounterUI.js';
+import { starTargetsFor }         from '../game/score.js';
 import { StreakMeter }            from './StreakMeter.js';
 import { adManager }            from '../ads/AdManager.js';
 import { PopupQueue, PRIORITY }  from './PopupQueue.js';
@@ -598,6 +599,7 @@ async function main() {
     breach: () => { const l = _laneSpan(); return { x: l.x - 4, y: ROAD_BOTTOM_Y - 12, w: l.w + 8, h: 24 }; },
     bombs:  () => { const l = _laneSpan(); return { x: l.x, y: SHOOTER_AREA_Y + 6, w: l.w, h: SHOOTER_AREA_H - 6 }; },
     goal:   () => goalCounterUI.plaqueRect() ?? { x: APP_W / 2 - 45, y: 6, w: 90, h: 82 },
+    ruler:  () => stepRuler.rect() ?? { x: 4, y: ROAD_TOP_Y, w: 40, h: ROAD_BOTTOM_Y - ROAD_TOP_Y },
     bench:  () => ({ x: 12, y: benchY(), w: APP_W - 24, h: benchSlotH() }),
     light:         () => trafficLights.firstRect() ?? { x: 6, y: ROAD_BOTTOM_Y - 60, w: APP_W - 12, h: 60 },
     boosterColor:  () => boosterCardRect(0),
@@ -817,6 +819,8 @@ async function main() {
     gs.goals          = cfg.goals ?? [];
     gs._initialGoals  = cfg.goals ? JSON.parse(JSON.stringify(cfg.goals)) : [];
     gs.goalProgress   = gs.goals.map(g => g.count);
+    // Stars come from points (src/game/score.js); the targets are this level's, the daily derives them.
+    gs.starTargets    = starTargetsFor(cfg.isDaily ? 'daily' : cfg.id, gs.goals.reduce((a, g) => a + (g.count ?? 0), 0));
     carDir.setLevel(typeof cfg.id === 'number' ? cfg.id : 1);
     carDir.setSpawnScript(cfg.spawnScript ?? null);   // §3c staged boss waves (INFRA-C)
     carDir.setTraits(cfg.traits ?? null, cfg.colors);  // V2 special cars (TrafficRules)
@@ -995,6 +999,7 @@ async function main() {
     // setGoals already ran above, so this re-lays out the existing cards with
     // the correct depth rather than reordering level start around it.
     goalCounterUI.setGridRows(gs.gridRows);
+    goalCounterUI.setStarTargets(gs.starTargets);
     // projection.js's band is now lane-count-keyed (THREE_LANE_REDESIGN_BATCH.md
     // §1) — setActiveLaneCount() above already updated it (via Scene3D). Refresh
     // the 2D chrome geometry (breach stripe, road strips, tap-to-row mapping)
@@ -2642,7 +2647,7 @@ async function main() {
     laneFlash.update(dt);
     comboGlow.update(dt, gs.combo);
     boosterBar.update(dt);
-    if (gs.goalProgress) goalCounterUI.update(gs.goalProgress, dt);
+    if (gs.goalProgress) goalCounterUI.update(gs.goalProgress, dt, gs.score ?? 0);
     streakMeter.update(dt);
     // Goal-bar help buttons share the pause button's gameplay visibility (overlays
     // hide pauseBtn while open, so these follow suit).

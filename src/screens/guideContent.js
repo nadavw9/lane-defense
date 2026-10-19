@@ -15,7 +15,7 @@
 import { KILLS_PER_BOMB } from '../director/DirectorConfig.js';
 
 export function tourSteps(geo) {
-  // Three cards, then play: what wins, what loses, and the one gesture. Top puzzle games teach
+  // Four cards, then play: what wins, what loses, how close you are, and the one gesture. Top puzzle games teach
   // with the board, not with reading; the rest arrives as one-line cards on the levels that use it.
   return [
     {
@@ -27,6 +27,11 @@ export function tourSteps(geo) {
       title: 'THE RED LINE',
       text: 'A car past this line = you LOSE.',
       target: geo.breach,
+    },
+    {
+      title: 'MOVES LEFT',
+      text: 'This number = moves before the nearest car reaches the red line.',
+      target: geo.ruler,
     },
     {
       title: 'YOUR BOMBS',

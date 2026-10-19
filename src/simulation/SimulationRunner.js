@@ -34,7 +34,7 @@ import {
 import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { openingRowsForLevel, clampInitialCarsToDepth, streakEnabledFor } from '../game/LevelManager.js';
 import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak, laneHeld, pushTrafficBack, rescueRowsBack,
-         revealStagedCars, stepSize, freeSpawnRow } from '../director/TrafficRules.js';
+         revealStagedCars, stepSize, freeSpawnRow, placeArrival } from '../director/TrafficRules.js';
 
 const DT = 1 / 60; // seconds per simulation tick (used for fire cooldowns only)
 
@@ -379,7 +379,9 @@ export class SimulationRunner {
           const car = carDir.generateCar({ id: lane.id }, phase, worldConfig, colors, this._cfg.gridRows);
           // No re-multiplication: car.hp already carries hpMultiplier (see the
           // opening-block parity note). Carry-over bait cars keep their 1-2 hp.
-          lane.cars.push(rec(car, row));
+          const r = rec(car, row);
+          placeArrival(lane.cars, r, row);   // parity with GameLoop._refillLanes: arrivals take the back
+          lane.cars.push(r);
           added = true;
         }
         if (added) lane.cars.sort((a, b) => b.row - a.row);   // cars[0] = front (highest row)

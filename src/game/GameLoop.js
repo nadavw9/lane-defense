@@ -10,7 +10,7 @@ import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { Shooter } from '../models/Shooter.js';
 import { COLUMN_CAPACITY } from '../models/Column.js';
 import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak, laneHeld,
-         revealStagedCars, stepSize, freeSpawnRow } from '../director/TrafficRules.js';
+         revealStagedCars, stepSize, freeSpawnRow, placeArrival } from '../director/TrafficRules.js';
 
 const MULTI_KILLS_PER_BOMB = 3;    // multi-kills (2+ cars/shot) banked to earn a color bomb
 const BOMB_MAX_CHARGES    = 3;     // max bombs a player can hold
@@ -699,8 +699,10 @@ export class GameLoop {
           const row = freeSpawnRow(lane.cars, stepSize(gs.stepsPerRow), ROWS);
           if (row < 0) break;   // lane physically full — nothing more to add
           const car = this._carDir.generateCar(lane, 'CALM', gs.world, gs.colors, gs.gridRows);
-          car.row = row;
-          car.position = this._rowToPosition(row, ROWS);
+          // The new car takes the back of the lane; cars behind the gap drive forward into it.
+          placeArrival(lane.cars, car, row);
+          for (const c of lane.cars) c.position = this._rowToPosition(c.row, ROWS);
+          car.position = this._rowToPosition(car.row, ROWS);
           lane.addCar(car);
         }
       }

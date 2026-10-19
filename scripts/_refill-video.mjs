@@ -30,6 +30,28 @@ await p.waitForTimeout(5000);
 for (let i = 0; i < 6; i++) { await p.evaluate(() => window._nav.dismissGuides?.()); await p.waitForTimeout(300); }
 if (await p.evaluate(() => window._nav.getGameLoop().paused)) { console.log('PAUSED — precondition failed'); process.exit(1); }
 const shotTimes = [];
+if (process.env.MODE === 'gap') {
+  // A lane with a car staged at the back and a visible gap below it, then one refill: the case
+  // where the old rule dropped the new car into the visible gap.
+  await p.waitForTimeout(800);
+  await p.evaluate(() => {
+    const gs = window._nav.getGs(), gl = window._nav.getGameLoop(), ROWS = gs.gridRows;
+    const lane = gs.lanes[1];
+    const keep = lane.cars.slice(0, 2);
+    lane.cars.length = 0;
+    keep[0].row = 3.5; keep[1].row = 0.5;
+    for (const c of keep) { c.position = gl._rowToPosition(c.row, ROWS); lane.addCar(c); }
+  });
+  await p.waitForTimeout(1200);
+  shotTimes.push((Date.now() - t0) / 1000);
+  const after = await p.evaluate(() => {
+    const gs = window._nav.getGs(), gl = window._nav.getGameLoop();
+    gs.laneTargetCarCount = 3;
+    gl._refillLanes();
+    return gs.lanes[1].cars.map(c => c.row + ':' + c.color);
+  });
+  console.log('refill at', shotTimes.at(-1).toFixed(2), 'lane 1 rows', JSON.stringify(after));
+}
 if (process.env.MODE === 'effects') {
   // 1) the viability guard's recolour, as the player sees it (same bomb, new colour)
   await p.waitForTimeout(800);
@@ -43,7 +65,7 @@ if (process.env.MODE === 'effects') {
     const c = Object.assign(Object.create(Object.getPrototypeOf(s0)), s0, { color: 'Red' }); col.shooters.unshift(c); col.shooters.length = 3; });
   console.log('crisis insert at', shotTimes.at(-1).toFixed(2));
 }
-for (let shot = 0; shot < (process.env.MODE === 'effects' ? 0 : Number(shotsArg)); shot++) {
+for (let shot = 0; shot < (process.env.MODE ? 0 : Number(shotsArg)); shot++) {
   await p.waitForFunction(() => !Object.values(window._nav.getGs().firingSlots).some(Boolean), null, { timeout: 30000 });
   await p.waitForTimeout(1200);
   const fired = await p.evaluate(() => {

@@ -57,9 +57,10 @@ const PROGRESSION = [
     duration: 70, spawnBudget: 8, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
     hintText: 'Colors must match — a red bomb only hits red cars', goals: total(14) },
 
-  // L3 "Warm up": practice the match on two lanes.
+  // L3 "Warm up": practice the match on two lanes. A short, quick win (12, was 16: owner
+  // 2026-10-19 — it adds no new rule, so it should not outlast the level that taught the colours).
   { id: 3, name: 'Warm up', laneCount: 2, colCount: 2, colors: ['Red', 'Blue'], worldConfig: W(1),
-    duration: 80, spawnBudget: 9, laneTargetCarCount: 2, gridRows: BOARD_ROWS, goals: total(16) },
+    duration: 80, spawnBudget: 9, laneTargetCarCount: 2, gridRows: BOARD_ROWS, goals: total(12) },
 
   // L4 "Bigger cars": NEW: the car (2 hits). Its animated card opens the level.
   { id: 4, name: 'Bigger cars', laneCount: 2, colCount: 2, colors: ['Red', 'Blue'], worldConfig: W(1),

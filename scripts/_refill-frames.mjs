@@ -46,14 +46,14 @@ for (let shot = 0; shot < Number(shotsArg); shot++) {
   console.log('shot', shot, JSON.stringify(fired));
   if (!fired.ok) break;
   if (shot === 0) await p.screenshot({ path: `${out}/${prefix}-full0.png` });
-  for (let f = 0; f < 10; f++) {
+  for (let f = 0; f < Number(process.env.NFRAMES ?? 10); f++) {
     frames.push(await p.screenshot());
     await p.waitForTimeout(Number(process.env.FRAME_MS ?? 100));
   }
   console.log('after', await p.evaluate(() => JSON.stringify(window._nav.getGs().activeCols.map(c => c.shooters.map(s => s.color[0]).join('')))));
 }
 // Contact sheet: each frame cropped to the road + bomb queue at full resolution, 10 per row.
-const CROP = { left: 66, top: 110, width: 260, height: 620 };
+const CROP = { left: 66, top: Number(process.env.CROP_TOP ?? 110), width: 260, height: Number(process.env.CROP_H ?? 620) };
 const W = Math.round(CROP.width * 0.6), H = Math.round(CROP.height * 0.6), per = 10, rows = Math.ceil(frames.length / per);
 const tiles = await Promise.all(frames.map(f => sharp(f).extract(CROP).resize(W, H).toBuffer()));
 await sharp({ create: { width: W * per, height: H * rows, channels: 3, background: '#000' } })

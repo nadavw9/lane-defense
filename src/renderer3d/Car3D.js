@@ -13,7 +13,8 @@
 
 import * as THREE from 'three';
 import { CELL, posToZ, laneToX } from './Scene3D.js';
-import { ROAD_Z_FAR, POS_NEAR_Z } from './projection.js';
+import { ROAD_Z_FAR, POS_NEAR_Z, screenYToZ } from './projection.js';
+import { carEntryStartZ, carEntryProgress } from './carEntry.js';
 import { CAR_SPRITE_GEOMETRY } from './carSpriteGeometry.js';
 import { BOSS_SPRITE_GEOMETRY } from './bossSpriteGeometry.js';
 import { isColorblind } from '../game/ColorblindMode.js';
@@ -33,7 +34,6 @@ const DEATH_SCALE_MAX  = 1.30;
 const DEATH_VY         = 2.5;
 const DEATH_SPIN       = Math.PI; // 180° yaw spin, direction = away from centre lane
 const MAX_TILT_X       = 0.20;
-const SPAWN_OFFSET     = 5.0;   // bigrig half-height=2.52 + frustum margin → fully off-screen
 const POWER_FLASH_DUR  = 0.25;
 const POWER_SQUASH_DUR = 0.16;   // total squash→stretch→settle duration
 
@@ -750,16 +750,27 @@ export class Car3D {
         if (entry.shapeBadge) entry.shapeBadge.visible = isColorblind() && !isHiddenPhantom(car);
         this._updateTraitFx(entry, car, dt, now);
 
+        // ── Refill entry (carEntry.js): drive in from above the screen top, then brake ──
+        if (entry._entryT != null) {
+          entry._entryT += dt;
+          entry.targetZ  = posToZ(car.position);   // the board may advance mid-entry: keep heading for the live row
+          const k = carEntryProgress(entry._entryT);
+          entry.renderZ = entry._entryStartZ + (entry.targetZ - entry._entryStartZ) * k;
+          g.rotation.x  = -MAX_TILT_X * Math.sin(Math.PI * k);
+          if (k >= 1) { entry._entryT = null; entry._isSpawning = false; entry.lerpT = 1; entry.renderZ = entry.targetZ; g.rotation.x = 0; }
+        }
         // ── Smooth advance lerp ───────────────────────────────────────────────
         const newTargetZ = posToZ(car.position);
-        if (Math.abs(newTargetZ - entry.targetZ) > 0.001) {
+        if (entry._entryT != null) { /* entering: handled above */ }
+        else if (Math.abs(newTargetZ - entry.targetZ) > 0.001) {
           entry.lerpStartZ = entry.renderZ;
           entry.targetZ    = newTargetZ;
           entry.lerpT      = 0;
           // Spawn speed lines when advancing (not on first spawn)
           if (!entry._isSpawning) this._spawnSpeedLines(entry, laneIdx, car);
         }
-        if (entry.lerpT < 1) {
+        if (entry._entryT != null) { /* entering */ }
+        else if (entry.lerpT < 1) {
           const dur     = entry._isSpawning ? SPAWN_LERP_DURATION : LERP_DURATION;
           entry.lerpT   = Math.min(1, entry.lerpT + dt / dur);
           const eased   = 1 - Math.pow(1 - entry.lerpT, 3);
@@ -1074,7 +1085,8 @@ export class Car3D {
     // (no glide, no ghost trail). Mid-play spawns (lane refills after a kill) never
     // carry this flag and keep the normal glide-in.
     const targetZ  = posToZ(car.position);
-    const spawnZ   = car.isInitial ? targetZ : targetZ - SPAWN_OFFSET;
+    // Refills start fully above the top screen edge (carEntry.js) — not under the HUD band.
+    const spawnZ   = car.isInitial ? targetZ : carEntryStartZ(targetZ, screenYToZ(0));
     const worldX   = laneToX(laneIdx, this._laneCount);
     group.position.set(worldX, 0, spawnZ);
 
@@ -1113,6 +1125,7 @@ export class Car3D {
       bossRing, bossRingMat, bossAngle: 0,
       renderZ: spawnZ, targetZ, lerpStartZ: spawnZ, lerpT: car.isInitial ? 1 : 0,
       _isSpawning: !car.isInitial,
+      _entryT: car.isInitial || keep ? null : 0, _entryStartZ: spawnZ,
       _auraBlend: 0, _auraT: 0,
       _powerFlashing: false, _powerFlashT: 0,
       _powerSquashing: false, _powerSquashT: 0,
@@ -1120,7 +1133,7 @@ export class Car3D {
       _ghosts: ghosts.length ? ghosts : null,
     };
     if (keep) {   // reshaping a live car: carry its motion and effect state over
-      for (const k of ['renderZ', 'targetZ', 'lerpStartZ', 'lerpT', '_isSpawning', '_auraBlend', '_auraT', '_prevFrozen', '_speedLines']) entry[k] = keep[k];
+      for (const k of ['renderZ', 'targetZ', 'lerpStartZ', 'lerpT', '_isSpawning', '_entryT', '_entryStartZ', '_auraBlend', '_auraT', '_prevFrozen', '_speedLines']) entry[k] = keep[k];
       entry._popT = 0;
     }
     return entry;

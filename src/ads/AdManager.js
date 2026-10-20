@@ -9,6 +9,8 @@
 import { Capacitor } from '@capacitor/core';
 import { interstitialWindowOpen, isInterstitialTurn, useTestAds } from './adPolicy.js';
 import { AdMob, RewardAdPluginEvents, InterstitialAdPluginEvents, AdmobConsentStatus } from '@capacitor-community/admob';
+import { logEvent } from '../analytics/Analytics.js';
+import { hasEntitlement } from '../monetization/entitlements.js';
 
 const REWARDED_AD_ID     = 'ca-app-pub-3810333742263149/8064409920';
 const INTERSTITIAL_AD_ID = 'ca-app-pub-3810333742263149/4284947016';
@@ -144,6 +146,7 @@ export class AdManager {
     listeners.push(AdMob.addListener(RewardAdPluginEvents.Rewarded, () => {
       rewarded = true;
       this._lastRewarded = Date.now();
+      logEvent('ad_shown', { kind: 'rewarded' });   // ads per daily player: tools/funnel.mjs
       cleanup();
       onComplete?.();
     }));
@@ -152,6 +155,7 @@ export class AdManager {
       if (!rewarded) onDismissed?.();
     }));
     listeners.push(AdMob.addListener(RewardAdPluginEvents.FailedToLoad, () => {
+      logEvent('ad_failed', { kind: 'rewarded' });   // no fill: the player asked and got nothing
       cleanup();
       onDismissed?.();
     }));
@@ -169,6 +173,7 @@ export class AdManager {
   // once the ad is dismissed. Paced by adPolicy (window + every-Nth). Resolves immediately on web or when throttled.
   showInterstitial(levelId = 0) {
     if (!this._native) return Promise.resolve();
+    if (hasEntitlement('remove_ads')) return Promise.resolve();   // bought REMOVE ADS: no interstitials, rewarded stay opt-in
     const now = Date.now();
     if (!interstitialWindowOpen({ now, lastInterstitial: this._lastInterstitial,
       lastRewarded: this._lastRewarded, levelId })) return Promise.resolve();
@@ -180,7 +185,7 @@ export class AdManager {
       const listeners = [];
       const done = () => { listeners.forEach(l => l.remove()); listeners.length = 0; resolve(); };
 
-      listeners.push(AdMob.addListener(InterstitialAdPluginEvents.Dismissed, done));
+      listeners.push(AdMob.addListener(InterstitialAdPluginEvents.Dismissed, () => { logEvent('ad_shown', { kind: 'interstitial', levelId }); done(); }));
       listeners.push(AdMob.addListener(InterstitialAdPluginEvents.FailedToLoad, () => {
         console.warn('[AdManager] Interstitial failed to load');
         done();

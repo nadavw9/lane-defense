@@ -6,7 +6,19 @@
 //   • Anonymous: player identity is a random UUID stored in localStorage.
 //     No PII is ever collected.
 
+import { installDayFor, dayIndex, sessionClock } from './retention.js';
+
 const DB_URL = 'https://lanedefense-analytics-default-rtdb.firebaseio.com';
+
+// Build label (CI sets VITE_APP_VERSION to the Play versionName), so a metric can be split by release.
+const APP_VERSION = import.meta.env.VITE_APP_VERSION ?? 'dev';
+let _storage = null;
+try { _storage = globalThis.localStorage ?? null; } catch { /* unavailable */ }
+// Install day + days since, on every row: D1/D7/D30 come straight off the log (tools/funnel.mjs).
+function _stamp(now = new Date()) {
+  const installDay = installDayFor(_storage, now);
+  return { installDay, dayIndex: dayIndex(installDay, now), v: APP_VERSION };
+}
 
 // Rules generation. Stamped on every row so data from the old numbered-bomb model never mixes
 // with the one-hit ladder when win rates are compared against the sim bands.
@@ -42,11 +54,17 @@ export class Analytics {
     this._post('events', {
       event:        'session_start',
       model:        RULES_MODEL,
+      ..._stamp(),
       playerId:     this._playerId,
       timestamp:    Date.now(),
       deviceWidth:  window.innerWidth,
       deviceHeight: window.innerHeight,
     });
+  }
+
+  // The app went to the background (or closed) after `seconds` of play.
+  recordSessionEnd(seconds) {
+    this._post('events', { event: 'session_end', model: RULES_MODEL, playerId: this._playerId, seconds, ..._stamp(), timestamp: Date.now() });
   }
 
   // Call after every level attempt (win, lose, or breach-with-rescue).
@@ -126,7 +144,18 @@ export function logEvent(eventName, data) {
     fetch(`${DB_URL}/events.json`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ event: eventName, model: RULES_MODEL, playerId: _cachedId ??= getInstallId(), ...data, ts: Date.now() }),
+      body:    JSON.stringify({ event: eventName, model: RULES_MODEL, playerId: _cachedId ??= getInstallId(), ..._stamp(), ...data, ts: Date.now() }),
     }).catch(() => {});
   } catch (_) {}
+}
+
+// Sessions for retention: one session_start per app open or return after 30 minutes away, one
+// session_end (with seconds played) each time the app leaves the foreground.
+export function trackSessions(analytics, doc = globalThis.document) {
+  const clock = sessionClock();
+  if (clock.foreground()) analytics.recordSessionStart();
+  doc?.addEventListener?.('visibilitychange', () => {
+    if (doc.hidden) analytics.recordSessionEnd(clock.background());
+    else if (clock.foreground()) analytics.recordSessionStart();
+  });
 }

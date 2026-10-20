@@ -14,6 +14,16 @@ import { hasEntitlement } from '../monetization/entitlements.js';
 
 const REWARDED_AD_ID     = 'ca-app-pub-3810333742263149/8064409920';
 const INTERSTITIAL_AD_ID = 'ca-app-pub-3810333742263149/4284947016';
+const TEST_ADS = useTestAds(import.meta.env);
+
+/**
+ * Options for one ad request. `isTesting: true` makes the plugin load Google's
+ * test unit instead of ours, so a tester build never shows (or earns from) a real ad.
+ * Before 2026-10-20 this flag was missing and test builds served live ads.
+ */
+export function adOptions(adId, testAds = TEST_ADS) {
+  return { adId, isTesting: testAds };
+}
 // ── Booster costs (ads required to unlock) ─────────────────────────────────
 export const AD_COSTS = {
   colorchange: 1,   // 1 ad → Color Change booster for this level
@@ -75,9 +85,11 @@ export class AdManager {
     if (!Capacitor.isNativePlatform()) return;
     try {
       // Live ads require VITE_ADS_MODE=live at build time; anything else (missing,
-      // misspelt, or a dev build) keeps the production ad unit IDs above in test
-      // mode: test ads, no revenue. Fail-safe by design — see adPolicy.useTestAds.
-      await AdMob.initialize({ testingDevices: [], initializeForTesting: useTestAds(import.meta.env) });
+      // misspelt, or a dev build) is test mode: test ads, no revenue. Fail-safe by
+      // design — see adPolicy.useTestAds. initializeForTesting alone does NOT do it
+      // (it only registers `testingDevices`, and the list is empty): the switch that
+      // swaps in Google's test unit IDs is `isTesting` on every ad request (adOptions).
+      await AdMob.initialize({ testingDevices: [], initializeForTesting: TEST_ADS });
       // Consent (Google UMP) BEFORE any ad request. Where the law requires it
       // (EEA / UK / Switzerland) the form shows on first launch; elsewhere the
       // status comes back NOT_REQUIRED and nothing is shown. The form itself is
@@ -164,7 +176,7 @@ export class AdManager {
       onDismissed?.();
     }));
 
-    AdMob.prepareRewardVideoAd({ adId: REWARDED_AD_ID })
+    AdMob.prepareRewardVideoAd(adOptions(REWARDED_AD_ID))
       .then(() => AdMob.showRewardVideoAd())
       .catch(() => { cleanup(); onDismissed?.(); });
   }
@@ -195,7 +207,7 @@ export class AdManager {
         done();
       }));
 
-      AdMob.prepareInterstitial({ adId: INTERSTITIAL_AD_ID })
+      AdMob.prepareInterstitial(adOptions(INTERSTITIAL_AD_ID))
         .then(() => AdMob.showInterstitial())
         .catch((e) => { console.warn('[AdManager] Interstitial error:', e); done(); });
     });

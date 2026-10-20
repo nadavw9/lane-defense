@@ -103,7 +103,7 @@ import { starTargetsFor }         from '../game/score.js';
 import { StreakMeter }            from './StreakMeter.js';
 import { adManager }            from '../ads/AdManager.js';
 import { PopupQueue, PRIORITY }  from './PopupQueue.js';
-import { Analytics, logEvent, setAnalyticsEnabled } from '../analytics/Analytics.js';
+import { Analytics, logEvent, setAnalyticsEnabled, trackSessions } from '../analytics/Analytics.js';
 import { AutoTuner }             from '../analytics/AutoTuner.js';
 import { AchievementManager }     from '../game/AchievementManager.js';
 import { DailyChallengeManager }  from '../game/DailyChallengeManager.js';
@@ -341,7 +341,7 @@ async function main() {
   await adManager.init();
   setAnalyticsEnabled(adManager.consentGranted);
   adManager.onConsentChange = setAnalyticsEnabled;
-  analytics.recordSessionStart();
+  trackSessions(analytics);   // session_start / session_end with install day + day index (retention)
 
   const haptics = new HapticsManager();
   haptics.enabled = progress.hapticsEnabled;

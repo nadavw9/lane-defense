@@ -34,6 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       VITE_ADS_MODE: ${{ github.event.inputs.ads || 'test' }}
+      VITE_APP_VERSION: 1.1.${{ github.run_number }}   # same as the gradle versionName below
     steps:
       - name: Check signing secrets
         env:

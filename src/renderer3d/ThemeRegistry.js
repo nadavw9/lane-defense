@@ -15,6 +15,11 @@
 //   L46-60: desert, L61-75: frost, L76-90: harbor, L91-100: cosmos (Worlds 4-7)
 //   L101-200: the second tour, same mapping as L1-100 (Worlds 8-14)
 
+// The time of day on the SCENERY, never the cars (they must stay vivid for colour matching). The
+// scenery is unlit sprites that the 3D lights cannot touch, so without this L5, L9 and L13 looked
+// the same. sceneGlow is ADDED over the baked backdrop (a light plane: warms houses and asphalt
+// alike without turning the road to mud); sceneTint multiplies the Pixi verge strips on boards
+// without a bake. 0x000000 / 0xffffff = the art as baked.
 export const THEMES = {
   // Morning: warm cream-gold dominates. Soft sage greenery, hazy horizon.
   morning: {
@@ -24,6 +29,8 @@ export const THEMES = {
     ambient:   { color: 0xfff8f0, intensity: 0.48 },
     fog:       { color: 0xf0d8a8, near: 30, far: 92 },
     roadColor: 0x1c1c1a,   // very slightly warm grey
+    sceneTint: 0xFFF2DC,   // cream morning light
+    sceneGlow: 0x2A2008,
   },
   // Afternoon: deep sky blue dominates. Golden warm horizon, vivid greens.
   afternoon: {
@@ -33,6 +40,8 @@ export const THEMES = {
     ambient:   { color: 0xffffff, intensity: 0.62 },
     fog:       { color: 0xaad4f8, near: 38, far: 128 },
     roadColor: 0x1c1c1c,   // neutral dark grey
+    sceneTint: 0xFFFFFF,   // full daylight: the reference look
+    sceneGlow: 0x000000,
   },
   // Sunset: deep indigo-purple dominates. Warm orange rim, dramatic shadows.
   sunset: {
@@ -42,6 +51,8 @@ export const THEMES = {
     ambient:   { color: 0xff9960, intensity: 0.38 },
     fog:       { color: 0xff7722, near: 24, far: 90 },
     roadColor: 0x1e1c1a,   // warm dark — slightly orange-tinted
+    sceneTint: 0xFFC896,   // orange evening wash
+    sceneGlow: 0x4A2406,
   },
   // Misty: cool blue-grey dominates. Light ground haze; cars visible throughout road.
   // near=20 minimum so cars remain visible — do not lower.
@@ -52,6 +63,8 @@ export const THEMES = {
     ambient:   { color: 0xd0dde8, intensity: 0.58 },
     fog:       { color: 0xc8d0d8, near: 20, far: 70 },
     roadColor: 0x1a1c1e,   // cool dark — slightly blue-tinted
+    sceneTint: 0xC2CCDA,   // cool overcast grey
+    sceneGlow: 0x303A48,   // haze: lifts and cools everything
   },
   // Industrial Zone (World 2, L16-30): steel-grey overcast sky, vivid orange hazard
   // horizon glow from factory flares. Warm smoky fog. Gritty, high-stakes feel.

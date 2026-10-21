@@ -1,8 +1,4 @@
-Stars from points, star bar, goal caption, moves-left card (2026-10-20). Left = BEFORE, right = AFTER.
-01 = L5 level card. Look for: the new line under the goal tile, "Destroy 9 cars of any color".
-02 = L1 in play. Look for: under the goal number, the green goal bar is now a gold STAR BAR with 3 stars; it fills with every point (car kills + combos). The step ruler with its glowing number is on the left on L1 (it was already there; now the tour explains it, see 03).
-03 = L1 first-run tour, new card "MOVES LEFT": the gold ring is on the step ruler, "This number = moves before the nearest car reaches the red line."
-04 = Star bar mid-level: L5 at 1,000 points = 2 stars lit; L2 at 2,225 points = all 3 stars lit.
-05 = Win screens: stars now come from the SCORE (new row). 2 stars shows "1,000 / 1,050" = points for the next star. 3 stars = PERFECT!. A continue no longer caps you at 1 star.
-06 = L26 level card, two color goals: "Destroy 3 blue cars + 3 green cars".
-No BEFORE for the win screen: the old one had no score row; its stars came from how far the cars got.
+Polish pass (2026-10-21): map and time-of-day. Left = BEFORE, right = AFTER.
+01 = World 2 map. BEFORE: every level ahead is a grey padlock. AFTER: locked levels show their number (dim) with a small lock, so you can see how far the next HARD level (flame) is.
+02 = BEFORE, levels 3 / 5 / 9 / 13 side by side: morning, afternoon, sunset, misty were meant to look different, but the scenery is unlit art, so all four looked the same.
+03 = AFTER, the same four levels: L3 cream morning light, L5 full daylight (unchanged, the reference), L9 warm evening light over road and houses, L13 cool haze. Cars are untouched (they stay vivid for colour matching).

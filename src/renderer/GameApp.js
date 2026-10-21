@@ -20,6 +20,7 @@ import '@fontsource/fredoka/700.css';
 import '@fontsource/lilita-one/400.css';
 
 import { GameRenderer3D }  from '../renderer3d/GameRenderer3D.js';
+import { levelTheme }      from '../renderer3d/ThemeRegistry.js';
 import { assetLoader }     from '../renderer3d/AssetLoader.js';
 import { LayerManager }    from './LayerManager.js';
 import { LaneRenderer, laneCenterX, posToScreenY, ROAD_TOP_Y, ROAD_BOTTOM_Y, screenYToRow, frontRowTapMargin, recomputeRoadGeometry } from './LaneRenderer.js';
@@ -1014,6 +1015,7 @@ async function main() {
     const worldVariant = `${world}-${sceneVariantForLevel(levelId)}`;
     cityEdges.setBuildingSet(buildingSetForLevel(levelId));   // programmatic fallback
     cityEdges.setWorldPanel(worldVariant);                    // scene-variant panels
+    cityEdges.setSceneTint(levelTheme(levelId).sceneTint);    // time-of-day wash on the scenery
     cityEdges.setLaneCount(cfg.laneCount ?? 4);
     gameRenderer3D.setRoadTexture(WORLD_ROAD_URLS[world] ?? null);
     // Baked full-scene backdrop, when one exists for this world/variant/lanes:

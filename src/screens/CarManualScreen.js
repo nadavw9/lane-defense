@@ -61,7 +61,8 @@ export class CarManualScreen {
     close.x = PX + PW - 14; close.y = PY + 14;
     C.addChild(close);
 
-    // Vehicles: 3 × 2 tiles.
+    // Vehicles: 3 per row, as many rows as there are vehicles (trucks, big rigs and tanks no
+    // longer spawn, so a fixed two rows left a hole under the first three).
     this._label('VEHICLES · HITS TO DESTROY', W / 2, PY + 52);
     const tw = 100, th = 108, gap = 10;
     const gx = PX + (PW - (3 * tw + 2 * gap)) / 2, gy = PY + 66;
@@ -70,9 +71,10 @@ export class CarManualScreen {
     });
 
     // Specials: 2 columns, as many rows as the campaign has special cars.
-    const sy = gy + 2 * (th + gap) + 14;
+    const vehicleRows = Math.ceil(CAR_ENTRIES.length / 3);
+    const sy = gy + vehicleRows * (th + gap) + 14;
     this._label('SPECIAL CARS', W / 2, sy);
-    const sw = (PW - 36 - gap) / 2, sh = 86;
+    const sw = (PW - 36 - gap) / 2, sh = 96;
     buildSpecials().forEach((s, i) => {
       this._specialTile(s, PX + 18 + (i % 2) * (sw + gap), sy + 14 + Math.floor(i / 2) * (sh + 8), sw, sh, this._unlocked >= s.level);
     });

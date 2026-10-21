@@ -2,3 +2,4 @@ Polish pass (2026-10-21): map and time-of-day. Left = BEFORE, right = AFTER.
 01 = World 2 map. BEFORE: every level ahead is a grey padlock. AFTER: locked levels show their number (dim) with a small lock, so you can see how far the next HARD level (flame) is.
 02 = BEFORE, levels 3 / 5 / 9 / 13 side by side: morning, afternoon, sunset, misty were meant to look different, but the scenery is unlit art, so all four looked the same.
 03 = AFTER, the same four levels: L3 cream morning light, L5 full daylight (unchanged, the reference), L9 warm evening light over road and houses, L13 cool haze. Cars are untouched (they stay vivid for colour matching).
+04 = Car Guide. BEFORE: an empty band under the three vehicles (rows reserved for trucks and tanks that no longer spawn). AFTER: the special cars move up and get slightly taller tiles.

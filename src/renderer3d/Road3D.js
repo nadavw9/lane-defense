@@ -191,6 +191,8 @@ export class Road3D {
   /** Update road surface color from theme. No geometry rebuild needed. */
   setTheme(theme) {
     if (!theme?.roadColor) return;
+    this._sceneGlow = theme.sceneGlow ?? 0x000000;   // time-of-day light over the bake
+    this._washMat?.color.setHex(this._sceneGlow);
     const base = theme.roadColor;
     // Dark variant: subtract a small fixed offset per channel to keep contrast
     const dr = Math.max(0, ((base >> 16) & 0xff) - 6);
@@ -440,6 +442,14 @@ export class Road3D {
     tex.needsUpdate = true;
     const mat  = new THREE.MeshBasicMaterial({ map: tex, toneMapped: false });
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(F.halfX * 2, F.bottomZ - F.topZ), mat);
+    // Time-of-day light over the bake (ThemeRegistry.sceneGlow), added, so nothing gets darker.
+    const washMat = new THREE.MeshBasicMaterial({ color: this._sceneGlow ?? 0x000000, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, toneMapped: false });
+    this._washMat = washMat;   // recoloured by setTheme without a rebuild
+    const wash = new THREE.Mesh(new THREE.PlaneGeometry(F.halfX * 2, F.bottomZ - F.topZ), washMat);
+    wash.rotation.x = -Math.PI / 2;
+    wash.position.set(0, -0.045, (F.topZ + F.bottomZ) / 2);
+    wash.renderOrder = -9;
+    this._group.add(wash);
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.set(0, -0.05, (F.topZ + F.bottomZ) / 2);
     // Drawn FIRST: the bomb sprites don't write depth (depthWrite:false), so a

@@ -345,9 +345,14 @@ export class LevelSelectScreen {
       num.y = 1;
       node.addChild(num);
     } else {
+      // Locked: the number still shows (dim), so the road ahead reads as levels, not a wall of
+      // padlocks; a small lock sits under it.
+      const num = titleText(String(n.levelId), n.levelId >= 10 ? 20 : 22, 0xD9D6E6);
+      num.y = -3; num.alpha = 0.9;
+      node.addChild(num);
       const lock = new Graphics();
-      lock.roundRect(-9, -3, 18, 14, 3).fill(0xE9E6F2).stroke({ color: INK, width: 2 });
-      drawShackle(lock, 0, -3, 6, { ink: INK, inkW: 5, color: 0xE9E6F2, w: 2.5 });
+      lock.roundRect(-6, NODE_R - 16, 12, 9, 2).fill(0xE9E6F2).stroke({ color: INK, width: 1.5 });
+      drawShackle(lock, 0, NODE_R - 16, 4, { ink: INK, inkW: 3.5, color: 0xE9E6F2, w: 1.8 });
       node.addChild(lock);
     }
 

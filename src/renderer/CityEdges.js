@@ -146,6 +146,21 @@ export class CityEdges {
   // Swap the theme building set (tutorial | industrial | night).
   // Stores the set; the subsequent setLaneCount() call in _startLevel redraws.
   // Used only by the programmatic fallback path (when sprites aren't loaded).
+  /** The theme's scenery wash (ThemeRegistry.sceneTint): multiplies every verge sprite. Applied
+   *  per sprite (a sprite's own dim, e.g. the strips' 0xd8d8de, is kept in _baseTint). */
+  setSceneTint(hex) { this._sceneTint = hex ?? 0xffffff; this._applyTint(); }
+
+  _applyTint() {
+    const t = this._sceneTint ?? 0xffffff;
+    const mul = (a, b) => (((((a >> 16) & 0xff) * ((b >> 16) & 0xff)) / 255) << 16)
+      | (((((a >> 8) & 0xff) * ((b >> 8) & 0xff)) / 255) << 8) | (((a & 0xff) * (b & 0xff)) / 255);
+    for (const c of this._container.children) {
+      if (!('tint' in c) || c instanceof Graphics) continue;
+      if (c._baseTint == null) c._baseTint = c.tint ?? 0xffffff;
+      c.tint = mul(c._baseTint, t);
+    }
+  }
+
   setBuildingSet(set) {
     this._buildingSet = BUILDING_SET_INFO[set] ? set : 'tutorial';
   }
@@ -161,6 +176,7 @@ export class CityEdges {
     this._container.removeChildren();
     if (this._backdrop) return;   // a baked backdrop already contains the verges — draw nothing
     this._draw(this._laneCount);
+    this._applyTint();
   }
 
   // A baked gameplay backdrop (Road3D) already contains the verges, so the

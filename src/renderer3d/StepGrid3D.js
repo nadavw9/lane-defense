@@ -57,9 +57,14 @@ export class StepGrid3D {
         const ya = Y(zOf(k) - stepLen / 2), yb = k === steps ? Y(zBot) : Y(zOf(k) + stepLen / 2);
         const h = yb - ya;
         if (left <= WARN_STEPS) {
-          ctx.globalAlpha = 0.12 + 0.05 * (WARN_STEPS - left);
+          // Warm cells: the fill brightens toward the line and each cell gets a crisp light edge, so
+          // they read as lit panels rather than a muddy wash (the pale yellow at low alpha went beige).
+          ctx.globalAlpha = 0.16 + 0.07 * (WARN_STEPS - left);
           ctx.fillStyle = WARN[left - 1];
           roundRect(ctx, x0, ya + 2, lw, h - 4, 10); ctx.fill();
+          ctx.globalAlpha = 0.22 + 0.08 * (WARN_STEPS - left);
+          ctx.lineWidth = 2; ctx.strokeStyle = WARN[left - 1];
+          roundRect(ctx, x0 + 1, ya + 3, lw - 2, h - 6, 9); ctx.stroke();
         }
         // a faint line on every step boundary, firmer where a row ends
         ctx.globalAlpha = k % stepsPerRow === 0 ? 0.32 : 0.16;

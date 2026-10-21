@@ -1,7 +1,5 @@
-Polish pass (2026-10-21): map and time-of-day. Left = BEFORE, right = AFTER.
-01 = World 2 map. BEFORE: every level ahead is a grey padlock. AFTER: locked levels show their number (dim) with a small lock, so you can see how far the next HARD level (flame) is.
-02 = BEFORE, levels 3 / 5 / 9 / 13 side by side: morning, afternoon, sunset, misty were meant to look different, but the scenery is unlit art, so all four looked the same.
-03 = AFTER, the same four levels: L3 cream morning light, L5 full daylight (unchanged, the reference), L9 warm evening light over road and houses, L13 cool haze. Cars are untouched (they stay vivid for colour matching).
-04 = Car Guide. BEFORE: an empty band under the three vehicles (rows reserved for trucks and tanks that no longer spawn). AFTER: the special cars move up and get slightly taller tiles.
-05 = The last four steps before the red line (L5). BEFORE: pale yellow at low opacity went beige and muddy. AFTER: brighter fills and a crisp edge per cell, so they read as lit panels; the step lines and arrows are unchanged.
-06 = Worlds 2 and 3 (L17, L25, L35, L45), no change: industrial daylight and neon night already read as different places.
+Early pacing (2026-10-22, owner: "the first levels are boring, we remain with 2 colours and 3 lanes, too easy and doesn't change").
+01 = AFTER, the level cards of the levels that changed: L7 NEW green bombs (3 colours), L9 Big rigs (the van, its animated card opens the level), L12 NEW speeders, L14 colour goal (blue + green), L16 NEW armored cars, L18 NEW yellow bombs (4 colours).
+02 = AFTER, the same levels in play: green cars on L7, vans on L9, speeders (flames) on L12, the colour-goal counter on L14, armour plates on L16, yellow on L18.
+03 = BEFORE, for comparison: L3, L5, L9, L13 were all two colours; the third colour arrived at L16, the van at L18, speeders at L23, armour at L28, yellow at L31.
+Difficulty: bands L4-9 80-90% and L10-26 66-78% (were 85-95 / 70-82); all 37 retuned levels landed in band (tools/tune-levels.mjs 4-40 300).

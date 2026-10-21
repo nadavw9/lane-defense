@@ -25,14 +25,13 @@ describe('level-start cards', () => {
     const all = Object.values(LEVEL_START_CARDS).flat();
     expect(new Set(all).size).toBe(all.length);
   });
-  it('one card per level, a quiet level between cards, none on a HARD level (2026-10-18 re-spacing)', async () => {
+  it('one card per level, none on a HARD level (2026-10-22 pacing: no quiet level required)', async () => {
     const { levelDifficulty } = await import('../src/game/LevelManager.js');
     const levels = Object.keys(LEVEL_START_CARDS).map(Number).sort((a, b) => a - b);
     for (const l of levels) {
       expect(LEVEL_START_CARDS[l].length, `L${l}`).toBe(1);
       expect(levelDifficulty(l), `L${l} is hard`).toBe('normal');
     }
-    for (let i = 1; i < levels.length; i++) expect(levels[i] - levels[i - 1], `L${levels[i - 1]} -> L${levels[i]}`).toBeGreaterThanOrEqual(2);
     const at = (k) => Number(Object.entries(LEVEL_START_CARDS).find(([, ks]) => ks.includes(k))[0]);
     expect(at('multi_color')).toBeLessThan(at('freeze_booster'));
     expect(at('freeze_booster')).toBeLessThan(at('supercharge'));
@@ -53,7 +52,6 @@ describe('level-start cards', () => {
       seen.lanes = Math.max(seen.lanes, c.laneCount);
       if (l === BENCH_FROM_LEVEL) news++;
       expect(news, `L${l}`).toBeLessThanOrEqual(1);
-      if (news && l > 1) { expect(l - last, `L${last} -> L${l}`).toBeGreaterThanOrEqual(2); }
       if (news) last = l;
     }
   });

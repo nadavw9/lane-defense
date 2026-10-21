@@ -39,17 +39,19 @@ repos/nadavw9/lane-defense/actions/workflows/android-release.yml/dispatches -f r
 -f 'inputs[track]=internal' -f 'inputs[status]=completed'`. Testers = the "Traffic Bomb testers" list; versionCode = 100 + run
 number (105 = first internal upload). The debug APK (android-apk branch) cannot sit on a phone that has the Play build.
 
-### FTUE PACING (2026-10-18, branch `feat/ftue-pacing`) — one new thing per level, a quiet level between
+### FTUE PACING (2026-10-22, branch `feat/early-pacing`) — one new thing per level, no quiet level needed
 
-Re-spaced the same day after independent research on the top Play Store puzzle games (Royal Match,
-Toon Blast, Candy Crush, Pixel Flow, Color Block Jam; report + comparison doc shared with the owner).
-Rules, pinned by `tests/intro-schedule.test.js` ("no level in L1-40 brings two new things"):
-at most ONE new thing per level, a practice level between new things, nothing new on a HARD level,
-new things on relief levels (x1/x6) where possible. Schedule (LevelManager L1-40 header):
-L1 bomb + BOMB booster · L2 colors · L4 car · L6 third lane · L8 FREEZE · L11 supercharge ·
-L13 bench (`BENCH_FROM_LEVEL`) · L16 third color · L18 van · L21 COLOR SWAP · L23 speeders ·
-L26 color goal · L28 armor · L31 yellow · L33 rainbow bomb · L36 gift cars · L38 traffic light ·
-L41 plated · L43 convoy · L46 mender · L48 orange · L51 chameleon · L53 purple.
+First spaced on 2026-10-18 after research on the top Play Store puzzle games (one new thing, a
+practice level between). On 2026-10-22 the owner found the result boring ("we remain with 2 colours
+and 3 lanes, too easy and doesn't change": the third colour only arrived at L16), so the practice
+level between new things was dropped and everything was pulled forward. Rules still pinned by
+`tests/intro-schedule.test.js`: at most ONE new thing per level, nothing new on a HARD level.
+Schedule (LevelManager L1-40 header): L1 bomb + BOMB booster · L2 colors · L4 car · L6 third lane ·
+L7 third color · L8 FREEZE · L9 van (`CarTypes.rawBandWeights`) · L11 supercharge · L12 speeders ·
+L13 bench (`BENCH_FROM_LEVEL`) · L14 color goal · L16 armor · L18 yellow · L21 COLOR SWAP ·
+L23 gift cars (`levelDsl.GIFT_FROM`) · L26 traffic light (`LIGHT_FROM`) · L33 rainbow bomb ·
+L41 plated · L43 convoy · L46 mender · L48 orange · L51 chameleon · L53 purple. Bands L4-9 80-90,
+L10-26 66-78 (`tools/bands.mjs`, a touch harder than before). No level has 4 lanes.
 `src/game/boosterUnlocks.js` is the ONE booster schedule (BOMB L1, FREEZE L8, COLOR SWAP L21, rainbow
 L33; `OFFERS_FROM = 6`: nothing offered for an ad before L6; `WIN_STREAK_FROM = 30`). No SUPER HARD before
 L50 (`levelDifficulty`). Interstitials from L14 (`adPolicy`). Title: MAP from the start, DAILY L8,

@@ -8,7 +8,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 const [out, nArg = '5'] = process.argv.slice(2);
 const N = Number(nArg);
 mkdirSync(out, { recursive: true });
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
+const b = await chromium.launch({ ...(process.env.PW_EXE ? { executablePath: process.env.PW_EXE } : {}), headless: !process.env.PW_HEADED, args: process.env.PW_HEADED ? ['--use-gl=angle', '--enable-gpu'] : ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });   // PW_EXE: a fixed chromium (CI); PW_HEADED=1: local GPU
 const p = await b.newPage({ viewport: { width: 390, height: 844 } });
 const errs = [];
 p.on('pageerror', e => errs.push('PAGEERROR ' + e.message));

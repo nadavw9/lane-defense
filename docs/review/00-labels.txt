@@ -3,3 +3,4 @@ Polish pass (2026-10-21): map and time-of-day. Left = BEFORE, right = AFTER.
 02 = BEFORE, levels 3 / 5 / 9 / 13 side by side: morning, afternoon, sunset, misty were meant to look different, but the scenery is unlit art, so all four looked the same.
 03 = AFTER, the same four levels: L3 cream morning light, L5 full daylight (unchanged, the reference), L9 warm evening light over road and houses, L13 cool haze. Cars are untouched (they stay vivid for colour matching).
 04 = Car Guide. BEFORE: an empty band under the three vehicles (rows reserved for trucks and tanks that no longer spawn). AFTER: the special cars move up and get slightly taller tiles.
+05 = The last four steps before the red line (L5). BEFORE: pale yellow at low opacity went beige and muddy. AFTER: brighter fills and a crisp edge per cell, so they read as lit panels; the step lines and arrows are unchanged.

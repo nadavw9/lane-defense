@@ -11,18 +11,19 @@
 // Cards that open the level (after the splash, before the first move), in order.
 // L1's walkthrough is the tour (guideContent.tourSteps), not listed here.
 export const LEVEL_START_CARDS = {
-  // One new thing per level with a practice level between (2026-10-18 re-spacing after the
-  // top-games research). Vehicles that shrink (car L4, van L18) are introduced by their
-  // animated NEW VEHICLE card, not listed here; the bench (L13) has its own spotlight tutorial.
+  // One new thing per level (2026-10-22 pacing: the owner found the first levels boring, so the
+  // practice level between new things is gone). Vehicles that shrink (car L4, van L9) are
+  // introduced by their animated NEW VEHICLE card, not listed here; the bench (L13) has its own
+  // spotlight tutorial. Colours and traits are announced by the level's hint on its card.
   2:  ['multi_color'],
   6:  ['lane_3'],
   8:  ['freeze_booster'],
   11: ['supercharge'],
+  14: ['goal_colour'],
   21: ['colour_change_booster'],
-  26: ['goal_colour'],
+  23: ['gift_car'],
+  26: ['traffic_light'],
   33: ['rainbow_bomb'],
-  36: ['gift_car'],
-  38: ['traffic_light'],
   43: ['convoy'],
 };
 
@@ -41,7 +42,7 @@ export const REACTIVE_WINDOW = {
   colour_change_earned: [21, 24],
   streak_charged: [11, 12],
   rainbow_bomb:   [33, 35],
-  armor_break:    [28, 28],
+  armor_break:    [16, 16],
   plate_break:    [41, 41],
   mender_heal:    [46, 46],
   volatile_surge: [76, 76],

@@ -99,7 +99,7 @@ describe('regression: every level starts in a valid state', () => {
 const LEVEL_INTRO_TYPE = {
   1:  'small',   // motorbike
   4:  'big',     // car (2026-10-18 re-spacing: L2 colours, L4 car, L6 third lane)
-  18: 'jeep',    // van
+  9:  'jeep',    // van (2026-10-22 pacing: the van arrives right after the third colour)
   19: 'truck',   // retired (folded into the van); kept so old saves migrate
   20: 'bigrig',  // retired
   21: 'tank',    // retired

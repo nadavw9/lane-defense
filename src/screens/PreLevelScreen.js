@@ -71,6 +71,8 @@ function introSprite(intro, lv) {
   if (/Chameleon/i.test(intro)) return 'sprites/designed/chameleon-big-green.png';
   if (/Bench/i.test(intro)) return 'sprites/designed/powerball-red.png';
   if (/FREEZE/i.test(intro)) return 'sprites/designed/booster-freeze.png';
+  if (/Green bombs/i.test(intro)) return 'sprites/designed/powerball-green.png';     // a new colour: its bomb
+  if (/Yellow bombs/i.test(intro)) return 'sprites/designed/powerball-yellow.png';
   return 'sprites/designed/car-red-processed.png';
 }
 

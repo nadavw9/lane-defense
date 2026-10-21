@@ -55,7 +55,7 @@ export function lv(id, name, letters, o = {}) {
 //   gift car      — a car with a bow; destroying it pays out a booster (trait 'gift')
 // Each is introduced alone on a fixed level (L36 gift, L38 light, L43 convoy; see
 // introSchedule.js) and then recurs on a fixed rhythm. Big waves keep their own identity.
-export const GIFT_FROM = 36, LIGHT_FROM = 38, CONVOY_FROM = 43;
+export const GIFT_FROM = 23, LIGHT_FROM = 26, CONVOY_FROM = 43;
 const LIGHT = (lane, phase) => ({ lane, green: 3, red: 2, phase });
 
 export function identityFor(id, milestone = false) {

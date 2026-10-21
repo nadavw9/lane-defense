@@ -1012,7 +1012,9 @@ window._nav.startLevel(5)   # dev API — jump directly to L5 in browser
 Path: `C:\Users\dalit\lane-defense\android\lane-defense-release.keystore`
 
 **LOSING THIS FILE = LOSING THE ABILITY TO UPDATE THE APP ON PLAY STORE FOREVER.**  
-Password: `lanedefense2024`
+The password is NOT written anywhere in this public repo. It lives in the owner's password
+manager and in the GitHub Actions secrets that `android-release.yml` reads. (It was in this
+file until 2026-10-21; that password is retired — rotate the keystore if it has not been.)
 
 ---
 

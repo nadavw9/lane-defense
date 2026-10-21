@@ -333,8 +333,11 @@ async function main() {
   await new Promise(r => setTimeout(r, 280));
   loadScreen.destroy({ children: true });
 
-  // ── Analytics (fire-and-forget, anonymous) ────────────────────────────────
-  // Consent is resolved first (UMP); analytics send nothing until it allows.
+  // ── Analytics (fire-and-forget, pseudonymous) ─────────────────────────────
+  // Gated on adManager.consentGranted = UMP's canRequestAds. That is true once the
+  // consent flow has RUN (also after an EEA player declines personalised ads), so
+  // statistics are sent under legitimate interest, which is what privacy.html says.
+  // They stay off only while consent is unresolved or the SDK failed to start.
   const analytics = new Analytics();
 
   // ── Progress (localStorage) ──────────────────────────────────────────────
@@ -342,6 +345,10 @@ async function main() {
 
   // ── Haptics + Colorblind ─────────────────────────────────────────────────
   await adManager.init();
+  // A video the player asked for could not be shown: say so. Silence here read as
+  // a dead button (every store reviewer flagged the rescue / shop / booster buttons).
+  adManager.onUnavailable = () =>
+    _buildSimpleToast(app, APP_W, 'No video right now. Try again in a moment.', 0x1F1A33, 0xFFD42A);
   setAnalyticsEnabled(adManager.consentGranted);
   adManager.onConsentChange = setAnalyticsEnabled;
   trackSessions(analytics);   // session_start / session_end with install day + day index (retention)
@@ -614,6 +621,7 @@ async function main() {
   function _showGuide(steps, onDone = null) {
     if (!steps || steps.length === 0) { onDone?.(); return; }
     _enqueueModal((done) => {
+      _closers.guide = () => guideCard?._next();   // back = NEXT on a guide card
       guideCard = new GuideCard(app.stage, APP_W, APP_H, steps, {
         audio,
         onDone: () => { guideCard = null; onDone?.(); done(); },
@@ -1890,7 +1898,7 @@ async function main() {
     winScreen = new WinScreen(
       app.stage, APP_W, APP_H, gs,
       onNext,
-      () => {
+      _closers.win = () => {
         winScreen.destroy();
         winScreen = null;
         if (onMenuWorld?.()) return;   // the world-complete ceremony first, then the map
@@ -1974,7 +1982,7 @@ async function main() {
             transition.fadeOut(0.20, () => { _startLevel(cfg); transition.fadeIn(0.20, null); });
           });
         },
-        onMenu: () => {
+        onMenu: _closers.lose = () => {
           loseScreen?.destroy();
           loseScreen = null;
           rescueOverlay = null;
@@ -2042,7 +2050,7 @@ async function main() {
         logEvent('rescue_used', { levelId: currentLevelIsDaily ? 'daily' : levelManager.levelNumber, method: 'coins' });
         resumeAfterRescue();
       },
-      onRetry: () => {
+      onRetry: _closers.rescue = () => {
         // RETRY — free, immediate restart of the current level (no ad).
         _recordFinalLoss();
         rescueOverlay.destroy();
@@ -2516,6 +2524,8 @@ async function main() {
   // Android default applies: back exits the app, even in the middle of a level.
   function _handleBack() {
     const close = (open, key) => { if (open && _closers[key]) { _closers[key](); return true; } return false; };
+    // A guide card sits over everything else: back = its NEXT button.
+    if (close(guideCard, 'guide')) return;
     // Overlays that can open over Settings close before Settings does.
     if (close(carManualScreen, 'carManual') || close(hpGuideOverlay, 'hpGuide')
       || close(howToPlayOverlay, 'howToPlay') || close(settingsScreen, 'settings')
@@ -2530,6 +2540,10 @@ async function main() {
     if (worldScreen) { worldScreen.skip(); return; }   // back steps through the ceremony
     if (close(raceScreen, 'race')) { if (!levelSelectScreen) showLevelSelect(); return; }
     if (close(levelSelectScreen, 'levelSelect')) return;
+    // End-of-level screens: back is the screen's own "no thanks" — MENU on win and
+    // lose, RETRY (decline the rescue) on the continue offer. Never swallowed: a
+    // dead back key fails Samsung's review and reads as a hang.
+    if (close(winScreen, 'win') || close(loseScreen, 'lose') || close(rescueOverlay, 'rescue')) return;
     // An armed booster / open colour picker: back cancels it (the Android habit),
     // rather than being swallowed or pausing over it.
     if (colorPicker) { boosterState.cancelColorChange(); _dismissColorPicker(); return; }
@@ -2537,14 +2551,14 @@ async function main() {
     if (boosterState.bombMode) { boosterState.cancelBomb(); return; }
     // Mid-level: back pauses (the pause menu then offers resume / quit).
     if (gameLoopStarted && !gs.isOver && pauseBtn.visible && !colorPicker) { showPause(); return; }
-    // Title: leave the app. Everywhere else (win / lose / continue offer, colour
-    // picker, intro cards) back is swallowed — those need an explicit choice.
+    // Title: leave the app.
     if (titleScreen && Capacitor.isNativePlatform()) CapApp.exitApp();
   }
   if (Capacitor.isNativePlatform()) CapApp.addListener('backButton', _handleBack);
   window.addEventListener('keydown', (e) => { if (e.key === 'Escape') _handleBack(); });
 
   document.addEventListener('visibilitychange', () => {
+    audio.setBackground(document.hidden);   // silence in the background, resume on return
     if (document.hidden) {
       // Pause logic tick when tab is hidden (only if actively playing).
       if (gameLoopStarted && !gameLoop.paused && !gs.isOver) {
@@ -2563,10 +2577,13 @@ async function main() {
       } else {
         _hiddenWhilePlaying = false;
       }
-      // Resume AudioContext if the browser suspended it.
-      if (audio._ctx && audio._ctx.state !== 'running') audio._ctx.resume().catch(() => {});   // 'interrupted' (iOS call/Siri) too
     }
   });
+  // The WebView does not always raise visibilitychange when Android pauses the
+  // activity (incoming call, recents); the native app state does.
+  if (Capacitor.isNativePlatform()) {
+    CapApp.addListener('appStateChange', ({ isActive }) => audio.setBackground(!isActive));
+  }
 
   // ── WebGL context-lost recovery ───────────────────────────────────────────
   app.canvas.addEventListener('webglcontextlost', (e) => {

@@ -35,8 +35,10 @@ function _genUUID() {
   });
 }
 
-// Off until the app has resolved consent (Google UMP via AdManager). Where the
-// law requires consent and the player has not given it, nothing is ever sent.
+// Off until the app has resolved the consent flow (Google UMP via AdManager) or
+// the SDK failed to start. Note: a declined EEA consent still lets statistics
+// through (legitimate interest, as privacy.html states); only ads personalisation
+// is withheld.
 let _enabled = false;
 export function setAnalyticsEnabled(v) { _enabled = !!v; }
 

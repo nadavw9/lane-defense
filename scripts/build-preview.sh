@@ -8,7 +8,7 @@ OUT="$1"
 rm -rf /tmp/preview-dist "$OUT"
 npx vite build --outDir /tmp/preview-dist --emptyOutDir > /dev/null
 cp -r /tmp/preview-dist "$OUT"
-rm -f "$OUT/admin.html" "$OUT/privacy.html" "$OUT/ui/.gitkeep"
+rm -f "$OUT/privacy.html" "$OUT/ui/.gitkeep"
 rm -rf "$OUT/models"   # .glb is not a servable artifact type; the game falls back without them
 python3 - "$OUT" <<'PY'
 import sys, os, json

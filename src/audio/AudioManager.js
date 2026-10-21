@@ -59,12 +59,27 @@ export class AudioManager {
     this._currentTrackGain = null;  // per-track crossfade gain node
     this._loopTimer        = null;
     this._lastPhase        = null;
+    this._background       = false;   // app hidden: the context is suspended and stays so
+  }
+
+  // ── Public: app lifecycle ─────────────────────────────────────────────────
+  // Silence everything while the app is in the background (home button, incoming
+  // call, another app) and bring it back on return. Without this the music kept
+  // playing under a Galaxy call popup and after the app was swiped away.
+  setBackground(hidden) {
+    this._background = !!hidden;
+    if (!this._ctx) return;
+    if (hidden) {
+      if (this._ctx.state === 'running') this._ctx.suspend().catch(() => {});
+    } else if (this._ctx.state !== 'running') {
+      this._ctx.resume().catch(() => {});   // 'interrupted' (iOS call/Siri) too
+    }
   }
 
   // ── Public: SFX ───────────────────────────────────────────────────────────
 
   play(name, opts = {}) {
-    if (this._muted || !this._ctx) return;
+    if (this._muted || !this._ctx || this._background) return;
     if (this._ctx.state === 'suspended') this._ctx.resume();
 
     switch (name) {
@@ -144,7 +159,7 @@ export class AudioManager {
   playMusic(trackId) {
     if (!this._ctx) return;
     if (this._currentTrackId === trackId) return;
-    if (this._ctx.state === 'suspended') this._ctx.resume();
+    if (this._ctx.state === 'suspended' && !this._background) this._ctx.resume();
 
     this._fadeOutCurrentTrack();
     clearTimeout(this._loopTimer);

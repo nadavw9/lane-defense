@@ -19,7 +19,7 @@ await p.waitForFunction(() => !!window._nav, null, { timeout: 120000 });
 await p.waitForTimeout(2500);
 const shot = (n) => p.screenshot({ path: `${out}/${prefix}-${n}.png` });
 await p.evaluate(() => window._nav.showLevelSelect()); await p.waitForTimeout(2500); await shot('map');
-for (const lv of [3, 5, 9, 13]) {
+for (const lv of (process.env.LEVELS ?? '3,5,9,13').split(',').map(Number)) {
   await p.evaluate((n) => window._nav.startLevel(n), lv); await p.waitForTimeout(4000);
   for (let i = 0; i < 6; i++) { await p.evaluate(() => { window._nav.dismissGuides?.(); window._nav.dismissTutorial?.(); }); await p.waitForTimeout(200); }
   await p.waitForTimeout(600); await shot(`L${lv}`);

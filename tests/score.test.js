@@ -16,7 +16,12 @@ describe('shot points', () => {
     expect(shotPoints(1, 2)).toBe(POINTS.car + 2 * POINTS.chainStep);
     expect(shotPoints(1, 999)).toBe(POINTS.car + POINTS.chainCap);
   });
-  it('a shot that destroys nothing scores nothing and breaks the chain', () => {
+  it('a hit that only shrinks a car pays the combo bonus and extends the chain', () => {
+    expect(shotPoints(0, 2, true)).toBe(2 * POINTS.chainStep);
+    expect(shotPoints(0, 0, true)).toBe(0);
+    expect(nextChain(2, true)).toBe(3);
+  });
+  it('a wasted shot scores nothing and breaks the chain', () => {
     expect(shotPoints(0, 5)).toBe(0);
     expect(nextChain(5, 0)).toBe(0);
     expect(nextChain(2, 1)).toBe(3);

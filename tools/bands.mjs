@@ -1,6 +1,6 @@
 // Target win-rate bands per level, shared by balance-sim.js and tune-levels.mjs so
 // the two cannot drift. Reference profile: skill=average, boosterIQ 0.70.
-//   tutorial L1-3 exempt · L4-9 80-90 · mid non-boss to L26 66-78 · to L45 60-75
+//   tutorial L1-3 exempt · L4-9 74-84 · mid non-boss to L26 66-78 · to L45 60-75
 //   · later worlds step down 2 points each (58-72, 56-70, 54-68, 52-66), never
 //   below that: an average player should still win a late level about half the time.
 //   Big waves (every tenth level): the ordinary band minus 10 points.
@@ -10,7 +10,7 @@ export const TUTORIAL_LEVELS = new Set([1, 2, 3]);
 
 function baseBand(levelId) {
   if (TUTORIAL_LEVELS.has(levelId)) return { lo: 85, hi: 100, tutorial: true };
-  if (levelId <= 9)  return { lo: 80, hi: 90 };   // 2026-10-22: a touch harder, the owner found the start too easy
+  if (levelId <= 9)  return { lo: 74, hi: 84 };   // 2026-10-22: the owner found the start too easy, twice
   if (levelId <= 26) return { lo: 66, hi: 78 };
   if (levelId <= 45) return { lo: 60, hi: 75 };
   const step = Math.min(4, Math.floor((levelId - 46) / 15) + 1);   // worlds 4..7

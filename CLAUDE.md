@@ -46,12 +46,15 @@ practice level between). On 2026-10-22 the owner found the result boring ("we re
 and 3 lanes, too easy and doesn't change": the third colour only arrived at L16), so the practice
 level between new things was dropped and everything was pulled forward. Rules still pinned by
 `tests/intro-schedule.test.js`: at most ONE new thing per level, nothing new on a HARD level.
-Schedule (LevelManager L1-40 header): L1 bomb + BOMB booster · L2 colors · L4 car · L6 third lane ·
-L7 third color · L8 FREEZE · L9 van (`CarTypes.rawBandWeights`) · L11 supercharge · L12 speeders ·
-L13 bench (`BENCH_FROM_LEVEL`) · L14 color goal · L16 armor · L18 yellow · L21 COLOR SWAP ·
+A second pass the same day (owner: until L7 "no thinking, just drag the bombs with 2 available
+options so you always pass") moved the third lane to L3 and the third colour to L5.
+Schedule (LevelManager L1-40 header): L1 bomb + BOMB booster · L2 colors · L3 third lane · L4 car ·
+L5 third color · L7 van (`CarTypes.rawBandWeights`) · L8 FREEZE · L9 speeders · L11 supercharge ·
+L12 color goal · L13 bench (`BENCH_FROM_LEVEL`) · L14 armor · L16 yellow · L21 COLOR SWAP ·
 L23 gift cars (`levelDsl.GIFT_FROM`) · L26 traffic light (`LIGHT_FROM`) · L33 rainbow bomb ·
-L41 plated · L43 convoy · L46 mender · L48 orange · L51 chameleon · L53 purple. Bands L4-9 80-90,
-L10-26 66-78 (`tools/bands.mjs`, a touch harder than before). No level has 4 lanes.
+L41 plated · L43 convoy · L46 mender · L48 orange · L51 chameleon · L53 purple. Bands L4-9 74-84,
+L10-26 66-78 (`tools/bands.mjs`). No level has 4 lanes. `ProgressManager` INTRO_LEVEL (save
+migration) must follow the vehicle schedule.
 `src/game/boosterUnlocks.js` is the ONE booster schedule (BOMB L1, FREEZE L8, COLOR SWAP L21, rainbow
 L33; `OFFERS_FROM = 6`: nothing offered for an ad before L6; `WIN_STREAK_FROM = 30`). No SUPER HARD before
 L50 (`levelDifficulty`). Interstitials from L14 (`adPolicy`). Title: MAP from the start, DAILY L8,
@@ -79,8 +82,12 @@ Design + survival math: `docs/superpowers/specs/2026-10-19-race-design.md`. QA: 
 ### STARS FROM POINTS (2026-10-20, branch `feat/stars-and-goals`)
 
 Stars no longer come from how far cars got (`maxCarPosition`, all but impossible on the big board) and a
-continue no longer caps at 1. `src/game/score.js`: each kill shot pays 100/car + 50 per extra car + a combo
-bonus (25 per kill shot in a row, cap 150); a shot that destroys nothing breaks the combo. GameLoop and
+continue no longer caps at 1. `src/game/score.js`: 100 per destroyed car + 50 per extra car in one shot +
+a combo bonus on every hit (25 per correct shot in a row, cap 150). The combo is CORRECT SHOTS IN A ROW:
+a hit that only shrinks a car extends it, a wasted (wrong-colour) shot breaks it. It is the "xN COMBO"
+on screen (HUDRenderer reads `gs.scoreChain`; 2026-10-22: the screen used to show a 2-second kill
+window that paid nothing, so stars felt unrelated to combos). `GameLoop._onCombo` updates the display
+on shrink shots and breaks; `onKill` stays kill-only. GameLoop and
 SimulationRunner score the same way. Per-level `[one, two, three]` targets are GENERATED into
 `src/game/starTargets.js` by `node tools/tune-stars.mjs 1-200 300 --write` (one = goal cars x 100, so a win
 always lights the first star; two/three = 35th/75th percentile of simulated winning scores; tutorial levels

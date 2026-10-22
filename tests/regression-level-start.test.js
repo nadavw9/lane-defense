@@ -53,8 +53,8 @@ describe('regression: every level starts in a valid state', () => {
       //    The whole game is now one board depth.
       expect(cfg.gridRows).toBe(BOARD_ROWS);
 
-      // 6b. Lane count. One lane at L1, two from L2, the third arrives at L6 (2026-10-18 re-spacing).
-      expect(cfg.laneCount).toBe(cfg.id === 1 ? 1 : cfg.id < 6 ? 2 : 3);
+      // 6b. Lane count. One lane at L1, two at L2, the third arrives at L3 (2026-10-22 pacing).
+      expect(cfg.laneCount).toBe(cfg.id === 1 ? 1 : cfg.id < 3 ? 2 : 3);
 
       // 7. Lane target car count. L1 queues 3 (owner request 2026-10-12: the BOMB booster's lane
       //    clear is invisible with one car in the lane; sim still 100%). Everything else is 2 or 3:
@@ -98,8 +98,8 @@ describe('regression: every level starts in a valid state', () => {
 // schedule changes, change ProgressManager's INTRO_LEVEL with it.
 const LEVEL_INTRO_TYPE = {
   1:  'small',   // motorbike
-  4:  'big',     // car (2026-10-18 re-spacing: L2 colours, L4 car, L6 third lane)
-  9:  'jeep',    // van (2026-10-22 pacing: the van arrives right after the third colour)
+  4:  'big',     // car (2026-10-22 pacing: L2 colours, L3 third lane, L4 car, L5 third colour)
+  7:  'jeep',    // van
   19: 'truck',   // retired (folded into the van); kept so old saves migrate
   20: 'bigrig',  // retired
   21: 'tank',    // retired

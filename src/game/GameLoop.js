@@ -33,7 +33,8 @@ export class GameLoop {
   //   shooterDir     — ShooterDirector
   //   combatResolver — CombatResolver
   //   rng            — SeededRandom (shared with directors)
-  //   onKill(combo)              — called after each kill with updated combo
+  //   onKill(combo)              — called once per destroying shot with the combo (score.js)
+  //   _onCombo(combo)            — the combo changed without a kill (a shrink shot, or broken)
   //   onChainHit(laneIdx)        — called when a carry-over kill occurs
   //   onShoot(damage)            — fires on every deploy (before hit/miss check)
   //   onHit(laneIdx,gameX,color,damage,isKill) — every shot that deals damage
@@ -291,7 +292,8 @@ export class GameLoop {
     this._surgeFromLane = causesSurge(destroyedFromCombat) ? laneIdx : null;
 
     if (!res.hit) {
-      gs.scoreChain = 0;                 // a wasted shot breaks the score combo
+      gs.scoreChain = 0;                 // a wasted shot breaks the combo (score.js)
+      this._onCombo?.(0);                // the combo on screen clears with it
       this._onMiss(laneIdx, carGameX);
       this._updateColorChangeCombo(0);   // a wasted shot breaks the consecutive-combo streak
       // Color mismatch: wasted bomb slot, grid does NOT advance.
@@ -313,9 +315,12 @@ export class GameLoop {
       this._onHit(laneIdx, carGameX, shooter.color, damageDealt, kills, power);
     }
 
-    // Score (score.js): the shot's cars, any multi-kill bonus and the combo chain.
-    gs.score += shotPoints(kills, gs.scoreChain);
-    gs.scoreChain = nextChain(gs.scoreChain, kills);
+    // Score (score.js): the shot's cars, any multi-kill bonus and the combo (correct shots in a
+    // row, the "xN COMBO" on screen). A hit that only shrinks a car still extends it.
+    gs.score += shotPoints(kills, gs.scoreChain, true);
+    gs.scoreChain = nextChain(gs.scoreChain, true);
+    if (gs.scoreChain > gs.maxCombo) gs.maxCombo = gs.scoreChain;
+    if (kills === 0) this._onCombo?.(gs.scoreChain);   // a shrink shot: the combo still grows on screen
 
     if (gs.streakEnabled) {
       const next = nextStreak(gs.streak, gs.streakCharged, kills, power);
@@ -346,8 +351,8 @@ export class GameLoop {
 
       for (let i = 0; i < kills; i++) {
         const isCarryOver = i > 0;
-        const combo = gs.recordKill(isCarryOver);
-        this._onKill(combo);
+        gs.recordKill(isCarryOver);
+        if (i === 0) this._onKill(gs.scoreChain);   // the shot's combo (score.js), once per shot
         // Award bomb charge every KILLS_PER_BOMB kills.
         const bs = this._boosterState;
         if (bs && gs.killsTowardBomb % KILLS_PER_BOMB === 0 && bs.bombs < BOMB_MAX_CHARGES) {
@@ -476,11 +481,9 @@ export class GameLoop {
       if (this._gs.isOver) break;
     }
 
-    // Expire combo if the kill window closed.
-    if (!this._gs.isOver && this._gs.isComboExpired()) {
-      this._gs.resetCombo();
-      this._onKill(0);  // notify renderer to clear combo display
-    }
+    // The old 2-second kill window still expires internally (bomb travel speed reads it), but the
+    // combo on screen is the shot combo (gs.scoreChain): thinking between shots never breaks it.
+    if (!this._gs.isOver && this._gs.isComboExpired()) this._gs.resetCombo();
   }
 
   // ── Helper: map a car's row to position (0-100) for rendering ──────────────

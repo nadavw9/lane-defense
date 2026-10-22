@@ -50,16 +50,39 @@ describe('the game keeps score per shot', () => {
     expect(gs.score).toBe(2 * POINTS.car + POINTS.chainStep);
   });
 
-  it('a shot that destroys nothing breaks the combo', () => {
+  it('a hit that only shrinks a car keeps the combo and pays its bonus (owner 2026-10-22)', () => {
     const { gs, loop } = setup();
     gs.lanes[0].cars = [bike(1, 'Red', 3)];
     loop._resolveShot(new Shooter({ color: 'Red', damage: 1, column: 0 }), 0);
     gs.lanes[0].cars = [mk('Red', 3, 2, 'big')];
     loop._resolveShot(new Shooter({ color: 'Red', damage: 1, column: 0 }), 0);   // shrinks, no kill
+    expect(gs.scoreChain).toBe(2);
+    expect(gs.score).toBe(POINTS.car + POINTS.chainStep);
+  });
+
+  it('a wrong-colour shot breaks the combo', () => {
+    const { gs, loop } = setup();
+    gs.lanes[0].cars = [bike(1, 'Red', 3)];
+    loop._resolveShot(new Shooter({ color: 'Red', damage: 1, column: 0 }), 0);
+    gs.lanes[0].cars = [bike(2, 'Red', 3)];
+    loop._resolveShot(new Shooter({ color: 'Blue', damage: 1, column: 1 }), 0);  // no match: wasted
     expect(gs.scoreChain).toBe(0);
     gs.lanes[0].cars = [bike(3, 'Red', 3)];
     loop._resolveShot(new Shooter({ color: 'Red', damage: 1, column: 0 }), 0);
     expect(gs.score).toBe(2 * POINTS.car);   // no combo bonus after the break
+  });
+
+  it('the combo on screen is the combo that pays: onKill reports it, maxCombo records it', () => {
+    const { gs, loop } = setup();
+    const seen = [];
+    loop._onKill = (c) => seen.push(c);
+    for (let i = 0; i < 3; i++) {
+      gs.elapsed += 60;   // slow, thoughtful play: the old 2-second kill window would have reset
+      gs.lanes[0].cars = [bike(i, 'Red', 3)];
+      loop._resolveShot(new Shooter({ color: 'Red', damage: 1, column: 0 }), 0);
+    }
+    expect(seen).toEqual([1, 2, 3]);
+    expect(gs.maxCombo).toBe(3);
   });
 
   it('a new level starts from zero', () => {

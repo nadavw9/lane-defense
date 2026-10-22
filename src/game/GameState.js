@@ -173,7 +173,6 @@ export class GameState {
       : 1;
     this.lastKillTime = this.elapsed;
 
-    if (this.combo > this.maxCombo) this.maxCombo = this.combo;
 
     this.coins += COINS_PER_CAR;   // flat 10 coins per car destroyed
 

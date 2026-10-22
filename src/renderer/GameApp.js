@@ -2275,6 +2275,10 @@ async function main() {
   };
 
   // ── V2 callbacks: Hot Streak, armour, bosses (TrafficRules) ───────────────
+  // The combo on screen (score.js) also moves on shots that only shrink a car, and clears on a
+  // wasted shot: those come here, not through onKill (which fires the kill-only reactions).
+  gameLoop._onCombo = (combo) => { if (combo > 0) hudRenderer.bumpCombo(combo); gameRenderer3D.setCombo(combo); };
+
   gameLoop._onStreak = (streak, charged, { justCharged }) => {
     streakMeter.setState(streak, charged);
     if (streak > 0 && !charged) audio.play('pip_fill', { index: streak - 1 });

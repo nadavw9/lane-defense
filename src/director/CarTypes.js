@@ -188,11 +188,11 @@ function foldToLadder(table) {
 }
 
 function rawBandWeights(level) {
-  // Types arrive (2026-10-22 pacing, one new thing per level): motorbike L1-3, car L4, van L9.
+  // Types arrive (2026-10-22 pacing, one new thing per level): motorbike L1-3, car L4, van L7.
   // The van's share then grows band by band (the heavier historical bands fold into the van).
   if (RARE_GOAL_LEVELS.has(level)) return WEIGHTS_RARE_GOAL;
   if (level <= 3)   return WEIGHTS_L1;
-  if (level <= 8)   return WEIGHTS_FTUE;
+  if (level <= 6)   return WEIGHTS_FTUE;
   if (level <= 17)  return WEIGHTS_MID;
   if (level <= 21)  return WEIGHTS_MID_TRUCK;
   if (level <= 25)  return WEIGHTS_HARD_PLUS;

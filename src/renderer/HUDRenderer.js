@@ -236,7 +236,7 @@ export class HUDRenderer {
   }
 
   _refreshComboText() {
-    const combo = this._gs.combo;
+    const combo = this._gs.scoreChain ?? 0;   // correct shots in a row: the combo that pays (score.js)
     if (combo < 2) {
       this._comboText.text  = '';
       this._comboText.alpha = 0;

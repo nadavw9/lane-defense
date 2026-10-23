@@ -11,9 +11,9 @@ import { test, expect } from '../fixtures/game.js';
 const CASES = [
   { level: 1, lanes: 1 },
   { level: 2, lanes: 2 },
-  // 2026-10-18 re-spacing: two lanes L2-L5, the third lane arrives at L6.
-  { level: 3, lanes: 2 },
-  { level: 5, lanes: 2 },
+  // 2026-10-22 pacing: two lanes at L2, the third lane arrives at L3.
+  { level: 3, lanes: 3 },
+  { level: 5, lanes: 3 },
   { level: 7, lanes: 3 },
   // No 4-lane level remains above L3 after the L9-L40 conversion.
   { level: 9,  lanes: 3 },   // 2026-08-08: L9-L40 converted to the 3-lane board

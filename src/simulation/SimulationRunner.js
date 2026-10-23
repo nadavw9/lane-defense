@@ -550,7 +550,7 @@ export class SimulationRunner {
         shooterDir.recordDeploy(elapsed);
         columns[col].consume();
         if (this._cfg.onShot) this._cfg.onShot(isCorrect);  // tuning hook (per fired bomb)
-        if (!isCorrect) return;   // a misplay: bomb wasted, no advance, streak intact
+        if (!isCorrect) { scoreChain = 0; return; }   // a misplay: bomb wasted, no advance, Hot Streak intact, combo broken (as GameLoop)
         correctShots++;
         didFire = true;
         if (lane.cars.length > 0) {
@@ -580,8 +580,8 @@ export class SimulationRunner {
           if (res.armorBroken) armorBreaks++;
           surgeFrom = causesSurge(res.destroyed) ? lane.id : null;
           if (streakOn) ({ streak, charged: streakCharged } = nextStreak(streak, streakCharged, res.kills, power));
-          score += shotPoints(res.kills, scoreChain);   // parity with GameLoop._resolveShot
-          scoreChain = nextChain(scoreChain, res.kills);
+          score += shotPoints(res.kills, scoreChain, true);   // parity with GameLoop._resolveShot
+          scoreChain = nextChain(scoreChain, true);
           carryOvers += res.carryOverKills;
           for (const dead of res.destroyed) {
             carsKilled++;

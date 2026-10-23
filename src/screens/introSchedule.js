@@ -12,14 +12,14 @@
 // L1's walkthrough is the tour (guideContent.tourSteps), not listed here.
 export const LEVEL_START_CARDS = {
   // One new thing per level (2026-10-22 pacing: the owner found the first levels boring, so the
-  // practice level between new things is gone). Vehicles that shrink (car L4, van L9) are
+  // practice level between new things is gone; L3 third lane, L5 third colour). Vehicles that shrink (car L4, van L7) are
   // introduced by their animated NEW VEHICLE card, not listed here; the bench (L13) has its own
   // spotlight tutorial. Colours and traits are announced by the level's hint on its card.
   2:  ['multi_color'],
-  6:  ['lane_3'],
+  3:  ['lane_3'],
   8:  ['freeze_booster'],
   11: ['supercharge'],
-  14: ['goal_colour'],
+  12: ['goal_colour'],
   21: ['colour_change_booster'],
   23: ['gift_car'],
   26: ['traffic_light'],
@@ -42,7 +42,7 @@ export const REACTIVE_WINDOW = {
   colour_change_earned: [21, 24],
   streak_charged: [11, 12],
   rainbow_bomb:   [33, 35],
-  armor_break:    [16, 16],
+  armor_break:    [14, 14],
   plate_break:    [41, 41],
   mender_heal:    [46, 46],
   volatile_surge: [76, 76],

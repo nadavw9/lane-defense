@@ -1,5 +1,4 @@
-Early pacing (2026-10-22, owner: "the first levels are boring, we remain with 2 colours and 3 lanes, too easy and doesn't change").
-01 = AFTER, the level cards of the levels that changed: L7 NEW green bombs (3 colours), L9 Big rigs (the van, its animated card opens the level), L12 NEW speeders, L14 colour goal (blue + green), L16 NEW armored cars, L18 NEW yellow bombs (4 colours).
-02 = AFTER, the same levels in play: green cars on L7, vans on L9, speeders (flames) on L12, the colour-goal counter on L14, armour plates on L16, yellow on L18.
-03 = BEFORE, for comparison: L3, L5, L9, L13 were all two colours; the third colour arrived at L16, the van at L18, speeders at L23, armour at L28, yellow at L31.
-Difficulty: bands L4-9 80-90% and L10-26 66-78% (were 85-95 / 70-82); all 37 retuned levels landed in band (tools/tune-levels.mjs 4-40 300).
+Early decisions + one combo (2026-10-22, owner: "until L7 the same, still boring, no thinking, just drag the bombs with 2 available options so you always pass" and "3 stars ... should only be based on points where combos bring extra").
+01 = AFTER, L3 to L6: three lanes from L3 (three bombs to choose from), cars at L4, green at L5, three colours with cars at L6. Win rates L4-L9 now 78-80% (were 85-95%).
+02 = BEFORE (first image L3, second L5): two lanes, two colours, two bombs, so the move was always obvious.
+03 = AFTER, L6 after five correct shots played slowly (3.5 s apart): "x5 COMBO" stays on screen and every one of those shots added points, including the two that only shrank a car. Before, the on-screen combo was a 2-second kill timer that paid nothing, while the points counted something else.

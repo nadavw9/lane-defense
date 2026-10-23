@@ -62,7 +62,9 @@ export class StreakMeter {
     g.clear();
     this._root.position.set(0, 0);
 
-    if (this._charged) {
+    // HOT only while a charged bomb is still on the board (one can be replaced, e.g. by an
+    // earned rainbow bomb, without being fired).
+    if (this._charged && this._anchors().length > 0) {
       const pulse = 1 + 0.05 * Math.sin(this._t * 8);
       const w = HOT_W * pulse * pop, h = PILL_H * pulse * pop;
       g.roundRect(cx - w / 2, cy - h / 2 + 3, w, h, h / 2).fill(shade(HOT, 0.6));

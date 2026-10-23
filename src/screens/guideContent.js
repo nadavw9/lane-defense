@@ -52,7 +52,7 @@ export const CARDS = {
   lane_3:          { title: 'THREE LANES', text: 'Three lanes. Stop the car nearest the red line first!', target: 'road' },
   multi_color:     { title: 'MATCH THE COLOR', text: 'Two lanes, two colors. A bomb only hurts cars of its own color.', target: 'bombs' },
   combo:           { title: 'COMBO!', text: 'Destroy cars quickly, one after another, for bonus coins.', target: 'goal' },
-  supercharge:     { title: 'SUPERCHARGE', text: 'Destroy a car 3 shots in a row to charge your next bomb. It hits twice!', target: 'bombs' },
+  supercharge:     { title: 'SUPERCHARGE', text: 'Destroy a car 3 shots in a row to charge the bombs in front. Fire one: it hits twice!', target: 'bombs' },
   goal_colour:     { title: 'A COLOR GOAL', text: 'Only cars of this color count toward the goal.', target: 'goal' },
   freeze_booster:  { title: 'NEW BOOSTER: FREEZE', text: '3 free! Tap FREEZE: your next shot moves no cars.', target: 'boosterFreeze' },
   colour_change_booster: { title: 'NEW BOOSTER: COLOR SWAP', text: '3 free! Tap COLOR, tap a car, pick a color. All cars of that color change.', target: 'boosterColor' },
@@ -70,7 +70,7 @@ export const CARDS = {
   combo_hint_L2:   null,   // folded into combo
   first_miss:      { title: 'WRONG COLOR',    text: 'No damage! A bomb only hurts cars of its own color.' },
   hp_miss:         null,   // the animated NEW VEHICLE card (L3 car, L5 van) already shows the shrink
-  streak_charged:  { title: 'POWER SHOT!',     text: 'Your next bomb is charged. It hits twice!', target: 'bombs' },
+  streak_charged:  { title: 'POWER SHOT!',     text: 'Your front bombs are charged. Fire one: it hits twice! The others lose the charge.', target: 'bombs' },
   colorchange_use: null,   // taught by the L9 COLOUR CHANGE card
   plate_break:     { title: 'HEAVY PLATING',   text: 'Two hits of any color strip the plating.' },
   armor_break:     { title: 'ARMOR OFF!',     text: 'Now hit it with its own color.' },

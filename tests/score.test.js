@@ -78,7 +78,7 @@ describe('win screen stars come from the score', () => {
     expect(calcStars({ score: 1900, starTargets, maxCarPosition: 99, rescueUsed: true })).toBe(3);
     expect(calcStars({ score: 1500, starTargets, maxCarPosition: 10 })).toBe(2);
     expect(calcStars({ score: 200,  starTargets, maxCarPosition: 10 })).toBe(1);
-  });
+  }, 30_000);   // cold import of the whole win screen (Pixi + world ceremony) under full-suite load
 });
 
 describe('generated star targets', () => {

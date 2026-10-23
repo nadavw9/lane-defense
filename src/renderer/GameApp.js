@@ -84,6 +84,8 @@ import { TransitionOverlay }      from '../screens/TransitionOverlay.js';
 import { TitleScreen }            from '../screens/TitleScreen.js';
 import { LevelSelectScreen }      from '../screens/LevelSelectScreen.js';
 import { RaceScreen }             from '../screens/RaceScreen.js';
+import { WorldCompleteScreen }    from '../screens/WorldCompleteScreen.js';
+import { worldCompleteFor, worldReward, worldTeaser } from '../game/worldComplete.js';
 import { countsForRace, recordRaceAttempt, syncRace, startRace, canStartRace, raceUnlocked,
   raceButtonState, raceAutoOpen, raceStandings } from '../game/race.js';
 import { ShopScreen }             from '../screens/ShopScreen.js';
@@ -456,18 +458,18 @@ async function main() {
   const goalCounterUI = new GoalCounterUI(layers.get('hudLayer'), APP_W, {
     onComplete: () => audio.play('coin_collect'),   // booster-earned SFX on goal complete
   });
-  // V2 Hot Streak meter (on the breach stripe). Anchors = every bomb the player
-  // could fire next: the column tops and any filled bench slot.
+  // V2 Hot Streak meter (on the breach stripe). Anchors = the bombs that carry the charge:
+  // the front-row bombs at the moment it was earned, including one since moved to the bench.
   const streakMeter = new StreakMeter(layers.get('hudLayer'));
   const trafficLights = new TrafficLights(layers.get('particleLayer'));   // traffic-light levels
   const stepRuler     = new StepRuler(layers.get('particleLayer'));       // moves-to-the-red-line countdown beside the road
   streakMeter.setAnchors(() => {
     const out = [];
     for (let c = 0; c < gs.activeColCount; c++) {
-      if (gs.columns[c]?.top()) out.push({ x: getColumnScreenX(c), y: getColumnScreenY(), r: bombBallScreenRadius() });
+      if (gs.columns[c]?.top()?.charged) out.push({ x: getColumnScreenX(c), y: getColumnScreenY(), r: bombBallScreenRadius() });
     }
     for (let i = 0; i < benchStorage.size; i++) {
-      if (benchStorage.getSlot(i)) { const p = benchRenderer.getSlotCenter(i); out.push({ x: p.x, y: p.y, r: 22 }); }
+      if (benchStorage.getSlot(i)?.charged) { const p = benchRenderer.getSlotCenter(i); out.push({ x: p.x, y: p.y, r: 22 }); }
     }
     return out;
   });
@@ -693,6 +695,7 @@ async function main() {
   let achievementsScreen = null;
   let statsScreen        = null;
   let raceScreen         = null;
+  let worldScreen        = null;   // end-of-world ceremony (WorldCompleteScreen)
   // Back-action per open screen, registered where each screen is created, so the
   // Android back button (and Escape on desktop) does exactly what that screen's
   // own Back / Close button does. See _handleBack().
@@ -1747,6 +1750,25 @@ async function main() {
   }
 
   // ── Screen: Win ───────────────────────────────────────────────────────────
+  // The end-of-world ceremony (src/screens/WorldCompleteScreen.js): credits the world's gift,
+  // marks the world as celebrated, then hands over to `then` (the map, usually with the drive).
+  function _showWorldComplete({ world, next }, then) {
+    progress.markSeenUnlock(`world_${world.page}`);
+    const reward = worldReward(next);
+    progress.setCoins(progress.coins + reward.coins);
+    progress.addEarnedCoins(reward.coins);
+    for (const [k, n] of Object.entries(reward.boosters)) progress.addInventory(k, n);
+    let stars = 0;
+    for (let id = world.first; id <= world.last; id++) stars += progress.getStars(id);
+    logEvent('world_complete', { world: world.page, stars });
+    worldScreen?.destroy();
+    worldScreen = new WorldCompleteScreen(app.stage, APP_W, APP_H, {
+      world, next, stars, maxStars: (world.last - world.first + 1) * 3,
+      reward, teaser: worldTeaser(next.page), audio,
+      onDone: () => { worldScreen = null; then?.(); },
+    });
+  }
+
   function showWin() {
     _settleInventory();
     tutOrch?.dismiss();
@@ -1782,6 +1804,7 @@ async function main() {
     endAch.forEach(a => _awardAch(a));
 
     let onNext;
+    let onMenuWorld = null;   // MENU from the win screen: plays a pending world-complete ceremony first
     let improved   = [];
     let winLevelId = null;
     let winRace    = null;   // { wins, place } when this win counted for a running race
@@ -1807,7 +1830,11 @@ async function main() {
       const bId       = progress.buildingForLevel(levelId);
       const priorCity = progress.getCityState()[String(bId)] ?? 0;
       const raceWasUnlocked = raceUnlocked(progress.unlockedLevel);
+      const firstClear = progress.getStars(levelId) === 0;
       progress.recordWin(levelId, stars);
+      // Last level of a world, cleared for the first time: the world-complete ceremony plays
+      // on the way to the map (NEXT or MENU), once.
+      let worldDone = worldCompleteFor(levelId, { firstClear, seen: (page) => progress.hasSeenUnlock(`world_${page}`) });
       if (!raceWasUnlocked && raceUnlocked(progress.unlockedLevel)) _raceJustUnlocked = true;
       const raceOut = _raceAttempt(true);
       if (raceOut) {
@@ -1842,8 +1869,11 @@ async function main() {
         if (levelId >= LEVEL_COUNT) { showLevelSelect(); return; }
         // Back to the map: the repaired building pops, your car drives from this level's
         // node to the next one, and the next level's card opens on its own.
-        showLevelSelect({ drive: { from: levelId, to: levelId + 1 }, onArrive: () => _showPreLevel(levelId + 1) });
+        const toMap = () => showLevelSelect({ drive: { from: levelId, to: levelId + 1 }, onArrive: () => _showPreLevel(levelId + 1) });
+        if (worldDone) { const wd = worldDone; worldDone = null; _showWorldComplete(wd, toMap); return; }
+        toMap();
       };
+      onMenuWorld = () => { if (!worldDone) return false; const wd = worldDone; worldDone = null; _showWorldComplete(wd, () => showLevelSelect()); return true; };
 
       // Rating prompt: show after first ever 3-star win (native integration TBD in Phase 4).
       if (stars === 3 && !progress.ratingPromptShown) {
@@ -1863,6 +1893,7 @@ async function main() {
       () => {
         winScreen.destroy();
         winScreen = null;
+        if (onMenuWorld?.()) return;   // the world-complete ceremony first, then the map
         transition.fadeOut(0.25, () => {
           showLevelSelect();
           transition.fadeIn(0.25, null);
@@ -2496,6 +2527,7 @@ async function main() {
       if (!levelSelectScreen) showLevelSelect();
       return;
     }
+    if (worldScreen) { worldScreen.skip(); return; }   // back steps through the ceremony
     if (close(raceScreen, 'race')) { if (!levelSelectScreen) showLevelSelect(); return; }
     if (close(levelSelectScreen, 'levelSelect')) return;
     // An armed booster / open colour picker: back cancels it (the Android habit),
@@ -2623,6 +2655,7 @@ async function main() {
     cityEdges.update(dt);
     unlockScreen?.update(dt);
     raceScreen?.update(dt);
+    if (worldScreen && !worldScreen.update(dt)) worldScreen = null;
     boosterSpotlight?.update(dt);
     tutOrch?.update(dt);
     // Armed-booster prompt: what to tap next. Only while the board is live.
@@ -2736,6 +2769,7 @@ async function main() {
     achievementsScreen?.destroy(); achievementsScreen = null;
     statsScreen?.destroy();        statsScreen        = null;
     raceScreen?.destroy();         raceScreen         = null;
+    worldScreen?.destroy();        worldScreen        = null;
     winScreen?.destroy();          winScreen          = null;
     rescueOverlay?.destroy();      rescueOverlay      = null;
     ftueOverlay?.destroy();        ftueOverlay        = null;
@@ -2760,6 +2794,13 @@ async function main() {
       race: () => progress.getRace(),
       setRace: (r) => progress.setRace(r),
       showRace: () => showRace(),
+      // QA: the end-of-world ceremony for the world that ends at `levelId` (no progress needed).
+      showWorldComplete: (levelId = 15) => {
+        const wd = worldCompleteFor(levelId, { firstClear: true });
+        if (wd) _showWorldComplete(wd, () => showLevelSelect({ drive: { from: levelId, to: levelId + 1 }, onArrive: () => _showPreLevel(levelId + 1) }));
+        return !!wd;
+      },
+      worldSkip: () => worldScreen?.skip(),
       // FIX 4D/4B/1 dev hooks for screenshot verification.
       showPreLevel: (n) => { _dbgCleanAll(); _showPreLevel(n); },
       showRescue:   () => { showRescue(); },
@@ -2783,7 +2824,7 @@ async function main() {
       },
       getGs: () => gs,
       // Which screens/overlays are up (autoplay QA bot: rescue / win / lose flows).
-      getScreens: () => ({ blockers: _boardBlockers(), daily: !!dailyRewardScreen, achievements: !!achievementsScreen, stats: !!statsScreen, settings: !!settingsScreen, shop: !!shopScreen, carManual: !!carManualScreen, howToPlay: !!howToPlayOverlay, paused: gameLoop.paused, win: !!winScreen, rescue: !!rescueOverlay, pause: !!pauseScreen, levelSelect: !!levelSelectScreen, race: !!raceScreen,
+      getScreens: () => ({ blockers: _boardBlockers(), daily: !!dailyRewardScreen, achievements: !!achievementsScreen, stats: !!statsScreen, settings: !!settingsScreen, shop: !!shopScreen, carManual: !!carManualScreen, howToPlay: !!howToPlayOverlay, paused: gameLoop.paused, win: !!winScreen, rescue: !!rescueOverlay, pause: !!pauseScreen, levelSelect: !!levelSelectScreen, race: !!raceScreen, world: worldScreen?.phase ?? null,
         preLevel: !!preLevelScreen, title: !!titleScreen, modal: _modalActive, picker: !!colorPicker, introCard: !!carTypeIntroCard,
         pauseBtn: pauseBtn.visible, boosters: { colorChange: boosterState.colorChange, freeze: boosterState.freeze, bombs: boosterState.bombs },
         inventory: progress.getInventory(), coins: progress.coins }),

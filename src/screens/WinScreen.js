@@ -69,7 +69,7 @@ export function calcStars(gs) {
 }
 
 // ── Confetti particle system ───────────────────────────────────────────────────
-class ConfettiSystem {
+export class ConfettiSystem {
   constructor(container, w, h) {
     this._c = container;
     this._w = w;

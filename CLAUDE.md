@@ -95,6 +95,27 @@ softer). Re-run it after any retune. In play the goal plaque's bar is a gold STA
 `starBarFill`); the win screen shows a SCORE row. Level card says the goal in words (`src/screens/goalText.js`);
 the L1 tour has a MOVES LEFT card on the step ruler.
 
+### WORLD COMPLETE + SUPERCHARGE PER BOMB (2026-10-24, branch `fix/supercharge-bench`)
+
+**World complete** (owner: "finished L15 and just went into L16, no transition"). Rules in
+`src/game/worldComplete.js`, screen `src/screens/WorldCompleteScreen.js`, wired in GameApp
+`_showWorldComplete`. On the FIRST clear of a world's last level (never a replay, never the final
+level), NEXT or MENU on the win screen plays: WORLD COMPLETE (finished world's map, trophy, stars
+x/45, a gift to tap) -> gift opens (+100 coins + 1 of each booster the player has by the next world,
+credited before the screen shows) -> next world card (name ribbon on its map, one TRUE line on what is
+new there: `WORLD_TEASER`, keep it in step with introSchedule / LateLevels) -> LET'S GO -> the existing
+map drive -> next level's card. Once per world (`seenUnlocks['world_<page>']`). Taps ignored for 0.4 s
+per phase; back key steps through (`skip()`). QA: `_nav.showWorldComplete(levelId)`, `_nav.worldSkip()`,
+`getScreens().world` (phase). Captures: `scripts/_world-shots.mjs`. Research basis: Royal Match area
+chest, Candy Crush episode outro, Cut the Rope box complete.
+
+**Supercharge belongs to bombs** (owner rule, same day). Earning it charges the bombs in the FRONT
+ROW at that moment (`GameLoop._chargeFrontRow`, `Shooter.charged`). A charged bomb moved to the bench
+keeps it; the bomb that rises in behind it does not. Firing ANY charged bomb is the power shot and
+clears the charge on all of them (bench included); firing a plain bomb leaves it. `gs.streakCharged`
+= any charged bomb left. The rings (StreakMeter anchors) draw only on charged bombs. The sim still
+models "next shot is charged" (it never benches a charged bomb, so the numbers match).
+
 ### GUIDE CARDS — all explanations are centre-screen, never at the top (2026-10-12)
 
 Every tip is a `GuideCard` (`src/screens/GuideCard.js`): centred card, NEXT button, optional gold ring on a

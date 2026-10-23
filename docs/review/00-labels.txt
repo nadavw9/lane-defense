@@ -1,4 +1,7 @@
-Early decisions + one combo (2026-10-22, owner: "until L7 the same, still boring, no thinking, just drag the bombs with 2 available options so you always pass" and "3 stars ... should only be based on points where combos bring extra").
-01 = AFTER, L3 to L6: three lanes from L3 (three bombs to choose from), cars at L4, green at L5, three colours with cars at L6. Win rates L4-L9 now 78-80% (were 85-95%).
-02 = BEFORE (first image L3, second L5): two lanes, two colours, two bombs, so the move was always obvious.
-03 = AFTER, L6 after five correct shots played slowly (3.5 s apart): "x5 COMBO" stays on screen and every one of those shots added points, including the two that only shrank a car. Before, the on-screen combo was a 2-second kill timer that paid nothing, while the points counted something else.
+01=BEFORE (master): supercharge earned, then the left front bomb moved to the bench. Rings on the benched bomb AND on the bomb that rose in behind it (looks like a free second charged bomb).
+02=AFTER: same moves. The benched bomb keeps its ring, the bomb behind it is plain; the other two front bombs keep theirs. Firing any ringed bomb clears every ring.
+03=BEFORE (master): NEXT on L15 (last level of Toy Town) goes straight to the map drive into L16. No world-complete moment.
+04=AFTER: NEXT on L15 opens WORLD COMPLETE: Toy Town ribbon, trophy in gold rays, world stars counting up, a gift to tap (stars mid count-up here).
+05=AFTER: gift opened: +100 coins and one of each booster the player has by L16 (BOMB, FREEZE). Already credited; NEXT WORLD appears.
+06=AFTER: next world card: WORLD 2 / STEEL YARDS on its own map, one line on what is new there, LET'S GO.
+07=AFTER: LET'S GO hands over to the existing map drive: the toy car leaves L15 for world 2, then L16's card opens.

@@ -17,6 +17,7 @@ import { Lane }            from '../src/models/Lane.js';
 import { Column }          from '../src/models/Column.js';
 import { Shooter }         from '../src/models/Shooter.js';
 import { Car }             from '../src/models/Car.js';
+import { BenchStorage }    from '../src/game/BenchStorage.js';
 import { SimulationRunner } from '../src/simulation/SimulationRunner.js';
 
 const car = (o) => Object.assign(new Car({ color: o.color ?? 'Red', hp: o.hp ?? 3, type: o.type ?? 'big' }), o);
@@ -145,18 +146,59 @@ describe('GameLoop V2 wiring', () => {
     expect(other.row).toBe(3);
   });
 
-  it('three kill shots charge the streak; the charged shot doubles damage', () => {
-    const { gs, lanes, loop } = buildLoop();
+  // Three kill shots in a row, then the front row (column tops) carries the charge.
+  const chargeUp = (gs, lanes, loop) => {
     gs.streakEnabled = true;
+    for (let c = 0; c < 3; c++) gs.columns[c].shooters = [new Shooter({ color: 'Red', column: c }), new Shooter({ color: 'Red', column: c })];
     for (let i = 0; i < 3; i++) {
       put(loop, lanes[0], { color: 'Red', row: 6, hp: 1 });
       loop._resolveShot(new Shooter({ color: 'Red', damage: 2, column: 0 }), 0);
       lanes[0].cars.length = 0; lanes[1].cars.length = 0; lanes[2].cars.length = 0;
     }
+  };
+
+  it('three kill shots charge the front row; a charged bomb doubles damage and spends the charge', () => {
+    const { gs, lanes, loop } = buildLoop();
+    chargeUp(gs, lanes, loop);
     expect(gs.streakCharged).toBe(true);
-    const big = put(loop, lanes[0], { color: 'Red', row: 2, hp: 4 });
-    loop._resolveShot(new Shooter({ color: 'Red', damage: 2, column: 0 }), 0);
+    expect([0, 1, 2].map(c => gs.columns[c].top().charged)).toEqual([true, true, true]);
+    expect(gs.columns[0].shooters[1].charged).toBe(false);          // the bomb behind is not
+    const big = put(loop, lanes[0], { color: 'Red', row: 2, hp: 2 });   // one-hit bombs: only a doubled hit kills it
+    const shot = gs.columns[1].top(); gs.columns[1].consume();
+    loop._resolveShot(shot, 0);
     expect(lanes[0].cars.includes(big)).toBe(false);
+    expect(gs.streakCharged).toBe(false);
+    expect([0, 2].map(c => gs.columns[c].top().charged)).toEqual([false, false]);
+  });
+
+  it('a charged bomb moved to the bench keeps its charge; the bomb behind it does not get one', () => {
+    const { gs, lanes, loop } = buildLoop();
+    const bench = new BenchStorage(4);
+    loop._benchStorage = bench;
+    chargeUp(gs, lanes, loop);
+    const moved = gs.columns[0].top(); gs.columns[0].consume(); bench.store(moved);
+    expect(moved.charged).toBe(true);
+    expect(gs.columns[0].top().charged).toBe(false);
+    // Firing the plain bomb that rose in behind it is a normal shot; the charge stays.
+    const plain = gs.columns[0].top(); gs.columns[0].consume();
+    const car2 = put(loop, lanes[0], { color: 'Red', row: 2, hp: 2 });
+    loop._resolveShot(plain, 0);
+    expect(car2.hp).toBe(1);
+    expect(moved.charged).toBe(true);
+    expect(gs.streakCharged).toBe(true);
+  });
+
+  it('firing a charged bomb from another column clears the charge on the benched one', () => {
+    const { gs, lanes, loop } = buildLoop();
+    const bench = new BenchStorage(4);
+    loop._benchStorage = bench;
+    chargeUp(gs, lanes, loop);
+    const moved = gs.columns[0].top(); gs.columns[0].consume(); bench.store(moved);
+    const shot = gs.columns[2].top(); gs.columns[2].consume();
+    put(loop, lanes[0], { color: 'Red', row: 2, hp: 2 });
+    loop._resolveShot(shot, 0);
+    expect(moved.charged).toBe(false);
+    expect(gs.columns[1].top().charged).toBe(false);
     expect(gs.streakCharged).toBe(false);
   });
 

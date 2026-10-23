@@ -10,7 +10,7 @@ import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { Shooter } from '../models/Shooter.js';
 import { COLUMN_CAPACITY } from '../models/Column.js';
 import { shotPoints, nextChain, POINTS } from './score.js';
-import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak, laneHeld,
+import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak, STREAK_TO_CHARGE, laneHeld,
          revealStagedCars, stepSize, freeSpawnRow, placeArrival } from '../director/TrafficRules.js';
 
 const MULTI_KILLS_PER_BOMB = 3;    // multi-kills (2+ cars/shot) banked to earn a color bomb
@@ -229,7 +229,7 @@ export class GameLoop {
     if (colorBomb) {
       dur = 0.080;
     } else if (frontCar && canTarget(frontCar, shooter.color)) {
-      const dmg = shooter.damage * (this._powerShotReady() ? 2 : 1);
+      const dmg = shooter.damage * (this._powerShotReady(shooter) ? 2 : 1);
       dur = (frontCar.armor ?? 0) > 0 ? 0.060                 // plates knocked off
           : frontCar.hp <= dmg ? 0.050 : 0.030;               // kill : non-kill
     }
@@ -283,8 +283,9 @@ export class GameLoop {
     gs.recordDeploy(isCorrectColor || (frontCar.armor ?? 0) > 0);
 
     // Hot Streak: a charged bomb is supercharged (double damage; the second hit carries over
-    // only to a same-colour car). The charge is spent by this shot whatever it does.
-    const power = this._powerShotReady();
+    // only to a same-colour car). Only a bomb that carries the charge is (see _chargeFrontRow);
+    // firing one spends the charge on every bomb that had it.
+    const power = this._powerShotReady(shooter);
     const res = this._combat.resolve(shooter, lane, { power });
     const { kills, carryOverKills, damageDealt, destroyed: destroyedFromCombat } = res;
     // A destroyed volatile shoves the other lanes' traffic one extra row on the
@@ -323,11 +324,14 @@ export class GameLoop {
     if (kills === 0) this._onCombo?.(gs.scoreChain);   // a shrink shot: the combo still grows on screen
 
     if (gs.streakEnabled) {
-      const next = nextStreak(gs.streak, gs.streakCharged, kills, power);
-      const justCharged = next.charged && !gs.streakCharged;
+      if (power) this._clearCharge();
+      // This shot completes a run of STREAK_TO_CHARGE kill shots: charge the front row.
+      const earned = kills > 0 && gs.streak + 1 >= STREAK_TO_CHARGE;
+      const next = nextStreak(gs.streak, this._anyCharged(), kills, power);
+      if (earned) this._chargeFrontRow();
       gs.streak = next.streak;
-      gs.streakCharged = next.charged;
-      this._onStreak?.(gs.streak, gs.streakCharged, { justCharged, usedPower: power });
+      gs.streakCharged = this._anyCharged();
+      this._onStreak?.(gs.streak, gs.streakCharged, { justCharged: earned && gs.streakCharged, usedPower: power });
     }
 
     // Bullet-time on a big play: a 3+ kill shot briefly drops the renderer to 0.3x.
@@ -389,10 +393,38 @@ export class GameLoop {
     if (!gs.isOver) this._advanceGrid();
   }
 
-  // True when the next resolved shot is the Hot Streak supercharged one.
-  _powerShotReady() {
-    return !!(this._gs.streakEnabled && this._gs.streakCharged);
+  // True when this bomb fires as the Hot Streak supercharged shot.
+  _powerShotReady(shooter) {
+    return !!(this._gs.streakEnabled && shooter?.charged);
   }
+
+  // Every bomb the player could fire next: the column tops and the bench slots.
+  _fireableBombs() {
+    const gs = this._gs, out = [];
+    for (let c = 0; c < gs.activeColCount; c++) { const t = gs.columns[c]?.top(); if (t) out.push(t); }
+    const bench = this._benchStorage;
+    if (bench) for (let i = 0; i < bench.size; i++) { const b = bench.getSlot(i); if (b) out.push(b); }
+    return out;
+  }
+
+  // Earning the charge (owner rule, 2026-10-23): the bombs in the FRONT ROW at that moment
+  // carry it. A charged bomb moved to the bench keeps it; the bomb that rises in behind it does
+  // not. Firing any charged bomb spends the charge on all of them (_clearCharge).
+  _chargeFrontRow() {
+    const gs = this._gs;
+    for (let c = 0; c < gs.activeColCount; c++) {
+      const t = gs.columns[c]?.top();
+      if (t && !t.isColorBomb) t.charged = true;
+    }
+  }
+
+  _clearCharge() {
+    const gs = this._gs;
+    for (const b of this._fireableBombs()) b.charged = false;
+    for (let c = 0; c < gs.activeColCount; c++) for (const b of gs.columns[c]?.shooters ?? []) b.charged = false;
+  }
+
+  _anyCharged() { return this._fireableBombs().some(b => b.charged); }
 
   // Earn a rainbow color bomb: replace the "next bomb" (top shooter) of the
   // strategically least-costly column — the active column whose top bomb matches the

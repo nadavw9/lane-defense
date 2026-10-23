@@ -23,5 +23,8 @@ export class Shooter {
     // like a normal bomb but clears every car matching the target lane's front
     // car colour. Carries no damage number (badge shows a star instead).
     this.isColorBomb = isColorBomb;
+    // Hot Streak: this bomb carries the supercharge (GameLoop._chargeFrontRow). It stays with
+    // the bomb if it is moved to the bench; firing any charged bomb clears it on all of them.
+    this.charged = false;
   }
 }

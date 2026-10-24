@@ -48,3 +48,22 @@ describe('ad unavailable feedback', () => {
     expect(complete).not.toHaveBeenCalled();
   });
 });
+
+describe('ad units per platform (iOS)', async () => {
+  const { adUnitIds, testAdsFor } = await import('../src/ads/AdManager.js');
+  const live = { DEV: false, VITE_ADS_MODE: 'live' };
+  it('Android uses its own units; a live Android build serves live ads', () => {
+    expect(adUnitIds('android').rewarded).toMatch(/^ca-app-pub-3810333742263149\//);
+    expect(testAdsFor(live, 'android')).toBe(false);
+  });
+  it('iOS without its own units stays on test ads even in a live build', () => {
+    expect(adUnitIds('ios', {})).toEqual({ rewarded: null, interstitial: null });
+    expect(testAdsFor(live, 'ios', {})).toBe(true);
+    expect(testAdsFor(live, 'ios', { rewarded: 'ca-app-pub-1/1' })).toBe(true);   // both are needed
+  });
+  it('iOS with both units serves live ads only in a live build', () => {
+    const ios = { rewarded: 'ca-app-pub-1/1', interstitial: 'ca-app-pub-1/2' };
+    expect(testAdsFor(live, 'ios', ios)).toBe(false);
+    expect(testAdsFor({ DEV: false, VITE_ADS_MODE: 'test' }, 'ios', ios)).toBe(true);
+  });
+});

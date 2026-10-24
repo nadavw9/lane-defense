@@ -51,7 +51,8 @@ jobs:
         run: |
           XC=$(ls -d /Applications/Xcode_*.app | grep -v beta | sort -V | tail -1)
           sudo xcode-select -s "$XC"
-          xcodebuild -version
+          echo "::notice title=Xcode::$(xcodebuild -version | tr '\n' ' ')"
+          echo "::notice title=SDK::$(xcrun --sdk iphoneos --show-sdk-version)"
 
       - uses: actions/setup-node@v4
         with:
@@ -75,6 +76,9 @@ jobs:
             GAD_APPLICATION_ID="$GAD_ID" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             CODE_SIGNING_ALLOWED=NO build | tail -40
           test "${PIPESTATUS[0]}" -eq 0
+          APP=build/Build/Products/Release-iphoneos/App.app
+          test -f "$APP/App" || { echo "::error::no App.app binary after the build"; exit 1; }
+          echo "::notice title=App built::$(du -sh "$APP" | cut -f1), $(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist") build $(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist"), web bundle $(ls "$APP/public" | wc -l | tr -d ' ') files"
 
       - name: Check Apple keys
         if: env.UPLOAD == 'testflight'

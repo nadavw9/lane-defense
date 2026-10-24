@@ -11,7 +11,7 @@ await p.addInitScript(() => {
   const keys = ['tour','lane_2','lane_3','multi_color','combo','supercharge','goal_colour','freeze_booster','colour_change_booster','freeze_earned','colour_change_earned','rainbow_bomb','first_kill','first_miss','hp_miss','streak_charged','plate_break','armor_break','volatile_surge','mender_heal','gift_car','traffic_light','convoy'];
   for (let i = 1; i <= 100; i++) keys.push(`hint_L${i}`);
   localStorage.setItem('ftue_banners', JSON.stringify(keys));
-  const stars = {}; for (let i = 1; i <= 33; i++) stars[i] = i % 4 === 0 ? 2 : 3;
+  const stars = {}; for (let i = 1; i <= 33; i++) stars[i] = i % 4 === 0 ? 2 : 3;   // L23 (gift cars) needs unlockedLevel > 23
   localStorage.setItem('lane-defense-v1', JSON.stringify({ unlockedLevel: 34, coins: 1240, winStreak: 4, stars }));
 });
 await p.goto(URL);
@@ -37,13 +37,13 @@ const play = (n) => p.evaluate(async (n) => {
   return f;
 }, n);
 const shot = async (n) => { await p.screenshot({ path: OUT + n + '.png' }); console.log('shot', n); };
-for (const [name, L, n, wait] of [['s1-l12', 12, 4, 350], ['s2-l35', 35, 2, 1500], ['s3-l13', 13, 0, 1500], ['s4-l55', 55, 3, 1500], ['s5-l65', 65, 3, 1500], ['s8-l88', 88, 3, 1500]]) {
+for (const [name, L, n, wait] of [['s1-l12', 12, 4, 350], ['s2-l35', 35, 2, 1500], ['s3-l23', 23, 2, 1500], ['s4-l55', 55, 3, 1500], ['s5-l65', 65, 3, 1500], ['s8-l88', 88, 3, 1500]]) {
   await p.evaluate((l)=>{ window._nav.cleanAll(); window._nav.startLevel(l); }, L); await p.waitForTimeout(6000); await clear();
   const f = await play(n); console.log(name, 'fired', f);
   await p.waitForTimeout(wait); await shot(name);
 }
 await p.evaluate(()=>{ window._nav.cleanAll(); window._nav.startLevel(20); }); await p.waitForTimeout(5000); await clear();
-await p.evaluate(()=>{ const gs = window._nav.getGs(); gs.coins += 40; gs.totalKills = 27; window._nav.showWin(); }); await p.waitForTimeout(4000);
+await p.evaluate(()=>{ const gs = window._nav.getGs(); gs.coins += 40; gs.totalKills = 27; gs.score = (gs.starTargets?.[2] ?? 3000) + 85; window._nav.showWin(); }); await p.waitForTimeout(4000);
 for (let i=0;i<5;i++){ await p.evaluate(()=>window._nav.dismissGuides?.()); await p.waitForTimeout(600); }
 await p.waitForTimeout(2000); await shot('s7-win');
 await p.evaluate(()=>{ window._nav.cleanAll(); window._nav.showTitle(); }); await p.waitForTimeout(9000); await shot('s0-title');

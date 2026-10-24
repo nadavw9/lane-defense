@@ -116,6 +116,21 @@ clears the charge on all of them (bench included); firing a plain bomb leaves it
 = any charged bomb left. The rings (StreakMeter anchors) draw only on charged bombs. The sim still
 models "next shot is charged" (it never benches a charged bomb, so the numbers match).
 
+### iOS / APP STORE (2026-10-25, branch `feat/ios`)
+
+`ios/` is the Capacitor 8.3 iPhone project (Swift Package Manager, no CocoaPods; iPhone only,
+portrait, no status bar). Keep `@capacitor/ios` on the SAME version as core/android (8.3.0 pinned).
+Built on GitHub macOS runners by `.github/workflows/ios-release.yml`: every push touching `ios/` runs
+an unsigned compile check (notices report Xcode, SDK, bundle); `upload=testflight` archives with
+automatic signing via an App Store Connect API key (secrets `ASC_KEY_ID`, `ASC_ISSUER_ID`,
+`ASC_KEY_P8_BASE64`, variable `APPLE_TEAM_ID`) and uploads to TestFlight. Ads: Info.plist reads
+`$(GAD_APPLICATION_ID)` (Google's sample iOS app ID until variable `IOS_ADMOB_APP_ID` exists); iOS
+ad units come from variables `VITE_IOS_REWARDED_AD_ID` / `VITE_IOS_INTERSTITIAL_AD_ID`, and until
+BOTH exist iOS serves test ads even in a live build (`AdManager.testAdsFor`). The ATT prompt runs after
+UMP consent, before the first ad. Icon + launch image: `node scripts/render-app-icons.mjs ios`.
+App Store screenshots (1320x2868): `node scripts/store-art.mjs <raw> docs/store/appstore ios`.
+Listing, age rating, privacy label and the owner's Apple steps: `docs/store/APPSTORE.md`.
+
 ### GUIDE CARDS — all explanations are centre-screen, never at the top (2026-10-12)
 
 Every tip is a `GuideCard` (`src/screens/GuideCard.js`): centred card, NEXT button, optional gold ring on a

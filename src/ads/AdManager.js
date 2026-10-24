@@ -46,6 +46,15 @@ export class AdManager {
     this._eligibleCount    = 0;
     this._consent          = !Capacitor.isNativePlatform();   // web has no consent regime
     this._privacyOptions   = false;   // UMP says the player must be able to reopen consent
+    // Called when the player asked for a video and none could be shown (no fill,
+    // no consent, SDK failure). NOT called when the player closes the ad early.
+    // GameApp wires a toast to it; without it every ad button failed silently.
+    this.onUnavailable     = null;
+  }
+
+  _unavailable(onDismissed) {
+    this.onUnavailable?.();
+    onDismissed?.();
   }
 
   static getInstance() {
@@ -142,7 +151,7 @@ export class AdManager {
       // Web: the timed mock keeps the flow playable. On device with ads
       // unavailable (no consent yet, init failed) there is nothing to show —
       // never the mock, which would look like a fake ad.
-      if (Capacitor.isNativePlatform()) onDismissed?.();
+      if (Capacitor.isNativePlatform()) this._unavailable(onDismissed);
       else this._showPlatformAd(onComplete, onDismissed);
       return;
     }
@@ -169,16 +178,16 @@ export class AdManager {
     listeners.push(AdMob.addListener(RewardAdPluginEvents.FailedToLoad, () => {
       logEvent('ad_failed', { kind: 'rewarded' });   // no fill: the player asked and got nothing
       cleanup();
-      onDismissed?.();
+      this._unavailable(onDismissed);
     }));
     listeners.push(AdMob.addListener(RewardAdPluginEvents.FailedToShow, () => {
       cleanup();
-      onDismissed?.();
+      this._unavailable(onDismissed);
     }));
 
     AdMob.prepareRewardVideoAd(adOptions(REWARDED_AD_ID))
       .then(() => AdMob.showRewardVideoAd())
-      .catch(() => { cleanup(); onDismissed?.(); });
+      .catch(() => { cleanup(); this._unavailable(onDismissed); });
   }
 
   // Show an interstitial ad (lose screen). Returns a Promise that resolves

@@ -35,3 +35,16 @@ describe('ad requests in test mode', () => {
     expect(prepareInterstitial).toHaveBeenCalledWith(expect.objectContaining({ isTesting: true }));
   });
 });
+
+describe('ad unavailable feedback', () => {
+  it('tells the app when no rewarded ad can be shown, and still calls onDismissed', () => {
+    const m = new AdManager();
+    m._native = false;                 // consent unresolved / init failed on device
+    const unavailable = vi.fn(); const dismissed = vi.fn(); const complete = vi.fn();
+    m.onUnavailable = unavailable;
+    m.showRewarded(complete, dismissed);
+    expect(unavailable).toHaveBeenCalledTimes(1);
+    expect(dismissed).toHaveBeenCalledTimes(1);
+    expect(complete).not.toHaveBeenCalled();
+  });
+});

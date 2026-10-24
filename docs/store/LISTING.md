@@ -10,8 +10,8 @@ HARD / SUPER HARD levels, win streaks. US spelling throughout (the game uses it)
 - **Short description (80 max):** Match the color, drop the bomb, stop the traffic before it breaks through!
   (74 characters)
 - **Alternatives:**
-  - A colorful traffic puzzle: every bomb must match its car. 100 levels!
-  - Drag, match, boom! Stop the traffic jam in 100 bright puzzle levels.
+  - A colorful traffic puzzle: every bomb must match its car. 200 levels!
+  - Drag, match, boom! Stop the traffic jam in 200 bright puzzle levels.
 
 ## Full description (EN, under 4000)
 
@@ -25,7 +25,7 @@ EASY TO PLAY, HARD TO PUT DOWN
 • Big cars take more hits: each hit shrinks them down
 • Turn-based: think as long as you like, no timers
 
-100 LEVELS ACROSS 7 WORLDS
+200 LEVELS: 7 WORLDS, THEN A SECOND TOUR
 • Toy Town, Steel Yards, Neon Nights, Sun Valley, Frost Pass, Harbor Lights and the Starlight Strip
 • HARD and SUPER HARD levels for when you want a real challenge
 • Repair your city one building at a time as you win
@@ -42,6 +42,8 @@ POWER UP
 • Daily rewards, a daily challenge and trophies to collect
 
 Colorblind shapes and a reduce-motion option included.
+
+Free to play, with ads. Rewarded videos are always your choice. Plays offline.
 
 ## Keywords / tags
 
@@ -108,7 +110,7 @@ Made by `scripts/store-art.mjs` from real game captures (`scripts/store-capture.
 1080x1920 each (Play: 9:16, under 2:1), plus the 1024x500 feature graphic. Files: `docs/store/art/`.
 Upload set: `icon-512.png` (app icon), `feature-graphic.png`, `screenshot-1..8.png` (phone).
 1. Match the color, drop the bomb (L12)  2. Beat the traffic lights (L35)  3. Gift cars (L13)
-4. 7 worlds, 100 levels (L55)  5. Special cars (L65)  6. Repair your city (Toy Town map)
+4. 7 worlds, 200 levels (L55)  5. Special cars (L65)  6. Repair your city (Toy Town map)
 7. Win streaks (win screen)  8. Harbor Lights (L88)
 
 ## Support and policy links

@@ -168,6 +168,11 @@ export const BUTTON_PLATE_URLS = ['button-primary', 'button-secondary'].map(n =>
 // duplicates/contradicts the animated earned-star row) → not preloaded.
 export const FRAME_URLS = ['win-burst', 'lose-frame'].map(n => `${_B}sprites/ui/${n}.png`);
 
+// Traffic-light housing (L26+) — baked Toy Town prop chrome; red-on / green-on states.
+// Preloaded so TrafficLights swaps via Assets.get (no 1×1 Sprite.from flash).
+export const TRAFFIC_LIGHT_URLS = ['red', 'green'].map(s => `${_B}sprites/designed/traffic-light-${s}.png`);
+
+
 // Level map (2026-09-28): one baked background per world page + the city-repair
 // buildings in three states (rubble / scaffold / repaired) × three variants.
 export const MAP_URLS = [
@@ -188,7 +193,7 @@ export const ALL_SPRITE_URLS = [
   // while one is active; they are only a fallback, and CityEdges degrades to its
   // programmatic buildings when a strip texture is absent.
   ...ZONE_FLOOR_URLS, ...UI_ICON_URLS,
-  ...BUTTON_PLATE_URLS, ...FRAME_URLS, ...GOAL_ICON_URLS,   // GOAL_ICON_URLS includes TITLE_INTRO_CAR_URL (car-blue-processed)
+  ...BUTTON_PLATE_URLS, ...FRAME_URLS, ...TRAFFIC_LIGHT_URLS, ...GOAL_ICON_URLS,   // GOAL_ICON_URLS includes TITLE_INTRO_CAR_URL (car-blue-processed)
   ...Object.values(WORLD_ROAD_URLS),
 ];
 

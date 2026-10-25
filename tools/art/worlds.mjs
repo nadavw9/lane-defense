@@ -51,22 +51,26 @@ ROAD.world4 = () => {            // sun-bleached desert asphalt, cream dash
   return `<rect width="512" height="512" fill="#7A6C5E"/>${specks(r, 280, ['#8A7B6B', '#6B5E51', '#9A8A76'])}
     <rect x="243" y="154" width="26" height="204" rx="13" fill="#FFF1D2"/>`;
 };
-ROAD.world5 = () => {            // icy asphalt: snow flecks, packed-snow banks, cold slab joints, white dash
+ROAD.world5 = () => {            // icy asphalt: blue-grey packed flecks (not roof-white), asphalt peeking, cold joints
   const r = rng(19);
-  const flecks = Array.from({ length: 18 }, () => {
-    const x = r() * 420 + 40, y = r() * 420 + 40, rx = 10 + r() * 36, ry = 5 + r() * 16;
-    return `<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="#F4F8FF" opacity="${(0.08 + r() * 0.12).toFixed(2)}"/>`;
+  const flecks = Array.from({ length: 16 }, () => {
+    const x = r() * 420 + 40, y = r() * 420 + 40, rx = 8 + r() * 28, ry = 4 + r() * 12;
+    return `<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="#A8BBCF" opacity="${(0.10 + r() * 0.12).toFixed(2)}"/>`;
   }).join('');
-  const banks = Array.from({ length: 12 }, () => {
-    const x = r() * 480 + 16, y = r() * 480 + 16, rx = 14 + r() * 32, ry = 5 + r() * 12;
-    return `<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="#EAF2FA" opacity="${(0.12 + r() * 0.14).toFixed(2)}"/>`;
+  const asphaltPeek = Array.from({ length: 14 }, () => {
+    const x = r() * 420 + 40, y = r() * 420 + 40, rx = 6 + r() * 18, ry = 3 + r() * 10;
+    return `<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="#5A6574" opacity="${(0.10 + r() * 0.12).toFixed(2)}"/>`;
   }).join('');
-  const joints = [0, 170, 340].map(y => `<rect x="0" y="${y}" width="512" height="2" fill="#C8D8E8" opacity=".28"/>`).join('');
-  const darkJoints = [85, 255, 425].map(y => `<rect x="0" y="${y}" width="512" height="1" fill="#3A4250" opacity=".22"/>`).join('');
-  return `<rect width="512" height="512" fill="#4E5868"/>${specks(r, 280, ['#647084', '#4A5362', '#6A788A'])}${flecks}${banks}${joints}${darkJoints}
-    <rect x="0" y="0" width="3" height="512" fill="#3A4250" opacity=".25"/>
-    <rect x="243" y="154" width="26" height="204" rx="13" fill="#F4F8FF"/>
-    <rect x="246" y="160" width="20" height="192" rx="10" fill="#EAF2FA" opacity=".4"/>`;
+  const banks = Array.from({ length: 10 }, () => {
+    const x = r() * 480 + 16, y = r() * 480 + 16, rx = 12 + r() * 26, ry = 4 + r() * 10;
+    return `<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="#96AABC" opacity="${(0.14 + r() * 0.12).toFixed(2)}"/>`;
+  }).join('');
+  const joints = [0, 170, 340].map(y => `<rect x="0" y="${y}" width="512" height="2" fill="#8FA6BA" opacity=".32"/>`).join('');
+  const darkJoints = [85, 255, 425].map(y => `<rect x="0" y="${y}" width="512" height="1" fill="#2E3644" opacity=".30"/>`).join('');
+  return `<rect width="512" height="512" fill="#3E4654"/>${specks(r, 280, ['#556070', '#3A4250', '#647084'])}${flecks}${asphaltPeek}${banks}${joints}${darkJoints}
+    <rect x="0" y="0" width="3" height="512" fill="#2E3644" opacity=".28"/>
+    <rect x="243" y="154" width="26" height="204" rx="13" fill="#E0EAF4"/>
+    <rect x="246" y="160" width="20" height="192" rx="10" fill="#C8D6E4" opacity=".4"/>`;
 };
 ROAD.world6 = () => {            // wet blue-grey dock concrete, expansion joints, sky-blue dash
   const r = rng(23);
@@ -93,7 +97,7 @@ const FLOOR = {
   world2: { base: '#4A4E5A', tile: '#565B68', edge: '#6B7180' },   // steel plate
   world3: { base: '#1B1F36', tile: '#20264A', edge: '#39E6FF' },   // neon grid
   world4: { base: '#B9996B', tile: '#C7A878', edge: null },          // sandstone flags
-  world5: { base: '#A9BBCD', tile: '#C0D0DF', edge: '#D8E4F0' },      // packed snow + soft joint
+  world5: { base: '#8FA6BA', tile: '#A0B4C6', edge: '#6E8298' },      // cooler packed ice (≠ roof ivory)
   world6: { base: '#4C5967', tile: '#5A6876', edge: '#FF8A1C' },     // dock plate
   world7: { base: '#17102E', tile: '#201640', edge: '#A35CFF' },     // violet grid
 };

@@ -186,13 +186,16 @@ Object.assign(THEME, {
   // Frost Pass — snow town: log cabins with snow roofs, frosted pines.
   // Structural variety (log eaves, snow-laden roofs, chimneys, denser pines/drifts) — not a hue swap of Toy Town.
   world5: {
-    asphalt: 0x46505E, asphaltHi: 0x5A6574, asphaltLo: 0x3A4250, paint: '#F4F8FF', centre: '#EAF2FA',
-    kerb: 0xE4EEF7, gutter: 0x556070, walk: [0xF1F6FB, 0xE3ECF5, 0xEAF1F8, 0xD8E4F0], walkJoint: '#A7B9CC',
-    lawn: [0xF3F7FB, 0xE3ECF4, 0xD5E2EE], leaf: [0x265C49, 0x2F6E57, 0x3A7E64, 0x1F4E3C, 0x347A60], trunk: 0x4E3C2E,
-    roofs: [0xF2F6FA, 0xE4ECF4, 0xDCE6F0, 0xCBD8E6], walls: [0xA8744A, 0x9A6B45, 0xB98354, 0x8C5F3C, 0x7A5134, 0xC09060],
+    // Ground/street snow: cooler blue-grey packed ice (asphalt flecks show through) —
+    // deliberately darker/cooler than warm cabin roof snow so planes separate.
+    asphalt: 0x3E4654, asphaltHi: 0x505A68, asphaltLo: 0x323A46, paint: '#E8F0F8', centre: '#D0DCE8',
+    kerb: 0xA8BBCF, gutter: 0x4A5464, walk: [0xB8C8D8, 0xA8BBCF, 0xC0D0E0, 0x96AABC], walkJoint: '#6E8298',
+    lawn: [0xB4C4D4, 0xA0B4C6, 0x8FA6BA], leaf: [0x265C49, 0x2F6E57, 0x3A7E64, 0x1F4E3C, 0x347A60], trunk: 0x4E3C2E,
+    // Roof under-snow plank: warm brown wood so eaves/plank band read under ivory snow.
+    roofs: [0x8B6A48, 0x7A5A3E, 0x6E5238, 0x9A7850], walls: [0xA8744A, 0x9A6B45, 0xB98354, 0x8C5F3C, 0x7A5134, 0xC09060],
     awnings: [[0xE8453C, 0xFFFFFF], [0x2F8CFF, 0xFFFFFF], [0xF2C230, 0xFFFFFF]],
-    depot: [0xD3E0EC, 0xC8D7E6, 0xDCE7F1, 0xB8C9DA], depotJoint: '#8FA3B8', track: 0x7E93A8, trackEdge: 0xF4FAFF,
-    lot: 0xE8F0F7,
+    depot: [0xA8BBCF, 0x9AADBF, 0xB4C4D4, 0x8FA3B5], depotJoint: '#6E8298', track: 0x6A7E92, trackEdge: 0xC8D6E4,
+    lot: 0xA8BBCF,
     sun: { color: 0xE2ECFF, intensity: 3.05, hemi: [0xD7E6FF, 0x6E7E96, 0.78], env: 0.32, exposure: 1.07 },
   },
   // Harbor Lights — container docks: blue-grey concrete, bright boxes, orange bollards.
@@ -271,17 +274,18 @@ function roadTexture(T, world, L, r) {
       x.stroke();
     }
   }
-  // Frost Pass: icy asphalt snow flecks + packed-snow kerb drifts + cold slab joints.
+  // Frost Pass: blue-grey packed ice flecks (not roof-white) + asphalt peeking through.
   if (world === 'world5') {
-    for (let i = 0; i < 22; i++) blotch(x, r() * W, r() * H, 18 + r() * 55, 0xF4F8FF, 0.08 + r() * 0.12);
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < 18; i++) blotch(x, r() * W, r() * H, 14 + r() * 42, 0xA8BBCF, 0.10 + r() * 0.12);
+    for (let i = 0; i < 14; i++) blotch(x, r() * W, r() * H, 8 + r() * 22, 0x6A788A, 0.08 + r() * 0.10); // asphalt flecks
+    for (let i = 0; i < 14; i++) {
       const sx = X((r() < 0.5 ? -1 : 1) * (halfW - 0.3 - r() * 0.5));
-      blotch(x, sx, r() * H, (0.55 + r() * 1.2) * pxu, 0xEAF2FA, 0.18 + r() * 0.16);
+      blotch(x, sx, r() * H, (0.5 + r() * 1.0) * pxu, 0x96AABC, 0.16 + r() * 0.14);
     }
     // Cold expansion joints across the road (icy slabs).
-    x.strokeStyle = 'rgba(200,220,240,0.22)'; x.lineWidth = 1.6;
+    x.strokeStyle = 'rgba(150,180,205,0.28)'; x.lineWidth = 1.6;
     for (let wz = Math.ceil(z0 / 5.0) * 5.0; wz < z1; wz += 5.0) { x.beginPath(); x.moveTo(0, Y(wz)); x.lineTo(W, Y(wz)); x.stroke(); }
-    x.strokeStyle = 'rgba(40,50,65,0.22)'; x.lineWidth = 1.1;
+    x.strokeStyle = 'rgba(30,38,50,0.30)'; x.lineWidth = 1.2;
     for (let wz = Math.ceil(z0 / 5.0) * 5.0 + 2.5; wz < z1; wz += 5.0) { x.beginPath(); x.moveTo(0, Y(wz)); x.lineTo(W, Y(wz)); x.stroke(); }
   }
   // Night: wet sheen + lamp light pools and neon reflections.
@@ -587,14 +591,14 @@ function rockCluster(T, r, w = 0.9, d = 0.7) {
   return g;
 }
 function snowDrift(T, r, w = 0.9, d = 0.7) {
-  // Soft packed-snow mound / bank — Frost Pass ground dressing with size variety.
+  // Soft packed-snow mound / bank — cooler blue-grey ice (must not match warm roof snow).
   const g = new THREE.Group();
-  const cols = [0xF6FAFF, 0xEAF2FA, 0xFFFFFF, 0xDCE6F0];
+  const cols = [0xA8BBCF, 0x96AABC, 0xB4C4D4, 0x8A9EB0, 0xC0D0E0];
   const n = 4 + Math.floor(r() * 3);
   for (let i = 0; i < n; i++) {
     const big = i === 0 && r() < 0.55;
     const rad = (big ? 0.32 + r() * 0.22 : 0.16 + r() * 0.18) * Math.min(w, 1.35);
-    const m = blob(rad, std(pick(r, cols), 0.92), r, 1, 0.16);
+    const m = blob(rad, std(pick(r, cols), 0.88), r, 1, 0.16);
     m.scale.y = big ? 0.38 + r() * 0.22 : 0.32 + r() * 0.2;
     m.position.set((r() - 0.5) * w * 0.85, rad * m.scale.y * 0.45, (r() - 0.5) * d * 0.85);
     g.add(m);
@@ -605,7 +609,7 @@ function frostPine(T, r, s = 1) {
   // Tall / squat / twin frost pines — silhouette variety for Frost Pass, not one cone stack.
   const g = new THREE.Group();
   const kind = r();
-  const snow = std(pick(r, [0xF6FAFF, 0xEAF2FA, 0xFFFFFF]), 0.9);
+  const snow = std(pick(r, [0xD8E4F0, 0xC8D6E4, 0xE0EAF4]), 0.88);
   const addTree = (ox, sc) => {
     const tiers = kind < 0.28 ? 2 : kind < 0.7 ? 3 : 4;
     const trunkH = (0.4 + tiers * 0.12) * sc;
@@ -716,8 +720,10 @@ function townHouse(T, r, w, d, h, facing, opts = {}) {
       const side = r() < 0.5 ? -1 : 1;
       const wingZ = (r() - 0.3) * d * 0.2;
       g.add(rbox(ww, wh, wd, 0.04, wall, side * (w / 2 + ww / 2 - 0.05), wh / 2, wingZ));
-      // Snow-capped lean-to roof.
-      const lean = box(ww + 0.12, 0.08, wd + 0.12, std(0xF2F6FA, 0.9), side * (w / 2 + ww / 2 - 0.05), wh + 0.06, wingZ);
+      // Warm ivory lean-to snow cap + dark eaves plank so it separates from ground snow.
+      const leanPlank = box(ww + 0.14, 0.05, wd + 0.14, std(mix(wallCol, 0x000000, 0.28), 0.85), side * (w / 2 + ww / 2 - 0.05), wh + 0.03, wingZ);
+      leanPlank.rotation.z = side * -0.18; g.add(leanPlank);
+      const lean = box(ww + 0.1, 0.1, wd + 0.1, std(0xF0D4B0, 0.9), side * (w / 2 + ww / 2 - 0.05), wh + 0.1, wingZ);
       lean.rotation.z = side * -0.18;
       g.add(lean);
     }
@@ -740,10 +746,11 @@ function townHouse(T, r, w, d, h, facing, opts = {}) {
   if (opts.style ? opts.style === 'pitched' : r() < 0.62) {
     // Pitched roof along z (ridge runs along the street) with tile texture.
     // Cabin: wider eaves, snow-laden slopes, stone chimney, icicle cues.
-    const tex = roofTileTexture(cabin ? mix(roofCol, 0xD0D8E4, 0.35) : roofCol, r);
+    // Cabin: warm wood plank underlayer (not cool white) so snow mass + eaves silhouette separate from street snow.
+    const tex = roofTileTexture(roofCol, r);
     tex.repeat.set(w * 0.5, d * 0.5);
-    const mat = std(0xffffff, 0.75, { map: tex });
-    const rh = (cabin ? 0.65 : 0.55) + r() * 0.22, over = cabin ? 0.22 : 0.12;
+    const mat = std(0xffffff, cabin ? 0.82 : 0.75, { map: tex });
+    const rh = (cabin ? 0.68 : 0.55) + r() * 0.22, over = cabin ? 0.26 : 0.12;
     const shape = new THREE.Shape();
     shape.moveTo(-w / 2 - over, 0); shape.lineTo(0, rh); shape.lineTo(w / 2 + over, 0); shape.lineTo(-w / 2 - over, 0);
     const geo = new THREE.ExtrudeGeometry(shape, { depth: d + over * 2, bevelEnabled: false });
@@ -753,35 +760,49 @@ function townHouse(T, r, w, d, h, facing, opts = {}) {
     g.add(roof);
     g.add(box(0.08, 0.05, d + over * 2, std(mix(roofCol, 0x000000, 0.35), 0.7), 0, h + rh + 0.01, 0));
     if (cabin) {
-      // Snow load along both roof slopes + ridge.
-      const snowM = std(0xF6FAFF, 0.92);
+      // Dark under-snow plank band along eaves (silhouette edge vs ground plane).
+      const plank = std(mix(roofCol, 0x000000, 0.22), 0.85);
+      g.add(box(w + over * 2 + 0.08, 0.09, 0.1, plank, 0, h + 0.03, d / 2 + over - 0.02));
+      g.add(box(w + over * 2 + 0.08, 0.09, 0.1, plank, 0, h + 0.03, -(d / 2 + over - 0.02)));
+      // Side eaves plank bands
+      g.add(box(0.1, 0.09, d + over * 2 + 0.04, plank, -w / 2 - over + 0.02, h + 0.03, 0));
+      g.add(box(0.1, 0.09, d + over * 2 + 0.04, plank, w / 2 + over - 0.02, h + 0.03, 0));
+      // Soft eaves shadow onto cabin walls (overhang AO) — strengthens roof mass vs ground.
+      const eaveSh = std(0x120C08, 0.7);
+      g.add(box(w * 0.98, 0.08, d * 0.98, eaveSh, 0, h - 0.03, 0));
+      g.add(box(w + over * 1.8, 0.05, 0.16, eaveSh, 0, h - 0.015, d / 2 + 0.05));
+      g.add(box(0.1, 0.05, d + over * 1.6, eaveSh, -w / 2 - over * 0.3, h - 0.01, 0));
+      g.add(box(0.1, 0.05, d + over * 1.6, eaveSh, w / 2 + over * 0.3, h - 0.01, 0));
+      // Warm ivory roof snow (cream) — thicker than street drifts; not cool roof-white.
+      const snowWarm = [0xF2D9B8, 0xE8CBA6, 0xF6E0C4, 0xDFC29A];  // peach-ivory: stays warm under cool sceneGlow
+      const snowM = std(pick(r, snowWarm), 0.9);
       for (const side of [-1, 1]) {
-        for (let k = 0; k < 3; k++) {
-          const blobSnow = blob(0.28 + r() * 0.18, snowM, r, 1, 0.14);
-          blobSnow.scale.set(1.4, 0.35, 1.1);
-          blobSnow.position.set(side * (w * 0.22 + k * 0.08), h + rh * (0.55 - k * 0.1), (r() - 0.5) * d * 0.55);
+        for (let k = 0; k < 4; k++) {
+          const blobSnow = blob(0.30 + r() * 0.2, snowM, r, 1, 0.14);
+          blobSnow.scale.set(1.55, 0.48 + r() * 0.12, 1.15); // thicker snow mass
+          blobSnow.position.set(side * (w * 0.2 + k * 0.07), h + rh * (0.58 - k * 0.09), (r() - 0.5) * d * 0.55);
           g.add(blobSnow);
         }
       }
-      const ridgeSnow = blob(0.2, snowM, r, 1, 0.12);
-      ridgeSnow.scale.set(0.5, 0.4, d * 0.7);
-      ridgeSnow.position.set(0, h + rh + 0.06, 0);
+      const ridgeSnow = blob(0.22, snowM, r, 1, 0.12);
+      ridgeSnow.scale.set(0.55, 0.5, d * 0.75);
+      ridgeSnow.position.set(0, h + rh + 0.08, 0);
       g.add(ridgeSnow);
-      // Icicles under the eaves (camera-facing edge).
+      // Icicles under the eaves (camera-facing edge) — cool ice OK (not ground plane).
       for (let i = 0; i < 5 + Math.floor(r() * 4); i++) {
         const ix = (r() - 0.5) * (w + over);
         const ih = 0.12 + r() * 0.22;
-        g.add(cyl(0.015, 0.008, ih, std(0xEAF4FF, 0.35), ix, h - ih / 2 + 0.02, d / 2 + over - 0.02, 6));
+        g.add(cyl(0.015, 0.008, ih, std(0xC8D8E8, 0.4), ix, h - ih / 2 + 0.02, d / 2 + over - 0.02, 6));
       }
     }
-    if (r() < (cabin ? 0.92 : 0.8)) {   // chimney — cabin: taller stone with snow cap
+    if (r() < (cabin ? 0.92 : 0.8)) {   // chimney — cabin: taller stone with warm snow cap (breaks roof plane)
       const cx = (r() - 0.5) * w * 0.5;
       const cz = (r() - 0.5) * d * 0.5;
-      const ch = cabin ? 0.7 : 0.5;
-      g.add(rbox(cabin ? 0.28 : 0.22, ch, cabin ? 0.28 : 0.22, 0.03, std(cabin ? 0x8A7A6A : 0xB0674A, 0.8), cx, h + rh * 0.75, cz));
+      const ch = cabin ? 0.75 : 0.5;
+      g.add(rbox(cabin ? 0.3 : 0.22, ch, cabin ? 0.3 : 0.22, 0.03, std(cabin ? 0x7A6A5A : 0xB0674A, 0.8), cx, h + rh * 0.75, cz));
       if (cabin) {
-        g.add(rbox(0.34, 0.06, 0.34, 0.03, std(0x6E6054, 0.75), cx, h + rh * 0.75 + ch / 2 + 0.04, cz));
-        const chimSnow = blob(0.16, std(0xF6FAFF, 0.9), r, 1, 0.12); chimSnow.position.set(cx, h + rh * 0.75 + ch / 2 + 0.12, cz); g.add(chimSnow);
+        g.add(rbox(0.36, 0.07, 0.36, 0.03, std(0x5E5044, 0.75), cx, h + rh * 0.75 + ch / 2 + 0.04, cz));
+        const chimSnow = blob(0.17, std(0xF0D4B0, 0.9), r, 1, 0.12); chimSnow.position.set(cx, h + rh * 0.75 + ch / 2 + 0.14, cz); g.add(chimSnow);
       }
     }
     if (!cabin && r() < 0.5) {   // dormer skylight
@@ -1073,9 +1094,9 @@ export function buildBackdrop(world, variant, L) {
         g.add(hs);
         // Front garden: a path to the door, hedge along the pavement (gap at the
         // path), a tree and a flower bed on the lawn. World5: snow banks + frost pines.
-        const hedgeCol = world === 'world4' ? 0xE9D3A8 : world === 'world5' ? 0xEAF2F9 : T.leaf[2];
+        const hedgeCol = world === 'world4' ? 0xE9D3A8 : world === 'world5' ? 0x96AABC : T.leaf[2];
         const hx = s * (gardenX + 0.12), pathX = s * (gardenX + 0.58);
-        g.add(plane(1.2, Z(0.42) - Z(0), std(world === 'world5' ? 0xDDE6EF : 0xE4D9C2, 0.95), pathX, 0.1, Z(zc)));
+        g.add(plane(1.2, Z(0.42) - Z(0), std(world === 'world5' ? 0x8FA6BA : 0xE4D9C2, 0.95), pathX, 0.1, Z(zc)));
         const half = d / 2;
         for (const [a, b] of [[bz + 0.05, zc - 0.35], [zc + 0.35, bz + d - 0.05]]) {
           if (b - a < 0.3) continue;

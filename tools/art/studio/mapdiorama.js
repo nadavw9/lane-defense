@@ -16,7 +16,7 @@ import {
 } from './backdrop.js';
 
 const NEW_WORLD = (w) => Number(w.slice(5)) > 3;
-const HEDGE = { world1: 0x3F8F3E, world4: 0xD8B27C, world5: 0xF2F7FB };
+const HEDGE = { world1: 0x3F8F3E, world4: 0xD8B27C, world5: 0x96AABC };
 const WALL = { world1: 0xEFDCC0, world2: 0xC9C4BA, world3: 0x3E4258, world4: 0xF0D2A0, world5: 0xA8744A, world6: 0xC9D3DC, world7: 0x3E3066 };
 
 function ribbon(points, width, mat, y, uvLen = 0) {
@@ -219,9 +219,9 @@ export function buildRepairHD(theme, state, variant) {
         { style: 'flat', roof: 0xD9683D, wall: 0xEBC993, kit: 0.5 },
         { style: 'pitched', roof: 0xD9683D, wall: 0xF7E7C9 },
       ] : [
-        { style: 'pitched', cabin: true, roof: 0xF2F6FA, wall: 0xA8744A },
-        { style: 'pitched', cabin: true, roof: 0xE4ECF4, wall: 0x9A6B45 },
-        { style: 'pitched', cabin: true, roof: 0xDCE6F0, wall: 0xB98354 },
+        { style: 'pitched', cabin: true, roof: 0x8B6A48, wall: 0xA8744A },
+        { style: 'pitched', cabin: true, roof: 0x7A5A3E, wall: 0x9A6B45 },
+        { style: 'pitched', cabin: true, roof: 0x6E5238, wall: 0xB98354 },
       ];
       const hh = theme === 'world5' ? 1.4 + (variant % 3) * 0.14 : 1.15;
       const hs = townHouse(T, rng(variant * 31 + 5), theme === 'world5' ? w + 0.18 : w, d, hh, 1, styles[variant % 3]);

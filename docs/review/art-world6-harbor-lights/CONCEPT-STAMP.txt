@@ -1,12 +1,15 @@
 CONCEPT-STAMP — Traffic Bomb World 6 Harbor Lights visual polish
 Branch: art/world6-harbor-lights
 Date: 2026-10-25 Asia/Jerusalem
-Status: CONCEPT-STAMP (not HUMAN-FINAL)
+Status: HUMAN-FINAL (Nadav approved 2026-10-25 Asia/Jerusalem)
 
 Question for Nadav (Hebrew-friendly):
 האם Harbor Lights נראה כמו נמל/רציף מוגמר ברמת Toy Town — מנופים, מכולות, בולארדים כתומים, מחסני טעינה — ולא רק החלפת צבעים של Steel Yards?
 
 English: Does Harbor Lights read as a finished dock/port world at Toy Town quality — cranes, ISO stacks, orange bollards, loading-bay sheds — not just a Steel Yards palette swap?
+
+Approval:
+  HUMAN-FINAL — Nadav approved 2026-10-25 Asia/Jerusalem. Proceed to Starlight Strip (World 7).
 
 Review boards:
   docs/review/art-world6-harbor-lights/before/   (original master, pre-polish)

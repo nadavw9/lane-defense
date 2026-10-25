@@ -156,6 +156,8 @@ export const UI_ICON_NAMES = [
   'check', 'close', 'shield', 'skull', 'hand',
   // Batch 1b
   'explosion', 'snowflake', 'lightning', 'car', 'speaker',
+  // Batch 1c — live wires only (controls/accessibility skipped: Settings rows gone)
+  'help', 'calendar', 'sparkle',
 ];
 export const UI_ICON_URLS = UI_ICON_NAMES.map(n => `${_B}sprites/ui/icon-${n}.png`);
 

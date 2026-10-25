@@ -8,6 +8,7 @@
 //   const s = new BoosterSpotlight(stage, appW, appH, 'swap', () => resume());
 //   // call s.update(dt) each frame; tap anywhere auto-calls onDismiss.
 import { Container, Graphics, Text } from 'pixi.js';
+import { uiIcon } from '../renderer/UIIcon.js';
 import { KILLS_PER_BOMB } from '../director/DirectorConfig.js';
 import { BAR_Y } from '../renderer/BoosterBar.js';
 import { ConfettiSystem, CONFETTI_COLORS } from '../renderer/Confetti.js';
@@ -156,17 +157,23 @@ export class BoosterSpotlight {
     this._tapBg = new Graphics();
     this._container.addChild(this._tapBg);
 
-    this._tapText = new Text({
-      text: '✦  TAP TO TRY!  ✦',
+    // Sparkle icons flank the CTA (Batch 1c icon-sparkle) — emoji ✦ fallback.
+    this._tapText = new Container();
+    this._tapText.x = appW / 2;
+    this._tapText.y = pos.y - SPOT_R - 30;
+    this._tapText.alpha = 0;
+    const tapLabel = new Text({
+      text: 'TAP TO TRY!',
       style: {
         fontSize: 17, fontWeight: 'bold', fill: 0xffffff, align: 'center',
         dropShadow: { color: info.color, blur: 8, distance: 0, alpha: 0.95 },
       },
     });
-    this._tapText.anchor.set(0.5, 0.5);
-    this._tapText.x = appW / 2;
-    this._tapText.y = pos.y - SPOT_R - 30;
-    this._tapText.alpha = 0;
+    tapLabel.anchor.set(0.5, 0.5);
+    const sparkL = uiIcon('sparkle', 16, '✦');
+    const sparkR = uiIcon('sparkle', 16, '✦');
+    sparkL.x = -78; sparkR.x = 78;
+    this._tapText.addChild(sparkL, tapLabel, sparkR);
     this._container.addChild(this._tapText);
 
     // ── Dismiss hitbox (must be last) ─────────────────────────────────────────

@@ -52,7 +52,7 @@ export class PauseScreen {
     };
     add('RESUME', 'green', tap(onResume), uiIcon('play', 22, '▶'), true);
     if (onRestart) add('RESTART', 'dark', tap(onRestart));
-    if (onHowToPlay) add('HOW TO PLAY', 'dark', tap(onHowToPlay));
+    if (onHowToPlay) add('HOW TO PLAY', 'dark', tap(onHowToPlay), uiIcon('help', 22, '❓'));
     add('CAR GUIDE', 'dark', tap(onCarManual), uiIcon('book', 22, '📖'));
     add('SETTINGS', 'dark', tap(onSettings), uiIcon('gear', 22, '⚙'));
 

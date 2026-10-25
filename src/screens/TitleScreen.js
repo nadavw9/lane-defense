@@ -193,7 +193,7 @@ export class TitleScreen {
     const open = (k) => reached >= TITLE_UNLOCK[k];
     const items = [];
     if (onMap) items.push({ glyph: mapGlyph, label: 'MAP', color: 0x3DBB3A, fn: onMap });
-    if (onDaily && open('daily')) items.push({ key: 'daily', icon: 'gift', emoji: '🎁', label: hasDailyReward ? 'DAILY!' : 'DAILY', color: hasDailyReward ? 0xF0A020 : 0x2F7FE0, fn: onDaily, badge: hasDailyReward });
+    if (onDaily && open('daily')) items.push({ key: 'daily', icon: hasDailyReward ? 'gift' : 'calendar', emoji: hasDailyReward ? '🎁' : '📅', label: hasDailyReward ? 'DAILY!' : 'DAILY', color: hasDailyReward ? 0xF0A020 : 0x2F7FE0, fn: onDaily, badge: hasDailyReward });
     if (onAchievements && open('trophies')) items.push({ key: 'trophies', icon: 'trophy', emoji: '🏆', label: 'TROPHIES', color: 0x2F7FE0, fn: onAchievements });
     if (onDailyChallenge && open('challenge')) items.push({ key: 'challenge', icon: 'lightning', emoji: '⚡', label: 'CHALLENGE', color: 0x8B4FE0, fn: onDailyChallenge, done: dailyChallengeDone });
     if (onStats && open('stats')) items.push({ key: 'stats', icon: 'chart', emoji: '📊', label: 'STATS', color: 0x2F7FE0, fn: onStats });

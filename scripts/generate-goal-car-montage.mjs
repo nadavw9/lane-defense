@@ -1,5 +1,5 @@
 // generate-goal-car-montage.mjs — Bug D source art: 6 stylized single-color car
-// counter icons (side view, friendly proportions) on a plain white background,
+// counter icons (side view, Toy Town / Play Store CONCEPT polish) on a plain white background,
 // 1024×1024 montage (3 cols × 2 rows), saved to sprite-sources/raw/goal-cars.png.
 // Colors match the game palette (GoalCounterUI COLOR_PALETTE / CLAUDE.md §10).
 // Run: node scripts/generate-goal-car-montage.mjs
@@ -15,12 +15,13 @@ mkdirSync(path.dirname(OUT), { recursive: true });
 
 // Game palette — keep in sync with GoalCounterUI.COLOR_PALETTE.
 const PALETTE = {
-  red:    '#E24B4A',
-  blue:   '#378ADD',
-  green:  '#639922',
-  yellow: '#EF9F27',
-  purple: '#7F77DD',
-  orange: '#D85A30',
+  // Toy Town palette (tools/art/vehicles.mjs) — Play Store CONCEPT 2026-10-25
+  red:    '#FF3D3D',
+  blue:   '#2F8CFF',
+  green:  '#2FCC55',
+  yellow: '#FFD42A',
+  purple: '#A35CFF',
+  orange: '#FF8A1C',
 };
 
 // Darken a #rrggbb by factor (0..1).
@@ -34,37 +35,51 @@ const lighten = (hex, f) => '#' + [1, 3, 5]
 // One stylized side-view car (faces right), viewBox 0 0 220 150.
 function carSvg(body) {
   const shade   = darken(body, 0.28);
-  const hilite  = lighten(body, 0.35);
-  const glass   = '#cfe8f8';
-  const glassHi = '#ffffff';
+  const hilite  = lighten(body, 0.38);
+  const ink     = '#1F1A33';
+  // Play Store CONCEPT: chunky side-view toy sedan — gradient body, glass, chrome
+  // bumpers, alloy rims, soft drop shadow. Faces right. viewBox 0 0 280 180.
   return `
-  <g stroke="${darken(body, 0.5)}" stroke-width="4" stroke-linejoin="round">
-    <!-- body: lower slab + cabin -->
-    <path d="M14,100 Q14,74 42,70 L64,67 Q76,38 102,36 L128,36 Q154,38 164,66 L184,71
-             Q202,75 202,92 L202,100 Q202,110 190,110 L26,110 Q14,110 14,100 Z"
-          fill="${body}"/>
-    <!-- roof highlight -->
-    <path d="M70,64 Q80,42 102,40 L126,40 Q148,42 158,63 L152,64 Q142,46 126,45 L104,45 Q84,46 76,64 Z"
-          fill="${hilite}" stroke="none" opacity="0.7"/>
-    <!-- windows -->
-    <path d="M80,64 Q88,47 104,46 L110,46 L110,64 Z" fill="${glass}" stroke-width="3"/>
-    <path d="M118,46 L126,46 Q143,47 150,64 L118,64 Z" fill="${glass}" stroke-width="3"/>
-    <path d="M83,61 Q90,50 102,49 L106,49 L106,52 Q92,53 87,61 Z" fill="${glassHi}" stroke="none" opacity="0.8"/>
-    <!-- skirt shade -->
-    <path d="M18,98 L200,98 L200,100 Q200,108 190,108 L26,108 Q18,108 18,98 Z" fill="${shade}" stroke="none"/>
-    <!-- bumpers -->
-    <rect x="10" y="88" width="12" height="14" rx="5" fill="${shade}"/>
-    <rect x="198" y="88" width="12" height="14" rx="5" fill="${shade}"/>
-    <!-- headlight / taillight -->
-    <circle cx="196" cy="82" r="5" fill="#ffe9a8" stroke-width="3"/>
-    <circle cx="22" cy="82" r="4.5" fill="${darken(body, 0.15)}" stroke-width="3"/>
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="${hilite}"/>
+      <stop offset=".42" stop-color="${body}"/>
+      <stop offset="1" stop-color="${shade}"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#E8F4FF"/><stop offset=".4" stop-color="#7FA8D4"/>
+      <stop offset="1" stop-color="#1A2740"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F2F5F8"/><stop offset="1" stop-color="#8A929C"/>
+    </linearGradient>
+    <filter id="s" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="5" stdDeviation="3.5" flood-color="#000" flood-opacity=".32"/>
+    </filter>
+  </defs>
+  <g filter="url(#s)" stroke="${ink}" stroke-width="5" stroke-linejoin="round">
+    <path d="M28,118 Q28,88 58,84 L82,80 Q96,46 128,42 L168,42 Q198,46 210,78 L236,84
+             Q258,88 258,108 L258,120 Q258,132 242,132 L42,132 Q28,132 28,118 Z"
+          fill="url(#body)"/>
+    <path d="M96,78 Q108,50 130,48 L164,48 Q184,50 196,76 L188,78 Q178,56 164,54 L132,54 Q112,56 104,78 Z"
+          fill="${hilite}" stroke="none" opacity="0.55"/>
+    <path d="M104,78 Q112,56 130,54 L140,54 L140,78 Z" fill="url(#glass)" stroke-width="4"/>
+    <path d="M148,54 L164,54 Q182,56 192,78 L148,78 Z" fill="url(#glass)" stroke-width="4"/>
+    <path d="M108,74 Q116,60 128,58 L134,58 L134,62 Q118,64 112,74 Z" fill="#fff" stroke="none" opacity="0.55"/>
+    <path d="M34,116 L252,116 L252,120 Q252,128 242,128 L42,128 Q34,128 34,116 Z" fill="${shade}" stroke="none" opacity="0.55"/>
+    <rect x="18" y="102" width="16" height="18" rx="6" fill="#D8DEE6"/>
+    <rect x="248" y="102" width="16" height="18" rx="6" fill="#D8DEE6"/>
+    <ellipse cx="250" cy="94" rx="7" ry="6" fill="#FFF6C8"/>
+    <ellipse cx="36" cy="94" rx="6" ry="5.5" fill="#FF5A5A"/>
+    <path d="M142,80 L142,118" fill="none" stroke="${shade}" stroke-width="3" opacity="0.35"/>
   </g>
-  <!-- wheels -->
-  <g>
-    <circle cx="62" cy="110" r="20" fill="#23232c" stroke="#111118" stroke-width="4"/>
-    <circle cx="62" cy="110" r="9" fill="#a8aeb8" stroke="#5c626c" stroke-width="3"/>
-    <circle cx="158" cy="110" r="20" fill="#23232c" stroke="#111118" stroke-width="4"/>
-    <circle cx="158" cy="110" r="9" fill="#a8aeb8" stroke="#5c626c" stroke-width="3"/>
+  <g stroke="#111118" stroke-width="4">
+    <circle cx="84" cy="130" r="24" fill="#1D1B22"/>
+    <circle cx="84" cy="130" r="12" fill="url(#rim)"/>
+    <circle cx="84" cy="130" r="4.5" fill="#C9D0DA"/>
+    <circle cx="200" cy="130" r="24" fill="#1D1B22"/>
+    <circle cx="200" cy="130" r="12" fill="url(#rim)"/>
+    <circle cx="200" cy="130" r="4.5" fill="#C9D0DA"/>
   </g>`;
 }
 
@@ -74,7 +89,7 @@ const ORDER = ['red', 'blue', 'green', 'yellow', 'purple', 'orange'];
 
 const composites = [];
 for (const [i, name] of ORDER.entries()) {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 150" width="300" height="205">${carSvg(PALETTE[name])}</svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 180" width="360" height="232">${carSvg(PALETTE[name])}</svg>`;
   const png = await sharp(Buffer.from(svg)).png().toBuffer();
   const col = i % COLS, row = (i / COLS) | 0;
   composites.push({

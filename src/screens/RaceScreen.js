@@ -181,7 +181,7 @@ export class RaceScreen {
       const START = X0 + 14;   // the car's nose sits on the start line, clear of the win count
       const to = START + (X1 - START) * frac;
       const from = START;   // every opening replays the race from the start line
-      const tex = Assets.get(`${_B}sprites/cars/car-${r.color.toLowerCase()}.png`);
+      const tex = Assets.get(`${_B}sprites/designed/car-${r.color.toLowerCase()}-processed.png`);
       let sp;
       if (tex) {
         sp = new Sprite(tex);

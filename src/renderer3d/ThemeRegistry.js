@@ -75,6 +75,10 @@ export const THEMES = {
     ambient:   { color: 0x8a9aaa, intensity: 0.35 },
     fog:       { color: 0x8a7a6a, near: 18, far: 55 },
     roadColor: 0x1a1510,   // dark warm brown-grey
+    // Presentation-only wash (same contract as Tutorial City time-of-day): cool steel
+    // multiply on verge strips + a faint warm factory-flare add over the bake.
+    sceneTint: 0xD4DCE8,
+    sceneGlow: 0x3A2812,
   },
   // Night Highway (World 3, L31+): near-black sky, deep navy horizon, white-blue
   // headlight scatter fog. Low ambient — car emissives must carry the scene.

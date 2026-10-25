@@ -1,0 +1,19 @@
+CONCEPT-STAMP — Traffic Bomb World 2 Steel Yards visual polish
+Branch: art/world2-steel-yards
+Date: 2026-10-25 Asia/Jerusalem
+Status: CONCEPT-STAMP (not HUMAN-FINAL)
+
+Question for Nadav (Hebrew-friendly):
+האם Steel Yards נראה כמו עולם מוגמר ברמת Toy Town, לא רק החלפת צבעים?
+
+English: Does Steel Yards read as a finished world at Toy Town quality — not just a palette swap?
+
+Review boards:
+  docs/review/art-world2-steel-yards/before/
+  docs/review/art-world2-steel-yards/after/
+  docs/review/art-world2-steel-yards/before-after-sheet.png
+
+Notes:
+- Visual-only: bake SOURCES edited, then re-baked. No hand-paint of public/sprites/designed outputs.
+- Car sprites / HP sizing / gameplay untouched.
+- World 3 bake outputs restored where the map driver over-baked; World 6 yard-family map/repair rebaked as shared prop side-effect (warehouse/container upgrades).

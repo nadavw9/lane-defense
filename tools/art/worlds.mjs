@@ -28,13 +28,19 @@ const ROAD = {
       <rect x="0" y="0" width="512" height="512" fill="none"/>
       <rect x="243" y="154" width="26" height="204" rx="13" fill="#F4F1E6"/>`;
   },
-  // Industrial concrete slabs with expansion joints, hazard-yellow dash.
+  // Industrial concrete slabs with expansion joints, stain patches, hazard-yellow dash.
   world2: () => {
     const r = rng(11);
-    const joints = [0, 128, 256, 384].map(y => `<rect x="0" y="${y}" width="512" height="4" fill="#6F717A" opacity=".7"/>`).join('');
-    return `<rect width="512" height="512" fill="#858791"/>${specks(r, 300, ['#979AA3', '#747680'])}${joints}
-      <rect x="0" y="0" width="4" height="512" fill="#6F717A" opacity=".5"/>
-      <rect x="243" y="154" width="26" height="204" rx="4" fill="#F2C230"/>`;
+    const joints = [0, 128, 256, 384].map(y => `<rect x="0" y="${y}" width="512" height="4" fill="#5E6168" opacity=".75"/>`).join('');
+    const stains = Array.from({ length: 8 }, () => {
+      const x = r() * 480 + 16, y = r() * 480 + 16, rx = 18 + r() * 40, ry = 10 + r() * 24;
+      return `<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="#6A6D75" opacity="${(0.12 + r() * 0.12).toFixed(2)}"/>`;
+    }).join('');
+    return `<rect width="512" height="512" fill="#7E828C"/>${specks(r, 340, ['#9397A0', '#6C6F78', '#A0A4AD'])}${stains}${joints}
+      <rect x="0" y="0" width="5" height="512" fill="#5E6168" opacity=".55"/>
+      <rect x="128" y="0" width="3" height="512" fill="#5E6168" opacity=".35"/>
+      <rect x="384" y="0" width="3" height="512" fill="#5E6168" opacity=".35"/>
+      <rect x="243" y="154" width="26" height="204" rx="4" fill="#FFC21A"/>`;
   },
   // Night highway: dark asphalt, glowing cyan dash.
   world3: () => {

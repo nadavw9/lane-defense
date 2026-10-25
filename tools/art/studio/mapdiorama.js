@@ -11,7 +11,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import {
   THEME, rng, pick, mix, std, glow, rbox, box, cyl, blob, plane, canvas, toTex, speckle, blotch,
   paverTexture, grassTexture, tree, pine, bush, flowerBed, lamp, bench, bollard, planterPot,
-  townHouse, warehouse, shippingContainer, drum, pallet, cone, fence, tower, neonSign,
+  townHouse, warehouse, shippingContainer, silo, gantry, drum, pallet, cone, fence, tower, neonSign,
   FAMILY, greenery, bedFor, potFor, townOpts, starTexture, cactus, rockCluster, snowDrift, frostPine,
 } from './backdrop.js';
 
@@ -156,7 +156,7 @@ export function buildMapHD(theme, seed, { W, H, S, road, nodes, plots, tilt }) {
     item.scale.setScalar(0.85);
     if (!tryPut(item, p[0] + ox, p[1] + oz, 0.35)) continue;
   }
-  const budget = fam === 'town' ? (theme === 'world1' ? 140 : 110) : fam === 'yard' ? 60 : 85;
+  const budget = fam === 'town' ? (theme === 'world1' ? 140 : 110) : fam === 'yard' ? (theme === 'world2' ? 95 : 60) : 85;
   for (let k = 0; k < 3000 && placed.length < budget; k++) {
     const x = (r() - 0.5) * (Wu + 1), z = (r() - 0.5) * (Lu + 2);
     const p = r();
@@ -174,18 +174,26 @@ export function buildMapHD(theme, seed, { W, H, S, road, nodes, plots, tilt }) {
       else if (p < 0.9) { rad = 0.45; obj = planterPot(T, r, 1.2); }
       else { rad = 1.5; obj = townHouse(T, r, 2.2, 1.8, 1.0 + r() * 0.5, 1); }
     } else if (fam === 'yard') {
-      if (p < 0.34) {
-        // A stacked container yard (2–3 boxes, some double-height).
-        rad = 1.6; obj = new THREE.Group();
-        const cols = [0x2F8CFF, 0xE8453C, 0x2FA36B, 0xFF8A1C, 0x6E7B88];
-        const n = 2 + Math.floor(r() * 2);
-        for (let k = 0; k < n; k++) { const c = shippingContainer(r, cols); c.position.set(-0.5 * (n - 1) + k * 1.0, 0, 0); obj.add(c); if (r() < 0.4) { const t2 = shippingContainer(r, cols); t2.position.set(-0.5 * (n - 1) + k * 1.0, 0.92, 0.1); obj.add(t2); } }
+      if (p < 0.28) {
+        // Stacked container yard — denser, mixed heights, corner castings from the upgraded prop.
+        rad = 1.7; obj = new THREE.Group();
+        const cols = [0x2F8CFF, 0xE8453C, 0x2FA36B, 0xFF8A1C, 0x6E7B88, 0xFFC21A];
+        const n = theme === 'world2' ? (3 + Math.floor(r() * 2)) : (2 + Math.floor(r() * 2));
+        for (let k = 0; k < n; k++) {
+          const c = shippingContainer(r, cols); c.position.set(-0.5 * (n - 1) + k * 1.0, 0, 0); obj.add(c);
+          if (r() < (theme === 'world2' ? 0.65 : 0.4)) {
+            const t2 = shippingContainer(r, cols); t2.position.set(-0.5 * (n - 1) + k * 1.0, 0.95, 0.1); obj.add(t2);
+            if (theme === 'world2' && r() < 0.3) { const t3 = shippingContainer(r, cols, { len: 1.6 }); t3.position.set(-0.5 * (n - 1) + k * 1.0, 1.9, 0); obj.add(t3); }
+          }
+        }
         if (r() < 0.5) obj.rotation.y = Math.PI / 2;
       }
-      else if (p < 0.52) { rad = 2.0; obj = warehouse(T, r, 2.8, 2.2, 1.2 + r() * 0.5); }
-      else if (p < 0.68) { rad = 0.75; obj = greenery(theme, T, r, 0.9); }
-      else if (p < 0.8) { rad = 0.6; obj = new THREE.Group(); const dc = pick(r, [0x2F8CFF, 0xE0574A, 0x2FA36B, 0xFFC21A]); for (const [dx, dz] of [[-0.2, 0], [0.2, 0.1], [0, 0.4], [0.35, 0.45]]) { const d = drum(dc); d.position.set(dx, 0, dz); obj.add(d); } }
-      else if (p < 0.9) { rad = 0.7; obj = new THREE.Group(); for (let k = 0; k < 2; k++) { const pl = pallet(r); pl.position.x = k * 0.85; obj.add(pl); } }
+      else if (p < 0.46) { rad = 2.1; obj = warehouse(T, r, 2.9, 2.3, 1.45 + r() * 0.7); }
+      else if (p < 0.56 && theme === 'world2') { rad = 1.2; obj = silo(T, r, 0.95 + r() * 0.3); }
+      else if (p < 0.62 && theme === 'world2') { rad = 1.5; obj = gantry(r, 2.2 + r() * 0.5); }
+      else if (p < 0.74) { rad = 0.75; obj = greenery(theme, T, r, 0.9); }
+      else if (p < 0.84) { rad = 0.6; obj = new THREE.Group(); const dc = pick(r, [0x2F8CFF, 0xE0574A, 0x2FA36B, 0xFFC21A]); for (const [dx, dz] of [[-0.2, 0], [0.2, 0.1], [0, 0.4], [0.35, 0.45]]) { const d = drum(dc); d.position.set(dx, 0, dz); obj.add(d); } }
+      else if (p < 0.92) { rad = 0.7; obj = new THREE.Group(); for (let k = 0; k < 2; k++) { const pl = pallet(r); pl.position.x = k * 0.85; obj.add(pl); } }
       else { rad = 0.5; obj = new THREE.Group(); for (let k = 0; k < 3; k++) { const c = cone(); c.position.x = k * 0.35; obj.add(c); } }
     } else {
       if (p < 0.18) { rad = 0.4; obj = lamp(T, r, true, 1); }
@@ -234,7 +242,7 @@ export function buildRepairHD(theme, state, variant) {
       const t = tree(T, r, 0.75); t.position.set(w / 2 + 0.2, 0, -0.3); grp.add(t);
       return grp;
     }
-    if (FAMILY[theme] === 'yard') return warehouse(T, rng(variant * 31 + 9), w, d, 1.1 + variant * 0.15);
+    if (FAMILY[theme] === 'yard') return warehouse(T, rng(variant * 31 + 9), w, d, (theme === 'world2' ? 1.45 : 1.1) + variant * 0.2);
     return tower(T, rng(variant * 31 + 3), 2.1, 1.8, 2.0 + (variant % 3) * 0.45);
   };
   if (state === 2) { g.add(full()); return g; }

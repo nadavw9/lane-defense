@@ -149,12 +149,15 @@ const THEME = {
     sun: { color: 0xFFEFD2, intensity: 3.1, hemi: [0xCFE2FF, 0x7D7258, 0.62], env: 0.3, exposure: 1.0 },
   },
   world2: {
-    asphalt: 0x5E6166, asphaltHi: 0x6B6E73, asphaltLo: 0x505357, paint: '#F2F0EA', centre: '#FFC21A',
-    kerb: 0xB9BCC2, gutter: 0x6A6C70, walk: [0xA8ABB0, 0x9FA2A8, 0xB2B5BA], walkJoint: '#7F8288',
-    lawn: [0x8A9A6A, 0x7C8C5E], leaf: [0x6E9150, 0x7FA35C, 0x5F8246, 0x8DAE66], trunk: 0x6A4E36,
-    roofs: [0x5E7D9E, 0xA87A52, 0x7A8590, 0x5F8A7E, 0x8F6A5C], walls: [0xC9C4BA, 0xB7BEC6, 0xD4CFC4],
-    awnings: [[0xFFC21A, 0x2A2733]], depot: [0x7E8388, 0x747A80, 0x888D92], depotJoint: '#5B6066', track: 0x5E6369, trackEdge: 0xFFC21A,
-    sun: { color: 0xFFE9CC, intensity: 3.0, hemi: [0xD0DDEB, 0x6E685C, 0.62], env: 0.3, exposure: 1.0 },
+    // Steel Yards — cool galvanised concrete, hazard-yellow accents, overcast steel sky.
+    // Stronger value contrast than a town palette-swap so warehouses + containers read at phone size.
+    asphalt: 0x63666C, asphaltHi: 0x72757B, asphaltLo: 0x52555A, paint: '#F2F0EA', centre: '#FFC21A',
+    kerb: 0xC4C7CD, gutter: 0x5A5D62, walk: [0x9A9DA4, 0x8E9299, 0xA6AAB1], walkJoint: '#6E7278',
+    lawn: [0x7A8E5E, 0x6C8052], leaf: [0x5E8644, 0x6F9850, 0x50783A, 0x7AA858], trunk: 0x5A4230,
+    roofs: [0x4A6788, 0x6E7884, 0x8A6248, 0x4E7A6E, 0x7A5A52, 0x5A6E82], walls: [0xB8B3A8, 0xA8B0BA, 0xC4BEB2, 0x9EA6B0],
+    awnings: [[0xFFC21A, 0x2A2733], [0xE8453C, 0x2A2733]], depot: [0x6E747A, 0x646A70, 0x787E84], depotJoint: '#4A5056', track: 0x52575D, trackEdge: 0xFFC21A,
+    lot: 0x7E8288,
+    sun: { color: 0xE8EEF6, intensity: 2.55, hemi: [0xB8C8DA, 0x5A5448, 0.72], env: 0.28, exposure: 0.98 },
   },
   world3: {
     asphalt: 0x343A50, asphaltHi: 0x3E4560, asphaltLo: 0x2B3044, paint: '#E9F2FF', centre: '#4FE3FF',
@@ -713,35 +716,103 @@ function townHouse(T, r, w, d, h, facing, opts = {}) {
 }
 
 function warehouse(T, r, w, d, h) {
+  // Finished industrial shed: corrugated roof, loading bay, pilasters, clerestory —
+  // tall enough to silhouette against the lot at phone size (not a flat palette box).
   const g = new THREE.Group();
+  const wall = pick(r, T.walls);
   const col = pick(r, T.roofs);
-  g.add(rbox(w, h, d, 0.04, std(pick(r, T.walls), 0.8), 0, h / 2, 0));
+  const tall = h * (1.15 + r() * 0.35);
+  const body = std(wall, 0.78, { metalness: 0.08 });
+  g.add(rbox(w, tall, d, 0.04, body, 0, tall / 2, 0));
+  // Corner pilasters + mid rib for mass.
+  const pil = std(mix(wall, 0x000000, 0.12), 0.65, { metalness: 0.25 });
+  for (const sx of [-1, 1]) g.add(box(0.12, tall + 0.02, 0.12, pil, sx * (w / 2 - 0.04), tall / 2, d / 2 - 0.02));
+  g.add(box(0.08, tall * 0.92, 0.06, pil, 0, tall * 0.46, d / 2 + 0.01));
+  // Horizontal banding / cladding seam.
+  g.add(box(w - 0.08, 0.04, 0.04, std(mix(wall, 0x000000, 0.18), 0.55, { metalness: 0.3 }), 0, tall * 0.55, d / 2 + 0.02));
   const tex = corrugatedTexture(col);
-  tex.repeat.set(w * 3, 1);
-  // Barrel-ish roof: two slopes.
-  const rh = 0.35;
+  tex.repeat.set(Math.max(4, w * 3.5), 1);
+  const rh = 0.42 + r() * 0.12;
   const shape = new THREE.Shape();
-  shape.moveTo(-w / 2 - 0.08, 0); shape.lineTo(0, rh); shape.lineTo(w / 2 + 0.08, 0); shape.lineTo(-w / 2 - 0.08, 0);
-  const geo = new THREE.ExtrudeGeometry(shape, { depth: d + 0.16, bevelEnabled: false });
-  geo.translate(0, 0, -(d + 0.16) / 2);
-  const roofM = new THREE.Mesh(geo, std(0xffffff, 0.45, { map: tex, metalness: 0.35 }));
-  roofM.position.y = h;
+  shape.moveTo(-w / 2 - 0.1, 0); shape.lineTo(0, rh); shape.lineTo(w / 2 + 0.1, 0); shape.lineTo(-w / 2 - 0.1, 0);
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: d + 0.2, bevelEnabled: false });
+  geo.translate(0, 0, -(d + 0.2) / 2);
+  const roofM = new THREE.Mesh(geo, std(0xffffff, 0.4, { map: tex, metalness: 0.45 }));
+  roofM.position.y = tall;
   g.add(roofM);
-  // Skylight strips + vents.
-  for (let i = 0; i < 3; i++) g.add(box(0.12, 0.03, d * 0.7, std(0xBFD8EE, 0.1, { metalness: 0.4 }), -w * 0.25 + i * w * 0.25, h + rh * 0.55, 0));
-  for (let i = 0; i < 2; i++) g.add(cyl(0.08, 0.08, 0.25, std(0xB9BCC2, 0.4, { metalness: 0.6 }), (r() - 0.5) * w * 0.6, h + rh + 0.1, (r() - 0.5) * d * 0.5, 10));
-  // Loading door on the camera side.
-  g.add(box(w * 0.4, h * 0.6, 0.03, std(0xD9D2C3, 0.6), 0, h * 0.3, d / 2 + 0.01));
-  for (let i = 0; i < 5; i++) g.add(box(w * 0.4, 0.02, 0.035, std(0x9A948A, 0.6), 0, h * 0.08 + i * h * 0.11, d / 2 + 0.02));
+  // Ridge cap + skylight monitors (strong roof silhouette).
+  g.add(box(0.1, 0.06, d + 0.18, std(mix(col, 0x000000, 0.15), 0.35, { metalness: 0.55 }), 0, tall + rh + 0.02, 0));
+  for (let i = 0; i < 3; i++) {
+    const zx = -d * 0.28 + i * d * 0.28;
+    g.add(rbox(w * 0.22, 0.16, 0.5, 0.04, std(0xB8D0E6, 0.15, { metalness: 0.35 }), 0, tall + rh * 0.55, zx));
+  }
+  for (let i = 0; i < 2; i++) g.add(cyl(0.09, 0.09, 0.32, std(0xA8AEB6, 0.35, { metalness: 0.65 }), (r() - 0.5) * w * 0.55, tall + rh + 0.14, (r() - 0.5) * d * 0.45, 10));
+  // Loading bay: hazard frame + roll-up door + canopy.
+  const doorW = w * (0.42 + r() * 0.08), doorH = tall * 0.62;
+  g.add(box(doorW + 0.16, doorH + 0.12, 0.04, std(0xFFC21A, 0.55), 0, doorH / 2 + 0.04, d / 2 + 0.01));
+  g.add(box(doorW + 0.08, doorH + 0.04, 0.035, std(0x2A2733, 0.55), 0, doorH / 2 + 0.02, d / 2 + 0.02));
+  g.add(box(doorW, doorH, 0.03, std(0xC8C2B6, 0.55, { metalness: 0.2 }), 0, doorH / 2, d / 2 + 0.03));
+  for (let i = 0; i < 6; i++) g.add(box(doorW, 0.025, 0.04, std(0x8A847A, 0.55), 0, 0.1 + i * (doorH / 6), d / 2 + 0.04));
+  g.add(box(doorW + 0.3, 0.06, 0.55, std(mix(col, 0x000000, 0.1), 0.4, { metalness: 0.4 }), 0, doorH + 0.14, d / 2 + 0.28));
+  // Clerestory strip above the door.
+  for (let i = 0; i < 4; i++) g.add(box(0.22, 0.16, 0.03, std(0x9EC4E0, 0.2, { metalness: 0.25 }), -w * 0.28 + i * w * 0.18, tall * 0.82, d / 2 + 0.02));
   return g;
 }
-function shippingContainer(r, cols) {
+function shippingContainer(r, cols, opts = {}) {
+  // ISO box with corner castings + door end so stacks read as containers, not candy bricks.
   const g = new THREE.Group();
   const col = pick(r, cols);
+  const len = opts.len ?? (1.8 + r() * 0.7);
+  const wid = opts.wid ?? 0.9;
+  const ht = opts.ht ?? 0.9;
   const tex = corrugatedTexture(col);
-  tex.repeat.set(12, 1);
-  g.add(rbox(0.9, 0.9, 2.2, 0.03, std(0xffffff, 0.55, { map: tex, metalness: 0.2 }), 0, 0.45, 0));
-  g.add(box(0.86, 0.02, 2.16, std(mix(col, 0x000000, 0.2), 0.6), 0, 0.91, 0));
+  tex.repeat.set(Math.max(8, Math.round(len * 5)), 1);
+  g.add(rbox(wid, ht, len, 0.025, std(0xffffff, 0.5, { map: tex, metalness: 0.28 }), 0, ht / 2, 0));
+  g.add(box(wid - 0.04, 0.025, len - 0.04, std(mix(col, 0x000000, 0.22), 0.55, { metalness: 0.35 }), 0, ht + 0.01, 0));
+  // Corner castings.
+  const cast = std(0x3A3E46, 0.4, { metalness: 0.7 });
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) for (const y of [0.06, ht - 0.06]) {
+    g.add(box(0.1, 0.1, 0.1, cast, sx * (wid / 2 - 0.04), y, sz * (len / 2 - 0.04)));
+  }
+  // Door end (camera-facing short side).
+  g.add(box(wid - 0.06, ht - 0.12, 0.04, std(mix(col, 0x000000, 0.12), 0.5, { metalness: 0.25 }), 0, ht / 2, len / 2 + 0.01));
+  g.add(box(0.03, ht - 0.18, 0.05, std(0x2A2733, 0.5), 0, ht / 2, len / 2 + 0.03));
+  // Number / hazard plate.
+  g.add(box(0.35, 0.12, 0.02, std(0xF2F0EA, 0.55), 0, ht * 0.72, len / 2 + 0.035));
+  if (r() < 0.45) g.add(box(0.22, 0.22, 0.02, std(0xFFC21A, 0.5), wid / 2 - 0.18, ht * 0.35, len / 2 + 0.035));
+  return g;
+}
+function silo(T, r, s = 1) {
+  // Tall galvanised tank — the signature vertical silhouette the yard was missing.
+  const g = new THREE.Group();
+  const metal = std(pick(r, [0xB0B6BE, 0x9AA3AE, 0xC2C6CC]), 0.35, { metalness: 0.65 });
+  const h = (1.6 + r() * 0.7) * s;
+  g.add(cyl(0.42 * s, 0.46 * s, h, metal, 0, h / 2, 0, 18));
+  g.add(cyl(0.48 * s, 0.48 * s, 0.08 * s, std(0xFFC21A, 0.5), 0, h * 0.55, 0, 18));
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(0.46 * s, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), metal);
+  dome.position.y = h; g.add(dome);
+  g.add(cyl(0.06 * s, 0.06 * s, 0.35 * s, std(0x6E747C, 0.4, { metalness: 0.6 }), 0, h + 0.3 * s, 0, 8));
+  // Legs.
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + 0.4;
+    g.add(cyl(0.04 * s, 0.04 * s, 0.55 * s, std(0x5A6068, 0.45, { metalness: 0.55 }), Math.cos(a) * 0.32 * s, 0.28 * s, Math.sin(a) * 0.32 * s, 6));
+  }
+  return g;
+}
+function gantry(r, span = 2.4) {
+  // Simple yard gantry / portal frame for depth behind the road.
+  const g = new THREE.Group();
+  const steel = std(0xFFC21A, 0.45, { metalness: 0.55 });
+  const dark = std(0x4A5058, 0.4, { metalness: 0.6 });
+  const h = 1.7 + r() * 0.4;
+  for (const sx of [-1, 1]) {
+    g.add(box(0.1, h, 0.1, dark, sx * span / 2, h / 2, 0));
+    g.add(box(0.14, 0.08, 0.14, steel, sx * span / 2, h + 0.04, 0));
+  }
+  g.add(box(span + 0.2, 0.1, 0.12, steel, 0, h + 0.04, 0));
+  g.add(box(span * 0.7, 0.06, 0.06, dark, 0, h - 0.15, 0));
+  // Hook block.
+  g.add(box(0.18, 0.14, 0.18, std(0xE8453C, 0.5, { metalness: 0.3 }), (r() - 0.5) * span * 0.4, h - 0.45, 0));
   return g;
 }
 function drum(color) {
@@ -933,9 +1004,10 @@ export function buildBackdrop(world, variant, L) {
           const bi = bin(); bi.position.set(px + s * 0.1, 0.1, Z(tz + 0.9)); g.add(bi);
         }
       } else if (FAMILY[world] === 'yard') {
-        if (kind < 0.35) { const c = cone(); c.position.set(px - s * 0.1, 0.1, Z(tz)); g.add(c); const c2 = cone(); c2.position.set(px - s * 0.1, 0.1, Z(tz + 0.7)); g.add(c2); }
-        else if (kind < 0.6) { for (let k = 0; k < 3; k++) { const b = bollard(0xFFC21A); b.position.set(px - s * 0.15, 0.1, Z(tz + k * 0.8)); g.add(b); } }
-        else if (kind < 0.8) { const p = pallet(r); p.position.set(px, 0.1, Z(tz)); p.rotation.y = r() * 0.4; g.add(p); }
+        if (kind < 0.28) { const c = cone(); c.position.set(px - s * 0.1, 0.1, Z(tz)); g.add(c); const c2 = cone(); c2.position.set(px - s * 0.1, 0.1, Z(tz + 0.7)); g.add(c2); }
+        else if (kind < 0.5) { for (let k = 0; k < 3; k++) { const b = bollard(0xFFC21A); b.position.set(px - s * 0.15, 0.1, Z(tz + k * 0.8)); g.add(b); } }
+        else if (kind < 0.68) { const p = pallet(r); p.position.set(px, 0.1, Z(tz)); p.rotation.y = r() * 0.4; g.add(p); }
+        else if (kind < 0.82) { for (let k = 0; k < 2; k++) { const dr = drum(pick(r, [0xFFC21A, 0x2F8CFF, 0xE0574A])); dr.position.set(px - s * 0.05, 0.1, Z(tz + k * 0.45)); g.add(dr); } }
         else { const t = greenery(world, T, r, 0.8); t.position.set(px, 0.1, Z(tz)); g.add(t); }
       } else {
         if (kind < 0.4) { const t = greenery(world, T, r, 0.85); t.position.set(px, 0.1, Z(tz)); g.add(t); }
@@ -949,7 +1021,7 @@ export function buildBackdrop(world, variant, L) {
     let bz = L.topZ - 1.5;
     const bzEnd = FAMILY[world] === 'town' ? z1 : L.breachZ + 0.5;   // town: the street's houses continue beside the depot
     while (bz < bzEnd) {
-      const d = FAMILY[world] === 'yard' ? 3.2 + r() * 1.6 : 2.0 + r() * 1.2;
+      const d = FAMILY[world] === 'yard' ? (world === 'world2' ? 3.6 + r() * 1.8 : 3.2 + r() * 1.6) : 2.0 + r() * 1.2;
       const w = 2.6 + r() * 0.8;
       const cx = bandIn + s * w / 2;
       const zc = bz + d / 2;
@@ -973,19 +1045,32 @@ export function buildBackdrop(world, variant, L) {
         const tr = greenery(world, T, r, 0.75 + r() * 0.25); tr.position.set(s * (gardenX + 0.75 + r() * 0.35), 0.09, Z(treeZ)); g.add(tr);
         if (r() < 0.8) { const fb = bedFor(world, T, r, 0.5, 0.9); fb.position.set(s * (gardenX + 0.5), 0.09, Z(zc + (treeZ > zc ? -0.95 : 0.95))); g.add(fb); }
       } else if (FAMILY[world] === 'yard') {
-        if (r() < 0.55) {
-          const wh = warehouse(T, r, w, Z(d) - Z(0) - 0.3, 1.3 + r() * 0.6);
+        const roll = r();
+        if (roll < 0.42) {
+          const wh = warehouse(T, r, w + 0.3, Z(d) - Z(0) - 0.25, 1.55 + r() * 0.85);
           wh.position.set(cx, 0.1, Z(zc));
           g.add(wh);
-        } else {
-          // Container yard behind a fence.
-          const f = fence(Z(d) - Z(0) - 0.2); f.position.set(bandIn + s * 0.05, 0.1, Z(zc)); g.add(f);
+        } else if (roll < 0.58 && world === 'world2') {
+          // Silo / tank cluster — vertical mass so the yard isn't all low boxes.
+          const si = silo(T, r, 0.95 + r() * 0.25); si.position.set(cx, 0.1, Z(zc)); g.add(si);
+          if (r() < 0.55) { const si2 = silo(T, r, 0.7); si2.position.set(cx + s * 0.85, 0.1, Z(zc + 0.4)); g.add(si2); }
+        } else if (roll < 0.68 && world === 'world2') {
+          const gn = gantry(r, 2.2 + r() * 0.6); gn.position.set(cx, 0.1, Z(zc)); g.add(gn);
           const cols = [0x2F8CFF, 0xE8453C, 0x2FA36B, 0xFF8A1C, 0x6E7B88];
-          for (let k = 0; k < 2; k++) {
-            const sc = shippingContainer(r, cols); sc.position.set(bandIn + s * (0.7 + k * 1.0), 0.1, Z(zc)); g.add(sc);
-            if (r() < 0.45) { const top = shippingContainer(r, cols); top.position.set(bandIn + s * (0.7 + k * 1.0), 1.0, Z(zc) + 0.2); g.add(top); }
+          const sc = shippingContainer(r, cols); sc.position.set(cx, 0.1, Z(zc)); sc.rotation.y = Math.PI / 2; g.add(sc);
+        } else {
+          // Container yard behind a fence — denser stacks, mixed lengths.
+          const f = fence(Z(d) - Z(0) - 0.2); f.position.set(bandIn + s * 0.05, 0.1, Z(zc)); g.add(f);
+          const cols = [0x2F8CFF, 0xE8453C, 0x2FA36B, 0xFF8A1C, 0x6E7B88, 0xFFC21A];
+          const n = world === 'world2' ? 3 : 2;
+          for (let k = 0; k < n; k++) {
+            const sc = shippingContainer(r, cols); sc.position.set(bandIn + s * (0.65 + k * 0.95), 0.1, Z(zc + (k - 1) * 0.15)); g.add(sc);
+            if (r() < (world === 'world2' ? 0.7 : 0.45)) {
+              const top = shippingContainer(r, cols); top.position.set(bandIn + s * (0.65 + k * 0.95), 1.0, Z(zc) + 0.15); g.add(top);
+              if (world === 'world2' && r() < 0.35) { const top2 = shippingContainer(r, cols, { len: 1.6 }); top2.position.set(bandIn + s * (0.65 + k * 0.95), 1.95, Z(zc)); g.add(top2); }
+            }
           }
-          for (let k = 0; k < 3; k++) { const dr = drum(pick(r, [0x2F8CFF, 0xE0574A, 0x2FA36B])); dr.position.set(bandIn + s * (0.3 + r() * 0.3), 0.1, Z(zc - d / 2 + 0.4 + k * 0.4)); g.add(dr); }
+          for (let k = 0; k < 4; k++) { const dr = drum(pick(r, [0x2F8CFF, 0xE0574A, 0x2FA36B, 0xFFC21A])); dr.position.set(bandIn + s * (0.25 + r() * 0.35), 0.1, Z(zc - d / 2 + 0.35 + k * 0.38)); g.add(dr); }
         }
       } else {
         const h = 1.6 + r() * 1.8;
@@ -1053,9 +1138,14 @@ export function buildBackdrop(world, variant, L) {
     if (FAMILY[world] === 'town') {
       // nothing: the houses and gardens of the street continue beside the yard
     } else if (FAMILY[world] === 'yard') {
-      for (let k = 0; k < 3; k++) { const dr = drum(pick(r, [0xFFC21A, 0x2F8CFF, 0xE0574A])); dr.position.set(fx + s * (k % 2) * 0.35, 0.02, Z(dz0 + 1.2 + k * 0.45)); g.add(dr); }
-      const p = pallet(r); p.position.set(fx, 0.02, Z(dz0 + 4.4)); g.add(p);
-      const c = cone(); c.position.set(fx - s * 0.2, 0.02, Z(dz0 + 6.2)); g.add(c);
+      for (let k = 0; k < 4; k++) { const dr = drum(pick(r, [0xFFC21A, 0x2F8CFF, 0xE0574A])); dr.position.set(fx + s * (k % 2) * 0.35, 0.02, Z(dz0 + 1.0 + k * 0.4)); g.add(dr); }
+      const p = pallet(r); p.position.set(fx, 0.02, Z(dz0 + 3.6)); g.add(p);
+      const p2 = pallet(r); p2.position.set(fx + s * 0.5, 0.02, Z(dz0 + 4.5)); g.add(p2);
+      const c = cone(); c.position.set(fx - s * 0.2, 0.02, Z(dz0 + 5.6)); g.add(c);
+      const c2 = cone(); c2.position.set(fx - s * 0.2, 0.02, Z(dz0 + 6.3)); g.add(c2);
+      if (world === 'world2' && s < 0) {
+        const gn = gantry(r, 2.0); gn.position.set(fx - 0.4, 0.02, Z(dz0 + 7.4)); g.add(gn);
+      }
     } else {
       const n = neonSign(T, r, 1.1); n.position.set(fx + s * 0.2, 0.02, Z(dz0 + 2.2)); g.add(n);
       const t = greenery(world, T, r, 0.9); t.position.set(fx, 0.02, Z(dz0 + 5.0)); g.add(t);
@@ -1153,4 +1243,4 @@ export function renderBackdrop(renderer, world, variant, L, { scale = 2, ss = 2 
 // ── Shared with the map diorama (mapdiorama.js) ─────────────────────────────
 export { THEME, FAMILY, greenery, bedFor, potFor, townOpts, starTexture, cactus, rockCluster, snowDrift, frostPine, crystal, rng, pick, mix, std, glow, rbox, box, cyl, sphere, blob, plane, canvas, toTex, speckle, blotch,
   paverTexture, grassTexture, tree, pine, bush, flowerBed, lamp, bench, hydrant, bollard, bin, planterPot, parasol,
-  townHouse, warehouse, shippingContainer, drum, pallet, cone, fence, tower, neonSign };
+  townHouse, warehouse, shippingContainer, silo, gantry, drum, pallet, cone, fence, tower, neonSign };

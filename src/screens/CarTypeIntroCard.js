@@ -13,8 +13,8 @@
 //   ticker: if (!card.update(dt)) -> finished and destroyed.
 
 import { Container, Graphics, Sprite, Assets } from 'pixi.js';
-import { panel, ribbon, titleText, bodyText, backdrop, button } from '../renderer/PremiumUI.js';
-import { INK, SUN } from '../renderer/ToyStyle.js';
+import { panel, ribbon, titleText, bodyText, backdrop, button, card as uiCard, GOLD_DEEP } from '../renderer/PremiumUI.js';
+import { SUN } from '../renderer/ToyStyle.js';
 import { CAR_TYPES, LADDER } from '../director/CarTypes.js';
 
 const BASE_URL = import.meta.env.BASE_URL ?? '';
@@ -76,9 +76,16 @@ export class CarTypeIntroCard {
     hits.x = CW / 2; hits.y = 100;
     card.addChild(hits);
 
-    // The ladder strip: a dark road-coloured panel holding the row.
-    const strip = new Graphics();
-    strip.roundRect(STRIP.x, STRIP.y, STRIP.w, STRIP.h, 18).fill(0x2C2F3A).stroke({ color: INK, width: 3 });
+    // Ladder strip — PremiumUI.card (gold rim + deep slate face). Same well language
+    // as HowToPlay illustration stage; retires flat 0x2C2F3A Graphics that read below
+    // the outer gold-bevel panel. Face stays cool/dark so vehicles still sit on "road".
+    const strip = uiCard(STRIP.w, STRIP.h, {
+      r: 18,
+      rim: GOLD_DEEP,
+      face: 0x2C3148,
+      faceDeep: 0x16182A,
+    });
+    strip.x = STRIP.x; strip.y = STRIP.y;
     card.addChild(strip);
 
     // Items: the vehicle and every smaller rung below it, then the boom.

@@ -157,13 +157,17 @@ const THEME = {
     sun: { color: 0xFFE9CC, intensity: 3.0, hemi: [0xD0DDEB, 0x6E685C, 0.62], env: 0.3, exposure: 1.0 },
   },
   world3: {
-    asphalt: 0x343A50, asphaltHi: 0x3E4560, asphaltLo: 0x2B3044, paint: '#E9F2FF', centre: '#4FE3FF',
-    kerb: 0x4A4E62, gutter: 0x1E2029, walk: [0x3A3D4F, 0x34374A, 0x414458], walkJoint: '#23252F',
-    lawn: [0x1F3B3A, 0x1A3231], leaf: [0x1F6B66, 0x28807A, 0x1A5C58, 0x2E918A], trunk: 0x3A2E2A,
-    roofs: [0x3E4460, 0x454B68, 0x3A3F58, 0x4A4266], walls: [0x3E4258, 0x353A50],
-    awnings: [[0xFF3DB8, 0x2A2D40], [0x4FE3FF, 0x2A2D40]], depot: [0x2E3142, 0x33374A, 0x2A2D3C], depotJoint: '#1C1E28', track: 0x1F2230, trackEdge: 0x4FE3FF,
-    neon: [0xFF3DB8, 0x4FE3FF, 0xFFD42A, 0xA35CFF],
-    sun: { color: 0xB9CAFF, intensity: 1.9, hemi: [0x7C8BD8, 0x241C38, 0.7], env: 0.25, exposure: 1.05 },
+    // Neon Nights — wet navy asphalt, punchy magenta/cyan signage, denser skyline.
+    // Structural variety (marquees, setback towers, neon ribs) — not a hue swap of Toy Town.
+    asphalt: 0x2A3048, asphaltHi: 0x3A4260, asphaltLo: 0x1E2438, paint: '#E9F2FF', centre: '#4FE3FF',
+    kerb: 0x5A6280, gutter: 0x12141E, walk: [0x32364A, 0x2C3044, 0x3A3E54], walkJoint: '#1A1C28',
+    lawn: [0x1A3234, 0x152A2C], leaf: [0x1A7A74, 0x24908A, 0x156860, 0x2EA49C], trunk: 0x2E2420,
+    roofs: [0x2E3658, 0x3A3060, 0x263050, 0x4A3870, 0x324060], walls: [0x34384E, 0x2A2E44, 0x3E3858, 0x2E3450],
+    awnings: [[0xFF3DB8, 0x1A1C28], [0x4FE3FF, 0x1A1C28], [0xFFD42A, 0x1A1C28], [0xA35CFF, 0x1A1C28]],
+    depot: [0x242838, 0x2A2E40, 0x1E2230], depotJoint: '#12141C', track: 0x161A28, trackEdge: 0x4FE3FF,
+    neon: [0xFF3DB8, 0x4FE3FF, 0xFFD42A, 0xA35CFF, 0x39FF9A],
+    lot: 0x141624, fill: [0xFF3DB8, 0x4FE3FF],
+    sun: { color: 0xA8BAFF, intensity: 1.55, hemi: [0x6A78C8, 0x180E2A, 0.82], env: 0.22, exposure: 1.08 },
   },
 };
 
@@ -271,20 +275,40 @@ function roadTexture(T, world, L, r) {
   }
   // Night: wet sheen + lamp light pools and neon reflections.
   if (FAMILY[world] === 'night') {
-    // Wet asphalt: warm lamp pools and long neon streak reflections, added
-    // light-on-dark ('lighter') so they glow instead of staining.
+    // Wet asphalt: mirror puddles, warm lamp pools, long neon streak reflections —
+    // light-on-dark ('lighter') so they glow instead of staining. World3 gets denser cues.
     x.save(); x.globalCompositeOperation = 'lighter';
+    const wetDense = world === 'world3';
+    // Broad wet sheen bands down the lanes (reads as rain-slick asphalt at phone size).
+    for (const lx of laneXs) {
+      const gx = X(lx), hw = (wetDense ? 1.6 : 1.1) * pxu;
+      const g = x.createLinearGradient(gx - hw, 0, gx + hw, 0);
+      g.addColorStop(0, 'rgba(140,170,230,0)'); g.addColorStop(0.5, wetDense ? 'rgba(160,190,255,0.10)' : 'rgba(140,170,230,0.06)'); g.addColorStop(1, 'rgba(140,170,230,0)');
+      x.fillStyle = g; x.fillRect(gx - hw, 0, hw * 2, H);
+    }
     for (const [lx, lz, col] of L.lampPools ?? []) {
-      blotch(x, X(lx), Y(lz), 3.2 * pxu, col, 0.22);
-      blotch(x, X(lx), Y(lz), 1.4 * pxu, 0xFFE2A8, 0.16);
+      blotch(x, X(lx), Y(lz), (wetDense ? 4.0 : 3.2) * pxu, col, wetDense ? 0.28 : 0.22);
+      blotch(x, X(lx), Y(lz), 1.4 * pxu, 0xFFE2A8, wetDense ? 0.22 : 0.16);
     }
     for (const [sx, sz, col] of L.neonStreaks ?? []) {
-      const gx = X(sx), gy = Y(sz), hw = 0.35 * pxu, hh = 2.6 * pxu;
+      const gx = X(sx), gy = Y(sz), hw = (wetDense ? 0.48 : 0.35) * pxu, hh = (wetDense ? 3.4 : 2.6) * pxu;
       const g = x.createLinearGradient(gx, gy - hh, gx, gy + hh);
       const c = new THREE.Color(col), rgb = `${Math.round(c.r * 255)},${Math.round(c.g * 255)},${Math.round(c.b * 255)}`;
-      g.addColorStop(0, `rgba(${rgb},0)`); g.addColorStop(0.5, `rgba(${rgb},0.35)`); g.addColorStop(1, `rgba(${rgb},0)`);
+      g.addColorStop(0, `rgba(${rgb},0)`); g.addColorStop(0.5, `rgba(${rgb},${wetDense ? 0.48 : 0.35})`); g.addColorStop(1, `rgba(${rgb},0)`);
       x.fillStyle = g;
       x.beginPath(); x.ellipse(gx, gy, hw, hh, 0, 0, Math.PI * 2); x.fill();
+    }
+    // Mirror puddles catching neon — short bright ellipses near the kerb.
+    if (wetDense) {
+      for (let i = 0; i < 10; i++) {
+        const gx = X((r() < 0.5 ? -1 : 1) * (halfW - 0.6 - r() * 0.8));
+        const gy = r() * H;
+        const col = pick(r, [0xFF3DB8, 0x4FE3FF, 0xA35CFF, 0xFFD42A]);
+        const c = new THREE.Color(col), rgb = `${Math.round(c.r * 255)},${Math.round(c.g * 255)},${Math.round(c.b * 255)}`;
+        const g = x.createRadialGradient(gx, gy, 0, gx, gy, (0.5 + r() * 0.7) * pxu);
+        g.addColorStop(0, `rgba(${rgb},0.35)`); g.addColorStop(1, `rgba(${rgb},0)`);
+        x.fillStyle = g; x.beginPath(); x.ellipse(gx, gy, (0.7 + r() * 0.5) * pxu, (0.22 + r() * 0.18) * pxu, 0, 0, Math.PI * 2); x.fill();
+      }
     }
     x.restore();
   }
@@ -780,64 +804,139 @@ function fence(len, color = 0x9AA0A8) {
   return g;
 }
 function tower(T, r, w, d, h) {
-  // Night world: a tower top read from above — big, simple shapes (lit window
-  // columns on the camera-facing side, a clean roof deck with ONE feature:
-  // a glowing pool, lit skylights or a billboard) so it never turns into noise.
+  // Night skyline tower: setback massing, vertical neon ribs, lit window grid,
+  // ground-floor storefront, and ONE roof feature — silhouette variety at phone size.
   const g = new THREE.Group();
-  const body = std(pick(r, T.walls), 0.55);
-  g.add(rbox(w, h, d, 0.04, body, 0, h / 2, 0));
-  const lit = [0xFFE7A8, 0xBFE8FF, 0xFFD27A];
-  const cols = Math.max(2, Math.floor(w / 0.42)), floors = Math.max(2, Math.floor(h / 0.5));
-  for (let c = 0; c < cols; c++) for (let f = 0; f < floors; f++) {
-    if (r() < 0.3) continue;
+  const wall = pick(r, T.walls);
+  const body = std(wall, 0.55, { metalness: 0.08 });
+  const setback = r() < 0.55;
+  const baseH = setback ? h * (0.55 + r() * 0.15) : h;
+  const topH = setback ? h - baseH : 0;
+  g.add(rbox(w, baseH, d, 0.04, body, 0, baseH / 2, 0));
+  if (setback) {
+    const w2 = w * (0.62 + r() * 0.18), d2 = d * (0.62 + r() * 0.18);
+    g.add(rbox(w2, topH, d2, 0.04, std(mix(wall, 0x000000, 0.08), 0.5, { metalness: 0.1 }), 0, baseH + topH / 2, 0));
+  }
+  // Vertical neon ribs on the camera face — skyline signature.
+  const neon = pick(r, T.neon);
+  const neon2 = pick(r, T.neon);
+  if (r() < 0.85) {
+    for (const sx of [-1, 1]) {
+      g.add(box(0.05, baseH * 0.92, 0.04, glow(sx < 0 ? neon : neon2), sx * (w / 2 - 0.04), baseH * 0.48, d / 2 + 0.02));
+    }
+    if (r() < 0.5) g.add(box(0.04, baseH * 0.7, 0.03, glow(neon), 0, baseH * 0.45, d / 2 + 0.02));
+  }
+  // Ground-floor storefront band + neon canopy strip.
+  const shopH = Math.min(0.55, baseH * 0.28);
+  g.add(box(w - 0.08, shopH, 0.04, std(0x12141E, 0.45), 0, shopH / 2 + 0.02, d / 2 + 0.02));
+  const panes = Math.max(2, Math.floor(w / 0.55));
+  for (let i = 0; i < panes; i++) {
+    g.add(box(0.32, shopH * 0.7, 0.03, glow(pick(r, [0xFFE7A8, 0xBFE8FF, neon])), -w / 2 + (i + 0.5) * (w / panes), shopH * 0.55, d / 2 + 0.04));
+  }
+  g.add(box(w + 0.1, 0.05, 0.35, std(0x1A1C28, 0.5, { metalness: 0.3 }), 0, shopH + 0.08, d / 2 + 0.18));
+  g.add(box(w + 0.12, 0.03, 0.04, glow(neon), 0, shopH + 0.06, d / 2 + 0.34));
+  // Lit window grid on the upper floors.
+  const lit = [0xFFE7A8, 0xBFE8FF, 0xFFD27A, 0xFFB0E0];
+  const cols = Math.max(2, Math.floor(w / 0.42)), floors = Math.max(2, Math.floor(baseH / 0.5));
+  for (let c = 0; c < cols; c++) for (let f = 1; f < floors; f++) {
+    if (r() < 0.28) continue;
     g.add(box(0.2, 0.26, 0.02, glow(pick(r, lit)), -w / 2 + (c + 0.5) * (w / cols), 0.35 + f * 0.5, d / 2 + 0.01));
   }
+  const roofY = h;
   const deck = pick(r, T.roofs);
-  g.add(rbox(w + 0.06, 0.14, d + 0.06, 0.03, std(0x23263A, 0.6), 0, h + 0.07, 0));
-  g.add(box(w - 0.16, 0.04, d - 0.16, std(deck, 0.8), 0, h + 0.13, 0));
-  const neon = pick(r, T.neon);
-  for (const [ww, dd, x, z] of [[w, 0.08, 0, d / 2 + 0.02], [w, 0.08, 0, -d / 2 - 0.02], [0.08, d, w / 2 + 0.02, 0], [0.08, d, -w / 2 - 0.02, 0]]) g.add(box(ww, 0.04, dd, glow(neon), x, h + 0.14, z));
+  g.add(rbox(w + 0.06, 0.14, d + 0.06, 0.03, std(0x1A1C2A, 0.55, { metalness: 0.25 }), 0, roofY + 0.07, 0));
+  g.add(box(w - 0.16, 0.04, d - 0.16, std(deck, 0.75), 0, roofY + 0.13, 0));
+  for (const [ww, dd, x, z] of [[w, 0.08, 0, d / 2 + 0.02], [w, 0.08, 0, -d / 2 - 0.02], [0.08, d, w / 2 + 0.02, 0], [0.08, d, -w / 2 - 0.02, 0]]) g.add(box(ww, 0.04, dd, glow(neon), x, roofY + 0.14, z));
   // Red aviation light on a corner mast.
-  g.add(cyl(0.02, 0.02, 0.4, std(0x3A3E52, 0.5), w / 2 - 0.2, h + 0.35, -d / 2 + 0.2, 6), cyl(0.07, 0.07, 0.07, glow(0xFF3B3B), w / 2 - 0.2, h + 0.56, -d / 2 + 0.2, 10));
+  g.add(cyl(0.02, 0.02, 0.4, std(0x3A3E52, 0.5), w / 2 - 0.2, roofY + 0.35, -d / 2 + 0.2, 6), cyl(0.07, 0.07, 0.07, glow(0xFF3B3B), w / 2 - 0.2, roofY + 0.56, -d / 2 + 0.2, 10));
   const feat = r();
-  if (feat < 0.34) {
-    // Rooftop pool with a lit deck edge.
-    g.add(rbox(w * 0.55, 0.03, d * 0.45, 0.08, glow(0x3FD9FF), -w * 0.1, h + 0.16, 0));
-    g.add(rbox(w * 0.62, 0.02, d * 0.52, 0.1, std(0xE6E9EC, 0.5), -w * 0.1, h + 0.15, 0));
-    for (let i = 0; i < 2; i++) g.add(rbox(0.16, 0.05, 0.34, 0.03, std(0xF2F0EA, 0.5), w * 0.32, h + 0.18, -d * 0.2 + i * 0.4));
-  } else if (feat < 0.62) {
-    // Lit atrium skylights: warm glass panels in a dark frame — reads as a
-    // lived-in building from straight above (a helipad read as a stray "H").
+  if (feat < 0.28) {
+    g.add(rbox(w * 0.55, 0.03, d * 0.45, 0.08, glow(0x3FD9FF), -w * 0.1, roofY + 0.16, 0));
+    g.add(rbox(w * 0.62, 0.02, d * 0.52, 0.1, std(0xE6E9EC, 0.5), -w * 0.1, roofY + 0.15, 0));
+    for (let i = 0; i < 2; i++) g.add(rbox(0.16, 0.05, 0.34, 0.03, std(0xF2F0EA, 0.5), w * 0.32, roofY + 0.18, -d * 0.2 + i * 0.4));
+  } else if (feat < 0.52) {
     const cols2 = w > 1.6 ? 3 : 2, rows2 = d > 1.6 ? 3 : 2;
     const pw = (w - 0.5) / cols2, pd = (d - 0.5) / rows2;
-    g.add(box(w - 0.34, 0.03, d - 0.34, std(0x15172A, 0.5), 0, h + 0.15, 0));
+    g.add(box(w - 0.34, 0.03, d - 0.34, std(0x15172A, 0.5), 0, roofY + 0.15, 0));
     const warm = [0xFFD27A, 0xFFE7A8, 0xFFB45A];
     for (let c = 0; c < cols2; c++) for (let k = 0; k < rows2; k++) {
       if (r() < 0.15) continue;
-      g.add(box(pw - 0.08, 0.02, pd - 0.08, glow(pick(r, warm)), -w / 2 + 0.25 + (c + 0.5) * pw, h + 0.17, -d / 2 + 0.25 + (k + 0.5) * pd));
+      g.add(box(pw - 0.08, 0.02, pd - 0.08, glow(pick(r, warm)), -w / 2 + 0.25 + (c + 0.5) * pw, roofY + 0.17, -d / 2 + 0.25 + (k + 0.5) * pd));
     }
-  } else {
-    // Billboard standing on the roof, facing the camera.
-    const bw = Math.min(1.4, w * 0.7), bcol = pick(r, T.neon);
+  } else if (feat < 0.78) {
+    const bw = Math.min(1.5, w * 0.75), bcol = pick(r, T.neon);
     const bb = new THREE.Group();
-    bb.add(rbox(bw, 0.55, 0.06, 0.03, std(0x1C1E2A, 0.5), 0, 0.52, 0));
-    bb.add(box(bw - 0.1, 0.45, 0.02, glow(bcol), 0, 0.52, 0.04));
-    bb.add(box(bw * 0.55, 0.09, 0.021, glow(0xFFFFFF), 0, 0.58, 0.045));
-    bb.add(box(bw * 0.35, 0.06, 0.021, glow(0xFFFFFF), 0, 0.44, 0.045));
+    bb.add(rbox(bw, 0.62, 0.07, 0.03, std(0x14161F, 0.5, { metalness: 0.3 }), 0, 0.55, 0));
+    bb.add(box(bw + 0.04, 0.03, 0.03, glow(bcol), 0, 0.55 + 0.34, 0.05));
+    bb.add(box(bw - 0.1, 0.48, 0.02, glow(mix(bcol, 0x000000, 0.2)), 0, 0.55, 0.04));
+    bb.add(box(bw * 0.55, 0.09, 0.021, glow(0xFFFFFF), 0, 0.62, 0.045));
+    bb.add(box(bw * 0.4, 0.07, 0.021, glow(0xFFFFFF), 0, 0.48, 0.045));
     for (const sx of [-1, 1]) bb.add(cyl(0.02, 0.02, 0.3, std(0x3A3E52, 0.5), sx * bw / 3, 0.12, 0, 6));
-    bb.position.set(0, h + 0.1, d * 0.1);
+    bb.position.set(0, roofY + 0.1, d * 0.1);
     g.add(bb);
+  } else {
+    const ant = antennaCluster(r); ant.position.set((r() - 0.5) * w * 0.3, roofY + 0.14, -d * 0.15); g.add(ant);
   }
-  if (r() < 0.6) for (let i = 0; i < 2; i++) g.add(rbox(0.3, 0.16, 0.26, 0.03, std(0x5A5F78, 0.5), (r() - 0.5) * (w - 0.6), h + 0.22, -d / 2 + 0.3));
+  if (r() < 0.65) for (let i = 0; i < 2; i++) g.add(rbox(0.3, 0.16, 0.26, 0.03, std(0x5A5F78, 0.5), (r() - 0.5) * (w - 0.6), roofY + 0.22, -d / 2 + 0.3));
   return g;
 }
 function neonSign(T, r, w) {
+  // Finished neon marquees: frame + multi-glyph face + halo tubes + hanging posts —
+  // reads as signage at phone size, not a flat candy slab.
   const g = new THREE.Group();
   const col = pick(r, T.neon);
-  g.add(rbox(w, 0.34, 0.06, 0.04, std(0x1C1E2A, 0.5), 0, 0.5, 0));
-  g.add(box(w - 0.12, 0.2, 0.02, glow(col), 0, 0.5, 0.04));
-  g.add(cyl(0.02, 0.02, 0.35, std(0x3A3E52, 0.5), -w / 3, 0.17, 0, 6));
-  g.add(cyl(0.02, 0.02, 0.35, std(0x3A3E52, 0.5), w / 3, 0.17, 0, 6));
+  const col2 = pick(r, T.neon);
+  const h = 0.42 + r() * 0.18;
+  const frame = std(0x161822, 0.45, { metalness: 0.35 });
+  g.add(rbox(w + 0.08, h + 0.1, 0.08, 0.04, frame, 0, 0.55, 0));
+  // Outer neon tube rim.
+  g.add(box(w + 0.1, 0.03, 0.03, glow(col), 0, 0.55 + h / 2 + 0.02, 0.05));
+  g.add(box(w + 0.1, 0.03, 0.03, glow(col), 0, 0.55 - h / 2 - 0.02, 0.05));
+  for (const sx of [-1, 1]) g.add(box(0.03, h + 0.1, 0.03, glow(col), sx * (w / 2 + 0.04), 0.55, 0.05));
+  // Face panels — stacked glyphs so it reads as letters, not a single slab.
+  g.add(box(w - 0.1, h - 0.08, 0.02, glow(mix(col, 0x000000, 0.25)), 0, 0.55, 0.04));
+  const rows = 2 + Math.floor(r() * 2);
+  for (let i = 0; i < rows; i++) {
+    const yy = 0.55 + h * 0.28 - i * (h / (rows + 0.2));
+    const gw = w * (0.35 + r() * 0.45);
+    g.add(box(gw, 0.07, 0.025, glow(i % 2 ? col2 : 0xFFFFFF), (r() - 0.5) * 0.15, yy, 0.055));
+  }
+  // Arrow / chevron accent on some signs.
+  if (r() < 0.55) {
+    const ax = (r() < 0.5 ? -1 : 1) * (w / 2 + 0.18);
+    g.add(box(0.22, 0.08, 0.03, glow(col2), ax, 0.55, 0.05));
+    g.add(box(0.08, 0.18, 0.03, glow(col2), ax + (ax > 0 ? 0.08 : -0.08), 0.55, 0.05));
+  }
+  // Posts.
+  for (const sx of [-1, 1]) g.add(cyl(0.025, 0.025, 0.42, std(0x3A3E52, 0.45, { metalness: 0.55 }), sx * w / 3, 0.2, 0, 6));
+  return g;
+}
+
+function marqueeCanopy(T, r, w) {
+  // Cinema / arcade canopy with neon edge + bulb row — skyline variety for Neon Nights.
+  const g = new THREE.Group();
+  const col = pick(r, T.neon);
+  const depth = 0.85 + r() * 0.35;
+  g.add(rbox(w, 0.12, depth, 0.04, std(0x1A1C28, 0.5, { metalness: 0.25 }), 0, 1.15, depth / 2 - 0.05));
+  g.add(box(w + 0.06, 0.04, 0.04, glow(col), 0, 1.1, depth - 0.02));
+  g.add(box(w - 0.1, 0.28, 0.05, glow(mix(col, 0xFFFFFF, 0.15)), 0, 1.35, 0.04));
+  g.add(box(w * 0.55, 0.08, 0.04, glow(0xFFFFFF), 0, 1.38, 0.06));
+  const nBulbs = Math.max(4, Math.floor(w * 3));
+  for (let i = 0; i < nBulbs; i++) {
+    const bx = -w / 2 + 0.12 + i * (w - 0.24) / Math.max(1, nBulbs - 1);
+    g.add(sphere(0.04, glow(pick(r, [0xFFE7A8, col, 0xFFFFFF])), bx, 1.08, depth - 0.02, 8, 6));
+  }
+  return g;
+}
+
+function antennaCluster(r) {
+  const g = new THREE.Group();
+  const mast = std(0x4A4E62, 0.4, { metalness: 0.65 });
+  g.add(cyl(0.03, 0.04, 0.9, mast, 0, 0.45, 0, 6));
+  g.add(cyl(0.015, 0.015, 0.55, mast, 0.12, 0.55, 0.05, 6));
+  g.add(box(0.35, 0.04, 0.08, std(0x3A3E52, 0.45, { metalness: 0.5 }), 0, 0.85, 0));
+  g.add(cyl(0.06, 0.06, 0.06, glow(0xFF3B3B), 0, 0.95, 0, 8));
+  if (r() < 0.6) g.add(box(0.28, 0.18, 0.04, glow(pick(r, [0x4FE3FF, 0xFF3DB8, 0xA35CFF])), 0.05, 0.55, 0.08));
   return g;
 }
 
@@ -862,7 +961,8 @@ export function buildBackdrop(world, variant, L) {
   const lampZs = [];
   for (let gz = L.topZ + 3 + r() * 2; gz < L.breachZ - 2.5; gz += 7.5 + r() * 1.5) lampZs.push(gz);
   const lampPools = night ? lampZs.flatMap((lz) => [[-(L.halfW - 0.9), lz + 0.3, 0xFFB45A], [(L.halfW - 0.9), lz + 3.6, 0xFFB45A]]) : [];
-  const neonStreaks = night ? Array.from({ length: 9 }, (_, i) => [(i % 2 ? 1 : -1) * (L.halfW - 0.5 - r() * 0.6), L.topZ + 2 + i * 3.1 + r(), pick(r, [0xFF3DB8, 0x4FE3FF, 0xA35CFF])]) : [];
+  const streakN = world === 'world3' ? 14 : 9;
+  const neonStreaks = night ? Array.from({ length: streakN }, (_, i) => [(i % 2 ? 1 : -1) * (L.halfW - 0.45 - r() * 0.7), L.topZ + 1.5 + i * (world === 'world3' ? 2.4 : 3.1) + r(), pick(r, T.neon ?? [0xFF3DB8, 0x4FE3FF, 0xA35CFF])]) : [];
 
   // 1. Road surface (textured plane in game units, stretched onto studio z).
   const roadTex = roadTexture(T, world, { pxu, halfW: L.halfW, laneXs: L.laneXs, z0, z1: L.breachZ + 0.05, crossZ, lampPools, neonStreaks }, r);
@@ -938,9 +1038,11 @@ export function buildBackdrop(world, variant, L) {
         else if (kind < 0.8) { const p = pallet(r); p.position.set(px, 0.1, Z(tz)); p.rotation.y = r() * 0.4; g.add(p); }
         else { const t = greenery(world, T, r, 0.8); t.position.set(px, 0.1, Z(tz)); g.add(t); }
       } else {
-        if (kind < 0.4) { const t = greenery(world, T, r, 0.85); t.position.set(px, 0.1, Z(tz)); g.add(t); }
-        else if (kind < 0.7) { const b = bollard(0x4A4E62); b.position.set(px - s * 0.1, 0.1, Z(tz)); g.add(b); const b2 = bollard(0x4A4E62); b2.position.set(px - s * 0.1, 0.1, Z(tz + 0.7)); g.add(b2); }
-        else { const n = neonSign(T, r, 0.9); n.position.set(px + s * 0.15, 0.1, Z(tz)); n.rotation.y = Math.PI / 2; g.add(n); }
+        // Neon Nights sidewalk: denser signage + planters, not just bollards.
+        if (kind < 0.28) { const t = greenery(world, T, r, 0.85); t.position.set(px, 0.1, Z(tz)); g.add(t); }
+        else if (kind < 0.42) { const b = bollard(0x4A4E62); b.position.set(px - s * 0.1, 0.1, Z(tz)); g.add(b); const b2 = bollard(0x4A4E62); b2.position.set(px - s * 0.1, 0.1, Z(tz + 0.7)); g.add(b2); }
+        else if (kind < 0.72) { const n = neonSign(T, r, world === 'world3' ? (1.0 + r() * 0.45) : 0.9); n.position.set(px + s * 0.15, 0.1, Z(tz)); n.rotation.y = Math.PI / 2; g.add(n); }
+        else { const n = neonSign(T, r, 0.7 + r() * 0.3); n.position.set(px + s * 0.1, 0.1, Z(tz)); n.rotation.y = Math.PI / 2; g.add(n); const t = greenery(world, T, r, 0.7); t.position.set(px - s * 0.25, 0.1, Z(tz + 0.9)); g.add(t); }
       }
       tz += 1.8 + r() * 1.6;
     }
@@ -949,7 +1051,7 @@ export function buildBackdrop(world, variant, L) {
     let bz = L.topZ - 1.5;
     const bzEnd = FAMILY[world] === 'town' ? z1 : L.breachZ + 0.5;   // town: the street's houses continue beside the depot
     while (bz < bzEnd) {
-      const d = FAMILY[world] === 'yard' ? 3.2 + r() * 1.6 : 2.0 + r() * 1.2;
+      const d = FAMILY[world] === 'yard' ? 3.2 + r() * 1.6 : FAMILY[world] === 'night' && world === 'world3' ? 1.55 + r() * 0.95 : 2.0 + r() * 1.2;
       const w = 2.6 + r() * 0.8;
       const cx = bandIn + s * w / 2;
       const zc = bz + d / 2;
@@ -988,10 +1090,17 @@ export function buildBackdrop(world, variant, L) {
           for (let k = 0; k < 3; k++) { const dr = drum(pick(r, [0x2F8CFF, 0xE0574A, 0x2FA36B])); dr.position.set(bandIn + s * (0.3 + r() * 0.3), 0.1, Z(zc - d / 2 + 0.4 + k * 0.4)); g.add(dr); }
         }
       } else {
-        const h = 1.6 + r() * 1.8;
-        const tw = tower(T, r, w + 0.6, Z(d) - Z(0) - 0.25, h);
+        // Denser Neon Nights skyline: taller towers, occasional marquee canopy on the street face.
+        const h = world === 'world3' ? (2.2 + r() * 2.6) : (1.6 + r() * 1.8);
+        const tw = tower(T, r, w + (world === 'world3' ? 0.85 : 0.6), Z(d) - Z(0) - 0.25, h);
         tw.position.set(cx, 0.1, Z(zc));
         g.add(tw);
+        if (world === 'world3' && r() < 0.4) {
+          // Place canopy on the street-facing edge of the tower lot.
+          const mq = marqueeCanopy(T, r, w * 0.85);
+          mq.position.set(bandIn + s * 0.35, 0.1, Z(zc));
+          g.add(mq);
+        }
       }
       bz += d;
       if (FAMILY[world] === 'town') {
@@ -1057,8 +1166,12 @@ export function buildBackdrop(world, variant, L) {
       const p = pallet(r); p.position.set(fx, 0.02, Z(dz0 + 4.4)); g.add(p);
       const c = cone(); c.position.set(fx - s * 0.2, 0.02, Z(dz0 + 6.2)); g.add(c);
     } else {
-      const n = neonSign(T, r, 1.1); n.position.set(fx + s * 0.2, 0.02, Z(dz0 + 2.2)); g.add(n);
-      const t = greenery(world, T, r, 0.9); t.position.set(fx, 0.02, Z(dz0 + 5.0)); g.add(t);
+      const n = neonSign(T, r, world === 'world3' ? 1.35 : 1.1); n.position.set(fx + s * 0.2, 0.02, Z(dz0 + 2.0)); g.add(n);
+      if (world === 'world3') {
+        const n2 = neonSign(T, r, 0.95); n2.position.set(fx + s * 0.35, 0.02, Z(dz0 + 3.6)); n2.rotation.y = 0.2 * s; g.add(n2);
+        const mq = marqueeCanopy(T, r, 1.4); mq.position.set(fx + s * 0.1, 0.02, Z(dz0 + 5.4)); g.add(mq);
+      }
+      const t = greenery(world, T, r, 0.9); t.position.set(fx, 0.02, Z(dz0 + (world === 'world3' ? 7.2 : 5.0))); g.add(t);
     }
   }
   g.traverse(o => { if (o.isMesh) { o.castShadow = !o.material.isMeshBasicMaterial; o.receiveShadow = true; } });
@@ -1106,10 +1219,14 @@ export function renderBackdrop(renderer, world, variant, L, { scale = 2, ss = 2 
   sun.position.add(new THREE.Vector3(0, 0, zMid));
   scene.add(sun, sun.target);
   if (FAMILY[world] === 'night') {
-    // Coloured neon fill from the flanks.
+    // Coloured neon fill from the flanks — World3 punches harder so marquees read wet.
     const [fa, fb2] = T.fill ?? [0xFF3DB8, 0x4FE3FF];
-    const a = new THREE.DirectionalLight(fa, 0.35); a.position.set(-10, 6, zMid); scene.add(a);
-    const b = new THREE.DirectionalLight(fb2, 0.35); b.position.set(10, 6, zMid); scene.add(b);
+    const inten = world === 'world3' ? 0.48 : 0.35;
+    const a = new THREE.DirectionalLight(fa, inten); a.position.set(-10, 6, zMid); scene.add(a);
+    const b = new THREE.DirectionalLight(fb2, inten); b.position.set(10, 6, zMid); scene.add(b);
+    if (world === 'world3') {
+      const c = new THREE.PointLight(0xFFD42A, 0.55, 28, 2); c.position.set(0, 4, zMid - 4); scene.add(c);
+    }
   }
 
   const obj = buildBackdrop(world, variant, L);
@@ -1153,4 +1270,4 @@ export function renderBackdrop(renderer, world, variant, L, { scale = 2, ss = 2 
 // ── Shared with the map diorama (mapdiorama.js) ─────────────────────────────
 export { THEME, FAMILY, greenery, bedFor, potFor, townOpts, starTexture, cactus, rockCluster, snowDrift, frostPine, crystal, rng, pick, mix, std, glow, rbox, box, cyl, sphere, blob, plane, canvas, toTex, speckle, blotch,
   paverTexture, grassTexture, tree, pine, bush, flowerBed, lamp, bench, hydrant, bollard, bin, planterPot, parasol,
-  townHouse, warehouse, shippingContainer, drum, pallet, cone, fence, tower, neonSign };
+  townHouse, warehouse, shippingContainer, drum, pallet, cone, fence, tower, neonSign, marqueeCanopy, antennaCluster };

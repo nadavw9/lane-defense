@@ -11,7 +11,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import {
   THEME, rng, pick, mix, std, glow, rbox, box, cyl, blob, plane, canvas, toTex, speckle, blotch,
   paverTexture, grassTexture, tree, pine, bush, flowerBed, lamp, bench, bollard, planterPot,
-  townHouse, warehouse, shippingContainer, drum, pallet, cone, fence, tower, neonSign,
+  townHouse, warehouse, shippingContainer, drum, pallet, cone, fence, tower, neonSign, marqueeCanopy, antennaCluster,
   FAMILY, greenery, bedFor, potFor, townOpts, starTexture, cactus, rockCluster, snowDrift, frostPine,
 } from './backdrop.js';
 
@@ -156,7 +156,7 @@ export function buildMapHD(theme, seed, { W, H, S, road, nodes, plots, tilt }) {
     item.scale.setScalar(0.85);
     if (!tryPut(item, p[0] + ox, p[1] + oz, 0.35)) continue;
   }
-  const budget = fam === 'town' ? (theme === 'world1' ? 140 : 110) : fam === 'yard' ? 60 : 85;
+  const budget = fam === 'town' ? (theme === 'world1' ? 140 : 110) : fam === 'yard' ? 60 : (theme === 'world3' ? 120 : 85);
   for (let k = 0; k < 3000 && placed.length < budget; k++) {
     const x = (r() - 0.5) * (Wu + 1), z = (r() - 0.5) * (Lu + 2);
     const p = r();
@@ -188,11 +188,22 @@ export function buildMapHD(theme, seed, { W, H, S, road, nodes, plots, tilt }) {
       else if (p < 0.9) { rad = 0.7; obj = new THREE.Group(); for (let k = 0; k < 2; k++) { const pl = pallet(r); pl.position.x = k * 0.85; obj.add(pl); } }
       else { rad = 0.5; obj = new THREE.Group(); for (let k = 0; k < 3; k++) { const c = cone(); c.position.x = k * 0.35; obj.add(c); } }
     } else {
-      if (p < 0.18) { rad = 0.4; obj = lamp(T, r, true, 1); }
-      else if (p < 0.6) { rad = 1.6; obj = tower(T, r, 2.0 + r() * 0.6, 1.8, 1.8 + r() * 2.4); }
-      else if (p < 0.75) { rad = 0.7; obj = greenery(theme, T, r, 0.8); }
-      else if (p < 0.88) { rad = 0.6; obj = neonSign(T, r, 1.0); }
-      else { rad = 0.3; obj = bollard(0x4A4E62); }
+      // Neon Nights map diorama — denser towers + marquees + antenna clusters.
+      if (theme === 'world3') {
+        if (p < 0.12) { rad = 0.4; obj = lamp(T, r, true, 1); }
+        else if (p < 0.52) { rad = 1.8; obj = tower(T, r, 2.1 + r() * 0.8, 1.9, 2.4 + r() * 3.0); }
+        else if (p < 0.64) { rad = 1.1; obj = marqueeCanopy(T, r, 1.6 + r() * 0.6); }
+        else if (p < 0.78) { rad = 0.7; obj = neonSign(T, r, 1.15 + r() * 0.4); }
+        else if (p < 0.88) { rad = 0.65; obj = greenery(theme, T, r, 0.85); }
+        else if (p < 0.94) { rad = 0.45; obj = antennaCluster(r); }
+        else { rad = 0.3; obj = bollard(0x4A4E62); }
+      } else {
+        if (p < 0.18) { rad = 0.4; obj = lamp(T, r, true, 1); }
+        else if (p < 0.6) { rad = 1.6; obj = tower(T, r, 2.0 + r() * 0.6, 1.8, 1.8 + r() * 2.4); }
+        else if (p < 0.75) { rad = 0.7; obj = greenery(theme, T, r, 0.8); }
+        else if (p < 0.88) { rad = 0.6; obj = neonSign(T, r, 1.0); }
+        else { rad = 0.3; obj = bollard(0x4A4E62); }
+      }
     }
     tryPut(obj, x, z, rad);
   }
@@ -235,7 +246,7 @@ export function buildRepairHD(theme, state, variant) {
       return grp;
     }
     if (FAMILY[theme] === 'yard') return warehouse(T, rng(variant * 31 + 9), w, d, 1.1 + variant * 0.15);
-    return tower(T, rng(variant * 31 + 3), 2.1, 1.8, 2.0 + (variant % 3) * 0.45);
+    return tower(T, rng(variant * 31 + 3), theme === 'world3' ? 2.3 : 2.1, theme === 'world3' ? 2.0 : 1.8, (theme === 'world3' ? 2.6 : 2.0) + (variant % 3) * (theme === 'world3' ? 0.7 : 0.45));
   };
   if (state === 2) { g.add(full()); return g; }
   const wallMat = std(WALL[theme], 0.85);

@@ -80,13 +80,16 @@ export const THEMES = {
   // headlight scatter fog. Low ambient — car emissives must carry the scene.
   // emissiveBoost is read by Car3D to increase car glow in dark conditions.
   nightHighway: {
-    sky:       { zenith: 0x050a18, mid: 0x0a1530, horizon: 0x0a1a3a, glow: 0x1a2a5a },
-    hemi:      { sky: 0x0a1a3a, ground: 0x050f1a, intensity: 0.40 },
-    sun:       { color: 0x8090d0, intensity: 0.30 },
-    ambient:   { color: 0xd0e8ff, intensity: 0.60 },
-    fog:       { color: 0xd0e0ff, near: 10, far: 35 },
-    roadColor: 0x0d0d14,   // very dark blue-black
+    sky:       { zenith: 0x040812, mid: 0x0a1430, horizon: 0x1a0a3a, glow: 0x4a1a7a },
+    hemi:      { sky: 0x1a2a5a, ground: 0x08041a, intensity: 0.42 },
+    sun:       { color: 0x90a0e0, intensity: 0.28 },
+    ambient:   { color: 0xd0e8ff, intensity: 0.58 },
+    fog:       { color: 0xb0c0ff, near: 10, far: 35 },
+    roadColor: 0x0a0a14,   // very dark blue-black
     emissiveBoost: 0.4,
+    // Presentation-only wash: cool cyan multiply on verge strips + magenta/cyan neon flare add.
+    sceneTint: 0xC8D4FF,
+    sceneGlow: 0x2A1040,
   },
   // Desert (World 4, L46-60): hot pale sky, sandy glow, light dust haze.
   desert: {

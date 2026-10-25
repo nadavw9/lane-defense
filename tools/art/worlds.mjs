@@ -36,12 +36,19 @@ const ROAD = {
       <rect x="0" y="0" width="4" height="512" fill="#6F717A" opacity=".5"/>
       <rect x="243" y="154" width="26" height="204" rx="4" fill="#F2C230"/>`;
   },
-  // Night highway: dark asphalt, glowing cyan dash.
+  // Neon Nights: wet navy asphalt, cyan dash + magenta edge glow (wet-reflection cue).
   world3: () => {
     const r = rng(13);
-    return `<defs><filter id="g" x="-200%" y="-20%" width="500%" height="140%"><feGaussianBlur stdDeviation="9"/></filter></defs>
-      <rect width="512" height="512" fill="#22263A"/>${specks(r, 240, ['#2E3350', '#1A1D2E'])}
-      <rect x="237" y="146" width="38" height="220" rx="19" fill="#39E6FF" opacity=".55" filter="url(#g)"/>
+    const puddles = Array.from({ length: 7 }, () => {
+      const x = r() * 460 + 26, y = r() * 460 + 26, rx = 14 + r() * 36, ry = 6 + r() * 14;
+      const col = r() < 0.5 ? '#4FE3FF' : '#FF3DB8';
+      return `<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="${col}" opacity="${(0.06 + r() * 0.08).toFixed(2)}"/>`;
+    }).join('');
+    return `<defs><filter id="g" x="-200%" y="-20%" width="500%" height="140%"><feGaussianBlur stdDeviation="9"/></filter>
+      <filter id="g2" x="-200%" y="-20%" width="500%" height="140%"><feGaussianBlur stdDeviation="6"/></filter></defs>
+      <rect width="512" height="512" fill="#1A1E32"/>${specks(r, 280, ['#2A3050', '#121526', '#3A4060'])}${puddles}
+      <rect x="232" y="140" width="48" height="232" rx="24" fill="#FF3DB8" opacity=".22" filter="url(#g2)"/>
+      <rect x="237" y="146" width="38" height="220" rx="19" fill="#39E6FF" opacity=".6" filter="url(#g)"/>
       <rect x="245" y="156" width="22" height="200" rx="11" fill="#B8F6FF"/>`;
   },
 };
@@ -79,7 +86,7 @@ export function roadTileSVG(world = 'world1') {
 const FLOOR = {
   world1: { base: '#3A3550', tile: '#443E5E', edge: null },
   world2: { base: '#4A4E5A', tile: '#565B68', edge: '#6B7180' },   // steel plate
-  world3: { base: '#1B1F36', tile: '#20264A', edge: '#39E6FF' },   // neon grid
+  world3: { base: '#141828', tile: '#1C2444', edge: '#4FE3FF' },   // neon wet grid
   world4: { base: '#B9996B', tile: '#C7A878', edge: null },          // sandstone flags
   world5: { base: '#A9BBCD', tile: '#C0D0DF', edge: null },          // packed snow
   world6: { base: '#4C5967', tile: '#5A6876', edge: '#FF8A1C' },     // dock plate
@@ -95,7 +102,7 @@ export function zoneFloorSVG(world = 'world1', H = 260) {
         tiles += `<rect x="${x + 14 + i * 16}" y="${y + 10 + j * 16}" width="9" height="3" rx="1.5" fill="#7B8190" transform="rotate(35 ${x + 18 + i * 16} ${y + 11 + j * 16})"/>`;
       }
     }
-    if (f.edge && (world === 'world3' || world === 'world7')) tiles += `<rect x="${x + 4}" y="${y}" width="57" height="57" rx="12" fill="none" stroke="${f.edge}" stroke-width="1.5" opacity=".28"/>`;
+    if (f.edge && (world === 'world3' || world === 'world7')) tiles += `<rect x="${x + 4}" y="${y}" width="57" height="57" rx="12" fill="none" stroke="${f.edge}" stroke-width="${world === 'world3' ? 2 : 1.5}" opacity="${world === 'world3' ? '.42' : '.28'}"/>`;
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">
     <rect width="${W}" height="${H}" fill="${f.base}"/>${tiles}</svg>`;

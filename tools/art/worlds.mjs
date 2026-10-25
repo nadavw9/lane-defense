@@ -51,10 +51,22 @@ ROAD.world4 = () => {            // sun-bleached desert asphalt, cream dash
   return `<rect width="512" height="512" fill="#7A6C5E"/>${specks(r, 280, ['#8A7B6B', '#6B5E51', '#9A8A76'])}
     <rect x="243" y="154" width="26" height="204" rx="13" fill="#FFF1D2"/>`;
 };
-ROAD.world5 = () => {            // icy asphalt with snow flecks, white dash
+ROAD.world5 = () => {            // icy asphalt: snow flecks, packed-snow banks, cold slab joints, white dash
   const r = rng(19);
-  return `<rect width="512" height="512" fill="#566070"/>${specks(r, 220, ['#647084', '#4A5362'])}${specks(r, 90, ['#F4F8FF'], 0.5)}
-    <rect x="243" y="154" width="26" height="204" rx="13" fill="#F4F8FF"/>`;
+  const flecks = Array.from({ length: 18 }, () => {
+    const x = r() * 420 + 40, y = r() * 420 + 40, rx = 10 + r() * 36, ry = 5 + r() * 16;
+    return `<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="#F4F8FF" opacity="${(0.08 + r() * 0.12).toFixed(2)}"/>`;
+  }).join('');
+  const banks = Array.from({ length: 12 }, () => {
+    const x = r() * 480 + 16, y = r() * 480 + 16, rx = 14 + r() * 32, ry = 5 + r() * 12;
+    return `<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="#EAF2FA" opacity="${(0.12 + r() * 0.14).toFixed(2)}"/>`;
+  }).join('');
+  const joints = [0, 170, 340].map(y => `<rect x="0" y="${y}" width="512" height="2" fill="#C8D8E8" opacity=".28"/>`).join('');
+  const darkJoints = [85, 255, 425].map(y => `<rect x="0" y="${y}" width="512" height="1" fill="#3A4250" opacity=".22"/>`).join('');
+  return `<rect width="512" height="512" fill="#4E5868"/>${specks(r, 280, ['#647084', '#4A5362', '#6A788A'])}${flecks}${banks}${joints}${darkJoints}
+    <rect x="0" y="0" width="3" height="512" fill="#3A4250" opacity=".25"/>
+    <rect x="243" y="154" width="26" height="204" rx="13" fill="#F4F8FF"/>
+    <rect x="246" y="160" width="20" height="192" rx="10" fill="#EAF2FA" opacity=".4"/>`;
 };
 ROAD.world6 = () => {            // wet blue-grey dock concrete, expansion joints, sky-blue dash
   const r = rng(23);
@@ -81,7 +93,7 @@ const FLOOR = {
   world2: { base: '#4A4E5A', tile: '#565B68', edge: '#6B7180' },   // steel plate
   world3: { base: '#1B1F36', tile: '#20264A', edge: '#39E6FF' },   // neon grid
   world4: { base: '#B9996B', tile: '#C7A878', edge: null },          // sandstone flags
-  world5: { base: '#A9BBCD', tile: '#C0D0DF', edge: null },          // packed snow
+  world5: { base: '#A9BBCD', tile: '#C0D0DF', edge: '#D8E4F0' },      // packed snow + soft joint
   world6: { base: '#4C5967', tile: '#5A6876', edge: '#FF8A1C' },     // dock plate
   world7: { base: '#17102E', tile: '#201640', edge: '#A35CFF' },     // violet grid
 };
@@ -96,6 +108,7 @@ export function zoneFloorSVG(world = 'world1', H = 260) {
       }
     }
     if (f.edge && (world === 'world3' || world === 'world7')) tiles += `<rect x="${x + 4}" y="${y}" width="57" height="57" rx="12" fill="none" stroke="${f.edge}" stroke-width="1.5" opacity=".28"/>`;
+    if (f.edge && world === 'world5') tiles += `<rect x="${x + 4}" y="${y}" width="57" height="57" rx="12" fill="none" stroke="${f.edge}" stroke-width="2" opacity=".32"/>`;
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">
     <rect width="${W}" height="${H}" fill="${f.base}"/>${tiles}</svg>`;

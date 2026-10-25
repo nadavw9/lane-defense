@@ -105,6 +105,9 @@ export const THEMES = {
     ambient:   { color: 0xdcecff, intensity: 0.60 },
     fog:       { color: 0xdce8f4, near: 22, far: 78 },
     roadColor: 0x20242a,
+    // Presentation-only wash: cold blue multiply on verge strips + icy haze add over the bake.
+    sceneTint: 0xD8E8F8,
+    sceneGlow: 0x284060,
   },
   // Harbor (World 6, L76-90): late-day teal sky, warm sodium horizon, salt haze.
   harbor: {

@@ -1,0 +1,21 @@
+CONCEPT-STAMP — Traffic Bomb World 5 Frost Pass visual polish
+Branch: art/world5-frost-pass
+Date: 2026-10-25 Asia/Jerusalem
+Status: CONCEPT-STAMP (not HUMAN-FINAL)
+
+Question for Nadav (Hebrew-friendly):
+האם Frost Pass נראה כמו עולם מוגמר ברמת Toy Town, לא רק החלפת צבעים?
+
+English: Does Frost Pass read as a finished world at Toy Town quality — not just a palette swap?
+
+Review boards:
+  docs/review/art-world5-frost-pass/before/
+  docs/review/art-world5-frost-pass/after/
+  docs/review/art-world5-frost-pass/before-after-sheet.png
+
+Notes:
+- Visual-only: bake SOURCES edited, then re-baked. No hand-paint of public/sprites/designed outputs.
+- Car sprites / HP sizing / gameplay untouched.
+- Structural upgrades: log cabins with eaves + snow-laden roofs + stone chimneys + warm window glow + icicle cues, richer tall/squat/twin frost pines, denser snow drifts, denser frost depot dressing, icy asphalt snow flecks/joints, frost sceneTint/sceneGlow wash, higher W5 map budget + taller snow repair sheds.
+- World 4 Sun Valley already HUMAN-FINAL on art/world4-sun-valley; W5 based on origin/master independently (W2/W3/W4 not merged).
+- Scenery strips skipped (W5 gameplay uses baked backdrops like W2–W4).

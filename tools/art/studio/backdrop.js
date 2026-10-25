@@ -184,14 +184,16 @@ Object.assign(THEME, {
     sun: { color: 0xFFE2B0, intensity: 3.5, hemi: [0xFFE9C8, 0x8A6A44, 0.66], env: 0.3, exposure: 1.02 },
   },
   // Frost Pass — snow town: log cabins with snow roofs, frosted pines.
+  // Structural variety (log eaves, snow-laden roofs, chimneys, denser pines/drifts) — not a hue swap of Toy Town.
   world5: {
-    asphalt: 0x4B5361, asphaltHi: 0x586170, asphaltLo: 0x3F4652, paint: '#F4F8FF', centre: '#F4F8FF',
-    kerb: 0xDDE8F3, gutter: 0x5A6472, walk: [0xF1F6FB, 0xE3ECF5, 0xEAF1F8], walkJoint: '#B8C7D8',
-    lawn: [0xF3F7FB, 0xE3ECF4], leaf: [0x2F6E57, 0x3A7E64, 0x265C49, 0x347A60], trunk: 0x5A4636,
-    roofs: [0xF2F6FA, 0xE4ECF4, 0xDCE6F0], walls: [0xA8744A, 0x9A6B45, 0xB98354, 0x8C5F3C],
-    awnings: [[0xE8453C, 0xFFFFFF], [0x2F8CFF, 0xFFFFFF]],
-    depot: [0xD3E0EC, 0xC8D7E6, 0xDCE7F1], depotJoint: '#A7B9CC', track: 0x8FA3B8, trackEdge: 0xF4FAFF,
-    sun: { color: 0xDDE9FF, intensity: 2.8, hemi: [0xD7E6FF, 0x7D8CA3, 0.74], env: 0.34, exposure: 1.04 },
+    asphalt: 0x46505E, asphaltHi: 0x5A6574, asphaltLo: 0x3A4250, paint: '#F4F8FF', centre: '#EAF2FA',
+    kerb: 0xE4EEF7, gutter: 0x556070, walk: [0xF1F6FB, 0xE3ECF5, 0xEAF1F8, 0xD8E4F0], walkJoint: '#A7B9CC',
+    lawn: [0xF3F7FB, 0xE3ECF4, 0xD5E2EE], leaf: [0x265C49, 0x2F6E57, 0x3A7E64, 0x1F4E3C, 0x347A60], trunk: 0x4E3C2E,
+    roofs: [0xF2F6FA, 0xE4ECF4, 0xDCE6F0, 0xCBD8E6], walls: [0xA8744A, 0x9A6B45, 0xB98354, 0x8C5F3C, 0x7A5134, 0xC09060],
+    awnings: [[0xE8453C, 0xFFFFFF], [0x2F8CFF, 0xFFFFFF], [0xF2C230, 0xFFFFFF]],
+    depot: [0xD3E0EC, 0xC8D7E6, 0xDCE7F1, 0xB8C9DA], depotJoint: '#8FA3B8', track: 0x7E93A8, trackEdge: 0xF4FAFF,
+    lot: 0xE8F0F7,
+    sun: { color: 0xE2ECFF, intensity: 3.05, hemi: [0xD7E6FF, 0x6E7E96, 0.78], env: 0.32, exposure: 1.07 },
   },
   // Harbor Lights — container docks: blue-grey concrete, bright boxes, orange bollards.
   world6: {
@@ -268,6 +270,19 @@ function roadTexture(T, world, L, r) {
       for (let k = 0; k < 7; k++) { px += (r() - 0.5) * 26; py += (r() - 0.3) * 22; x.lineTo(px, py); }
       x.stroke();
     }
+  }
+  // Frost Pass: icy asphalt snow flecks + packed-snow kerb drifts + cold slab joints.
+  if (world === 'world5') {
+    for (let i = 0; i < 22; i++) blotch(x, r() * W, r() * H, 18 + r() * 55, 0xF4F8FF, 0.08 + r() * 0.12);
+    for (let i = 0; i < 16; i++) {
+      const sx = X((r() < 0.5 ? -1 : 1) * (halfW - 0.3 - r() * 0.5));
+      blotch(x, sx, r() * H, (0.55 + r() * 1.2) * pxu, 0xEAF2FA, 0.18 + r() * 0.16);
+    }
+    // Cold expansion joints across the road (icy slabs).
+    x.strokeStyle = 'rgba(200,220,240,0.22)'; x.lineWidth = 1.6;
+    for (let wz = Math.ceil(z0 / 5.0) * 5.0; wz < z1; wz += 5.0) { x.beginPath(); x.moveTo(0, Y(wz)); x.lineTo(W, Y(wz)); x.stroke(); }
+    x.strokeStyle = 'rgba(40,50,65,0.22)'; x.lineWidth = 1.1;
+    for (let wz = Math.ceil(z0 / 5.0) * 5.0 + 2.5; wz < z1; wz += 5.0) { x.beginPath(); x.moveTo(0, Y(wz)); x.lineTo(W, Y(wz)); x.stroke(); }
   }
   // Night: wet sheen + lamp light pools and neon reflections.
   if (FAMILY[world] === 'night') {
@@ -572,30 +587,56 @@ function rockCluster(T, r, w = 0.9, d = 0.7) {
   return g;
 }
 function snowDrift(T, r, w = 0.9, d = 0.7) {
+  // Soft packed-snow mound / bank — Frost Pass ground dressing with size variety.
   const g = new THREE.Group();
-  const n = 3 + Math.floor(r() * 2);
+  const cols = [0xF6FAFF, 0xEAF2FA, 0xFFFFFF, 0xDCE6F0];
+  const n = 4 + Math.floor(r() * 3);
   for (let i = 0; i < n; i++) {
-    const m = blob((0.22 + r() * 0.2) * Math.min(w, 1.2), std(0xF6FAFF, 0.9), r, 1, 0.18);
-    m.scale.y = 0.45;
-    m.position.set((r() - 0.5) * w * 0.8, 0.08, (r() - 0.5) * d * 0.8);
+    const big = i === 0 && r() < 0.55;
+    const rad = (big ? 0.32 + r() * 0.22 : 0.16 + r() * 0.18) * Math.min(w, 1.35);
+    const m = blob(rad, std(pick(r, cols), 0.92), r, 1, 0.16);
+    m.scale.y = big ? 0.38 + r() * 0.22 : 0.32 + r() * 0.2;
+    m.position.set((r() - 0.5) * w * 0.85, rad * m.scale.y * 0.45, (r() - 0.5) * d * 0.85);
     g.add(m);
   }
   return g;
 }
 function frostPine(T, r, s = 1) {
+  // Tall / squat / twin frost pines — silhouette variety for Frost Pass, not one cone stack.
   const g = new THREE.Group();
-  g.add(cyl(0.06 * s, 0.08 * s, 0.5 * s, std(T.trunk, 0.9), 0, 0.25 * s, 0, 8));
-  for (let i = 0; i < 3; i++) {
-    const rad = (0.55 - i * 0.14) * s, h = 0.7 * s;
-    const m = new THREE.Mesh(new THREE.ConeGeometry(rad, h, 9), std(pick(r, T.leaf), 0.8));
-    m.position.y = (0.65 + i * 0.36) * s;
-    m.rotation.y = r() * 3;
-    g.add(m);
-    // Snow cap on each tier: a smaller, paler cone sitting on the tier's upper half.
-    const cap = new THREE.Mesh(new THREE.ConeGeometry(rad * 0.72, h * 0.55, 9), std(0xF6FAFF, 0.9));
-    cap.position.y = (0.65 + i * 0.36) * s + h * 0.22;
-    cap.rotation.y = m.rotation.y;
-    g.add(cap);
+  const kind = r();
+  const snow = std(pick(r, [0xF6FAFF, 0xEAF2FA, 0xFFFFFF]), 0.9);
+  const addTree = (ox, sc) => {
+    const tiers = kind < 0.28 ? 2 : kind < 0.7 ? 3 : 4;
+    const trunkH = (0.4 + tiers * 0.12) * sc;
+    g.add(cyl(0.05 * sc, 0.07 * sc, trunkH, std(T.trunk, 0.9), ox, trunkH / 2, 0, 8));
+    for (let i = 0; i < tiers; i++) {
+      const rad = (0.58 - i * (0.1 + (kind < 0.28 ? 0.06 : 0.04))) * sc;
+      const h = (kind < 0.28 ? 0.55 : 0.68) * sc;
+      const m = new THREE.Mesh(new THREE.ConeGeometry(rad, h, 9), std(pick(r, T.leaf), 0.8));
+      m.position.set(ox, (0.55 + i * 0.34) * sc, 0);
+      m.rotation.y = r() * 3;
+      if (r() < 0.35) m.rotation.z = (r() - 0.5) * 0.12;
+      g.add(m);
+      const cap = new THREE.Mesh(new THREE.ConeGeometry(rad * 0.74, h * 0.55, 9), snow);
+      cap.position.set(ox, (0.55 + i * 0.34) * sc + h * 0.22, 0);
+      cap.rotation.y = m.rotation.y;
+      g.add(cap);
+    }
+    // Snow skirt at the base.
+    if (r() < 0.75) {
+      const skirt = blob(0.22 * sc, snow, r, 1, 0.14);
+      skirt.scale.y = 0.35;
+      skirt.position.set(ox, 0.06 * sc, 0);
+      g.add(skirt);
+    }
+  };
+  if (kind > 0.82) {
+    // Twin trunks.
+    addTree(-0.18 * s, s * (0.85 + r() * 0.15));
+    addTree(0.2 * s, s * (0.7 + r() * 0.2));
+  } else {
+    addTree(0, s * (kind < 0.28 ? 0.85 + r() * 0.2 : 0.95 + r() * 0.25));
   }
   return g;
 }
@@ -616,7 +657,11 @@ function crystal(T, r, s = 1) {
 // Per-world planting: world 1-3 are exactly the original calls (same rng draws).
 function greenery(world, T, r, s = 1) {
   if (world === 'world4') return r() < 0.8 ? cactus(T, r, s) : rockCluster(T, r, 0.7 * s, 0.6 * s);
-  if (world === 'world5') return frostPine(T, r, s);
+  if (world === 'world5') {
+    const k = r();
+    if (k < 0.72) return frostPine(T, r, s);
+    return snowDrift(T, r, 0.85 * s, 0.65 * s);
+  }
   if (world === 'world7') return crystal(T, r, s * 1.1);
   return tree(T, r, s);
 }
@@ -630,7 +675,7 @@ function potFor(world, T, r, s = 1) {
   if (world === 'world5') return frostPine(T, r, 0.6 * s);
   return planterPot(T, r, s);
 }
-const townOpts = (world) => world === 'world4' ? { style: 'flat' } : world === 'world5' ? { style: 'pitched' } : {};
+const townOpts = (world) => world === 'world4' ? { style: 'flat' } : world === 'world5' ? { style: 'pitched', cabin: true } : {};
 // Star-field plaza texture for world 7's lots.
 function starTexture(wU, dU, r, pxu = 24) {
   const W = Math.round(wU * pxu), H = Math.round(dU * pxu);
@@ -644,23 +689,61 @@ function starTexture(wU, dU, r, pxu = 24) {
 // A town house seen from above: body, pitched tile roof or flat roof with kit.
 function townHouse(T, r, w, d, h, facing, opts = {}) {
   const g = new THREE.Group();
-  const wall = std(opts.wall ?? pick(r, T.walls), 0.85);
+  const cabin = !!opts.cabin;
+  const wallCol = opts.wall ?? pick(r, T.walls);
+  const wall = std(wallCol, 0.85);
   g.add(rbox(w, h, d, 0.04, wall, 0, h / 2, 0));
-  // Windows on the camera-facing side (+z) and street side.
-  const winM = std(0x3B5B86, 0.15, { metalness: 0.3 });
+  // Log cabin: horizontal log ridges + corner posts (silhouette, not a flat box).
+  if (cabin) {
+    const logDark = std(mix(wallCol, 0x000000, 0.18), 0.85);
+    const nLogs = Math.max(3, Math.floor(h / 0.22));
+    for (let i = 0; i < nLogs; i++) {
+      const y = 0.12 + i * (h / nLogs);
+      // Front/back face: logs along X (CylinderGeometry is Y-up → rotate Z).
+      const front = cyl(0.055, 0.055, w + 0.06, logDark, 0, y, d / 2 + 0.02, 8); front.rotation.z = Math.PI / 2; g.add(front);
+      const back = cyl(0.055, 0.055, w + 0.06, logDark, 0, y, -d / 2 - 0.02, 8); back.rotation.z = Math.PI / 2; g.add(back);
+      // Side faces: logs along Z.
+      const left = cyl(0.05, 0.05, d + 0.04, logDark, -w / 2 - 0.02, y, 0, 8); left.rotation.x = Math.PI / 2; g.add(left);
+      const right = cyl(0.05, 0.05, d + 0.04, logDark, w / 2 + 0.02, y, 0, 8); right.rotation.x = Math.PI / 2; g.add(right);
+    }
+    // Corner posts.
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      g.add(cyl(0.07, 0.07, h + 0.05, std(mix(wallCol, 0x000000, 0.1), 0.9), sx * (w / 2 + 0.02), h / 2, sz * (d / 2 + 0.02), 8));
+    }
+    // Occasional side porch / lean-to wing for silhouette variety.
+    if (r() < 0.45) {
+      const ww = w * (0.35 + r() * 0.2), wd = d * (0.4 + r() * 0.2), wh = h * (0.55 + r() * 0.2);
+      const side = r() < 0.5 ? -1 : 1;
+      const wingZ = (r() - 0.3) * d * 0.2;
+      g.add(rbox(ww, wh, wd, 0.04, wall, side * (w / 2 + ww / 2 - 0.05), wh / 2, wingZ));
+      // Snow-capped lean-to roof.
+      const lean = box(ww + 0.12, 0.08, wd + 0.12, std(0xF2F6FA, 0.9), side * (w / 2 + ww / 2 - 0.05), wh + 0.06, wingZ);
+      lean.rotation.z = side * -0.18;
+      g.add(lean);
+    }
+  }
+  // Windows on the camera-facing side (+z) and street side. Cabin: warm interior glow.
+  const winM = cabin
+    ? glow(pick(r, [0xFFE2A0, 0xFFD078, 0xFFF0C0]))
+    : std(0x3B5B86, 0.15, { metalness: 0.3 });
   for (let i = 0; i < Math.max(1, Math.floor(w / 0.55)); i++) {
     for (let fl = 0; fl < Math.max(1, Math.floor(h / 0.7)); fl++) {
       g.add(box(0.26, 0.3, 0.02, winM, -w / 2 + 0.35 + i * 0.55, 0.45 + fl * 0.7, d / 2 + 0.005));
+      if (cabin) {
+        // Dark frame around warm pane.
+        g.add(box(0.3, 0.34, 0.015, std(0x3A2A1C, 0.7), -w / 2 + 0.35 + i * 0.55, 0.45 + fl * 0.7, d / 2 + 0.001));
+      }
     }
   }
-  g.add(rbox(0.3, 0.5, 0.04, 0.02, std(0x7A4E32, 0.6), w * 0.25, 0.25, d / 2 + 0.01));
+  g.add(rbox(0.3, 0.5, 0.04, 0.02, std(cabin ? 0x5A3A22 : 0x7A4E32, 0.6), w * 0.25, 0.25, d / 2 + 0.01));
   const roofCol = opts.roof ?? pick(r, T.roofs);
   if (opts.style ? opts.style === 'pitched' : r() < 0.62) {
     // Pitched roof along z (ridge runs along the street) with tile texture.
-    const tex = roofTileTexture(roofCol, r);
+    // Cabin: wider eaves, snow-laden slopes, stone chimney, icicle cues.
+    const tex = roofTileTexture(cabin ? mix(roofCol, 0xD0D8E4, 0.35) : roofCol, r);
     tex.repeat.set(w * 0.5, d * 0.5);
     const mat = std(0xffffff, 0.75, { map: tex });
-    const rh = 0.55 + r() * 0.2, over = 0.12;
+    const rh = (cabin ? 0.65 : 0.55) + r() * 0.22, over = cabin ? 0.22 : 0.12;
     const shape = new THREE.Shape();
     shape.moveTo(-w / 2 - over, 0); shape.lineTo(0, rh); shape.lineTo(w / 2 + over, 0); shape.lineTo(-w / 2 - over, 0);
     const geo = new THREE.ExtrudeGeometry(shape, { depth: d + over * 2, bevelEnabled: false });
@@ -669,11 +752,39 @@ function townHouse(T, r, w, d, h, facing, opts = {}) {
     roof.position.y = h;
     g.add(roof);
     g.add(box(0.08, 0.05, d + over * 2, std(mix(roofCol, 0x000000, 0.35), 0.7), 0, h + rh + 0.01, 0));
-    if (r() < 0.8) {   // chimney
-      const cx = (r() - 0.5) * w * 0.5;
-      g.add(rbox(0.22, 0.5, 0.22, 0.03, std(0xB0674A, 0.8), cx, h + rh * 0.8, (r() - 0.5) * d * 0.5));
+    if (cabin) {
+      // Snow load along both roof slopes + ridge.
+      const snowM = std(0xF6FAFF, 0.92);
+      for (const side of [-1, 1]) {
+        for (let k = 0; k < 3; k++) {
+          const blobSnow = blob(0.28 + r() * 0.18, snowM, r, 1, 0.14);
+          blobSnow.scale.set(1.4, 0.35, 1.1);
+          blobSnow.position.set(side * (w * 0.22 + k * 0.08), h + rh * (0.55 - k * 0.1), (r() - 0.5) * d * 0.55);
+          g.add(blobSnow);
+        }
+      }
+      const ridgeSnow = blob(0.2, snowM, r, 1, 0.12);
+      ridgeSnow.scale.set(0.5, 0.4, d * 0.7);
+      ridgeSnow.position.set(0, h + rh + 0.06, 0);
+      g.add(ridgeSnow);
+      // Icicles under the eaves (camera-facing edge).
+      for (let i = 0; i < 5 + Math.floor(r() * 4); i++) {
+        const ix = (r() - 0.5) * (w + over);
+        const ih = 0.12 + r() * 0.22;
+        g.add(cyl(0.015, 0.008, ih, std(0xEAF4FF, 0.35), ix, h - ih / 2 + 0.02, d / 2 + over - 0.02, 6));
+      }
     }
-    if (r() < 0.5) {   // dormer skylight
+    if (r() < (cabin ? 0.92 : 0.8)) {   // chimney — cabin: taller stone with snow cap
+      const cx = (r() - 0.5) * w * 0.5;
+      const cz = (r() - 0.5) * d * 0.5;
+      const ch = cabin ? 0.7 : 0.5;
+      g.add(rbox(cabin ? 0.28 : 0.22, ch, cabin ? 0.28 : 0.22, 0.03, std(cabin ? 0x8A7A6A : 0xB0674A, 0.8), cx, h + rh * 0.75, cz));
+      if (cabin) {
+        g.add(rbox(0.34, 0.06, 0.34, 0.03, std(0x6E6054, 0.75), cx, h + rh * 0.75 + ch / 2 + 0.04, cz));
+        const chimSnow = blob(0.16, std(0xF6FAFF, 0.9), r, 1, 0.12); chimSnow.position.set(cx, h + rh * 0.75 + ch / 2 + 0.12, cz); g.add(chimSnow);
+      }
+    }
+    if (!cabin && r() < 0.5) {   // dormer skylight
       g.add(box(0.3, 0.02, 0.36, std(0x9FC3E8, 0.1, { metalness: 0.4 }), -w * 0.22 * facing, h + rh * 0.55, (r() - 0.5) * d * 0.4));
     }
   } else {
@@ -949,29 +1060,34 @@ export function buildBackdrop(world, variant, L) {
     let bz = L.topZ - 1.5;
     const bzEnd = FAMILY[world] === 'town' ? z1 : L.breachZ + 0.5;   // town: the street's houses continue beside the depot
     while (bz < bzEnd) {
-      const d = FAMILY[world] === 'yard' ? 3.2 + r() * 1.6 : 2.0 + r() * 1.2;
+      const d = FAMILY[world] === 'yard' ? 3.2 + r() * 1.6 : world === 'world5' ? 1.75 + r() * 1.05 : 2.0 + r() * 1.2;
       const w = 2.6 + r() * 0.8;
       const cx = bandIn + s * w / 2;
       const zc = bz + d / 2;
       if (FAMILY[world] === 'town') {
-        const h = 1.0 + r() * 0.9;
+        // Frost Pass cabins: taller snow sheds with real silhouette variety (eaves/porch via cabin opts).
+        const h = world === 'world5' ? (1.15 + r() * 1.0) : (1.0 + r() * 0.9);
         const dH = Z(d) - Z(0) - 0.25;
-        const hs = townHouse(T, r, w, dH, h, -s, townOpts(world));
+        const hs = townHouse(T, r, w + (world === 'world5' ? 0.12 : 0), dH, h, -s, townOpts(world));
         hs.position.set(cx, 0.1, Z(zc));
         g.add(hs);
         // Front garden: a path to the door, hedge along the pavement (gap at the
-        // path), a tree and a flower bed on the lawn.
+        // path), a tree and a flower bed on the lawn. World5: snow banks + frost pines.
         const hedgeCol = world === 'world4' ? 0xE9D3A8 : world === 'world5' ? 0xEAF2F9 : T.leaf[2];
         const hx = s * (gardenX + 0.12), pathX = s * (gardenX + 0.58);
         g.add(plane(1.2, Z(0.42) - Z(0), std(world === 'world5' ? 0xDDE6EF : 0xE4D9C2, 0.95), pathX, 0.1, Z(zc)));
         const half = d / 2;
         for (const [a, b] of [[bz + 0.05, zc - 0.35], [zc + 0.35, bz + d - 0.05]]) {
           if (b - a < 0.3) continue;
-          g.add(rbox(0.3, 0.34, Z(b) - Z(a), 0.12, std(hedgeCol, 0.85, { flatShading: true }), hx, 0.27, (Z(a) + Z(b)) / 2));
+          const hh = world === 'world5' ? 0.28 : 0.34;
+          g.add(rbox(world === 'world5' ? 0.36 : 0.3, hh, Z(b) - Z(a), world === 'world5' ? 0.1 : 0.12, std(hedgeCol, 0.85, { flatShading: true }), hx, hh / 2 + 0.1, (Z(a) + Z(b)) / 2));
         }
         const treeZ = zc + (r() < 0.5 ? -1 : 1) * (half * 0.55);
-        const tr = greenery(world, T, r, 0.75 + r() * 0.25); tr.position.set(s * (gardenX + 0.75 + r() * 0.35), 0.09, Z(treeZ)); g.add(tr);
-        if (r() < 0.8) { const fb = bedFor(world, T, r, 0.5, 0.9); fb.position.set(s * (gardenX + 0.5), 0.09, Z(zc + (treeZ > zc ? -0.95 : 0.95))); g.add(fb); }
+        const tr = greenery(world, T, r, (world === 'world5' ? 0.95 : 0.75) + r() * 0.3); tr.position.set(s * (gardenX + 0.75 + r() * 0.35), 0.09, Z(treeZ)); g.add(tr);
+        if (r() < (world === 'world5' ? 0.92 : 0.8)) { const fb = bedFor(world, T, r, 0.5, 0.9); fb.position.set(s * (gardenX + 0.5), 0.09, Z(zc + (treeZ > zc ? -0.95 : 0.95))); g.add(fb); }
+        if (world === 'world5' && r() < 0.6) {
+          const sd = snowDrift(T, r, 0.75, 0.5); sd.position.set(s * (gardenX + 0.35), 0.09, Z(zc + (r() - 0.5) * half)); g.add(sd);
+        }
       } else if (FAMILY[world] === 'yard') {
         if (r() < 0.55) {
           const wh = warehouse(T, r, w, Z(d) - Z(0) - 0.3, 1.3 + r() * 0.6);
@@ -996,10 +1112,14 @@ export function buildBackdrop(world, variant, L) {
       bz += d;
       if (FAMILY[world] === 'town') {
         // Side garden between neighbours: a big tree, a bush row, sometimes a drive.
-        const gap = 1.1 + r() * 1.0;
+        // Frost Pass: denser frost pines + snow drifts between cabin lots.
+        const gap = world === 'world5' ? (0.85 + r() * 0.85) : (1.1 + r() * 1.0);
         const gz = bz + gap / 2;
-        if (r() < 0.65) { const bigT = greenery(world, T, r, 0.95 + r() * 0.3); bigT.position.set(s * (gardenX + 1.0 + r() * 0.6), 0.09, Z(gz)); g.add(bigT); }
-        if (r() < 0.7) { const bu = bush(T, r, 1.0); bu.position.set(s * (gardenX + 0.5), 0.09, Z(gz + (r() - 0.5) * 0.6)); g.add(bu); }
+        if (r() < (world === 'world5' ? 0.88 : 0.65)) { const bigT = greenery(world, T, r, 0.95 + r() * 0.35); bigT.position.set(s * (gardenX + 1.0 + r() * 0.6), 0.09, Z(gz)); g.add(bigT); }
+        if (world === 'world5') {
+          if (r() < 0.7) { const sd = snowDrift(T, r, 0.75, 0.55); sd.position.set(s * (gardenX + 0.55), 0.09, Z(gz + (r() - 0.5) * 0.5)); g.add(sd); }
+          if (r() < 0.55) { const fp = frostPine(T, r, 0.7 + r() * 0.25); fp.position.set(s * (gardenX + 0.9), 0.09, Z(gz - 0.35)); g.add(fp); }
+        } else if (r() < 0.7) { const bu = bush(T, r, 1.0); bu.position.set(s * (gardenX + 0.5), 0.09, Z(gz + (r() - 0.5) * 0.6)); g.add(bu); }
         bz += gap;
       }
     }
@@ -1051,7 +1171,19 @@ export function buildBackdrop(world, variant, L) {
   for (const s of [-1, 1]) {
     const fx = s * (L.halfW + 1.1);
     if (FAMILY[world] === 'town') {
-      // nothing: the houses and gardens of the street continue beside the yard
+      // World5 Frost Pass: denser depot flank — frost pines, snow drifts, wood crates.
+      if (world === 'world5') {
+        for (let k = 0; k < 3; k++) {
+          const fp = frostPine(T, r, 0.8 + r() * 0.35);
+          fp.position.set(fx + s * (0.1 + (k % 2) * 0.25), 0.02, Z(dz0 + 1.0 + k * 1.15));
+          g.add(fp);
+        }
+        const sd = snowDrift(T, r, 0.9, 0.6); sd.position.set(fx + s * 0.15, 0.02, Z(dz0 + 4.4)); g.add(sd);
+        const sd2 = snowDrift(T, r, 0.75, 0.5); sd2.position.set(fx, 0.02, Z(dz0 + 5.8)); g.add(sd2);
+        g.add(rbox(0.35, 0.28, 0.35, 0.04, std(0x8C5F3C, 0.8), fx - s * 0.15, 0.16, Z(dz0 + 7.0)));
+        if (r() < 0.7) { const fp2 = frostPine(T, r, 1.05); fp2.position.set(fx + s * 0.3, 0.02, Z(dz0 + 7.8)); g.add(fp2); }
+      }
+      // other towns: houses and gardens of the street continue beside the yard
     } else if (FAMILY[world] === 'yard') {
       for (let k = 0; k < 3; k++) { const dr = drum(pick(r, [0xFFC21A, 0x2F8CFF, 0xE0574A])); dr.position.set(fx + s * (k % 2) * 0.35, 0.02, Z(dz0 + 1.2 + k * 0.45)); g.add(dr); }
       const p = pallet(r); p.position.set(fx, 0.02, Z(dz0 + 4.4)); g.add(p);

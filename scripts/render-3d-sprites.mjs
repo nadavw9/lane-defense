@@ -24,7 +24,7 @@ const FILE = {
 };
 
 const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  executablePath: process.env.PW_EXE || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
   args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'],
 });
 const page = await browser.newPage();
@@ -156,8 +156,10 @@ if (mode === 'verges') {
   // Level-map backgrounds (one per world page) + repair building sprites.
   //   map-<world>.png (780×1688), repair-<world>-<state>-<variant>.png (300×300)
   // A later tour reuses a world's art on an identical node layout: bake each theme once.
+  // map world5 | mappreview <dir> world5 — theme arg after mode (or after outDir for preview).
+  const mapTheme = mode === 'map' ? process.argv[3] : process.argv[4];
   const firstOfTheme = MAP_WORLDS.filter((w, i, all) => all.findIndex(o => o.theme === w.theme) === i);
-  for (const w of firstOfTheme.filter(w => !process.argv[4] || w.theme === process.argv[4])) {
+  for (const w of firstOfTheme.filter(w => !mapTheme || w.theme === mapTheme)) {
     const road = mapRoadPath(w.page), nodes = mapNodes(w.page);
     const url = await page.evaluate(([t, road, nodes]) => window.studio.map(t, 1, { road, nodes }), [w.theme, road, nodes]);
     const out = mode === 'map' ? `${OUT}/map-${w.theme}.png` : `${outArg ?? '.'}/map-${w.theme}.png`;
@@ -165,7 +167,7 @@ if (mode === 'verges') {
     console.log('map', w.theme);
   }
   if (mode === 'map') {
-    for (const t of (process.argv[4] ? [process.argv[4]] : ['world1', 'world2', 'world3', 'world4', 'world5', 'world6', 'world7'])) for (const st of [0, 1, 2]) for (const v of [0, 1, 2]) {
+    for (const t of (mapTheme ? [mapTheme] : ['world1', 'world2', 'world3', 'world4', 'world5', 'world6', 'world7'])) for (const st of [0, 1, 2]) for (const v of [0, 1, 2]) {
       const url = await page.evaluate(([t, st, v]) => window.studio.repair(t, st, v), [t, st, v]);
       await sharp(decode(url)).toFile(`${OUT}/repair-${t}-${st}-${v}.png`);
     }

@@ -156,12 +156,19 @@ export function buildMapHD(theme, seed, { W, H, S, road, nodes, plots, tilt }) {
     item.scale.setScalar(0.85);
     if (!tryPut(item, p[0] + ox, p[1] + oz, 0.35)) continue;
   }
-  const budget = fam === 'town' ? (theme === 'world1' ? 140 : 110) : fam === 'yard' ? 60 : 85;
+  // Frost Pass map: denser snow town + frost pines / drifts — Toy Town bar, not a hue swap.
+  const budget = fam === 'town' ? (theme === 'world1' ? 140 : theme === 'world5' ? 155 : 110) : fam === 'yard' ? 60 : 85;
   for (let k = 0; k < 3000 && placed.length < budget; k++) {
     const x = (r() - 0.5) * (Wu + 1), z = (r() - 0.5) * (Lu + 2);
     const p = r();
     let obj, rad;
-    if (theme === 'world4' || theme === 'world5') {
+    if (theme === 'world5') {
+      if (p < 0.36) { rad = 0.8; obj = frostPine(T, r, 0.95 + r() * 0.45); }
+      else if (p < 0.52) { rad = 0.7; obj = snowDrift(T, r, 1.1, 0.8); }
+      else if (p < 0.62) { rad = 0.55; obj = bedFor(theme, T, r, 1.2, 0.8); }
+      else if (p < 0.72) { rad = 0.45; obj = potFor(theme, T, r, 1.2); }
+      else { rad = 1.7; obj = townHouse(T, r, 2.35 + r() * 0.4, 1.95, 1.25 + r() * 0.7, 1, townOpts(theme)); }
+    } else if (theme === 'world4') {
       if (p < 0.5) { rad = 0.75; obj = greenery(theme, T, r, 0.95 + r() * 0.4); }
       else if (p < 0.68) { rad = 0.6; obj = bedFor(theme, T, r, 1.2, 0.8); }
       else if (p < 0.78) { rad = 0.45; obj = potFor(theme, T, r, 1.2); }
@@ -212,14 +219,16 @@ export function buildRepairHD(theme, state, variant) {
         { style: 'flat', roof: 0xD9683D, wall: 0xEBC993, kit: 0.5 },
         { style: 'pitched', roof: 0xD9683D, wall: 0xF7E7C9 },
       ] : [
-        { style: 'pitched', roof: 0xF2F6FA, wall: 0xA8744A },
-        { style: 'pitched', roof: 0xE4ECF4, wall: 0x9A6B45 },
-        { style: 'pitched', roof: 0xF2F6FA, wall: 0xB98354 },
+        { style: 'pitched', cabin: true, roof: 0xF2F6FA, wall: 0xA8744A },
+        { style: 'pitched', cabin: true, roof: 0xE4ECF4, wall: 0x9A6B45 },
+        { style: 'pitched', cabin: true, roof: 0xDCE6F0, wall: 0xB98354 },
       ];
-      const hs = townHouse(T, rng(variant * 31 + 5), w, d, 1.15, 1, styles[variant % 3]);
+      const hh = theme === 'world5' ? 1.4 + (variant % 3) * 0.14 : 1.15;
+      const hs = townHouse(T, rng(variant * 31 + 5), theme === 'world5' ? w + 0.18 : w, d, hh, 1, styles[variant % 3]);
       const grp = new THREE.Group(); grp.add(hs);
       const fb = bedFor(theme, T, r, 0.9, 0.35); fb.position.set(-0.5, 0, d / 2 + 0.3); grp.add(fb);
-      const t = greenery(theme, T, r, 0.75); t.position.set(w / 2 + 0.2, 0, -0.3); grp.add(t);
+      const t = greenery(theme, T, r, theme === 'world5' ? 0.95 : 0.75); t.position.set(w / 2 + 0.2, 0, -0.3); grp.add(t);
+      if (theme === 'world5' && r() < 0.75) { const sd = snowDrift(T, r, 0.75, 0.45); sd.position.set(0.4, 0, d / 2 + 0.45); grp.add(sd); }
       return grp;
     }
     if (theme === 'world1') {

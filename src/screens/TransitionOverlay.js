@@ -2,7 +2,15 @@
 // Added to stage last so it always sits above every layer, including screens.
 // Re-parents itself to the top of stage on each fade so dynamic screens
 // (WinScreen, RescueOverlay) added after construction never cover it.
+//
+// Alpha uses smoothstep (not linear) so the cut feels like a store-bar wipe
+// instead of a harsh opacity ramp — Phase-2 motion soft fail toward 10/10.
 import { Graphics } from 'pixi.js';
+
+function smoothstep(t) {
+  const x = Math.max(0, Math.min(1, t));
+  return x * x * (3 - 2 * x);
+}
 
 export class TransitionOverlay {
   constructor(stage, appW, appH) {
@@ -39,7 +47,7 @@ export class TransitionOverlay {
       this._cb?.();
       return;
     }
-    this._g.alpha = this._from + (this._to - this._from) * this._t;
+    this._g.alpha = this._from + (this._to - this._from) * smoothstep(this._t);
   }
 
   // ── Private ────────────────────────────────────────────────────────────────
@@ -49,7 +57,8 @@ export class TransitionOverlay {
     this._stage.addChild(this._g);
     this._from     = from;
     this._to       = to;
-    this._duration = duration;
+    // Floor short cuts so ease has room to read (callers pass 0.20–0.25).
+    this._duration = Math.max(0.28, duration ?? 0.32);
     this._t        = 0;
     this._active   = true;
     this._cb       = cb;

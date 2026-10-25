@@ -222,11 +222,12 @@ export class LevelSelectScreen {
     if (this._container.destroyed) return;   // the arrival callback may have closed the map
     if (this._parked && (!this._drive || this._drive.done)) this._parkCar(this._parked.x, this._parked.y);
     if (this._current) {
-      const k = 0.5 + 0.5 * Math.sin(this._t * 4);
-      this._current.node.scale.set(1 + 0.06 * k);
-      this._current.ring.alpha = 0.35 + 0.5 * k;
-      this._current.ring.scale.set(1 + 0.12 * k);
-      this._current.marker.y = this._current.baseY - 6 * Math.abs(Math.sin(this._t * 3.2));
+      // F-08: stronger next-to-play pulse — was easy to miss at 0.06 / dim ring.
+      const k = 0.5 + 0.5 * Math.sin(this._t * 4.2);
+      this._current.node.scale.set(1 + 0.11 * k);
+      this._current.ring.alpha = 0.50 + 0.50 * k;
+      this._current.ring.scale.set(1 + 0.20 * k);
+      this._current.marker.y = this._current.baseY - 8 * Math.abs(Math.sin(this._t * 3.4));
     }
     for (let i = this._repairAnims.length - 1; i >= 0; i--) {
       const a = this._repairAnims[i];

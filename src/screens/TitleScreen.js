@@ -192,11 +192,14 @@ export class TitleScreen {
     const reached = this._nextLevel ?? Infinity;
     const open = (k) => reached >= TITLE_UNLOCK[k];
     const items = [];
+    // F-03: secondary meta uses ONE blue (0x2F7FE0); MAP stays green as the
+    // map entry. Amber only when DAILY is reward-ready (state, not a 4th accent).
+    const META = 0x2F7FE0;
     if (onMap) items.push({ glyph: mapGlyph, label: 'MAP', color: 0x3DBB3A, fn: onMap });
-    if (onDaily && open('daily')) items.push({ key: 'daily', icon: hasDailyReward ? 'gift' : 'calendar', emoji: hasDailyReward ? '🎁' : '📅', label: hasDailyReward ? 'DAILY!' : 'DAILY', color: hasDailyReward ? 0xF0A020 : 0x2F7FE0, fn: onDaily, badge: hasDailyReward });
-    if (onAchievements && open('trophies')) items.push({ key: 'trophies', icon: 'trophy', emoji: '🏆', label: 'TROPHIES', color: 0x2F7FE0, fn: onAchievements });
-    if (onDailyChallenge && open('challenge')) items.push({ key: 'challenge', icon: 'lightning', emoji: '⚡', label: 'CHALLENGE', color: 0x8B4FE0, fn: onDailyChallenge, done: dailyChallengeDone });
-    if (onStats && open('stats')) items.push({ key: 'stats', icon: 'chart', emoji: '📊', label: 'STATS', color: 0x2F7FE0, fn: onStats });
+    if (onDaily && open('daily')) items.push({ key: 'daily', icon: hasDailyReward ? 'gift' : 'calendar', emoji: hasDailyReward ? '🎁' : '📅', label: hasDailyReward ? 'DAILY!' : 'DAILY', color: hasDailyReward ? 0xF0A020 : META, fn: onDaily, badge: hasDailyReward });
+    if (onAchievements && open('trophies')) items.push({ key: 'trophies', icon: 'trophy', emoji: '🏆', label: 'TROPHIES', color: META, fn: onAchievements });
+    if (onDailyChallenge && open('challenge')) items.push({ key: 'challenge', icon: 'lightning', emoji: '⚡', label: 'CHALLENGE', color: META, fn: onDailyChallenge, done: dailyChallengeDone });
+    if (onStats && open('stats')) items.push({ key: 'stats', icon: 'chart', emoji: '📊', label: 'STATS', color: META, fn: onStats });
     const seen = readSeen();
     for (const it of items) if (it.key && reached !== Infinity && !seen.has(it.key)) it.isNew = true;
     const rowY = btnCY + btnH + 82, gapX = items.length > 4 ? 76 : 84;

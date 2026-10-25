@@ -3,22 +3,26 @@ Branch: art/world7-starlight-strip
 Date: 2026-10-25 Asia/Jerusalem
 Status: CONCEPT-STAMP (not HUMAN-FINAL)
 
-Clarity revision (post-feedback, still CONCEPT):
-Nadav: "The buildings aren't clear and there are maybe trees on their left that are also not clear"
-→ Stronger crystalSpire edge contrast (dark silhouette rim + bright crystal core + neon belts +
-  plaza pedestals); crystalTree greenery with clear trunk+crown (different value from towers);
-  thinned left-side filler; lighter cosmos sceneGlow so bake edges survive.
+Desaturate revision (post-feedback, still CONCEPT):
+Nadav (t10u): "Its to colourfull" — chroma overload / neon punch too high.
+→ Cooler restrained space-night palette (deeper navy asphalt, soft ice/lilac neon);
+  fewer softer road streaks; quieter fill lights + awning chroma; dialed-back cosmos
+  sceneTint/sceneGlow/emissiveBoost. KEEP clarity: dark rim + bright core on crystalSpire,
+  clear trunk+crown on left crystalTree.
+
+Previous clarity revision (kept):
+Nadav: buildings muddy + left trees unclear → silhouette rim/core + crystalTree greenery.
 
 Question for Nadav (Hebrew-friendly):
-האם עכשיו הצריחים (crystal spires) והעצים משמאל (crystal trees) ברורים — צללית נפרדת מהשמיים
-ומהרחבה, בלי בלובים מטושטשים — ואפשר לחתום HUMAN-FINAL?
+האם הצבעים עכשיו רגועים יותר (פחות ניאון/סאטורציה) ובכל זאת הצריחים והעצים משמאל
+עדיין ברורים — ואפשר לחתום HUMAN-FINAL?
 
-English: Are the crystal spire buildings and the left-side crystal trees now clearly readable —
-separate silhouettes from the night sky and plaza, no muddy blobs — ready to stamp HUMAN-FINAL?
+English: Is the plate calmer now (less neon/chroma punch) while crystal spire buildings and
+left crystal trees stay clearly readable — ready to stamp HUMAN-FINAL?
 
 Review boards:
   docs/review/art-world7-starlight-strip/before/   (original master, pre-polish)
-  docs/review/art-world7-starlight-strip/after/    (clarity revision: buildings + left trees)
+  docs/review/art-world7-starlight-strip/after/    (desaturate pass, clarity kept)
   docs/review/art-world7-starlight-strip/before-after-sheet.png
 
 Notes:
@@ -26,3 +30,4 @@ Notes:
 - Car sprites / HP sizing / gameplay untouched. Non-W7 designed sprites unchanged.
 - Keep Starlight identity (space-night, geometric crystals, star plaza) — not a Neon Nights swap.
 - Scenery strips skipped (W7 gameplay uses baked backdrops like W2–W6).
+- CONCEPT stamp notes: "desaturate pass, clarity kept".

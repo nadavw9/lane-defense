@@ -77,7 +77,7 @@ export function buildMapHD(theme, seed, { W, H, S, road, nodes, plots, tilt }) {
   const g = new THREE.Group();
   const fam = FAMILY[theme];
   const night = fam === 'night';
-  const accent = theme === 'world3' ? 0x4FE3FF : theme === 'world7' ? 0xA35CFF : null;
+  const accent = theme === 'world3' ? 0x4FE3FF : theme === 'world7' ? 0x8868B0 : null;
 
   // Ground.
   let groundMat;
@@ -101,7 +101,7 @@ export function buildMapHD(theme, seed, { W, H, S, road, nodes, plots, tilt }) {
   const path = road.map(toW);
   const roadW = 30 / S;
   let pathLen = 0; for (let i = 1; i < path.length; i++) pathLen += Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]);
-  const kerbCol = NEW_WORLD(theme) ? (theme === 'world6' ? 0xFF8A1C : theme === 'world7' ? 0xFF4FD8 : T.kerb) : theme === 'world2' ? 0xFFC21A : theme === 'world3' ? 0x4A4E62 : 0xE8E1D2;
+  const kerbCol = NEW_WORLD(theme) ? (theme === 'world6' ? 0xFF8A1C : theme === 'world7' ? 0xA878C8 : T.kerb) : theme === 'world2' ? 0xFFC21A : theme === 'world3' ? 0x4A4E62 : 0xE8E1D2;
   g.add(ribbon(path, roadW + 0.55, std(kerbCol, 0.7), 0.04));
   const rt = roadStripTexture(T, theme, r);
   rt.repeat.set(1, 1);
@@ -191,11 +191,11 @@ export function buildMapHD(theme, seed, { W, H, S, road, nodes, plots, tilt }) {
       else if (p < 0.9) { rad = 0.7; obj = new THREE.Group(); for (let k = 0; k < 2; k++) { const pl = pallet(r); pl.position.x = k * 0.85; obj.add(pl); } }
       else { rad = 0.5; obj = new THREE.Group(); for (let k = 0; k < 3; k++) { const c = cone(); c.position.x = k * 0.35; obj.add(c); } }
     } else if (theme === 'world7') {
-      // Clarity: fewer denser-spaced spires + sparse crystal trees (not blob mush).
+      // Clarity kept + desaturate: spires/trees dominant; fewer neon signs.
       if (p < 0.12) { rad = 0.45; obj = lamp(T, r, true, 1); }
-      else if (p < 0.52) { rad = 2.1; obj = crystalSpire(T, r, 1.6 + r() * 0.45, 1.45, 2.4 + r() * 2.0); }
-      else if (p < 0.66) { rad = 1.05; obj = greenery(theme, T, r, 1.05 + r() * 0.3); }
-      else if (p < 0.82) { rad = 0.65; obj = neonSign(T, r, 1.1); }
+      else if (p < 0.55) { rad = 2.1; obj = crystalSpire(T, r, 1.6 + r() * 0.45, 1.45, 2.4 + r() * 2.0); }
+      else if (p < 0.74) { rad = 1.05; obj = greenery(theme, T, r, 1.05 + r() * 0.3); }
+      else if (p < 0.86) { rad = 0.65; obj = neonSign(T, r, 1.0); }
       else { rad = 0.4; obj = crystalBollard(pick(r, T.neon)); }
     } else {
       if (p < 0.18) { rad = 0.4; obj = lamp(T, r, true, 1); }

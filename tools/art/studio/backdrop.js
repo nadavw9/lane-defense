@@ -203,22 +203,22 @@ Object.assign(THEME, {
     lot: 0x70828F,
     sun: { color: 0xFFF0DA, intensity: 3.1, hemi: [0xCFE6FF, 0x5E6C78, 0.66], env: 0.32, exposure: 1.0 },
   },
-  // Starlight Strip — violet space-night: crystal spires, magenta neon, star-field plaza.
-  // Structural variety (faceted crystal towers, pedestaled crystal clusters, star plaza) —
+  // Starlight Strip — restrained space-night: crystal spires + crystal trees on deep navy/violet.
+  // Desaturate pass: cooler palette, softer neon; KEEP dark-rim / bright-core silhouette clarity.
   // NOT a Neon Nights hue swap (no setback city towers / warm marquees).
   world7: {
-    asphalt: 0x241838, asphaltHi: 0x32245A, asphaltLo: 0x1A1234, paint: '#F1E8FF', centre: '#FF4FD8',
-    kerb: 0x7A5CC8, gutter: 0x120A22, walk: [0x2A1E4E, 0x24183F, 0x32245A, 0x1E1438], walkJoint: '#140C28',
-    // Crystal-tree crowns: bright cyan/magenta (different value from dark tower walls).
-    lawn: [0x140E2A, 0x100A22], leaf: [0x8FE8FF, 0xFF4FD8, 0xC89CFF, 0xFFD42A, 0xA35CFF], trunk: 0x140C28,
-    roofs: [0x0E0818, 0x160E2E, 0x1A1234, 0x24183F],
-    // Dark silhouette walls (not mid-violet wash) — facets + neon belts carry the read.
-    walls: [0x1A1234, 0x140C28, 0x221848, 0x0E0818],
-    awnings: [[0xFF4FD8, 0x1A1234], [0xA35CFF, 0x1A1234], [0x8FE8FF, 0x1A1234]],
-    depot: [0x1C1438, 0x241A44, 0x160E2E], depotJoint: '#0C0818', track: 0x18122E, trackEdge: 0xFF4FD8,
-    neon: [0xFF4FD8, 0xA35CFF, 0x8FE8FF, 0xFFD42A, 0x7C5CFF], lot: 0x0A0718,
-    fill: [0xFF4FD8, 0x7C5CFF],
-    sun: { color: 0xD0C0FF, intensity: 1.85, hemi: [0x9A82FF, 0x0A0618, 0.72], env: 0.26, exposure: 1.05 },
+    asphalt: 0x1A142E, asphaltHi: 0x262040, asphaltLo: 0x120E24, paint: '#D0CCD8', centre: '#A878C8',
+    kerb: 0x564878, gutter: 0x0E0A1C, walk: [0x1E1838, 0x181430, 0x241E42, 0x16122C], walkJoint: '#100C20',
+    // Crystal-tree crowns: soft ice/lilac (readable vs dark trunks; no hot magenta/gold punch).
+    lawn: [0x100C20, 0x0C0818], leaf: [0x7EC8E0, 0xA888D0, 0x98B0E8, 0xC8A8E0, 0x6A90C8], trunk: 0x100C20,
+    roofs: [0x0C0814, 0x120E24, 0x16122C, 0x1C1834],
+    // Dark silhouette walls kept — facets + soft neon belts carry the read.
+    walls: [0x16122C, 0x100C20, 0x1C1838, 0x0C0814],
+    awnings: [[0x8868B0, 0x16122C], [0x6A88C0, 0x16122C], [0x7EB0C8, 0x16122C]],
+    depot: [0x16122E, 0x1C1838, 0x120E24], depotJoint: '#0A0814', track: 0x141028, trackEdge: 0xA878C8,
+    neon: [0xA878C8, 0x7EB0C8, 0x8898D0, 0xB898D8, 0x6A80B8], lot: 0x080610,
+    fill: [0x7050A0, 0x5060A0],
+    sun: { color: 0xB8B0D8, intensity: 1.55, hemi: [0x6A68A0, 0x080610, 0.55], env: 0.22, exposure: 0.98 },
   },
 });
 
@@ -279,18 +279,18 @@ function roadTexture(T, world, L, r) {
   if (FAMILY[world] === 'night') {
     // Wet asphalt: lamp pools and long neon streak reflections, added
     // light-on-dark ('lighter') so they glow instead of staining.
-    // World7 denser magenta/violet crystal wash (not warm sodium like Neon Nights).
-    const wetDense = world === 'world7';
+    // World7 soft violet wash (restrained vs Neon Nights sodium; desaturate pass).
+    const wetSoft = world === 'world7';
     x.save(); x.globalCompositeOperation = 'lighter';
     for (const [lx, lz, col] of L.lampPools ?? []) {
-      blotch(x, X(lx), Y(lz), (wetDense ? 3.6 : 3.2) * pxu, col, wetDense ? 0.26 : 0.22);
-      blotch(x, X(lx), Y(lz), 1.4 * pxu, wetDense ? 0xFFB0F0 : 0xFFE2A8, wetDense ? 0.18 : 0.16);
+      blotch(x, X(lx), Y(lz), (wetSoft ? 2.8 : 3.2) * pxu, col, wetSoft ? 0.14 : 0.22);
+      blotch(x, X(lx), Y(lz), 1.2 * pxu, wetSoft ? 0xC8B0E8 : 0xFFE2A8, wetSoft ? 0.10 : 0.16);
     }
     for (const [sx, sz, col] of L.neonStreaks ?? []) {
-      const gx = X(sx), gy = Y(sz), hw = (wetDense ? 0.42 : 0.35) * pxu, hh = (wetDense ? 3.1 : 2.6) * pxu;
+      const gx = X(sx), gy = Y(sz), hw = (wetSoft ? 0.28 : 0.35) * pxu, hh = (wetSoft ? 2.2 : 2.6) * pxu;
       const g = x.createLinearGradient(gx, gy - hh, gx, gy + hh);
       const c = new THREE.Color(col), rgb = `${Math.round(c.r * 255)},${Math.round(c.g * 255)},${Math.round(c.b * 255)}`;
-      g.addColorStop(0, `rgba(${rgb},0)`); g.addColorStop(0.5, `rgba(${rgb},${wetDense ? 0.42 : 0.35})`); g.addColorStop(1, `rgba(${rgb},0)`);
+      g.addColorStop(0, `rgba(${rgb},0)`); g.addColorStop(0.5, `rgba(${rgb},${wetSoft ? 0.22 : 0.35})`); g.addColorStop(1, `rgba(${rgb},0)`);
       x.fillStyle = g;
       x.beginPath(); x.ellipse(gx, gy, hw, hh, 0, 0, Math.PI * 2); x.fill();
     }
@@ -627,7 +627,7 @@ function crystal(T, r, s = 1) {
     g.add(c);
   }
   const tipH = (1.15 + r() * 0.55) * s;
-  const tip = new THREE.Mesh(new THREE.OctahedronGeometry(0.11 * s, 0), glow(pick(r, [0xFF4FD8, 0x8FE8FF, 0xFFD42A])));
+  const tip = new THREE.Mesh(new THREE.OctahedronGeometry(0.11 * s, 0), glow(pick(r, [0xA878C8, 0x7EC8E0, 0x98B0E8])));
   tip.scale.set(0.65, tipH / (0.22 * s), 0.65);
   tip.position.set(0, pedH + tipH * 0.5, 0);
   g.add(tip);
@@ -641,11 +641,11 @@ function crystalTree(T, r, s = 1) {
   const trunkR = (0.055 + r() * 0.02) * s;
   // Near-black trunk + thin cyan neon seam so trunk separates from night plaza.
   g.add(cyl(trunkR, trunkR * 1.15, trunkH, std(0x0E0818, 0.55, { metalness: 0.35 }), 0, trunkH / 2, 0, 8));
-  g.add(cyl(trunkR * 0.35, trunkR * 0.35, trunkH * 0.92, glow(pick(r, [0x8FE8FF, 0xA35CFF])), 0, trunkH / 2, 0, 6));
+  g.add(cyl(trunkR * 0.35, trunkR * 0.35, trunkH * 0.92, glow(pick(r, [0x7EC8E0, 0x8898D0])), 0, trunkH / 2, 0, 6));
   // Small dark planter disk (not a building pedestal).
-  g.add(cyl(trunkR * 2.4, trunkR * 2.6, 0.06 * s, std(0x120A28, 0.6, { metalness: 0.3 }), 0, 0.03 * s, 0, 10));
-  // Crown: 1 tall centre octahedron + 3–4 side leaves — clear tree silhouette.
-  const crownCols = [0x8FE8FF, 0xFF4FD8, 0xC89CFF, 0xFFD42A, 0xA35CFF];
+  g.add(cyl(trunkR * 2.4, trunkR * 2.6, 0.06 * s, std(0x100C20, 0.6, { metalness: 0.3 }), 0, 0.03 * s, 0, 10));
+  // Crown: 1 tall centre octahedron + 3–4 side leaves — clear tree silhouette (soft ice/lilac).
+  const crownCols = [0x7EC8E0, 0xA888D0, 0x98B0E8, 0xC8A8E0, 0x6A90C8];
   const centreH = (0.85 + r() * 0.55) * s;
   const centre = new THREE.Mesh(new THREE.OctahedronGeometry(0.22 * s, 0), glow(pick(r, crownCols)));
   centre.scale.set(1, centreH / (0.44 * s), 1);
@@ -661,8 +661,8 @@ function crystalTree(T, r, s = 1) {
     leaf.rotation.set((r() - 0.5) * 0.5, a, (r() - 0.5) * 0.35 + 0.55);
     g.add(leaf);
   }
-  // Magenta tip sparkle — reads as tree top, not tower aviation beacon.
-  g.add(sphere(0.06 * s, glow(0xFF4FD8), 0, trunkH + centreH * 0.85, 0, 8, 6));
+  // Soft lilac tip — reads as tree top, not tower aviation beacon.
+  g.add(sphere(0.06 * s, glow(0xA878C8), 0, trunkH + centreH * 0.85, 0, 8, 6));
   return g;
 }
 function crystalSpire(T, r, w, d, h) {
@@ -687,12 +687,12 @@ function crystalSpire(T, r, w, d, h) {
     const body = std(mix(wall, 0x000000, 0.15), 0.4, { metalness: 0.5 });
     g.add(rbox(tw, th * 0.96, td, 0.02, body, 0, y + th / 2, 0));
     // Bright crystal core (rotated diamond) — high value vs dark shell.
-    const coreCol = mix(neon, 0xffffff, 0.25 + i * 0.08);
-    const facet = rbox(tw * 0.62, th * 0.9, td * 0.62, 0.02, std(coreCol, 0.25, { metalness: 0.65, emissive: neon, emissiveIntensity: 0.18 }), 0, y + th / 2, 0);
+    const coreCol = mix(neon, 0xffffff, 0.18 + i * 0.06);
+    const facet = rbox(tw * 0.62, th * 0.9, td * 0.62, 0.02, std(coreCol, 0.28, { metalness: 0.55, emissive: neon, emissiveIntensity: 0.10 }), 0, y + th / 2, 0);
     facet.rotation.y = Math.PI / 4;
     g.add(facet);
     // Vertical edge highlights (4 corners) — crisp facet read at bake resolution.
-    const edgeM = glow(mix(neon, 0xffffff, 0.35));
+    const edgeM = glow(mix(neon, 0xffffff, 0.22));
     const ew = 0.035, eh = th * 0.85;
     for (const [sx, sz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
       g.add(box(ew, eh, ew, edgeM, sx * (tw / 2 + 0.01), y + th / 2, sz * (td / 2 + 0.01)));
@@ -703,7 +703,7 @@ function crystalSpire(T, r, w, d, h) {
     const cols = Math.max(1, Math.floor(tw / 0.55));
     for (let c = 0; c < cols; c++) {
       if (r() < 0.4) continue;
-      g.add(box(0.12, th * 0.42, 0.025, glow(pick(r, [0x8FE8FF, 0xFF4FD8, 0xFFD42A])),
+      g.add(box(0.12, th * 0.42, 0.025, glow(pick(r, [0x7EC8E0, 0xA878C8, 0x98B0E8])),
         -tw / 2 + (c + 0.5) * (tw / cols), y + th * 0.48, td / 2 + 0.03));
     }
     y += th;
@@ -713,18 +713,18 @@ function crystalSpire(T, r, w, d, h) {
   // Single bright crown octahedron (no side-shard mush).
   const crownH = 0.85 + r() * 0.45;
   const crownR = Math.max(0.28, Math.min(tw, td) * 0.7);
-  const crown = new THREE.Mesh(new THREE.OctahedronGeometry(crownR, 0), glow(pick(r, [0x8FE8FF, 0xFF4FD8, 0xC89CFF, 0xFFD42A])));
+  const crown = new THREE.Mesh(new THREE.OctahedronGeometry(crownR, 0), glow(pick(r, [0x7EC8E0, 0xA878C8, 0x98B0E8, 0xC8A8E0])));
   crown.scale.set(1, crownH / crownR, 1);
   crown.position.y = y + crownH * 0.42;
   g.add(crown);
   // Dark collar under crown so crown doesn't melt into top tier.
   g.add(rbox(tw + 0.1, 0.05, td + 0.1, 0.02, rim, 0, y + 0.02, 0));
-  // Magenta aviation tip.
-  g.add(cyl(0.045, 0.045, 0.32, std(0x140C28, 0.5), 0, y + crownH + 0.12, 0, 6));
-  g.add(cyl(0.1, 0.1, 0.1, glow(0xFF4FD8), 0, y + crownH + 0.32, 0, 10));
+  // Soft violet aviation tip (no hot magenta punch).
+  g.add(cyl(0.045, 0.045, 0.32, std(0x100C20, 0.5), 0, y + crownH + 0.12, 0, 6));
+  g.add(cyl(0.1, 0.1, 0.1, glow(0xA878C8), 0, y + crownH + 0.32, 0, 10));
   return g;
 }
-function crystalBollard(col = 0xA35CFF) {
+function crystalBollard(col = 0xA878C8) {
   // Small glowing crystal post for Starlight Strip sidewalks.
   const g = new THREE.Group();
   g.add(cyl(0.1, 0.12, 0.08, std(0x1A1234, 0.55, { metalness: 0.4 }), 0, 0.04, 0, 10));
@@ -758,22 +758,22 @@ function starTexture(wU, dU, r, pxu = 24) {
   const W = Math.round(wU * pxu), H = Math.round(dU * pxu);
   const [c, x] = canvas(W, H);
   x.fillStyle = '#0A0718'; x.fillRect(0, 0, W, H);
-  // Soft nebula underlay (deeper violet, not crystal-bright).
-  for (let i = 0; i < 8; i++) blotch(x, r() * W, r() * H, 50 + r() * 100, [0x1A1040, 0x140C30, 0x22104A, 0x0E0A22][i % 4], 0.28);
+  // Soft nebula underlay (deeper navy, restrained).
+  for (let i = 0; i < 6; i++) blotch(x, r() * W, r() * H, 50 + r() * 100, [0x141028, 0x100C20, 0x1A1434, 0x0C0818][i % 4], 0.22);
   // Faint plaza tile grid so it reads as a floor, not open space mush.
-  x.strokeStyle = 'rgba(90,70,160,0.18)'; x.lineWidth = 1;
+  x.strokeStyle = 'rgba(70,60,120,0.14)'; x.lineWidth = 1;
   const tile = Math.max(18, Math.round(pxu * 0.9));
   for (let gx = 0; gx < W; gx += tile) { x.beginPath(); x.moveTo(gx, 0); x.lineTo(gx, H); x.stroke(); }
   for (let gy = 0; gy < H; gy += tile) { x.beginPath(); x.moveTo(0, gy); x.lineTo(W, gy); x.stroke(); }
-  // Dense tiny stars + a few brighter flares.
-  speckle(x, W, H, r, Math.floor(W * H * 0.018), ['#FFFFFF', '#E8DCFF', '#CFC3FF', '#8FE8FF'], 0.4, 1.2, 0.45, 0.95);
-  for (let i = 0; i < Math.max(8, Math.floor(W * H * 0.00035)); i++) {
-    const sx = r() * W, sy = r() * H, rr = 1.2 + r() * 2.2;
-    x.fillStyle = ['#FFFFFF', '#FFC8F2', '#C89CFF', '#8FE8FF'][Math.floor(r() * 4)];
-    x.globalAlpha = 0.7 + r() * 0.3;
+  // Quieter stars + fewer cool flares (desaturate pass).
+  speckle(x, W, H, r, Math.floor(W * H * 0.012), ['#FFFFFF', '#D8D4E8', '#C0C8E0', '#A8C0D8'], 0.35, 1.0, 0.35, 0.75);
+  for (let i = 0; i < Math.max(4, Math.floor(W * H * 0.00018)); i++) {
+    const sx = r() * W, sy = r() * H, rr = 1.0 + r() * 1.6;
+    x.fillStyle = ['#FFFFFF', '#C8C0E0', '#A8B8D8', '#B0A8C8'][Math.floor(r() * 4)];
+    x.globalAlpha = 0.45 + r() * 0.25;
     x.beginPath(); x.arc(sx, sy, rr, 0, Math.PI * 2); x.fill();
-    x.globalAlpha = 0.35; x.fillRect(sx - rr * 2.2, sy - 0.5, rr * 4.4, 1);
-    x.fillRect(sx - 0.5, sy - rr * 2.2, 1, rr * 4.4);
+    x.globalAlpha = 0.22; x.fillRect(sx - rr * 2.0, sy - 0.5, rr * 4.0, 1);
+    x.fillRect(sx - 0.5, sy - rr * 2.0, 1, rr * 4.0);
     x.globalAlpha = 1;
   }
   return toTex(c);
@@ -999,10 +999,11 @@ export function buildBackdrop(world, variant, L) {
   // Street lamps (both sides), used for night light pools too.
   const lampZs = [];
   for (let gz = L.topZ + 3 + r() * 2; gz < L.breachZ - 2.5; gz += 7.5 + r() * 1.5) lampZs.push(gz);
-  const poolCol = world === 'world7' ? 0xC070FF : 0xFFB45A;
+  const poolCol = world === 'world7' ? 0x8060B0 : 0xFFB45A;
   const lampPools = night ? lampZs.flatMap((lz) => [[-(L.halfW - 0.9), lz + 0.3, poolCol], [(L.halfW - 0.9), lz + 3.6, poolCol]]) : [];
-  const streakN = world === 'world7' ? 14 : 9;
-  const neonStreaks = night ? Array.from({ length: streakN }, (_, i) => [(i % 2 ? 1 : -1) * (L.halfW - 0.45 - r() * 0.7), L.topZ + 1.5 + i * (world === 'world7' ? 2.4 : 3.1) + r(), pick(r, T.neon ?? [0xFF3DB8, 0x4FE3FF, 0xA35CFF])]) : [];
+  // Desaturate: fewer softer streaks on W7 (was 14 dense magenta punches).
+  const streakN = world === 'world7' ? 7 : 9;
+  const neonStreaks = night ? Array.from({ length: streakN }, (_, i) => [(i % 2 ? 1 : -1) * (L.halfW - 0.45 - r() * 0.7), L.topZ + 1.5 + i * (world === 'world7' ? 4.2 : 3.1) + r(), pick(r, T.neon ?? [0xFF3DB8, 0x4FE3FF, 0xA35CFF])]) : [];
 
   // 1. Road surface (textured plane in game units, stretched onto studio z).
   const roadTex = roadTexture(T, world, { pxu, halfW: L.halfW, laneXs: L.laneXs, z0, z1: L.breachZ + 0.05, crossZ, lampPools, neonStreaks }, r);
@@ -1082,8 +1083,8 @@ export function buildBackdrop(world, variant, L) {
         // thin the left-side mush; prefer readable props over dense unclear filler.
         if (kind < 0.22) { const t = greenery(world, T, r, 1.05 + r() * 0.25); t.position.set(px, 0.1, Z(tz)); g.add(t); }
         else if (kind < 0.55) { for (let k = 0; k < 2; k++) { const b = crystalBollard(pick(r, T.neon)); b.position.set(px - s * 0.1, 0.1, Z(tz + k * 0.8)); g.add(b); } }
-        else if (kind < 0.78) { const n = neonSign(T, r, 1.0 + r() * 0.4); n.position.set(px + s * 0.15, 0.1, Z(tz)); n.rotation.y = Math.PI / 2; g.add(n); }
-        else { const b = crystalBollard(0xFF4FD8); b.position.set(px - s * 0.15, 0.1, Z(tz)); g.add(b); const b2 = crystalBollard(0x8FE8FF); b2.position.set(px - s * 0.15, 0.1, Z(tz + 0.9)); g.add(b2); }
+        else if (kind < 0.70) { const n = neonSign(T, r, 1.0 + r() * 0.35); n.position.set(px + s * 0.15, 0.1, Z(tz)); n.rotation.y = Math.PI / 2; g.add(n); }
+        else { const b = crystalBollard(0xA878C8); b.position.set(px - s * 0.15, 0.1, Z(tz)); g.add(b); const b2 = crystalBollard(0x7EC8E0); b2.position.set(px - s * 0.15, 0.1, Z(tz + 0.9)); g.add(b2); }
       } else {
         if (kind < 0.4) { const t = greenery(world, T, r, 0.85); t.position.set(px, 0.1, Z(tz)); g.add(t); }
         else if (kind < 0.7) { const b = bollard(0x4A4E62); b.position.set(px - s * 0.1, 0.1, Z(tz)); g.add(b); const b2 = bollard(0x4A4E62); b2.position.set(px - s * 0.1, 0.1, Z(tz + 0.7)); g.add(b2); }
@@ -1216,8 +1217,8 @@ export function buildBackdrop(world, variant, L) {
       const p = pallet(r); p.position.set(fx, 0.02, Z(dz0 + 4.4)); g.add(p);
       const c = cone(); c.position.set(fx - s * 0.2, 0.02, Z(dz0 + 6.2)); g.add(c);
     } else if (world === 'world7') {
-      const n = neonSign(T, r, 1.35); n.position.set(fx + s * 0.2, 0.02, Z(dz0 + 1.8)); g.add(n);
-      if (r() < 0.55) { const n2 = neonSign(T, r, 0.9); n2.position.set(fx + s * 0.35, 0.02, Z(dz0 + 3.4)); n2.rotation.y = Math.PI / 2; g.add(n2); }
+      const n = neonSign(T, r, 1.2); n.position.set(fx + s * 0.2, 0.02, Z(dz0 + 1.8)); g.add(n);
+      if (r() < 0.35) { const n2 = neonSign(T, r, 0.85); n2.position.set(fx + s * 0.35, 0.02, Z(dz0 + 3.4)); n2.rotation.y = Math.PI / 2; g.add(n2); }
       // One clear crystal tree per flank (not two overlapping greenery blobs).
       const t = greenery(world, T, r, 1.15); t.position.set(fx, 0.02, Z(dz0 + 5.4)); g.add(t);
       for (let k = 0; k < 3; k++) { const b = crystalBollard(pick(r, T.neon)); b.position.set(fx - s * 0.15, 0.02, Z(dz0 + 2.6 + k * 0.55)); g.add(b); }
@@ -1272,14 +1273,14 @@ export function renderBackdrop(renderer, world, variant, L, { scale = 2, ss = 2 
   sun.position.add(new THREE.Vector3(0, 0, zMid));
   scene.add(sun, sun.target);
   if (FAMILY[world] === 'night') {
-    // Coloured neon fill from the flanks — World7 punches magenta/violet so crystals read.
+    // Coloured neon fill from the flanks — World7 kept cool/restrained (desaturate pass).
     const [fa, fb2] = T.fill ?? [0xFF3DB8, 0x4FE3FF];
-    const inten = world === 'world7' ? 0.38 : 0.35;
+    const inten = world === 'world7' ? 0.18 : 0.35;
     const a = new THREE.DirectionalLight(fa, inten); a.position.set(-10, 6, zMid); scene.add(a);
     const b = new THREE.DirectionalLight(fb2, inten); b.position.set(10, 6, zMid); scene.add(b);
     if (world === 'world7') {
-      // Softer fill — hard rim/core contrast on spires must survive the bake (not violet wash).
-      const c = new THREE.PointLight(0xA35CFF, 0.35, 40, 2); c.position.set(0, 8, zMid); scene.add(c);
+      // Quiet fill — rim/core silhouette survives; no violet chroma wash.
+      const c = new THREE.PointLight(0x7060A0, 0.16, 40, 2); c.position.set(0, 8, zMid); scene.add(c);
     }
   }
 

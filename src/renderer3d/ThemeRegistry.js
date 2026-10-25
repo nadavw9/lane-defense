@@ -115,18 +115,18 @@ export const THEMES = {
     fog:       { color: 0x9cc0cc, near: 24, far: 84 },
     roadColor: 0x1c2024,
   },
-  // Cosmos (World 7, L91-100): deep violet space, neon rim, dark low fog.
+  // Cosmos (World 7, L91-100): deep navy/violet space, restrained neon, dark low fog.
   cosmos: {
-    sky:       { zenith: 0x0a0420, mid: 0x1c0a48, horizon: 0x4a1a8a, glow: 0xb040ff },
-    hemi:      { sky: 0x4a2a8a, ground: 0x120a2a, intensity: 0.55 },
-    sun:       { color: 0xb090ff, intensity: 0.40 },
-    ambient:   { color: 0xd8c8ff, intensity: 0.58 },
-    fog:       { color: 0x2a1458, near: 14, far: 48 },
-    roadColor: 0x120c1e,
-    emissiveBoost: 0.35,
-    // Clarity revision: lighter wash so crystalSpire / crystalTree edges from the bake survive.
-    sceneTint: 0xD0C4F0,
-    sceneGlow: 0x241028,
+    sky:       { zenith: 0x080318, mid: 0x140830, horizon: 0x2e1858, glow: 0x6840a0 },
+    hemi:      { sky: 0x3a2868, ground: 0x0c0818, intensity: 0.42 },
+    sun:       { color: 0x9080c0, intensity: 0.30 },
+    ambient:   { color: 0xb0a8c8, intensity: 0.42 },
+    fog:       { color: 0x1a0e38, near: 14, far: 48 },
+    roadColor: 0x100c1a,
+    emissiveBoost: 0.18,
+    // Desaturate pass: quieter wash so bake chroma stays calm; silhouette edges still read.
+    sceneTint: 0xA8A0B8,
+    sceneGlow: 0x100818,
   },
 };
 

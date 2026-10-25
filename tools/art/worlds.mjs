@@ -63,13 +63,13 @@ ROAD.world6 = () => {            // wet blue-grey dock concrete, expansion joint
     <rect x="0" y="0" width="4" height="512" fill="#47525E" opacity=".5"/>
     <rect x="243" y="154" width="26" height="204" rx="4" fill="#3FA9F5"/>`;
 };
-ROAD.world7 = () => {            // violet space-night asphalt + star flecks, glowing magenta dash
+ROAD.world7 = () => {            // deep navy space-night asphalt + soft star flecks, restrained violet dash
   const r = rng(29);
-  return `<defs><filter id="g7" x="-200%" y="-20%" width="500%" height="140%"><feGaussianBlur stdDeviation="10"/></filter></defs>
-    <rect width="512" height="512" fill="#241838"/>${specks(r, 280, ['#32245A', '#1A1234', '#3A2A68'])}${specks(r, 70, ['#FFFFFF', '#E8DCFF', '#CFC3FF'], 0.75)}
-    <rect x="234" y="142" width="44" height="228" rx="22" fill="#FF4FD8" opacity=".48" filter="url(#g7)"/>
-    <rect x="243" y="154" width="26" height="204" rx="13" fill="#FFD0F4"/>
-    <rect x="246" y="160" width="20" height="192" rx="10" fill="#FFFFFF" opacity=".22"/>`;
+  return `<defs><filter id="g7" x="-200%" y="-20%" width="500%" height="140%"><feGaussianBlur stdDeviation="8"/></filter></defs>
+    <rect width="512" height="512" fill="#1A142E"/>${specks(r, 220, ['#262040', '#120E24', '#2A2448'])}${specks(r, 50, ['#FFFFFF', '#D0CCD8', '#B8B8C8'], 0.55)}
+    <rect x="234" y="142" width="44" height="228" rx="22" fill="#A878C8" opacity=".28" filter="url(#g7)"/>
+    <rect x="243" y="154" width="26" height="204" rx="13" fill="#D0C0E0"/>
+    <rect x="246" y="160" width="20" height="192" rx="10" fill="#FFFFFF" opacity=".14"/>`;
 };
 
 export function roadTileSVG(world = 'world1') {
@@ -84,7 +84,7 @@ const FLOOR = {
   world4: { base: '#B9996B', tile: '#C7A878', edge: null },          // sandstone flags
   world5: { base: '#A9BBCD', tile: '#C0D0DF', edge: null },          // packed snow
   world6: { base: '#4C5967', tile: '#5A6876', edge: '#FF8A1C' },     // dock plate
-  world7: { base: '#120A28', tile: '#1C1438', edge: '#FF4FD8' },     // starlight grid
+  world7: { base: '#100C20', tile: '#181430', edge: '#8868B0' },     // starlight grid (restrained)
 };
 export function zoneFloorSVG(world = 'world1', H = 260) {
   const W = 780, f = FLOOR[world];

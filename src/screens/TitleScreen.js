@@ -147,7 +147,7 @@ export class TitleScreen {
       hero.anchor.set(0.5);
       this._heroScale = 190 / heroTex.width;
       hero.scale.set(this._heroScale);
-      hero.x = w / 2; hero.y = h * 0.405;
+      hero.x = w / 2; hero.y = h * 0.355;  // F-01: raised with PLAY (was 0.405)
       this._heroY = hero.y;
       this._container.addChild(hero);
       this._hero = hero;
@@ -155,7 +155,7 @@ export class TitleScreen {
 
     // ── PLAY button (revealed after the intro bomb-drop) ─────────────────────
     const btnW = 308, btnH = 88;        // +10% larger (was 280×80)
-    const btnCX = w / 2, btnCY = h * 0.535;
+    const btnCX = w / 2, btnCY = h * 0.475;  // F-01: raise CTA (was 0.535) — city art uncropped
 
     // Pulsing golden glow ring behind the button — drawn each frame in
     // _tickPlayGlow (same base+sin "ready glow" pattern as the booster bar).
@@ -202,7 +202,7 @@ export class TitleScreen {
     if (onStats && open('stats')) items.push({ key: 'stats', icon: 'chart', emoji: '📊', label: 'STATS', color: META, fn: onStats });
     const seen = readSeen();
     for (const it of items) if (it.key && reached !== Infinity && !seen.has(it.key)) it.isNew = true;
-    const rowY = btnCY + btnH + 82, gapX = items.length > 4 ? 76 : 84;
+    const rowY = btnCY + btnH + 72, gapX = items.length > 4 ? 76 : 84;  // F-01: tighter under raised PLAY
     items.forEach((it, i) => {
       const x = w / 2 + (i - (items.length - 1) / 2) * gapX;
       const rbtn = roundButton(it.glyph ? it.glyph() : uiIcon(it.icon, 34, it.emoji), { r: 30, color: it.color, onTap: () => { audio?.play('button_tap'); if (it.isNew) markSeen(it.key); it.fn(); } });
@@ -284,7 +284,7 @@ export class TitleScreen {
     if (I.phase === 'wait') {
       if (I.t >= 0.3) {
         I.phase = 'pop'; I.t = 0;
-        this._spawnIntroParticles(I, this._appW / 2, this._heroY ?? this._appH * 0.405);
+        this._spawnIntroParticles(I, this._appW / 2, this._heroY ?? this._appH * 0.355);
       }
       return;
     }

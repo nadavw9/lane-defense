@@ -4,9 +4,10 @@
 // Each slide is an illustration composed from the game's own sprites (so it can
 // never drift from the art the way the old L22 screenshots did) above a title
 // and two lines of copy. ◀ / ▶ step through; the last slide ends with GOT IT!.
+// Illustration well uses PremiumUI.card (gold-rim indigo) — Play Store chrome parity.
 import { Container, Graphics, Sprite, Assets } from 'pixi.js';
 import { uiIcon, boosterIcon } from '../renderer/UIIcon.js';
-import { panel, ribbon, button, roundButton, titleText, bodyText, backdrop, GOLD, RIBBON } from '../renderer/PremiumUI.js';
+import { panel, ribbon, button, roundButton, titleText, bodyText, backdrop, card, GOLD, GOLD_DEEP, RIBBON } from '../renderer/PremiumUI.js';
 import { INK, WHITE } from '../renderer/ToyStyle.js';
 
 const _B = import.meta.env.BASE_URL ?? '';
@@ -58,13 +59,17 @@ export class HowToPlayOverlay {
     close.x = PW - 14; close.y = 14;
     c.addChild(close);
 
-    // Illustration well.
+    // Illustration well — PremiumUI.card (gold rim + indigo face), same language as
+    // Stats/Achievements/Settings. Retires flat navy Graphics that read below store bar.
     const ax = 22, ay = 48, aw = PW - 44;
-    const well = new Graphics();
-    well.roundRect(ax, ay, aw, ART_H, 18).fill(0x1B2A4A);
-    well.roundRect(ax, ay, aw, ART_H * 0.5, 18).fill({ color: 0x3A6FB0, alpha: 0.25 });
-    well.roundRect(ax, ay, aw, ART_H, 18).stroke({ color: 0x0C0A26, width: 2.5 });
-    c.addChild(well);
+    const wellCard = card(aw, ART_H, {
+      r: 18,
+      rim: GOLD_DEEP,
+      face: 0x2A3568,       // slightly cooler than default indigo — art stage, not list card
+      faceDeep: 0x14122E,
+    });
+    wellCard.x = ax; wellCard.y = ay;
+    c.addChild(wellCard);
     const art = new Container();
     art.x = ax + aw / 2; art.y = ay + ART_H / 2;
     c.addChild(art);

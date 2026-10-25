@@ -174,14 +174,16 @@ const THEME = {
 const FAMILY = { world1: 'town', world2: 'yard', world3: 'night', world4: 'town', world5: 'town', world6: 'yard', world7: 'night' };
 Object.assign(THEME, {
   // Sun Valley — sun-bleached desert town: sand lots, adobe flat roofs, cacti.
+  // Structural variety (vigas, porches, L-wings, sand drifts) — not a hue swap of Toy Town.
   world4: {
-    asphalt: 0x75706B, asphaltHi: 0x817C77, asphaltLo: 0x666260, paint: '#FFF1D2', centre: '#FFF1D2',
-    kerb: 0xE9CFA0, gutter: 0x7A6A58, walk: [0xE9CC9C, 0xDFBE8A, 0xF0D6AA], walkJoint: '#B99768',
-    lawn: [0xE3C58C, 0xD6B574], leaf: [0x6E9A4E, 0x7FAE5A, 0x5F8C45, 0x8CBB66], trunk: 0x8A6A4A,
-    roofs: [0xD9683D, 0xE08A44, 0xC4553A, 0xE8A25A], walls: [0xF4DDB2, 0xEBC993, 0xF7E7C9, 0xE6B98A],
-    awnings: [[0x1FB8B0, 0xFFFFFF], [0xFF8A1C, 0xFFFFFF], [0xE8453C, 0xFFFFFF]],
-    depot: [0xE3C690, 0xD9B97E, 0xEBD0A0], depotJoint: '#B59462', track: 0x9A7B55, trackEdge: 0xFFE9BD,
-    sun: { color: 0xFFE2B0, intensity: 3.5, hemi: [0xFFE9C8, 0x8A6A44, 0.66], env: 0.3, exposure: 1.02 },
+    asphalt: 0x6E675E, asphaltHi: 0x82786C, asphaltLo: 0x5A544C, paint: '#FFF1D2', centre: '#FFE9BD',
+    kerb: 0xE8C890, gutter: 0x6E5A44, walk: [0xE9CC9C, 0xDFBE8A, 0xF0D6AA, 0xD4B078], walkJoint: '#A8875A',
+    lawn: [0xE6C88A, 0xD6B574, 0xC9A868], leaf: [0x5F8C45, 0x6E9A4E, 0x7FAE5A, 0x4A7A38, 0x8CBB66], trunk: 0x7A5A3A,
+    roofs: [0xD9683D, 0xE08A44, 0xC4553A, 0xE8A25A, 0xB84830], walls: [0xF4DDB2, 0xEBC993, 0xF7E7C9, 0xE6B98A, 0xD9A878, 0xF0D0A0],
+    awnings: [[0x1FB8B0, 0xFFFFFF], [0xFF8A1C, 0xFFFFFF], [0xE8453C, 0xFFFFFF], [0xF2C230, 0xFFFFFF]],
+    depot: [0xE3C690, 0xD9B97E, 0xEBD0A0, 0xCDB07A], depotJoint: '#A8875A', track: 0x9A7B55, trackEdge: 0xFFE9BD,
+    lot: 0xD8B878,
+    sun: { color: 0xFFE8B8, intensity: 3.85, hemi: [0xFFE9C8, 0x8A6A44, 0.72], env: 0.28, exposure: 1.06 },
   },
   // Frost Pass — snow town: log cabins with snow roofs, frosted pines.
   world5: {
@@ -268,6 +270,17 @@ function roadTexture(T, world, L, r) {
       for (let k = 0; k < 7; k++) { px += (r() - 0.5) * 26; py += (r() - 0.3) * 22; x.lineTo(px, py); }
       x.stroke();
     }
+  }
+  // Sun Valley: bleached patches + sand drifts along the kerb (heat-baked asphalt).
+  if (world === 'world4') {
+    for (let i = 0; i < 14; i++) blotch(x, r() * W, r() * H, 40 + r() * 110, 0xC4B49A, 0.07 + r() * 0.08);
+    for (let i = 0; i < 18; i++) {
+      const sx = X((r() < 0.5 ? -1 : 1) * (halfW - 0.35 - r() * 0.55));
+      blotch(x, sx, r() * H, (0.5 + r() * 1.1) * pxu, 0xE8D4A8, 0.16 + r() * 0.14);
+    }
+    // Hairline expansion joints across the road (sun-cracked slabs).
+    x.strokeStyle = 'rgba(70,60,48,0.28)'; x.lineWidth = 1.4;
+    for (let wz = Math.ceil(z0 / 5.5) * 5.5; wz < z1; wz += 5.5) { x.beginPath(); x.moveTo(0, Y(wz)); x.lineTo(W, Y(wz)); x.stroke(); }
   }
   // Night: wet sheen + lamp light pools and neon reflections.
   if (FAMILY[world] === 'night') {
@@ -546,28 +559,73 @@ function awning(w, cols, facing) {
 
 // ── Signature props for worlds 4-7 ─────────────────────────────────────────
 function cactus(T, r, s = 1) {
+  // Saguaro / barrel / clustered pads — silhouette variety for Sun Valley, not one stalk.
   const g = new THREE.Group();
   const m = std(pick(r, T.leaf), 0.8);
-  g.add(cyl(0.11 * s, 0.13 * s, 0.95 * s, m, 0, 0.47 * s, 0, 12));
-  g.add(sphere(0.11 * s, m, 0, 0.95 * s, 0, 12, 8));
-  for (const sd of [-1, 1]) {
-    if (r() < 0.25) continue;
-    const y = (0.38 + r() * 0.2) * s;
-    const arm = cyl(0.06 * s, 0.06 * s, 0.26 * s, m, sd * 0.2 * s, y, 0, 10); arm.rotation.z = Math.PI / 2; g.add(arm);
-    g.add(cyl(0.06 * s, 0.06 * s, (0.3 + r() * 0.2) * s, m, sd * 0.32 * s, y + 0.16 * s, 0, 10));
-    g.add(sphere(0.06 * s, m, sd * 0.32 * s, y + 0.3 * s, 0, 8, 6));
+  const kind = r();
+  if (kind < 0.28) {
+    // Barrel cactus: squat ribbed body + flower crown.
+    const h = (0.55 + r() * 0.35) * s;
+    g.add(cyl(0.22 * s, 0.26 * s, h, m, 0, h / 2, 0, 14));
+    g.add(sphere(0.22 * s, m, 0, h, 0, 12, 8));
+    if (r() < 0.7) for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2 + r();
+      g.add(sphere(0.04 * s, std(pick(r, [0xFF5C8A, 0xFF8A1C, 0xFFE7A8]), 0.55), Math.cos(a) * 0.12 * s, h + 0.06 * s, Math.sin(a) * 0.12 * s, 8, 6));
+    }
+  } else if (kind < 0.5) {
+    // Pad cluster (prickly-pear-ish): stacked flattened blobs.
+    for (let i = 0; i < 3 + Math.floor(r() * 3); i++) {
+      const pad = blob((0.14 + r() * 0.1) * s, m, r, 1, 0.25);
+      pad.scale.set(1.1, 0.55, 0.85);
+      pad.position.set((r() - 0.5) * 0.35 * s, (0.12 + i * 0.18) * s, (r() - 0.5) * 0.25 * s);
+      pad.rotation.z = (r() - 0.5) * 0.6;
+      g.add(pad);
+    }
+  } else {
+    // Classic saguaro: tall trunk + 1–3 arms at varied heights.
+    const h = (1.05 + r() * 0.55) * s;
+    g.add(cyl(0.11 * s, 0.13 * s, h, m, 0, h / 2, 0, 12));
+    g.add(sphere(0.11 * s, m, 0, h, 0, 12, 8));
+    const arms = 1 + Math.floor(r() * 3);
+    for (let i = 0; i < arms; i++) {
+      const sd = i % 2 === 0 ? -1 : 1;
+      const y = (0.35 + r() * 0.45) * h;
+      const reach = (0.22 + r() * 0.14) * s;
+      const arm = cyl(0.055 * s, 0.055 * s, reach, m, sd * reach * 0.45, y, 0, 10); arm.rotation.z = Math.PI / 2; g.add(arm);
+      const up = (0.28 + r() * 0.35) * s;
+      g.add(cyl(0.055 * s, 0.055 * s, up, m, sd * reach * 0.85, y + up * 0.45, 0, 10));
+      g.add(sphere(0.055 * s, m, sd * reach * 0.85, y + up * 0.9, 0, 8, 6));
+    }
+    if (r() < 0.55) g.add(sphere(0.045 * s, std(0xFF5C8A, 0.6), 0, h + 0.05 * s, 0, 8, 6));
   }
-  if (r() < 0.5) g.add(sphere(0.045 * s, std(0xFF5C8A, 0.6), 0, 1.05 * s, 0, 8, 6));
   return g;
 }
 function rockCluster(T, r, w = 0.9, d = 0.7) {
+  // Sandstone / desert rock pile with size variety and occasional reddish boulder.
   const g = new THREE.Group();
+  const cols = [0xB98E62, 0xA77D55, 0xC9A074, 0x9A7450, 0xD4A878, 0x8A6040, 0xC07050];
+  const n = 4 + Math.floor(r() * 4);
+  for (let i = 0; i < n; i++) {
+    const big = i === 0 && r() < 0.55;
+    const rad = (big ? 0.28 + r() * 0.22 : 0.12 + r() * 0.16) * Math.min(w, 1.35);
+    const rock = blob(rad, std(pick(r, cols), 0.92), r, 1, 0.35);
+    rock.scale.y = big ? 0.55 + r() * 0.25 : 0.55 + r() * 0.2;
+    rock.position.set((r() - 0.5) * w * 0.85, rad * rock.scale.y * 0.55, (r() - 0.5) * d * 0.85);
+    rock.rotation.y = r() * 6;
+    g.add(rock);
+  }
+  return g;
+}
+function sandDrift(T, r, w = 1.0, d = 0.75) {
+  // Soft sand dune / drift — Sun Valley ground dressing (parallel to frost snowDrift).
+  const g = new THREE.Group();
+  const cols = [0xE8D4A8, 0xDFC690, 0xF0E0B8, 0xD4B878];
   const n = 3 + Math.floor(r() * 3);
   for (let i = 0; i < n; i++) {
-    const rock = blob((0.16 + r() * 0.18) * Math.min(w, 1.2), std(pick(r, [0xB98E62, 0xA77D55, 0xC9A074, 0x9A7450]), 0.92), r, 1, 0.35);
-    rock.scale.y = 0.65;
-    rock.position.set((r() - 0.5) * w * 0.8, 0.12, (r() - 0.5) * d * 0.8);
-    g.add(rock);
+    const m = blob((0.22 + r() * 0.22) * Math.min(w, 1.3), std(pick(r, cols), 0.95), r, 1, 0.16);
+    m.scale.y = 0.32 + r() * 0.18;
+    m.position.set((r() - 0.5) * w * 0.85, 0.06, (r() - 0.5) * d * 0.85);
+    g.add(m);
   }
   return g;
 }
@@ -615,13 +673,18 @@ function crystal(T, r, s = 1) {
 }
 // Per-world planting: world 1-3 are exactly the original calls (same rng draws).
 function greenery(world, T, r, s = 1) {
-  if (world === 'world4') return r() < 0.8 ? cactus(T, r, s) : rockCluster(T, r, 0.7 * s, 0.6 * s);
+  if (world === 'world4') {
+    const k = r();
+    if (k < 0.62) return cactus(T, r, s);
+    if (k < 0.82) return rockCluster(T, r, 0.75 * s, 0.65 * s);
+    return sandDrift(T, r, 0.9 * s, 0.7 * s);
+  }
   if (world === 'world5') return frostPine(T, r, s);
   if (world === 'world7') return crystal(T, r, s * 1.1);
   return tree(T, r, s);
 }
 function bedFor(world, T, r, w, d) {
-  if (world === 'world4') return rockCluster(T, r, w, d);
+  if (world === 'world4') return r() < 0.55 ? rockCluster(T, r, w, d) : sandDrift(T, r, w, d);
   if (world === 'world5') return snowDrift(T, r, w, d);
   return flowerBed(T, r, w, d);
 }
@@ -630,7 +693,7 @@ function potFor(world, T, r, s = 1) {
   if (world === 'world5') return frostPine(T, r, 0.6 * s);
   return planterPot(T, r, s);
 }
-const townOpts = (world) => world === 'world4' ? { style: 'flat' } : world === 'world5' ? { style: 'pitched' } : {};
+const townOpts = (world) => world === 'world4' ? { style: 'flat', adobe: true } : world === 'world5' ? { style: 'pitched' } : {};
 // Star-field plaza texture for world 7's lots.
 function starTexture(wU, dU, r, pxu = 24) {
   const W = Math.round(wU * pxu), H = Math.round(dU * pxu);
@@ -678,17 +741,54 @@ function townHouse(T, r, w, d, h, facing, opts = {}) {
     }
   } else {
     // Flat roof: parapet, gravel, AC units, water tank / solar panels / garden.
-    const top = mix(roofCol, 0xBFB8AA, 0.6);
-    g.add(rbox(w + 0.06, 0.12, d + 0.06, 0.03, std(mix(top, 0x000000, 0.15), 0.8), 0, h + 0.06, 0));
-    g.add(box(w - 0.14, 0.04, d - 0.14, std(top, 0.95), 0, h + 0.1, 0));
+    // Adobe (Sun Valley): taller parapet, vigas, porch/awning, occasional L-wing.
+    const adobe = !!opts.adobe;
+    const parapetH = adobe ? 0.22 : 0.12;
+    const top = adobe ? mix(roofCol, 0xE8D4A8, 0.45) : mix(roofCol, 0xBFB8AA, 0.6);
+    g.add(rbox(w + 0.08, parapetH, d + 0.08, adobe ? 0.05 : 0.03, std(mix(adobe ? (opts.wall ?? pick(r, T.walls)) : top, 0x000000, adobe ? 0.06 : 0.15), 0.8), 0, h + parapetH / 2, 0));
+    g.add(box(w - (adobe ? 0.2 : 0.14), 0.04, d - (adobe ? 0.2 : 0.14), std(top, 0.95), 0, h + parapetH * 0.55, 0));
+    if (adobe) {
+      // Vigas: wooden beam ends poking through the street facade.
+      const wood = std(0x8A5A32, 0.75);
+      const nV = Math.max(3, Math.floor(w / 0.38));
+      for (let i = 0; i < nV; i++) {
+        const vx = -w / 2 + 0.25 + i * ((w - 0.5) / Math.max(1, nV - 1));
+        g.add(cyl(0.035, 0.035, 0.28, wood, vx, h + parapetH * 0.35, d / 2 + 0.12, 8));
+      }
+      // Street porch / striped awning canopy (readable from above).
+      if (r() < 0.78) {
+        const porch = new THREE.Group();
+        const pw = w * (0.55 + r() * 0.3), pd = 0.55 + r() * 0.25;
+        porch.add(rbox(pw, 0.06, pd, 0.03, std(pick(r, T.roofs), 0.7), 0, h * 0.62, d / 2 + pd / 2 - 0.05));
+        const stripe = pick(r, T.awnings);
+        for (let i = 0; i < Math.max(3, Math.floor(pw / 0.22)); i++) {
+          porch.add(box(pw / Math.max(3, Math.floor(pw / 0.22)) - 0.02, 0.03, pd - 0.06, std(i % 2 ? stripe[1] : stripe[0], 0.6), -pw / 2 + (i + 0.5) * (pw / Math.max(3, Math.floor(pw / 0.22))), h * 0.66, d / 2 + pd / 2 - 0.05));
+        }
+        for (const sx of [-1, 1]) porch.add(cyl(0.03, 0.03, h * 0.62, std(0x8A5A32, 0.7), sx * (pw / 2 - 0.08), h * 0.31, d / 2 + pd - 0.1, 6));
+        g.add(porch);
+      }
+      // Occasional L-wing for silhouette variety.
+      if (r() < 0.42) {
+        const ww = w * (0.38 + r() * 0.18), wd = d * (0.45 + r() * 0.2), wh = h * (0.75 + r() * 0.2);
+        const side = r() < 0.5 ? -1 : 1;
+        g.add(rbox(ww, wh, wd, 0.04, wall, side * (w / 2 + ww / 2 - 0.05), wh / 2, (r() - 0.3) * d * 0.25));
+        g.add(rbox(ww + 0.06, 0.16, wd + 0.06, 0.04, std(mix(opts.wall ?? pick(r, T.walls), 0x000000, 0.06), 0.8), side * (w / 2 + ww / 2 - 0.05), wh + 0.08, (r() - 0.3) * d * 0.25));
+      }
+      // Adobe chimney with terracotta cap.
+      if (r() < 0.7) {
+        const cx = (r() - 0.5) * w * 0.4, cz = (r() - 0.5) * d * 0.4;
+        g.add(rbox(0.28, 0.55, 0.28, 0.04, std(mix(opts.wall ?? pick(r, T.walls), 0x000000, 0.08), 0.85), cx, h + 0.4, cz));
+        g.add(rbox(0.34, 0.06, 0.34, 0.03, std(pick(r, T.roofs), 0.7), cx, h + 0.7, cz));
+      }
+    }
     const kit = opts.kit ?? r();
-    if (kit < 0.35) {
+    if (!adobe && kit < 0.35) {
       for (let i = 0; i < 2 + Math.floor(r() * 2); i++) {
         const ac = rbox(0.34, 0.2, 0.3, 0.03, std(0xE4E6EA, 0.5), (r() - 0.5) * (w - 0.5), h + 0.22, (r() - 0.5) * (d - 0.5));
         g.add(ac);
         g.add(cyl(0.1, 0.1, 0.02, std(0x3A3E48, 0.5), ac.position.x, h + 0.33, ac.position.z, 14));
       }
-    } else if (kit < 0.6) {
+    } else if (!adobe && kit < 0.6) {
       const tank = new THREE.Group();
       tank.add(cyl(0.28, 0.28, 0.5, std(0x9A6B45, 0.8), 0, 0.55, 0, 16));
       tank.add(new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.2, 16), std(0x6E4A30, 0.8)));
@@ -696,17 +796,20 @@ function townHouse(T, r, w, d, h, facing, opts = {}) {
       for (const [a, b] of [[-0.18, -0.18], [0.18, -0.18], [-0.18, 0.18], [0.18, 0.18]]) tank.add(cyl(0.02, 0.02, 0.4, std(0x3A3E48, 0.6), a, 0.2, b, 6));
       tank.position.set((r() - 0.5) * (w - 0.8), h + 0.1, (r() - 0.5) * (d - 0.8));
       g.add(tank);
-    } else if (kit < 0.8) {
+    } else if (kit < (adobe ? 0.45 : 0.8)) {
       const solar = std(0x243A66, 0.2, { metalness: 0.5 });
-      for (let i = 0; i < 3; i++) {
-        const p = box(Math.min(0.6, w - 0.4), 0.03, 0.34, solar, 0, h + 0.2, -d / 2 + 0.35 + i * 0.42);
+      for (let i = 0; i < (adobe ? 2 : 3); i++) {
+        const p = box(Math.min(0.6, w - 0.4), 0.03, 0.34, solar, 0, h + parapetH + 0.08, -d / 2 + 0.35 + i * 0.42);
         p.rotation.x = -0.35;
         g.add(p);
       }
-    } else {
+    } else if (!adobe) {
       const garden = grassTexture(T.lawn, 64, w, d, r);
       g.add(plane(w - 0.3, d - 0.3, std(0xffffff, 0.9, { map: garden }), 0, h + 0.125, 0));
       for (let i = 0; i < 3; i++) { const b = bush(T, r, 0.7); b.position.set((r() - 0.5) * (w - 0.6), h + 0.12, (r() - 0.5) * (d - 0.6)); g.add(b); }
+    } else if (r() < 0.5) {
+      // Water olla / clay pot on adobe roof.
+      g.add(cyl(0.16, 0.2, 0.35, std(0xC4553A, 0.75), (r() - 0.5) * (w - 0.6), h + parapetH + 0.2, (r() - 0.5) * (d - 0.6), 12));
     }
   }
   return g;
@@ -949,29 +1052,34 @@ export function buildBackdrop(world, variant, L) {
     let bz = L.topZ - 1.5;
     const bzEnd = FAMILY[world] === 'town' ? z1 : L.breachZ + 0.5;   // town: the street's houses continue beside the depot
     while (bz < bzEnd) {
-      const d = FAMILY[world] === 'yard' ? 3.2 + r() * 1.6 : 2.0 + r() * 1.2;
+      const d = FAMILY[world] === 'yard' ? 3.2 + r() * 1.6 : world === 'world4' ? 1.7 + r() * 1.05 : 2.0 + r() * 1.2;
       const w = 2.6 + r() * 0.8;
       const cx = bandIn + s * w / 2;
       const zc = bz + d / 2;
       if (FAMILY[world] === 'town') {
-        const h = 1.0 + r() * 0.9;
+        // Sun Valley adobe: taller flat sheds with real silhouette variety (porch/L-wing via adobe opts).
+        const h = world === 'world4' ? (1.15 + r() * 1.05) : (1.0 + r() * 0.9);
         const dH = Z(d) - Z(0) - 0.25;
-        const hs = townHouse(T, r, w, dH, h, -s, townOpts(world));
+        const hs = townHouse(T, r, w + (world === 'world4' ? 0.15 : 0), dH, h, -s, townOpts(world));
         hs.position.set(cx, 0.1, Z(zc));
         g.add(hs);
         // Front garden: a path to the door, hedge along the pavement (gap at the
-        // path), a tree and a flower bed on the lawn.
+        // path), a tree and a flower bed on the lawn. World4: low adobe wall + sand/cactus.
         const hedgeCol = world === 'world4' ? 0xE9D3A8 : world === 'world5' ? 0xEAF2F9 : T.leaf[2];
         const hx = s * (gardenX + 0.12), pathX = s * (gardenX + 0.58);
-        g.add(plane(1.2, Z(0.42) - Z(0), std(world === 'world5' ? 0xDDE6EF : 0xE4D9C2, 0.95), pathX, 0.1, Z(zc)));
+        g.add(plane(1.2, Z(0.42) - Z(0), std(world === 'world5' ? 0xDDE6EF : world === 'world4' ? 0xD4B878 : 0xE4D9C2, 0.95), pathX, 0.1, Z(zc)));
         const half = d / 2;
         for (const [a, b] of [[bz + 0.05, zc - 0.35], [zc + 0.35, bz + d - 0.05]]) {
           if (b - a < 0.3) continue;
-          g.add(rbox(0.3, 0.34, Z(b) - Z(a), 0.12, std(hedgeCol, 0.85, { flatShading: true }), hx, 0.27, (Z(a) + Z(b)) / 2));
+          const hh = world === 'world4' ? 0.42 : 0.34;
+          g.add(rbox(world === 'world4' ? 0.22 : 0.3, hh, Z(b) - Z(a), world === 'world4' ? 0.06 : 0.12, std(hedgeCol, 0.85, { flatShading: true }), hx, hh / 2 + 0.1, (Z(a) + Z(b)) / 2));
         }
         const treeZ = zc + (r() < 0.5 ? -1 : 1) * (half * 0.55);
-        const tr = greenery(world, T, r, 0.75 + r() * 0.25); tr.position.set(s * (gardenX + 0.75 + r() * 0.35), 0.09, Z(treeZ)); g.add(tr);
-        if (r() < 0.8) { const fb = bedFor(world, T, r, 0.5, 0.9); fb.position.set(s * (gardenX + 0.5), 0.09, Z(zc + (treeZ > zc ? -0.95 : 0.95))); g.add(fb); }
+        const tr = greenery(world, T, r, (world === 'world4' ? 0.9 : 0.75) + r() * 0.3); tr.position.set(s * (gardenX + 0.75 + r() * 0.35), 0.09, Z(treeZ)); g.add(tr);
+        if (r() < (world === 'world4' ? 0.92 : 0.8)) { const fb = bedFor(world, T, r, 0.5, 0.9); fb.position.set(s * (gardenX + 0.5), 0.09, Z(zc + (treeZ > zc ? -0.95 : 0.95))); g.add(fb); }
+        if (world === 'world4' && r() < 0.55) {
+          const sd = sandDrift(T, r, 0.7, 0.5); sd.position.set(s * (gardenX + 0.35), 0.09, Z(zc + (r() - 0.5) * half)); g.add(sd);
+        }
       } else if (FAMILY[world] === 'yard') {
         if (r() < 0.55) {
           const wh = warehouse(T, r, w, Z(d) - Z(0) - 0.3, 1.3 + r() * 0.6);
@@ -996,10 +1104,14 @@ export function buildBackdrop(world, variant, L) {
       bz += d;
       if (FAMILY[world] === 'town') {
         // Side garden between neighbours: a big tree, a bush row, sometimes a drive.
-        const gap = 1.1 + r() * 1.0;
+        // Sun Valley: denser cactus/rock clusters + sand drifts between adobe lots.
+        const gap = world === 'world4' ? (0.85 + r() * 0.85) : (1.1 + r() * 1.0);
         const gz = bz + gap / 2;
-        if (r() < 0.65) { const bigT = greenery(world, T, r, 0.95 + r() * 0.3); bigT.position.set(s * (gardenX + 1.0 + r() * 0.6), 0.09, Z(gz)); g.add(bigT); }
-        if (r() < 0.7) { const bu = bush(T, r, 1.0); bu.position.set(s * (gardenX + 0.5), 0.09, Z(gz + (r() - 0.5) * 0.6)); g.add(bu); }
+        if (r() < (world === 'world4' ? 0.85 : 0.65)) { const bigT = greenery(world, T, r, 0.95 + r() * 0.35); bigT.position.set(s * (gardenX + 1.0 + r() * 0.6), 0.09, Z(gz)); g.add(bigT); }
+        if (world === 'world4') {
+          if (r() < 0.75) { const rk = rockCluster(T, r, 0.7, 0.55); rk.position.set(s * (gardenX + 0.55), 0.09, Z(gz + (r() - 0.5) * 0.5)); g.add(rk); }
+          if (r() < 0.55) { const sd = sandDrift(T, r, 0.65, 0.45); sd.position.set(s * (gardenX + 0.9), 0.09, Z(gz - 0.35)); g.add(sd); }
+        } else if (r() < 0.7) { const bu = bush(T, r, 1.0); bu.position.set(s * (gardenX + 0.5), 0.09, Z(gz + (r() - 0.5) * 0.6)); g.add(bu); }
         bz += gap;
       }
     }
@@ -1051,7 +1163,19 @@ export function buildBackdrop(world, variant, L) {
   for (const s of [-1, 1]) {
     const fx = s * (L.halfW + 1.1);
     if (FAMILY[world] === 'town') {
-      // nothing: the houses and gardens of the street continue beside the yard
+      // World4 Sun Valley: denser depot flank — cactus clusters, rocks, sand, clay pots.
+      if (world === 'world4') {
+        for (let k = 0; k < 3; k++) {
+          const c = cactus(T, r, 0.75 + r() * 0.35);
+          c.position.set(fx + s * (0.1 + (k % 2) * 0.25), 0.02, Z(dz0 + 1.0 + k * 1.15));
+          g.add(c);
+        }
+        const rk = rockCluster(T, r, 0.85, 0.6); rk.position.set(fx + s * 0.15, 0.02, Z(dz0 + 4.4)); g.add(rk);
+        const sd = sandDrift(T, r, 0.9, 0.55); sd.position.set(fx, 0.02, Z(dz0 + 5.8)); g.add(sd);
+        g.add(cyl(0.12, 0.14, 0.28, std(0xC4553A, 0.75), fx - s * 0.15, 0.16, Z(dz0 + 7.0), 10));
+        if (r() < 0.7) { const c2 = cactus(T, r, 1.05); c2.position.set(fx + s * 0.3, 0.02, Z(dz0 + 7.8)); g.add(c2); }
+      }
+      // other towns: houses and gardens of the street continue beside the yard
     } else if (FAMILY[world] === 'yard') {
       for (let k = 0; k < 3; k++) { const dr = drum(pick(r, [0xFFC21A, 0x2F8CFF, 0xE0574A])); dr.position.set(fx + s * (k % 2) * 0.35, 0.02, Z(dz0 + 1.2 + k * 0.45)); g.add(dr); }
       const p = pallet(r); p.position.set(fx, 0.02, Z(dz0 + 4.4)); g.add(p);
@@ -1151,6 +1275,6 @@ export function renderBackdrop(renderer, world, variant, L, { scale = 2, ss = 2 
 }
 
 // ── Shared with the map diorama (mapdiorama.js) ─────────────────────────────
-export { THEME, FAMILY, greenery, bedFor, potFor, townOpts, starTexture, cactus, rockCluster, snowDrift, frostPine, crystal, rng, pick, mix, std, glow, rbox, box, cyl, sphere, blob, plane, canvas, toTex, speckle, blotch,
+export { THEME, FAMILY, greenery, bedFor, potFor, townOpts, starTexture, cactus, rockCluster, sandDrift, snowDrift, frostPine, crystal, rng, pick, mix, std, glow, rbox, box, cyl, sphere, blob, plane, canvas, toTex, speckle, blotch,
   paverTexture, grassTexture, tree, pine, bush, flowerBed, lamp, bench, hydrant, bollard, bin, planterPot, parasol,
   townHouse, warehouse, shippingContainer, drum, pallet, cone, fence, tower, neonSign };

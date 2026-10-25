@@ -96,6 +96,9 @@ export const THEMES = {
     ambient:   { color: 0xfff4e4, intensity: 0.58 },
     fog:       { color: 0xf0d8b0, near: 30, far: 96 },
     roadColor: 0x2a2622,
+    // Presentation-only wash: warm sand multiply on verge strips + heat-haze add over the bake.
+    sceneTint: 0xFFE6B8,
+    sceneGlow: 0x3A2808,
   },
   // Frost (World 5, L61-75): pale blue overcast, cold white haze. near >= 20.
   frost: {

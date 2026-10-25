@@ -193,15 +193,17 @@ Object.assign(THEME, {
     depot: [0xD3E0EC, 0xC8D7E6, 0xDCE7F1], depotJoint: '#A7B9CC', track: 0x8FA3B8, trackEdge: 0xF4FAFF,
     sun: { color: 0xDDE9FF, intensity: 2.8, hemi: [0xD7E6FF, 0x7D8CA3, 0.74], env: 0.34, exposure: 1.04 },
   },
-  // Harbor Lights — container docks: blue-grey concrete, bright boxes, orange bollards.
+  // Harbor Lights — container docks: wet blue-grey concrete, bright ISO boxes, orange bollards.
+  // Structural variety (piers, cranes, stacked containers, sodium lamps, loading-bay sheds) —
+  // not a hue swap of Steel Yards.
   world6: {
-    asphalt: 0x4D5662, asphaltHi: 0x5A6471, asphaltLo: 0x414955, paint: '#F2F6FA', centre: '#3FA9F5',
-    kerb: 0xB6C0CB, gutter: 0x59636F, walk: [0x8E9CAA, 0x85939F, 0x97A5B2], walkJoint: '#66727E',
-    lawn: [0x6E8A9A, 0x657F8E], leaf: [0x4F8C86, 0x5BA09A, 0x437A75, 0x68AEA6], trunk: 0x5C4A3A,
-    roofs: [0xE8453C, 0x2F8CFF, 0xFF8A1C, 0x2FA36B, 0x3FA9F5], walls: [0xC9D3DC, 0xB5C2CE, 0xD7DFE6],
-    awnings: [[0xFF8A1C, 0x2A2733]], depot: [0x6F7E8C, 0x66757F, 0x778694], depotJoint: '#4E5A66', track: 0x56646F, trackEdge: 0xFF8A1C,
-    lot: 0x70828F,
-    sun: { color: 0xFFF0DA, intensity: 3.1, hemi: [0xCFE6FF, 0x5E6C78, 0.66], env: 0.32, exposure: 1.0 },
+    asphalt: 0x4A5664, asphaltHi: 0x586470, asphaltLo: 0x3E4854, paint: '#F2F6FA', centre: '#3FA9F5',
+    kerb: 0xC0CAD4, gutter: 0x4A5562, walk: [0x84929E, 0x7A8894, 0x8E9CAA, 0x6E7C88], walkJoint: '#556370',
+    lawn: [0x5E7A88, 0x547084], leaf: [0x3E7A74, 0x4A8E86, 0x346860, 0x56A098], trunk: 0x4E3E30,
+    roofs: [0xE8453C, 0x2F8CFF, 0xFF8A1C, 0x2FA36B, 0x3FA9F5, 0xFFC21A, 0x6E7B88], walls: [0xB8C4CE, 0xA8B6C2, 0xC8D4DC, 0x9EAEBA],
+    awnings: [[0xFF8A1C, 0x2A2733], [0x3FA9F5, 0x2A2733]], depot: [0x5E6E7C, 0x556574, 0x687888], depotJoint: '#3E4A56', track: 0x4A5864, trackEdge: 0xFF8A1C,
+    lot: 0x5A6C78,
+    sun: { color: 0xFFE2B8, intensity: 2.7, hemi: [0xB8D8EC, 0x4A5864, 0.72], env: 0.3, exposure: 0.99 },
   },
   // Starlight Strip — violet space-night: crystal spires, neon, a star-field plaza.
   world7: {
@@ -713,35 +715,116 @@ function townHouse(T, r, w, d, h, facing, opts = {}) {
 }
 
 function warehouse(T, r, w, d, h) {
+  // Finished dock shed: corrugated roof, loading bay, pilasters, clerestory —
+  // tall enough to silhouette against the lot at phone size (not a flat palette box).
   const g = new THREE.Group();
+  const wall = pick(r, T.walls);
   const col = pick(r, T.roofs);
-  g.add(rbox(w, h, d, 0.04, std(pick(r, T.walls), 0.8), 0, h / 2, 0));
+  const tall = h * (1.12 + r() * 0.32);
+  const body = std(wall, 0.78, { metalness: 0.08 });
+  g.add(rbox(w, tall, d, 0.04, body, 0, tall / 2, 0));
+  // Corner pilasters + mid rib for mass.
+  const pil = std(mix(wall, 0x000000, 0.12), 0.65, { metalness: 0.25 });
+  for (const sx of [-1, 1]) g.add(box(0.12, tall + 0.02, 0.12, pil, sx * (w / 2 - 0.04), tall / 2, d / 2 - 0.02));
+  g.add(box(0.08, tall * 0.92, 0.06, pil, 0, tall * 0.46, d / 2 + 0.01));
+  g.add(box(w - 0.08, 0.04, 0.04, std(mix(wall, 0x000000, 0.18), 0.55, { metalness: 0.3 }), 0, tall * 0.55, d / 2 + 0.02));
   const tex = corrugatedTexture(col);
-  tex.repeat.set(w * 3, 1);
-  // Barrel-ish roof: two slopes.
-  const rh = 0.35;
+  tex.repeat.set(Math.max(4, w * 3.5), 1);
+  const rh = 0.4 + r() * 0.12;
   const shape = new THREE.Shape();
-  shape.moveTo(-w / 2 - 0.08, 0); shape.lineTo(0, rh); shape.lineTo(w / 2 + 0.08, 0); shape.lineTo(-w / 2 - 0.08, 0);
-  const geo = new THREE.ExtrudeGeometry(shape, { depth: d + 0.16, bevelEnabled: false });
-  geo.translate(0, 0, -(d + 0.16) / 2);
-  const roofM = new THREE.Mesh(geo, std(0xffffff, 0.45, { map: tex, metalness: 0.35 }));
-  roofM.position.y = h;
+  shape.moveTo(-w / 2 - 0.1, 0); shape.lineTo(0, rh); shape.lineTo(w / 2 + 0.1, 0); shape.lineTo(-w / 2 - 0.1, 0);
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: d + 0.2, bevelEnabled: false });
+  geo.translate(0, 0, -(d + 0.2) / 2);
+  const roofM = new THREE.Mesh(geo, std(0xffffff, 0.4, { map: tex, metalness: 0.45 }));
+  roofM.position.y = tall;
   g.add(roofM);
-  // Skylight strips + vents.
-  for (let i = 0; i < 3; i++) g.add(box(0.12, 0.03, d * 0.7, std(0xBFD8EE, 0.1, { metalness: 0.4 }), -w * 0.25 + i * w * 0.25, h + rh * 0.55, 0));
-  for (let i = 0; i < 2; i++) g.add(cyl(0.08, 0.08, 0.25, std(0xB9BCC2, 0.4, { metalness: 0.6 }), (r() - 0.5) * w * 0.6, h + rh + 0.1, (r() - 0.5) * d * 0.5, 10));
-  // Loading door on the camera side.
-  g.add(box(w * 0.4, h * 0.6, 0.03, std(0xD9D2C3, 0.6), 0, h * 0.3, d / 2 + 0.01));
-  for (let i = 0; i < 5; i++) g.add(box(w * 0.4, 0.02, 0.035, std(0x9A948A, 0.6), 0, h * 0.08 + i * h * 0.11, d / 2 + 0.02));
+  g.add(box(0.1, 0.06, d + 0.18, std(mix(col, 0x000000, 0.15), 0.35, { metalness: 0.55 }), 0, tall + rh + 0.02, 0));
+  for (let i = 0; i < 3; i++) {
+    const zx = -d * 0.28 + i * d * 0.28;
+    g.add(rbox(w * 0.22, 0.16, 0.5, 0.04, std(0xB8D0E6, 0.15, { metalness: 0.35 }), 0, tall + rh * 0.55, zx));
+  }
+  for (let i = 0; i < 2; i++) g.add(cyl(0.09, 0.09, 0.32, std(0xA8AEB6, 0.35, { metalness: 0.65 }), (r() - 0.5) * w * 0.55, tall + rh + 0.14, (r() - 0.5) * d * 0.45, 10));
+  // Loading bay: orange hazard frame + roll-up door + canopy (harbor accent).
+  const doorW = w * (0.42 + r() * 0.08), doorH = tall * 0.62;
+  const frameCol = 0xFF8A1C;
+  g.add(box(doorW + 0.16, doorH + 0.12, 0.04, std(frameCol, 0.55), 0, doorH / 2 + 0.04, d / 2 + 0.01));
+  g.add(box(doorW + 0.08, doorH + 0.04, 0.035, std(0x2A2733, 0.55), 0, doorH / 2 + 0.02, d / 2 + 0.02));
+  g.add(box(doorW, doorH, 0.03, std(0xC8C2B6, 0.55, { metalness: 0.2 }), 0, doorH / 2, d / 2 + 0.03));
+  for (let i = 0; i < 6; i++) g.add(box(doorW, 0.025, 0.04, std(0x8A847A, 0.55), 0, 0.1 + i * (doorH / 6), d / 2 + 0.04));
+  g.add(box(doorW + 0.3, 0.06, 0.55, std(mix(col, 0x000000, 0.1), 0.4, { metalness: 0.4 }), 0, doorH + 0.14, d / 2 + 0.28));
+  for (let i = 0; i < 4; i++) g.add(box(0.22, 0.16, 0.03, std(0x9EC4E0, 0.2, { metalness: 0.25 }), -w * 0.28 + i * w * 0.18, tall * 0.82, d / 2 + 0.02));
   return g;
 }
-function shippingContainer(r, cols) {
+function shippingContainer(r, cols, opts = {}) {
+  // ISO box with corner castings + door end so stacks read as containers, not candy bricks.
   const g = new THREE.Group();
   const col = pick(r, cols);
+  const len = opts.len ?? (1.8 + r() * 0.7);
+  const wid = opts.wid ?? 0.9;
+  const ht = opts.ht ?? 0.9;
   const tex = corrugatedTexture(col);
-  tex.repeat.set(12, 1);
-  g.add(rbox(0.9, 0.9, 2.2, 0.03, std(0xffffff, 0.55, { map: tex, metalness: 0.2 }), 0, 0.45, 0));
-  g.add(box(0.86, 0.02, 2.16, std(mix(col, 0x000000, 0.2), 0.6), 0, 0.91, 0));
+  tex.repeat.set(Math.max(8, Math.round(len * 5)), 1);
+  g.add(rbox(wid, ht, len, 0.025, std(0xffffff, 0.5, { map: tex, metalness: 0.28 }), 0, ht / 2, 0));
+  g.add(box(wid - 0.04, 0.025, len - 0.04, std(mix(col, 0x000000, 0.22), 0.55, { metalness: 0.35 }), 0, ht + 0.01, 0));
+  const cast = std(0x3A3E46, 0.4, { metalness: 0.7 });
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) for (const y of [0.06, ht - 0.06]) {
+    g.add(box(0.1, 0.1, 0.1, cast, sx * (wid / 2 - 0.04), y, sz * (len / 2 - 0.04)));
+  }
+  g.add(box(wid - 0.06, ht - 0.12, 0.04, std(mix(col, 0x000000, 0.12), 0.5, { metalness: 0.25 }), 0, ht / 2, len / 2 + 0.01));
+  g.add(box(0.03, ht - 0.18, 0.05, std(0x2A2733, 0.5), 0, ht / 2, len / 2 + 0.03));
+  g.add(box(0.35, 0.12, 0.02, std(0xF2F0EA, 0.55), 0, ht * 0.72, len / 2 + 0.035));
+  if (r() < 0.45) g.add(box(0.22, 0.22, 0.02, std(0xFF8A1C, 0.5), wid / 2 - 0.18, ht * 0.35, len / 2 + 0.035));
+  return g;
+}
+function harborCrane(r, span = 2.6) {
+  // Quayside gantry / portal crane — tall mast + boom so the dock reads as a port, not a mill.
+  const g = new THREE.Group();
+  const steel = std(0xFF8A1C, 0.45, { metalness: 0.55 });
+  const dark = std(0x4A5562, 0.4, { metalness: 0.6 });
+  const h = 2.1 + r() * 0.55;
+  for (const sx of [-1, 1]) {
+    g.add(box(0.12, h, 0.12, dark, sx * span / 2, h / 2, 0));
+    g.add(box(0.18, 0.1, 0.18, steel, sx * span / 2, h + 0.05, 0));
+  }
+  g.add(box(span + 0.24, 0.12, 0.14, steel, 0, h + 0.05, 0));
+  // Boom overhang toward water / street.
+  const boom = 1.4 + r() * 0.5;
+  g.add(box(0.1, 0.1, boom, steel, 0, h + 0.05, boom / 2 - 0.1));
+  g.add(box(0.06, 0.06, boom * 0.85, dark, 0, h - 0.25, boom * 0.35));
+  // Cab + hook block.
+  g.add(rbox(0.45, 0.35, 0.5, 0.04, std(0x3FA9F5, 0.4, { metalness: 0.25 }), 0, h - 0.15, 0.15));
+  g.add(box(0.16, 0.12, 0.16, std(0xE8453C, 0.5, { metalness: 0.3 }), (r() - 0.5) * span * 0.35, h - 0.55, boom * 0.55));
+  g.add(cyl(0.02, 0.02, 0.45, dark, 0, h - 0.75, boom * 0.55, 6));
+  return g;
+}
+function sodiumLamp(facing = 1) {
+  // Tall dock sodium pole — warm orange glow head, distinct from town street lamps.
+  const g = new THREE.Group();
+  const metal = std(0x3A4450, 0.4, { metalness: 0.55 });
+  g.add(cyl(0.05, 0.07, 2.35, metal, 0, 1.18, 0, 10));
+  g.add(cyl(0.12, 0.14, 0.14, metal, 0, 0.07, 0, 12));
+  g.add(box(0.55, 0.06, 0.06, metal, facing * 0.28, 2.3, 0));
+  g.add(rbox(0.32, 0.14, 0.2, 0.04, metal, facing * 0.55, 2.26, 0));
+  g.add(box(0.24, 0.03, 0.14, std(0xFFB060, 0.25, { emissive: 0xFF8A40, emissiveIntensity: 0.85 }), facing * 0.55, 2.18, 0));
+  return g;
+}
+function pierEdge(len = 3.2) {
+  // Wharf edge: concrete coping + timber fenders so the dock edge reads at phone size.
+  const g = new THREE.Group();
+  const coping = std(0x8A96A2, 0.7);
+  const timber = std(0x6A4A32, 0.75);
+  g.add(box(0.35, 0.22, len, coping, 0, 0.11, 0));
+  g.add(box(0.12, 0.08, len + 0.1, std(0xFF8A1C, 0.55), 0.12, 0.24, 0));
+  for (let z = -len / 2 + 0.3; z < len / 2; z += 0.85) {
+    g.add(cyl(0.07, 0.07, 0.55, timber, 0.22, 0.05, z, 10));
+  }
+  return g;
+}
+function waterCue(r, w = 2.4, d = 1.6) {
+  // Shallow water strip beyond the pier — teal with soft highlight so salt haze reads.
+  const g = new THREE.Group();
+  g.add(plane(w, d, std(0x2A6A7A, 0.35, { metalness: 0.55, transparent: true, opacity: 0.85 }), 0, 0.02, 0));
+  g.add(plane(w * 0.7, d * 0.35, std(0x7EC8D8, 0.25, { metalness: 0.4, transparent: true, opacity: 0.45 }), (r() - 0.5) * 0.3, 0.03, (r() - 0.5) * 0.2));
   return g;
 }
 function drum(color) {
@@ -881,7 +964,7 @@ export function buildBackdrop(world, variant, L) {
   const walkTex = paverTexture(T.walk, T.walkJoint, pxu, walkW, roadLen, r, { tile: FAMILY[world] === 'yard' ? 0.9 : 0.5, style: FAMILY[world] === 'town' ? 'brick' : 'grid' });
   for (const s of [-1, 1]) {
     const kx = s * (L.halfW + kerbW / 2);
-    const kerbMat = FAMILY[world] === 'yard' ? std(0xffffff, 0.7, { map: hazardTex(pxu, kerbW, roadLen) }) : std(T.kerb, 0.7);
+    const kerbMat = FAMILY[world] === 'yard' ? std(0xffffff, 0.7, { map: hazardTex(pxu, kerbW, roadLen, world === 'world6' ? ['#FF8A1C', '#2A2733'] : ['#FFC21A', '#2A2733']) }) : std(T.kerb, 0.7);
     g.add(rbox(kerbW, 0.16, Z(L.breachZ) - Z(z0), 0.04, kerbMat, kx, 0.08, (Z(z0) + Z(L.breachZ)) / 2));
     const wx = s * (L.halfW + kerbW + walkW / 2);
     const walk = plane(walkW, Z(L.breachZ) - Z(z0), std(0xffffff, 0.9, { map: walkTex }), wx, 0.1, (Z(z0) + Z(L.breachZ)) / 2);
@@ -908,9 +991,9 @@ export function buildBackdrop(world, variant, L) {
   for (const s of [-1, 1]) {
     const walkIn = s * (L.halfW + kerbW + 0.45);       // furniture line near the kerb
     const bandIn = s * (FAMILY[world] === 'town' ? gardenX + 1.15 : L.halfW + kerbW + 1.05);   // buildings start here (town: behind a front garden)
-    // Lamps.
+    // Lamps (Harbor: warm sodium poles instead of town street lamps).
     lampZs.forEach((lz, i) => {
-      const lp = lamp(T, r, night, -s);
+      const lp = world === 'world6' ? sodiumLamp(-s) : lamp(T, r, night, -s);
       lp.position.set(walkIn, 0.1, Z(lz + (s > 0 ? 3.3 : 0)));
       g.add(lp);
     });
@@ -933,9 +1016,12 @@ export function buildBackdrop(world, variant, L) {
           const bi = bin(); bi.position.set(px + s * 0.1, 0.1, Z(tz + 0.9)); g.add(bi);
         }
       } else if (FAMILY[world] === 'yard') {
-        if (kind < 0.35) { const c = cone(); c.position.set(px - s * 0.1, 0.1, Z(tz)); g.add(c); const c2 = cone(); c2.position.set(px - s * 0.1, 0.1, Z(tz + 0.7)); g.add(c2); }
-        else if (kind < 0.6) { for (let k = 0; k < 3; k++) { const b = bollard(0xFFC21A); b.position.set(px - s * 0.15, 0.1, Z(tz + k * 0.8)); g.add(b); } }
-        else if (kind < 0.8) { const p = pallet(r); p.position.set(px, 0.1, Z(tz)); p.rotation.y = r() * 0.4; g.add(p); }
+        const bollCol = world === 'world6' ? 0xFF8A1C : 0xFFC21A;
+        if (kind < 0.26) { const c = cone(); c.position.set(px - s * 0.1, 0.1, Z(tz)); g.add(c); const c2 = cone(); c2.position.set(px - s * 0.1, 0.1, Z(tz + 0.7)); g.add(c2); }
+        else if (kind < 0.48) { for (let k = 0; k < 3; k++) { const b = bollard(bollCol); b.position.set(px - s * 0.15, 0.1, Z(tz + k * 0.8)); g.add(b); } }
+        else if (kind < 0.62) { const p = pallet(r); p.position.set(px, 0.1, Z(tz)); p.rotation.y = r() * 0.4; g.add(p); }
+        else if (kind < 0.74 && world === 'world6') { const lp = sodiumLamp(-s); lp.position.set(px - s * 0.05, 0.1, Z(tz)); g.add(lp); }
+        else if (kind < 0.82) { for (let k = 0; k < 2; k++) { const dr = drum(pick(r, [0xFF8A1C, 0x2F8CFF, 0xE0574A, 0x3FA9F5])); dr.position.set(px - s * 0.05, 0.1, Z(tz + k * 0.45)); g.add(dr); } }
         else { const t = greenery(world, T, r, 0.8); t.position.set(px, 0.1, Z(tz)); g.add(t); }
       } else {
         if (kind < 0.4) { const t = greenery(world, T, r, 0.85); t.position.set(px, 0.1, Z(tz)); g.add(t); }
@@ -949,7 +1035,7 @@ export function buildBackdrop(world, variant, L) {
     let bz = L.topZ - 1.5;
     const bzEnd = FAMILY[world] === 'town' ? z1 : L.breachZ + 0.5;   // town: the street's houses continue beside the depot
     while (bz < bzEnd) {
-      const d = FAMILY[world] === 'yard' ? 3.2 + r() * 1.6 : 2.0 + r() * 1.2;
+      const d = FAMILY[world] === 'yard' ? (world === 'world6' ? 3.6 + r() * 1.9 : 3.2 + r() * 1.6) : 2.0 + r() * 1.2;
       const w = 2.6 + r() * 0.8;
       const cx = bandIn + s * w / 2;
       const zc = bz + d / 2;
@@ -973,19 +1059,38 @@ export function buildBackdrop(world, variant, L) {
         const tr = greenery(world, T, r, 0.75 + r() * 0.25); tr.position.set(s * (gardenX + 0.75 + r() * 0.35), 0.09, Z(treeZ)); g.add(tr);
         if (r() < 0.8) { const fb = bedFor(world, T, r, 0.5, 0.9); fb.position.set(s * (gardenX + 0.5), 0.09, Z(zc + (treeZ > zc ? -0.95 : 0.95))); g.add(fb); }
       } else if (FAMILY[world] === 'yard') {
-        if (r() < 0.55) {
-          const wh = warehouse(T, r, w, Z(d) - Z(0) - 0.3, 1.3 + r() * 0.6);
+        const roll = r();
+        if (roll < 0.38) {
+          const wh = warehouse(T, r, w + (world === 'world6' ? 0.35 : 0), Z(d) - Z(0) - 0.25, (world === 'world6' ? 1.55 : 1.3) + r() * 0.75);
           wh.position.set(cx, 0.1, Z(zc));
           g.add(wh);
-        } else {
-          // Container yard behind a fence.
-          const f = fence(Z(d) - Z(0) - 0.2); f.position.set(bandIn + s * 0.05, 0.1, Z(zc)); g.add(f);
-          const cols = [0x2F8CFF, 0xE8453C, 0x2FA36B, 0xFF8A1C, 0x6E7B88];
+        } else if (roll < 0.52 && world === 'world6') {
+          // Quayside crane + pier edge — vertical silhouette distinct from Steel Yards silos.
+          const cr = harborCrane(r, 2.3 + r() * 0.7); cr.position.set(cx, 0.1, Z(zc)); g.add(cr);
+          const pe = pierEdge(Z(d) - Z(0) - 0.4); pe.position.set(bandIn + s * 0.15, 0.1, Z(zc)); pe.rotation.y = s > 0 ? 0 : Math.PI; g.add(pe);
+          if (r() < 0.7) { const wa = waterCue(r, 1.8, Math.max(1.2, Z(d) - Z(0) - 0.8)); wa.position.set(bandIn + s * (0.15 + 1.1), 0.02, Z(zc)); g.add(wa); }
+        } else if (roll < 0.62 && world === 'world6') {
+          const pe = pierEdge(Z(d) - Z(0) - 0.3); pe.position.set(bandIn + s * 0.1, 0.1, Z(zc)); pe.rotation.y = s > 0 ? 0 : Math.PI; g.add(pe);
+          const cols = [0x2F8CFF, 0xE8453C, 0x2FA36B, 0xFF8A1C, 0x3FA9F5, 0xFFC21A];
           for (let k = 0; k < 2; k++) {
-            const sc = shippingContainer(r, cols); sc.position.set(bandIn + s * (0.7 + k * 1.0), 0.1, Z(zc)); g.add(sc);
-            if (r() < 0.45) { const top = shippingContainer(r, cols); top.position.set(bandIn + s * (0.7 + k * 1.0), 1.0, Z(zc) + 0.2); g.add(top); }
+            const sc = shippingContainer(r, cols); sc.position.set(bandIn + s * (0.85 + k * 1.0), 0.1, Z(zc + (k - 0.5) * 0.2)); g.add(sc);
+            if (r() < 0.6) { const top = shippingContainer(r, cols); top.position.set(bandIn + s * (0.85 + k * 1.0), 1.0, Z(zc)); g.add(top); }
           }
-          for (let k = 0; k < 3; k++) { const dr = drum(pick(r, [0x2F8CFF, 0xE0574A, 0x2FA36B])); dr.position.set(bandIn + s * (0.3 + r() * 0.3), 0.1, Z(zc - d / 2 + 0.4 + k * 0.4)); g.add(dr); }
+        } else {
+          // Container stacks behind a fence — denser for harbor, mixed heights.
+          const f = fence(Z(d) - Z(0) - 0.2); f.position.set(bandIn + s * 0.05, 0.1, Z(zc)); g.add(f);
+          const cols = world === 'world6'
+            ? [0x2F8CFF, 0xE8453C, 0x2FA36B, 0xFF8A1C, 0x3FA9F5, 0xFFC21A, 0x6E7B88]
+            : [0x2F8CFF, 0xE8453C, 0x2FA36B, 0xFF8A1C, 0x6E7B88];
+          const n = world === 'world6' ? 3 : 2;
+          for (let k = 0; k < n; k++) {
+            const sc = shippingContainer(r, cols); sc.position.set(bandIn + s * (0.65 + k * 0.95), 0.1, Z(zc + (k - 1) * 0.15)); g.add(sc);
+            if (r() < (world === 'world6' ? 0.72 : 0.45)) {
+              const top = shippingContainer(r, cols); top.position.set(bandIn + s * (0.65 + k * 0.95), 1.0, Z(zc) + 0.15); g.add(top);
+              if (world === 'world6' && r() < 0.4) { const top2 = shippingContainer(r, cols, { len: 1.6 }); top2.position.set(bandIn + s * (0.65 + k * 0.95), 1.95, Z(zc)); g.add(top2); }
+            }
+          }
+          for (let k = 0; k < (world === 'world6' ? 4 : 3); k++) { const dr = drum(pick(r, [0x2F8CFF, 0xE0574A, 0x2FA36B, 0xFF8A1C])); dr.position.set(bandIn + s * (0.25 + r() * 0.35), 0.1, Z(zc - d / 2 + 0.35 + k * 0.38)); g.add(dr); }
         }
       } else {
         const h = 1.6 + r() * 1.8;
@@ -1019,7 +1124,7 @@ export function buildBackdrop(world, variant, L) {
   const depotTex = paverTexture(T.depot, T.depotJoint, pxu, depotW, dz1 - dz0, r, { tile: 0.6, style: 'plain' });
   g.add(plane(depotW, Z(dz1) - Z(dz0), std(0xffffff, night ? 0.5 : 0.9, { map: depotTex, metalness: night ? 0.2 : 0 }), 0, 0.02, (Z(dz0) + Z(dz1)) / 2));
   // A low wall with the stop line on top where road meets depot.
-  g.add(rbox(L.halfW * 2 + 0.6, 0.12, Z(0.34) - Z(0), 0.04, std(FAMILY[world] === 'yard' ? 0xFFC21A : T.kerb, 0.6), 0, 0.06, Z(dz0 + 0.17)));
+  g.add(rbox(L.halfW * 2 + 0.6, 0.12, Z(0.34) - Z(0), 0.04, std(FAMILY[world] === 'yard' ? (world === 'world6' ? 0xFF8A1C : 0xFFC21A) : T.kerb, 0.6), 0, 0.06, Z(dz0 + 0.17)));
   // Launch bays: a recessed channel continuing each lane into its bomb column,
   // with a metal-rimmed cradle under every bomb slot (the bomb sits IN it).
   const rimM = night ? std(0x5A5F78, 0.3, { metalness: 0.7 }) : std(FAMILY[world] === 'yard' ? 0x9EA3AA : 0xE9E3D6, 0.35, { metalness: FAMILY[world] === 'yard' ? 0.6 : 0.1 });
@@ -1053,9 +1158,16 @@ export function buildBackdrop(world, variant, L) {
     if (FAMILY[world] === 'town') {
       // nothing: the houses and gardens of the street continue beside the yard
     } else if (FAMILY[world] === 'yard') {
-      for (let k = 0; k < 3; k++) { const dr = drum(pick(r, [0xFFC21A, 0x2F8CFF, 0xE0574A])); dr.position.set(fx + s * (k % 2) * 0.35, 0.02, Z(dz0 + 1.2 + k * 0.45)); g.add(dr); }
-      const p = pallet(r); p.position.set(fx, 0.02, Z(dz0 + 4.4)); g.add(p);
-      const c = cone(); c.position.set(fx - s * 0.2, 0.02, Z(dz0 + 6.2)); g.add(c);
+      for (let k = 0; k < 4; k++) { const dr = drum(pick(r, [0xFF8A1C, 0x2F8CFF, 0xE0574A, 0x3FA9F5])); dr.position.set(fx + s * (k % 2) * 0.35, 0.02, Z(dz0 + 1.0 + k * 0.4)); g.add(dr); }
+      const p = pallet(r); p.position.set(fx, 0.02, Z(dz0 + 3.6)); g.add(p);
+      const p2 = pallet(r); p2.position.set(fx + s * 0.5, 0.02, Z(dz0 + 4.5)); g.add(p2);
+      const c = cone(); c.position.set(fx - s * 0.2, 0.02, Z(dz0 + 5.6)); g.add(c);
+      const c2 = cone(); c2.position.set(fx - s * 0.2, 0.02, Z(dz0 + 6.3)); g.add(c2);
+      if (world === 'world6') {
+        for (let k = 0; k < 3; k++) { const b = bollard(0xFF8A1C); b.position.set(fx - s * 0.15, 0.02, Z(dz0 + 2.2 + k * 0.55)); g.add(b); }
+        if (s < 0) { const cr = harborCrane(r, 2.0); cr.position.set(fx - 0.35, 0.02, Z(dz0 + 7.2)); g.add(cr); }
+        else { const lp = sodiumLamp(-s); lp.position.set(fx + 0.1, 0.02, Z(dz0 + 7.0)); g.add(lp); }
+      }
     } else {
       const n = neonSign(T, r, 1.1); n.position.set(fx + s * 0.2, 0.02, Z(dz0 + 2.2)); g.add(n);
       const t = greenery(world, T, r, 0.9); t.position.set(fx, 0.02, Z(dz0 + 5.0)); g.add(t);
@@ -1067,10 +1179,10 @@ export function buildBackdrop(world, variant, L) {
 }
 
 // Yellow/black hazard kerb texture (industrial world).
-function hazardTex(pxu, wU, lU) {
+function hazardTex(pxu, wU, lU, colors = ['#FFC21A', '#2A2733']) {
   const [c, x] = canvas(32, 64);
-  x.fillStyle = '#FFC21A'; x.fillRect(0, 0, 32, 64);
-  x.fillStyle = '#2A2733';
+  x.fillStyle = colors[0]; x.fillRect(0, 0, 32, 64);
+  x.fillStyle = colors[1];
   x.beginPath(); x.moveTo(0, 0); x.lineTo(32, 0); x.lineTo(32, 16); x.lineTo(0, 48); x.closePath(); x.fill();
   x.beginPath(); x.moveTo(0, 64); x.lineTo(0, 64); x.lineTo(32, 32); x.lineTo(32, 48); x.lineTo(16, 64); x.closePath(); x.fill();
   const t = toTex(c);
@@ -1153,4 +1265,4 @@ export function renderBackdrop(renderer, world, variant, L, { scale = 2, ss = 2 
 // ── Shared with the map diorama (mapdiorama.js) ─────────────────────────────
 export { THEME, FAMILY, greenery, bedFor, potFor, townOpts, starTexture, cactus, rockCluster, snowDrift, frostPine, crystal, rng, pick, mix, std, glow, rbox, box, cyl, sphere, blob, plane, canvas, toTex, speckle, blotch,
   paverTexture, grassTexture, tree, pine, bush, flowerBed, lamp, bench, hydrant, bollard, bin, planterPot, parasol,
-  townHouse, warehouse, shippingContainer, drum, pallet, cone, fence, tower, neonSign };
+  townHouse, warehouse, shippingContainer, harborCrane, sodiumLamp, pierEdge, waterCue, drum, pallet, cone, fence, tower, neonSign };

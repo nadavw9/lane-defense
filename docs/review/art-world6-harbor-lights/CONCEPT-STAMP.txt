@@ -1,0 +1,24 @@
+CONCEPT-STAMP — Traffic Bomb World 6 Harbor Lights visual polish
+Branch: art/world6-harbor-lights
+Date: 2026-10-25 Asia/Jerusalem
+Status: CONCEPT-STAMP (not HUMAN-FINAL)
+
+Question for Nadav (Hebrew-friendly):
+האם Harbor Lights נראה כמו נמל/רציף מוגמר ברמת Toy Town — מנופים, מכולות, בולארדים כתומים, מחסני טעינה — ולא רק החלפת צבעים של Steel Yards?
+
+English: Does Harbor Lights read as a finished dock/port world at Toy Town quality — cranes, ISO stacks, orange bollards, loading-bay sheds — not just a Steel Yards palette swap?
+
+Review boards:
+  docs/review/art-world6-harbor-lights/before/   (original master, pre-polish)
+  docs/review/art-world6-harbor-lights/after/    (dock identity pass)
+  docs/review/art-world6-harbor-lights/before-after-sheet.png
+
+Notes:
+- Visual-only: bake SOURCES edited, then re-baked. No hand-paint of public/sprites/designed outputs.
+- Car sprites / HP sizing / gameplay untouched.
+- Structural upgrades: pier/wharf edges, harbor gantry cranes, denser ISO containers with corner castings,
+  orange bollards, sodium lamp poles, water edge cues, warehouses with orange loading-bay frames,
+  wet blue-grey dock concrete + sky-blue dash, harbor sceneTint/sceneGlow (salt haze + sodium flare).
+- Based on origin/master independently (not merging prior art worlds into master).
+- Scenery strips skipped (W6 gameplay uses baked backdrops like W2–W5).
+- World 5 Frost Pass already HUMAN-FINAL on art/world5-frost-pass.

@@ -114,6 +114,9 @@ export const THEMES = {
     ambient:   { color: 0xdcecf4, intensity: 0.50 },
     fog:       { color: 0x9cc0cc, near: 24, far: 84 },
     roadColor: 0x1c2024,
+    // Presentation-only wash: cool salt-haze multiply on verge + warm sodium flare add.
+    sceneTint: 0xC8DCE8,
+    sceneGlow: 0x4A2810,
   },
   // Cosmos (World 7, L91-100): deep violet space, neon rim, dark low fog.
   cosmos: {

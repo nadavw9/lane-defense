@@ -56,12 +56,23 @@ ROAD.world5 = () => {            // icy asphalt with snow flecks, white dash
   return `<rect width="512" height="512" fill="#566070"/>${specks(r, 220, ['#647084', '#4A5362'])}${specks(r, 90, ['#F4F8FF'], 0.5)}
     <rect x="243" y="154" width="26" height="204" rx="13" fill="#F4F8FF"/>`;
 };
-ROAD.world6 = () => {            // wet blue-grey dock concrete, expansion joints, sky-blue dash
+ROAD.world6 = () => {            // wet blue-grey dock concrete, expansion joints, salt stains, sky-blue dash
   const r = rng(23);
-  const joints = [0, 128, 256, 384].map(y => `<rect x="0" y="${y}" width="512" height="4" fill="#47525E" opacity=".7"/>`).join('');
-  return `<rect width="512" height="512" fill="#55616E"/>${specks(r, 300, ['#66737F', '#4A5561'])}${joints}
-    <rect x="0" y="0" width="4" height="512" fill="#47525E" opacity=".5"/>
-    <rect x="243" y="154" width="26" height="204" rx="4" fill="#3FA9F5"/>`;
+  const joints = [0, 128, 256, 384].map(y => `<rect x="0" y="${y}" width="512" height="4" fill="#3A4552" opacity=".78"/>`).join('');
+  const stains = Array.from({ length: 10 }, () => {
+    const x = r() * 480 + 16, y = r() * 480 + 16, rx = 16 + r() * 42, ry = 8 + r() * 22;
+    return `<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="#3E4A56" opacity="${(0.10 + r() * 0.14).toFixed(2)}"/>`;
+  }).join('');
+  const wet = Array.from({ length: 8 }, () => {
+    const x = r() * 460 + 26, y = r() * 460 + 26, rx = 10 + r() * 28, ry = 4 + r() * 12;
+    return `<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="#7A8A9A" opacity="${(0.08 + r() * 0.10).toFixed(2)}"/>`;
+  }).join('');
+  return `<rect width="512" height="512" fill="#4A5664"/>${specks(r, 340, ['#5C6876', '#3E4854', '#6A7684'])}${stains}${wet}${joints}
+    <rect x="0" y="0" width="5" height="512" fill="#3A4552" opacity=".55"/>
+    <rect x="128" y="0" width="3" height="512" fill="#3A4552" opacity=".32"/>
+    <rect x="384" y="0" width="3" height="512" fill="#3A4552" opacity=".32"/>
+    <rect x="243" y="154" width="26" height="204" rx="4" fill="#3FA9F5"/>
+    <rect x="246" y="160" width="20" height="192" rx="3" fill="#7EC8F8" opacity=".35"/>`;
 };
 ROAD.world7 = () => {            // violet space-night asphalt, glowing magenta dash
   const r = rng(29);

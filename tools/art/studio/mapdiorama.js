@@ -11,7 +11,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import {
   THEME, rng, pick, mix, std, glow, rbox, box, cyl, blob, plane, canvas, toTex, speckle, blotch,
   paverTexture, grassTexture, tree, pine, bush, flowerBed, lamp, bench, bollard, planterPot,
-  townHouse, warehouse, shippingContainer, drum, pallet, cone, fence, tower, neonSign,
+  townHouse, warehouse, shippingContainer, harborCrane, sodiumLamp, pierEdge, waterCue, drum, pallet, cone, fence, tower, neonSign,
   FAMILY, greenery, bedFor, potFor, townOpts, starTexture, cactus, rockCluster, snowDrift, frostPine,
 } from './backdrop.js';
 
@@ -152,11 +152,11 @@ export function buildMapHD(theme, seed, { W, H, S, road, nodes, plots, tilt }) {
     const side = r() < 0.5 ? 1 : -1;
     const ox = -dz * side * (roadW / 2 + 0.75), oz = dx * side * (roadW / 2 + 0.75);
     if (!free(p[0] + ox, p[1] + oz, 0.4)) continue;
-    const item = r() < 0.6 ? lamp(T, r, night, 1) : (fam === 'yard' ? cone() : bench(r));
+    const item = r() < 0.6 ? (theme === 'world6' ? sodiumLamp(1) : lamp(T, r, night, 1)) : (fam === 'yard' ? (theme === 'world6' ? bollard(0xFF8A1C) : cone()) : bench(r));
     item.scale.setScalar(0.85);
     if (!tryPut(item, p[0] + ox, p[1] + oz, 0.35)) continue;
   }
-  const budget = fam === 'town' ? (theme === 'world1' ? 140 : 110) : fam === 'yard' ? 60 : 85;
+  const budget = fam === 'town' ? (theme === 'world1' ? 140 : 110) : fam === 'yard' ? (theme === 'world6' ? 95 : 60) : 85;
   for (let k = 0; k < 3000 && placed.length < budget; k++) {
     const x = (r() - 0.5) * (Wu + 1), z = (r() - 0.5) * (Lu + 2);
     const p = r();
@@ -174,19 +174,35 @@ export function buildMapHD(theme, seed, { W, H, S, road, nodes, plots, tilt }) {
       else if (p < 0.9) { rad = 0.45; obj = planterPot(T, r, 1.2); }
       else { rad = 1.5; obj = townHouse(T, r, 2.2, 1.8, 1.0 + r() * 0.5, 1); }
     } else if (fam === 'yard') {
-      if (p < 0.34) {
-        // A stacked container yard (2–3 boxes, some double-height).
-        rad = 1.6; obj = new THREE.Group();
-        const cols = [0x2F8CFF, 0xE8453C, 0x2FA36B, 0xFF8A1C, 0x6E7B88];
-        const n = 2 + Math.floor(r() * 2);
-        for (let k = 0; k < n; k++) { const c = shippingContainer(r, cols); c.position.set(-0.5 * (n - 1) + k * 1.0, 0, 0); obj.add(c); if (r() < 0.4) { const t2 = shippingContainer(r, cols); t2.position.set(-0.5 * (n - 1) + k * 1.0, 0.92, 0.1); obj.add(t2); } }
+      if (p < 0.26) {
+        // Stacked ISO containers — denser/taller for Harbor Lights.
+        rad = 1.7; obj = new THREE.Group();
+        const cols = theme === 'world6'
+          ? [0x2F8CFF, 0xE8453C, 0x2FA36B, 0xFF8A1C, 0x3FA9F5, 0xFFC21A, 0x6E7B88]
+          : [0x2F8CFF, 0xE8453C, 0x2FA36B, 0xFF8A1C, 0x6E7B88];
+        const n = theme === 'world6' ? (3 + Math.floor(r() * 2)) : (2 + Math.floor(r() * 2));
+        for (let k = 0; k < n; k++) {
+          const c = shippingContainer(r, cols); c.position.set(-0.5 * (n - 1) + k * 1.0, 0, 0); obj.add(c);
+          if (r() < (theme === 'world6' ? 0.7 : 0.4)) {
+            const t2 = shippingContainer(r, cols); t2.position.set(-0.5 * (n - 1) + k * 1.0, 0.95, 0.1); obj.add(t2);
+            if (theme === 'world6' && r() < 0.35) { const t3 = shippingContainer(r, cols, { len: 1.6 }); t3.position.set(-0.5 * (n - 1) + k * 1.0, 1.9, 0); obj.add(t3); }
+          }
+        }
         if (r() < 0.5) obj.rotation.y = Math.PI / 2;
       }
-      else if (p < 0.52) { rad = 2.0; obj = warehouse(T, r, 2.8, 2.2, 1.2 + r() * 0.5); }
-      else if (p < 0.68) { rad = 0.75; obj = greenery(theme, T, r, 0.9); }
-      else if (p < 0.8) { rad = 0.6; obj = new THREE.Group(); const dc = pick(r, [0x2F8CFF, 0xE0574A, 0x2FA36B, 0xFFC21A]); for (const [dx, dz] of [[-0.2, 0], [0.2, 0.1], [0, 0.4], [0.35, 0.45]]) { const d = drum(dc); d.position.set(dx, 0, dz); obj.add(d); } }
-      else if (p < 0.9) { rad = 0.7; obj = new THREE.Group(); for (let k = 0; k < 2; k++) { const pl = pallet(r); pl.position.x = k * 0.85; obj.add(pl); } }
-      else { rad = 0.5; obj = new THREE.Group(); for (let k = 0; k < 3; k++) { const c = cone(); c.position.x = k * 0.35; obj.add(c); } }
+      else if (p < 0.44) { rad = 2.1; obj = warehouse(T, r, 2.9, 2.3, (theme === 'world6' ? 1.5 : 1.2) + r() * 0.7); }
+      else if (p < 0.54 && theme === 'world6') { rad = 1.6; obj = harborCrane(r, 2.3 + r() * 0.6); }
+      else if (p < 0.62 && theme === 'world6') {
+        rad = 1.4; obj = new THREE.Group();
+        const pe = pierEdge(2.8); obj.add(pe);
+        if (r() < 0.7) { const wa = waterCue(r, 2.0, 1.4); wa.position.set(0.9, 0, 0); obj.add(wa); }
+        for (let k = 0; k < 3; k++) { const b = bollard(0xFF8A1C); b.position.set(-0.05, 0, -1.0 + k * 0.9); obj.add(b); }
+      }
+      else if (p < 0.7 && theme === 'world6') { rad = 0.45; obj = sodiumLamp(r() < 0.5 ? 1 : -1); }
+      else if (p < 0.78) { rad = 0.75; obj = greenery(theme, T, r, 0.9); }
+      else if (p < 0.86) { rad = 0.6; obj = new THREE.Group(); const dc = pick(r, [0x2F8CFF, 0xE0574A, 0x2FA36B, 0xFF8A1C, 0x3FA9F5]); for (const [dx, dz] of [[-0.2, 0], [0.2, 0.1], [0, 0.4], [0.35, 0.45]]) { const d = drum(dc); d.position.set(dx, 0, dz); obj.add(d); } }
+      else if (p < 0.93) { rad = 0.7; obj = new THREE.Group(); for (let k = 0; k < 2; k++) { const pl = pallet(r); pl.position.x = k * 0.85; obj.add(pl); } }
+      else { rad = 0.5; obj = new THREE.Group(); for (let k = 0; k < 3; k++) { const c = theme === 'world6' ? bollard(0xFF8A1C) : cone(); c.position.x = k * 0.35; obj.add(c); } }
     } else {
       if (p < 0.18) { rad = 0.4; obj = lamp(T, r, true, 1); }
       else if (p < 0.6) { rad = 1.6; obj = tower(T, r, 2.0 + r() * 0.6, 1.8, 1.8 + r() * 2.4); }
@@ -234,7 +250,7 @@ export function buildRepairHD(theme, state, variant) {
       const t = tree(T, r, 0.75); t.position.set(w / 2 + 0.2, 0, -0.3); grp.add(t);
       return grp;
     }
-    if (FAMILY[theme] === 'yard') return warehouse(T, rng(variant * 31 + 9), w, d, 1.1 + variant * 0.15);
+    if (FAMILY[theme] === 'yard') return warehouse(T, rng(variant * 31 + 9), w, d, (theme === 'world6' ? 1.5 : 1.1) + variant * 0.2);
     return tower(T, rng(variant * 31 + 3), 2.1, 1.8, 2.0 + (variant % 3) * 0.45);
   };
   if (state === 2) { g.add(full()); return g; }

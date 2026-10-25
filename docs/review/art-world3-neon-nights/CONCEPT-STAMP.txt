@@ -1,9 +1,10 @@
-CONCEPT-STAMP — Traffic Bomb World 3 Neon Nights visual polish
+HUMAN-FINAL — Traffic Bomb World 3 Neon Nights visual polish
 Branch: art/world3-neon-nights
 Date: 2026-10-25 Asia/Jerusalem
-Status: CONCEPT-STAMP (not HUMAN-FINAL)
+Status: HUMAN-FINAL
 
-Question for Nadav (Hebrew-friendly):
+Approved by: Nadav (Toy Town bar)
+Stamp question answered YES:
 האם Neon Nights נראה כמו עולם מוגמר ברמת Toy Town, לא רק החלפת צבעים?
 
 English: Does Neon Nights read as a finished world at Toy Town quality — not just a palette swap?
@@ -18,4 +19,5 @@ Notes:
 - Car sprites / HP sizing / gameplay untouched.
 - Structural upgrades: richer neon marquees, setback towers with neon ribs + storefronts, marquee canopies, denser wet-asphalt reflection cues, nightHighway sceneTint/sceneGlow wash.
 - World 2 Steel Yards already HUMAN-FINAL on art/world2-steel-yards; W3 based on origin/master independently (W2 not merged).
+- Proceeding to World 4 Sun Valley on separate art branch art/world4-sun-valley (not merging W3 into master).
 - Scenery strips skipped (W3 gameplay uses baked backdrops like W2).

@@ -63,12 +63,13 @@ ROAD.world6 = () => {            // wet blue-grey dock concrete, expansion joint
     <rect x="0" y="0" width="4" height="512" fill="#47525E" opacity=".5"/>
     <rect x="243" y="154" width="26" height="204" rx="4" fill="#3FA9F5"/>`;
 };
-ROAD.world7 = () => {            // violet space-night asphalt, glowing magenta dash
+ROAD.world7 = () => {            // violet space-night asphalt + star flecks, glowing magenta dash
   const r = rng(29);
-  return `<defs><filter id="g" x="-200%" y="-20%" width="500%" height="140%"><feGaussianBlur stdDeviation="9"/></filter></defs>
-    <rect width="512" height="512" fill="#2B2145"/>${specks(r, 200, ['#3A2E60', '#21183A'])}${specks(r, 40, ['#FFFFFF', '#CFC3FF'], 0.7)}
-    <rect x="237" y="146" width="38" height="220" rx="19" fill="#FF4FD8" opacity=".55" filter="url(#g)"/>
-    <rect x="245" y="156" width="22" height="200" rx="11" fill="#FFD0F4"/>`;
+  return `<defs><filter id="g7" x="-200%" y="-20%" width="500%" height="140%"><feGaussianBlur stdDeviation="10"/></filter></defs>
+    <rect width="512" height="512" fill="#241838"/>${specks(r, 280, ['#32245A', '#1A1234', '#3A2A68'])}${specks(r, 70, ['#FFFFFF', '#E8DCFF', '#CFC3FF'], 0.75)}
+    <rect x="234" y="142" width="44" height="228" rx="22" fill="#FF4FD8" opacity=".48" filter="url(#g7)"/>
+    <rect x="243" y="154" width="26" height="204" rx="13" fill="#FFD0F4"/>
+    <rect x="246" y="160" width="20" height="192" rx="10" fill="#FFFFFF" opacity=".22"/>`;
 };
 
 export function roadTileSVG(world = 'world1') {
@@ -83,7 +84,7 @@ const FLOOR = {
   world4: { base: '#B9996B', tile: '#C7A878', edge: null },          // sandstone flags
   world5: { base: '#A9BBCD', tile: '#C0D0DF', edge: null },          // packed snow
   world6: { base: '#4C5967', tile: '#5A6876', edge: '#FF8A1C' },     // dock plate
-  world7: { base: '#17102E', tile: '#201640', edge: '#A35CFF' },     // violet grid
+  world7: { base: '#120A28', tile: '#1C1438', edge: '#FF4FD8' },     // starlight grid
 };
 export function zoneFloorSVG(world = 'world1', H = 260) {
   const W = 780, f = FLOOR[world];

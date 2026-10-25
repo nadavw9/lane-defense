@@ -203,16 +203,19 @@ Object.assign(THEME, {
     lot: 0x70828F,
     sun: { color: 0xFFF0DA, intensity: 3.1, hemi: [0xCFE6FF, 0x5E6C78, 0.66], env: 0.32, exposure: 1.0 },
   },
-  // Starlight Strip — violet space-night: crystal spires, neon, a star-field plaza.
+  // Starlight Strip — violet space-night: crystal spires, magenta neon, star-field plaza.
+  // Structural variety (faceted crystal towers, pedestaled crystal clusters, star plaza) —
+  // NOT a Neon Nights hue swap (no setback city towers / warm marquees).
   world7: {
-    asphalt: 0x2B2145, asphaltHi: 0x372B58, asphaltLo: 0x211938, paint: '#F1E8FF', centre: '#FF4FD8',
-    kerb: 0x5B4A8A, gutter: 0x181226, walk: [0x3A2F5E, 0x33295A, 0x41356A], walkJoint: '#1E1636',
-    lawn: [0x1F1838, 0x1A1430], leaf: [0x7C5CFF, 0xA35CFF, 0x4FE3FF, 0xFF4FD8], trunk: 0x3A2E5A,
-    roofs: [0x40306A, 0x4A3878, 0x362A5C, 0x52408A], walls: [0x3E3066, 0x35295A],
-    awnings: [[0xFF3DB8, 0x2A2D40], [0x4FE3FF, 0x2A2D40]], depot: [0x2E2350, 0x352A5A, 0x281F46], depotJoint: '#171030', track: 0x1E1738, trackEdge: 0xA35CFF,
-    neon: [0xFF3DB8, 0x4FE3FF, 0xFFD42A, 0xA35CFF], lot: 0x120D24,
+    asphalt: 0x241838, asphaltHi: 0x32245A, asphaltLo: 0x1A1234, paint: '#F1E8FF', centre: '#FF4FD8',
+    kerb: 0x7A5CC8, gutter: 0x120A22, walk: [0x2A1E4E, 0x24183F, 0x32245A, 0x1E1438], walkJoint: '#140C28',
+    lawn: [0x140E2A, 0x100A22], leaf: [0xC89CFF, 0xA35CFF, 0x7C5CFF, 0xFF4FD8, 0x8FE8FF], trunk: 0x2A1E4A,
+    roofs: [0x1A1234, 0x24183F, 0x2E2258, 0x3A2870], walls: [0x4A3A78, 0x3E3066, 0x5A48A0, 0x35295A],
+    awnings: [[0xFF4FD8, 0x1A1234], [0xA35CFF, 0x1A1234], [0x8FE8FF, 0x1A1234]],
+    depot: [0x1C1438, 0x241A44, 0x160E2E], depotJoint: '#0C0818', track: 0x18122E, trackEdge: 0xFF4FD8,
+    neon: [0xFF4FD8, 0xA35CFF, 0x8FE8FF, 0xFFD42A, 0x7C5CFF], lot: 0x0A0718,
     fill: [0xFF4FD8, 0x7C5CFF],
-    sun: { color: 0xC9B8FF, intensity: 1.9, hemi: [0x8E7CFF, 0x1E1236, 0.72], env: 0.26, exposure: 1.06 },
+    sun: { color: 0xD0C0FF, intensity: 1.75, hemi: [0x9A82FF, 0x140A28, 0.78], env: 0.28, exposure: 1.08 },
   },
 });
 
@@ -271,18 +274,20 @@ function roadTexture(T, world, L, r) {
   }
   // Night: wet sheen + lamp light pools and neon reflections.
   if (FAMILY[world] === 'night') {
-    // Wet asphalt: warm lamp pools and long neon streak reflections, added
+    // Wet asphalt: lamp pools and long neon streak reflections, added
     // light-on-dark ('lighter') so they glow instead of staining.
+    // World7 denser magenta/violet crystal wash (not warm sodium like Neon Nights).
+    const wetDense = world === 'world7';
     x.save(); x.globalCompositeOperation = 'lighter';
     for (const [lx, lz, col] of L.lampPools ?? []) {
-      blotch(x, X(lx), Y(lz), 3.2 * pxu, col, 0.22);
-      blotch(x, X(lx), Y(lz), 1.4 * pxu, 0xFFE2A8, 0.16);
+      blotch(x, X(lx), Y(lz), (wetDense ? 3.6 : 3.2) * pxu, col, wetDense ? 0.26 : 0.22);
+      blotch(x, X(lx), Y(lz), 1.4 * pxu, wetDense ? 0xFFB0F0 : 0xFFE2A8, wetDense ? 0.18 : 0.16);
     }
     for (const [sx, sz, col] of L.neonStreaks ?? []) {
-      const gx = X(sx), gy = Y(sz), hw = 0.35 * pxu, hh = 2.6 * pxu;
+      const gx = X(sx), gy = Y(sz), hw = (wetDense ? 0.42 : 0.35) * pxu, hh = (wetDense ? 3.1 : 2.6) * pxu;
       const g = x.createLinearGradient(gx, gy - hh, gx, gy + hh);
       const c = new THREE.Color(col), rgb = `${Math.round(c.r * 255)},${Math.round(c.g * 255)},${Math.round(c.b * 255)}`;
-      g.addColorStop(0, `rgba(${rgb},0)`); g.addColorStop(0.5, `rgba(${rgb},0.35)`); g.addColorStop(1, `rgba(${rgb},0)`);
+      g.addColorStop(0, `rgba(${rgb},0)`); g.addColorStop(0.5, `rgba(${rgb},${wetDense ? 0.42 : 0.35})`); g.addColorStop(1, `rgba(${rgb},0)`);
       x.fillStyle = g;
       x.beginPath(); x.ellipse(gx, gy, hw, hh, 0, 0, Math.PI * 2); x.fill();
     }
@@ -600,17 +605,95 @@ function frostPine(T, r, s = 1) {
   return g;
 }
 function crystal(T, r, s = 1) {
+  // Pedestaled crystal cluster — dark plinth keeps crystals off the star plaza
+  // so they never melt into the ground the way Frost Pass roofs melted into snow.
   const g = new THREE.Group();
-  const n = 3 + Math.floor(r() * 2);
+  const pedR = 0.32 * s, pedH = 0.1 * s;
+  g.add(cyl(pedR, pedR * 1.05, pedH, std(0x1A1234, 0.55, { metalness: 0.35 }), 0, pedH / 2, 0, 12));
+  g.add(cyl(pedR * 0.92, pedR * 0.92, 0.03 * s, glow(pick(r, T.neon ?? T.leaf)), 0, pedH + 0.01 * s, 0, 12));
+  const n = 3 + Math.floor(r() * 3);
   for (let i = 0; i < n; i++) {
-    const h = (0.5 + r() * 0.7) * s;
-    const c = new THREE.Mesh(new THREE.OctahedronGeometry(0.2 * s, 0), glow(pick(r, T.leaf)));
-    c.scale.set(1, h / (0.2 * s * 1.0), 1);
-    const a = (i / n) * Math.PI * 2 + r();
-    c.position.set(Math.cos(a) * 0.16 * s, h * 0.5, Math.sin(a) * 0.16 * s);
-    c.rotation.set((r() - 0.5) * 0.4, r() * 3, (r() - 0.5) * 0.4);
+    const h = (0.55 + r() * 0.95) * s;
+    const rad = (0.14 + r() * 0.1) * s;
+    const c = new THREE.Mesh(new THREE.OctahedronGeometry(rad, 0), glow(pick(r, T.leaf)));
+    c.scale.set(1, h / (rad * 2), 1);
+    const a = (i / n) * Math.PI * 2 + r() * 0.4;
+    const spread = (0.08 + r() * 0.14) * s;
+    c.position.set(Math.cos(a) * spread, pedH + h * 0.5, Math.sin(a) * spread);
+    c.rotation.set((r() - 0.5) * 0.35, r() * 3, (r() - 0.5) * 0.35);
     g.add(c);
   }
+  // Tall centre shard for silhouette.
+  if (r() < 0.7) {
+    const h = (1.0 + r() * 0.7) * s;
+    const tip = new THREE.Mesh(new THREE.OctahedronGeometry(0.12 * s, 0), glow(pick(r, [0xFF4FD8, 0xC89CFF, 0x8FE8FF])));
+    tip.scale.set(0.7, h / (0.24 * s), 0.7);
+    tip.position.set(0, pedH + h * 0.5, 0);
+    g.add(tip);
+  }
+  return g;
+}
+function crystalSpire(T, r, w, d, h) {
+  // Faceted crystal tower — geometric prism stack with glowing violet rings.
+  // Reads as a sci-fi crystal monument, NOT a Neon Nights setback office tower.
+  const g = new THREE.Group();
+  const wall = pick(r, T.walls);
+  const neon = pick(r, T.neon ?? T.leaf);
+  // Dark pedestal plinth for plaza contrast.
+  g.add(rbox(w + 0.35, 0.14, d + 0.35, 0.06, std(0x120A28, 0.55, { metalness: 0.4 }), 0, 0.07, 0));
+  g.add(rbox(w + 0.2, 0.04, d + 0.2, 0.04, glow(neon), 0, 0.16, 0));
+  // Tapered faceted shaft: 3–4 prism tiers getting narrower.
+  const tiers = 3 + Math.floor(r() * 2);
+  let y = 0.18, tw = w, td = d;
+  for (let i = 0; i < tiers; i++) {
+    const th = h * (0.22 + r() * 0.1) * (i === tiers - 1 ? 1.15 : 1);
+    const body = std(mix(wall, 0xffffff, 0.08 * i), 0.35, { metalness: 0.45 });
+    // Slight diamond footprint via rotated square + upright box.
+    g.add(rbox(tw, th, td, 0.02, body, 0, y + th / 2, 0));
+    const facet = rbox(tw * 0.72, th * 0.98, td * 0.72, 0.02, std(mix(wall, neon, 0.15), 0.3, { metalness: 0.55 }), 0, y + th / 2, 0);
+    facet.rotation.y = Math.PI / 4;
+    g.add(facet);
+    // Glowing ring belt at each tier joint.
+    g.add(rbox(tw + 0.08, 0.05, td + 0.08, 0.02, glow(pick(r, T.neon ?? T.leaf)), 0, y + th - 0.02, 0));
+    // Cool lit facets (not warm office windows).
+    const cols = Math.max(2, Math.floor(tw / 0.45));
+    for (let c = 0; c < cols; c++) {
+      if (r() < 0.35) continue;
+      g.add(box(0.14, th * 0.55, 0.02, glow(pick(r, [0xC89CFF, 0x8FE8FF, 0xFF4FD8, 0xA35CFF])),
+        -tw / 2 + (c + 0.5) * (tw / cols), y + th * 0.45, td / 2 + 0.01));
+    }
+    y += th;
+    tw *= 0.72 + r() * 0.08;
+    td *= 0.72 + r() * 0.08;
+  }
+  // Crystal crown — stacked octahedrons, not a billboard / pool / helipad.
+  const crownH = 0.7 + r() * 0.55;
+  const crown = new THREE.Mesh(new THREE.OctahedronGeometry(Math.min(tw, td) * 0.55, 0), glow(pick(r, T.leaf)));
+  crown.scale.set(1, crownH / (Math.min(tw, td) * 0.55), 1);
+  crown.position.y = y + crownH * 0.45;
+  g.add(crown);
+  if (r() < 0.7) {
+    for (let k = 0; k < 2; k++) {
+      const side = new THREE.Mesh(new THREE.OctahedronGeometry(0.18 + r() * 0.1, 0), glow(pick(r, T.neon ?? T.leaf)));
+      side.scale.set(1, 1.6 + r(), 1);
+      side.position.set((k ? 1 : -1) * tw * 0.55, y + 0.35 + r() * 0.2, (r() - 0.5) * td * 0.3);
+      side.rotation.set((r() - 0.5) * 0.4, r() * 2, (r() - 0.5) * 0.4);
+      g.add(side);
+    }
+  }
+  // Magenta aviation tip (crystal glow, not red city beacon).
+  g.add(cyl(0.04, 0.04, 0.35, std(0x2A1E4A, 0.5), 0, y + crownH + 0.15, 0, 6));
+  g.add(cyl(0.09, 0.09, 0.09, glow(0xFF4FD8), 0, y + crownH + 0.35, 0, 10));
+  return g;
+}
+function crystalBollard(col = 0xA35CFF) {
+  // Small glowing crystal post for Starlight Strip sidewalks.
+  const g = new THREE.Group();
+  g.add(cyl(0.1, 0.12, 0.08, std(0x1A1234, 0.55, { metalness: 0.4 }), 0, 0.04, 0, 10));
+  const shard = new THREE.Mesh(new THREE.OctahedronGeometry(0.12, 0), glow(col));
+  shard.scale.set(0.7, 2.4, 0.7);
+  shard.position.y = 0.42;
+  g.add(shard);
   return g;
 }
 // Per-world planting: world 1-3 are exactly the original calls (same rng draws).
@@ -631,13 +714,30 @@ function potFor(world, T, r, s = 1) {
   return planterPot(T, r, s);
 }
 const townOpts = (world) => world === 'world4' ? { style: 'flat' } : world === 'world5' ? { style: 'pitched' } : {};
-// Star-field plaza texture for world 7's lots.
+// Star-field plaza texture for world 7's lots — dark floor + bright stars.
+// Keep plaza darker than crystal shards so ground/crystal contrast stays clear.
 function starTexture(wU, dU, r, pxu = 24) {
   const W = Math.round(wU * pxu), H = Math.round(dU * pxu);
   const [c, x] = canvas(W, H);
-  x.fillStyle = '#120D24'; x.fillRect(0, 0, W, H);
-  for (let i = 0; i < 6; i++) blotch(x, r() * W, r() * H, 40 + r() * 80, [0x2A1B55, 0x1B1040, 0x3A1B55][i % 3], 0.35);
-  speckle(x, W, H, r, Math.floor(W * H * 0.012), ['#FFFFFF', '#CFC3FF', '#8FE8FF', '#FFC8F2'], 0.5, 1.4, 0.4, 0.95);
+  x.fillStyle = '#0A0718'; x.fillRect(0, 0, W, H);
+  // Soft nebula underlay (deeper violet, not crystal-bright).
+  for (let i = 0; i < 8; i++) blotch(x, r() * W, r() * H, 50 + r() * 100, [0x1A1040, 0x140C30, 0x22104A, 0x0E0A22][i % 4], 0.28);
+  // Faint plaza tile grid so it reads as a floor, not open space mush.
+  x.strokeStyle = 'rgba(90,70,160,0.18)'; x.lineWidth = 1;
+  const tile = Math.max(18, Math.round(pxu * 0.9));
+  for (let gx = 0; gx < W; gx += tile) { x.beginPath(); x.moveTo(gx, 0); x.lineTo(gx, H); x.stroke(); }
+  for (let gy = 0; gy < H; gy += tile) { x.beginPath(); x.moveTo(0, gy); x.lineTo(W, gy); x.stroke(); }
+  // Dense tiny stars + a few brighter flares.
+  speckle(x, W, H, r, Math.floor(W * H * 0.018), ['#FFFFFF', '#E8DCFF', '#CFC3FF', '#8FE8FF'], 0.4, 1.2, 0.45, 0.95);
+  for (let i = 0; i < Math.max(8, Math.floor(W * H * 0.00035)); i++) {
+    const sx = r() * W, sy = r() * H, rr = 1.2 + r() * 2.2;
+    x.fillStyle = ['#FFFFFF', '#FFC8F2', '#C89CFF', '#8FE8FF'][Math.floor(r() * 4)];
+    x.globalAlpha = 0.7 + r() * 0.3;
+    x.beginPath(); x.arc(sx, sy, rr, 0, Math.PI * 2); x.fill();
+    x.globalAlpha = 0.35; x.fillRect(sx - rr * 2.2, sy - 0.5, rr * 4.4, 1);
+    x.fillRect(sx - 0.5, sy - rr * 2.2, 1, rr * 4.4);
+    x.globalAlpha = 1;
+  }
   return toTex(c);
 }
 
@@ -861,8 +961,10 @@ export function buildBackdrop(world, variant, L) {
   // Street lamps (both sides), used for night light pools too.
   const lampZs = [];
   for (let gz = L.topZ + 3 + r() * 2; gz < L.breachZ - 2.5; gz += 7.5 + r() * 1.5) lampZs.push(gz);
-  const lampPools = night ? lampZs.flatMap((lz) => [[-(L.halfW - 0.9), lz + 0.3, 0xFFB45A], [(L.halfW - 0.9), lz + 3.6, 0xFFB45A]]) : [];
-  const neonStreaks = night ? Array.from({ length: 9 }, (_, i) => [(i % 2 ? 1 : -1) * (L.halfW - 0.5 - r() * 0.6), L.topZ + 2 + i * 3.1 + r(), pick(r, [0xFF3DB8, 0x4FE3FF, 0xA35CFF])]) : [];
+  const poolCol = world === 'world7' ? 0xC070FF : 0xFFB45A;
+  const lampPools = night ? lampZs.flatMap((lz) => [[-(L.halfW - 0.9), lz + 0.3, poolCol], [(L.halfW - 0.9), lz + 3.6, poolCol]]) : [];
+  const streakN = world === 'world7' ? 14 : 9;
+  const neonStreaks = night ? Array.from({ length: streakN }, (_, i) => [(i % 2 ? 1 : -1) * (L.halfW - 0.45 - r() * 0.7), L.topZ + 1.5 + i * (world === 'world7' ? 2.4 : 3.1) + r(), pick(r, T.neon ?? [0xFF3DB8, 0x4FE3FF, 0xA35CFF])]) : [];
 
   // 1. Road surface (textured plane in game units, stretched onto studio z).
   const roadTex = roadTexture(T, world, { pxu, halfW: L.halfW, laneXs: L.laneXs, z0, z1: L.breachZ + 0.05, crossZ, lampPools, neonStreaks }, r);
@@ -937,6 +1039,12 @@ export function buildBackdrop(world, variant, L) {
         else if (kind < 0.6) { for (let k = 0; k < 3; k++) { const b = bollard(0xFFC21A); b.position.set(px - s * 0.15, 0.1, Z(tz + k * 0.8)); g.add(b); } }
         else if (kind < 0.8) { const p = pallet(r); p.position.set(px, 0.1, Z(tz)); p.rotation.y = r() * 0.4; g.add(p); }
         else { const t = greenery(world, T, r, 0.8); t.position.set(px, 0.1, Z(tz)); g.add(t); }
+      } else if (world === 'world7') {
+        // Starlight Strip sidewalk: pedestaled crystals, glowing crystal posts, magenta neon.
+        if (kind < 0.42) { const t = greenery(world, T, r, 0.95 + r() * 0.35); t.position.set(px, 0.1, Z(tz)); g.add(t); }
+        else if (kind < 0.62) { for (let k = 0; k < 2; k++) { const b = crystalBollard(pick(r, T.neon)); b.position.set(px - s * 0.1, 0.1, Z(tz + k * 0.75)); g.add(b); } }
+        else if (kind < 0.8) { const n = neonSign(T, r, 1.0 + r() * 0.4); n.position.set(px + s * 0.15, 0.1, Z(tz)); n.rotation.y = Math.PI / 2; g.add(n); }
+        else { const t = greenery(world, T, r, 0.7); t.position.set(px, 0.1, Z(tz)); g.add(t); const b = crystalBollard(0xFF4FD8); b.position.set(px - s * 0.2, 0.1, Z(tz + 0.85)); g.add(b); }
       } else {
         if (kind < 0.4) { const t = greenery(world, T, r, 0.85); t.position.set(px, 0.1, Z(tz)); g.add(t); }
         else if (kind < 0.7) { const b = bollard(0x4A4E62); b.position.set(px - s * 0.1, 0.1, Z(tz)); g.add(b); const b2 = bollard(0x4A4E62); b2.position.set(px - s * 0.1, 0.1, Z(tz + 0.7)); g.add(b2); }
@@ -949,7 +1057,7 @@ export function buildBackdrop(world, variant, L) {
     let bz = L.topZ - 1.5;
     const bzEnd = FAMILY[world] === 'town' ? z1 : L.breachZ + 0.5;   // town: the street's houses continue beside the depot
     while (bz < bzEnd) {
-      const d = FAMILY[world] === 'yard' ? 3.2 + r() * 1.6 : 2.0 + r() * 1.2;
+      const d = FAMILY[world] === 'yard' ? 3.2 + r() * 1.6 : world === 'world7' ? 1.7 + r() * 1.1 : 2.0 + r() * 1.2;
       const w = 2.6 + r() * 0.8;
       const cx = bandIn + s * w / 2;
       const zc = bz + d / 2;
@@ -987,6 +1095,17 @@ export function buildBackdrop(world, variant, L) {
           }
           for (let k = 0; k < 3; k++) { const dr = drum(pick(r, [0x2F8CFF, 0xE0574A, 0x2FA36B])); dr.position.set(bandIn + s * (0.3 + r() * 0.3), 0.1, Z(zc - d / 2 + 0.4 + k * 0.4)); g.add(dr); }
         }
+      } else if (world === 'world7') {
+        // Crystal spires / geometric towers — sci-fi strip, not neon-city setbacks.
+        const h = 2.0 + r() * 2.4;
+        const sp = crystalSpire(T, r, w + 0.35 + r() * 0.4, Z(d) - Z(0) - 0.25, h);
+        sp.position.set(cx, 0.1, Z(zc));
+        g.add(sp);
+        if (r() < 0.55) {
+          const cl = crystal(T, r, 0.7 + r() * 0.35);
+          cl.position.set(bandIn + s * 0.35, 0.1, Z(zc - d * 0.3));
+          g.add(cl);
+        }
       } else {
         const h = 1.6 + r() * 1.8;
         const tw = tower(T, r, w + 0.6, Z(d) - Z(0) - 0.25, h);
@@ -1007,7 +1126,7 @@ export function buildBackdrop(world, variant, L) {
     const lotW = town ? L.halfX - gardenX + 3 : 5;
     const lotEnd = z1;
     const lot = plane(lotW, Z(lotEnd) - Z(z0), FAMILY[world] === 'town' ? std(0xffffff, 0.95, { map: grassTexture(T.lawn, 32, lotW, lotEnd - z0, r) })
-      : world === 'world7' ? std(0xffffff, 0.8, { map: starTexture(lotW, z1 - z0, r) })
+      : world === 'world7' ? std(0xffffff, 0.55, { map: starTexture(lotW, z1 - z0, r), metalness: 0.15 })
       : std(T.lot ?? (FAMILY[world] === 'yard' ? 0x8E9196 : 0x1C1E28), 0.95),
       s * (town ? gardenX + lotW / 2 : L.halfW + kerbW + walkW + lotW / 2 - 1.3), 0.09, (Z(z0) + Z(lotEnd)) / 2);
     g.add(lot);
@@ -1056,6 +1175,13 @@ export function buildBackdrop(world, variant, L) {
       for (let k = 0; k < 3; k++) { const dr = drum(pick(r, [0xFFC21A, 0x2F8CFF, 0xE0574A])); dr.position.set(fx + s * (k % 2) * 0.35, 0.02, Z(dz0 + 1.2 + k * 0.45)); g.add(dr); }
       const p = pallet(r); p.position.set(fx, 0.02, Z(dz0 + 4.4)); g.add(p);
       const c = cone(); c.position.set(fx - s * 0.2, 0.02, Z(dz0 + 6.2)); g.add(c);
+    } else if (world === 'world7') {
+      const n = neonSign(T, r, 1.35); n.position.set(fx + s * 0.2, 0.02, Z(dz0 + 1.8)); g.add(n);
+      if (r() < 0.7) { const n2 = neonSign(T, r, 0.9); n2.position.set(fx + s * 0.35, 0.02, Z(dz0 + 3.4)); n2.rotation.y = Math.PI / 2; g.add(n2); }
+      const t = greenery(world, T, r, 1.05); t.position.set(fx, 0.02, Z(dz0 + 5.2)); g.add(t);
+      const t2 = greenery(world, T, r, 0.75); t2.position.set(fx + s * 0.45, 0.02, Z(dz0 + 6.6)); g.add(t2);
+      for (let k = 0; k < 3; k++) { const b = crystalBollard(pick(r, T.neon)); b.position.set(fx - s * 0.15, 0.02, Z(dz0 + 2.6 + k * 0.55)); g.add(b); }
+      if (r() < 0.6) { const sp = crystalSpire(T, r, 1.4, 1.3, 2.2 + r() * 0.8); sp.position.set(fx + s * 0.55, 0.02, Z(dz0 + 8.0)); sp.scale.setScalar(0.72); g.add(sp); }
     } else {
       const n = neonSign(T, r, 1.1); n.position.set(fx + s * 0.2, 0.02, Z(dz0 + 2.2)); g.add(n);
       const t = greenery(world, T, r, 0.9); t.position.set(fx, 0.02, Z(dz0 + 5.0)); g.add(t);
@@ -1106,10 +1232,14 @@ export function renderBackdrop(renderer, world, variant, L, { scale = 2, ss = 2 
   sun.position.add(new THREE.Vector3(0, 0, zMid));
   scene.add(sun, sun.target);
   if (FAMILY[world] === 'night') {
-    // Coloured neon fill from the flanks.
+    // Coloured neon fill from the flanks — World7 punches magenta/violet so crystals read.
     const [fa, fb2] = T.fill ?? [0xFF3DB8, 0x4FE3FF];
-    const a = new THREE.DirectionalLight(fa, 0.35); a.position.set(-10, 6, zMid); scene.add(a);
-    const b = new THREE.DirectionalLight(fb2, 0.35); b.position.set(10, 6, zMid); scene.add(b);
+    const inten = world === 'world7' ? 0.52 : 0.35;
+    const a = new THREE.DirectionalLight(fa, inten); a.position.set(-10, 6, zMid); scene.add(a);
+    const b = new THREE.DirectionalLight(fb2, inten); b.position.set(10, 6, zMid); scene.add(b);
+    if (world === 'world7') {
+      const c = new THREE.PointLight(0xA35CFF, 0.55, 40, 2); c.position.set(0, 8, zMid); scene.add(c);
+    }
   }
 
   const obj = buildBackdrop(world, variant, L);
@@ -1151,6 +1281,6 @@ export function renderBackdrop(renderer, world, variant, L, { scale = 2, ss = 2 
 }
 
 // ── Shared with the map diorama (mapdiorama.js) ─────────────────────────────
-export { THEME, FAMILY, greenery, bedFor, potFor, townOpts, starTexture, cactus, rockCluster, snowDrift, frostPine, crystal, rng, pick, mix, std, glow, rbox, box, cyl, sphere, blob, plane, canvas, toTex, speckle, blotch,
+export { THEME, FAMILY, greenery, bedFor, potFor, townOpts, starTexture, cactus, rockCluster, snowDrift, frostPine, crystal, crystalSpire, crystalBollard, rng, pick, mix, std, glow, rbox, box, cyl, sphere, blob, plane, canvas, toTex, speckle, blotch,
   paverTexture, grassTexture, tree, pine, bush, flowerBed, lamp, bench, hydrant, bollard, bin, planterPot, parasol,
   townHouse, warehouse, shippingContainer, drum, pallet, cone, fence, tower, neonSign };

@@ -13,6 +13,7 @@ import {
   paverTexture, grassTexture, tree, pine, bush, flowerBed, lamp, bench, bollard, planterPot,
   townHouse, warehouse, shippingContainer, drum, pallet, cone, fence, tower, neonSign,
   FAMILY, greenery, bedFor, potFor, townOpts, starTexture, cactus, rockCluster, snowDrift, frostPine,
+  crystal, crystalSpire, crystalBollard,
 } from './backdrop.js';
 
 const NEW_WORLD = (w) => Number(w.slice(5)) > 3;
@@ -83,7 +84,7 @@ export function buildMapHD(theme, seed, { W, H, S, road, nodes, plots, tilt }) {
   if (theme === 'world1') groundMat = std(0xffffff, 0.95, { map: grassTexture([0x6FBF55, 0x5DAE47], 40, Wu + 6, Lu + 10, r) });
   else if (fam === 'town') groundMat = std(0xffffff, 0.95, { map: grassTexture(T.lawn, 40, Wu + 6, Lu + 10, r) });
   else if (theme === 'world6') groundMat = std(0xffffff, 0.9, { map: paverTexture(T.depot, T.depotJoint, 40, Wu + 6, Lu + 10, r, { tile: 1.6 }) });
-  else if (theme === 'world7') groundMat = std(0xffffff, 0.8, { map: starTexture(Wu + 6, Lu + 10, r, 14) });
+  else if (theme === 'world7') groundMat = std(0xffffff, 0.55, { map: starTexture(Wu + 6, Lu + 10, r, 14), metalness: 0.12 });
   else if (theme === 'world2') groundMat = std(0xffffff, 0.9, { map: paverTexture([0x9A9DA2, 0x93969B, 0xA2A5AA], '#7E8187', 40, Wu + 6, Lu + 10, r, { tile: 1.6 }) });
   else groundMat = std(0xffffff, 0.6, { map: paverTexture([0x262A3C, 0x2A2F44, 0x232738], '#191B26', 40, Wu + 6, Lu + 10, r, { tile: 1.2 }), metalness: 0.2 });
   g.add(plane(Wu + 6, Lu + 10, groundMat, 0, 0, 0));
@@ -100,7 +101,7 @@ export function buildMapHD(theme, seed, { W, H, S, road, nodes, plots, tilt }) {
   const path = road.map(toW);
   const roadW = 30 / S;
   let pathLen = 0; for (let i = 1; i < path.length; i++) pathLen += Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]);
-  const kerbCol = NEW_WORLD(theme) ? (theme === 'world6' ? 0xFF8A1C : T.kerb) : theme === 'world2' ? 0xFFC21A : theme === 'world3' ? 0x4A4E62 : 0xE8E1D2;
+  const kerbCol = NEW_WORLD(theme) ? (theme === 'world6' ? 0xFF8A1C : theme === 'world7' ? 0xFF4FD8 : T.kerb) : theme === 'world2' ? 0xFFC21A : theme === 'world3' ? 0x4A4E62 : 0xE8E1D2;
   g.add(ribbon(path, roadW + 0.55, std(kerbCol, 0.7), 0.04));
   const rt = roadStripTexture(T, theme, r);
   rt.repeat.set(1, 1);
@@ -129,7 +130,7 @@ export function buildMapHD(theme, seed, { W, H, S, road, nodes, plots, tilt }) {
       }
     } else {
       g.add(rbox(plotW + 0.14, 0.06, plotD / cT + 0.14, 0.06, accent ? glow(accent) : std(theme === 'world6' ? 0xFF8A1C : 0xFFC21A, 0.6), x, 0.03, zc));
-      g.add(rbox(plotW, 0.08, plotD / cT, 0.06, std(theme === 'world3' ? 0x2E3246 : theme === 'world7' ? 0x30244F : theme === 'world6' ? 0x8E9CAA : 0xB5B8BD, 0.85), x, 0.05, zc));
+      g.add(rbox(plotW, 0.08, plotD / cT, 0.06, std(theme === 'world3' ? 0x2E3246 : theme === 'world7' ? 0x160E2E : theme === 'world6' ? 0x8E9CAA : 0xB5B8BD, 0.85), x, 0.05, zc));
     }
   }
 
@@ -152,11 +153,13 @@ export function buildMapHD(theme, seed, { W, H, S, road, nodes, plots, tilt }) {
     const side = r() < 0.5 ? 1 : -1;
     const ox = -dz * side * (roadW / 2 + 0.75), oz = dx * side * (roadW / 2 + 0.75);
     if (!free(p[0] + ox, p[1] + oz, 0.4)) continue;
-    const item = r() < 0.6 ? lamp(T, r, night, 1) : (fam === 'yard' ? cone() : bench(r));
+    const item = r() < 0.6
+      ? (theme === 'world7' ? crystalBollard(pick(r, T.neon)) : lamp(T, r, night, 1))
+      : (fam === 'yard' ? cone() : theme === 'world7' ? crystal(T, r, 0.7) : bench(r));
     item.scale.setScalar(0.85);
     if (!tryPut(item, p[0] + ox, p[1] + oz, 0.35)) continue;
   }
-  const budget = fam === 'town' ? (theme === 'world1' ? 140 : 110) : fam === 'yard' ? 60 : 85;
+  const budget = fam === 'town' ? (theme === 'world1' ? 140 : 110) : fam === 'yard' ? 60 : (theme === 'world7' ? 110 : 85);
   for (let k = 0; k < 3000 && placed.length < budget; k++) {
     const x = (r() - 0.5) * (Wu + 1), z = (r() - 0.5) * (Lu + 2);
     const p = r();
@@ -187,6 +190,12 @@ export function buildMapHD(theme, seed, { W, H, S, road, nodes, plots, tilt }) {
       else if (p < 0.8) { rad = 0.6; obj = new THREE.Group(); const dc = pick(r, [0x2F8CFF, 0xE0574A, 0x2FA36B, 0xFFC21A]); for (const [dx, dz] of [[-0.2, 0], [0.2, 0.1], [0, 0.4], [0.35, 0.45]]) { const d = drum(dc); d.position.set(dx, 0, dz); obj.add(d); } }
       else if (p < 0.9) { rad = 0.7; obj = new THREE.Group(); for (let k = 0; k < 2; k++) { const pl = pallet(r); pl.position.x = k * 0.85; obj.add(pl); } }
       else { rad = 0.5; obj = new THREE.Group(); for (let k = 0; k < 3; k++) { const c = cone(); c.position.x = k * 0.35; obj.add(c); } }
+    } else if (theme === 'world7') {
+      if (p < 0.14) { rad = 0.4; obj = lamp(T, r, true, 1); }
+      else if (p < 0.48) { rad = 1.7; obj = crystalSpire(T, r, 1.7 + r() * 0.5, 1.5, 2.2 + r() * 2.2); }
+      else if (p < 0.7) { rad = 0.75; obj = greenery(theme, T, r, 0.95 + r() * 0.4); }
+      else if (p < 0.84) { rad = 0.6; obj = neonSign(T, r, 1.1); }
+      else { rad = 0.35; obj = crystalBollard(pick(r, T.neon)); }
     } else {
       if (p < 0.18) { rad = 0.4; obj = lamp(T, r, true, 1); }
       else if (p < 0.6) { rad = 1.6; obj = tower(T, r, 2.0 + r() * 0.6, 1.8, 1.8 + r() * 2.4); }
@@ -235,6 +244,12 @@ export function buildRepairHD(theme, state, variant) {
       return grp;
     }
     if (FAMILY[theme] === 'yard') return warehouse(T, rng(variant * 31 + 9), w, d, 1.1 + variant * 0.15);
+    if (theme === 'world7') {
+      const grp = new THREE.Group();
+      grp.add(crystalSpire(T, rng(variant * 31 + 3), 2.0, 1.7, 2.1 + (variant % 3) * 0.55));
+      const cl = crystal(T, r, 0.7); cl.position.set(w / 2 + 0.15, 0, -0.2); grp.add(cl);
+      return grp;
+    }
     return tower(T, rng(variant * 31 + 3), 2.1, 1.8, 2.0 + (variant % 3) * 0.45);
   };
   if (state === 2) { g.add(full()); return g; }

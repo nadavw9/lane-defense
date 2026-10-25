@@ -124,6 +124,9 @@ export const THEMES = {
     fog:       { color: 0x2a1458, near: 14, far: 48 },
     roadColor: 0x120c1e,
     emissiveBoost: 0.35,
+    // Presentation-only wash: deep-violet multiply on verge + magenta crystal flare add.
+    sceneTint: 0xC8B8F0,
+    sceneGlow: 0x3A1040,
   },
 };
 

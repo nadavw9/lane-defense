@@ -2833,6 +2833,10 @@ async function main() {
       showHpGuide:  () => { showHpGuide(); },
       showCarManual: () => { showCarManual(false); },
       showCarIntro: (t) => { _triggerCarTypeIntro(t); },
+      showOnboardingHint: (name) => {
+        const fn = ({ HpMiss: 'showHpMiss', Damage: 'showDamage', Advance: 'showAdvance', ColorBomb: 'showColorBomb' })[name];
+        if (fn) onboardingHints[fn](() => {});
+      },
       openColorPicker: () => {
         boosterState.colorChange = Math.max(1, boosterState.colorChange);
         boosterState.activateColorChange();

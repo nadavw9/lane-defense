@@ -13,12 +13,12 @@ import {
   paverTexture, grassTexture, tree, pine, bush, flowerBed, lamp, bench, bollard, planterPot,
   townHouse, warehouse, shippingContainer, drum, pallet, cone, fence, tower, neonSign,
   FAMILY, greenery, bedFor, potFor, townOpts, starTexture, cactus, rockCluster, snowDrift, frostPine,
-  crystal, crystalSpire, crystalBollard,
+  crystal, crystalTree, crystalSpire, crystalBollard,
 } from './backdrop.js';
 
 const NEW_WORLD = (w) => Number(w.slice(5)) > 3;
 const HEDGE = { world1: 0x3F8F3E, world4: 0xD8B27C, world5: 0xF2F7FB };
-const WALL = { world1: 0xEFDCC0, world2: 0xC9C4BA, world3: 0x3E4258, world4: 0xF0D2A0, world5: 0xA8744A, world6: 0xC9D3DC, world7: 0x3E3066 };
+const WALL = { world1: 0xEFDCC0, world2: 0xC9C4BA, world3: 0x3E4258, world4: 0xF0D2A0, world5: 0xA8744A, world6: 0xC9D3DC, world7: 0x1A1234 };
 
 function ribbon(points, width, mat, y, uvLen = 0) {
   const pos = [], idx = [], uv = [];
@@ -191,11 +191,12 @@ export function buildMapHD(theme, seed, { W, H, S, road, nodes, plots, tilt }) {
       else if (p < 0.9) { rad = 0.7; obj = new THREE.Group(); for (let k = 0; k < 2; k++) { const pl = pallet(r); pl.position.x = k * 0.85; obj.add(pl); } }
       else { rad = 0.5; obj = new THREE.Group(); for (let k = 0; k < 3; k++) { const c = cone(); c.position.x = k * 0.35; obj.add(c); } }
     } else if (theme === 'world7') {
-      if (p < 0.14) { rad = 0.4; obj = lamp(T, r, true, 1); }
-      else if (p < 0.48) { rad = 1.7; obj = crystalSpire(T, r, 1.7 + r() * 0.5, 1.5, 2.2 + r() * 2.2); }
-      else if (p < 0.7) { rad = 0.75; obj = greenery(theme, T, r, 0.95 + r() * 0.4); }
-      else if (p < 0.84) { rad = 0.6; obj = neonSign(T, r, 1.1); }
-      else { rad = 0.35; obj = crystalBollard(pick(r, T.neon)); }
+      // Clarity: fewer denser-spaced spires + sparse crystal trees (not blob mush).
+      if (p < 0.12) { rad = 0.45; obj = lamp(T, r, true, 1); }
+      else if (p < 0.52) { rad = 2.1; obj = crystalSpire(T, r, 1.6 + r() * 0.45, 1.45, 2.4 + r() * 2.0); }
+      else if (p < 0.66) { rad = 1.05; obj = greenery(theme, T, r, 1.05 + r() * 0.3); }
+      else if (p < 0.82) { rad = 0.65; obj = neonSign(T, r, 1.1); }
+      else { rad = 0.4; obj = crystalBollard(pick(r, T.neon)); }
     } else {
       if (p < 0.18) { rad = 0.4; obj = lamp(T, r, true, 1); }
       else if (p < 0.6) { rad = 1.6; obj = tower(T, r, 2.0 + r() * 0.6, 1.8, 1.8 + r() * 2.4); }
@@ -247,7 +248,8 @@ export function buildRepairHD(theme, state, variant) {
     if (theme === 'world7') {
       const grp = new THREE.Group();
       grp.add(crystalSpire(T, rng(variant * 31 + 3), 2.0, 1.7, 2.1 + (variant % 3) * 0.55));
-      const cl = crystal(T, r, 0.7); cl.position.set(w / 2 + 0.15, 0, -0.2); grp.add(cl);
+      // Crystal tree beside spire (clear trunk+crown), not an ambiguous shard blob.
+      const tr = crystalTree(T, r, 0.85); tr.position.set(w / 2 + 0.35, 0, -0.25); grp.add(tr);
       return grp;
     }
     return tower(T, rng(variant * 31 + 3), 2.1, 1.8, 2.0 + (variant % 3) * 0.45);

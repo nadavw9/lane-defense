@@ -3,23 +3,26 @@ Branch: art/world7-starlight-strip
 Date: 2026-10-25 Asia/Jerusalem
 Status: CONCEPT-STAMP (not HUMAN-FINAL)
 
-Question for Nadav (Hebrew-friendly):
-האם Starlight Strip נראה כמו עולם לילה-חלל מוגמר ברמת Toy Town — צריחי קריסטל גאומטריים, רחבת כוכבים, ניאון סגול/מג'נטה — ולא רק החלפת פלטה של Neon Nights?
+Clarity revision (post-feedback, still CONCEPT):
+Nadav: "The buildings aren't clear and there are maybe trees on their left that are also not clear"
+→ Stronger crystalSpire edge contrast (dark silhouette rim + bright crystal core + neon belts +
+  plaza pedestals); crystalTree greenery with clear trunk+crown (different value from towers);
+  thinned left-side filler; lighter cosmos sceneGlow so bake edges survive.
 
-English: Does Starlight Strip read as a finished space-night world at Toy Town quality — geometric crystal spires, star-field plaza, violet/magenta neon — not just a Neon Nights palette swap?
+Question for Nadav (Hebrew-friendly):
+האם עכשיו הצריחים (crystal spires) והעצים משמאל (crystal trees) ברורים — צללית נפרדת מהשמיים
+ומהרחבה, בלי בלובים מטושטשים — ואפשר לחתום HUMAN-FINAL?
+
+English: Are the crystal spire buildings and the left-side crystal trees now clearly readable —
+separate silhouettes from the night sky and plaza, no muddy blobs — ready to stamp HUMAN-FINAL?
 
 Review boards:
   docs/review/art-world7-starlight-strip/before/   (original master, pre-polish)
-  docs/review/art-world7-starlight-strip/after/    (crystal-strip identity pass)
+  docs/review/art-world7-starlight-strip/after/    (clarity revision: buildings + left trees)
   docs/review/art-world7-starlight-strip/before-after-sheet.png
 
 Notes:
-- Visual-only: bake SOURCES edited, then re-baked. No hand-paint of public/sprites/designed outputs.
-- Car sprites / HP sizing / gameplay untouched.
-- Structural upgrades: pedestaled crystal clusters (plaza contrast), faceted crystalSpire towers
-  (not Neon Nights setback office towers), crystal bollards, denser magenta/violet neon streaks,
-  star-field plaza with tile grid + bright flares, violet asphalt + magenta dash, cosmos
-  sceneTint/sceneGlow (violet multiply + magenta crystal flare).
-- Based on origin/master independently (not merging prior art worlds into master).
+- Visual-only: bake SOURCES edited, then re-baked W7 only. No hand-paint of public/sprites/designed.
+- Car sprites / HP sizing / gameplay untouched. Non-W7 designed sprites unchanged.
+- Keep Starlight identity (space-night, geometric crystals, star plaza) — not a Neon Nights swap.
 - Scenery strips skipped (W7 gameplay uses baked backdrops like W2–W6).
-- World 6 Harbor Lights already HUMAN-FINAL on art/world6-harbor-lights.

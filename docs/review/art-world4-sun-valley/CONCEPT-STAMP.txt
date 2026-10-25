@@ -1,9 +1,10 @@
-CONCEPT-STAMP — Traffic Bomb World 4 Sun Valley visual polish
+HUMAN-FINAL — Traffic Bomb World 4 Sun Valley visual polish
 Branch: art/world4-sun-valley
 Date: 2026-10-25 Asia/Jerusalem
-Status: CONCEPT-STAMP (not HUMAN-FINAL)
+Status: HUMAN-FINAL
 
-Question for Nadav (Hebrew-friendly):
+Approved by: Nadav (Toy Town bar)
+Stamp question answered YES:
 האם Sun Valley נראה כמו עולם מוגמר ברמת Toy Town, לא רק החלפת צבעים?
 
 English: Does Sun Valley read as a finished world at Toy Town quality — not just a palette swap?
@@ -16,6 +17,4 @@ Review boards:
 Notes:
 - Visual-only: bake SOURCES edited, then re-baked. No hand-paint of public/sprites/designed outputs.
 - Car sprites / HP sizing / gameplay untouched.
-- Structural upgrades: adobe flat roofs with vigas + street porches + L-wing silhouettes, richer saguaro/barrel/pad cacti, sandstone rock piles, sand drifts, denser desert depot dressing, sun-bleached road stains/joints, desert sceneTint/sceneGlow wash, higher W4 map budget + taller adobe repair sheds.
-- World 2 Steel Yards + World 3 Neon Nights already HUMAN-FINAL on their art branches; W4 based on origin/master independently (W2/W3 not merged).
-- Scenery strips skipped (W4 gameplay uses baked backdrops like W2/W3).
+- Proceeding to World 5 Frost Pass on separate art branch art/world5-frost-pass (not merging W4 into master).

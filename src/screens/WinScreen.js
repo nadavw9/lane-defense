@@ -15,14 +15,14 @@ import { worldForLevel } from './levelMapLayout.js';
 import { LEVEL_COUNT } from '../game/LevelManager.js';
 import { panel as premiumPanel, ribbon, button as premiumButton, bodyText, titleText, well } from '../renderer/PremiumUI.js';
 import { starsFor, starTargetsFor } from '../game/score.js';
+import { ConfettiSystem, CONFETTI_COLORS } from '../renderer/Confetti.js';
+export { ConfettiSystem } from '../renderer/Confetti.js';
 
 const _B = import.meta.env.BASE_URL;
 
 const STAR_COLOR_FULL  = 0xffcc00;
 const STAR_COLOR_EMPTY = 0x3a3a3a;
 const STAR_EMPTY_TINT  = 0x2b2f3a;   // dark tint applied to the glossy star-empty sprite so it recedes
-
-const CONFETTI_COLORS = [0xff4466, 0x44ff88, 0xffcc00, 0x44aaff, 0xff88ff, 0xff8844, 0x88ffff];
 
 // Goal/car palette (matches CLAUDE.md) — used to tint the win confetti by the
 // level's goals.
@@ -66,82 +66,6 @@ async function _shareWin(levelId, stars, combo) {
 export function calcStars(gs) {
   const goal = (gs.goals ?? []).reduce((a, g) => a + (g.count ?? 0), 0);
   return starsFor(gs.score ?? 0, gs.starTargets ?? starTargetsFor(gs.levelId, goal));
-}
-
-// ── Confetti particle system ───────────────────────────────────────────────────
-export class ConfettiSystem {
-  constructor(container, w, h) {
-    this._c = container;
-    this._w = w;
-    this._h = h;
-    this._particles = [];
-  }
-
-  spawn(count = 35) {
-    for (let i = 0; i < count; i++) {
-      const color = CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)];
-      const g     = new Graphics();
-      if (Math.random() < 0.5) { g.rect(-5, -3, 10, 6); }
-      else { g.circle(0, 0, 4); }
-      g.fill(color);
-      g.x        = Math.random() * this._w;
-      g.y        = -20 - Math.random() * 60;
-      g.rotation = Math.random() * Math.PI * 2;
-      this._c.addChild(g);
-      this._particles.push({
-        g,
-        vx: (Math.random() - 0.5) * 120,
-        vy: 60 + Math.random() * 100,
-        vr: (Math.random() - 0.5) * 5,
-        life: 3.5 + Math.random() * 1.5,
-      });
-    }
-  }
-
-  // One-shot upward burst from the bottom: particles shoot up, arc under gravity,
-  // and fade over ~1.5s. Tinted by the level's goal colours.
-  burstUp(count = 26, colors = CONFETTI_COLORS) {
-    for (let i = 0; i < count; i++) {
-      const color = colors[Math.floor(Math.random() * colors.length)];
-      const g     = new Graphics();
-      if (Math.random() < 0.5) { g.rect(-5, -3, 10, 6); } else { g.circle(0, 0, 4); }
-      g.fill(color);
-      g.x        = this._w * (0.15 + Math.random() * 0.70);   // spread across the width
-      g.y        = this._h + 12;                              // just below the bottom edge
-      g.rotation = Math.random() * Math.PI * 2;
-      this._c.addChild(g);
-      this._particles.push({
-        g,
-        vx: (Math.random() - 0.5) * 260,
-        vy: -(360 + Math.random() * 240),   // upward
-        vr: (Math.random() - 0.5) * 8,
-        life: 1.5,
-      });
-    }
-  }
-
-  update(dt) {
-    for (let i = this._particles.length - 1; i >= 0; i--) {
-      const p = this._particles[i];
-      p.life -= dt;
-      if (p.life <= 0 || p.g.y > this._h + 20) {
-        this._c.removeChild(p.g);
-        p.g.destroy();
-        this._particles.splice(i, 1);
-        continue;
-      }
-      p.vy        += 180 * dt;
-      p.g.x       += p.vx * dt;
-      p.g.y       += p.vy * dt;
-      p.g.rotation += p.vr * dt * 3;
-      p.g.alpha    = Math.min(1, p.life * 1.5);
-    }
-  }
-
-  destroy() {
-    for (const p of this._particles) { this._c.removeChild(p.g); p.g.destroy(); }
-    this._particles.length = 0;
-  }
 }
 
 // ── WinScreen ──────────────────────────────────────────────────────────────────

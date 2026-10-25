@@ -1,28 +1,21 @@
-CONCEPT-STAMP — Traffic Bomb World 5 Frost Pass visual polish
+HUMAN-FINAL — Traffic Bomb World 5 Frost Pass visual polish
 Branch: art/world5-frost-pass
 Date: 2026-10-25 Asia/Jerusalem
-Status: CONCEPT-STAMP (not HUMAN-FINAL)
+Status: HUMAN-FINAL
 
-Revision (same day): roof / street snow separation after Nadav rejected the first CONCEPT.
-Feedback: "הגג של הבתים והשלג ברחוב משתלבים" — cabin roof snow and street snow blended.
-Fix: warm peach-ivory roof snow + dark eaves plank/shadow silhouette vs cooler blue-grey
-packed lot/street snow (asphalt flecks); wood under-snow roofs; modest frost sceneGlow so
-wash does not bleach roofs back into street white. Still CONCEPT — not HUMAN-FINAL.
-
-Question for Nadav (Hebrew-friendly):
+Approved by: Nadav (after roof/street snow separation revision)
+Stamp question answered YES (post-revision):
 האם עכשיו השלג על גגות הבתים נפרד בבירור מהשלג ברחוב/מגרש, והעולם מרגיש מוגמר כמו Toy Town?
 
-English: Do cabin roof snow and street/lot snow now read as clearly separate planes — and does Frost Pass feel finished at Toy Town quality?
+English: Cabin roof snow and street/lot snow now read as clearly separate planes — Frost Pass finished at Toy Town quality.
 
 Review boards:
-  docs/review/art-world5-frost-pass/before/   (original master, pre-polish)
+  docs/review/art-world5-frost-pass/before/
   docs/review/art-world5-frost-pass/after/    (revised roof≠street separation)
   docs/review/art-world5-frost-pass/before-after-sheet.png
 
 Notes:
 - Visual-only: bake SOURCES edited, then re-baked. No hand-paint of public/sprites/designed outputs.
 - Car sprites / HP sizing / gameplay untouched.
-- Structural upgrades retained from first pass (log cabins, pines, drifts, depot, icy road).
-- This revision targets local contrast only — not a global brighten.
-- World 4 Sun Valley already HUMAN-FINAL on art/world4-sun-valley; W5 based on origin/master independently.
-- Scenery strips skipped (W5 gameplay uses baked backdrops like W2–W4).
+- Revision retained: warm peach-ivory roof snow + dark eaves vs cooler blue-grey packed street snow; modest frost sceneGlow.
+- Proceeding to World 6 Harbor Lights on separate art branch art/world6-harbor-lights (not merging W5 into master).

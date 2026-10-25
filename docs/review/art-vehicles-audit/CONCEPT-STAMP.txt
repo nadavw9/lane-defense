@@ -1,34 +1,29 @@
-CONCEPT-STAMP — Traffic Bomb vehicles polish (Play Store 10/10)
+HUMAN-FINAL — Traffic Bomb vehicles polish (Play Store 10/10)
 Branch: art/vehicles-polish
 Date: 2026-10-25 Asia/Jerusalem
-Status: CONCEPT-STAMP (not HUMAN-FINAL)
+Status: HUMAN-FINAL
+Approved by: Nadav (van distinctness + race/goal CONCEPT)
 
 Quality bar: Google Play / Royal Match / Toon Blast class — NOT console/PlayStation.
 
 Audit: docs/review/art-vehicles-audit/VEHICLE-AUDIT.md
 Evidence: contact-*.png, samples/, before/, after/, before-after-sheet.png,
-          van-vs-sedan-before-after.png, preview-van-sedan.png
+          van-vs-sedan-before-after.png, preview-van-sedan.png,
+          after/after-contact-human-final.png
 
-Finding (honest):
-- Core Toy Town bake (bike/sedan/truck/bigrig/tank-color + variants + bosses) already PASSes Play Store bar.
-- Van was too sedan-like (Nadav: "הvan דומה מידי לרכב רגיל") — REVISED this pass to a flat-nose
-  tall cargo box with short forward-only greenhouse, long high roof+rails, sliding-door pocket.
-- Remaining CONCEPT gaps kept: (1) RaceScreen → designed sedan; (2) goal-car-* side icons CONCEPT polish.
+HUMAN-FINAL conversions (player-facing Toy Town):
+1. Van — flat-nose tall cargo box (rebaked van-* + *-jeep-* variants).
+2. RaceScreen — designed sedan `sprites/designed/car-{color}-processed.png` (all race UI cars).
+3. Goal-car side icons — regenerated Toy Town palette/gloss/chrome; shipped
+   `public/sprites/designed/goal-car-{red,blue,green,yellow,purple,orange}.png`.
+4. Orphan `tank.png` — removed from public/sprites/designed/; master-pipeline no longer writes it.
+   Live tanks remain `tank-{color}.png` (PASS).
 
-CONCEPT samples (not stamped HUMAN-FINAL):
-- Van distinctness: van-vs-sedan-before-after.png (BEFORE top / AFTER bottom)
-- Goal cars: after/goal-car-*-concept.png — Toy Town palette + gloss/chrome/soft shadow side-view
-- Race: after/race-car-red-from-designed.png — reuse designed sedan instead of legacy
+Core PASS fleet untouched (sedan/truck/bigrig/bike/tanks-color/variants/bosses).
 
-Code on this branch (visual-only):
-- tools/art/studio/vehicles-hd.js jeep() → cargo-van silhouette; studio.js DECK/CHUNK_HD for jeep
-- Rebaked van-* + *-jeep-* color variants → public/sprites/designed/
-- RaceScreen.js → designed/car-{color}-processed.png
-- scripts/generate-goal-car-montage.mjs → CONCEPT side-view polish (regen + process before ship)
+Still legacy (by design, not player-facing on 3D path):
+- `public/sprites/cars/*` — 2D CarRenderer fallback only (carLayer hidden when GameRenderer3D.show()).
+- Not remodeled; RaceScreen no longer uses them.
 
-Question for Nadav (Hebrew):
-האם ה-van עכשיו ברור כ־van (לא סדאן) — צללית קופסתית גבוהה, גג ארוך, חממה קצרה מקדימה —
-וגם האם אייקוני מכונית-המטרה + מכוניות המרוץ מוכנים לחותמת HUMAN-FINAL על ה-CONCEPT?
-
-English: Is the van now clearly a van (not a sedan) — tall boxy silhouette, long roof, short front
-greenhouse — AND are the goal-car side icons + race-card cars ready to stamp HUMAN-FINAL on this CONCEPT?
+Out of scope kept: no master/prod/Vercel; no ios/**, AdManager, AudioManager, store scripts;
+no gameplay/HP/collision.

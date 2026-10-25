@@ -44,7 +44,7 @@
 | Boss | 2 | `boss.png`, `boss-armored.png` | Car3D / intro cards |
 | Goal-car (side UI) | 6 | `goal-car-{color}.png` | GoalCounterUI **fallback** only |
 | Legacy 2D cars | 7 | `public/sprites/cars/car-*.png` (+ boss) | **RaceScreen** (pre-fix) + assetManifest + CarRenderer path |
-| Orphan | 1 | `tank.png` (colorless) | Not used by Car3D (replaced by `tank-{color}`) |
+| Orphan | 0 | ~~`tank.png`~~ **removed** | Was unused by Car3D; deleted HUMAN-FINAL |
 
 **Designed car-like PNGs ≈ 153** (+ 7 legacy under `public/sprites/cars/`).  
 Colors: Red / Orange / Yellow / Green / Blue / Purple.
@@ -65,13 +65,13 @@ Legend: **PASS** = ships at Royal Match / Toon Blast class for mobile; **SOFT** 
 | Asset family | Verdict | Notes |
 |---|---|---|
 | Base bike / sedan / truck / bigrig | **PASS** | Clear silhouette, glossy toy materials, shared lighting, consistent scale language |
-| Base van (jeep) | **CONCEPT** (revised) | Was too sedan-like; rebuilt as flat-nose tall cargo box (see `van-vs-sedan-before-after.png`) |
+| Base van (jeep) | **PASS** (HUMAN-FINAL) | Flat-nose tall cargo box; clear vs sedan (`van-vs-sedan-before-after.png`) |
 | Base tank `{color}` | **PASS** | Matches Toy Town; readable tracks + turret; color-match works |
 | Armored / speeder / chameleon / mender / volatile | **PASS** | Same bake, readable traits (plow, bolt, roof lamp, cross, barrels) without muddying silhouette |
 | Boss / boss-armored | **PASS** | Strong silhouette + hazard language; pink toy body reads premium |
-| Goal-car side icons | **FAIL** | Flat SVG side-view; old muted palette; no clearcoat / soft AO; style break vs road Toy Town. Mostly fallback (GoalCounter prefers `car-*-processed`) but still shipped |
-| Legacy `public/sprites/cars/*` | **FAIL** | Low-res muddy top-down; jagged edges; was shown on **Traffic Race** card |
-| Orphan `tank.png` | **FAIL** (dead) | Olive military paint; style clash; not referenced by Car3D — delete or ignore |
+| Goal-car side icons | **PASS** (HUMAN-FINAL) | Toy Town palette + gloss/chrome/soft shadow; shipped `goal-car-*.png` all 6 colors |
+| Legacy `public/sprites/cars/*` | **legacy 2D fallback only** | RaceScreen converted to designed sedans; carLayer hidden under 3D |
+| Orphan `tank.png` | **REMOVED** | Deleted from `public/sprites/designed/`; pipeline no longer writes it |
 
 ### Top issues (ranked)
 
@@ -126,4 +126,18 @@ Top row = current weak assets; bottom row = CONCEPT upgrade path (goal = new sid
 - Rebaked all `van-{color}` + `*-jeep-{color}` variants sharing the van mesh.
 - Evidence: `van-vs-sedan-before-after.png`, `preview-van-sedan.png`, `before/van-red.png`, `after/van-red.png`.
 
-Still CONCEPT (not HUMAN-FINAL) pending Nadav stamp on van distinctness + race/goal CONCEPT.
+**HUMAN-FINAL 2026-10-25 Asia/Jerusalem** — Nadav approved van + race/goal CONCEPT; gaps converted on `art/vehicles-polish`. See `CONCEPT-STAMP.txt` and `after/after-contact-human-final.png`.
+
+
+---
+
+## 7. HUMAN-FINAL conversion (2026-10-25 Asia/Jerusalem)
+
+Nadav stamped HUMAN-FINAL on the CONCEPT (van + race/goal). Converted on `art/vehicles-polish`:
+
+1. **RaceScreen** → `sprites/designed/car-{color}-processed.png` (already on CONCEPT branch; confirmed).
+2. **Goal-car** → regen `generate-goal-car-montage.mjs` + `process-goal-car-sprites.mjs` → shipped all 6 `goal-car-*.png`.
+3. **Orphan tank.png** → deleted; `scripts/master-pipeline.mjs` no longer emits it.
+4. **Van** → already rebaked (prior commit); game loads `van-*.png` / `*-jeep-*` from `public/sprites/designed/`.
+
+After contact: `after/after-contact-human-final.png`.

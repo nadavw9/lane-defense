@@ -92,7 +92,9 @@ console.log('Individual files:');
 await processFile('cargo_blue.webp',    'van-blue.png');
 await processFile('cargo_red.png',      'van-red.png');
 await processFile('pickup_purple.webp', 'truck-purple.png');
-await processFile('tank.webp',          'tank.png');
+// Orphan colorless tank.png removed (Play Store vehicles polish HUMAN-FINAL 2026-10-25).
+// Colour-match uses tank-{color}.png from the Toy Town bake — do not resurrect tank.png.
+// await processFile('tank.webp',          'tank.png');
 
 // ── cargo_other.webp: 4 cols × 1 row → green / yellow / orange / purple vans
 console.log('\nVan grid (cargo_other.webp — 4×1):');

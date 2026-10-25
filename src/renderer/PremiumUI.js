@@ -98,7 +98,9 @@ export function ribbon(str, w = 260, { color = RIBBON, size = 30 } = {}) {
 }
 
 const VARIANTS = {
-  green:  { plate: null, fill: GREEN },
+  // Green primary uses Batch-2 button-primary.png 9-slice (preloaded). Other
+  // colors stay procedural — we do not invent multi-color plates.
+  green:  { plate: 'button-primary', fill: GREEN },
   blue:   { plate: null, fill: BLUE },
   gold:   { plate: null, fill: GOLD, ink: 0x5A3500 },
   red:    { plate: null, fill: RIBBON },
@@ -108,6 +110,8 @@ const VARIANTS = {
 
 /**
  * Chunky button centred on (0, 0). Press = squash to 0.94, release = tap.
+ * Green variant uses sprites/ui/button-primary.png via uiPlate (Play Store chrome);
+ * other variants stay procedural Graphics (no invented multi-color plates).
  * opts: { variant, w, h, icon (display object), size, onTap, sub (small line) }
  */
 export function button(label, { variant = 'green', w = 220, h = 64, icon = null, size = 26, onTap, sub = null } = {}) {

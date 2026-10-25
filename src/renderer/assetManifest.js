@@ -160,7 +160,8 @@ export const UI_ICON_NAMES = [
 export const UI_ICON_URLS = UI_ICON_NAMES.map(n => `${_B}sprites/ui/icon-${n}.png`);
 
 // Batch 2 chrome — 9-slice button plates (green primary + slate secondary).
-// Non-critical; TitleScreen keeps its Graphics fallback if a plate 404s.
+// button-primary: wired into PremiumUI.button green (Title PLAY + all green CTAs).
+// button-secondary: TitleScreen._addPillBtn fallback path. Non-critical if 404.
 export const BUTTON_PLATE_URLS = ['button-primary', 'button-secondary'].map(n => `${_B}sprites/ui/${n}.png`);
 
 // Batch 2 chrome — Win/Lose celebration frames (additive art over existing screens).

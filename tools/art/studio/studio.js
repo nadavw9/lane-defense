@@ -228,7 +228,7 @@ const HAZARD_K = new THREE.MeshStandardMaterial({ color: 0x24212C, roughness: 0.
 const DECK = {
   small:  { hw: 0.25, zF: 0.95, zB: -0.95, hoodY: 1.0,  hood: [0.3, 0.85],  roofY: 1.0,  roof: [-0.7, -0.2],  tailY: 0.98 },
   big:    { hw: 0.98, zF: 2.12, zB: -2.1,  hoodY: 0.9,  hood: [1.05, 1.95], roofY: 1.46, roof: [-0.72, 0.34], tailY: 0.9 },
-  jeep:   { hw: 1.02, zF: 2.22, zB: -2.2,  hoodY: 1.12, hood: [1.55, 2.1],  roofY: 1.9,  roof: [-1.86, 1.0],  tailY: 1.9 },
+  jeep:   { hw: 1.16, zF: 2.5,  zB: -2.55, hoodY: 1.58, hood: [1.95, 2.28], roofY: 2.48, roof: [-2.28, 1.35], tailY: 2.35 },
   truck:  { hw: 1.0,  zF: 2.42, zB: -2.4,  hoodY: 1.42, hood: [1.95, 2.35], roofY: 2.12, roof: [1.0, 1.7],    tailY: 2.35 },
   bigrig: { hw: 1.05, zF: 2.82, zB: -2.72, hoodY: 1.5,  hood: [2.45, 2.75], roofY: 2.62, roof: [-2.5, 0.9],   tailY: 2.62 },
 };
@@ -473,7 +473,7 @@ const CHUNK = {
 
 // Premium models are already built chunky; only a light widening on top.
 const CHUNK_HD = {
-  small: [1.5, 1, 1], big: [1.32, 1, 0.95], jeep: [1.26, 1, 0.95],
+  small: [1.5, 1, 1], big: [1.32, 1, 0.95], jeep: [1.3, 1.12, 0.95],
   truck: [1.26, 1, 0.95], bigrig: [1.24, 1, 0.95], tank: [1.2, 1, 1],
 };
 

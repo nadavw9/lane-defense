@@ -16,9 +16,9 @@ export const CAR_SPRITE_GEOMETRY = {
     "cx": 0
   },
   "jeep": {
-    "aspect": 0.635,
-    "w": 0.941,
-    "h": 0.868,
+    "aspect": 0.62,
+    "w": 0.95,
+    "h": 0.883,
     "cx": 0
   },
   "truck": {

@@ -64,7 +64,8 @@ Legend: **PASS** = ships at Royal Match / Toon Blast class for mobile; **SOFT** 
 
 | Asset family | Verdict | Notes |
 |---|---|---|
-| Base bike / sedan / van / truck / bigrig | **PASS** | Clear silhouette, glossy toy materials, shared lighting, consistent scale language |
+| Base bike / sedan / truck / bigrig | **PASS** | Clear silhouette, glossy toy materials, shared lighting, consistent scale language |
+| Base van (jeep) | **CONCEPT** (revised) | Was too sedan-like; rebuilt as flat-nose tall cargo box (see `van-vs-sedan-before-after.png`) |
 | Base tank `{color}` | **PASS** | Matches Toy Town; readable tracks + turret; color-match works |
 | Armored / speeder / chameleon / mender / volatile | **PASS** | Same bake, readable traits (plow, bolt, roof lamp, cross, barrels) without muddying silhouette |
 | Boss / boss-armored | **PASS** | Strong silhouette + hazard language; pink toy body reads premium |
@@ -111,3 +112,18 @@ Top row = current weak assets; bottom row = CONCEPT upgrade path (goal = new sid
 - No push to master / prod / Vercel  
 - No edits under `ios/**`, AdManager, AudioManager, store scripts (PR20 wall)  
 - No HP / collision / ladder changes  
+
+
+---
+
+## 6. Van distinctness revision (Nadav feedback)
+
+**Chat note:** הvan דומה מידי לרכב רגיל — the van looked too similar to a regular car.
+
+**Fix (this commit on `art/vehicles-polish`):**
+- `tools/art/studio/vehicles-hd.js` `jeep()` rebuilt: flat-nose, taller parallel-sided body, short forward-only greenhouse, long high roof + rails, sliding-door pocket, tall rear lamps, rub strip.
+- `studio.js` `DECK.jeep` + `CHUNK_HD.jeep` landmarks/scale updated for variants.
+- Rebaked all `van-{color}` + `*-jeep-{color}` variants sharing the van mesh.
+- Evidence: `van-vs-sedan-before-after.png`, `preview-van-sedan.png`, `before/van-red.png`, `after/van-red.png`.
+
+Still CONCEPT (not HUMAN-FINAL) pending Nadav stamp on van distinctness + race/goal CONCEPT.

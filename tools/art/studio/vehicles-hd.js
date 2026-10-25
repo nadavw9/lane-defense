@@ -237,23 +237,40 @@ export const BUILD_HD = {
     return g;
   },
 
-  // Chunky van: short hood, tall glass band all round, painted roof with rails.
+  // Cargo van: boxy cabin (NOT a sedan). Flat-nose, tall parallel-sided body,
+  // long high roof with rails, short forward-only greenhouse, solid cargo rear,
+  // sliding-door pocket. Reads as a delivery van at Play Store glance size.
   jeep(c) {
-    const g = new THREE.Group(), p = paintHD(c);
-    for (const [x, z] of [[-0.9, 1.4], [0.9, 1.4], [-0.9, -1.45], [0.9, -1.45]]) g.add(wheelHD(x, z, 0.42, 0.32));
-    g.add(plan(symPlan([[0.7, 2.22], [0.98, 2.06], [1.04, 1.35], [1.02, -1.9], [0.86, -2.2]]), 0.3, 1.12, 0.24, p));
-    g.add(plan(symPlan([[0.62, 2.24], [0.9, 2.1], [0.84, 2.0], [0.5, 2.08]]), 0.3, 0.56, 0.08, MHD.trim));
-    g.add(plan(symPlan([[0.66, 1.52], [0.9, 1.22], [0.94, -1.92], [0.8, -2.1]]), 1.0, 1.78, 0.2, MHD.glass));
-    g.add(plan(symPlan([[0.6, 1.16], [0.84, 0.94], [0.88, -1.86], [0.74, -2.0]]), 1.72, 1.9, 0.07, p));
+    const g = new THREE.Group(), p = paintHD(c), pd = paintHD(shade(c, 0.78));
+    for (const [x, z] of [[-1.05, 1.7], [1.05, 1.7], [-1.05, -1.7], [1.05, -1.7]]) g.add(wheelHD(x, z, 0.46, 0.36));
+    // Tall box shell — parallel sides, blunt flat nose + square rear (no coupe taper).
+    g.add(plan(symPlan([[1.0, 2.5], [1.14, 2.38], [1.16, 1.9], [1.16, -2.15], [1.1, -2.48], [0.96, -2.55]]), 0.3, 1.58, 0.14, p));
+    // Flat-nose bumper (almost no hood overhang).
+    g.add(plan(symPlan([[0.88, 2.52], [1.08, 2.4], [1.02, 2.28], [0.8, 2.36]]), 0.3, 0.7, 0.06, MHD.trim));
+    g.add(plan(symPlan([[1.04, -2.3], [0.9, -2.56], [0.78, -2.42], [0.98, -2.22]]), 0.3, 0.7, 0.06, MHD.trim));
+    // Tiny nose shelf only — cabin starts immediately.
+    g.add(plan(symPlan([[0.92, 2.28], [1.08, 2.16], [1.1, 1.95], [0.96, 1.85]]), 1.45, 1.58, 0.05, pd));
+    // Steep cab glass — short, forward-only greenhouse (NOT a coupe wrap).
+    g.add(plan(symPlan([[0.82, 1.95], [1.02, 1.72], [1.04, 0.85], [0.9, 0.7]]), 1.45, 2.28, 0.14, MHD.glass));
+    // High cargo box (solid walls + long flat roof) = the van mass.
+    g.add(plan(symPlan([[0.96, 0.9], [1.1, 0.75], [1.12, -2.25], [1.0, -2.42]]), 1.45, 2.35, 0.12, p));
+    g.add(plan(symPlan([[0.78, 1.55], [0.98, 1.35], [1.02, -2.28], [0.88, -2.42]]), 2.22, 2.48, 0.07, p));
+    // Sliding-door pocket (inset panel) + chrome handle — readable from above.
+    g.add(rbox(0.1, 1.2, 1.35, 0.04, pd, 1.17, 1.75, -0.35));
+    g.add(rbox(0.08, 0.24, 0.32, 0.03, MHD.chrome, 1.22, 1.75, -0.15));
+    g.add(seam(1.17, 1.75, 0.55, 1.2, 0.08));
+    // Lower rub strip (commercial van cue).
+    for (const sd of [-1, 1]) g.add(rbox(0.09, 0.12, 4.3, 0.04, MHD.trim, sd * 1.18, 0.78, -0.05));
     for (const sd of [-1, 1]) {
-      g.add(rbox(0.06, 0.08, 2.7, 0.03, MHD.chrome, sd * 0.66, 1.95, -0.45));   // roof rails
-      g.add(decal(0.44, 0.18, MHD.headRim, sd * 0.6, 1.12, 1.98, 0.08));
-      g.add(decal(0.36, 0.11, MHD.head, sd * 0.6, 1.135, 1.99, 0.05));
-      g.add(decal(0.16, 0.34, MHD.tail, sd * 0.84, 1.13, -1.98, 0.04));
-      g.add(rbox(0.2, 0.12, 0.16, 0.05, p, sd * 1.02, 1.24, 1.3));             // mirror
+      g.add(rbox(0.08, 0.1, 3.4, 0.03, MHD.chrome, sd * 0.72, 2.54, -0.4));   // roof rails high+long
+      g.add(decal(0.5, 0.22, MHD.headRim, sd * 0.66, 1.55, 2.3, 0.08));
+      g.add(decal(0.4, 0.13, MHD.head, sd * 0.66, 1.57, 2.31, 0.05));
+      g.add(decal(0.2, 0.55, MHD.tail, sd * 0.94, 1.7, -2.38, 0.04));          // tall rear lamps
+      g.add(rbox(0.24, 0.16, 0.2, 0.05, p, sd * 1.2, 1.9, 1.55));             // high mirrors
     }
-    for (const z of [-1.3, 0.1]) g.add(rbox(1.4, 0.05, 0.08, 0.02, MHD.rubber, 0, 1.99, z));
-    g.add(glint(0.7, 0.3, 1.66, 1.42));
+    for (const z of [-1.85, -0.7, 0.4]) g.add(rbox(1.5, 0.06, 0.1, 0.02, MHD.rubber, 0, 2.56, z));
+    g.add(decal(1.85, 0.14, MHD.trim, 0, 2.1, -2.35, 0.04));                   // rear door bar
+    g.add(glint(0.65, 0.26, 2.1, 1.45));
     return g;
   },
 

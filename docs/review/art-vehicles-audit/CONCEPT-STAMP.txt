@@ -6,24 +6,29 @@ Status: CONCEPT-STAMP (not HUMAN-FINAL)
 Quality bar: Google Play / Royal Match / Toon Blast class — NOT console/PlayStation.
 
 Audit: docs/review/art-vehicles-audit/VEHICLE-AUDIT.md
-Evidence: contact-*.png, samples/, before/, after/, before-after-sheet.png
+Evidence: contact-*.png, samples/, before/, after/, before-after-sheet.png,
+          van-vs-sedan-before-after.png, preview-van-sedan.png
 
 Finding (honest):
-- Core Toy Town bake (bike/sedan/van/truck/bigrig/tank-color + variants + bosses) already PASSes Play Store bar.
-- Clear gaps: (1) RaceScreen still shows legacy public/sprites/cars muddy sprites;
-  (2) goal-car-* side icons are flat pre–Toy Town SVG (fallback in GoalCounterUI).
+- Core Toy Town bake (bike/sedan/truck/bigrig/tank-color + variants + bosses) already PASSes Play Store bar.
+- Van was too sedan-like (Nadav: "הvan דומה מידי לרכב רגיל") — REVISED this pass to a flat-nose
+  tall cargo box with short forward-only greenhouse, long high roof+rails, sliding-door pocket.
+- Remaining CONCEPT gaps kept: (1) RaceScreen → designed sedan; (2) goal-car-* side icons CONCEPT polish.
 
 CONCEPT samples (not stamped HUMAN-FINAL):
+- Van distinctness: van-vs-sedan-before-after.png (BEFORE top / AFTER bottom)
 - Goal cars: after/goal-car-*-concept.png — Toy Town palette + gloss/chrome/soft shadow side-view
 - Race: after/race-car-red-from-designed.png — reuse designed sedan instead of legacy
 
 Code on this branch (visual-only):
+- tools/art/studio/vehicles-hd.js jeep() → cargo-van silhouette; studio.js DECK/CHUNK_HD for jeep
+- Rebaked van-* + *-jeep-* color variants → public/sprites/designed/
 - RaceScreen.js → designed/car-{color}-processed.png
 - scripts/generate-goal-car-montage.mjs → CONCEPT side-view polish (regen + process before ship)
 
 Question for Nadav (Hebrew):
-האם האייקונים האלה (מכונית המטרה מהצד + מכוניות במרוץ) נראים ברמת חנות — צללית ברורה,
-חומרים מבריקים בסגנון Toy Town כמו ברכב על הכביש — ואפשר לחתום HUMAN-FINAL על ה-CONCEPT?
+האם ה-van עכשיו ברור כ־van (לא סדאן) — צללית קופסתית גבוהה, גג ארוך, חממה קצרה מקדימה —
+וגם האם אייקוני מכונית-המטרה + מכוניות המרוץ מוכנים לחותמת HUMAN-FINAL על ה-CONCEPT?
 
-English: Do these goal-car side icons and race-card cars now read Play Store class — clear silhouette,
-Toy Town gloss matching the road vehicles — ready to stamp HUMAN-FINAL on this CONCEPT?
+English: Is the van now clearly a van (not a sedan) — tall boxy silhouette, long roof, short front
+greenhouse — AND are the goal-car side icons + race-card cars ready to stamp HUMAN-FINAL on this CONCEPT?

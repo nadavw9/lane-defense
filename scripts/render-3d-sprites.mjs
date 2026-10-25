@@ -23,8 +23,16 @@ const FILE = {
   truck: c => `truck-${c}`, bigrig: c => `bigrig-${c}`, tank: c => `tank-${c}`,
 };
 
+const fs = await import('node:fs');
+const chromeCandidates = [
+  process.env.PW_CHROME,
+  '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  `${process.env.HOME}/.cache/ms-playwright/chromium-1248/chrome-linux64/chrome`,
+  `${process.env.HOME}/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome`,
+].filter(Boolean);
+const chromePath = chromeCandidates.find((p) => fs.existsSync(p));
 const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  ...(chromePath ? { executablePath: chromePath } : {}),
   args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'],
 });
 const page = await browser.newPage();

@@ -13,7 +13,7 @@ import { uiIcon } from '../renderer/UIIcon.js';
 import { RACE_GOAL } from '../game/race.js';
 import { worldForLevel } from './levelMapLayout.js';
 import { LEVEL_COUNT } from '../game/LevelManager.js';
-import { panel as premiumPanel, ribbon, button as premiumButton, bodyText, titleText, well } from '../renderer/PremiumUI.js';
+import { panel as premiumPanel, ribbon, button as premiumButton, bodyText, titleText, well, pill as premiumPill } from '../renderer/PremiumUI.js';
 import { starsFor, starTargetsFor } from '../game/score.js';
 import { ConfettiSystem, CONFETTI_COLORS } from '../renderer/Confetti.js';
 export { ConfettiSystem } from '../renderer/Confetti.js';
@@ -417,20 +417,24 @@ export class WinScreen {
       y += 62;
     }
 
-    // Share button (always visible, non-critical) — [share icon] SHARE, centered
+    // Share (always visible, non-critical): a small secondary capsule under the main buttons,
+    // the PremiumUI pill (quiet, no gold rim) with the share icon, so it reads as a button.
     const shareBtn = new Container();
-    const shareTxt = new Text({ text: 'SHARE', style: { fontSize: 15, fontWeight: '700', fill: 0x9FC8FF } });
+    const shareBody = new Container();
+    const shareTxt = bodyText('SHARE', 14, 0xD6E6FF);
     shareTxt.anchor.set(0, 0.5);
-    const shareIco = uiIcon('share', 16, '📤');
-    const shTot = 16 + 4 + shareTxt.width;
-    shareIco.x = -shTot / 2 + 8;          shareIco.y = 0;
-    shareTxt.x = -shTot / 2 + 16 + 4;     shareTxt.y = 0;
-    shareBtn.addChild(shareIco); shareBtn.addChild(shareTxt);
-    shareBtn.x = cx; shareBtn.y = y;
+    const shareIco = uiIcon('share', 18, '📤');
+    const shTot = 18 + 6 + shareTxt.width;
+    const plate = premiumPill(shTot + 34, 32, { rim: false, face: 0x3A3580 });
+    shareIco.x = -shTot / 2 + 9;           shareIco.y = 0;
+    shareTxt.x = -shTot / 2 + 18 + 6;      shareTxt.y = 0;
+    shareBody.addChild(plate, shareIco, shareTxt);
+    shareBtn.addChild(shareBody);
+    shareBtn.x = cx; shareBtn.y = y + 2;
     shareBtn.eventMode = 'static'; shareBtn.cursor = 'pointer';
-    shareBtn.on('pointerdown', () => _shareWin(levelId, stars, gs.maxSingleShotKills));
-    shareBtn.on('pointerover',  () => { shareBtn.alpha = 0.70; });
-    shareBtn.on('pointerout',   () => { shareBtn.alpha = 1.00; });
+    shareBtn.on('pointerdown', () => { shareBody.scale.set(0.94); _shareWin(levelId, stars, gs.maxSingleShotKills); });
+    shareBtn.on('pointerup', () => shareBody.scale.set(1));
+    shareBtn.on('pointerupoutside', () => shareBody.scale.set(1));
     this._container.addChild(shareBtn);
 
     // Sparkle layer on top

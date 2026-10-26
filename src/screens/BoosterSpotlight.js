@@ -8,8 +8,10 @@
 //   const s = new BoosterSpotlight(stage, appW, appH, 'swap', () => resume());
 //   // call s.update(dt) each frame; tap anywhere auto-calls onDismiss.
 import { Container, Graphics, Text } from 'pixi.js';
+import { uiIcon } from '../renderer/UIIcon.js';
 import { KILLS_PER_BOMB } from '../director/DirectorConfig.js';
 import { BAR_Y } from '../renderer/BoosterBar.js';
+import { ConfettiSystem, CONFETTI_COLORS } from '../renderer/Confetti.js';
 
 // ── Booster metadata ──────────────────────────────────────────────────────────
 const BOOSTER_INFO = {
@@ -46,8 +48,6 @@ const T_TAP_START    = 1.02;
 const T_TAP_END      = 1.22;
 const DISMISS_DUR    = 0.28;
 
-const CONFETTI_COLS = [0xff4466, 0x44aaff, 0xffcc22, 0x44ee88, 0xcc88ff, 0xff8844];
-
 // ── Easing helpers ────────────────────────────────────────────────────────────
 function c01(v) { return Math.max(0, Math.min(1, v)); }
 function lerp(a, b, t) { return a + (b - a) * t; }
@@ -70,7 +70,6 @@ export class BoosterSpotlight {
     this._pos     = pos;
     this._appW    = appW;
     this._appH    = appH;
-    this._confetti      = [];
     this._confettiBurst = false;
 
     // Vertical anchors
@@ -117,9 +116,10 @@ export class BoosterSpotlight {
     this._iconGfx = new Graphics();
     this._container.addChild(this._iconGfx);
 
-    // ── Confetti layer ────────────────────────────────────────────────────────
-    this._confettiGfx = new Graphics();
-    this._container.addChild(this._confettiGfx);
+    // ── Confetti layer (store-bar ribbons / diamonds / pennants) ───────────────
+    this._confettiLayer = new Container();
+    this._container.addChild(this._confettiLayer);
+    this._confetti = new ConfettiSystem(this._confettiLayer, appW, appH);
 
     // ── Pulsing rings ─────────────────────────────────────────────────────────
     this._ringGfx = new Graphics();
@@ -157,17 +157,23 @@ export class BoosterSpotlight {
     this._tapBg = new Graphics();
     this._container.addChild(this._tapBg);
 
-    this._tapText = new Text({
-      text: '✦  TAP TO TRY!  ✦',
+    // Sparkle icons flank the CTA (Batch 1c icon-sparkle) — emoji ✦ fallback.
+    this._tapText = new Container();
+    this._tapText.x = appW / 2;
+    this._tapText.y = pos.y - SPOT_R - 30;
+    this._tapText.alpha = 0;
+    const tapLabel = new Text({
+      text: 'TAP TO TRY!',
       style: {
         fontSize: 17, fontWeight: 'bold', fill: 0xffffff, align: 'center',
         dropShadow: { color: info.color, blur: 8, distance: 0, alpha: 0.95 },
       },
     });
-    this._tapText.anchor.set(0.5, 0.5);
-    this._tapText.x = appW / 2;
-    this._tapText.y = pos.y - SPOT_R - 30;
-    this._tapText.alpha = 0;
+    tapLabel.anchor.set(0.5, 0.5);
+    const sparkL = uiIcon('sparkle', 16, '✦');
+    const sparkR = uiIcon('sparkle', 16, '✦');
+    sparkL.x = -78; sparkR.x = 78;
+    this._tapText.addChild(sparkL, tapLabel, sparkR);
     this._container.addChild(this._tapText);
 
     // ── Dismiss hitbox (must be last) ─────────────────────────────────────────
@@ -221,34 +227,9 @@ export class BoosterSpotlight {
     // ── Confetti burst ────────────────────────────────────────────────────────
     if (t >= T_CONFETTI && !this._confettiBurst) {
       this._confettiBurst = true;
-      const cx = this._appW / 2, cy = this._iconCY;
-      for (let i = 0; i < 30; i++) {
-        const ang = Math.random() * Math.PI * 2;
-        const spd = 90 + Math.random() * 190;
-        const maxLife = 1.1 + Math.random() * 0.8;
-        this._confetti.push({
-          x: cx, y: cy,
-          vx: Math.cos(ang) * spd,
-          vy: Math.sin(ang) * spd - 130,
-          r:  2.5 + Math.random() * 3,
-          color: CONFETTI_COLS[i % CONFETTI_COLS.length],
-          life: maxLife, maxLife,
-        });
-      }
+      this._confetti.burstAt(this._appW / 2, this._iconCY, 30, CONFETTI_COLORS);
     }
-
-    this._confettiGfx.clear();
-    for (let i = this._confetti.length - 1; i >= 0; i--) {
-      const p = this._confetti[i];
-      p.life -= dt;
-      if (p.life <= 0) { this._confetti.splice(i, 1); continue; }
-      p.x  += p.vx * dt;
-      p.y  += p.vy * dt;
-      p.vy += 310 * dt;
-      const a = p.life / p.maxLife;
-      this._confettiGfx.rect(p.x - p.r, p.y - p.r * 0.65, p.r * 2, p.r * 1.3);
-      this._confettiGfx.fill({ color: p.color, alpha: a });
-    }
+    this._confetti.update(dt);
 
     // ── Ribbon unfurl ─────────────────────────────────────────────────────────
     const ribbonP = easeOut(c01((t - T_RIBBON_START) / (T_RIBBON_END - T_RIBBON_START)));
@@ -306,6 +287,8 @@ export class BoosterSpotlight {
   }
 
   destroy() {
+    this._confetti?.destroy();
+    this._confetti = null;
     if (this._container) {
       this._container.destroy({ children: true });
       this._container = null;
@@ -316,6 +299,8 @@ export class BoosterSpotlight {
 
   _finalize() {
     if (!this._container) return;
+    this._confetti?.destroy();
+    this._confetti = null;
     this._container.destroy({ children: true });
     this._container = null;
     this._onDismiss?.();

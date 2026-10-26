@@ -4,6 +4,7 @@
 //   • Stats panel: Cars Destroyed, Time Survived, Accuracy
 //   • Near-miss detection: if timer was >80% used, show "SO CLOSE!"
 //   • Hearts display: shows remaining lives
+//   • lose-frame.png cracked-bronze rim behind the panel (Play Store defeat chrome)
 import { Container, Graphics, Text, Sprite, Assets } from 'pixi.js';
 import { uiIcon } from '../renderer/UIIcon.js';
 import { RACE_HEARTS } from '../game/race.js';
@@ -108,6 +109,21 @@ export class LoseScreen {
     this._panelGroup = new Container();
     this._panelGroup.y = this._appH;   // start off the bottom edge
     this._container.addChild(this._panelGroup);
+
+    // Defeat frame BEHIND the panel — cracked bronze rim peeks around the modal
+    // (Batch-2 chrome already in public/sprites/ui/lose-frame.png; was preloaded but unwired).
+    // Mirrors WinScreen's win-burst treatment. Visuals only.
+    const frameTex = Assets.get(`${_B}sprites/ui/lose-frame.png`);
+    if (frameTex) {
+      const frame = new Sprite(frameTex);
+      frame.anchor.set(0.5);
+      // Scale so the ornate rim sits outside the gold panel bevel (~+72px).
+      const target = Math.max(panelW, panelH) + 72;
+      frame.scale.set(target / Math.min(frameTex.width, frameTex.height));
+      frame.x = cx; frame.y = py + panelH / 2;
+      frame.alpha = 0.92;
+      this._panelGroup.addChild(frame);
+    }
 
     const pnl = premiumPanel(panelW, panelH, { face: 0x4A2440 });
     pnl.x = px; pnl.y = py;

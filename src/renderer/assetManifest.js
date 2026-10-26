@@ -156,17 +156,25 @@ export const UI_ICON_NAMES = [
   'check', 'close', 'shield', 'skull', 'hand',
   // Batch 1b
   'explosion', 'snowflake', 'lightning', 'car', 'speaker',
+  // Batch 1c — live wires only (controls/accessibility skipped: Settings rows gone)
+  'help', 'calendar', 'sparkle',
 ];
 export const UI_ICON_URLS = UI_ICON_NAMES.map(n => `${_B}sprites/ui/icon-${n}.png`);
 
 // Batch 2 chrome — 9-slice button plates (green primary + slate secondary).
-// Non-critical; TitleScreen keeps its Graphics fallback if a plate 404s.
+// button-primary: wired into PremiumUI.button green (Title PLAY + all green CTAs).
+// button-secondary: TitleScreen._addPillBtn fallback path. Non-critical if 404.
 export const BUTTON_PLATE_URLS = ['button-primary', 'button-secondary'].map(n => `${_B}sprites/ui/${n}.png`);
 
 // Batch 2 chrome — Win/Lose celebration frames (additive art over existing screens).
 // win-stars.png exists in the repo but is intentionally UNUSED (a static gold trio
 // duplicates/contradicts the animated earned-star row) → not preloaded.
 export const FRAME_URLS = ['win-burst', 'lose-frame'].map(n => `${_B}sprites/ui/${n}.png`);
+
+// Traffic-light housing (L26+) — baked Toy Town prop chrome; red-on / green-on states.
+// Preloaded so TrafficLights swaps via Assets.get (no 1×1 Sprite.from flash).
+export const TRAFFIC_LIGHT_URLS = ['red', 'green'].map(s => `${_B}sprites/designed/traffic-light-${s}.png`);
+
 
 // Level map (2026-09-28): one baked background per world page + the city-repair
 // buildings in three states (rubble / scaffold / repaired) × three variants.
@@ -188,7 +196,7 @@ export const ALL_SPRITE_URLS = [
   // while one is active; they are only a fallback, and CityEdges degrades to its
   // programmatic buildings when a strip texture is absent.
   ...ZONE_FLOOR_URLS, ...UI_ICON_URLS,
-  ...BUTTON_PLATE_URLS, ...FRAME_URLS, ...GOAL_ICON_URLS,   // GOAL_ICON_URLS includes TITLE_INTRO_CAR_URL (car-blue-processed)
+  ...BUTTON_PLATE_URLS, ...FRAME_URLS, ...TRAFFIC_LIGHT_URLS, ...GOAL_ICON_URLS,   // GOAL_ICON_URLS includes TITLE_INTRO_CAR_URL (car-blue-processed)
   ...Object.values(WORLD_ROAD_URLS),
 ];
 

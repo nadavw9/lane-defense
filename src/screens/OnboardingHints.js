@@ -1,21 +1,21 @@
 // OnboardingHints — three one-time, lifetime tutorial MODAL CARDS for new
-// players, styled to match CarTypeIntroCard (centered panel, dark inner with an
-// accent glow border, big title, a visual built from REAL game sprites, body
-// copy, and a TAP TO CONTINUE button). Each card is modal: gameplay is paused
-// and input is blocked by GameApp while a card is up, and the player must tap to
-// dismiss it.
+// players, styled to match CarTypeIntroCard (PremiumUI panel + ribbon + green
+// CTA). Each card is modal: gameplay is paused and input is blocked by GameApp
+// while a card is up, and the player must tap to dismiss it.
 //
 //   A) showHpMiss : a bomb hit a car but didn't kill it  → "STILL ALIVE!"
-//   B) showDamage : first bomb pickup on L1              → "MATCH THE DAMAGE!"
+//   B) showDamage : first bomb pickup on L1              → "MATCH THE COLOR!"
 //   C) showAdvance: first correct-colour shot on L1      → "CARS ADVANCE!"
+//   D) showColorBomb: first rainbow color bomb earned    → "COLOR BOMB!"
 //
 // The "once ever" guard lives in ProgressManager (localStorage); this class only
 // renders + animates one card at a time. update(dt) must run every frame.
 //
 // Vertical rhythm (shared by all cards): title→visual ≥16px, visual→body ≥16px,
 // body→button ≥24px, body line-height 1.4×.
-import { Container, Graphics, Text, Sprite, Assets } from 'pixi.js';
+import { Container, Graphics, Sprite, Assets } from 'pixi.js';
 import { uiIcon } from '../renderer/UIIcon.js';
+import { panel as uiPanel, ribbon, bodyText, backdrop, button } from '../renderer/PremiumUI.js';
 
 const BASE_URL = import.meta.env.BASE_URL ?? '';
 
@@ -25,15 +25,15 @@ const ANIM_OUT = 0.16;
 const CW = 328;          // card width
 const CH = 344;          // card height (sized for the generous vertical rhythm)
 
-// Layout anchors (offsets from card top CY). Tuned so every gap meets the
+// Layout anchors (offsets from card top). Tuned so every gap meets the
 // spacing standard: title→visual ≥16, visual→body ≥16, body→button ≥24.
-const TITLE_Y   = 24;    // title top   (bottom ≈58)
-const VISUAL_CY = 130;   // visual-zone centre  (tallest visual top ≈80 → ≥16px gap)
-const BODY_Y    = 196;   // body top            (visual bottom ≈175 → ≥21px gap)
-const BTN_Y     = CH - 56;  // button top  =288  (body bottom ≈236-256 → ≥32px gap)
-const BTN_W = 196, BTN_H = 42;
+const TITLE_Y   = 8;     // ribbon centre near top of panel
+const VISUAL_CY = 130;   // visual-zone centre
+const BODY_Y    = 210;   // body centre (was top-anchored at 196; bodyText is centre-anchored)
+const BTN_Y     = CH - 48;
+const BTN_W = 220, BTN_H = 54;
 
-const LINE_HEIGHT = 20;  // 14.5px × ~1.4
+const LINE_HEIGHT = 20;  // ~1.4× body size
 
 // Sprite assets used in the card visuals.
 const SPR = {
@@ -84,7 +84,7 @@ export class OnboardingHints {
 
   // A) Car survived a hit → point to the book / car manual.
   showHpMiss(onDismiss) {
-    const accent = 0x6cc6ff;
+    const accent = 0x2F7FE0;
     const { panel, vx, vy } = this._buildShell(
       accent, 'STILL ALIVE!',
       'Big cars take more than one hit.\nEach hit shrinks them: van, car,\nthen motorbike. Keep shooting!',
@@ -102,54 +102,43 @@ export class OnboardingHints {
     };
   }
 
-  // B) First bomb pickup on L1 → match the damage number. [bomb 8] ➜ [motorbike]
-  // L1 only ever shows motorbikes, so the card uses the motorbike the player is
-  // actually facing (not a sedan they haven't seen yet).
+  // B) First bomb pickup on L1 → match the color. [bomb] ➜ [motorbike]
   showDamage(onDismiss) {
-    const accent = 0xffcc44;
+    const accent = 0xF08A24;
     const { panel, vx, vy } = this._buildShell(
       accent, 'MATCH THE COLOR!',
       'Drag a bomb onto a car of the\nsame color to hit it.\nEvery bomb is one hit.',
       onDismiss,
     );
-    // Bomb sprite (left) with its damage number layered ON TOP (added in the
-    // sprite's onAdded so the async-loaded powerball can't cover the number).
     this._addSprite(panel, SPR.powerball, vx - 66, vy, 62, 62);
-    // Arrow (middle).
     const g = new Graphics(); panel.addChild(g);
     g.poly([vx - 16, vy - 9, vx + 6, vy - 9, vx + 6, vy - 17, vx + 22, vy, vx + 6, vy + 17, vx + 6, vy + 9, vx - 16, vy + 9]);
     g.fill({ color: 0xffe14a });
-    // Real motorbike sprite (right) — the actual L1 vehicle.
     this._addSprite(panel, SPR.bike, vx + 64, vy, 46, 60);
   }
 
   // C) First correct shot on L1 → all cars advance toward the breach.
-  // Motorbike (the L1 vehicle) → down arrow → real breach hazard stripe.
   showAdvance(onDismiss) {
-    const accent = 0x66dd88;
+    const accent = 0x3DBB3A;
     const { panel, vx, vy } = this._buildShell(
       accent, 'CARS ADVANCE!',
       'Every correct shot moves ALL cars one\nstep forward — across every lane.',
       onDismiss,
     );
-    // Motorbike sprite (matches what the player sees on L1).
     this._addSprite(panel, SPR.bike, vx, vy - 22, 44, 56);
-    // Down chevron — movement direction (toward the breach).
     const g = new Graphics(); panel.addChild(g);
     g.poly([vx, vy + 22, vx - 12, vy + 6, vx + 12, vy + 6]).fill({ color: 0x8effa6 });
-    // Real breach hazard stripe at the bottom of the visual zone.
     this._addSprite(panel, SPR.breach, vx, vy + 38, 152, 18);
   }
 
   // D) First time a rainbow color bomb is earned → explain what it is. (FIX 5)
   showColorBomb(onDismiss) {
-    const accent = 0xb066ff;
+    const accent = 0x8B4FE0;
     const { panel, vx, vy } = this._buildShell(
       accent, 'COLOR BOMB!',
       'Get 3 multi-kill shots to earn a Color Bomb!\nDestroy 2+ cars in one shot to score a multi-kill.',
       onDismiss,
     );
-    // Rainbow disc (6 wedges) + white star — mirrors the in-game rainbow bomb.
     const RB = [0xff4477, 0xffaa22, 0xffe14a, 0x44dd66, 0x4aa8ff, 0xb066ff];
     const disc = new Graphics(); panel.addChild(disc);
     const TAU = Math.PI * 2;
@@ -164,65 +153,53 @@ export class OnboardingHints {
   }
 
   // ── Shared shell ──────────────────────────────────────────────────────────────
-  // Returns { container, panel, vx, vy } — vx/vy = centre of the visual zone.
+  // PremiumUI panel + ribbon + green CTA — same language as CarTypeIntroCard /
+  // HowToPlay. Accent keeps ribbon personality; retires flat Graphics card +
+  // accent pill button that read below store bar next to gold-bevel dialogs.
+  // Returns { container, panel, vx, vy } — vx/vy = centre of the visual zone
+  // in panel-local coordinates.
   _buildShell(accent, title, body, onDismiss) {
     const W = this._appW, H = this._appH;
-    const CX = (W - CW) / 2, CY = (H - CH) / 2 - 16;
 
     const container = new Container();
-    container.eventMode = 'static';
-    container.on('pointerdown', () => this._dismiss());
     this._stage.addChild(container);
 
-    // Full-screen dim backdrop (absorbs taps).
-    const bg = new Graphics();
-    bg.rect(0, 0, W, H).fill({ color: 0x000000, alpha: 0.72 });
-    container.addChild(bg);
+    const dim = backdrop(W, H, 0.72);
+    dim.on('pointerdown', () => this._dismiss());
+    container.addChild(dim);
 
-    // Panel (scaled/animated as a unit).
-    const panel = new Container();
-    panel.pivot.set(CX + CW / 2, CY + CH / 2);
-    panel.position.set(CX + CW / 2, CY + CH / 2);
-    container.addChild(panel);
+    // Panel (scaled/animated as a unit). Local origin = top-left of card.
+    const panelRoot = new Container();
+    panelRoot.pivot.set(CW / 2, CH / 2);
+    panelRoot.position.set(W / 2, H / 2 - 16);
+    container.addChild(panelRoot);
 
-    const card = new Graphics();
-    card.roundRect(CX - 2, CY - 2, CW + 4, CH + 4, 18).fill({ color: accent, alpha: 0.55 });
-    card.roundRect(CX, CY, CW, CH, 16).fill({ color: 0x0e0b1c, alpha: 1 });
-    card.roundRect(CX, CY, CW, CH * 0.32, 16).fill({ color: 0x1c1038, alpha: 1 });
-    panel.addChild(card);
+    panelRoot.addChild(uiPanel(CW, CH, { r: 24 }));
 
-    const titleTxt = new Text({
-      text: title,
-      style: { fontSize: 34, fontWeight: '900', fill: 0xffffff, align: 'center',
-               dropShadow: { color: accent, blur: 20, distance: 0, alpha: 0.75 } },
+    const rb = ribbon(title, Math.min(290, CW - 24), { color: accent, size: 26 });
+    rb.x = CW / 2; rb.y = TITLE_Y;
+    panelRoot.addChild(rb);
+
+    const bodyTxt = bodyText(body, 15, 0xD8D3FF, {
+      outline: false, weight: '700', wrap: CW - 40,
     });
-    titleTxt.anchor.set(0.5, 0); titleTxt.x = W / 2; titleTxt.y = CY + TITLE_Y;
-    const maxTW = CW - 32;
-    if (titleTxt.width > maxTW) titleTxt.scale.set(maxTW / titleTxt.width);
-    panel.addChild(titleTxt);
+    bodyTxt.style.lineHeight = LINE_HEIGHT;
+    bodyTxt.x = CW / 2; bodyTxt.y = BODY_Y;
+    panelRoot.addChild(bodyTxt);
 
-    const bodyTxt = new Text({
-      text: body,
-      style: { fontSize: 14.5, fontWeight: 'bold', fill: 0xcdd8ee, align: 'center',
-               wordWrap: true, wordWrapWidth: CW - 36, lineHeight: LINE_HEIGHT,
-               dropShadow: { color: 0x000000, blur: 3, distance: 1, alpha: 0.7 } },
+    const cta = button('TAP TO CONTINUE', {
+      variant: 'green', w: BTN_W, h: BTN_H, size: 18,
+      onTap: () => this._dismiss(),
     });
-    bodyTxt.anchor.set(0.5, 0); bodyTxt.x = W / 2; bodyTxt.y = CY + BODY_Y;
-    panel.addChild(bodyTxt);
-
-    // TAP TO CONTINUE button.
-    const bx = CX + (CW - BTN_W) / 2, by = CY + BTN_Y;
-    const btn = new Graphics();
-    btn.roundRect(bx, by, BTN_W, BTN_H, 12).fill({ color: accent, alpha: 0.92 });
-    btn.roundRect(bx + 2, by + 2, BTN_W - 4, BTN_H * 0.42, 10).fill({ color: 0xffffff, alpha: 0.22 });
-    panel.addChild(btn);
-    const btnTxt = new Text({ text: 'TAP TO CONTINUE', style: { fontSize: 15, fontWeight: '900', fill: 0x06121f } });
-    btnTxt.anchor.set(0.5); btnTxt.x = W / 2; btnTxt.y = by + BTN_H / 2;
-    panel.addChild(btnTxt);
+    cta.x = CW / 2; cta.y = BTN_Y;
+    panelRoot.addChild(cta);
 
     container.alpha = 0;
-    this._card = { container, panel, t: 0, outT: 0, animIn: true, animOut: false, onDismiss, pulse: null, token: {} };
-    return { container, panel, vx: W / 2, vy: CY + VISUAL_CY };
+    this._card = {
+      container, panel: panelRoot, t: 0, outT: 0,
+      animIn: true, animOut: false, onDismiss, pulse: null, token: {},
+    };
+    return { container, panel: panelRoot, vx: CW / 2, vy: VISUAL_CY };
   }
 
   // Load a sprite async and add it to `panel`, scaled to fit boxW×boxH (aspect
@@ -237,7 +214,7 @@ export class OnboardingHints {
       spr.anchor.set(0.5);
       spr.x = cx; spr.y = cy;
       panel.addChild(spr);
-      onAdded?.(spr);   // e.g. layer a damage number on top of the bomb
+      onAdded?.(spr);
     }).catch(() => { /* sprite missing — card still readable via title+body */ });
   }
 

@@ -6,16 +6,32 @@
 //   green — the lane drives
 // and a small number: how many moves until it changes. The player can therefore ignore a red
 // lane for that many shots and spend them elsewhere.
-import { Container, Graphics, Text } from 'pixi.js';
+//
+// Housing is a baked Toy Town sprite (public/sprites/designed/traffic-light-{red,green}.png),
+// not procedural Pixi Graphics — Play Store prop chrome. Stop bar + moves badge stay live
+// overlays (pulse / dynamic number). Visuals only.
+import { Container, Graphics, Text, Sprite, Assets } from 'pixi.js';
 import { INK, WHITE } from './ToyStyle.js';
 import { lightState } from '../director/TrafficRules.js';
 import { getLaneScreenX, getLaneScreenBounds } from './PositionRegistry.js';
 import { ROAD_BOTTOM_Y } from './LaneRenderer.js';
 
-const RED = 0xFF3D3D, GREEN = 0x2FCC55, DARK = 0x1A1630;
-const HOUSE_W = 62, HOUSE_H = 30;
-// Above the crosswalk's lower edge, clear of the streak pips that sit on the breach line (centre lane).
+const _B = import.meta.env.BASE_URL;
+const RED = 0xFF3D3D, GREEN = 0x2FCC55;
+// Display width — face reads at ~old 62×30 pill; sprite includes soft glow + mount stub.
+const HOUSE_W = 76;
+// Sprite aspect from bake (247×102). Used until texture metadata is available.
+const HOUSE_ASPECT = 102 / 247;
 const LIGHT_DY = 44;
+
+function housingUrl(red) {
+  return `${_B}sprites/designed/traffic-light-${red ? 'red' : 'green'}.png`;
+}
+
+function houseH(tex) {
+  if (tex?.width) return Math.round(HOUSE_W * (tex.height / tex.width));
+  return Math.round(HOUSE_W * HOUSE_ASPECT);
+}
 
 export class TrafficLights {
   constructor(layer) {
@@ -35,12 +51,24 @@ export class TrafficLights {
     for (const L of this._lights) {
       const c = new Container();
       const bar = new Graphics();       // red stop bar across the lane (shown on red)
-      const house = new Graphics();
-      const num = new Text({ text: '', style: { fontFamily: '"Lilita One", Fredoka, Arial, sans-serif', fontSize: 15, fill: WHITE, stroke: { color: INK, width: 3 } } });
+      const house = new Sprite();       // baked housing (red-on / green-on)
+      house.anchor.set(0.5, 0.42);      // optical center on the lamp face (stub hangs below)
+      house.width = HOUSE_W;
+      house.height = houseH(null);
+      const badge = new Graphics();
+      const num = new Text({
+        text: '',
+        style: {
+          fontFamily: '"Lilita One", Fredoka, Arial, sans-serif',
+          fontSize: 15,
+          fill: WHITE,
+          stroke: { color: INK, width: 3 },
+        },
+      });
       num.anchor.set(0.5);
-      c.addChild(bar, house, num);
+      c.addChild(bar, house, badge, num);
       this._root.addChild(c);
-      this._items.push({ lane: L.lane, c, bar, house, num, key: '' });
+      this._items.push({ lane: L.lane, c, bar, house, badge, num, key: '', texKey: '' });
     }
   }
 
@@ -51,7 +79,8 @@ export class TrafficLights {
     const L = this._lights?.[0];
     if (!L) return null;
     const cx = getLaneScreenX(L.lane), cy = ROAD_BOTTOM_Y - LIGHT_DY;
-    return { x: cx - HOUSE_W / 2 - 6, y: cy - HOUSE_H / 2 - 22, w: HOUSE_W + 12, h: HOUSE_H + 30 };
+    const hh = houseH(null);
+    return { x: cx - HOUSE_W / 2 - 6, y: cy - hh / 2 - 26, w: HOUSE_W + 12, h: hh + 36 };
   }
 
   /** Redraw from the number of traffic moves so far. */
@@ -67,31 +96,37 @@ export class TrafficLights {
       const cy = ROAD_BOTTOM_Y - LIGHT_DY;
       it.c.position.set(0, 0);
 
-      // Stop bar: a soft red band across the whole lane at the crosswalk.
+      // Stop bar: soft red band across the whole lane at the crosswalk (live VFX).
       it.bar.clear();
       if (st.red) {
-        it.bar.roundRect(b.left + 4, cy - 9, b.right - b.left - 8, 18, 9).fill({ color: RED, alpha: 0.38 + 0.14 * pulse });
-        it.bar.roundRect(b.left + 4, cy - 9, b.right - b.left - 8, 18, 9).stroke({ color: RED, width: 2, alpha: 0.7 });
+        it.bar.roundRect(b.left + 4, cy - 9, b.right - b.left - 8, 18, 9)
+          .fill({ color: RED, alpha: 0.38 + 0.14 * pulse });
+        it.bar.roundRect(b.left + 4, cy - 9, b.right - b.left - 8, 18, 9)
+          .stroke({ color: RED, width: 2, alpha: 0.7 });
       }
 
-      // Housing: dark pill, two lamps (red left, green right), the live one lit with a halo.
-      const g = it.house;
-      g.clear();
-      const x = cx - HOUSE_W / 2, y = cy - HOUSE_H / 2;
-      g.roundRect(x, y + 2, HOUSE_W, HOUSE_H, 15).fill({ color: 0x000000, alpha: 0.35 });
-      g.roundRect(x, y, HOUSE_W, HOUSE_H, 15).fill(DARK).stroke({ color: INK, width: 2.5 });
-      const lamps = [[cx - 15, RED, st.red], [cx + 15, GREEN, !st.red]];
-      for (const [lx, col, on] of lamps) {
-        if (on) g.circle(lx, cy, 15).fill({ color: col, alpha: 0.22 + 0.18 * pulse });
-        g.circle(lx, cy, 10).fill(on ? col : 0x3A3552).stroke({ color: INK, width: 1.5 });
-        if (on) g.circle(lx - 3, cy - 3, 3).fill({ color: 0xFFFFFF, alpha: 0.8 });
+      // Baked housing sprite — swap texture on state change.
+      const texKey = st.red ? 'r' : 'g';
+      if (it.texKey !== texKey) {
+        it.texKey = texKey;
+        const tex = Assets.get(housingUrl(st.red));
+        if (tex) {
+          it.house.texture = tex;
+          it.house.width = HOUSE_W;
+          it.house.height = houseH(tex);
+        }
       }
+      it.house.position.set(cx, cy);
+      // Subtle breathe so the live lamp still feels alive next to the stop-bar pulse.
+      it.house.alpha = 0.92 + 0.08 * pulse;
 
-      // Moves until it changes, on a small badge above the housing.
+      // Moves-until-change badge above the housing (dynamic number — stays live).
       const key = `${st.red ? 'r' : 'g'}${st.movesLeft}`;
       if (it.key !== key) { it.key = key; it.num.text = String(st.movesLeft); }
-      g.circle(cx, y - 9, 11).fill(st.red ? RED : GREEN).stroke({ color: INK, width: 2 });
-      it.num.position.set(cx, y - 9);
+      const badgeY = cy - (it.house.height * it.house.anchor.y) - 10;
+      it.badge.clear();
+      it.badge.circle(cx, badgeY, 11).fill(st.red ? RED : GREEN).stroke({ color: INK, width: 2 });
+      it.num.position.set(cx, badgeY);
     }
   }
 }

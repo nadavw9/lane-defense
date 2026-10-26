@@ -34,7 +34,7 @@ const ICON_NAMES = [
 // montage. Always processed via the per-file path, even when 20icons.png (the
 // Batch-1 montage) is still present. Missing files are skipped, so this stays a
 // no-op until the art lands.
-const EXTRA_ICON_NAMES = ['explosion', 'snowflake', 'lightning', 'car', 'speaker'];
+const EXTRA_ICON_NAMES = ['explosion', 'snowflake', 'lightning', 'car', 'speaker', 'help', 'calendar', 'sparkle'];
 
 fs.mkdirSync(OUT, { recursive: true });
 

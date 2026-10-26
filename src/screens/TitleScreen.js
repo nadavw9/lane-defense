@@ -7,7 +7,7 @@
 //   • MAP, then DAILY / TROPHIES / CHALLENGE / STATS as the player reaches TITLE_UNLOCK
 import { Container, Graphics, Text, Sprite, Assets, Rectangle } from 'pixi.js';
 import { uiIcon, uiPlate } from '../renderer/UIIcon.js';
-import { button as premiumButton, roundButton, bodyText } from '../renderer/PremiumUI.js';
+import { button as premiumButton, roundButton, bodyText, pill as premiumPill, tag as premiumTag } from '../renderer/PremiumUI.js';
 
 const SKY_TOP     = 0x4FC3F7;   // light sky blue
 const SKY_BOTTOM  = 0x81D4FA;   // slightly lighter horizon
@@ -147,7 +147,7 @@ export class TitleScreen {
       hero.anchor.set(0.5);
       this._heroScale = 190 / heroTex.width;
       hero.scale.set(this._heroScale);
-      hero.x = w / 2; hero.y = h * 0.405;
+      hero.x = w / 2; hero.y = h * 0.355;  // F-01: raised with PLAY (was 0.405)
       this._heroY = hero.y;
       this._container.addChild(hero);
       this._hero = hero;
@@ -155,7 +155,7 @@ export class TitleScreen {
 
     // ── PLAY button (revealed after the intro bomb-drop) ─────────────────────
     const btnW = 308, btnH = 88;        // +10% larger (was 280×80)
-    const btnCX = w / 2, btnCY = h * 0.535;
+    const btnCX = w / 2, btnCY = h * 0.475;  // F-01: raise CTA (was 0.535) — city art uncropped
 
     // Pulsing golden glow ring behind the button — drawn each frame in
     // _tickPlayGlow (same base+sin "ready glow" pattern as the booster bar).
@@ -174,10 +174,8 @@ export class TitleScreen {
     const nextLevel = this._nextLevel, onMap = this._onMap;
     if (nextLevel != null) {
       const lt = bodyText(`LEVEL ${nextLevel}`, 16, 0xFFE08A);
-      const pw = lt.width + 28;
-      const pill = new Graphics();
-      pill.roundRect(-pw / 2, -13, pw, 26, 13).fill({ color: 0x17143A, alpha: 0.85 }).stroke({ color: 0xC9962A, width: 2 });
-      pill.addChild(lt);
+      const pill = new Container();
+      pill.addChild(premiumPill(lt.width + 32, 28), lt);   // PremiumUI capsule: gold bevel rim, lit face
       pill.x = btnCX; pill.y = btnCY + btnH + 18;
       this._container.addChild(pill);
       this._levelPill = pill;
@@ -192,14 +190,17 @@ export class TitleScreen {
     const reached = this._nextLevel ?? Infinity;
     const open = (k) => reached >= TITLE_UNLOCK[k];
     const items = [];
+    // F-03: secondary meta uses ONE blue (0x2F7FE0); MAP stays green as the
+    // map entry. Amber only when DAILY is reward-ready (state, not a 4th accent).
+    const META = 0x2F7FE0;
     if (onMap) items.push({ glyph: mapGlyph, label: 'MAP', color: 0x3DBB3A, fn: onMap });
-    if (onDaily && open('daily')) items.push({ key: 'daily', icon: 'gift', emoji: '🎁', label: hasDailyReward ? 'DAILY!' : 'DAILY', color: hasDailyReward ? 0xF0A020 : 0x2F7FE0, fn: onDaily, badge: hasDailyReward });
-    if (onAchievements && open('trophies')) items.push({ key: 'trophies', icon: 'trophy', emoji: '🏆', label: 'TROPHIES', color: 0x2F7FE0, fn: onAchievements });
-    if (onDailyChallenge && open('challenge')) items.push({ key: 'challenge', icon: 'lightning', emoji: '⚡', label: 'CHALLENGE', color: 0x8B4FE0, fn: onDailyChallenge, done: dailyChallengeDone });
-    if (onStats && open('stats')) items.push({ key: 'stats', icon: 'chart', emoji: '📊', label: 'STATS', color: 0x2F7FE0, fn: onStats });
+    if (onDaily && open('daily')) items.push({ key: 'daily', icon: hasDailyReward ? 'gift' : 'calendar', emoji: hasDailyReward ? '🎁' : '📅', label: hasDailyReward ? 'DAILY!' : 'DAILY', color: hasDailyReward ? 0xF0A020 : META, fn: onDaily, badge: hasDailyReward });
+    if (onAchievements && open('trophies')) items.push({ key: 'trophies', icon: 'trophy', emoji: '🏆', label: 'TROPHIES', color: META, fn: onAchievements });
+    if (onDailyChallenge && open('challenge')) items.push({ key: 'challenge', icon: 'lightning', emoji: '⚡', label: 'CHALLENGE', color: META, fn: onDailyChallenge, done: dailyChallengeDone });
+    if (onStats && open('stats')) items.push({ key: 'stats', icon: 'chart', emoji: '📊', label: 'STATS', color: META, fn: onStats });
     const seen = readSeen();
     for (const it of items) if (it.key && reached !== Infinity && !seen.has(it.key)) it.isNew = true;
-    const rowY = btnCY + btnH + 82, gapX = items.length > 4 ? 76 : 84;
+    const rowY = btnCY + btnH + 72, gapX = items.length > 4 ? 76 : 84;  // F-01: tighter under raised PLAY
     items.forEach((it, i) => {
       const x = w / 2 + (i - (items.length - 1) / 2) * gapX;
       const rbtn = roundButton(it.glyph ? it.glyph() : uiIcon(it.icon, 34, it.emoji), { r: 30, color: it.color, onTap: () => { audio?.play('button_tap'); if (it.isNew) markSeen(it.key); it.fn(); } });
@@ -207,17 +208,17 @@ export class TitleScreen {
       this._container.addChild(rbtn);
       const cap = bodyText(it.label, items.length > 4 ? 11 : 13, 0xFFFFFF);
       cap.x = x; cap.y = rowY + 44;
-      // Dark pill behind each caption so it reads on the busy town art.
-      const capBg = new Graphics();
-      capBg.roundRect(x - cap.width / 2 - 8, rowY + 34, cap.width + 16, 21, 10.5)
-        .fill({ color: 0x17143A, alpha: 0.78 }).stroke({ color: 0x000000, width: 1.5, alpha: 0.35 });
+      // A long caption (CHALLENGE, TROPHIES) shrinks to its slot, so neighbouring plates never overlap.
+      const capMax = gapX - 6 - 16;
+      if (cap.width > capMax) cap.scale.set(capMax / cap.width);
+      // Caption plate (PremiumUI pill, quiet variant) so the label reads on the busy town art.
+      const capBg = premiumPill(cap.width + 16, 22, { rim: false });
+      capBg.x = x; capBg.y = rowY + 44.5;
       this._container.addChild(capBg, cap);
       if (it.isNew) {   // just unlocked: a small NEW tag until the first tap
-        const tag = new Graphics();
-        tag.roundRect(x - 2, rowY - 38, 40, 18, 9).fill(0xE8453C).stroke({ color: 0x1F1A33, width: 2 });
-        const tt = bodyText('NEW', 11, 0xFFFFFF, { outline: false, weight: '900' });
-        tt.x = x + 18; tt.y = rowY - 29;
-        this._container.addChild(tag, tt);
+        const nt = premiumTag('NEW');
+        nt.x = x + 18; nt.y = rowY - 29;
+        this._container.addChild(nt);
       } else if (it.badge) {
         const dot = new Graphics();
         dot.circle(x + 22, rowY - 22, 8).fill(0xE8453C).stroke({ color: 0x1F1A33, width: 2 });
@@ -281,7 +282,7 @@ export class TitleScreen {
     if (I.phase === 'wait') {
       if (I.t >= 0.3) {
         I.phase = 'pop'; I.t = 0;
-        this._spawnIntroParticles(I, this._appW / 2, this._heroY ?? this._appH * 0.405);
+        this._spawnIntroParticles(I, this._appW / 2, this._heroY ?? this._appH * 0.355);
       }
       return;
     }

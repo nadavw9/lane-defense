@@ -98,7 +98,9 @@ export function ribbon(str, w = 260, { color = RIBBON, size = 30 } = {}) {
 }
 
 const VARIANTS = {
-  green:  { plate: null, fill: GREEN },
+  // Green primary uses Batch-2 button-primary.png 9-slice (preloaded). Other
+  // colors stay procedural — we do not invent multi-color plates.
+  green:  { plate: 'button-primary', fill: GREEN },
   blue:   { plate: null, fill: BLUE },
   gold:   { plate: null, fill: GOLD, ink: 0x5A3500 },
   red:    { plate: null, fill: RIBBON },
@@ -108,6 +110,8 @@ const VARIANTS = {
 
 /**
  * Chunky button centred on (0, 0). Press = squash to 0.94, release = tap.
+ * Green variant uses sprites/ui/button-primary.png via uiPlate (Play Store chrome);
+ * other variants stay procedural Graphics (no invented multi-color plates).
  * opts: { variant, w, h, icon (display object), size, onTap, sub (small line) }
  */
 export function button(label, { variant = 'green', w = 220, h = 64, icon = null, size = 26, onTap, sub = null } = {}) {
@@ -171,6 +175,39 @@ export function roundButton(icon, { r = 24, color = 0x3A3662, onTap } = {}) {
   c.on('pointerdown', () => c.scale.set(0.92));
   c.on('pointerupoutside', () => c.scale.set(1));
   c.on('pointerup', () => { c.scale.set(1); onTap?.(); });
+  return c;
+}
+
+/**
+ * Capsule plate for short labels and counters (LEVEL 12, coin count, 3 / 14, button captions).
+ * Same language as panel(): soft drop, gold bevel rim, lit indigo face, a gloss line, ink edge.
+ * Centred on (0, 0). `rim: false` gives the quieter caption plate (no gold, darker, see-through).
+ */
+export function pill(w, h, { face = INDIGO, rim = true, alpha = 1 } = {}) {
+  const g = new Graphics();
+  const r = h / 2, x = -w / 2, y = -h / 2;
+  g.roundRect(x + 1, y + 3, w, h, r).fill({ color: 0x000000, alpha: 0.3 * alpha });                       // drop
+  if (rim) g.roundRect(x, y, w, h, r).fill(grad([[0, 0xFFE9A0], [0.5, GOLD], [1, GOLD_DEEP]], 'gold'));   // bevel rim
+  const inset = rim ? 2.5 : 0;
+  g.roundRect(x + inset, y + inset, w - inset * 2, h - inset * 2, r - inset)
+    .fill({ fill: grad([[0, tint(face, 0.14)], [1, shade(face, 0.6)]]), alpha: rim ? 1 : 0.86 * alpha });
+  g.roundRect(x + r * 0.6, y + inset + 2, w - r * 1.2, Math.max(2, (h - inset * 2) * 0.22), 2).fill({ color: WHITE, alpha: 0.16 });
+  g.roundRect(x, y, w, h, r).stroke({ color: INK, width: rim ? 2.5 : 2, alpha: rim ? 1 : 0.7 });
+  return g;
+}
+
+/** Small loud tag ("NEW", "FREE"): a red (or `color`) capsule with a lip and white text. Centred on (0, 0). */
+export function tag(str, { color = RIBBON, size = 11 } = {}) {
+  const c = new Container();
+  const t = bodyText(str, size, WHITE, { outline: false, weight: '900' });
+  const w = Math.max(size * 3, t.width + size + 2), h = size + 8;   // padding scales with the type
+  const g = new Graphics();
+  g.roundRect(-w / 2, -h / 2 + 2, w, h, h / 2).fill(shade(color, 0.55));                                 // lip
+  g.roundRect(-w / 2, -h / 2, w, h - 1, h / 2).fill(grad([[0, tint(color, 0.3)], [1, shade(color, 0.85)]]));
+  g.roundRect(-w / 2 + 5, -h / 2 + 2, w - 10, h * 0.28, 2).fill({ color: WHITE, alpha: 0.35 });
+  g.roundRect(-w / 2, -h / 2, w, h + 1, h / 2).stroke({ color: INK, width: 2 });
+  t.y = -0.5;
+  c.addChild(g, t);
   return c;
 }
 

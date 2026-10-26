@@ -28,6 +28,15 @@ export class AudioManager {
     } catch {
       this._ctx = null;
     }
+    // iOS (WKWebView) only lets audio start inside a user gesture, and a drag on the board
+    // plays nothing in its own handler. Resume on any touch / key while the context is
+    // suspended or 'interrupted' (a call, Siri), unless the app is in the background.
+    if (this._ctx && typeof window !== 'undefined') {
+      const unlock = () => {
+        if (this._ctx.state !== 'running' && !this._background) this._ctx.resume().catch(() => {});
+      };
+      for (const ev of ['pointerup', 'touchend', 'keydown']) window.addEventListener(ev, unlock, { passive: true });
+    }
 
     this._muted    = false;
     this._sfxVol   = 1.0;   // multiplier for setSfxVolume

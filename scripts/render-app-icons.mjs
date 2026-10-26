@@ -74,6 +74,26 @@ async function tile(size, frac, { radius = 0, circle = false } = {}) {
   return buf;
 }
 
+// iOS (`node scripts/render-app-icons.mjs ios` writes only these): the 1024 App Store / home-screen
+// icon (opaque: Apple rejects an icon with an alpha channel; iOS rounds the corners itself) and
+// the 2732 square launch image, shown aspect-fill, so the subject sits well inside the centre
+// strip a portrait phone actually shows (~46% of the width).
+const IOS = 'ios/App/App/Assets.xcassets';
+async function writeIos() {
+  const icon = await sharp(await tile(1024, 0.8)).flatten({ background: GRASS }).removeAlpha().png().toBuffer();
+  await sharp(icon).toFile(`${IOS}/AppIcon.appiconset/AppIcon-512@2x.png`);
+  const S = 2732, sub = Math.round(S * 0.40);
+  const splash = await sharp(roadSVG(S, S, { vignette: false }))
+    .composite([{ input: await sharp(subject).resize(sub, sub).toBuffer(), left: Math.round((S - sub) / 2), top: Math.round((S - sub) / 2) }])
+    .flatten({ background: GRASS }).removeAlpha().png().toBuffer();
+  for (const f of ['splash-2732x2732.png', 'splash-2732x2732-1.png', 'splash-2732x2732-2.png']) await sharp(splash).toFile(`${IOS}/Splash.imageset/${f}`);
+}
+if (process.argv[2] === 'ios') {
+  await writeIos();
+  console.log('iOS app icon and launch images written');
+  process.exit(0);
+}
+
 const DENS = { mdpi: 1, hdpi: 1.5, xhdpi: 2, xxhdpi: 3, xxxhdpi: 4 };
 for (const [d, k] of Object.entries(DENS)) {
   const legacy = Math.round(48 * k), fg = Math.round(108 * k);
@@ -118,4 +138,5 @@ await sharp(store).toFile('store/icon-512.png');
 await sharp(store).toFile('docs/store/art/icon-512.png');
 // The title screen and the in-game splash reuse the subject (public, served by Vite).
 await sharp(subject).resize(512, 512).png().toFile('public/sprites/designed/app-hero.png');
-console.log('icons, adaptive layers, splash screens, store icon and app-hero.png written');
+await writeIos();
+console.log('icons, adaptive layers, splash screens, store icon, app-hero.png and the iOS icon + launch images written');

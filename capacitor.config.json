@@ -1,5 +1,10 @@
 {
   "appId": "com.nadavw.trafficbomb",
   "appName": "Traffic Bomb",
-  "webDir": "dist"
+  "webDir": "dist",
+  "ios": {
+    "contentInset": "never",
+    "scrollEnabled": false,
+    "backgroundColor": "#7ED957"
+  }
 }

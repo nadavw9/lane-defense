@@ -2,9 +2,11 @@
 // game captures (DPR 3) in an HTML template and rendered with Playwright, so the captions use the
 // game's own fonts (Lilita One / Fredoka).
 //
-//   node scripts/store-art.mjs <rawDir> <outDir>   (CHROME_PATH optional: a Chromium binary)
+//   node scripts/store-art.mjs <rawDir> <outDir> [ios]   (CHROME_PATH optional: a Chromium binary)
+// `ios` writes appstore-iphone-N.png at 1320x2868 (App Store 6.9" iPhone) instead of the Play set.
 // rawDir holds s0-title.png, s1-l12.png ... s8-l88.png (390x844 stage at DPR 3).
 import { chromium } from 'playwright';
+import sharp from 'sharp';
 import { readFileSync, mkdirSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -20,8 +22,8 @@ const FONTS = `
 const SHOTS = [
   ['s1-l12.png', 'Match the color, *drop the bomb!*', 'One drag. One boom.', '#3B2580', '#160F3A'],
   ['s2-l35.png', 'Beat the *traffic lights*', 'Red holds a lane. Plan your shots.', '#24124F', '#07051A'],
-  ['s3-l13.png', 'Gift cars drop *free boosters*', 'Destroy the cars with a bow!', '#2E5A1E', '#10240C'],
-  ['s4-l55.png', '*100 levels* in 7 worlds', 'From Toy Town to the Starlight Strip', '#7A4A12', '#2A1606'],
+  ['s3-l23.png', 'Gift cars drop *free boosters*', 'Destroy the cars with a bow!', '#2E5A1E', '#10240C'],
+  ['s4-l55.png', '*200 levels* to beat', 'From Toy Town to the Starlight Strip and back', '#7A4A12', '#2A1606'],
   ['s5-l65.png', 'Special cars *change the rules*', 'Speeders, armor, chameleons and more', '#1E4A7A', '#0A1A30'],
   ['s6-map.png', 'Repair *your city*', 'Every win rebuilds a building', '#2A2458', '#100C2A'],
   ['s7-win.png', 'Win streaks = *free boosters*', 'Daily rewards and trophies too', '#5A1E6E', '#1E0A28'],
@@ -30,16 +32,26 @@ const SHOTS = [
 
 const caption = (t) => t.replace(/\*(.+?)\*/g, '<b>$1</b>');
 
+// Layout per store. Play: 1080x1920 at 1x. App Store 6.9" iPhone: 1320x2868, drawn on a 1080-wide
+// canvas 2347 tall at DPR 1320/1080, so the type keeps the Play proportions and the phone grows.
+const LAYOUT = {
+  play: { h: 1920, h1: 70, sub: 300, phoneTop: 400, phoneW: 690, scale: 1 },
+  ios:  { h: 2347, h1: 96, sub: 330, phoneTop: 440, phoneW: 840, scale: 1320 / 1080 },
+};
+const MODE = process.argv[4] === 'ios' ? 'ios' : 'play';
+const L = LAYOUT[MODE];
+
 function shotPage([file, head, sub, c1, c2]) {
+  const phoneH = Math.round(L.phoneW * 844 / 390);
   return `<!doctype html><html><head><meta charset="utf-8"><style>${FONTS}
-  html,body{margin:0;width:1080px;height:1920px;overflow:hidden}
+  html,body{margin:0;width:1080px;height:${L.h}px;overflow:hidden}
   body{background:radial-gradient(ellipse at 50% 38%, ${c1} 0%, ${c2} 72%);font-family:Lilita,sans-serif;position:relative}
   .rays{position:absolute;inset:0;background:repeating-conic-gradient(from 0deg at 50% 62%, rgba(255,255,255,.06) 0 6deg, transparent 6deg 18deg)}
-  h1{position:absolute;top:70px;left:60px;right:60px;margin:0;text-align:center;color:#fff;font-size:92px;line-height:1.02;font-weight:400;
+  h1{position:absolute;top:${L.h1}px;left:60px;right:60px;margin:0;text-align:center;color:#fff;font-size:92px;line-height:1.02;font-weight:400;
      -webkit-text-stroke:5px #1F1A33;paint-order:stroke fill;text-shadow:0 8px 0 #1F1A33;letter-spacing:.5px}
   h1 b{color:#FFD42A;font-weight:400}
-  p{position:absolute;top:300px;left:0;right:0;margin:0;text-align:center;color:#E9E4FF;font:700 44px Fredoka,sans-serif}
-  .phone{position:absolute;left:50%;top:400px;width:690px;height:1494px;transform:translateX(-50%);border-radius:64px;
+  p{position:absolute;top:${L.sub}px;left:0;right:0;margin:0;text-align:center;color:#E9E4FF;font:700 44px Fredoka,sans-serif}
+  .phone{position:absolute;left:50%;top:${L.phoneTop}px;width:${L.phoneW}px;height:${phoneH}px;transform:translateX(-50%);border-radius:64px;
      border:12px solid #1F1A33;box-shadow:0 26px 0 rgba(0,0,0,.35),0 0 0 6px rgba(255,255,255,.12);overflow:hidden;background:#000}
   .phone img{width:100%;height:100%;object-fit:cover;object-position:top}
   </style></head><body><div class="rays"></div>
@@ -82,16 +94,22 @@ function featurePage() {
 }
 
 const b = await chromium.launch({ executablePath: process.env.CHROME_PATH });
-const page = await b.newPage({ viewport: { width: 1080, height: 1920 }, deviceScaleFactor: 1 });
+const page = await b.newPage({ viewport: { width: 1080, height: L.h }, deviceScaleFactor: L.scale });
 let n = 0;
 for (const s of SHOTS) {
   if (!existsSync(resolve(rawDir, s[0]))) { console.log('missing', s[0]); continue; }
   await page.setContent(shotPage(s), { waitUntil: 'load' });
   await page.evaluate(() => document.fonts.ready);
-  await page.screenshot({ path: resolve(outDir, `screenshot-${++n}.png`) });
+  if (MODE === 'ios') {
+    // Apple wants exactly 1320x2868 (the DPR rounding can land a pixel off), opaque.
+    const buf = await page.screenshot();
+    await sharp(buf).resize(1320, 2868, { fit: 'fill' }).removeAlpha().png().toFile(resolve(outDir, `appstore-iphone-${++n}.png`));
+  } else {
+    await page.screenshot({ path: resolve(outDir, `screenshot-${++n}.png`) });
+  }
   console.log('screenshot', n, s[0]);
 }
-if (existsSync(resolve(rawDir, 's0-title.png'))) {
+if (MODE === 'play' && existsSync(resolve(rawDir, 's0-title.png'))) {
   await page.setViewportSize({ width: 1024, height: 500 });
   await page.setContent(featurePage(), { waitUntil: 'load' });
   await page.evaluate(() => document.fonts.ready);

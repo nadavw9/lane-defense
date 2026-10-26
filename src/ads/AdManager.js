@@ -12,9 +12,31 @@ import { AdMob, RewardAdPluginEvents, InterstitialAdPluginEvents, AdmobConsentSt
 import { logEvent } from '../analytics/Analytics.js';
 import { hasEntitlement } from '../monetization/entitlements.js';
 
+// Android units (the Android app in AdMob).
 const REWARDED_AD_ID     = 'ca-app-pub-3810333742263149/8064409920';
 const INTERSTITIAL_AD_ID = 'ca-app-pub-3810333742263149/4284947016';
-const TEST_ADS = useTestAds(import.meta.env);
+// iOS units come from the build (repo variables VITE_IOS_REWARDED_AD_ID / VITE_IOS_INTERSTITIAL_AD_ID,
+// set once the Traffic Bomb iOS app exists in AdMob). Until both are set, iOS stays on test ads.
+const IOS_UNITS = {
+  rewarded:     import.meta.env.VITE_IOS_REWARDED_AD_ID || null,
+  interstitial: import.meta.env.VITE_IOS_INTERSTITIAL_AD_ID || null,
+};
+const PLATFORM = Capacitor.getPlatform?.() ?? 'web';
+
+/** The ad units for a platform; null where a platform has no unit yet. */
+export function adUnitIds(platform, ios = IOS_UNITS) {
+  if (platform === 'ios') return { rewarded: ios.rewarded || null, interstitial: ios.interstitial || null };
+  return { rewarded: REWARDED_AD_ID, interstitial: INTERSTITIAL_AD_ID };
+}
+
+/** Test ads unless this is a live build AND the platform has its own real units. */
+export function testAdsFor(env, platform, ios = IOS_UNITS) {
+  const u = adUnitIds(platform, ios);
+  return useTestAds(env) || !(u.rewarded && u.interstitial);
+}
+
+const UNITS = adUnitIds(PLATFORM);
+const TEST_ADS = testAdsFor(import.meta.env, PLATFORM);
 
 /**
  * Options for one ad request. `isTesting: true` makes the plugin load Google's
@@ -22,7 +44,8 @@ const TEST_ADS = useTestAds(import.meta.env);
  * Before 2026-10-20 this flag was missing and test builds served live ads.
  */
 export function adOptions(adId, testAds = TEST_ADS) {
-  return { adId, isTesting: testAds };
+  // A test request ignores adId (the plugin loads Google's test unit), but must still carry one.
+  return { adId: adId ?? REWARDED_AD_ID, isTesting: testAds };
 }
 // ── Booster costs (ads required to unlock) ─────────────────────────────────
 export const AD_COSTS = {
@@ -104,11 +127,24 @@ export class AdManager {
       // status comes back NOT_REQUIRED and nothing is shown. The form itself is
       // the GDPR message configured in the AdMob console (Privacy & messaging).
       const info = await this._resolveConsent();
+      // iOS 14.5+: Apple's App Tracking Transparency prompt, after the consent form and before
+      // the first ad request (Info.plist NSUserTrackingUsageDescription). A refusal still
+      // gets ads, just not personalised by the device's ad ID.
+      if (PLATFORM === 'ios') await this._requestTracking();
       this._native = info.canRequestAds;
       this._consent = info.canRequestAds;
     } catch (e) {
       console.warn('[AdManager] AdMob init failed:', e);
       this._consent = false;
+    }
+  }
+
+  async _requestTracking() {
+    try {
+      const { status } = await AdMob.trackingAuthorizationStatus();
+      if (status === 'notDetermined') await AdMob.requestTrackingAuthorization();
+    } catch (e) {
+      console.warn('[AdManager] tracking authorization failed:', e);
     }
   }
 
@@ -185,7 +221,7 @@ export class AdManager {
       this._unavailable(onDismissed);
     }));
 
-    AdMob.prepareRewardVideoAd(adOptions(REWARDED_AD_ID))
+    AdMob.prepareRewardVideoAd(adOptions(UNITS.rewarded))
       .then(() => AdMob.showRewardVideoAd())
       .catch(() => { cleanup(); this._unavailable(onDismissed); });
   }
@@ -216,7 +252,7 @@ export class AdManager {
         done();
       }));
 
-      AdMob.prepareInterstitial(adOptions(INTERSTITIAL_AD_ID))
+      AdMob.prepareInterstitial(adOptions(UNITS.interstitial))
         .then(() => AdMob.showInterstitial())
         .catch((e) => { console.warn('[AdManager] Interstitial error:', e); done(); });
     });

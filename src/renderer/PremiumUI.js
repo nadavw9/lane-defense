@@ -200,7 +200,7 @@ export function pill(w, h, { face = INDIGO, rim = true, alpha = 1 } = {}) {
 export function tag(str, { color = RIBBON, size = 11 } = {}) {
   const c = new Container();
   const t = bodyText(str, size, WHITE, { outline: false, weight: '900' });
-  const w = Math.max(34, t.width + 14), h = size + 8;
+  const w = Math.max(size * 3, t.width + size + 2), h = size + 8;   // padding scales with the type
   const g = new Graphics();
   g.roundRect(-w / 2, -h / 2 + 2, w, h, h / 2).fill(shade(color, 0.55));                                 // lip
   g.roundRect(-w / 2, -h / 2, w, h - 1, h / 2).fill(grad([[0, tint(color, 0.3)], [1, shade(color, 0.85)]]));

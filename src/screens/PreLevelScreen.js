@@ -12,7 +12,7 @@
 // caller runs the ad(s) and starts the level with the bundle.
 import { Container, Graphics, Sprite, Assets } from 'pixi.js';
 import { boosterIcon, uiIcon } from '../renderer/UIIcon.js';
-import { panel, ribbon, button, roundButton, bodyText, titleText, backdrop, well, GOLD } from '../renderer/PremiumUI.js';
+import { panel, ribbon, button, roundButton, bodyText, titleText, backdrop, well, pill, tag as premiumTag, card as premiumCard, GOLD, GOLD_DEEP, GREEN } from '../renderer/PremiumUI.js';
 import { INK, WHITE } from '../renderer/ToyStyle.js';
 import { traitInfo, traitSpritePath } from '../renderer/traitIcons.js';
 import { levelDifficulty } from '../game/LevelManager.js';
@@ -200,9 +200,9 @@ export class PreLevelScreen {
     if (streak) {
       const sw = PW - 48, sh = 50, sx = 24;
       const live = !!streak.gift;
-      const bar = new Graphics();
-      bar.roundRect(sx, y, sw, sh, 25).fill(live ? 0x7A2E12 : 0x2A2458).stroke({ color: live ? 0xFF9A3C : 0x5A54A0, width: 2.5 });
-      bar.roundRect(sx + 8, y + 4, sw - 16, sh * 0.38, 18).fill({ color: 0xffffff, alpha: 0.08 });
+      // PremiumUI capsule: a hot ember face with the gold rim when the streak pays, quiet indigo otherwise.
+      const bar = pill(sw, sh, live ? { face: 0xC2491C } : { face: 0x3A3580, rim: false });
+      bar.x = sx + sw / 2; bar.y = y + sh / 2;
       card.addChild(bar);
       const fire = uiIcon('fire', 34, '🔥', live ? {} : { tint: 0x8A84C8 });
       fire.x = sx + 30; fire.y = y + sh / 2;
@@ -218,9 +218,9 @@ export class PreLevelScreen {
           const ic = boosterIcon(icon, 32, '?');
           ic.x = cx; ic.y = y + sh / 2 - 2;
           card.addChild(ic);
-          const tag = bodyText('FREE', 10, 0x9CFF8A, { outline: true });
-          tag.x = cx; tag.y = y + sh - 6;
-          card.addChild(tag);
+          const ft = premiumTag('FREE', { color: GREEN, size: 9 });
+          ft.x = cx; ft.y = y + sh - 5;
+          card.addChild(ft);
         });
       } else {
         const need = streak.toNext;
@@ -234,8 +234,9 @@ export class PreLevelScreen {
     // New this level — the car (or boss) itself, and one line on its rule.
     if (intro) {
       const iw = PW - 48, ih = 86;
-      const box = new Graphics();
-      box.roundRect(24, y, iw, ih, 16).fill({ color: hard ? 0xFF3D3D : 0xFFC93C, alpha: hard ? 0.18 : 0.14 }).stroke({ color: hard ? 0xFF5A4A : GOLD, width: 2 });
+      // PremiumUI card: gold rim for something new, red rim and a warmer face for a big wave.
+      const box = premiumCard(iw, ih, hard ? { rim: 0xFF5A4A, face: 0x5A2448, faceDeep: 0x2E1436 } : { rim: GOLD_DEEP });
+      box.x = 24; box.y = y;
       card.addChild(box);
       const pic = spriteFit(introSprite(intro, lv), /BOSS/.test(intro) ? 78 : 66);
       if (pic) { pic.x = 24 + 44; pic.y = y + ih / 2; card.addChild(pic); }

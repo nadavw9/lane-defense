@@ -116,6 +116,19 @@ clears the charge on all of them (bench included); firing a plain bomb leaves it
 = any charged bomb left. The rings (StreakMeter anchors) draw only on charged bombs. The sim still
 models "next shot is charged" (it never benches a charged bomb, so the numbers match).
 
+### MERGED 2026-10-26: iOS (#20) + art polish (#21) — one session owns Traffic Bomb from here
+
+The owner merged both and asked that ONE session (his local Claude Code session) carry Traffic Bomb
+from now on; the cloud session that built #19-#21 has stopped. #21 is visual chrome only: the
+art-bot stack (confetti ribbons, traffic-light housings, lose frame, How-to-Play well, button
+9-slice, batch 1c icons, car-type card, onboarding hints, transition easing, raised title PLAY)
+plus `PremiumUI.pill()` / `PremiumUI.tag()` — use them for any capsule label, counter or NEW/FREE
+tag instead of a hand-drawn roundRect. Before/after for every pass: `docs/review/art-*/`.
+Leftover hand-drawn chrome still on the list (most visible first): FTUEOverlay hint banner, map
+stars plaque + RACE pill, Shop tiles, DailyReward tiles; kit gaps: toast, toggle, slider; missing
+icon sprites: map, lock, pause. Open owner steps: AdMob iOS app + units, then Apple keys
+(`docs/store/APPSTORE.md`).
+
 ### iOS / APP STORE (2026-10-25, branch `feat/ios`)
 
 `ios/` is the Capacitor 8.3 iPhone project (Swift Package Manager, no CocoaPods; iPhone only,

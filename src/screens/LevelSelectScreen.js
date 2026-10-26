@@ -10,7 +10,7 @@
 // (PreLevelScreen) is the one popup; the old in-map popup is gone.
 import { Container, Graphics, Sprite, Assets, FillGradient } from 'pixi.js';
 import { uiIcon } from '../renderer/UIIcon.js';
-import { ribbon, roundButton, titleText, bodyText, GOLD, GOLD_DEEP } from '../renderer/PremiumUI.js';
+import { ribbon, roundButton, titleText, bodyText, pill, GOLD, GOLD_DEEP } from '../renderer/PremiumUI.js';
 import { INK, WHITE, shade, tint, drawShackle } from '../renderer/ToyStyle.js';
 import { MAP_WORLDS, mapNodes, mapRoadPath, worldForLevel } from './levelMapLayout.js';
 import { LEVEL_COUNT, levelDifficulty } from '../game/LevelManager.js';
@@ -438,9 +438,9 @@ export class LevelSelectScreen {
     this._container.addChild(shop);
 
     // Row 2: coins · world dots / arrows · trophies.
-    const pill = new Graphics();
-    pill.roundRect(12, 62, 86, 26, 13).fill(0x14112F).stroke({ color: GOLD_DEEP, width: 2 });
-    this._container.addChild(pill);
+    const coinPill = pill(86, 26);   // PremiumUI capsule
+    coinPill.x = 55; coinPill.y = 75;
+    this._container.addChild(coinPill);
     const coin = uiIcon('coin', 22, '◆'); coin.x = 26; coin.y = 75;
     this._container.addChild(coin);
     const coins = bodyText(String(this._progress.coins ?? 0), 15, 0xFFE08A);
@@ -450,8 +450,8 @@ export class LevelSelectScreen {
     // Page counter centred between the arrows ("8 / 14"). A dot per world stopped fitting:
     // seven dots already ran under the next arrow, fourteen ran off the screen.
     const cx = w / 2;
-    const counter = new Graphics();
-    counter.roundRect(cx - 34, 62, 68, 26, 13).fill(0x14112F).stroke({ color: GOLD_DEEP, width: 2 });
+    const counter = pill(68, 26);
+    counter.x = cx; counter.y = 75;
     this._container.addChild(counter);
     const pageText = bodyText(`${this._page} / ${MAP_WORLDS.length}`, 15, 0xFFE08A);
     pageText.anchor.set(0.5); pageText.x = cx; pageText.y = 75;

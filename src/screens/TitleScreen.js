@@ -7,7 +7,7 @@
 //   • MAP, then DAILY / TROPHIES / CHALLENGE / STATS as the player reaches TITLE_UNLOCK
 import { Container, Graphics, Text, Sprite, Assets, Rectangle } from 'pixi.js';
 import { uiIcon, uiPlate } from '../renderer/UIIcon.js';
-import { button as premiumButton, roundButton, bodyText } from '../renderer/PremiumUI.js';
+import { button as premiumButton, roundButton, bodyText, pill as premiumPill, tag as premiumTag } from '../renderer/PremiumUI.js';
 
 const SKY_TOP     = 0x4FC3F7;   // light sky blue
 const SKY_BOTTOM  = 0x81D4FA;   // slightly lighter horizon
@@ -174,10 +174,8 @@ export class TitleScreen {
     const nextLevel = this._nextLevel, onMap = this._onMap;
     if (nextLevel != null) {
       const lt = bodyText(`LEVEL ${nextLevel}`, 16, 0xFFE08A);
-      const pw = lt.width + 28;
-      const pill = new Graphics();
-      pill.roundRect(-pw / 2, -13, pw, 26, 13).fill({ color: 0x17143A, alpha: 0.85 }).stroke({ color: 0xC9962A, width: 2 });
-      pill.addChild(lt);
+      const pill = new Container();
+      pill.addChild(premiumPill(lt.width + 32, 28), lt);   // PremiumUI capsule: gold bevel rim, lit face
       pill.x = btnCX; pill.y = btnCY + btnH + 18;
       this._container.addChild(pill);
       this._levelPill = pill;
@@ -210,17 +208,17 @@ export class TitleScreen {
       this._container.addChild(rbtn);
       const cap = bodyText(it.label, items.length > 4 ? 11 : 13, 0xFFFFFF);
       cap.x = x; cap.y = rowY + 44;
-      // Dark pill behind each caption so it reads on the busy town art.
-      const capBg = new Graphics();
-      capBg.roundRect(x - cap.width / 2 - 8, rowY + 34, cap.width + 16, 21, 10.5)
-        .fill({ color: 0x17143A, alpha: 0.78 }).stroke({ color: 0x000000, width: 1.5, alpha: 0.35 });
+      // A long caption (CHALLENGE, TROPHIES) shrinks to its slot, so neighbouring plates never overlap.
+      const capMax = gapX - 6 - 16;
+      if (cap.width > capMax) cap.scale.set(capMax / cap.width);
+      // Caption plate (PremiumUI pill, quiet variant) so the label reads on the busy town art.
+      const capBg = premiumPill(cap.width + 16, 22, { rim: false });
+      capBg.x = x; capBg.y = rowY + 44.5;
       this._container.addChild(capBg, cap);
       if (it.isNew) {   // just unlocked: a small NEW tag until the first tap
-        const tag = new Graphics();
-        tag.roundRect(x - 2, rowY - 38, 40, 18, 9).fill(0xE8453C).stroke({ color: 0x1F1A33, width: 2 });
-        const tt = bodyText('NEW', 11, 0xFFFFFF, { outline: false, weight: '900' });
-        tt.x = x + 18; tt.y = rowY - 29;
-        this._container.addChild(tag, tt);
+        const nt = premiumTag('NEW');
+        nt.x = x + 18; nt.y = rowY - 29;
+        this._container.addChild(nt);
       } else if (it.badge) {
         const dot = new Graphics();
         dot.circle(x + 22, rowY - 22, 8).fill(0xE8453C).stroke({ color: 0x1F1A33, width: 2 });

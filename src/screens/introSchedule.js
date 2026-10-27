@@ -15,8 +15,9 @@ export const LEVEL_START_CARDS = {
   // practice level between new things is gone; L3 third lane, L5 third colour). Vehicles that shrink (car L4, van L7) are
   // introduced by their animated NEW VEHICLE card, not listed here; the bench (L13) has its own
   // spotlight tutorial. Colours and traits are announced by the level's hint on its card.
-  // L6 chain reaction (spread.SPREAD_FROM): same-colour neighbours explode together.
-  2:  ['multi_color'],
+  // L1 teaches the colour match in play (second_colour below, LevelManager firstColors), so L2
+  // adds only the lane. L6 chain reaction (spread.SPREAD_FROM): same-colour neighbours explode together.
+  2:  ['lane_2'],
   3:  ['lane_3'],
   6:  ['chain_reaction'],
   8:  ['freeze_booster'],
@@ -32,14 +33,17 @@ export const LEVEL_START_CARDS = {
 // Moments inside play that can only be explained from a live event. A key may fire only while
 // the player is on a level inside [min, max]; outside the window it is simply never shown.
 //   first_kill / bomb_earned  L1 (a 10-car goal guarantees both)
-//   first_miss                L2 (the first second colour)
+//   second_colour             L1 (the first blue car reaches the front after a run of reds —
+//                             GameApp fires it from the advance, hand on the blue bomb)
+//   first_miss                L1-2 (a wrong colour is possible from the first blue car)
 //   streak_charged            L11-12 (Hot Streak starts at L11)
 //   freeze / swap / rainbow earned  from the level each one arrives (boosterUnlocks.js)
 //   armor_break / plate_break / mender_heal / volatile_surge  the level that introduces the trait
 export const REACTIVE_WINDOW = {
   first_kill:     [1, 1],
   bomb_earned:    [1, 1],
-  first_miss:     [2, 2],
+  second_colour:  [1, 1],
+  first_miss:     [1, 2],
   freeze_earned:  [8, 11],
   colour_change_earned: [21, 24],
   streak_charged: [11, 12],

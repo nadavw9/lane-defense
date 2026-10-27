@@ -78,7 +78,7 @@ export class FTUEOverlay {
         // Replace static arrow with animated hand drag tutorial.
         // Pass counts directly from config — PositionRegistry may not yet be
         // updated to the current level's geometry at construction time.
-        this._buildHandDemo(appW, appH, levelConfig.colCount ?? 1, levelConfig.laneCount ?? 1);
+        this._buildHandDemo(appW, appH, levelConfig.demoColumn ?? null);
       } else {
         this._buildArrowHint(appW, levelConfig.hintText);
       }
@@ -176,7 +176,9 @@ export class FTUEOverlay {
     // ── Hand demo animation (L1) ─────────────────────────────────────────
     if (this._handDemo && !this._handDemo.done) {
       this._handDemo.t += dt;
-      const { emoji, trailG, startX, startY, endX, endY, baseScale } = this._handDemo;
+      const { emoji, trailG, startY, endY, baseScale } = this._handDemo;
+      const startX = getColumnScreenX(this._handDemo.demoColumn?.() ?? 0);
+      const endX   = getLaneScreenX(0);
       const cycleT = this._handDemo.t % HAND_CYCLE;
 
       if (Math.floor(this._handDemo.t / HAND_CYCLE) >= HAND_LOOPS) {
@@ -325,7 +327,7 @@ export class FTUEOverlay {
     return grp;
   }
 
-  _buildHandDemo(appW, _appH, colCount = 1, laneCount = 1) {
+  _buildHandDemo(appW, _appH, demoColumn = null) {
     // Banner
     const grp = new Container();
     this._container.addChild(grp);
@@ -358,14 +360,13 @@ export class FTUEOverlay {
     emoji.alpha = 0;
     this._container.addChild(emoji);
 
-    const startX = (0.5) * (appW / colCount);
+    // X positions are read from PositionRegistry on each frame (see update): at construction
+    // the registry may still hold the previous level's geometry.
     const startY = getColumnScreenY() - TOP_RADIUS * 0.5;
-    const endX   = (0.5) * (appW / laneCount);   // appW === ROAD_BOTTOM_W
     const endY   = ROAD_BOTTOM_Y - 35;
-    emoji.x = startX;
     emoji.y = startY;
 
-    this._handDemo = { grp, emoji, trailG, hitbox, startX, startY, endX, endY, t: 0, done: false, baseScale: emoji.scale.x };
+    this._handDemo = { grp, emoji, trailG, hitbox, startY, endY, demoColumn, t: 0, done: false, baseScale: emoji.scale.x };
   }
 
   _stopHandDemo() {

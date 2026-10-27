@@ -91,9 +91,9 @@ describe('bomb ball and its socket occupy the same place', () => {
       .toMatch(/position\.z\s*=\s*slotZ\(/);
   });
 
-  it('setLaneCount positions slots from the canonical slotZ too', () => {
+  it('column placement (_placeColumns, run by setActiveColCount) uses the canonical slotZ too', () => {
     const src = fs.readFileSync('src/renderer3d/Shooter3D.js', 'utf8');
-    const fn = src.slice(src.indexOf('setLaneCount(n) {'), src.indexOf('_refreshSlotSizes()'));
-    expect(fn, 'setLaneCount must place slots at slotZ(si)').toMatch(/position\.z\s*=\s*slotZ\(si\)/);
+    const fn = src.slice(src.indexOf('_placeColumns(n) {'), src.indexOf('_refreshSlotSizes()'));
+    expect(fn, '_placeColumns must place slots at slotZ(si)').toMatch(/position\.z\s*=\s*slotZ\(si\)/);
   });
 });

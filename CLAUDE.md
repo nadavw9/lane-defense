@@ -11,6 +11,28 @@ An approved 3-workstream master plan is in progress (WS1 testing DONE → WS2 UI
 Route mechanical spec-execution to cheaper models; reserve Fable/Opus for design judgment
 (playbook §2).
 
+### L1 TEACHES THE COLOUR MATCH (2026-10-27, branch `feat/l1-two-colours`)
+
+Owner: "on L1 the single lane can already have 2 colours: start with a few reds in a row, then the
+first blue, with a specific presentation when that happens" (blue bomb on offer from the start).
+L1 is now ONE lane with TWO bomb columns (`colCount: 2`, red + blue) and a scripted opening:
+`firstColors: ['Red' x5, 'Blue']` (LevelManager) -> `CarDirector.setColorScript` (set at every level
+start by GameApp AND SimulationRunner, so the sim plays the same run). The first blue car reaches
+the front after five reds; `GameApp._teachSecondColour` (from `_onAdvance`) shows the
+`second_colour` card once (introSchedule REACTIVE_WINDOW [1,1]): "A BLUE CAR!", gold ring on the
+blue column, hand dragging it onto the car. `first_miss` window is [1,2]. L2 is "Second lane" and
+its card is `lane_2` only (one new thing per level still pinned by `tests/intro-schedule.test.js`;
+`multi_color` card removed). colCount != laneCount is new geometry: `Shooter3D` now places the
+columns by the COLUMN count (`_placeColumns`, run by `setActiveColCount`; `setLaneCount` only
+re-fits), the 2D tray spans max(lanes, columns), the YOUR BOMBS ring spans the outer columns, the
+L1 hand demo reads the registry per frame and starts on the bomb that matches the front car
+(`demoColumn`), and the depot's launch bays follow the columns (`backdrop.js` `L.colXs`;
+`render-3d-sprites.mjs backdrop world1 b 1 2` re-baked `backdrop-world1-b-1.jpg`). Bakes on this
+Windows box: `BAKE_HEADED=1 STUDIO_URL=http://localhost:5180/tools/art/studio/studio.html`
+(SwiftShader bakes a blank frame here). `regression-level-start` allows L1's colCount 2.
+Retuned L1-2 (100%), stars regenerated. QA: `scripts/_l1-second-colour-shots.mjs`; `ftue-play.mjs <out> 2`
+wins L1 and L2 with real drags.
+
 ### CHAIN REACTION ACROSS LANES (2026-10-27, branch `feat/chain-reaction`) — the thinking mechanic
 
 Owner: "the game feels boring, only 3 lanes, not much room for thinking and creativity, see what makes
@@ -71,7 +93,7 @@ level between new things was dropped and everything was pulled forward. Rules st
 `tests/intro-schedule.test.js`: at most ONE new thing per level, nothing new on a HARD level.
 A second pass the same day (owner: until L7 "no thinking, just drag the bombs with 2 available
 options so you always pass") moved the third lane to L3 and the third colour to L5.
-Schedule (LevelManager L1-40 header): L1 bomb + BOMB booster · L2 colors · L3 third lane · L4 car ·
+Schedule (LevelManager L1-40 header): L1 bomb + colour match (two colours, one lane; `firstColors`) + BOMB booster · L2 second lane · L3 third lane · L4 car ·
 L5 third color · L6 chain reaction (`spread.js`) · L7 van (`CarTypes.rawBandWeights`) · L8 FREEZE · L9 speeders · L11 supercharge ·
 L12 color goal · L13 bench (`BENCH_FROM_LEVEL`) · L14 armor · L16 yellow · L21 COLOR SWAP ·
 L23 gift cars (`levelDsl.GIFT_FROM`) · L26 traffic light (`LIGHT_FROM`) · L33 rainbow bomb ·

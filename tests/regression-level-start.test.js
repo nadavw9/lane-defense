@@ -34,8 +34,9 @@ describe('regression: every level starts in a valid state', () => {
       expect(cfg.laneCount).toBeGreaterThanOrEqual(1);
       expect(cfg.laneCount).toBeLessThanOrEqual(4);
 
-      // 3. Columns mirror lanes.
-      expect(cfg.colCount).toBe(cfg.laneCount);
+      // 3. Columns mirror lanes — except L1, whose single lane offers both colours' bombs so
+      //    the match rule is taught there (firstColors, introSchedule second_colour).
+      expect(cfg.colCount).toBe(cfg.id === 1 ? 2 : cfg.laneCount);
 
       // 4-5. Colour variety.
       expect(cfg.colors.length).toBeGreaterThanOrEqual(1);

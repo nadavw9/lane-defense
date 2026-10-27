@@ -608,7 +608,11 @@ async function main() {
   const guideGeo = {
     road:   () => { const l = _laneSpan(); return { x: l.x, y: ROAD_TOP_Y, w: l.w, h: ROAD_BOTTOM_Y - ROAD_TOP_Y }; },
     breach: () => { const l = _laneSpan(); return { x: l.x - 4, y: ROAD_BOTTOM_Y - 12, w: l.w + 8, h: 24 }; },
-    bombs:  () => { const l = _laneSpan(); return { x: l.x, y: SHOOTER_AREA_Y + 6, w: l.w, h: SHOOTER_AREA_H - 6 }; },
+    bombs:  () => {   // the lane span widened to the outer bomb columns (L1: 2 columns on 1 lane)
+      const l = _laneSpan(), r = bombBallScreenRadius() + 8, n = getActiveColCount();
+      const x0 = Math.min(l.x, getColumnScreenX(0) - r), x1 = Math.max(l.x + l.w, getColumnScreenX(n - 1) + r);
+      return { x: x0, y: SHOOTER_AREA_Y + 6, w: x1 - x0, h: SHOOTER_AREA_H - 6 };
+    },
     goal:   () => goalCounterUI.plaqueRect() ?? { x: APP_W / 2 - 45, y: 6, w: 90, h: 82 },
     ruler:  () => stepRuler.rect() ?? { x: 4, y: ROAD_TOP_Y, w: 40, h: ROAD_BOTTOM_Y - ROAD_TOP_Y },
     bench:  () => ({ x: 12, y: benchY(), w: APP_W - 24, h: benchSlotH() }),
@@ -838,6 +842,8 @@ async function main() {
     carDir.setSpawnScript(cfg.spawnScript ?? null);   // §3c staged boss waves (INFRA-C)
     carDir.setTraits(cfg.traits ?? null, cfg.colors);  // V2 special cars (TrafficRules)
     carDir.setConvoy(cfg.convoy ?? null);              // motorbike-only lanes
+    carDir.setColorScript(cfg.firstColors ?? null);    // L1: a run of reds, then the first blue
+    gs.firstColors = cfg.firstColors ?? null;
     gs.convoy = cfg.convoy ?? null;
     gs.lights = cfg.lights ?? null;                    // traffic lights (TrafficRules.laneHeld)
     trafficLights.setLights(gs.lights);
@@ -982,7 +988,12 @@ async function main() {
     // FIX 4: route the level's intro hint through the unified notification queue
     // (safe gap, one-at-a-time) instead of FTUEOverlay's own bottom banner — except
     // the L1 drag-arrow hint, which stays in the overlay because it points at the bomb.
-    let ftueCfg = cfg;
+    // The L1 hand demo starts on the bomb that matches the front car (FTUEOverlay._buildHandDemo).
+    let ftueCfg = { ...cfg, demoColumn: () => {
+      const front = gs.lanes[0]?.frontCar();
+      const i = gs.columns.slice(0, gs.activeColCount).findIndex(c => c.top()?.color === front?.color);
+      return i < 0 ? 0 : i;
+    } };
     let levelHint = null;
     if (cfg.hintText && !cfg.showArrow && typeof levelId === 'number') {
       // NEW!/BOSS! intros are already the level card's headline (every level
@@ -2355,7 +2366,36 @@ async function main() {
   // ── Combo power-shot callbacks ────────────────────────────────────────────
   gameLoop._onAdvance = () => {
     gameRenderer3D.onAdvance();
+    _teachSecondColour();
   };
+  // L1 (introSchedule second_colour): the road opened with a run of the lead colour
+  // (LevelManager firstColors); the first time a car of ANOTHER colour reaches the front, stop
+  // and show it — ring on that colour's bomb, hand dragging it onto the car. Fired from the
+  // advance, the one moment the new front car is settled and no shot is in flight. Once ever.
+  function _teachSecondColour() {
+    const key = 'second_colour';
+    const lead = gs.firstColors?.[0];
+    if (!lead || gs.isOver || featureBanners.has(key)) return;
+    if (currentLevelIsDaily || !reactiveAllowed(key, levelManager.levelNumber)) return;
+    const li = gs.lanes.slice(0, gs.activeLaneCount).findIndex(l => l.frontCar() && l.frontCar().color !== lead);
+    if (li < 0) return;
+    const car   = gs.lanes[li].frontCar();
+    const col   = gs.columns.slice(0, gs.activeColCount).findIndex(c => c.top()?.color === car.color);
+    featureBanners.mark(key);
+    const [step] = stepsFor(key, '', guideGeo);
+    step.title = `A ${car.color.toUpperCase()} CAR!`;
+    step.text  = `A ${lead.toLowerCase()} bomb bounces off it. A bomb only hurts cars of its own color: drag the ${car.color.toUpperCase()} one!`;
+    if (col >= 0) {
+      const half = bombBallScreenRadius() + 14;   // the column's stack of balls, not a width share
+      step.target   = () => ({ x: getColumnScreenX(col) - half, y: SHOOTER_AREA_Y + 6, w: half * 2,
+                               h: getColumnSlotScreenY(2) + half - SHOOTER_AREA_Y - 6 });   // the three balls
+      step.hand     = 'drag';
+      step.handFrom = () => ({ x: getColumnScreenX(col), y: getColumnScreenY() });
+      step.handTo   = () => ({ x: getLaneScreenX(li), y: posToScreenY(car.position) });
+    }
+    // Let the new front car settle before the board dims (the advance glide is ~0.4 s).
+    setTimeout(() => { if (!gs.isOver) _showGuide([step]); }, 500);
+  }
   // Immediate impact reaction (squash + flash) the moment a bomb lands, before the
   // hit-stop resolves combat. Color bombs run their own cascade flash on resolve.
   gameLoop._onImpact = (laneIdx, color, isColorBomb) => {

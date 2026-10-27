@@ -206,7 +206,13 @@ export class Shooter3D {
 
   // ── Public API ─────────────────────────────────────────────────────────────────
 
-  setLaneCount(n) {
+  // Lane count changes only re-fit the sizes (the band); the columns stay where the column
+  // count puts them (setActiveColCount).
+  setLaneCount(_n) {
+    this._placeColumns(this._activeColCount);
+  }
+
+  _placeColumns(n) {
     for (let li = 0; li < this._slots.length; li++) {
       const x = laneToX(li, n);
       for (let si = 0; si < this._slots[li].length; si++) {
@@ -237,7 +243,7 @@ export class Shooter3D {
     }
   }
 
-  setActiveColCount(n) { this._activeColCount = n; }
+  setActiveColCount(n) { this._activeColCount = n; this._placeColumns(n); }
 
   // Zone offset (2026-10-03). The bomb queue is a 3D object but its sockets, halos and
   // drag targets are Pixi overlays anchored to rest geometry. Camera shake moves every
@@ -252,7 +258,7 @@ export class Shooter3D {
   // Get the world position of a queue slot (for DragDrop hit-test coordination)
   // Not used for rendering (3D doesn't do 2D hit-tests), but called by DragDrop for symmetry
   getQueueSlotCenter(colIdx, rowIdx) {
-    const x = laneToX(colIdx);
+    const x = laneToX(colIdx, this._activeColCount);
     const z = slotZ(rowIdx ?? 0);
     return { x, z };  // 3D uses x,z not x,y
   }

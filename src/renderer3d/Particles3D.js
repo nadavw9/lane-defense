@@ -156,6 +156,34 @@ export class Particles3D {
   }
 
   /**
+   * CHAIN REACTION arc: a jagged line of bright sparks from one car to the next
+   * lane's car, rising in a low bow and gone in a quarter second. Positions are
+   * road positions (0-100), captured before the cars are removed.
+   */
+  spawnArc(fromLane, fromPos, toLane, toPos, color) {
+    if (this._disposed) return;
+    const a = { x: laneToX(fromLane), z: posToZ(fromPos) };
+    const b = { x: laneToX(toLane),   z: posToZ(toPos) };
+    const hex  = COLOR_HEX[color] ?? 0xffffff;
+    const tint = new THREE.Color(hex).lerp(new THREE.Color(0xffffff), 0.5);
+    const N = 14;
+    for (let i = 0; i <= N; i++) {
+      const t  = i / N;
+      const jz = (i === 0 || i === N) ? 0 : (Math.random() - 0.5) * 0.8;   // the zig-zag
+      const mat = new THREE.MeshStandardMaterial({
+        color: tint, emissive: hex, emissiveIntensity: 1.5, transparent: true, opacity: 1,
+      });
+      const mesh = new THREE.Mesh(_sparkGeo, mat);
+      mesh.scale.setScalar(1.5 - 0.6 * Math.abs(t - 0.5));
+      mesh.position.set(a.x + (b.x - a.x) * t,
+                        PARTICLE_Y + 0.4 + Math.sin(t * Math.PI) * 0.9,
+                        a.z + (b.z - a.z) * t + jz);
+      this._scene.add(mesh);
+      this._sparks.push({ mesh, mat, vx: 0, vy: 1.2, vz: 0, life: 0.20 + t * 0.10, maxLife: 0.30, noGravity: true });
+    }
+  }
+
+  /**
    * Spawn grey miss puffs (wrong-color shot).
    * @param {number} laneIdx
    */

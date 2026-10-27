@@ -11,6 +11,29 @@ An approved 3-workstream master plan is in progress (WS1 testing DONE → WS2 UI
 Route mechanical spec-execution to cheaper models; reserve Fable/Opus for design judgment
 (playbook §2).
 
+### CHAIN REACTION ACROSS LANES (2026-10-27, branch `feat/chain-reaction`) — the thinking mechanic
+
+Owner: "the game feels boring, only 3 lanes, not much room for thinking and creativity, see what makes
+other lane-defence games interesting". Diagnosis: every turn had ONE right answer (match the colour,
+shoot). What the good match/defence games have is a safe move and a clever move on the same board,
+with the clever one paying more (match-3 clusters, PvZ setups). So: a car that EXPLODES passes one
+hit to the FRONT car of each neighbouring lane when it has the same colour, and a neighbour that
+explodes passes it on (`src/game/spread.js`: `spreadAcross`, `SPREAD_FROM = 6`, `spreadEnabledFor`).
+A neighbour that only shrinks, a different colour, armour or an empty lane stops it. Only FRONT cars
+take part, so the ORDER of shots matters (clear the odd colour in the middle first, then one shot
+takes the row). Every correct shot still moves traffic, so cars destroyed PER SHOT is the resource.
+Chain kills are part of the shot: `kills` (multi-kill bonus 50 each, score.js), goals, `_onHit`
+escalation, rainbow multi-kill count. NOT the 3-kill FREEZE earn (that stays on `res.kills`, the
+lane's own carry-over: the sim never modelled a freeze per chain). GameLoop `_onSpread(hits, laneIdx,
+srcPos)` -> GameApp -> `GameRenderer3D.onSpread` (arc of sparks `Particles3D.spawnArc`, flash, then
+the neighbour's explosion, 90 ms per lane) + a "CHAIN xN!" tag; the kill explosion now lands at the
+cached front position (it used to draw on the car behind). `SimulationRunner` applies the same rule
+(`spreadOn`, `spreadKills` in the result) and ALL 200 levels + star targets were regenerated
+(`tune-levels.mjs 1-200 300 --write`, `tune-stars.mjs 1-200 300 --write`). Taught by the
+`chain_reaction` card on L6 (introSchedule, guideContent; L6 "Chain reaction", authored total(10),
+sits a little above its band like L1-3). Off before L6 (`gs.spreadEnabled`, set per level like the
+Hot Streak). QA capture: `QA_URL=http://localhost:5180/ node scripts/_spread-shots.mjs <outDir>`.
+
 ### ONE-HIT LADDER MODEL (2026-10-12, branch `feat/one-hit-model`, NOT merged) — read first
 
 Bombs are exactly one hit and carry no number. A car's HP is its size: van 3 -> car 2 -> motorbike 1,
@@ -49,7 +72,7 @@ level between new things was dropped and everything was pulled forward. Rules st
 A second pass the same day (owner: until L7 "no thinking, just drag the bombs with 2 available
 options so you always pass") moved the third lane to L3 and the third colour to L5.
 Schedule (LevelManager L1-40 header): L1 bomb + BOMB booster · L2 colors · L3 third lane · L4 car ·
-L5 third color · L7 van (`CarTypes.rawBandWeights`) · L8 FREEZE · L9 speeders · L11 supercharge ·
+L5 third color · L6 chain reaction (`spread.js`) · L7 van (`CarTypes.rawBandWeights`) · L8 FREEZE · L9 speeders · L11 supercharge ·
 L12 color goal · L13 bench (`BENCH_FROM_LEVEL`) · L14 armor · L16 yellow · L21 COLOR SWAP ·
 L23 gift cars (`levelDsl.GIFT_FROM`) · L26 traffic light (`LIGHT_FROM`) · L33 rainbow bomb ·
 L41 plated · L43 convoy · L46 mender · L48 orange · L51 chameleon · L53 purple. Bands L4-9 74-84,

@@ -43,6 +43,7 @@ import { GameState }       from '../game/GameState.js';
 import { GameLoop }        from '../game/GameLoop.js';
 import { CombatResolver }  from '../game/CombatResolver.js';
 import { LevelManager, LEVEL_COUNT, openingRowsForLevel, clampInitialCarsToDepth, streakEnabledFor, BENCH_FROM_LEVEL } from '../game/LevelManager.js';
+import { spreadEnabledFor } from '../game/spread.js';
 import { BoosterState }    from '../game/BoosterState.js';
 import { ProgressManager } from '../game/ProgressManager.js';
 import { applyDda }         from '../game/dda.js';
@@ -841,6 +842,7 @@ async function main() {
     gs.lights = cfg.lights ?? null;                    // traffic lights (TrafficRules.laneHeld)
     trafficLights.setLights(gs.lights);
     gs.streakEnabled = streakEnabledFor(cfg);           // V2 Hot Streak
+    gs.spreadEnabled = spreadEnabledFor(cfg);           // CHAIN REACTION across lanes (spread.js)
     streakMeter.setEnabled(gs.streakEnabled);
     streakMeter.reset();
     shooterDir.setColorBias(cfg.shooterColorWeights ?? null);   // §3c L10 v2 supply bias
@@ -2265,7 +2267,7 @@ async function main() {
     haptics.medium();   // booster earned
     floatingTexts.push(spawnFloatingText(
       layers.get('particleLayer'), APP_W / 2, 470,
-      `${kills}-CAR CHAIN! Freeze earned!`, 0x88ddff,
+      `${kills}-CAR BLAST! Freeze earned!`, 0x88ddff,
     ));
   };
   // Earned by chaining two strictly-consecutive multi-kills (GameLoop._updateColorChangeCombo).
@@ -2358,6 +2360,27 @@ async function main() {
   // hit-stop resolves combat. Color bombs run their own cascade flash on resolve.
   gameLoop._onImpact = (laneIdx, color, isColorBomb) => {
     if (!isColorBomb) gameRenderer3D.onImpact(laneIdx, color);
+  };
+  // CHAIN REACTION (spread.js): the explosion jumped to same-colour neighbours. Arcs and the
+  // neighbours' explosions in 3D; a CHAIN tag over the last car it took. The kill sound, tokens
+  // and shake already escalate with the shot's kill count (onHit), which includes these.
+  gameLoop._onSpread = (hits, laneIdx, srcPos) => {
+    const pos = { [laneIdx]: srcPos };
+    for (const h of hits) pos[h.lane] = h.car.position;
+    gameRenderer3D.onSpread(hits.map(h => ({
+      fromLane: h.from, fromPos: pos[h.from], lane: h.lane, position: h.car.position,
+      color: h.car.color, destroyed: h.destroyed,
+    })));
+    const taken = hits.filter(h => h.destroyed);
+    if (!taken.length) return;
+    const last = taken[taken.length - 1];
+    floatingTexts.push(spawnFloatingText(
+      layers.get('particleLayer'),
+      getLaneScreenX(last.lane), posToScreenY(last.car.position) - 30,
+      taken.length > 1 ? `CHAIN x${taken.length + 1}!` : 'CHAIN!', 0xffcc44,
+    ));
+    audio.play('kill_ding');
+    haptics.heavy();
   };
   gameLoop._onColorBomb = (color, killed) => {
     comboFX.triggerColorBomb(color);                 // edge vignette only

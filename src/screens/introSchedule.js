@@ -15,8 +15,10 @@ export const LEVEL_START_CARDS = {
   // practice level between new things is gone; L3 third lane, L5 third colour). Vehicles that shrink (car L4, van L7) are
   // introduced by their animated NEW VEHICLE card, not listed here; the bench (L13) has its own
   // spotlight tutorial. Colours and traits are announced by the level's hint on its card.
+  // L6 chain reaction (spread.SPREAD_FROM): same-colour neighbours explode together.
   2:  ['multi_color'],
   3:  ['lane_3'],
+  6:  ['chain_reaction'],
   8:  ['freeze_booster'],
   11: ['supercharge'],
   12: ['goal_colour'],

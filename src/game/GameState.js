@@ -77,6 +77,9 @@ export class GameState {
     // V2 Hot Streak (TrafficRules): consecutive kill shots, and whether the next
     // bomb is supercharged. streakEnabled is set per level by GameApp.
     this.streakEnabled = false;
+    // CHAIN REACTION across lanes (spread.js): an explosion passes to same-colour neighbours.
+    // Set per level by GameApp (spreadEnabledFor); the sim mirrors it.
+    this.spreadEnabled = false;
     this.streak        = 0;
     this.streakCharged = false;
 

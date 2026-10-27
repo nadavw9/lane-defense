@@ -119,6 +119,13 @@ describe('in-play teaching windows', () => {
   });
 });
 
+describe('chain reaction', () => {
+  it('is taught on the level the rule starts (spread.SPREAD_FROM), never a hard level', async () => {
+    const { SPREAD_FROM } = await import('../src/game/spread.js');
+    expect(levelStartCards(SPREAD_FROM)).toContain('chain_reaction');
+  });
+});
+
 describe('visual fixtures', () => {
   it('seed every card key as seen, so specs are never blocked by a card', () => {
     const src = readFileSync(new URL('../tests-visual/fixtures/game.js', import.meta.url), 'utf8');

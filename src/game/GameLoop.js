@@ -10,6 +10,7 @@ import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { Shooter } from '../models/Shooter.js';
 import { COLUMN_CAPACITY } from '../models/Column.js';
 import { shotPoints, nextChain, POINTS } from './score.js';
+import { spreadAcross } from './spread.js';
 import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak, STREAK_TO_CHARGE, laneHeld,
          revealStagedCars, stepSize, freeSpawnRow, placeArrival } from '../director/TrafficRules.js';
 
@@ -67,6 +68,7 @@ export class GameLoop {
     this._onColorBombEarned = null;  // set by GameApp; (colIdx) → color-bomb earned flash + intro card + SFX
     this._onMultiKill       = null;  // set by GameApp; (count, needed) → "MULTI-KILL n/3" notification
     this._onNearMiss        = null;  // set by GameApp; () → near-miss drama (slow-mo + heartbeat + red pulse)
+    this._onSpread          = null;  // set by GameApp; (hits, laneIdx, srcPos) → CHAIN REACTION arcs + neighbour explosions (spread.js)
 
     // Base level duration — used to reset gs.duration on restart.
     this._baseDuration = gameState.duration;
@@ -287,7 +289,19 @@ export class GameLoop {
     // firing one spends the charge on every bomb that had it.
     const power = this._powerShotReady(shooter);
     const res = this._combat.resolve(shooter, lane, { power });
-    const { kills, carryOverKills, damageDealt, destroyed: destroyedFromCombat } = res;
+    let { kills } = res;
+    const { carryOverKills, damageDealt, destroyed: destroyedFromCombat } = res;
+    // CHAIN REACTION (spread.js): an explosion passes one hit to same-colour front cars in the
+    // neighbouring lanes. Their kills are part of THIS shot (score, goals, effects).
+    if (kills > 0 && gs.spreadEnabled) {
+      const hits = spreadAcross(gs.lanes, laneIdx, shooter.color, gs.activeLaneCount);
+      for (const h of hits) {
+        if (!h.destroyed) continue;
+        kills++;
+        destroyedFromCombat.push({ color: h.car.color, type: h.car.type, trait: h.car.trait ?? null });
+      }
+      if (hits.length) this._onSpread?.(hits, laneIdx, carGameX);
+    }
     // A destroyed volatile shoves the other lanes' traffic one extra row on the
     // advance this shot causes (see TrafficRules.surgeOtherLanes).
     this._surgeFromLane = causesSurge(destroyedFromCombat) ? laneIdx : null;
@@ -338,10 +352,13 @@ export class GameLoop {
     if (kills >= 3) {
       gs.timeScale       = 0.3;
       gs.slowMoRemaining = 0.20;
-      // FIX 4C: a single bomb that chains 3+ kills earns one FREEZE charge — once FREEZE
-      // exists for the player (boosterUnlocks.js: arrives at L8).
+    }
+    // FIX 4C: a single bomb that chains 3+ kills IN ITS LANE earns one FREEZE charge — once
+    // FREEZE exists for the player (boosterUnlocks.js: arrives at L8). Neighbours taken by the
+    // chain reaction do not count: that reward is the kills themselves (spread.js).
+    if (res.kills >= 3) {
       const bs = this._boosterState;
-      if (bs && gs.unlocks?.freeze !== false) { bs.freeze++; this._onFreezeEarned?.(kills); }
+      if (bs && gs.unlocks?.freeze !== false) { bs.freeze++; this._onFreezeEarned?.(res.kills); }
     }
 
     if (kills > 0) {

@@ -34,6 +34,7 @@ import {
 } from '../director/DirectorConfig.js';
 import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { openingRowsForLevel, clampInitialCarsToDepth, streakEnabledFor } from '../game/LevelManager.js';
+import { spreadAcross, spreadEnabledFor } from '../game/spread.js';
 import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak, laneHeld, pushTrafficBack, rescueRowsBack,
          revealStagedCars, stepSize, freeSpawnRow, placeArrival } from '../director/TrafficRules.js';
 import { shotPoints, nextChain, POINTS } from '../game/score.js';
@@ -219,6 +220,9 @@ export class SimulationRunner {
     carDir.setConvoy(this._cfg.convoy);               // convoy lanes (same impl as live game)
     const streakOn = typeof this._cfg.streak === 'boolean' ? this._cfg.streak
       : (this._cfg.levelId != null ? streakEnabledFor({ id: this._cfg.levelId }) : false);
+    // CHAIN REACTION across lanes (spread.js), gated like the Hot Streak.
+    const spreadOn = typeof this._cfg.spread === 'boolean' ? this._cfg.spread
+      : (this._cfg.levelId != null ? spreadEnabledFor({ id: this._cfg.levelId }) : false);
     // A car record carries the V2 trait state alongside row/hp/type/color.
     const rec = (car, row) => ({ row, hp: car.hp, maxHp: car.hp, type: car.type, color: car.color,
       trait: car.trait, armor: car.armor, altColor: car.altColor, recentHit: false });
@@ -241,6 +245,7 @@ export class SimulationRunner {
       id,
       cars: [],  // Array of { row: number, hp: number, type: string, color: string }
     }));
+    const laneViews = discreteLanes.map(laneView);   // resolver-shaped lanes for spreadAcross
     // With infinite spawn, we no longer track budget depletion for win. Instead,
     // win comes from goal completion (if goals exist) or legacy targetKills (if no goals).
     // The old budget is kept for opening spawns (prime initial cars) but not as a limit.
@@ -251,6 +256,7 @@ export class SimulationRunner {
     // ── Tracking ───────────────────────────────────────────────────────────
     let carsKilled      = 0;
     let carryOvers      = 0;
+    let spreadKills     = 0;   // CHAIN REACTION kills in neighbouring lanes (spread.js)
     let crisisTriggered = 0;
     let currentCombo    = 0;
     let maxCombo        = 0;
@@ -578,12 +584,22 @@ export class SimulationRunner {
           // at the first car of a different colour, exactly as the game does.
           const res = this._combat.resolve({ color: s.color, damage: s.damage }, laneView(lane), { power });
           if (res.armorBroken) armorBreaks++;
-          surgeFrom = causesSurge(res.destroyed) ? lane.id : null;
-          if (streakOn) ({ streak, charged: streakCharged } = nextStreak(streak, streakCharged, res.kills, power));
-          score += shotPoints(res.kills, scoreChain, true);   // parity with GameLoop._resolveShot
+          // CHAIN REACTION (spread.js): same-colour neighbours explode with it, as part of this shot.
+          let kills = res.kills;
+          const destroyed = res.destroyed;
+          if (kills > 0 && spreadOn) {
+            for (const h of spreadAcross(laneViews, lane.id, s.color)) {
+              if (!h.destroyed) continue;
+              kills++; spreadKills++;
+              destroyed.push({ color: h.car.color, type: h.car.type, trait: h.car.trait ?? null });
+            }
+          }
+          surgeFrom = causesSurge(destroyed) ? lane.id : null;
+          if (streakOn) ({ streak, charged: streakCharged } = nextStreak(streak, streakCharged, kills, power));
+          score += shotPoints(kills, scoreChain, true);   // parity with GameLoop._resolveShot
           scoreChain = nextChain(scoreChain, true);
           carryOvers += res.carryOverKills;
-          for (const dead of res.destroyed) {
+          for (const dead of destroyed) {
             carsKilled++;
             applyKillToGoals(dead.color, dead.type, dead.trait);   // credit the level's goals
             currentCombo = (totalAdvances - lastKillTime <= COMBO_WINDOW) ? currentCombo + 1 : 1;
@@ -683,6 +699,7 @@ export class SimulationRunner {
       timeElapsed,
       carsKilled,
       carryOvers,
+      spreadKills,
       crisisTriggered,
       fairnessOverrides: arbiter.overrideCount,
       totalSpawns:       arbiter.totalCount,

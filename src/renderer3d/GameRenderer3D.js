@@ -216,11 +216,11 @@ export class GameRenderer3D {
       const shake  = { 1: 0.12, 2: 0.18, 3: 0.25, 4: 0.35 }[k];
       const chroma = { 1: 0.022, 2: 0.035, 3: 0.050, 4: 0.070 }[k];
       const escale = { 1: 1.0,  2: 1.3,  3: 1.6,  4: 2.0 }[k];
-      this._particles?.spawnExplosion(laneIdx, color, escale);
-      this._particles?.spawnKillNumber(laneIdx, color, damage);   // 1C: +N kill popup
+      const cachedPos = this._laneCarPosCache[laneIdx] ?? 50;   // where the destroyed car WAS
+      this._particles?.spawnExplosion(laneIdx, color, escale, cachedPos);
+      this._particles?.spawnKillNumber(laneIdx, color, damage, cachedPos);   // 1C: +N kill popup
       this._cameraFX?.shake(shake, 0.25 + 0.06 * (k - 1));
       this._postFX?.triggerChroma(chroma, 0.30);
-      const cachedPos = this._laneCarPosCache[laneIdx] ?? 50;
       this._scorchMarks?.spawnScorch(laneIdx, cachedPos);
     } else {
       // Non-killing hit: car survived. The squash + flash already fired in onImpact.
@@ -324,6 +324,25 @@ export class GameRenderer3D {
       this._postFX?.triggerChroma(0.09, 1.00);
       this._postFX?.setFlash(0.55, 0.12);
     }, lastMs + 30);
+  }
+
+  /**
+   * CHAIN REACTION (spread.js): `steps` in the order they happened, each
+   * { fromLane, fromPos, lane, position, color, destroyed }. Lane by lane, 90 ms apart:
+   * the arc jumps, the neighbour flashes, and (if it died) explodes a beat later.
+   */
+  onSpread(steps = []) {
+    steps.forEach((s, i) => {
+      this._later(() => {
+        this._particles?.spawnArc(s.fromLane, s.fromPos, s.lane, s.position, s.color);
+        this._particles?.spawnFlash(s.lane, s.color, s.position, 0.8);
+        if (!s.destroyed) return;
+        this._later(() => {
+          this._particles?.spawnExplosion(s.lane, s.color, 1.5, s.position);
+          this._cameraFX?.shake(0.12, 0.14);
+        }, 70);
+      }, 40 + i * 90);
+    });
   }
 
   /** DEV proof helper: front car's current {x,y} mesh scale in a lane. */

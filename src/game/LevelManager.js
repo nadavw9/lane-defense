@@ -74,9 +74,10 @@ const PROGRESSION = [
     duration: 100, spawnBudget: 11, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
     hintText: 'NEW! Green bombs join the fight: three colors to match', goals: total(20) },
 
-  // L6 "Wide road": three lanes, three colours, cars: the first real puzzle, nothing new.
-  { id: 6, name: 'Wide road', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(1),
-    duration: 100, spawnBudget: 11, laneTargetCarCount: 2, gridRows: BOARD_ROWS, goals: total(20) },
+  // L6 "Chain reaction": NEW: an exploding car takes same-colour front cars in the neighbouring
+  // lanes with it (spread.js, SPREAD_FROM). The first level where the ORDER of shots matters.
+  { id: 6, name: 'Chain reaction', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(1),
+    duration: 100, spawnBudget: 11, laneTargetCarCount: 2, gridRows: BOARD_ROWS, goals: total(10) },
 
   // L7 "Big rigs": NEW: the van (3 hits, CarTypes.rawBandWeights). Its animated card opens the level.
   { id: 7, name: 'Big rigs', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(1),

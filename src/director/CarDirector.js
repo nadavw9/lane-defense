@@ -75,7 +75,7 @@ export class CarDirector {
   generateCar(lane, phase, worldConfig, colorPalette, gridRows) {
     const laneId = lane.id ?? lane;
 
-    const color = this.assignColor(colorPalette, null);
+    const color = this._scriptedColor(colorPalette) ?? this.assignColor(colorPalette, null);
 
     const availableRows = gridRows !== undefined ? gridRows - 1 : undefined;
     // Convoy lane: a line of motorbikes, one hit each, no special cars.
@@ -87,6 +87,21 @@ export class CarDirector {
 
   // Convoy lanes (lane indices) spawn only motorbikes. null / [] = none.
   setConvoy(lanes) { this._convoy = lanes?.length ? new Set(lanes) : null; }
+
+  // firstColors (L1, 2026-10-27): the first cars generated take these colours in order — a run
+  // of reds, then the first blue — so the match rule is taught at a fixed moment (introSchedule
+  // second_colour). After the list the palette is random again. Set at every level start by
+  // GameApp AND SimulationRunner, which both spawn through this one method, so the sim plays the
+  // same opening. A colour outside the palette is skipped (falls back to the palette).
+  setColorScript(colors) {
+    this._colorScript = Array.isArray(colors) && colors.length > 0 ? colors.slice() : null;
+    this._colorScriptAt = 0;
+  }
+  _scriptedColor(colorPalette) {
+    if (!this._colorScript || this._colorScriptAt >= this._colorScript.length) return null;
+    const c = this._colorScript[this._colorScriptAt++];
+    return colorPalette.includes(c) ? c : null;
+  }
 
   // Pick a color from colorPalette.
   // colorBudget: array of {value, weight} objects for weighted selection, or null for uniform.

@@ -12,7 +12,7 @@
 // writes the side-verge strips for every world and scene variant.
 import { chromium } from 'playwright';
 import sharp from 'sharp';
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, existsSync } from 'node:fs';
 import { MAP_WORLDS, mapNodes, mapRoadPath } from '../src/screens/levelMapLayout.js';
 import * as P from '../src/renderer3d/projection.js';
 
@@ -23,9 +23,13 @@ const FILE = {
   truck: c => `truck-${c}`, bigrig: c => `bigrig-${c}`, tank: c => `tank-${c}`,
 };
 
+const _linuxChrome = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';   // the cloud runner's browser
 const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
-  args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'],
+  ...(process.env.PW_CHROME || existsSync(_linuxChrome) ? { executablePath: process.env.PW_CHROME || _linuxChrome } : {}),
+  // BAKE_HEADED=1: a visible window on the real GPU (SwiftShader bakes a blank frame on this
+  // Windows box; the cloud runner has no GPU and needs SwiftShader).
+  ...(process.env.BAKE_HEADED ? { headless: false } : {}),
+  args: process.env.BAKE_HEADED ? ['--use-gl=angle', '--enable-gpu'] : ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'],
 });
 const page = await browser.newPage();
 page.on('pageerror', e => console.error('PAGEERROR', e.message));
@@ -120,22 +124,24 @@ if (mode === 'verges') {
 } else if (mode === 'backdrop' || mode === 'backdroppreview') {
   // Gameplay backdrops. Geometry comes from projection.js for each lane count,
   // so the baked road, breach and bomb depot sit exactly under the live game.
-  //   backdrop [world] [variant] [lanes]  → public/sprites/designed/backdrop-*.jpg
-  //   backdroppreview <outDir> [world] [variant] [lanes]
+  //   backdrop [world] [variant] [lanes] [columns]  → public/sprites/designed/backdrop-*.jpg
+  //   backdroppreview <outDir> [world] [variant] [lanes] [columns]
+  // [columns] defaults to [lanes]; L1 bakes 1 lane with 2 bomb columns (both colours on offer).
   const args = process.argv.slice(3);
   const outDir = mode === 'backdrop' ? OUT : args.shift();
-  const [wArg, vArg, nArg] = args;
+  const [wArg, vArg, nArg, cArg] = args;
   const jobs = [];
   for (const world of wArg ? [wArg] : ['world1', 'world2', 'world3', 'world4', 'world5', 'world6', 'world7']) {
-    for (const v of vArg ? [vArg] : ['a', 'b', 'c']) jobs.push([world, v, Number(nArg ?? 3)]);
+    for (const v of vArg ? [vArg] : ['a', 'b', 'c']) jobs.push([world, v, Number(nArg ?? 3), Number(cArg ?? nArg ?? 3)]);
   }
-  if (!wArg && mode === 'backdrop') jobs.push(['world1', 'b', 1], ['world1', 'a', 2], ['world1', 'b', 2], ['world1', 'c', 2]);   // L1, L2-L5
-  for (const [world, v, n] of jobs) {
+  if (!wArg && mode === 'backdrop') jobs.push(['world1', 'b', 1, 2], ['world1', 'a', 2, 2], ['world1', 'b', 2, 2], ['world1', 'c', 2, 2]);   // L1, L2-L5
+  for (const [world, v, n, cols] of jobs) {
     P.setActiveLaneCount(n);
     const F = P.computeFrustum();
     const L = {
       halfX: F.halfX, topZ: F.topZ, bottomZ: F.bottomZ,
       halfW: P.roadHalfWPure(n), laneXs: Array.from({ length: n }, (_, i) => P.laneToXPure(i, n)),
+      colXs: Array.from({ length: cols }, (_, i) => P.laneToXPure(i, cols)),
       breachZ: P.ROAD_Z_NEAR, barZ: P.screenYToZ(P.BOOSTER_BAR_TOP_Y),
       slotZs: [0, 1, 2].map(i => P.bombSlotZ(i)), bombR: P.BOMB_R,
     };

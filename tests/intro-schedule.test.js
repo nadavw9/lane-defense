@@ -33,7 +33,7 @@ describe('level-start cards', () => {
       expect(levelDifficulty(l), `L${l} is hard`).toBe('normal');
     }
     const at = (k) => Number(Object.entries(LEVEL_START_CARDS).find(([, ks]) => ks.includes(k))[0]);
-    expect(at('multi_color')).toBeLessThan(at('freeze_booster'));
+    expect(at('lane_2')).toBeLessThan(at('freeze_booster'));
     expect(at('freeze_booster')).toBeLessThan(at('supercharge'));
     expect(at('colour_change_booster')).toBeLessThan(at('rainbow_bomb'));
   });
@@ -44,11 +44,11 @@ describe('level-start cards', () => {
     let last = 0;
     for (let l = 1; l <= 40; l++) {
       const c = cfgs[l - 1];
-      let news = levelStartCards(l).filter(k => !['multi_color', 'lane_3'].includes(k)).length;   // those name the colour / lane change below
+      let news = levelStartCards(l).filter(k => !['lane_2', 'lane_3'].includes(k)).length;   // those name the lane change below
       for (const t of spawnableTypesFor(l, c.gridRows, c)) if (!seen.types.has(t)) { if (l > 1) news++; seen.types.add(t); }
       for (const t of Object.keys(c.traits ?? {})) if ((c.traits[t] ?? 0) > 0 && t !== 'gift' && !seen.traits.has(t)) { news++; seen.traits.add(t); }
       if (c.colors.length > seen.colors) { if (l > 1) news++; seen.colors = c.colors.length; }
-      if (c.laneCount > seen.lanes && l > 2) { news++; }
+      if (c.laneCount > seen.lanes && l > 1) { news++; }
       seen.lanes = Math.max(seen.lanes, c.laneCount);
       if (l === BENCH_FROM_LEVEL) news++;
       expect(news, `L${l}`).toBeLessThanOrEqual(1);
@@ -69,8 +69,14 @@ describe('level-start cards', () => {
     expect(levelStartCards(firstLevel(c => !!c.lights))).toContain('traffic_light');
     expect(levelStartCards(firstLevel(c => !!c.convoy))).toContain('convoy');
   });
-  it('colours are explained on the level that first has them (extra lanes need no card)', () => {
-    expect(levelStartCards(firstLevel(c => c.colors.length >= 2))).toContain('multi_color');
+  it('the second colour is taught in play on L1, the moment the first odd car reaches the front', () => {
+    const l1 = cfgs[0];
+    expect(l1.colors.length).toBe(2);
+    expect(l1.laneCount).toBe(1);
+    expect(l1.colCount).toBe(2);                       // both bombs on offer from the first move
+    expect(l1.firstColors.at(-1)).toBe(l1.colors[1]);  // a run of the lead colour, then the second
+    expect(REACTIVE_WINDOW.second_colour).toEqual([1, 1]);
+    expect(levelStartCards(2)).toEqual(['lane_2']);    // L2 then adds only the lane
   });
   it('the colour goal is explained on the first colour-goal level', () => {
     expect(levelStartCards(firstLevel(c => (c.goals ?? []).some(g => g.type === 'destroyColor')))).toContain('goal_colour');
@@ -85,7 +91,7 @@ describe('in-play teaching windows', () => {
   it('a reactive key only fires inside its window', () => {
     expect(reactiveAllowed('first_kill', 1)).toBe(true);
     expect(reactiveAllowed('first_kill', 2)).toBe(false);
-    expect(reactiveAllowed('first_miss', 1)).toBe(false);
+    expect(reactiveAllowed('first_miss', 1)).toBe(true);    // a wrong colour is possible from L1
     expect(reactiveAllowed('first_miss', 2)).toBe(true);
     expect(reactiveAllowed('first_miss', 30)).toBe(false);
     expect(reactiveAllowed('nope', 1)).toBe(false);
@@ -113,7 +119,7 @@ describe('in-play teaching windows', () => {
       for (const k of levelStartCards(l)) { taught.add(k); firstTaught[k] ??= l; }
       for (const [k, [a, b]] of Object.entries(REACTIVE_WINDOW)) if (l >= a && l <= b) { taught.add(k); firstTaught[k] ??= l; }
     }
-    for (const k of ['multi_color', 'supercharge', 'goal_colour', 'freeze_booster', 'colour_change_booster',
+    for (const k of ['second_colour', 'lane_2', 'supercharge', 'goal_colour', 'freeze_booster', 'colour_change_booster',
       'rainbow_bomb', 'gift_car', 'traffic_light', 'first_kill', 'first_miss', 'streak_charged', 'armor_break'])
       expect(firstTaught[k], k).toBeLessThanOrEqual(40);
   });

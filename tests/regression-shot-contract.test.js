@@ -122,7 +122,8 @@ describe('regression: shot contracts (real GameLoop)', () => {
       // then advances the grid exactly once. (gs.colorBombArmed is a legacy field the
       // shipped color-bomb path does not use, so it is not asserted here.)
       if (true) {
-        const hasTwoColors = () => buildLevel(levelId).cfg.colors.length >= 2;
+        // Needs a second ACTIVE lane for the survivor (L1 has two colours on one lane).
+        const hasTwoColors = () => { const c = buildLevel(levelId).cfg; return c.colors.length >= 2 && c.laneCount >= 2; };
         (hasTwoColors() ? it : it.skip)(
           'C: color bomb removes all matching-colour cars and advances exactly once',
           () => {

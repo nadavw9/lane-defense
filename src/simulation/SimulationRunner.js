@@ -176,6 +176,7 @@ export class SimulationRunner {
       // Each one is the live CONTINUE: breaching cars leave, traffic is pushed back.
       continues:          levelConfig.continues          ?? 0,
       convoy:             levelConfig.convoy             ?? null,   // motorbike-only lanes
+      firstColors:        levelConfig.firstColors        ?? null,   // L1 scripted opening colours (CarDirector.setColorScript)
       spawnScript:        levelConfig.spawnScript        ?? null,   // INFRA-C staged waves
       shooterColorWeights: levelConfig.shooterColorWeights ?? null, // §3c L10 v2 supply bias
       // V2 (TrafficRules): special-car trait table and Hot Streak. streak null →
@@ -218,6 +219,7 @@ export class SimulationRunner {
     carDir.setSpawnScript(this._cfg.spawnScript);   // §3c INFRA-C (same impl as live game)
     carDir.setTraits(this._cfg.traits, colors);       // V2 special cars (same impl as live game)
     carDir.setConvoy(this._cfg.convoy);               // convoy lanes (same impl as live game)
+    carDir.setColorScript(this._cfg.firstColors);     // L1 colour run (same impl as live game)
     const streakOn = typeof this._cfg.streak === 'boolean' ? this._cfg.streak
       : (this._cfg.levelId != null ? streakEnabledFor({ id: this._cfg.levelId }) : false);
     // CHAIN REACTION across lanes (spread.js), gated like the Hot Streak.
@@ -731,7 +733,7 @@ export class SimulationRunner {
       initialCars: cfg.initialCars ?? null, spawnScript: cfg.spawnScript ?? null,
       shooterColorWeights: cfg.shooterColorWeights ?? null,
       traits: cfg.traits ?? null,
-      lights: cfg.lights ?? null, convoy: cfg.convoy ?? null,
+      lights: cfg.lights ?? null, convoy: cfg.convoy ?? null, firstColors: cfg.firstColors ?? null,
       streak: typeof cfg.streak === 'boolean' ? cfg.streak : null,
       ...opts,
     });

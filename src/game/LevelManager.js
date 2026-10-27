@@ -49,14 +49,20 @@ const PROGRESSION = [
   // player has already met. heft / goal scale are sim-tuned in lateTuning.js.
 
   // L1 "First shot": one lane, one colour. Cannot really be lost.
-  { id: 1, name: 'First shot', laneCount: 1, colCount: 1, colors: ['Red'], worldConfig: W(1),
+  // One lane, BOTH bombs on offer from the first move (colCount 2). The road opens with a run
+  // of reds (firstColors), so the first shots are pure "pick the red bomb"; the first blue car
+  // reaches the front after five reds and the second_colour card (introSchedule) explains the
+  // match rule at that moment, hand on the blue bomb. Owner, 2026-10-27: teach the colour on L1
+  // so L2 adds only the lane.
+  { id: 1, name: 'First shot', laneCount: 1, colCount: 2, colors: ['Red', 'Blue'], worldConfig: W(1),
     duration: 60, spawnBudget: 5, laneTargetCarCount: 3, gridRows: BOARD_ROWS, showArrow: true,   // 3 queued: the BOMB booster's lane clear must be visible
+    firstColors: ['Red', 'Red', 'Red', 'Red', 'Red', 'Blue'],
     hintText: 'Drag the matching bomb to the lane', goals: total(10) },
 
-  // L2 "Two colors": colour must match. NEW: a second colour (and its lane).
-  { id: 2, name: 'Two colors', laneCount: 2, colCount: 2, colors: ['Red', 'Blue'], worldConfig: W(1),
+  // L2 "Second lane": NEW: a second lane (the colours were taught on L1).
+  { id: 2, name: 'Second lane', laneCount: 2, colCount: 2, colors: ['Red', 'Blue'], worldConfig: W(1),
     duration: 70, spawnBudget: 8, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    hintText: 'Colors must match — a red bomb only hits red cars', goals: total(14) },
+    hintText: 'Two lanes now. Each bomb goes to a car of its own color', goals: total(14) },
 
   // L3 "Three lanes": NEW: a third lane (2026-10-22, owner: until L7 "you need to do no thinking,
   // just drag the bombs with 2 available options"). Three columns, so choosing a bomb is a choice.

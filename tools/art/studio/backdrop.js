@@ -843,7 +843,8 @@ function neonSign(T, r, w) {
 
 // ── Scene assembly ──────────────────────────────────────────────────────────
 // L (layout, game units): halfX, topZ, bottomZ, halfW (road half-width incl.
-// shoulder), laneXs, breachZ, barZ (bomb-zone bottom), slotZs (bomb rows).
+// shoulder), laneXs, breachZ, barZ (bomb-zone bottom), slotZs (bomb rows), colXs (bomb
+// columns; defaults to laneXs — L1 has two columns on its one lane).
 export function buildBackdrop(world, variant, L) {
   const T = THEME[world];
   const wn = Number(world.slice(5));
@@ -1023,7 +1024,7 @@ export function buildBackdrop(world, variant, L) {
   // Launch bays: a recessed channel continuing each lane into its bomb column,
   // with a metal-rimmed cradle under every bomb slot (the bomb sits IN it).
   const rimM = night ? std(0x5A5F78, 0.3, { metalness: 0.7 }) : std(FAMILY[world] === 'yard' ? 0x9EA3AA : 0xE9E3D6, 0.35, { metalness: FAMILY[world] === 'yard' ? 0.6 : 0.1 });
-  for (const lx of L.laneXs) {
+  for (const lx of (L.colXs ?? L.laneXs)) {
     const tw = L.bombR * 3.3, tLen = (L.slotZs.at(-1) + L.bombR * 2.2) - dz0;
     const zc = Z(dz0 + tLen / 2), zl = Z(tLen) - Z(0);
     g.add(rbox(tw + 0.24, 0.06, zl + 0.2, 0.08, rimM, lx, 0.03, zc));

@@ -482,7 +482,8 @@ export class ShooterRenderer {
   }
 
   _drawTray(n) {
-    const hw_px = worldXToScreenX(roadHalfWPure(n)) - worldXToScreenX(0);
+    // As wide as the road or the bomb columns, whichever is wider (L1: 2 columns on 1 lane).
+    const hw_px = worldXToScreenX(roadHalfWPure(Math.max(n, getActiveColCount()))) - worldXToScreenX(0);
     const trayX = APP_W / 2 - hw_px - 16;
     const trayW = hw_px * 2 + 32;
 

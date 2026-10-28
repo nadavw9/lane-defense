@@ -8,11 +8,19 @@ name: iOS build / TestFlight
 #   * Signed TestFlight upload: a manual run with upload=testflight once these are set
 #     (Settings > Secrets and variables > Actions):
 #       variable APPLE_TEAM_ID          Membership details > Team ID (developer.apple.com/account)
+#       variable IOS_PROFILE_NAME       name of the App Store provisioning profile
+#       secret   IOS_DIST_P12_BASE64    Apple Distribution certificate + private key (.p12), base64
+#       secret   IOS_DIST_P12_PASSWORD  its password
+#       secret   IOS_PROFILE_BASE64     the App Store profile (.mobileprovision), base64
 #       secret   ASC_KEY_ID             App Store Connect > Users and Access > Integrations > API key
 #       secret   ASC_ISSUER_ID          shown above the key list
-#       secret   ASC_KEY_P8_BASE64      the downloaded AuthKey_XXXX.p8, base64-encoded
-#     The key needs the Admin role: Xcode's automatic signing creates the distribution certificate
-#     and the App Store profile in the cloud, so there are no certificates to manage by hand.
+#       secret   ASC_KEY_P8_BASE64      the downloaded AuthKey_XXXX.p8, base64-encoded (upload only)
+#     Signing is MANUAL: the certificate and profile are created once through the App Store Connect
+#     API (owner script 4-apple-signing-to-github.cmd on the owner's PC) and imported into a
+#     throw-away keychain on the runner. Cloud signing (-allowProvisioningUpdates creating the
+#     certificate) was tried first and fails with "Cloud signing permission error" even with an
+#     Admin-role key, and automatic signing of the archive wants a development profile, which
+#     needs a registered device. The archive is built unsigned; -exportArchive signs it.
 #     Optional variables for live iPhone ads: IOS_ADMOB_APP_ID, VITE_IOS_REWARDED_AD_ID,
 #     VITE_IOS_INTERSTITIAL_AD_ID (until both units are set the app stays on test ads; see AdManager).
 on:
@@ -84,34 +92,74 @@ jobs:
         if: env.UPLOAD == 'testflight'
         env:
           TEAM: ${{ vars.APPLE_TEAM_ID }}
+          PROFILE_NAME: ${{ vars.IOS_PROFILE_NAME }}
           KID: ${{ secrets.ASC_KEY_ID }}
           ISS: ${{ secrets.ASC_ISSUER_ID }}
           P8: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          P12: ${{ secrets.IOS_DIST_P12_BASE64 }}
+          P12PW: ${{ secrets.IOS_DIST_P12_PASSWORD }}
+          PROF: ${{ secrets.IOS_PROFILE_BASE64 }}
         run: |
-          for v in TEAM KID ISS P8; do
+          for v in TEAM PROFILE_NAME KID ISS P8 P12 P12PW PROF; do
             if [ -z "${!v}" ]; then echo "::error::$v is not set (see the header of this workflow)"; exit 1; fi
           done
+
+      # Distribution certificate + App Store profile into a keychain that exists only for this job.
+      - name: Install signing certificate and profile
+        if: env.UPLOAD == 'testflight'
+        env:
+          P12: ${{ secrets.IOS_DIST_P12_BASE64 }}
+          P12PW: ${{ secrets.IOS_DIST_P12_PASSWORD }}
+          PROF: ${{ secrets.IOS_PROFILE_BASE64 }}
+        run: |
+          KC="$RUNNER_TEMP/ci.keychain-db"
+          KCPW=$(openssl rand -hex 16)
+          security create-keychain -p "$KCPW" "$KC"
+          security set-keychain-settings -lut 21600 "$KC"
+          security unlock-keychain -p "$KCPW" "$KC"
+          echo "$P12" | base64 --decode > "$RUNNER_TEMP/dist.p12"
+          security import "$RUNNER_TEMP/dist.p12" -P "$P12PW" -A -t cert -f pkcs12 -k "$KC"
+          # Apple's intermediate CAs, so the identity has a full chain on the runner.
+          for ca in AppleWWDRCAG3 AppleWWDRCAG4; do
+            curl -fsSL "https://www.apple.com/certificateauthority/$ca.cer" -o "$RUNNER_TEMP/$ca.cer"
+            security import "$RUNNER_TEMP/$ca.cer" -t cert -k "$KC" > /dev/null 2>&1 || echo "$ca already present"
+          done
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KCPW" "$KC" > /dev/null
+          security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+          rm -f "$RUNNER_TEMP/dist.p12"
+          security find-identity -v -p codesigning "$KC" | tail -3
+          echo "$PROF" | base64 --decode > "$RUNNER_TEMP/dist.mobileprovision"
+          security cms -D -i "$RUNNER_TEMP/dist.mobileprovision" > "$RUNNER_TEMP/profile.plist"
+          UUID=$(/usr/libexec/PlistBuddy -c 'Print UUID' "$RUNNER_TEMP/profile.plist")
+          echo "::notice title=Profile::$(/usr/libexec/PlistBuddy -c 'Print Name' "$RUNNER_TEMP/profile.plist") ($UUID), expires $(/usr/libexec/PlistBuddy -c 'Print ExpirationDate' "$RUNNER_TEMP/profile.plist")"
+          for d in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
+            mkdir -p "$d" && cp "$RUNNER_TEMP/dist.mobileprovision" "$d/$UUID.mobileprovision"
+          done
+          echo "KEYCHAIN=$KC" >> "$GITHUB_ENV"
 
       - name: Archive and upload to TestFlight
         if: env.UPLOAD == 'testflight'
         env:
           TEAM: ${{ vars.APPLE_TEAM_ID }}
+          PROFILE_NAME: ${{ vars.IOS_PROFILE_NAME }}
           KID: ${{ secrets.ASC_KEY_ID }}
           ISS: ${{ secrets.ASC_ISSUER_ID }}
           P8: ${{ secrets.ASC_KEY_P8_BASE64 }}
         run: |
           KEY="$RUNNER_TEMP/AuthKey.p8"
           echo "$P8" | base64 --decode > "$KEY"
-          AUTH=(-allowProvisioningUpdates -authenticationKeyPath "$KEY" -authenticationKeyID "$KID" -authenticationKeyIssuerID "$ISS")
+          # The API key is only for the upload to App Store Connect; signing uses the installed certificate.
+          AUTH=(-authenticationKeyPath "$KEY" -authenticationKeyID "$KID" -authenticationKeyIssuerID "$ISS")
           xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
             -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/App.xcarchive" \
-            DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic \
+            DEVELOPMENT_TEAM="$TEAM" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             GAD_APPLICATION_ID="$GAD_ID" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
-            "${AUTH[@]}" archive | tail -40
+            archive | tail -40
           test "${PIPESTATUS[0]}" -eq 0
-          sed "s/__TEAM_ID__/$TEAM/" ios/ExportOptions.plist > "$RUNNER_TEMP/ExportOptions.plist"
+          sed -e "s/__TEAM_ID__/$TEAM/" -e "s/__PROFILE_NAME__/$PROFILE_NAME/" ios/ExportOptions.plist > "$RUNNER_TEMP/ExportOptions.plist"
           xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/App.xcarchive" \
             -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" -exportPath "$RUNNER_TEMP/export" \
             "${AUTH[@]}" | tail -40
           test "${PIPESTATUS[0]}" -eq 0
           rm -f "$KEY"
+          security delete-keychain "$KEYCHAIN" || true

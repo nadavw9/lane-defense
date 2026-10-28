@@ -122,7 +122,7 @@ jobs:
           # Apple's intermediate CAs, so the identity has a full chain on the runner.
           for ca in AppleWWDRCAG3 AppleWWDRCAG4; do
             curl -fsSL "https://www.apple.com/certificateauthority/$ca.cer" -o "$RUNNER_TEMP/$ca.cer"
-            security import "$RUNNER_TEMP/$ca.cer" -t cert -k "$KC" > /dev/null
+            security import "$RUNNER_TEMP/$ca.cer" -t cert -k "$KC" > /dev/null 2>&1 || echo "$ca already present"
           done
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KCPW" "$KC" > /dev/null
           security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')

@@ -9,7 +9,8 @@
 //   BOOSTER PACK hero card — the value offer
 //   2 × 2 booster tiles     — colour change, freeze, bomb, streak shield
 //   FREE row                — rewarded-video coins, daily gift
-import { Container, Graphics, FillGradient, Ticker } from 'pixi.js';
+import { Container, Graphics, FillGradient, Ticker, Sprite, Assets } from 'pixi.js';
+import { SHOP_PACK_URL, SHOP_TILE_URLS } from '../renderer/assetManifest.js';
 import { uiIcon, boosterIcon } from '../renderer/UIIcon.js';
 import { roundButton, button, bodyText, titleText, ribbon, screenBg, GOLD_DEEP } from '../renderer/PremiumUI.js';
 import { INK, drawShackle } from '../renderer/ToyStyle.js';
@@ -18,11 +19,27 @@ import { logEvent } from '../analytics/Analytics.js';
 import { boosterUnlocked, unlockLevelOf, BOOSTER_UNLOCK_LEVEL } from '../game/boosterUnlocks.js';
 
 export const SHOP_ITEMS = [
-  { key: 'colorChange', label: 'COLOR SWAP', desc: 'Recolor a whole color', cost: 20, icon: 'colorchange', glow: 0xB070FF, face: [0x4A3A96, 0x2A2268] },
-  { key: 'freeze',      label: 'FREEZE',     desc: 'Traffic skips a turn',   cost: 30, icon: 'freeze',      glow: 0x5CC8FF, face: [0x2F4E9A, 0x1B2B66] },
-  { key: 'bombs',       label: 'BOMB',       desc: 'Clears a whole lane',    cost: 40, icon: 'bomb',        glow: 0xFF7A3C, face: [0x6A3480, 0x3A1C58] },
-  { key: 'shield',      label: 'SHIELD',     desc: 'Saves a daily streak',   cost: 30, icon: null,          glow: 0xFFC93C, face: [0x5A4A2A, 0x33291A] },
+  { key: 'colorChange', art: 'colorswap', label: 'COLOR SWAP', desc: 'Recolor a whole color', cost: 20, icon: 'colorchange', glow: 0xB070FF, face: [0x4A3A96, 0x2A2268] },
+  { key: 'freeze',      art: 'freeze',      label: 'FREEZE',     desc: 'Traffic skips a turn',   cost: 30, icon: 'freeze',      glow: 0x5CC8FF, face: [0x2F4E9A, 0x1B2B66] },
+  { key: 'bombs',       art: 'bomb',       label: 'BOMB',       desc: 'Clears a whole lane',    cost: 40, icon: 'bomb',        glow: 0xFF7A3C, face: [0x6A3480, 0x3A1C58] },
+  { key: 'shield',      art: 'shield',      label: 'SHIELD',     desc: 'Saves a daily streak',   cost: 30, icon: null,          glow: 0xFFC93C, face: [0x5A4A2A, 0x33291A] },
 ];
+
+// Baked card art (stretched to the card rect, clipped to its rounded corners).
+// Returns null when the texture did not load, so callers keep the procedural card.
+function artCard(url, x, y, w, h, r = 20) {
+  const tex = Assets.get(url);
+  if (!tex) return null;
+  const c = new Container();
+  const sp = new Sprite(tex);
+  sp.x = x; sp.y = y; sp.width = w; sp.height = h;
+  const m = new Graphics().roundRect(x, y, w, h, r).fill(0xffffff);
+  sp.mask = m;
+  c.addChild(new Graphics().roundRect(x + 2, y + 6, w, h, r).fill({ color: 0x000000, alpha: 0.32 }), m, sp);
+  return { c, sp };
+}
+// Fit a text node into maxW by scaling down (never up).
+function fitW(t, maxW) { if (t.width > maxW) t.scale.set(maxW / t.width); return t; }
 
 // Value pack: two of each in-level booster.
 export const SHOP_PACK = { each: 2, keys: ['colorChange', 'freeze', 'bombs'], cost: 140 };
@@ -104,17 +121,22 @@ export class ShopScreen {
     this._buildCoinPill(w - 58, 40, p.coins);
 
     const PAD = 16, GAP = 12;
-    this._buildPack(PAD, 84, w - PAD * 2, 126, inv);
+    // With the baked shop art the pack card keeps the art's 2:1 frame and the tiles go
+    // near-square; without it, the original procedural sizes.
+    const art = !!Assets.get(SHOP_PACK_URL);
+    const packH = art ? Math.round((w - PAD * 2) / 2) : 126;
+    this._buildPack(PAD, 84, w - PAD * 2, packH, inv);
+    const TOP = 84 + packH + 18;
 
-    const tileW = (w - PAD * 2 - GAP) / 2, tileH = 186;
+    const tileW = (w - PAD * 2 - GAP) / 2, tileH = art ? 174 : 186;
     this._tiles = {};
     SHOP_ITEMS.forEach((item, i) => {
       const x = PAD + (i % 2) * (tileW + GAP);
-      const y = 228 + Math.floor(i / 2) * (tileH + GAP);
+      const y = TOP + Math.floor(i / 2) * (tileH + GAP);
       this._buildTile(item, x, y, tileW, tileH, item.key === 'shield' ? p.streakShields : (inv[item.key] ?? 0));
     });
 
-    const freeY = 228 + 2 * (tileH + GAP) + 6;
+    const freeY = TOP + 2 * (tileH + GAP) + 6;
     this._sectionLabel('FREE STUFF', w / 2, freeY + 8);
     const fy = freeY + 24, fh = 150;
     this._buildVideoCard(PAD, fy, tileW, fh);
@@ -147,6 +169,8 @@ export class ShopScreen {
   // Hero offer: gold card, rotating rays behind a fan of the three boosters.
   _buildPack(x, y, w, h, inv) {
     const c = this._container;
+    const card = artCard(SHOP_PACK_URL, x, y, w, h);
+    if (card) { this._buildPackArt(card, x, y, w, h); return; }
     const g = new Graphics();
     g.roundRect(x + 2, y + 6, w, h, 20).fill({ color: 0x000000, alpha: 0.32 });
     g.roundRect(x, y + 4, w, h - 2, 20).fill(0x9A5A10);
@@ -229,8 +253,99 @@ export class ShopScreen {
     c.addChild(burst);   // sticker sits on top of the button
   }
 
+  // Art pack: baked hero frame; title sits in the empty ribbon well, the price on the right.
+  _buildPackArt(card, x, y, w, h) {
+    const c = this._container;
+    c.addChild(card.c);
+    const title = fitW(titleText('BOOSTER PACK', 16), w * 0.29);
+    title.x = x + w / 2; title.y = y + h * 0.875;
+    c.addChild(title);
+    const sub = fitW(bodyText(`${SHOP_PACK.each}× Swap · Freeze · Bomb`, 12, 0xFFFFFF, { weight: '800' }), w * 0.3);
+    sub.anchor.set(0.5); sub.x = x + w - w * 0.17; sub.y = y + 22;
+    c.addChild(sub);
+
+    const tag = new Container();
+    const tg = new Graphics();
+    tg.roundRect(-52, -13, 104, 26, 13).fill(0xE8453C).stroke({ color: INK, width: 3 });
+    tg.roundRect(-46, -10, 92, 8, 4).fill({ color: 0xffffff, alpha: 0.3 });
+    tag.addChild(tg);
+    const tt = titleText('BEST VALUE', 14); tt.anchor.set(0.5); tt.y = 1;
+    tag.addChild(tt);
+    tag.x = x + 64; tag.y = y - 2; tag.rotation = -0.06;
+    c.addChild(tag);
+    this._pulses.push(Object.assign(tag, { speed: 4, amp: 0.04 }));
+
+    const bx = x + w - w * 0.17, by = y + h - 34, bw = Math.min(104, w * 0.29);
+    const old = bodyText(String(PACK_FULL), 18, 0xFFFFFF, { weight: '800' });
+    old.anchor.set(0.5); old.x = bx; old.y = by - 36;
+    c.addChild(old);
+    const strike = new Graphics();
+    strike.moveTo(bx - old.width / 2 - 2, by - 33).lineTo(bx + old.width / 2 + 2, by - 39).stroke({ color: 0xE8231A, width: 4 });
+    c.addChild(strike);
+    const save = Math.round((1 - SHOP_PACK.cost / PACK_FULL) * 100);
+    const burst = new Container();
+    const bg = new Graphics();
+    const pts = [];
+    for (let i = 0; i < 24; i++) { const r = i % 2 ? 19 : 24, a = (i / 24) * Math.PI * 2; pts.push(Math.cos(a) * r, Math.sin(a) * r); }
+    bg.poly(pts).fill(0xE8453C).stroke({ color: INK, width: 3 });
+    burst.addChild(bg);
+    const saveTxt = titleText(`-${save}%`, 12); saveTxt.y = 1;
+    burst.addChild(saveTxt);
+    burst.x = x + w - 16; burst.y = by - 30; burst.rotation = 0.22;
+    this._pulses.push(Object.assign(burst, { speed: 3.2, amp: 0.05 }));
+
+    const packLocked = SHOP_PACK.keys.some(k => !boosterUnlocked(k, null, this._progress?.unlockedLevel ?? 1));
+    if (packLocked) {
+      const last = Math.max(...SHOP_PACK.keys.map(unlockLevelOf));
+      c.addChild(lockPlate(`LEVEL ${last}`, bx, by, bw + 12));
+      burst.visible = false;
+    } else {
+      const btn = this._priceButton(SHOP_PACK.cost, bw, 44, () => this._buyPack(btn));
+      btn.x = bx; btn.y = by;
+      c.addChild(btn);
+    }
+    c.addChild(burst);
+  }
+
+  // Art tile: baked frame; name + desc on top, price in the empty bottom band.
+  _buildTileArt(card, item, x, y, w, h, owned) {
+    const c = this._container;
+    c.addChild(card.c);
+    const holder = new Container();   // buy-pop target (art itself stays still)
+    holder.x = x + w / 2; holder.y = y + h * 0.45;
+    c.addChild(holder);
+    const name = fitW(titleText(item.label, 17), w - 20);
+    name.x = x + w / 2; name.y = y + 20;
+    c.addChild(name);
+    const desc = fitW(bodyText(item.desc, 11, 0xFFFFFF, { weight: '800' }), w - 18);
+    desc.anchor.set(0.5); desc.x = x + w / 2; desc.y = y + h * 0.71;
+    c.addChild(desc);
+    if (owned > 0) {
+      const chip = new Graphics();
+      chip.roundRect(x + w - 48, y + 34, 38, 24, 12).fill(0x3DBB3A).stroke({ color: INK, width: 2.5 });
+      c.addChild(chip);
+      const ct = titleText(`×${owned}`, 14);
+      ct.x = x + w - 29; ct.y = y + 46;
+      c.addChild(ct);
+    }
+    const by = y + h * 0.875;
+    const locked = item.key in BOOSTER_UNLOCK_LEVEL && !boosterUnlocked(item.key, null, this._progress?.unlockedLevel ?? 1);
+    if (locked) {
+      card.sp.alpha = 0.55;
+      const lp = lockPlate(`LEVEL ${unlockLevelOf(item.key)}`, x + w / 2, by, w - 26);
+      lp.scale.set(0.9); c.addChild(lp);
+    } else {
+      const btn = this._priceButton(item.cost, w - 30, 36, () => this._buy(item, btn));
+      btn.x = x + w / 2; btn.y = by;
+      c.addChild(btn);
+    }
+    this._tiles[item.key] = { holder, x: x + w / 2, y: y + h * 0.45 };
+  }
+
   _buildTile(item, x, y, w, h, owned) {
     const c = this._container;
+    const card = item.art && artCard(SHOP_TILE_URLS[item.art], x, y, w, h);
+    if (card) { this._buildTileArt(card, item, x, y, w, h, owned); return; }
     const g = new Graphics();
     g.roundRect(x + 2, y + 6, w, h, 20).fill({ color: 0x000000, alpha: 0.3 });
     g.roundRect(x, y, w, h, 20).fill(grad([[0, item.face[0]], [1, item.face[1]]]));

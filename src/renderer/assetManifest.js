@@ -90,6 +90,14 @@ export const ENV_URLS = [
 // preloaded so BoosterBar's _addIconSprite uses the sprite, not the glyph fallback.
 export const BOOSTER_URLS = ['colorchange', 'freeze', 'bomb'].map(b => `${_B}sprites/designed/booster-${b}.png`);
 
+// Shop art (HF 2026-10-29): booster-pack hero + the four booster tiles. Labels and
+// prices are drawn by ShopScreen over the empty wells; ShopScreen falls back to its
+// procedural cards when a texture is absent.
+export const SHOP_PACK_URL = `${_B}sprites/designed/shop-pack-hero.png`;
+export const SHOP_TILE_URLS = Object.fromEntries(['colorswap', 'freeze', 'bomb', 'shield']
+  .map(k => [k, `${_B}sprites/designed/shop-tile-${k}.png`]));
+export const SHOP_ART_URLS = [SHOP_PACK_URL, ...Object.values(SHOP_TILE_URLS)];
+
 // Powerball bomb sprites — filenames are lowercase on disk and the 3D loader
 // requests them lowercase too; preload must match or it 404s on case-sensitive
 // hosts (Pages).
@@ -190,7 +198,7 @@ export const V2_INTRO_URLS = [...new Set(TRAIT_KEYS.map(k => `${_B}${traitSprite
 export const ALL_SPRITE_URLS = [
   ...MAP_URLS, ...V2_INTRO_URLS,
   ...CAR_URLS, ...SHOOTER_URLS, ...POWERBALL_URLS, ...BUILDING_URLS, ...TREE_URLS,
-  ...ENV_URLS, ...BOOSTER_URLS, ...TUTORIAL_URLS, ...TITLE_ART_URLS,
+  ...ENV_URLS, ...BOOSTER_URLS, ...SHOP_ART_URLS, ...TUTORIAL_URLS, ...TITLE_ART_URLS,
   // NOT preloaded: WORLD_PANEL_URLS / STRIP_PANEL_URLS / SCENE_STRIP_URLS (~16 MB). Every
   // level has a baked backdrop that covers the verges, and CityEdges hides its strips
   // while one is active; they are only a fallback, and CityEdges degrades to its

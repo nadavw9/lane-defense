@@ -10,7 +10,8 @@
 ## Code (visual only)
 - `src/renderer/assetManifest.js`: `SHOP_PACK_URL`, `SHOP_TILE_URLS`, `SHOP_ART_URLS` added to `ALL_SPRITE_URLS` preload (same pattern as BOOSTER_URLS).
 - `src/screens/ShopScreen.js`: shop previously drew the pack + tiles procedurally. When the textures are loaded it now draws the baked art (rounded-mask sprite) and overlays BOOSTER PACK / item name / desc / price button / lock plate in code; falls back to the old procedural cards if a texture is missing. Pack card uses the art's 2:1 frame (358x179); tiles 173x174 (art stretched slightly, as accepted). No prices, economy, purchase or unlock logic changed. Buy "pop" now targets an empty holder (tile art stays still).
-- Pack price button / lock badge sits above the ribbon wing (by = 0.56h) so no UI element overlaps another (Nadav rule, 2026-10-29).
+- Pack card (Nadav rules: no UI over UI, no text over art): art drawn 320x160 centred; only BOOSTER PACK sits on the art, inside the empty ribbon well. BEST VALUE tag, contents line, struck old price, -% sticker (beside, not on, the button) and price button / LEVEL lock plate are in a dark UI bar under the art. Checked locked (`after-shop-390x844.png`) and unlocked (`after-shop-unlocked-390x844.png`, unlock forced only in an uncommitted screenshot harness).
+- KNOWN REMAINING: booster tiles still put name, description and the xN owned chip over the tile art (only the bottom price band is an empty well). Not in this pass's scope.
 - Labels auto-shrink (`fitW`) to their wells, so nothing can overflow.
 
 ## Verification

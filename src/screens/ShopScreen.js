@@ -124,11 +124,12 @@ export class ShopScreen {
     // With the baked shop art the pack card keeps the art's 2:1 frame and the tiles go
     // near-square; without it, the original procedural sizes.
     const art = !!Assets.get(SHOP_PACK_URL);
-    const packH = art ? Math.round((w - PAD * 2) / 2) : 126;
+    const packH = art ? 160 : 126;   // art drawn 320x160 (2:1), centred; bar below is full width
     this._buildPack(PAD, 84, w - PAD * 2, packH, inv);
-    const TOP = 84 + packH + 18;
+    // Art: a UI price bar sits BELOW the art (no text over art) — 5px gap + 52px bar.
+    const TOP = 84 + packH + (art ? 5 + 52 + 12 : 18);
 
-    const tileW = (w - PAD * 2 - GAP) / 2, tileH = art ? 174 : 186;
+    const tileW = (w - PAD * 2 - GAP) / 2, tileH = art ? 160 : 186;
     this._tiles = {};
     SHOP_ITEMS.forEach((item, i) => {
       const x = PAD + (i % 2) * (tileW + GAP);
@@ -169,7 +170,7 @@ export class ShopScreen {
   // Hero offer: gold card, rotating rays behind a fan of the three boosters.
   _buildPack(x, y, w, h, inv) {
     const c = this._container;
-    const card = artCard(SHOP_PACK_URL, x, y, w, h);
+    const card = artCard(SHOP_PACK_URL, x + (w - 2 * h) / 2, y, 2 * h, h);
     if (card) { this._buildPackArt(card, x, y, w, h); return; }
     const g = new Graphics();
     g.roundRect(x + 2, y + 6, w, h, 20).fill({ color: 0x000000, alpha: 0.32 });
@@ -215,7 +216,7 @@ export class ShopScreen {
     const title = titleText('BOOSTER PACK', 22);
     title.anchor.set(0, 0.5); title.x = tx; title.y = y + 30;
     c.addChild(title);
-    const sub = bodyText(`${SHOP_PACK.each}× Swap · Freeze · Bomb`, 13, 0x5A3000, { outline: false, weight: '800', align: 'left' });
+    const sub = bodyText(`${SHOP_PACK.each}× Swap · Freeze · Bomb`, 12, 0x5A3000, { outline: false, weight: '800', align: 'left' });
     sub.anchor.set(0, 0.5); sub.x = tx; sub.y = y + 56;
     c.addChild(sub);
 
@@ -255,53 +256,63 @@ export class ShopScreen {
 
   // Art pack: baked hero frame; title sits in the empty ribbon well, the price on the right.
   _buildPackArt(card, x, y, w, h) {
+    // Nadav rule: no UI over art, no UI over UI. Only the ribbon well (bottom centre)
+    // is empty in the art, so BOOSTER PACK goes there; BEST VALUE sits in the bar below the card;
+    // contents line, old price, -% sticker and the buy button sit in a bar below it.
     const c = this._container;
     c.addChild(card.c);
-    const title = fitW(titleText('BOOSTER PACK', 16), w * 0.29);
+    const title = fitW(titleText('BOOSTER PACK', 16), 2 * h * 0.3);
     title.x = x + w / 2; title.y = y + h * 0.875;
     c.addChild(title);
-    const sub = fitW(bodyText(`${SHOP_PACK.each}× Swap · Freeze · Bomb`, 12, 0xFFFFFF, { weight: '800' }), w * 0.3);
-    sub.anchor.set(0.5); sub.x = x + w - w * 0.17; sub.y = y + 22;
-    c.addChild(sub);
 
     const tag = new Container();
     const tg = new Graphics();
-    tg.roundRect(-52, -13, 104, 26, 13).fill(0xE8453C).stroke({ color: INK, width: 3 });
-    tg.roundRect(-46, -10, 92, 8, 4).fill({ color: 0xffffff, alpha: 0.3 });
+    tg.roundRect(-50, -10, 100, 20, 10).fill(0xE8453C).stroke({ color: INK, width: 2.5 });
+    tg.roundRect(-44, -8, 88, 6, 3).fill({ color: 0xffffff, alpha: 0.3 });
     tag.addChild(tg);
-    const tt = titleText('BEST VALUE', 14); tt.anchor.set(0.5); tt.y = 1;
+    const tt = titleText('BEST VALUE', 12); tt.anchor.set(0.5); tt.y = 1;
     tag.addChild(tt);
-    tag.x = x + 64; tag.y = y - 2; tag.rotation = -0.06;
-    c.addChild(tag);
-    this._pulses.push(Object.assign(tag, { speed: 4, amp: 0.04 }));
 
-    const bx = x + w - w * 0.17, by = y + h * 0.56, bw = Math.min(104, w * 0.29);   // above the ribbon wing, clear of it
-    const old = bodyText(String(PACK_FULL), 18, 0xFFFFFF, { weight: '800' });
-    old.anchor.set(0.5); old.x = bx; old.y = by - 36;
+    const barY = y + h + 5, barH = 52, cy = barY + barH / 2;
+    const bar = new Graphics();
+    bar.roundRect(x, barY, w, barH, 14).fill(0x14112F).stroke({ color: GOLD_DEEP, width: 2 });
+    c.addChild(bar);
+    tag.x = x + 10 + 50; tag.y = barY + 15;   // bar, top-left
+    c.addChild(tag);
+
+    const bw = 100, bx = x + w - 6 - bw / 2;                 // button, right
+    const sx = bx - bw / 2 - 8 - 20;                         // sticker, left of button (r 20)
+    const old = bodyText(String(PACK_FULL), 17, 0xFFFFFF, { weight: '800' });
+    old.anchor.set(1, 0.5); old.x = sx - 20 - 8; old.y = cy;  // old price, left of sticker
     c.addChild(old);
     const strike = new Graphics();
-    strike.moveTo(bx - old.width / 2 - 2, by - 33).lineTo(bx + old.width / 2 + 2, by - 39).stroke({ color: 0xE8231A, width: 4 });
+    strike.moveTo(old.x - old.width - 2, cy + 3).lineTo(old.x + 2, cy - 3).stroke({ color: 0xE8231A, width: 3 });
     c.addChild(strike);
+    const subMax = old.x - old.width - 8 - (x + 10);
+    const sub = fitW(bodyText(`${SHOP_PACK.each}× Swap · Freeze · Bomb`, 12, 0xFFE08A, { weight: '800' }), subMax);
+    sub.anchor.set(0, 0.5); sub.x = x + 10; sub.y = barY + 38;
+    c.addChild(sub);
+
     const save = Math.round((1 - SHOP_PACK.cost / PACK_FULL) * 100);
     const burst = new Container();
     const bg = new Graphics();
     const pts = [];
-    for (let i = 0; i < 24; i++) { const r = i % 2 ? 19 : 24, a = (i / 24) * Math.PI * 2; pts.push(Math.cos(a) * r, Math.sin(a) * r); }
-    bg.poly(pts).fill(0xE8453C).stroke({ color: INK, width: 3 });
+    for (let i = 0; i < 24; i++) { const r = i % 2 ? 16 : 19, a = (i / 24) * Math.PI * 2; pts.push(Math.cos(a) * r, Math.sin(a) * r); }
+    bg.poly(pts).fill(0xE8453C).stroke({ color: INK, width: 2.5 });
     burst.addChild(bg);
-    const saveTxt = titleText(`-${save}%`, 12); saveTxt.y = 1;
+    const saveTxt = fitW(titleText(`-${save}%`, 12), 30); saveTxt.y = 1;
     burst.addChild(saveTxt);
-    burst.x = x + w - 16; burst.y = by - 30; burst.rotation = 0.22;
-    this._pulses.push(Object.assign(burst, { speed: 3.2, amp: 0.05 }));
+    burst.x = sx; burst.y = cy;
 
     const packLocked = SHOP_PACK.keys.some(k => !boosterUnlocked(k, null, this._progress?.unlockedLevel ?? 1));
     if (packLocked) {
       const last = Math.max(...SHOP_PACK.keys.map(unlockLevelOf));
-      c.addChild(lockPlate(`LEVEL ${last}`, bx, by, bw + 12));
+      const lp = lockPlate(`LEVEL ${last}`, bx, cy, bw + 8);
+      lp.scale.set(0.85); c.addChild(lp);
       burst.visible = false;
     } else {
-      const btn = this._priceButton(SHOP_PACK.cost, bw, 44, () => this._buyPack(btn));
-      btn.x = bx; btn.y = by;
+      const btn = this._priceButton(SHOP_PACK.cost, bw, 34, () => this._buyPack(btn));
+      btn.x = bx; btn.y = cy;
       c.addChild(btn);
     }
     c.addChild(burst);

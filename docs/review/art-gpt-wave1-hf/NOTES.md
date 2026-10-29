@@ -10,6 +10,7 @@
 ## Code (visual only)
 - `src/renderer/assetManifest.js`: `SHOP_PACK_URL`, `SHOP_TILE_URLS`, `SHOP_ART_URLS` added to `ALL_SPRITE_URLS` preload (same pattern as BOOSTER_URLS).
 - `src/screens/ShopScreen.js`: shop previously drew the pack + tiles procedurally. When the textures are loaded it now draws the baked art (rounded-mask sprite) and overlays BOOSTER PACK / item name / desc / price button / lock plate in code; falls back to the old procedural cards if a texture is missing. Pack card uses the art's 2:1 frame (358x179); tiles 173x174 (art stretched slightly, as accepted). No prices, economy, purchase or unlock logic changed. Buy "pop" now targets an empty holder (tile art stays still).
+- Pack price button / lock badge sits above the ribbon wing (by = 0.56h) so no UI element overlaps another (Nadav rule, 2026-10-29).
 - Labels auto-shrink (`fitW`) to their wells, so nothing can overflow.
 
 ## Verification

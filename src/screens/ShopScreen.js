@@ -275,7 +275,7 @@ export class ShopScreen {
     c.addChild(tag);
     this._pulses.push(Object.assign(tag, { speed: 4, amp: 0.04 }));
 
-    const bx = x + w - w * 0.17, by = y + h - 34, bw = Math.min(104, w * 0.29);
+    const bx = x + w - w * 0.17, by = y + h * 0.56, bw = Math.min(104, w * 0.29);   // above the ribbon wing, clear of it
     const old = bodyText(String(PACK_FULL), 18, 0xFFFFFF, { weight: '800' });
     old.anchor.set(0.5); old.x = bx; old.y = by - 36;
     c.addChild(old);

@@ -39,7 +39,7 @@ function artCard(url, x, y, w, h, r = 20) {
   return { c, sp };
 }
 // Fit a text node into maxW by scaling down (never up).
-function fitW(t, maxW) { if (t.width > maxW) t.scale.set(maxW / t.width); return t; }
+function fitW(t, maxW) { if (t.width > maxW) t.scale.set(t.scale.x * maxW / t.width); return t; }
 
 // Value pack: two of each in-level booster.
 export const SHOP_PACK = { each: 2, keys: ['colorChange', 'freeze', 'bombs'], cost: 140 };
@@ -129,12 +129,12 @@ export class ShopScreen {
     // Art: a UI price bar sits BELOW the art (no text over art) — 5px gap + 52px bar.
     const TOP = 84 + packH + (art ? 5 + 52 + 12 : 18);
 
-    const tileW = (w - PAD * 2 - GAP) / 2, tileH = art ? 160 : 186;
+    const tileW = (w - PAD * 2 - GAP) / 2, tileH = art ? 160 : 186;   // art tiles: square 160x160 (tile-v2 art), centred in the column
     this._tiles = {};
     SHOP_ITEMS.forEach((item, i) => {
       const x = PAD + (i % 2) * (tileW + GAP);
       const y = TOP + Math.floor(i / 2) * (tileH + GAP);
-      this._buildTile(item, x, y, tileW, tileH, item.key === 'shield' ? p.streakShields : (inv[item.key] ?? 0));
+      art ? this._buildTile(item, x + (tileW - tileH) / 2, y, tileH, tileH, item.key === 'shield' ? p.streakShields : (inv[item.key] ?? 0)) : this._buildTile(item, x, y, tileW, tileH, item.key === 'shield' ? p.streakShields : (inv[item.key] ?? 0));
     });
 
     const freeY = TOP + 2 * (tileH + GAP) + 6;
@@ -318,39 +318,55 @@ export class ShopScreen {
     c.addChild(burst);
   }
 
-  // Art tile: baked frame; name + desc on top, price in the empty bottom band.
+  // Art tile (tile-v2, square): measured on the 512px art — cream text panel
+  // y 6-28% / x 9-91% (inside its edges), empty gold price band y 74-92% / x 9-91%.
+  // Name, description and the owned badge stay inside the panel; price/lock in the band.
   _buildTileArt(card, item, x, y, w, h, owned) {
     const c = this._container;
     c.addChild(card.c);
     const holder = new Container();   // buy-pop target (art itself stays still)
-    holder.x = x + w / 2; holder.y = y + h * 0.45;
+    holder.x = x + w / 2; holder.y = y + h * 0.5;
     c.addChild(holder);
-    const name = fitW(titleText(item.label, 17), w - 20);
-    name.x = x + w / 2; name.y = y + 20;
-    c.addChild(name);
-    const desc = fitW(bodyText(item.desc, 11, 0xFFFFFF, { weight: '800' }), w - 18);
-    desc.anchor.set(0.5); desc.x = x + w / 2; desc.y = y + h * 0.71;
-    c.addChild(desc);
-    if (owned > 0) {
+    const pL = x + w * 0.09, pR = x + w * 0.91, pT = y + h * 0.06, pB = y + h * 0.28;
+    let textR = pR;
+    if (owned > 0) {   // owned chip: right end of the name row, inside the panel
+      const cw = 26, ch = 15, cx0 = pR - cw - 5, cy0 = pT + 3;
       const chip = new Graphics();
-      chip.roundRect(x + w - 48, y + 34, 38, 24, 12).fill(0x3DBB3A).stroke({ color: INK, width: 2.5 });
+      chip.roundRect(cx0, cy0, cw, ch, 7.5).fill(0x3DBB3A).stroke({ color: INK, width: 1.5 });
       c.addChild(chip);
-      const ct = titleText(`×${owned}`, 14);
-      ct.x = x + w - 29; ct.y = y + 46;
+      const ct = fitW(titleText(`×${owned}`, 10), cw - 6);
+      ct.x = cx0 + cw / 2; ct.y = cy0 + ch / 2 + 0.5;
       c.addChild(ct);
+      textR = cx0 - 3;
     }
-    const by = y + h * 0.875;
+    const ph = pB - pT;
+    const name = titleText(item.label, 14);
+    if (name.height > ph * 0.58) name.scale.set((ph * 0.58) / name.height);
+    fitW(name, (textR - pL) - Math.max(0, pR - textR));   // keep centred, clear of chip
+    name.x = (pL + pR) / 2; name.y = pT + ph * 0.32;
+    c.addChild(name);
+    const desc = bodyText(item.desc, 10, 0x4A2A08, { outline: false, weight: '800' });
+    if (desc.height > ph * 0.4) desc.scale.set((ph * 0.4) / desc.height);
+    fitW(desc, pR - pL - 4);
+    desc.anchor.set(0.5); desc.x = (pL + pR) / 2; desc.y = pT + ph * 0.8;
+    c.addChild(desc);
+
+    const bT = y + h * 0.755, bB = y + h * 0.925, bW = w * 0.8;
+    const bh = Math.floor((bB - bT) - 7);          // button draws a 7px drop shadow below
+    const by = bT + bh / 2;
     const locked = item.key in BOOSTER_UNLOCK_LEVEL && !boosterUnlocked(item.key, null, this._progress?.unlockedLevel ?? 1);
     if (locked) {
       card.sp.alpha = 0.55;
-      const lp = lockPlate(`LEVEL ${unlockLevelOf(item.key)}`, x + w / 2, by, w - 26);
-      lp.scale.set(0.9); c.addChild(lp);
+      const k = (bB - bT) / 40;                    // lock plate is 40px tall
+      const lp = lockPlate(`LEVEL ${unlockLevelOf(item.key)}`, x + w / 2, (bT + bB) / 2, bW / k);
+      lp.scale.set(k); c.addChild(lp);
     } else {
-      const btn = this._priceButton(item.cost, w - 30, 36, () => this._buy(item, btn));
+      const btn = button(String(item.cost), { variant: 'gold', w: bW, h: bh, size: 15,
+        icon: uiIcon('coin', 15, '◆'), onTap: () => this._buy(item, btn) });
       btn.x = x + w / 2; btn.y = by;
       c.addChild(btn);
     }
-    this._tiles[item.key] = { holder, x: x + w / 2, y: y + h * 0.45 };
+    this._tiles[item.key] = { holder, x: x + w / 2, y: y + h * 0.5 };
   }
 
   _buildTile(item, x, y, w, h, owned) {

@@ -8,7 +8,6 @@
 import { PHASE_CONFIG, HP_MINIMUM, KILLS_PER_BOMB } from '../director/DirectorConfig.js';
 import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { Shooter } from '../models/Shooter.js';
-import { COLUMN_CAPACITY } from '../models/Column.js';
 import { shotPoints, nextChain, POINTS } from './score.js';
 import { spreadAcross } from './spread.js';
 import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak, STREAK_TO_CHARGE, laneHeld,
@@ -44,7 +43,7 @@ export class GameLoop {
   //   boosterState               — optional BoosterState; cars freeze when isFrozen()
   //   benchStorage               — optional BenchStorage; included in viability checks (L6+)
   constructor({ app, gameState, carDir, shooterDir, combatResolver, rng,
-                onKill, onChainHit, onShoot, onHit, onMiss, onEnd, onCrisis,
+                onKill, onChainHit, onShoot, onHit, onMiss, onEnd,
                 boosterState = null, benchStorage = null }) {
     this._app          = app;
     this._gs           = gameState;
@@ -60,7 +59,6 @@ export class GameLoop {
     this._onHit    = onHit      ?? (() => {});
     this._onMiss   = onMiss     ?? (() => {});
     this._onEnd    = onEnd      ?? (() => {});
-    this._onCrisis      = onCrisis      ?? (() => {});
     this._onBombEarned   = null;  // set by GameApp after construction
     this._onBombExplode  = null;  // set by GameApp after construction
     this._onColorBomb    = null;  // set by GameApp; (color, killed) → visual FX when a rainbow fires
@@ -99,7 +97,7 @@ export class GameLoop {
 
   // Called by DragDrop → onDeploy (column source).
   // `expected` (optional): the shooter the player actually dragged. The column's
-  // top can change while a drag is held (an earned rainbow or a crisis inject
+  // top can change while a drag is held (an earned rainbow
   // replaces it when the previous shot resolves); firing col.top() then fired a
   // bomb the player never picked. Refuse instead. Returns true when fired.
   deploy(colIdx, laneIdx, expected = null) {
@@ -112,7 +110,6 @@ export class GameLoop {
     if (this._shotInFlight()) return false;
     col.consume();
     this._lastFiredCol = colIdx;   // the viability guard may only touch this column (see _enforceViableMove)
-    this._sDir.recordDeploy(this._gs.elapsed);
     this._startFiring(shooter, laneIdx, colIdx);
     return true;
   }
@@ -130,7 +127,6 @@ export class GameLoop {
     if (this._shotInFlight()) return false;
     this._gs.benchUsed++;
     this._lastFiredCol = null;     // a bench shot moved no queue column
-    this._sDir.recordDeploy(this._gs.elapsed);
     this._startFiring(shooter, laneIdx, -1);
     return true;
   }
@@ -846,57 +842,6 @@ export class GameLoop {
     //    Checks column tops + bench (when unlocked) against front car colors.
     //    If no overlap, forces a column top to match a front car color.
     this._enforceViableMove(gs);
-
-    // 6.5. CRISIS assist — inject a guaranteed-match shooter at the top of the
-    //      column aligned with the most dangerous lane. Only fires in PRESSURE,
-    //      CLIMAX, or RELIEF when the player has been active (2+ deploys in 10s).
-    if (phaseParams.crisisEnabled) {
-      const crisis = this._sDir.triggerCrisis(dirState);
-      if (crisis) {
-        const laneIdx = gs.activeLanes.indexOf(crisis.lane);
-        const colIdx  = Math.max(0, Math.min(laneIdx >= 0 ? laneIdx : 0, gs.activeColCount - 1));
-        // CRISIS INJECT vs QUEUE DEPTH (fixed 2026-07-30).
-        //
-        // This used to unshift and tolerate a column of 4. That tolerance dated
-        // from when SLOT_COUNT was 4 and slot 3 was the stash; the stash was
-        // retired (the bench is sole storage) and the rendered depth became 3,
-        // but this capacity never followed. The bomb at index 3 was therefore
-        // rendered nowhere (Shooter3D.SLOT_COUNT = 3), hit-tested nowhere
-        // (DragDrop._hitTestQueueSlot loops row < 3) — it reappeared only after a fire
-        // shifted the column up. On the band-600 pilot, where the queue is
-        // compressed and the bench sits at its 28px floor, it visibly clipped
-        // through the bench strip: "still got to a phase were bombs are out of
-        // the grid" (crisis only fires in PRESSURE/CLIMAX/RELIEF — hence "phase").
-        //
-        // Crisis pressure is preserved rather than capped away: the new bomb
-        // still goes to the TOP (immediately playable), and the bomb it displaces
-        // moves to the BENCH, which is the designated storage and where the
-        // player can still reach it. If the bench is full there is nowhere for
-        // the displaced bomb to go, so the inject is SKIPPED for that column —
-        // dropping a playable bomb on the floor would be worse than skipping.
-        // Three cases, because "no bench wired" and "bench full" are different:
-        //   bench available  -> displace the bottom bomb into it (preferred)
-        //   bench FULL       -> skip the inject; dropping a playable bomb on the
-        //                       floor is worse than forgoing the pressure
-        //   no bench at all  -> truncate, as before. Only reachable when a caller
-        //                       does not wire one (tests, and pre-bench levels);
-        //                       the grid stays correct, which is the defect here.
-        const col = gs.columns[colIdx];
-        const bench = this._benchStorage;
-        const wouldOverflow = col.shooters.length >= COLUMN_CAPACITY;
-        if (wouldOverflow && bench && bench.isFull) {
-          this._crisisSkippedBenchFull = (this._crisisSkippedBenchFull ?? 0) + 1;
-        } else {
-          col.shooters.unshift(crisis.shooter);
-          crisis.shooter.column = colIdx;
-          while (col.shooters.length > COLUMN_CAPACITY) {
-            const displaced = col.shooters.pop();
-            if (displaced && bench && !bench.isFull) bench.store(displaced);
-          }
-          this._onCrisis(colIdx, laneIdx);
-        }
-      }
-    }
 
     // 7. Tick firing slots — resolve shots after the per-damage fire duration.
     for (let i = 0; i < gs.activeLaneCount; i++) {

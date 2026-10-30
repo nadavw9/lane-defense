@@ -2242,26 +2242,6 @@ async function main() {
         pauseBtn.visible = false;   // no pause/restart inside the breach beat
       }
     },
-
-    onCrisis: (colIdx) => {
-      // CRISIS assist fired — a guaranteed-match shooter was injected at the
-      // top of this column. Gold flash + sound cue to signal the cavalry arrived.
-      gameRenderer3D.triggerCrisisGlow(colIdx);
-      shooterRenderer.triggerCrisisFlash(colIdx);
-      audio.play('crisis_assist');
-      haptics.medium();
-      floatingTexts.push(spawnFloatingText(
-        layers.get('particleLayer'),
-        // Above the column that received the assist (2026-09-27). Was hardcoded to a
-        // 4-column X and Y=560 — wrong column at 3 lanes, and inside the queue since
-        // the queue moved. Both now come from the registry, like every other anchor.
-        getColumnScreenX(colIdx), getColumnScreenY() - 40,
-        '⚡ CRISIS ASSIST', 0xffcc00,
-      ));
-      progress.incrementCrisisAssists();
-      const crisisAch = achievementManager.check('crisis_assist');
-      crisisAch.forEach(a => _awardAch(a));
-    },
   });
 
   // ── Bomb system callbacks ─────────────────────────────────────────────────

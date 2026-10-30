@@ -22,7 +22,7 @@ describe('queueMoves: where each bomb came from', () => {
   });
 
   it('a bomb pushed in at the top drops in from the road and the rest move down', () => {
-    const [a, x, y, c] = [b('a'), b('x'), b('y'), b('crisis')];
+    const [a, x, y, c] = [b('a'), b('x'), b('y'), b('new')];
     expect(queueMoves([a, x, y], [c, a, x])).toEqual([
       { kind: 'drop', from: -MOTION.dropGap },
       { kind: 'down', from: 0 },

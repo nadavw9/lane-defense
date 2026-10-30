@@ -5,7 +5,6 @@
 import {
   PHASE_CONFIG,
   PHASE_TRANSITION_DURATION,
-  CRISIS,
 } from './DirectorConfig.js';
 
 // Proportional share of level duration each phase occupies.
@@ -49,7 +48,6 @@ export class IntensityPhase {
   // During the first PHASE_TRANSITION_DURATION seconds of a new phase,
   // numeric params are linearly blended from the previous phase's values.
   // damageSkew (categorical) switches at the transition midpoint.
-  // crisisEnabled is true whenever the target phase is in CRISIS.eligiblePhases.
   getParams() {
     const current = this._entryAt(this._elapsed);
     const idx = this._timeline.indexOf(current);
@@ -84,7 +82,6 @@ export class IntensityPhase {
       hpMultiplier:            cfg.hpMultiplier,
       speedMultiplier:         cfg.speedMultiplier,
       damageSkew:              cfg.damageSkew,
-      crisisEnabled:           CRISIS.eligiblePhases.includes(phase),
     };
   }
 
@@ -99,7 +96,6 @@ export class IntensityPhase {
       speedMultiplier:         lerp(from.speedMultiplier, to.speedMultiplier),
       // Categorical: switch at midpoint of transition
       damageSkew:   t < 0.5 ? from.damageSkew : to.damageSkew,
-      crisisEnabled: CRISIS.eligiblePhases.includes(toPhase),
     };
   }
 }

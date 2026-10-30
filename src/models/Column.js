@@ -4,7 +4,7 @@
 // (Shooter3D.SLOT_COUNT) and the hit-test depth (DragDrop._hitTestQueueSlot) —
 // tests/column-capacity.test.js asserts they agree. When the stash was retired
 // this dropped 4 -> 3 but GameLoop kept a hardcoded capacity-4 tolerance, which
-// left crisis-injected columns holding a bomb that was rendered nowhere and
+// left over-filled columns holding a bomb that was rendered nowhere and
 // hit-tested nowhere.
 export const COLUMN_CAPACITY = 3;
 

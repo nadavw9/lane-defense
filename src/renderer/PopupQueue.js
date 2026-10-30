@@ -7,7 +7,7 @@
 //   CAR_TYPE    2  — first-encounter car-type callouts
 //   ACHIEVEMENT 3  — achievement unlocked banners
 //   COMBO       4  — combo explanation tip
-//   AMBIENT     5  — floating reward / crisis labels
+//   AMBIENT     5  — floating reward labels
 //
 // Enforcement rules:
 //   • Only one popup active per zone at a time.

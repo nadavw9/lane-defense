@@ -200,7 +200,6 @@ export class SimulationRunner {
   //   timeElapsed        — seconds survived (or full duration on win)
   //   carsKilled         — total cars destroyed
   //   carryOvers         — kills from carry-over overflow damage
-  //   crisisTriggered    — number of CRISIS assists that fired
   //   fairnessOverrides  — number of spawn events where the arbiter had to fix something
   //   totalSpawns        — total cars + shooters checked by the arbiter
   //   maxCombo           — longest consecutive kill streak within COMBO_WINDOW
@@ -262,7 +261,6 @@ export class SimulationRunner {
     let carsKilled      = 0;
     let carryOvers      = 0;
     let spreadKills     = 0;   // CHAIN REACTION kills in neighbouring lanes (spread.js)
-    let crisisTriggered = 0;
     let currentCombo    = 0;
     let maxCombo        = 0;
     let lastKillTime    = -Infinity;
@@ -372,7 +370,7 @@ export class SimulationRunner {
     // There is NO time pressure and speed.base has NO effect — difficulty falls
     // out of laneTargetCarCount, spawnBudget (now a density knob), car HP, colors, gridRows.
     // A synthetic `elapsed` is derived from TURN PROGRESS (not a clock) purely
-    // so intensity phases (car-type mix / crisis) still ramp CALM → CLIMAX.
+    // so intensity phases (car-type mix) still ramp CALM → CLIMAX.
     const MAX_TURNS    = 3000;   // safety bound; a real level completes in < 100 turns,
                                  // so hitting this means the goal is effectively unreachable → loss
     const CRITICAL_ROW = Math.floor(BREACH_ROW * 0.75);
@@ -558,7 +556,6 @@ export class SimulationRunner {
         if (lostAt !== null) return;
         const s = columns[col].top();
         usedCols.add(col);
-        shooterDir.recordDeploy(elapsed);
         columns[col].consume();
         if (this._cfg.onShot) this._cfg.onShot(isCorrect);  // tuning hook (per fired bomb)
         if (!isCorrect) { scoreChain = 0; return; }   // a misplay: bomb wasted, no advance, Hot Streak intact, combo broken (as GameLoop)
@@ -674,12 +671,6 @@ export class SimulationRunner {
         }
       }
 
-      // (No CRISIS assist in the floor model: the FairnessArbiter already
-      // guarantees a viable matching column every turn, so the assist is
-      // redundant here. The old free no-advance kill diverged from the real
-      // game — crisis grants a BOMB the player must fire, not a free kill —
-      // and could empty the board with budget remaining, stalling the loop.)
-
       // Stall guard: a turn with no fire and no cycle would loop forever. Force
       // one column to discard (models the game's viability guard giving the
       // player a fresh top), guaranteeing state changes toward a match.
@@ -705,7 +696,6 @@ export class SimulationRunner {
       carsKilled,
       carryOvers,
       spreadKills,
-      crisisTriggered,
       fairnessOverrides: arbiter.overrideCount,
       totalSpawns:       arbiter.totalCount,
       maxCombo,
@@ -748,7 +738,6 @@ export class SimulationRunner {
     let rescues         = 0;
     let totalKills      = 0;
     let totalCarryOvers = 0;
-    let totalCrisis     = 0;
     let totalOverrides  = 0;
     let totalChecks     = 0;
 
@@ -758,7 +747,6 @@ export class SimulationRunner {
       if (r.rescueWouldSave) rescues++;
       totalKills      += r.carsKilled;
       totalCarryOvers += r.carryOvers;
-      totalCrisis     += r.crisisTriggered;
       totalOverrides  += r.fairnessOverrides;
       totalChecks     += r.totalSpawns;
     }
@@ -768,7 +756,6 @@ export class SimulationRunner {
       winRate:              wins / count,
       avgCarsKilled:        totalKills / count,
       carryOverRate:        totalKills > 0 ? totalCarryOvers / totalKills : 0,
-      avgCrisisPerLevel:    totalCrisis / count,
       fairnessOverrideRate: totalChecks > 0 ? totalOverrides / totalChecks : 0,
       // rescueWinRate: fraction of levels that end in a win (including rescued losses)
       rescueWinRate:        (wins + rescues) / count,

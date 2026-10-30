@@ -153,26 +153,12 @@ export const LANE_PERSONALITIES = {
 export const COLUMN_COUNT = 4;
 export const COLUMN_DEPTH = 3; // shooters per column (matches COLUMN_CAPACITY in Column.js)
 
-// ─── CRISIS Assist ────────────────────────────────────────────────────────────
-
-export const CRISIS = {
-  probability: 0.70,
-  cooldown: 15,            // seconds
-  cooldownSdrLevel3: 10,   // seconds (reduced at SDR level 3)
-  triggerDistanceRatio: 0.70, // car must be at ≥70% of lane length
-  requiredDeploysWindow: 2,   // player must have deployed ≥2 shooters …
-  deployWindowSeconds: 10,    // … within this many seconds
-  eligiblePhases: ['PRESSURE', 'CLIMAX', 'RELIEF'],
-  // Effect: next top shooter matches most advanced car color; damage ≥ 5
-  minimumDamageOnAssist: 5,
-};
-
 // ─── Silent Difficulty Reduction (SDR) ───────────────────────────────────────
 
 export const SDR_LEVELS = [
   { failsRequired: 3, hpMultiplier: 0.9, cooldownMultiplier: 1.1, damageBias: 0.10 },
   { failsRequired: 5, hpMultiplier: 0.8, cooldownMultiplier: 1.2, damageBias: 0.20 },
-  { failsRequired: 8, hpMultiplier: 0.7, cooldownMultiplier: 1.3, damageBias: 0.30, crisisCooldownOverride: 10 },
+  { failsRequired: 8, hpMultiplier: 0.7, cooldownMultiplier: 1.3, damageBias: 0.30 },
 ];
 
 // ─── Combo System ─────────────────────────────────────────────────────────────
@@ -298,7 +284,6 @@ export const SIMULATION_TARGETS = {
   winRateAveragePlay:  { min: 0.70, max: 0.80 },
   fairnessViolationRate: 0,          // hard rules: must be 0%
   carryoverRate:       { min: 0.15, max: 0.25 },
-  crisisPerLevel:      { min: 1,    max: 3 },
   avgComboLength:      { min: 3,    max: 5 },
 };
 

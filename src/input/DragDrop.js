@@ -534,7 +534,7 @@ export class DragDrop {
     }
     const col     = this._columns[this._dragSourceIdx];
     const shooter = col.top();
-    // The column top can change while a drag is held (earned rainbow, crisis inject).
+    // The column top can change while a drag is held (an earned rainbow).
     // Storing live top() then destroys the bomb the player was holding.
     if (!shooter || shooter !== this._dragShooter) {
       this._snapBack();

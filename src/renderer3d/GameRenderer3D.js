@@ -260,13 +260,6 @@ export class GameRenderer3D {
     this._shooters?.triggerPunch(colIdx);
   }
 
-  /** Gold bloom burst when CRISIS assist fires — the cavalry has arrived. */
-  triggerCrisisGlow(colIdx) {
-    this._shooters?.triggerPunch(colIdx);
-    this._bloomBurst(1.8);
-    this._cameraFX?.shake(0.05, 0.20);
-  }
-
   /**
    * Bomb detonated — large AOE explosion + concussion freeze visual.
    * @param {number} bombPos  road-position 0-100 where bomb was placed

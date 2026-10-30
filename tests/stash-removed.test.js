@@ -10,7 +10,7 @@
 //
 // That remnant then caused TWO of the seven bugs in this project's
 // create-before-configure / stale-value class:
-//   - Shooter3D.SLOT_COUNT stayed 4 ("the 4th slot is the stash"), so crisis
+//   - Shooter3D.SLOT_COUNT stayed 4 ("the 4th slot is the stash"), so a queue
 //     inject produced a bomb rendered nowhere and hit-tested nowhere
 //   - the queue-fit solver reserved space for slot index 3 — the stash — which
 //     shrank every bomb and hid a real overflow behind a phantom margin

@@ -158,7 +158,7 @@ the average turns and the owner judges the feel.
 - `tests/final-rush.test.js` updated to waves. All 200 levels in band after retune
   (`tests/level-config-audit`).
 
-## 6. VISION.md amendments (pending the owner's approval; VISION.md is locked)
+## 6. VISION.md amendments (approved by the owner 2026-10-30, applied to docs/VISION.md)
 
 - Rule "one breach = loss" becomes "one breach per lane is absorbed by the lane's barrier; the
   second breach in a lane is the loss".

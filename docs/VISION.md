@@ -33,8 +33,22 @@ WORLD 3 — The Highway (L31-40)
 - Each level has a specific designed solution
 - Ends with: Grandmaster Finale L40 — all car types, all 6 colors
 
+## Lane Barriers (owner-approved amendment, 2026-10-30)
+Every lane starts a level with ONE barrier at the breach line. The first car
+through a lane smashes it: the car and the barrier are gone and NOTHING is
+credited for that car. The next car through THAT lane is the loss. A CONTINUE
+restores no barrier. The barrier is the one absorbed mistake per lane, and it is
+always on screen (an intact beam or a broken stump), so the player can see
+exactly how much room is left in every lane.
+
+*Superseded:* "one breach = loss". Levels are now two to three times longer
+(30-40 shots), so a single breach ending the level made every long level a
+coin flip; the barrier turns the first breach into information instead.
+
 ## The Signature Mechanic: Hot Streak (V2 — owner-approved redesign, 2026-09-27)
-Destroy at least one car on 3 shots in a row → the next bomb is SUPERCHARGED:
+Destroy at least one car on **5 shots in a row** (owner amendment, 2026-10-30;
+was 3 — with 3 the supercharge arrived almost every turn and carried levels on
+its own) → the next bomb is SUPERCHARGED:
 double damage, and its carry-over smashes through cars of ANY colour behind the
 first one (armour and bosses still stop it). A hit that destroys nothing resets
 the streak. Live from L4 (L1-L3 teach the basics).
@@ -90,6 +104,11 @@ NOT an HP bar. Communicates spatial urgency only.
 - Booster unlock levels are always EASIER than the level before them
 - No level is designed by numerical ramp alone — each has a named
   design goal (see Level Master Table in GAME_DESIGN.md)
+- **Traffic comes in waves** (owner-approved amendment, 2026-10-30). From L10 a
+  level runs calm → WAVE 1 → lull → WAVE 2 → lull → FINAL WAVE, keyed on goal
+  progress (big-wave levels carry three crests). The crests are named on screen
+  so the player can plan a FREEZE or a BOMB for them; the lulls are where the
+  board is read ahead. A level with no shape is a treadmill.
 
 ## NON-NEGOTIABLE RULES
 These cannot be changed to fit existing code. If code needs changing, change the code.
@@ -117,6 +136,11 @@ These cannot be changed to fit existing code. If code needs changing, change the
      margins recorded with that work.
 9. No level shows more than FOUR colours (V2, 2026-09-27). With three bomb
    columns, five and six colours turned play into waiting for the right bomb.
+10. **No invisible help** (owner amendment, 2026-10-30). Every assist the player
+    gets is on screen: barriers, boosters, cards. The hidden CRISIS assist (a
+    matching bomb injected whenever a car passed 70% of its lane) was removed
+    because the balance simulator never modelled it, so the numbers lied and
+    the levels felt unlosable. The viability guard (FR-1) is the only floor.
 
 ## How To Use This Document
 Before making ANY change to:

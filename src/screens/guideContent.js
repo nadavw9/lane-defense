@@ -72,6 +72,7 @@ export const CARDS = {
   combo_hint_L2:   null,   // folded into combo
   first_miss:      { title: 'WRONG COLOR',    text: 'No damage! A bomb only hurts cars of its own color.' },
   barrier_down:    { title: 'BARRIER DOWN!',  text: 'Each lane has one barrier. The next car through this lane ends the level!', target: 'road' },
+  wave_incoming:   { title: 'WAVES!',         text: 'Traffic comes in waves. Keep a FREEZE or a BOMB for the crests!', target: 'road' },
   hp_miss:         null,   // the animated NEW VEHICLE card (L3 car, L5 van) already shows the shrink
   streak_charged:  { title: 'POWER SHOT!',     text: 'Your front bombs are charged. Fire one: it hits twice! The others lose the charge.', target: 'bombs' },
   colorchange_use: null,   // taught by the L9 COLOUR CHANGE card

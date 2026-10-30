@@ -11,6 +11,38 @@ An approved 3-workstream master plan is in progress (WS1 testing DONE → WS2 UI
 Route mechanical spec-execution to cheaper models; reserve Fable/Opus for design judgment
 (playbook §2).
 
+### LANE BARRIERS, WAVES, HONEST DIFFICULTY (2026-10-30, branch `feat/lane-barriers`) — read first
+
+Owner (device play): "levels are too short and too easy, I never failed one; the supercharge is too
+strong". Diagnosis (spec `docs/superpowers/specs/2026-10-30-lane-barriers-design.md` §1): the tuner
+had cut goals to its 0.4 floor because the `average` sim bot mis-drops 18% of bombs and "cycles"
+columns, neither of which the real game allows (a mismatch bounces back), while the live game ran an
+invisible CRISIS assist (a matching bomb injected whenever a car passed 70% of its lane) that the sim
+never modelled. What changed, all on master after this merge:
+- **Lane barriers** (`TrafficRules.resolveBreach`, one rule for GameLoop and the sim): every lane
+  starts a level with ONE barrier at the breach line. The first car through a lane crashes into it
+  (car and barrier gone, NOTHING credited); the next car through that lane is the loss. A CONTINUE
+  restores no barrier. `gs.barriers[]` / `gs.barriersLost`; `GameLoop._onBarrierSmash` ->
+  `GameRenderer3D.onBarrierSmash`, `Road3D.setLaneBlocks` (beam or stump, synced per frame),
+  `barrier_down` card (reactive window [1, 200]: the first smash is the moment). Tests that are
+  about the breach itself play with `gs.barriers.fill(false)` and say so.
+- **Waves** (`TrafficRules.waveHeft / waveLaneTarget / waveTagAt / wavesFor`): from L10 a level
+  runs calm -> WAVE 1 -> lull -> WAVE 2 -> lull -> FINAL WAVE (three crests on big waves), keyed on
+  goal progress; `CarDirector.setWaves` is set by GameApp and the sim. Replaces the final rush.
+- **Supercharge at 5 kills in a row** (`STREAK_TO_CHARGE`), **BOMB every 10 kills** (`KILLS_PER_BOMB`).
+- **CRISIS assist removed** (director, loop, renderer, audio, achievement, tests;
+  `tests/no-crisis.test.js` keeps it out). The viability guard (FR-1) is the honest floor.
+- **The sim plays the player's game**: profile `human` (accuracy 1, no cycling, boosterIQ 0.90)
+  is the tuning reference for `balance-sim`, `tune-levels`, `tune-stars` and `tools/bands.mjs`
+  (L4-9 70-80, L10-26 62-72, L27-45 58-68, -2 per later world; hard -15, super hard -25, relief
+  +6). Known gap: the bot does not use the bench. Goal scale may grow to 2.5 (floor 0.5).
+- **Drops**: `DragDrop._hitTestLane` accepts a release down to the bottom of the hazard stripe
+  (`projection.laneDropBottomY`); a drop while the previous shot is in flight is PENDING (waits up
+  to 0.8 s, fires when the lane frees, bounces if the front car changed colour, never into a paused
+  game). A refused column deploy snaps back.
+All 200 levels and star targets retuned (`tune-levels.mjs 1-200 300 --write`, `tune-stars.mjs`).
+Numbers are the owner's first call; he refines after device play. Captures: `scripts/_barrier-shots.mjs`.
+
 ### L1 TEACHES THE COLOUR MATCH (2026-10-27, branch `feat/l1-two-colours`)
 
 Owner: "on L1 the single lane can already have 2 colours: start with a few reds in a row, then the

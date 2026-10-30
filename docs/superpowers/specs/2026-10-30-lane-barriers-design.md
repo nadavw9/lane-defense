@@ -158,7 +158,15 @@ the average turns and the owner judges the feel.
 - `tests/final-rush.test.js` updated to waves. All 200 levels in band after retune
   (`tests/level-config-audit`).
 
-## 6. Rollout
+## 6. VISION.md amendments (pending the owner's approval; VISION.md is locked)
+
+- Rule "one breach = loss" becomes "one breach per lane is absorbed by the lane's barrier; the
+  second breach in a lane is the loss".
+- "Hot Streak: 3 destroying shots" becomes 5.
+- Add: "No invisible help. Every assist the player gets is on screen (barriers, boosters, cards)."
+- Add the waves shape (calm, WAVE 1, lull, WAVE 2, lull, FINAL WAVE) under the level design rules.
+
+## 7. Rollout
 
 Branch `feat/lane-barriers` -> CI -> PR -> merge (pre-approved after green) -> Android internal
 + TestFlight builds with release notes. Owner plays L4-L20 and names the numbers to refine.

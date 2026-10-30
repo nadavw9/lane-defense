@@ -33,7 +33,7 @@ import {
   KILLS_PER_BOMB,
 } from '../director/DirectorConfig.js';
 import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
-import { openingRowsForLevel, clampInitialCarsToDepth, streakEnabledFor } from '../game/LevelManager.js';
+import { openingRowsForLevel, clampInitialCarsToDepth, streakEnabledFor, BENCH_FROM_LEVEL } from '../game/LevelManager.js';
 import { spreadAcross, spreadEnabledFor } from '../game/spread.js';
 import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak, laneHeld, pushTrafficBack, rescueRowsBack, resolveBreach, wavesFor,
          revealStagedCars, stepSize, freeSpawnRow, placeArrival } from '../director/TrafficRules.js';
@@ -110,7 +110,9 @@ const SKILL_PROFILES = {
   skilled:  { accuracy: 0.93, useCycle: true,  cycleDelay: 0.75, boosterIQ: 0.95 },
   // human (2026-10-30, owner): the real player. A mismatched drop bounces back (no wasted
   // bomb, no reroll), there is no column cycling, and boosters are used when they matter.
-  human:    { accuracy: 1.00, useCycle: false, cycleDelay: 0,    boosterIQ: 0.90 },
+  // useBench: from BENCH_FROM_LEVEL the player parks a useless top bomb (one store per turn, four
+  // slots) and fires a parked bomb at a lane no column can serve — the real move set.
+  human:    { accuracy: 1.00, useCycle: false, cycleDelay: 0,    boosterIQ: 0.90, useBench: true },
 };
 
 // Wraps FairnessArbiter to count the fraction of checks that required a fix.
@@ -257,6 +259,11 @@ export class SimulationRunner {
     const laneViews = discreteLanes.map(laneView);   // resolver-shaped lanes for spreadAcross
     const barriers  = discreteLanes.map(() => this._cfg.barriers !== false);   // parity: GameState.barriers
     let   barriersLost = 0;
+    // BENCH (human profile, BENCH_FROM_LEVEL on): four slots, one store per turn, parity with BenchStorage.
+    const benchOn = !!profile.useBench && typeof this._cfg.levelId === 'number' && this._cfg.levelId >= BENCH_FROM_LEVEL;
+    const BENCH_SIZE = 4;
+    const bench = [];
+    let   benchStores = 0, benchShots = 0;
     // With infinite spawn, we no longer track budget depletion for win. Instead,
     // win comes from goal completion (if goals exist) or legacy targetKills (if no goals).
     // The old budget is kept for opening spawns (prime initial cars) but not as a limit.
@@ -567,6 +574,12 @@ export class SimulationRunner {
         const s = columns[col].top();
         usedCols.add(col);
         columns[col].consume();
+        _fireShooter(s, lane, isCorrect);
+      };
+      // A shot with a bomb already in hand (from a column top or the bench): the same resolution the
+      // live GameLoop runs, including the advance it causes.
+      const _fireShooter = (s, lane, isCorrect = true) => {
+        if (lostAt !== null) return;
         if (this._cfg.onShot) this._cfg.onShot(isCorrect);  // tuning hook (per fired bomb)
         if (!isCorrect) { scoreChain = 0; return; }   // a misplay: bomb wasted, no advance, Hot Streak intact, combo broken (as GameLoop)
         correctShots++;
@@ -651,12 +664,42 @@ export class SimulationRunner {
         return bestCol;
       };
 
-      // Pass A — coverage: best column per urgent lane.
+      // BENCH (L13+): a parked bomb that serves a lane no column top can serve is fired at it; and when
+      // the most threatened lane has no bomb anywhere, a top that serves NO front car is parked
+      // (preferring a column whose next bomb serves that lane) — one store per turn, four slots.
+      const _benchFire = (lane) => {
+        const bi = bench.findIndex(b => canTarget(lane.cars[0], b.color));
+        if (bi === -1) return false;
+        const b = bench.splice(bi, 1)[0];
+        benchShots++;
+        _fireShooter(b, lane, true);
+        return true;
+      };
+      if (benchOn && urgentLanes.length > 0 && lostAt === null) {
+        const urgent = urgentLanes[0];
+        const servedByTop = columns.some((c, i) => !usedCols.has(i) && c.top() && canTarget(urgent.cars[0], c.top().color));
+        if (!servedByTop && !_benchFire(urgent) && bench.length < BENCH_SIZE) {
+          const fronts = discreteLanes.map(l => l.cars[0]).filter(Boolean);
+          let pick = -1, best = 0;
+          for (let c = 0; c < COL_N; c++) {
+            const top = columns[c].top();
+            if (!top || columns[c].shooters.length < 2) continue;
+            if (fronts.some(car => canTarget(car, top.color))) continue;   // a useful top stays
+            const next = columns[c].shooters[1];
+            const score = next && canTarget(urgent.cars[0], next.color) ? 2 : 1;
+            if (score > best) { best = score; pick = c; }
+          }
+          if (pick !== -1) { bench.push(columns[pick].top()); columns[pick].consume(); benchStores++; }
+        }
+      }
+
+      // Pass A — coverage: best column per urgent lane (a parked bomb when no column serves it).
       for (const lane of urgentLanes) {
         if (lostAt !== null) break;
         if (lane.cars.length === 0) continue;
         const bestCol = _pickCol(lane.cars[0]);
         if (bestCol !== -1) _fire(bestCol, lane, _isCorrect());
+        else if (benchOn) _benchFire(lane);
       }
 
       // Pass B — focus-fire on lanes near breach.
@@ -718,6 +761,8 @@ export class SimulationRunner {
       bombsFired,
       bombKills,
       powerShots,
+      benchStores,
+      benchShots,
       score,
       armorBreaks,
       continuesUsed,

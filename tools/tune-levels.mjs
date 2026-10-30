@@ -1,12 +1,16 @@
-// Level auto-tuner — finds the `heft` (spawn-mix weight, 0 = lightest car types,
-// 1 = heaviest; see CarTypes.heftWeights) that puts each level at the centre of
-// its win-rate band (tools/bands.mjs, skill=human), and when even
-// the lightest mix is too hard, the goal scale that fixes it. Car HP per TYPE is
-// fixed on every level — only the mix moves.
+// Level auto-tuner — puts every level at the centre of its win-rate band (tools/bands.mjs,
+// skill=human, lane barriers) by moving, in this order (2026-10-30, owner: "levels are too short
+// and too easy"):
+//   too EASY at the authored goals: heavier traffic (heft up to 1), then LONGER goals (up to GS_HI);
+//   too HARD at the authored goals: lighter traffic (heft down to HEFT_LO), then a thinner trait
+//   mix, then SHORTER goals (down to GS_LO, never below).
+// Car HP per TYPE is fixed on every level — only the mix, the traits and the goal count move.
 //
-//   node tools/tune-levels.mjs 4-40 [runs=200]   → JSON { id: { hp, goalScale, win } }
+//   node tools/tune-levels.mjs 4-40 [runs=200] [--write]   → JSON { id: { heft, ts, gs, win } }
 //
-// It only RECOMMENDS; LevelManager.js stays the hand-edited source of truth.
+// --write stores the result in src/game/lateTuning.js (LevelManager applies L1-40 on load,
+// levelDsl.lv() applies L41+). The authored goals stay on cfg.baseGoals, so the tuner always
+// starts from the design, never from its own output.
 import { LevelManager, LEVEL_COUNT } from '../src/game/LevelManager.js';
 import { scaleGoal } from '../src/game/levelDsl.js';
 import { bandFor } from './bands.mjs';
@@ -21,9 +25,7 @@ const band = (id) => { const b = bandFor(id); return [b.lo, b.hi]; };
 // carry it as baseTraits; the hand-tuned L1-40 just use traits).
 const baseTraitsOf = (cfg) => cfg.baseTraits ?? cfg.traits ?? null;
 const scaleTraits = (t, k) => t && Object.fromEntries(Object.entries(t).map(([n, p]) => [n, +(p * k).toFixed(4)]));
-
-// Boss goals and 'kill N of trait X' goals are the level's identity — never scaled.
-const scalable = () => true;
+const goalsAt = (cfg, k) => (cfg.baseGoals ?? cfg.goals).map(g => scaleGoal(g, k));
 
 function winRate(cfg, heft, traitScale = 1, goalScale = 1) {
   const traits = scaleTraits(baseTraitsOf(cfg), traitScale);
@@ -35,72 +37,52 @@ function winRate(cfg, heft, traitScale = 1, goalScale = 1) {
   return (w / RUNS) * 100;
 }
 
-const HEFT_HI = 1;
-// One-hit ladder model: the GOAL COUNT is the main lever (a car takes 1-3 hits, so
-// the old goals are ~2x too long). Per level: keep the authored heft, bisect the goal
-// scale to the band centre; a level whose goals are unscalable (trait-only) bisects
-// heft instead. Floor of 6 cars so a level never collapses into a handful of kills.
-// 2026-10-30 (lane barriers): the authored goal is the anchor and a level that is too easy gets
-// LONGER first (goal scale up to 2.5) and heavier second. Floor 0.5.
-const GS_LO = 0.5, GS_HI = 2.5, GS_ANCHOR = 1;
-const goalsAt = (cfg, k) => (cfg.baseGoals ?? cfg.goals).map(g => scaleGoal(g, k));
-const bisect = (lo0, hi0, f, target) => {            // f falls as x rises; find x with f(x) ~ target
+const HEFT_LO = 0.15, HEFT_HI = 1;           // some weight always stays in the mix
+const GS_LO = 0.5, GS_HI = 1.6;              // goal scale: half the authored count up to 60% longer
+const TRAIT_SCALES = [0.85, 0.7, 0.55, 0.4];
+// f falls as x rises; find x in [lo0, hi0] with f(x) ~ target.
+const bisect = (lo0, hi0, f, target) => {
   let a = lo0, b = hi0;
   for (let i = 0; i < 8; i++) { const m = (a + b) / 2; if (f(m) > target) a = m; else b = m; }
   return (a + b) / 2;
 };
+// Win rate FALLS as heft rises and as the goal scale rises, so one bisect serves every lever.
 const r2 = (x) => Math.round(x * 100) / 100;
 
 const out = {};
 for (let id = lo; id <= hi; id++) {
   const lm = new LevelManager(); lm.goToLevel(id); const cfg = lm.current;
   const [bLo, bHi] = band(id); const target = (bLo + bHi) / 2;
-  const scalableLevel = (cfg.baseGoals ?? cfg.goals).some(scalable);
   const heft0 = cfg.tuneHeft ?? cfg.worldConfig.heft ?? 0.3;
-  let heft = heft0, gs = scalableLevel ? GS_ANCHOR : 1, ts = 1;
-  // Order of freedom: raise heft when too easy at full goals; else shrink goals (floor GS_LO);
-  // else ease heft; last, thin out the trait mix. Authored goals stay the design.
-  // Goals start at GS_ANCHOR of the authored count: levels stay short (a heavier mix is the first
-  // answer to "too easy", only then longer goals).
-  if (winRate(cfg, heft, ts, gs) >= target) {
-    heft = r2(bisect(heft0, 1, (m) => winRate(cfg, m, ts, gs), target));
-    if (scalableLevel && heft >= 0.99 && winRate(cfg, heft, ts, gs) >= target) {
-      gs = r2(bisect(GS_ANCHOR, GS_HI, (m) => winRate(cfg, heft, ts, m), target));
-    }
-  } else if (scalableLevel) {
-    gs = r2(bisect(GS_LO, GS_ANCHOR, (m) => winRate(cfg, heft, ts, m), target));
-    // Goal counts are integers, so win(gs) is a staircase: polish to the nearest step.
-    let bestE = Infinity, bestG = gs;
-    for (let d = -0.08; d <= 0.0801; d += 0.02) {
-      const g2 = r2(Math.min(GS_ANCHOR, Math.max(GS_LO, gs + d))); const e = Math.abs(winRate(cfg, heft, ts, g2) - target);
-      if (e < bestE) { bestE = e; bestG = g2; }
-    }
-    gs = bestG;
-    const traitGoal = (cfg.baseGoals ?? cfg.goals).some(g => g.type === 'destroyTrait');
-    if ((gs <= GS_LO + 0.01 || winRate(cfg, heft, ts, gs) < bLo) && winRate(cfg, heft, ts, gs) < target) {
-      gs = Math.min(gs, GS_LO + 0.0001) > GS_LO ? gs : GS_LO;
-      if (winRate(cfg, heft, ts, gs) < bLo) gs = GS_LO;
-      if (traitGoal) {
-        // A trait goal starves on supply, not on car weight: pick the trait mix that serves best.
-        let best = [1, winRate(cfg, heft, 1, gs)];
-        for (const t of [1.5, 2, 3, 4]) { const w = winRate(cfg, heft, t, gs); if (w > best[1]) best = [t, w]; if (w >= target) break; }
-        ts = best[0];
-      }
-      if (winRate(cfg, heft, ts, gs) < target) {
-        heft = r2(heft0 - bisect(0, heft0, (m) => 100 - winRate(cfg, heft0 - m, ts, gs), 100 - target));
-      }
-      if (winRate(cfg, heft, ts, gs) < target && !traitGoal && (cfg.baseTraits ?? cfg.traits)) {
-        for (const t of [0.85, 0.7, 0.55, 0.4]) { ts = t; if (winRate(cfg, heft, ts, gs) >= target) break; }
-      }
+  let heft = heft0, gs = 1, ts = 1;
+  const win = () => winRate(cfg, heft, ts, gs);
+  if (win() >= target) {
+    // Too easy: heavier first, then longer.
+    heft = r2(bisect(heft0, HEFT_HI, (m) => winRate(cfg, m, ts, gs), target));
+    if (heft >= HEFT_HI - 0.01 && win() >= target) {
+      gs = r2(bisect(1, GS_HI, (m) => winRate(cfg, heft, ts, m), target));
     }
   } else {
-    heft = r2(bisect(0, heft0, (m) => 100 - winRate(cfg, heft0 - m, ts, gs), 100 - target));
-    heft = r2(heft0 - heft);
+    // Too hard: lighter first, then a thinner trait mix, then shorter.
+    heft = r2(bisect(HEFT_LO, heft0, (m) => winRate(cfg, m, ts, gs), target));
+    if (heft <= HEFT_LO + 0.01 && win() < target && baseTraitsOf(cfg)) {
+      for (const t of TRAIT_SCALES) { ts = t; if (win() >= target) break; }
+    }
+    if (win() < target) {
+      gs = r2(bisect(GS_LO, 1, (m) => winRate(cfg, heft, ts, m), target));
+      // Goal counts are integers, so win(gs) is a staircase: polish to the nearest step.
+      let bestE = Infinity, bestG = gs;
+      for (let d = -0.06; d <= 0.0601; d += 0.02) {
+        const g2 = r2(Math.min(1, Math.max(GS_LO, gs + d))); const e = Math.abs(winRate(cfg, heft, ts, g2) - target);
+        if (e < bestE) { bestE = e; bestG = g2; }
+      }
+      gs = bestG;
+    }
   }
-  const win = winRate(cfg, heft, ts, gs);
-  out[id] = { heft, ts, gs, win: +win.toFixed(1), band: `${bLo}-${bHi}` };
-  const flag = (win < bLo - 3 || win > bHi + 3 || gs <= GS_LO + 0.02) ? '  <-- CHECK' : '';
-  console.error(`L${id}: heft ${heft} traits x${ts} goals x${gs} -> ${win.toFixed(1)}% (${bLo}-${bHi})${flag}`);
+  const w = win();
+  out[id] = { heft, ts, gs, win: +w.toFixed(1), band: `${bLo}-${bHi}` };
+  const flag = (w < bLo - 3 || w > bHi + 3 || gs <= GS_LO + 0.02) ? '  <-- CHECK' : '';
+  console.error(`L${id}: heft ${heft} traits x${ts} goals x${gs} -> ${w.toFixed(1)}% (${bLo}-${bHi})${flag}`);
 }
 console.log(JSON.stringify(out));
 if (process.argv.includes('--write')) {
@@ -110,6 +92,6 @@ if (process.argv.includes('--write')) {
   const body = Object.entries(merged).sort((a, b) => a[0] - b[0]).map(([id, r]) => `  ${id}: { heft: ${r.heft}, ts: ${r.ts}, gs: ${r.gs} },`).join('\n');
   const { writeFileSync } = await import('node:fs');
   writeFileSync(new URL('../src/game/lateTuning.js', import.meta.url),
-    `// GENERATED by \`node tools/tune-levels.mjs 41-100 --write\`. Do not hand-edit.\n// heft = spawn-mix weight, ts = trait-mix scale, gs = goal scale (1 = authored).\nexport const LATE_TUNING = {\n${body}\n};\n`);
+    `// GENERATED by \`node tools/tune-levels.mjs 1-200 --write\`. Do not hand-edit.\n// heft = spawn-mix weight, ts = trait-mix scale, gs = goal scale (1 = authored).\nexport const LATE_TUNING = {\n${body}\n};\n`);
   console.error('wrote src/game/lateTuning.js');
 }

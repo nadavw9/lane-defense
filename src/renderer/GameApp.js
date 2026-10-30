@@ -112,6 +112,8 @@ import { AutoTuner }             from '../analytics/AutoTuner.js';
 import { AchievementManager }     from '../game/AchievementManager.js';
 import { DailyChallengeManager }  from '../game/DailyChallengeManager.js';
 import { CarTypeIntroCard, hasIntroCard } from '../screens/CarTypeIntroCard.js';
+import { BarrierIntroCard } from '../screens/BarrierIntroCard.js';
+import { WaveIntroCard } from '../screens/WaveIntroCard.js';
 import { spawnableTypesFor, carHpFor } from '../director/CarTypes.js';
 import { roundButton as premiumRoundButton, ribbon as premiumRibbon } from './PremiumUI.js';
 import { inventorySpentByUse } from '../game/BoosterInventory.js';
@@ -1255,6 +1257,19 @@ async function main() {
 
   // ── Car type intro (Royal Match "Meet the new blocker!" moment) ──────────
   // Routes through the unified modal queue so it never overlaps another card.
+  // A once-ever ANIMATED intro card for a mechanic (owner, 2026-10-30: every new thing gets a clear
+  // picture the first time, like the vehicle card). Gated by the fixed teaching schedule
+  // (introSchedule.REACTIVE_WINDOW) and the once-ever banner store; shares the vehicle card's
+  // modal slot and ticker. Returns true when it was queued.
+  function _triggerIntroCard(key, Card) {
+    if (currentLevelIsDaily || !reactiveAllowed(key, levelManager.levelNumber) || featureBanners.has(key)) return false;
+    featureBanners.mark(key);
+    _enqueueModal((done) => {
+      carTypeIntroCard = new Card(app.stage, APP_W, APP_H, () => { carTypeIntroCard = null; done(); });
+    });
+    return true;
+  }
+
   function _triggerCarTypeIntro(typeKey) {
     _enqueueModal((done) => {
       carTypeIntroCard = new CarTypeIntroCard(
@@ -2396,7 +2411,7 @@ async function main() {
     ));
     audio.play('armor_clang');
     haptics.heavy();
-    fireReactive('barrier_down', '');
+    _triggerIntroCard('barrier_down', BarrierIntroCard);   // the animated rule, once ever
   };
 
   gameLoop._onSpread = (hits, laneIdx, srcPos) => {
@@ -2698,6 +2713,7 @@ async function main() {
         floatingTexts.push(spawnFloatingText(layers.get('particleLayer'), APP_W / 2, 215, tag + '!', 0xFF8A1C));
         audio.play('combo_milestone', { combo: 7 });
         haptics.medium();
+        if (tag === 'WAVE 1') _triggerIntroCard('wave_incoming', WaveIntroCard);   // the level's shape, once ever
       }
     }
 

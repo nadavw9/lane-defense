@@ -78,7 +78,7 @@ function runOne(levelId) {
 
 // ── Run + table ────────────────────────────────────────────────────────────────
 console.log(`\nBalance sim — ${levelIds.length} level(s) × ${runs} runs  [skill: ${skill}]  (win = all goals met, no breach)`);
-console.log(`Bands @ average+boosterIQ0.70 — tutorial L1-3: exempt · FTUE L4-9: 85-95 · see tools/bands.mjs\n`);
+console.log(`Bands @ human profile (no mis-drops, no cycling, boosterIQ 0.90; lane barriers) — see tools/bands.mjs\n`);
 console.log('Lvl │ Goals                              │ Win%  │ Band  │ AvgTurns │ Kills/Shot │ Flag');
 console.log('────┼────────────────────────────────────┼───────┼───────┼──────────┼────────────┼──────────────────');
 
@@ -103,4 +103,4 @@ if (flagged.length) {
   console.log('Flagged:', flagged.map(r => `L${r.levelId}(${flagFor(r.levelId, r.winPct, r.avgTurns)})`).join('  '));
 }
 const avgWin = results.reduce((s, r) => s + r.winPct, 0) / results.length;
-console.log(`Mean win rate across levels: ${avgWin.toFixed(1)}%  [reference profile: average, booster-aware]`);
+console.log(`Mean win rate across levels: ${avgWin.toFixed(1)}%  [profile: ${skill}; the tuning reference is human]`);

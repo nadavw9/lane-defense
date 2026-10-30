@@ -36,6 +36,7 @@ export const LEVEL_START_CARDS = {
 //   second_colour             L1 (the first blue car reaches the front after a run of reds —
 //                             GameApp fires it from the advance, hand on the blue bomb)
 //   first_miss                L1-2 (a wrong colour is possible from the first blue car)
+//   barrier_down              any level: the first time a lane's barrier is smashed (lane barriers)
 //   streak_charged            L11-12 (Hot Streak starts at L11)
 //   freeze / swap / rainbow earned  from the level each one arrives (boosterUnlocks.js)
 //   armor_break / plate_break / mender_heal / volatile_surge  the level that introduces the trait
@@ -44,6 +45,7 @@ export const REACTIVE_WINDOW = {
   bomb_earned:    [1, 1],
   second_colour:  [1, 1],
   first_miss:     [1, 2],
+  barrier_down:   [1, 200],   // the first smash IS the moment, on whatever level it happens (2026-10-30)
   freeze_earned:  [8, 11],
   colour_change_earned: [21, 24],
   streak_charged: [11, 12],

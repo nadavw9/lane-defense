@@ -1,7 +1,5 @@
-01=BEFORE (master): supercharge earned, then the left front bomb moved to the bench. Rings on the benched bomb AND on the bomb that rose in behind it (looks like a free second charged bomb).
-02=AFTER: same moves. The benched bomb keeps its ring, the bomb behind it is plain; the other two front bombs keep theirs. Firing any ringed bomb clears every ring.
-03=BEFORE (master): NEXT on L15 (last level of Toy Town) goes straight to the map drive into L16. No world-complete moment.
-04=AFTER: NEXT on L15 opens WORLD COMPLETE: Toy Town ribbon, trophy in gold rays, world stars counting up, a gift to tap (stars mid count-up here).
-05=AFTER: gift opened: +100 coins and one of each booster the player has by L16 (BOMB, FREEZE). Already credited; NEXT WORLD appears.
-06=AFTER: next world card: WORLD 2 / STEEL YARDS on its own map, one line on what is new there, LET'S GO.
-07=AFTER: LET'S GO hands over to the existing map drive: the toy car leaves L15 for world 2, then L16's card opens.
+01=L5 at start: a striped road block on every lane at the hazard stripe (look: one per lane, sits on the stripe, Toy Town outline)
+02=the smash: lane 1 car crossed the line into its barrier (look: explosion + ring + BARRIER DOWN! tag at the lane end, screen shake)
+03=the once-ever BARRIER DOWN card (look: centre card, text names the rule)
+04=after: lane 1 shows only the posts (stump), lanes 0 and 2 still have their beam; level still running
+05=L12 at 28% goal progress: WAVE 1! tag (look: orange tag above the road, same style as FINAL RUSH was)

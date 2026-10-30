@@ -2387,6 +2387,18 @@ async function main() {
   // CHAIN REACTION (spread.js): the explosion jumped to same-colour neighbours. Arcs and the
   // neighbours' explosions in 3D; a CHAIN tag over the last car it took. The kill sound, tokens
   // and shake already escalate with the shot's kill count (onHit), which includes these.
+  // LANE BARRIER smashed (TrafficRules.resolveBreach): the car crashed into the lane's barrier and
+  // both are gone; the next car through this lane ends the level. Big moment + the once-ever card.
+  gameLoop._onBarrierSmash = (laneIdx, car) => {
+    gameRenderer3D.onBarrierSmash(laneIdx, car?.color ?? 'Red');
+    floatingTexts.push(spawnFloatingText(
+      layers.get('particleLayer'), getLaneScreenX(laneIdx), posToScreenY(100) - 44, 'BARRIER DOWN!', 0xFF3D3D,
+    ));
+    audio.play('armor_clang');
+    haptics.heavy();
+    fireReactive('barrier_down', '');
+  };
+
   gameLoop._onSpread = (hits, laneIdx, srcPos) => {
     const pos = { [laneIdx]: srcPos };
     for (const h of hits) pos[h.lane] = h.car.position;
@@ -2661,7 +2673,7 @@ async function main() {
     // `gs.bombFreezeUntil` is deliberately NOT passed — the renderer no longer
     // reads it either. See the "DORMANT ON PURPOSE" note in GameRenderer3D's
     // isFrozen; turning that effect on is its own reviewed change.
-    gameRenderer3D.update({ lanes: gs.lanes, boosterState, isBreaching: gs.isOver && !gs.won,
+    gameRenderer3D.update({ lanes: gs.lanes, boosterState, isBreaching: gs.isOver && !gs.won, barriers: gs.barriers,
                              comboFreezeShots: gs.comboFreezeShots,
                              colorBombArmed: gs.colorBombArmed }, fxDt, gs.elapsed);
 

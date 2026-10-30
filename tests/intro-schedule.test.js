@@ -110,7 +110,10 @@ describe('in-play teaching windows', () => {
     expect(REACTIVE_WINDOW.volatile_surge).toEqual([at('volatile'), at('volatile')]);
   });
   it('each in-play window is short and starts where its mechanic starts', () => {
-    for (const [k, [a, b]] of Object.entries(REACTIVE_WINDOW)) expect(b - a, k).toBeLessThanOrEqual(3);
+    for (const [k, [a, b]] of Object.entries(REACTIVE_WINDOW)) {
+      if (k === 'barrier_down') { expect([a, b]).toEqual([1, 200]); continue; }   // the first smash is the moment, any level
+      expect(b - a, k).toBeLessThanOrEqual(3);
+    }
     expect(REACTIVE_WINDOW.streak_charged[0]).toBe(levelStartCardLevel('supercharge'));
   });
   it('play L1..L40 in order: every card key is taught at or before the level that needs it', () => {

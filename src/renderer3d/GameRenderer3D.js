@@ -348,6 +348,17 @@ export class GameRenderer3D {
   /** Set the world {x,z} the next bomb in this lane should travel FROM (release point). */
   setDropStart(laneIdx, world) { this._projectiles?.setNextStart(laneIdx, world); }
 
+  /** A lane's barrier just went (TrafficRules.resolveBreach): the car explodes on it, the beam
+   *  splinters, the camera kicks. The stump itself is drawn by Road3D.setLaneBlocks per frame. */
+  onBarrierSmash(laneIdx, color = 'Red') {
+    this._particles?.spawnExplosion(laneIdx, color, 2.2, 100);
+    this._particles?.spawnShockwave(laneIdx, color, 100);
+    this._road?.spawnBombRing(100, 0xff3d3d, laneIdx);
+    this._cameraFX?.shake(0.35, 0.5);
+    this._bloomBurst(1.6);
+    this._postFX?.setFlash(0.3, 0.05);
+  }
+
   /** Grid stepped one row — punctuate it with a light sweep across the road. */
   onAdvance() {
     this._road?.triggerAdvanceSweep();
@@ -531,6 +542,7 @@ export class GameRenderer3D {
     this._lighting.update(dt);
     this._skybox.update(dt);
     this._road.update(dt);
+    this._road.setLaneBlocks(gameState?.barriers);   // lane barriers: intact beam or stump
     this._environment?.update(dt);
     this._ambient?.update(dt);
     this._cameraFX?.update(dt);

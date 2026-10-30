@@ -35,7 +35,7 @@ import {
 import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { openingRowsForLevel, clampInitialCarsToDepth, streakEnabledFor } from '../game/LevelManager.js';
 import { spreadAcross, spreadEnabledFor } from '../game/spread.js';
-import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak, laneHeld, pushTrafficBack, rescueRowsBack, resolveBreach,
+import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak, laneHeld, pushTrafficBack, rescueRowsBack, resolveBreach, wavesFor,
          revealStagedCars, stepSize, freeSpawnRow, placeArrival } from '../director/TrafficRules.js';
 import { shotPoints, nextChain, POINTS } from '../game/score.js';
 
@@ -188,6 +188,8 @@ export class SimulationRunner {
       // the level's own rule (streakEnabledFor); generic probes (no levelId) → off.
       traits:             levelConfig.traits             ?? null,
       streak:             levelConfig.streak             ?? null,
+      // WAVES (TrafficRules.wavesFor): crests keyed on goal progress, same as the live CarDirector.
+      waves:              wavesFor({ id: levelConfig.levelId, milestone: levelConfig.milestone, waves: levelConfig.waves }),
     };
     // Stateless — one instance per runner is fine and keeps runLevel() allocation-free.
     this._combat = new CombatResolver();
@@ -221,6 +223,7 @@ export class SimulationRunner {
     const carDir     = new CarDirector({}, rng);
     if (this._cfg.levelId != null) carDir.setLevel(this._cfg.levelId);
     carDir.setSpawnScript(this._cfg.spawnScript);   // §3c INFRA-C (same impl as live game)
+    carDir.setWaves(this._cfg.waves);               // waves (same impl as live game)
     carDir.setTraits(this._cfg.traits, colors);       // V2 special cars (same impl as live game)
     carDir.setConvoy(this._cfg.convoy);               // convoy lanes (same impl as live game)
     carDir.setColorScript(this._cfg.firstColors);     // L1 colour run (same impl as live game)
@@ -731,6 +734,7 @@ export class SimulationRunner {
       levelId: cfg.id, laneCount: cfg.laneCount, colCount: cfg.colCount,
       laneTargetCarCount: cfg.laneTargetCarCount, spawnBudget: cfg.spawnBudget,
       gridRows: cfg.gridRows, stepsPerRow: cfg.stepsPerRow, goals: cfg.goals ?? [], barriers: cfg.barriers,
+      milestone: cfg.milestone, waves: cfg.waves,
       initialCars: cfg.initialCars ?? null, spawnScript: cfg.spawnScript ?? null,
       shooterColorWeights: cfg.shooterColorWeights ?? null,
       traits: cfg.traits ?? null,

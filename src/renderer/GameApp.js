@@ -78,7 +78,7 @@ import { tourSteps, stepsFor } from '../screens/guideContent.js';
 import { streakGift, winsToNextTier, addBundles } from '../game/winStreak.js';
 import { StepRuler } from './StepRuler.js';
 import { TrafficLights } from './TrafficLights.js';
-import { FINALE_FROM, finaleLaneTarget } from '../director/TrafficRules.js';
+import { waveTagAt, wavesFor } from '../director/TrafficRules.js';
 import { ModeHint } from './ModeHint.js';
 import { BoosterSpotlight }      from '../screens/BoosterSpotlight.js';
 import { TransitionOverlay }      from '../screens/TransitionOverlay.js';
@@ -522,7 +522,8 @@ async function main() {
   // ── Per-level booster tracking (for analytics) ───────────────────────────
   let boostersUsedThisLevel = [];
   let giftsThisLevel = 0;   // gift-car payouts this level (alternates FREEZE / COLOR SWAP)
-  let rushShown = false;    // FINAL RUSH announced this level
+  let levelWaves  = 0;      // waves this level plays (TrafficRules.wavesFor)
+  let lastWaveTag = null;   // the last crest announced this level
 
   // ── Per-level tutorial state ───────────────────────────────────────────────
   let firstDeployTooltipShown = false;
@@ -840,6 +841,7 @@ async function main() {
     gs.starTargets    = starTargetsFor(cfg.isDaily ? 'daily' : cfg.id, gs.goals.reduce((a, g) => a + (g.count ?? 0), 0));
     carDir.setLevel(typeof cfg.id === 'number' ? cfg.id : 1);
     carDir.setSpawnScript(cfg.spawnScript ?? null);   // §3c staged boss waves (INFRA-C)
+    carDir.setWaves(wavesFor(cfg));                    // waves: crests keyed on goal progress (same impl as the sim)
     carDir.setTraits(cfg.traits ?? null, cfg.colors);  // V2 special cars (TrafficRules)
     carDir.setConvoy(cfg.convoy ?? null);              // motorbike-only lanes
     carDir.setColorScript(cfg.firstColors ?? null);    // L1: a run of reds, then the first blue
@@ -976,7 +978,8 @@ async function main() {
 
     boostersUsedThisLevel       = [];
     giftsThisLevel              = 0;
-    rushShown                   = false;
+    levelWaves                  = wavesFor(cfg);
+    lastWaveTag                 = null;
     firstDeployTooltipShown     = false;
     firstKillDoneThisLevel      = false;
     popupQueue.clear();
@@ -2674,14 +2677,13 @@ async function main() {
     stepRuler.update(dt, gs);
     trafficLights.update(dt, gs.trafficMoves ?? 0);
 
-    // FINAL RUSH: the moment the level's last stretch gets busier (TrafficRules.finaleLaneTarget),
-    // say so once — the player should read the extra traffic as the climax, not as bad luck.
-    if (!rushShown && !gs.isOver && typeof currentLevelCfg?.id === 'number' && currentLevelCfg.id >= FINALE_FROM) {
-      const base = gs.laneTargetCarCount ?? 2;
-      const p = gameLoop._goalProgressPct();
-      if (finaleLaneTarget(base, p) > base) {
-        rushShown = true;
-        floatingTexts.push(spawnFloatingText(layers.get('particleLayer'), APP_W / 2, 215, 'FINAL RUSH!', 0xFF8A1C));
+    // WAVES: name each crest as it starts (TrafficRules.waveTagAt) — the player should read the
+    // heavier traffic as the level's shape, not as bad luck.
+    if (!gs.isOver && levelWaves > 0) {
+      const tag = waveTagAt(gameLoop._goalProgressPct(), levelWaves);
+      if (tag && tag !== lastWaveTag) {
+        lastWaveTag = tag;
+        floatingTexts.push(spawnFloatingText(layers.get('particleLayer'), APP_W / 2, 215, tag + '!', 0xFF8A1C));
         audio.play('combo_milestone', { combo: 7 });
         haptics.medium();
       }

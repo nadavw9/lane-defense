@@ -4,7 +4,7 @@
 import { PHASE_CONFIG, HP_MINIMUM } from './DirectorConfig.js';
 import { Car } from '../models/Car.js';
 import { CAR_TYPES, pickCarType, carHpFor } from './CarTypes.js';
-import { rollTrait, finaleHeft, finaleLaneTarget, FINALE_FROM } from './TrafficRules.js';
+import { rollTrait, waveHeft, waveLaneTarget } from './TrafficRules.js';
 
 export class CarDirector {
   constructor(config, rng) {
@@ -25,6 +25,10 @@ export class CarDirector {
 
   // Update the current level so pickCarType uses the right type distribution.
   setLevel(levelId) { this._level = levelId ?? 1; }
+
+  // How many waves this level plays (TrafficRules.wavesFor; 0 = flat). GameApp and the
+  // simulator both set it at level start, so both run the same crests.
+  setWaves(n) { this._waves = Number.isFinite(n) ? n : 0; }
 
   // ── spawnScript (WS3 §3c INFRA-C) — staged waves keyed on kill-progress ──────
   // script: [{ untilPct, weights?, rate? }] — first stage whose untilPct >= progress
@@ -51,15 +55,14 @@ export class CarDirector {
     return this._spawnScript[this._spawnScript.length - 1];
   }
 
-  // The final rush is on for numbered levels from FINALE_FROM (TrafficRules).
-  _finaleOn() { return typeof this._level === 'number' && this._level >= FINALE_FROM; }
+  _wavesOn() { return (this._waves ?? 0) > 0; }
 
   /** Lane fill target for the next refill: a scripted stage rate wins, else the level's own
-   *  target with the final rush on top. GameLoop and the simulator both call this. */
+   *  target with the waves on top. GameLoop and the simulator both call this. */
   laneTarget(base) {
     const scripted = this.scriptRate();
     if (scripted != null) return scripted;
-    return this._finaleOn() ? finaleLaneTarget(base, this._progress) : base;
+    return this._wavesOn() ? waveLaneTarget(base, this._progress, this._waves) : base;
   }
 
   // Per-stage lane-fill target override (L20 surge crests/lulls), or null.
@@ -176,7 +179,7 @@ export class CarDirector {
   _buildCar(color, phase, worldConfig, availableRows) {
     const type = this._pickScriptedType(availableRows)
       ?? pickCarType(this._rng, this._level, phase, availableRows,
-        this._finaleOn() ? finaleHeft(worldConfig?.heft, this._progress) : worldConfig?.heft);
+        this._wavesOn() ? waveHeft(worldConfig?.heft, this._progress, this._waves) : worldConfig?.heft);
     // Apply the level's hpMultiplier (carried on worldConfig, same value the
     // balance sim uses) so difficulty actually scales by level in live play.
     const multiplier = worldConfig?.hpMultiplier ?? 1.0;

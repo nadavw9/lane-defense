@@ -2470,7 +2470,7 @@ async function main() {
       onDeploy: (colIdx, laneIdx, release, dragged) => {
         if (colIdx >= gs.activeColCount || laneIdx >= gs.activeLaneCount) return;
         gameRenderer3D.setDropStart(laneIdx, release);   // bomb travels FROM release
-        gameLoop.deploy(colIdx, laneIdx, dragged);
+        return gameLoop.deploy(colIdx, laneIdx, dragged);   // false = refused, DragDrop snaps the bomb back
       },
       onBombPlaced: (x, y, laneIdx) => {
         // BOMB booster clears the tapped car's entire LANE — every car in it, any

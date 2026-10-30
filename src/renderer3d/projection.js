@@ -177,6 +177,10 @@ export let PX_PER_WU = zToScreenY(1) - zToScreenY(0);
 const QUEUE_CLEARANCE_MARGIN = 1.22;
 
 const BREACH_STRIPE_HALF_PX = 8;
+// Lowest screen Y that still counts as a LANE for a bomb drop: the bottom edge of the hazard
+// stripe. The front car's centre sits on PROJ_ROAD_BOTTOM_Y, so its lower half and the stripe
+// used to be a dead zone for drops (2026-10-30, owner: "the bomb is not always sent").
+export function laneDropBottomY() { return BREACH_LINE_Y + BREACH_STRIPE_HALF_PX; }
 const BREACH_MARGIN_PX      = 6;
 
 // ── Bomb queue geometry — SCALE compensates for band, POSITION stays

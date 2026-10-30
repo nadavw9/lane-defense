@@ -9,6 +9,10 @@
 // Color-match enforcement:
 //   • Dropping a shooter on a lane with a mismatched front car — or no car at
 //     all — is REJECTED (the bomb bounces back, the queue does not advance)
+//   • A legal drop anywhere in the lane counts: from the road top to the bottom of the
+//     hazard stripe (projection.laneDropBottomY). A drop while the previous shot is still
+//     in flight is PENDING: the ghost waits at the release point and fires the moment the
+//     lane is free (PENDING_MAX), or bounces if the front car changed colour meanwhile.
 //
 // Lane highlights during drag:
 //   • GREEN  — color matches the front car (valid drop)
@@ -33,7 +37,7 @@ import {
   getActiveLaneCount, getActiveColCount, screenToWorldXZ,
 } from '../renderer/PositionRegistry.js';
 import { benchY, benchSlotH } from '../renderer/BenchRenderer.js';
-import { bombSlotScreenY, PX_PER_WU, BOMB_R } from '../renderer3d/projection.js';
+import { bombSlotScreenY, PX_PER_WU, BOMB_R, laneDropBottomY } from '../renderer3d/projection.js';
 
 // Re-export color map so we can use it without a circular dep on ShooterRenderer.
 const COLOR_MAP = {
@@ -71,6 +75,8 @@ const HIGHLIGHT_ALPHA = 0.28;
 
 const FLY_DURATION  = 0.10;
 const SNAP_DURATION = 0.15;
+// A drop made while the previous shot is still in flight waits this long for the lane to free up.
+const PENDING_MAX   = 0.8;
 
 // Ghost wobble: ±3° on a ~0.2 s period
 const WOBBLE_AMP   = Math.PI / 60;   // 3 degrees
@@ -358,7 +364,7 @@ export class DragDrop {
     // A release on the ROAD is a lane drop. The queue-slot hit circles (48px) reach up
     // into the front row, so without this a drop on the front car read as "drop on my
     // own slot 0" and snapped back, or returned a bench bomb to the queue.
-    const onRoad = y >= ROAD_TOP_Y && y <= ROAD_BOTTOM_Y;
+    const onRoad = y >= ROAD_TOP_Y && y <= laneDropBottomY();
 
     // ── Top bomb only: drag top to bench ────────────────────────────────────
     if (this._dragSource === 'column' && this._dragSourceRow === 0 && this._hitTestBenchArea(x, y)) {
@@ -389,7 +395,12 @@ export class DragDrop {
         return;
       }
       if (this._deployWouldBeRefused(laneIdx)) {
-        this._snapBack();
+        // The previous shot is still in flight (a few hundred ms). The drop WAITS at the
+        // release point and fires the instant the lane is free (2026-10-30, owner: "the bomb
+        // is not always sent"); it used to snap back silently.
+        this._pending = { laneIdx, t: 0 };
+        this._state   = 'pending';
+        this._showLaneHighlight(laneIdx, HIGHLIGHT_GREEN);
         return;
       }
       this._handleLaneDrop(laneIdx);
@@ -406,6 +417,7 @@ export class DragDrop {
       this._ghost.rotation = Math.sin(this._ghostElapsed * WOBBLE_SPEED) * WOBBLE_AMP;
     }
 
+    if (this._state === 'pending') { this._updatePending(dt); return; }
     if (this._state !== 'flying' && this._state !== 'snapping') return;
 
     this._animT += dt / this._animDuration;
@@ -423,6 +435,26 @@ export class DragDrop {
   }
 
   // ── Private ────────────────────────────────────────────────────────────────
+
+  // A pending drop: fire when the lane frees up, bounce if the board changed under it, give up
+  // after PENDING_MAX. Never fires into a paused game (a modal blocks input).
+  _updatePending(dt) {
+    const p = this._pending;
+    p.t += dt;
+    if (this.inputBlocked || p.t > PENDING_MAX) { this._resolvePending('cancel'); return; }
+    if (this._deployWouldBeRefused(p.laneIdx)) return;
+    this._resolvePending(this._checkColorMatch(p.laneIdx) ? 'fire' : 'mismatch');
+  }
+
+  _resolvePending(outcome) {
+    const { laneIdx } = this._pending;
+    this._pending = null;
+    this._state   = 'dragging';   // the drop handlers below expect a live drag
+    this._clearHighlights();
+    if (outcome === 'fire') { this._handleLaneDrop(laneIdx); return; }
+    if (outcome === 'mismatch') this._onColorMismatch();
+    this._snapBack();
+  }
 
   _startDrag(source, sourceIdx, sourceRow, shooter, cx, cy, px, py) {
     this._dragSource    = source;
@@ -480,7 +512,10 @@ export class DragDrop {
     // screen position, mapped to the road plane in world space.
     const release = this._ghost ? screenToWorldXZ(this._ghost.x, this._ghost.y) : null;
     if (this._dragSource === 'column') {
-      this._onDeploy(this._dragSourceIdx, laneIdx, release, this._dragShooter);
+      if (this._onDeploy(this._dragSourceIdx, laneIdx, release, this._dragShooter) === false) {
+        this._snapBack();
+        return;
+      }
       this._shooterRenderer.draggingColumn = -1;
     } else {
       // Peek, fire, and only THEN take: taking first deleted the bomb whenever the loop
@@ -747,7 +782,9 @@ export class DragDrop {
   }
 
   _hitTestLane(x, y) {
-    if (y < ROAD_TOP_Y || y > ROAD_BOTTOM_Y) return -1;
+    // Any release in the lane is a drop: road top down to the bottom of the hazard stripe, so
+    // the front car's lower half (it sits ON ROAD_BOTTOM_Y) is live too (projection.laneDropBottomY).
+    if (y < ROAD_TOP_Y || y > laneDropBottomY()) return -1;
     // Nearest lane by the SAME 3D projection the cars render with, so a tap on a
     // car targets that car's lane on 1/2/3/4-lane levels (the old ROAD_BOTTOM_W/n
     // split drifted from the rendered lanes and mis-targeted deploys + the bomb).

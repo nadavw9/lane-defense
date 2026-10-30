@@ -179,7 +179,7 @@ export const CARRYOVER_COIN_BONUS = 5; // coins for a carry-over kill
 // Kills that earn one BOMB booster charge. Levels hold about half the cars since the one-hit
 // ladder, so this went 10 -> 6 to keep the same earn rate per level.
 export const KILLS_PER_BOMB = 10;   // 2026-10-30: 6 -> 10 (a lane clear every 6 kills flattened the early game)
-export const COINS_PER_CAR = 4;   // levels hold ~half the cars since the one-hit ladder, so a win pays the same as before
+export const COINS_PER_CAR = 2;   // 2026-10-30: levels are twice as long again (lane barriers), so a win pays the same as before
 export const RESCUE_COIN_COST = 60;   // continue after a breach, as an alternative to the ad
 
 // ─── Deploy Time Dilation ─────────────────────────────────────────────────────

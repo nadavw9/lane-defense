@@ -54,7 +54,7 @@ export const CARDS = {
   second_colour:   { title: 'A BLUE CAR!', text: 'A red bomb bounces off it. A bomb only hurts cars of its own color: drag the BLUE one!', target: 'bombs' },
   chain_reaction:  { title: 'CHAIN REACTION', text: 'A car that blows up takes same-color cars beside it with it. Set them up, then take the row!', target: 'road' },
   combo:           { title: 'COMBO!', text: 'Destroy cars quickly, one after another, for bonus coins.', target: 'goal' },
-  supercharge:     { title: 'SUPERCHARGE', text: 'Destroy a car 3 shots in a row to charge the bombs in front. Fire one: it hits twice!', target: 'bombs' },
+  supercharge:     { title: 'SUPERCHARGE', text: 'Destroy a car 5 shots in a row to charge the bombs in front. Fire one: it hits twice!', target: 'bombs' },
   goal_colour:     { title: 'A COLOR GOAL', text: 'Only cars of this color count toward the goal.', target: 'goal' },
   freeze_booster:  { title: 'NEW BOOSTER: FREEZE', text: '3 free! Tap FREEZE: your next shot moves no cars.', target: 'boosterFreeze' },
   colour_change_booster: { title: 'NEW BOOSTER: COLOR SWAP', text: '3 free! Tap COLOR, tap a car, pick a color. All cars of that color change.', target: 'boosterColor' },

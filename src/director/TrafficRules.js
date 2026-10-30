@@ -17,7 +17,7 @@
 //   phantom   — colour hidden (a dark silhouette) until it reaches PHANTOM_REVEAL_ROW.
 //               Rules are unchanged; the player must plan with what the deal shows.
 //
-// Hot Streak: destroy at least one car on 3 shots in a row and the next bomb is
+// Hot Streak: destroy at least one car on STREAK_TO_CHARGE shots in a row and the next bomb is
 // SUPERCHARGED — double damage, and its carry-over smashes through cars of ANY
 // colour (armour and the boss still stop it). A shot that hits without destroying
 // a car resets the streak.
@@ -46,7 +46,8 @@ export const TRAIT_TYPES = {
   gift:      new Set(['small', 'big', 'jeep']),
 };
 
-export const STREAK_TO_CHARGE = 3;
+// 2026-10-30 (owner: the supercharge came too often, a 1-hit motorbike counts as a kill): 3 -> 5.
+export const STREAK_TO_CHARGE = 5;
 
 // ── Half-row steps ───────────────────────────────────────────────────────────
 // A car is one ROW long. Every correct shot advances traffic ONE STEP, and a step
@@ -260,7 +261,7 @@ export function applyTrait(car, trait, rng, palette) {
  */
 export function nextStreak(streak, charged, kills, usedCharge) {
   if (usedCharge) charged = false;
-  // Three shots IN A ROW that each destroy a car charge the next bomb. A shot that
+  // STREAK_TO_CHARGE shots IN A ROW that each destroy a car charge the next bomb. A shot that
   // destroys nothing (wrong colour, or a hit that only shrinks a car) breaks the run.
   // A multi-kill shot still counts as ONE step.
   if (kills > 0) {

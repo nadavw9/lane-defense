@@ -1,6 +1,6 @@
 // Level auto-tuner — finds the `heft` (spawn-mix weight, 0 = lightest car types,
 // 1 = heaviest; see CarTypes.heftWeights) that puts each level at the centre of
-// its win-rate band (tools/balance-sim.js bands, skill=average), and when even
+// its win-rate band (tools/bands.mjs, skill=human), and when even
 // the lightest mix is too hard, the goal scale that fixes it. Car HP per TYPE is
 // fixed on every level — only the mix moves.
 //
@@ -29,7 +29,7 @@ function winRate(cfg, heft, traitScale = 1, goalScale = 1) {
   const traits = scaleTraits(baseTraitsOf(cfg), traitScale);
   const c = { ...cfg, worldConfig: { ...cfg.worldConfig, heft }, ...(traits ? { traits } : {}),
     goals: goalsAt(cfg, goalScale) };
-  const r = SimulationRunner.fromLevel(c, { skill: 'average' });
+  const r = SimulationRunner.fromLevel(c, { skill: 'human' });   // the tuning reference (bands.mjs)
   let w = 0;
   for (let s = 1; s <= RUNS; s++) if (r.runLevel(s).won) w++;
   return (w / RUNS) * 100;
@@ -40,7 +40,9 @@ const HEFT_HI = 1;
 // the old goals are ~2x too long). Per level: keep the authored heft, bisect the goal
 // scale to the band centre; a level whose goals are unscalable (trait-only) bisects
 // heft instead. Floor of 6 cars so a level never collapses into a handful of kills.
-const GS_LO = 0.4, GS_HI = 1, GS_ANCHOR = 0.6;
+// 2026-10-30 (lane barriers): the authored goal is the anchor and a level that is too easy gets
+// LONGER first (goal scale up to 2.5) and heavier second. Floor 0.5.
+const GS_LO = 0.5, GS_HI = 2.5, GS_ANCHOR = 1;
 const goalsAt = (cfg, k) => (cfg.baseGoals ?? cfg.goals).map(g => scaleGoal(g, k));
 const bisect = (lo0, hi0, f, target) => {            // f falls as x rises; find x with f(x) ~ target
   let a = lo0, b = hi0;

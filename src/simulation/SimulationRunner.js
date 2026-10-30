@@ -108,6 +108,9 @@ const SKILL_PROFILES = {
   beginner: { accuracy: 0.60, useCycle: false, cycleDelay: 0,    boosterIQ: 0.30 },
   average:  { accuracy: 0.82, useCycle: true,  cycleDelay: 3.0,  boosterIQ: 0.70 },
   skilled:  { accuracy: 0.93, useCycle: true,  cycleDelay: 0.75, boosterIQ: 0.95 },
+  // human (2026-10-30, owner): the real player. A mismatched drop bounces back (no wasted
+  // bomb, no reroll), there is no column cycling, and boosters are used when they matter.
+  human:    { accuracy: 1.00, useCycle: false, cycleDelay: 0,    boosterIQ: 0.90 },
 };
 
 // Wraps FairnessArbiter to count the fraction of checks that required a fix.

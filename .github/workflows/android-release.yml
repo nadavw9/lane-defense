@@ -107,3 +107,4 @@ jobs:
           tracks: ${{ github.event.inputs.track }}
           status: ${{ github.event.inputs.status }}
           releaseName: 1.1.${{ github.run_number }} ${{ github.ref_name }}   # Play caps names at 50 chars
+          whatsNewDirectory: play/whatsnew   # whatsnew-en-US / whatsnew-iw-IL; fix later with play-release-notes.yml

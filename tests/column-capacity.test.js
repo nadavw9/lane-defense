@@ -48,6 +48,4 @@ describe('column capacity agrees with every consumer', () => {
     expect(code, 'a hardcoded capacity-4 tolerance is back')
       .not.toMatch(/shooters\.length\s*>\s*4/);
   });
-
-});
 });

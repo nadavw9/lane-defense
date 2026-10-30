@@ -133,8 +133,6 @@ describe('SimulationRunner — runBatch output shape', () => {
     const stats  = runner.runBatch(20, 1);
     expect(stats.rescueWinRate).toBeGreaterThanOrEqual(stats.winRate);
   });
-
-});
 });
 
 // ─── Director tuning targets (50-level sample) ────────────────────────────────

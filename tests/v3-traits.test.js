@@ -215,6 +215,7 @@ describe('GameLoop V3 wiring', () => {
     const { gs, lanes, loop } = buildLoop();
     put(loop, lanes[0], { color: 'Red', row: 3, hp: 1, trait: 'volatile' });
     put(loop, lanes[1], { color: 'Blue', row: 6, hp: 99 });   // MAX_ROW is 7: +1 advance +1 surge = 8
+    gs.barriers.fill(false);   // barriers off: this contract is about the breach itself (tests/barriers.test.js covers the barrier)
     loop._resolveShot(new Shooter({ color: 'Red', damage: 4, column: 0 }), 0);
     expect(gs.isOver).toBe(true);
     expect(gs.didWin).not.toBe(true);

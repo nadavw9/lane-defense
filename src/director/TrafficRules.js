@@ -97,6 +97,21 @@ export function pushTrafficBack(cars, rowsBack) {
   return keep;
 }
 
+// ── Lane barriers ────────────────────────────────────────────────────────────
+// Every lane starts a level with ONE barrier at the breach line (2026-10-30, spec
+// docs/superpowers/specs/2026-10-30-lane-barriers-design.md). The first car through a lane
+// crashes into it: car and barrier are both destroyed and NOTHING is credited (no goal, coins,
+// score or streak). The next car through that lane is the loss. A CONTINUE restores no barrier.
+// `cars` is one lane (any order); `maxRow` is the last row a car may stand on. Returns the car
+// that crashed (null if none) and the cars that breached (a loss when non-empty). Shared by
+// GameLoop._advanceGrid and the simulator so both play the same rule.
+export function resolveBreach(cars, maxRow, hasBarrier) {
+  const over = cars.filter(c => c.row > maxRow).sort((a, b) => b.row - a.row);
+  if (over.length === 0) return { crashed: null, breached: [] };
+  if (hasBarrier) return { crashed: over[0], breached: over.slice(1) };
+  return { crashed: null, breached: over };
+}
+
 // ── Traffic lights ───────────────────────────────────────────────────────────
 // A level may put a light over a lane: { lane, green, red, phase }. The light runs on TRAFFIC
 // MOVES (a shot that moves traffic; a frozen shot is not a move): `green` moves where the lane

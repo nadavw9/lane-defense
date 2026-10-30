@@ -12,7 +12,7 @@ export class GameState {
   // The renderers always see all 4; inactive ones just have no cars/shooters.
   constructor({ lanes, columns, colors, world, duration, phaseMan,
                 laneCount, colCount, targetKills, gridRows,
-                spawnBudget, laneTargetCarCount, levelId, goals }) {
+                spawnBudget, laneTargetCarCount, levelId, goals, barriers = true }) {
     // ── Core collections ───────────────────────────────────────────────────
     this.lanes   = lanes;
     this.columns = columns;
@@ -43,6 +43,12 @@ export class GameState {
     this.initialCars        = null;
     this.openingRows        = [0, 1, 2]; // opening cars per lane, rows from top (set per level)
     this.lights             = null;      // traffic lights [{ lane, green, red, phase }] (set per level)
+    // LANE BARRIERS (TrafficRules.resolveBreach): one per lane, true while it stands. The first car
+    // through a lane takes the barrier with it; the next one is the loss. `barriers: false` (sim
+    // probes only) plays without them.
+    this.barriersEnabled    = barriers !== false;
+    this.barriers           = lanes.map(() => this.barriersEnabled);
+    this.barriersLost       = 0;
     this.convoy             = null;      // lanes that only spawn motorbikes (set per level)
     this.trafficMoves       = 0;         // traffic moves so far — the lights run on these
     this.giftsPending       = 0;         // gift cars destroyed, not yet rewarded (GameApp drains)
@@ -239,6 +245,8 @@ export class GameState {
     this.turnCount        = 0;
     this.trafficMoves     = 0;
     this.giftsPending     = 0;
+    this.barriers.fill(this.barriersEnabled);
+    this.barriersLost     = 0;
     this.spawnBudget      = this._initialSpawnBudget;
     this.rescueUsed    = false;
     this.isOver        = false;

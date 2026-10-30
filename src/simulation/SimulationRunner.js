@@ -35,7 +35,7 @@ import {
 import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { openingRowsForLevel, clampInitialCarsToDepth, streakEnabledFor } from '../game/LevelManager.js';
 import { spreadAcross, spreadEnabledFor } from '../game/spread.js';
-import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak, laneHeld, pushTrafficBack, rescueRowsBack,
+import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak, laneHeld, pushTrafficBack, rescueRowsBack, resolveBreach,
          revealStagedCars, stepSize, freeSpawnRow, placeArrival } from '../director/TrafficRules.js';
 import { shotPoints, nextChain, POINTS } from '../game/score.js';
 
@@ -178,6 +178,8 @@ export class SimulationRunner {
       // CONTINUES the simulated player takes after a breach (0 = the first breach ends the run).
       // Each one is the live CONTINUE: breaching cars leave, traffic is pushed back.
       continues:          levelConfig.continues          ?? 0,
+      // LANE BARRIERS (TrafficRules.resolveBreach): one free breach per lane. false = probes only.
+      barriers:           levelConfig.barriers           ?? true,
       convoy:             levelConfig.convoy             ?? null,   // motorbike-only lanes
       firstColors:        levelConfig.firstColors        ?? null,   // L1 scripted opening colours (CarDirector.setColorScript)
       spawnScript:        levelConfig.spawnScript        ?? null,   // INFRA-C staged waves
@@ -250,6 +252,8 @@ export class SimulationRunner {
       cars: [],  // Array of { row: number, hp: number, type: string, color: string }
     }));
     const laneViews = discreteLanes.map(laneView);   // resolver-shaped lanes for spreadAcross
+    const barriers  = discreteLanes.map(() => this._cfg.barriers !== false);   // parity: GameState.barriers
+    let   barriersLost = 0;
     // With infinite spawn, we no longer track budget depletion for win. Instead,
     // win comes from goal completion (if goals exist) or legacy targetKills (if no goals).
     // The old budget is kept for opening spawns (prime initial cars) but not as a limit.
@@ -425,10 +429,13 @@ export class SimulationRunner {
         surgeOtherLanes(discreteLanes.map(l => l.cars), surgeFrom, STEP);
         surgeFrom = null;
       }
-      if (discreteLanes.some(l => l.cars.length > 0 && l.cars[0].row > BREACH_ROW - 1)) {
-        lostAt = totalAdvances;   // marker (shot index), not a wall-clock time
-        return;
+      // Barriers, then breach — the same TrafficRules.resolveBreach the live GameLoop runs.
+      for (const lane of discreteLanes) {
+        const { crashed, breached } = resolveBreach(lane.cars, BREACH_ROW - 1, barriers[lane.id]);
+        if (crashed) { lane.cars.splice(lane.cars.indexOf(crashed), 1); barriers[lane.id] = false; barriersLost++; }
+        if (breached.length > 0) lostAt = totalAdvances;   // marker (shot index), not a wall-clock time
       }
+      if (lostAt !== null) return;
       _refillLanes(phase);
     };
 
@@ -712,6 +719,7 @@ export class SimulationRunner {
       armorBreaks,
       continuesUsed,
       progressAtLoss,
+      barriersLost,
     };
   }
 
@@ -722,7 +730,7 @@ export class SimulationRunner {
       duration: cfg.duration, colors: cfg.colors, worldConfig: cfg.worldConfig,
       levelId: cfg.id, laneCount: cfg.laneCount, colCount: cfg.colCount,
       laneTargetCarCount: cfg.laneTargetCarCount, spawnBudget: cfg.spawnBudget,
-      gridRows: cfg.gridRows, stepsPerRow: cfg.stepsPerRow, goals: cfg.goals ?? [],
+      gridRows: cfg.gridRows, stepsPerRow: cfg.stepsPerRow, goals: cfg.goals ?? [], barriers: cfg.barriers,
       initialCars: cfg.initialCars ?? null, spawnScript: cfg.spawnScript ?? null,
       shooterColorWeights: cfg.shooterColorWeights ?? null,
       traits: cfg.traits ?? null,

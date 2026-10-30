@@ -10,7 +10,7 @@ import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { Shooter } from '../models/Shooter.js';
 import { shotPoints, nextChain, POINTS } from './score.js';
 import { spreadAcross } from './spread.js';
-import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak, STREAK_TO_CHARGE, laneHeld,
+import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak, STREAK_TO_CHARGE, laneHeld, resolveBreach,
          revealStagedCars, stepSize, freeSpawnRow, placeArrival } from '../director/TrafficRules.js';
 
 const MULTI_KILLS_PER_BOMB = 3;    // multi-kills (2+ cars/shot) banked to earn a color bomb
@@ -67,6 +67,7 @@ export class GameLoop {
     this._onMultiKill       = null;  // set by GameApp; (count, needed) → "MULTI-KILL n/3" notification
     this._onNearMiss        = null;  // set by GameApp; () → near-miss drama (slow-mo + heartbeat + red pulse)
     this._onSpread          = null;  // set by GameApp; (hits, laneIdx, srcPos) → CHAIN REACTION arcs + neighbour explosions (spread.js)
+    this._onBarrierSmash    = null;  // set by GameApp; (laneIdx, car) → the lane's barrier is gone (TrafficRules.resolveBreach)
 
     // Base level duration — used to reset gs.duration on restart.
     this._baseDuration = gameState.duration;
@@ -614,14 +615,23 @@ export class GameLoop {
     // and never reach here, so no beat fires when nothing moved.
     this._onAdvance?.();
 
-    // 2. Check breach — any car that moved past the last row is a loss.
+    // 2. Breach check. Each lane has ONE barrier (TrafficRules.resolveBreach, the simulator runs
+    //    the same rule): the first car past the last row crashes into it — car and barrier gone,
+    //    nothing credited — and the level goes on; the next car through that lane is the loss.
     for (let li = 0; li < gs.activeLaneCount; li++) {
-      const breached = gs.lanes[li].cars.filter(c => c.row > MAX_ROW);
+      const lane = gs.lanes[li];
+      const { crashed, breached } = resolveBreach(lane.cars, MAX_ROW, gs.barriers[li]);
+      if (crashed) {
+        const idx = lane.cars.indexOf(crashed);
+        if (idx >= 0) lane.cars.splice(idx, 1);
+        gs.barriers[li] = false;
+        gs.barriersLost++;
+        this._onBarrierSmash?.(li, crashed);
+      }
       if (breached.length > 0) {
-        // Remove breaching cars and end the game.
         for (const car of breached) {
-          const idx = gs.lanes[li].cars.indexOf(car);
-          if (idx >= 0) gs.lanes[li].cars.splice(idx, 1);
+          const idx = lane.cars.indexOf(car);
+          if (idx >= 0) lane.cars.splice(idx, 1);
         }
         gs.endGame(false);
         this._onEnd(false, li);

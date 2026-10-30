@@ -2,6 +2,7 @@
 // unlocks all 40 levels and plays them in order must be taught every mechanic by the level
 // that introduces it, and nothing may first-appear late.
 import { describe, it, expect } from 'vitest';
+import { WAVES_FROM } from '../src/director/TrafficRules.js';
 import { readFileSync } from 'node:fs';
 import { LEVEL_START_CARDS, REACTIVE_WINDOW, levelStartCards, reactiveAllowed } from '../src/screens/introSchedule.js';
 import { CARDS, stepsFor } from '../src/screens/guideContent.js';
@@ -110,7 +111,11 @@ describe('in-play teaching windows', () => {
     expect(REACTIVE_WINDOW.volatile_surge).toEqual([at('volatile'), at('volatile')]);
   });
   it('each in-play window is short and starts where its mechanic starts', () => {
-    for (const [k, [a, b]] of Object.entries(REACTIVE_WINDOW)) expect(b - a, k).toBeLessThanOrEqual(3);
+    for (const [k, [a, b]] of Object.entries(REACTIVE_WINDOW)) {
+      if (k === 'barrier_down') { expect([a, b]).toEqual([1, 200]); continue; }   // the first smash is the moment, any level
+      if (k === 'wave_incoming') { expect([a, b]).toEqual([WAVES_FROM, WAVES_FROM]); continue; }
+      expect(b - a, k).toBeLessThanOrEqual(3);
+    }
     expect(REACTIVE_WINDOW.streak_charged[0]).toBe(levelStartCardLevel('supercharge'));
   });
   it('play L1..L40 in order: every card key is taught at or before the level that needs it', () => {

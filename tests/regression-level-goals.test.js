@@ -126,6 +126,7 @@ describe('regression: no premature breach', () => {
     const car = new Car({ color: 'Red', hp: 100000, speed: 5 });
     car.row = 0; car.position = loop._rowToPosition(0, GRID);
     lanes[0].addCar(car);
+    gs.barriers.fill(false);   // barriers off: this contract is about the breach itself (tests/barriers.test.js covers the barrier)
 
     // gridRows-1 = 10 non-killing correct shots: car advances but never breaches.
     for (let i = 0; i < GRID - 1; i++) {

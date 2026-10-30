@@ -16,9 +16,12 @@ export const goalTrait = (trait, count) => ({ type: 'destroyTrait', trait, count
 
 /** Goal count x tuning scale. A whole-level 'destroy N cars' goal never drops under 6,
  *  a colour / type / trait side-goal never under 2, so a scaled level keeps its idea. */
+// A goal at scale k (the tuner's lever). Floors keep a level from collapsing into a handful of
+// kills; there is no ceiling — a level that is too easy at the authored count gets longer
+// (2026-10-30, lane barriers; it used to cap at the authored count).
 export function scaleGoal(g, k) {
   const floor = g.type === 'destroyTotal' ? 6 : 2;
-  return { ...g, count: Math.min(g.count, Math.max(floor, Math.round(g.count * k))) };
+  return { ...g, count: Math.max(floor, Math.round(g.count * k)) };
 }
 
 export const COLOR = { R: 'Red', B: 'Blue', G: 'Green', Y: 'Yellow', P: 'Purple', O: 'Orange' };

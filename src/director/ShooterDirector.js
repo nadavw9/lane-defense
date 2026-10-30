@@ -1,7 +1,6 @@
 // ShooterDirector — generates shooters for the 4 columns.
 // Handles demand-matching (bias toward front-car colors), damage weighting by
-// phase difficulty, depth-bait patterns, and the CRISIS assist system.
-import { CRISIS } from './DirectorConfig.js';
+// phase difficulty and depth-bait patterns.
 import { Shooter } from '../models/Shooter.js';
 
 // Shots before an active lane color must be force-inserted into the queue.
@@ -12,10 +11,6 @@ export class ShooterDirector {
     this._config  = config;
     this._rng     = rng;
     this._arbiter = fairnessArbiter;
-
-    // CRISIS assist state
-    this._lastCrisisTime = -Infinity;
-    this._deployLog      = []; // timestamps of recent player deploys
 
     // Color availability window — guarantees every active lane color appears
     // within every COLOR_WINDOW-shot rolling window.
@@ -64,57 +59,6 @@ export class ShooterDirector {
     this._colorLastSeen[shooter.color] = this._shotCount;
 
     return shooter;
-  }
-
-  // Record a player shooter deploy so CRISIS eligibility can be evaluated.
-  // Call this every time the player drags a shooter into a lane.
-  recordDeploy(time) {
-    this._deployLog.push(time);
-    // Keep only entries within the eligibility window
-    this._deployLog = this._deployLog.filter(
-      t => time - t <= CRISIS.deployWindowSeconds
-    );
-  }
-
-  // Attempt to trigger a CRISIS assist.
-  // All four conditions must be satisfied:
-  //   1. 15 s cooldown has expired
-  //   2. Current phase is eligible (PRESSURE / CLIMAX / RELIEF), if phase provided
-  //   3. Player deployed ≥ 2 shooters in the last 10 s
-  //   4. At least one car is past 70% of the lane
-  // Even when all conditions are met, only fires with 70% probability.
-  //
-  // Returns { shooter, lane } on success, or null.
-  // gameState may include `phase` (string) and must include `elapsedTime` (number).
-  triggerCrisis(gameState) {
-    const now = gameState.elapsedTime ?? 0;
-
-    // 1. Cooldown
-    if (now - this._lastCrisisTime < CRISIS.cooldown) return null;
-
-    // 2. Phase eligibility (permissive if phase not provided)
-    if (gameState.phase && !CRISIS.eligiblePhases.includes(gameState.phase)) return null;
-
-    // 3. Player activity
-    const windowStart  = now - CRISIS.deployWindowSeconds;
-    const recentCount  = this._deployLog.filter(t => t >= windowStart).length;
-    if (recentCount < CRISIS.requiredDeploysWindow) return null;
-
-    // 4. Dangerous car
-    const dangerLane = this._mostDangerousLane(gameState);
-    if (!dangerLane) return null;
-
-    // 5. Probability gate (70%)
-    if (this._rng.next() >= CRISIS.probability) return null;
-
-    // Generate guaranteed-match shooter
-    const frontCar = dangerLane.frontCar();
-    const shooter  = new Shooter({ color: frontCar.color, column: 0 });
-
-    this._lastCrisisTime = now;
-    this._arbiter.checkShooter(shooter, gameState);
-
-    return { shooter, lane: dangerLane };
   }
 
   // Fill every column that needsRefill() up to COLUMN_DEPTH.
@@ -189,22 +133,5 @@ export class ShooterDirector {
     const frontCars = gameState.lanes.map(l => l.frontCar()).filter(Boolean);
     if (frontCars.length === 0) return null;
     return this._rng.pick(frontCars.map(c => c.color));
-  }
-
-  // Return the lane whose most-advanced car is furthest down the track
-  // and past the CRISIS trigger threshold (≥70%).
-  _mostDangerousLane(gameState) {
-    let best    = null;
-    let bestRatio = CRISIS.triggerDistanceRatio; // minimum to qualify
-    for (const lane of gameState.lanes) {
-      const car = lane.frontCar();
-      if (!car) continue;
-      const ratio = car.distanceRatio();
-      if (ratio >= bestRatio) {
-        bestRatio = ratio;
-        best      = lane;
-      }
-    }
-    return best;
   }
 }

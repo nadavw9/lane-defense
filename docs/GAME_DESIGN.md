@@ -19,6 +19,15 @@
 > The difficulty MODEL, design pillars, and per-level design *intent* below are still the
 > reference — it is the specific numbers that go stale.
 
+## Lane barriers, waves, honest difficulty (2026-10-30)
+
+Full design: `docs/superpowers/specs/2026-10-30-lane-barriers-design.md`. In short: every lane has
+one barrier at the breach line (the first car through smashes it, the second is the loss); levels
+from L10 run as two waves plus a final wave (three on big waves); the supercharge needs 5 kills in a
+row and the BOMB booster 10 kills; the invisible CRISIS assist is gone; the simulator's `human`
+profile (no mis-drops, no column cycling) is the tuning reference and `tools/bands.mjs` carries the
+owner's bands. The pillar "EVERY SHOT HAS STAKES" now has a visible stake: a barrier.
+
 ## Current Implementation Snapshot (2026-08-31)
 
 The executable source is authoritative for values. `LevelManager.js` currently ships 40

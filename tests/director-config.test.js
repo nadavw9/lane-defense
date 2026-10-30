@@ -18,7 +18,6 @@ import {
   LANE_PERSONALITIES,
   COLUMN_COUNT,
   COLUMN_DEPTH,
-  CRISIS,
   SDR_LEVELS,
   FREEZE_THRESHOLD,
   COMBO_WINDOW,
@@ -357,37 +356,6 @@ describe('Lane personalities', () => {
   })
 })
 
-// ─── CRISIS Assist ────────────────────────────────────────────────────────────
-
-describe('CRISIS assist', () => {
-  it('activation probability is 70%', () => {
-    expect(CRISIS.probability).toBe(0.70)
-  })
-  it('cooldown is 15 seconds', () => {
-    expect(CRISIS.cooldown).toBe(15)
-  })
-  it('SDR level 3 cooldown is 10 seconds', () => {
-    expect(CRISIS.cooldownSdrLevel3).toBe(10)
-  })
-  it('triggers when car is at ≥70% distance', () => {
-    expect(CRISIS.triggerDistanceRatio).toBe(0.70)
-  })
-  it('requires 2+ deploys within 10 seconds', () => {
-    expect(CRISIS.requiredDeploysWindow).toBe(2)
-    expect(CRISIS.deployWindowSeconds).toBe(10)
-  })
-  it('eligible in PRESSURE, CLIMAX, RELIEF phases', () => {
-    expect(CRISIS.eligiblePhases).toContain('PRESSURE')
-    expect(CRISIS.eligiblePhases).toContain('CLIMAX')
-    expect(CRISIS.eligiblePhases).toContain('RELIEF')
-    expect(CRISIS.eligiblePhases).not.toContain('CALM')
-    expect(CRISIS.eligiblePhases).not.toContain('BUILD')
-  })
-  it('minimum damage on assist is 5', () => {
-    expect(CRISIS.minimumDamageOnAssist).toBe(5)
-  })
-})
-
 // ─── SDR Levels ───────────────────────────────────────────────────────────────
 
 describe('Silent Difficulty Reduction', () => {
@@ -411,9 +379,6 @@ describe('Silent Difficulty Reduction', () => {
     })
   }
 
-  it('SDR level 3 overrides CRISIS cooldown to 10s', () => {
-    expect(SDR_LEVELS[2].crisisCooldownOverride).toBe(10)
-  })
 })
 
 // ─── Combo System ─────────────────────────────────────────────────────────────
@@ -560,10 +525,6 @@ describe('Simulation targets', () => {
   it('carry-over rate: 15–25%', () => {
     expect(SIMULATION_TARGETS.carryoverRate.min).toBe(0.15)
     expect(SIMULATION_TARGETS.carryoverRate.max).toBe(0.25)
-  })
-  it('CRISIS triggers 1–3 times per level', () => {
-    expect(SIMULATION_TARGETS.crisisPerLevel.min).toBe(1)
-    expect(SIMULATION_TARGETS.crisisPerLevel.max).toBe(3)
   })
   it('average combo length: 3–5 kills', () => {
     expect(SIMULATION_TARGETS.avgComboLength.min).toBe(3)

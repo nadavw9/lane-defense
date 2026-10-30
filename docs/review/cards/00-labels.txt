@@ -1,0 +1,6 @@
+01=LANE BARRIER card, phase 1: a car drives down the lane toward the striped block (look: lane, posts, red/white beam, hazard stripe)
+02=phase 2: BOOM, the beam splits and BARRIER DOWN! (look: beam halves rotate away, only posts remain)
+03=phase 3: a second car drives through the gap, the lane flashes red, LEVEL LOST (look: the consequence is on screen)
+04=WAVES card: the traffic curve of a level (CALM, WAVE 1, LULL, WAVE 2, FINAL), cars packed on the crests, marker riding it
+05=WAVES card: the marker on a crest shows the crest name (WAVE 2 / FINAL WAVE)
+06=WAVES card: a later frame of the loop

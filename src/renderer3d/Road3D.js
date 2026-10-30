@@ -383,6 +383,7 @@ export class Road3D {
       this._buildBackdrop();
       this._dividers = [];
       this._buildBreachLine();
+      this._buildLaneBlocks();
       return;
     }
     this._buildZoneFloor();
@@ -395,6 +396,7 @@ export class Road3D {
     this._buildSpeedLines();
     this._buildTerminus();
     this._buildBreachLine();
+    this._buildLaneBlocks();
   }
 
   _clearGeometry() {
@@ -749,6 +751,83 @@ export class Road3D {
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.set(0, 0.02, ROAD_Z_NEAR);
     this._group.add(mesh);
+  }
+
+  // ── Lane barriers (2026-10-30, TrafficRules.resolveBreach) ───────────────────
+  // One toy road block per active lane, standing on the hazard stripe: a red/white striped
+  // beam on two posts, Toy Town ink outline. A smashed lane keeps its posts (a stump) so the
+  // missing barrier reads at a glance. Driven per frame by setLaneBlocks(gs.barriers).
+  _buildLaneBlocks() {
+    this._laneBlocks = [];
+    const n = this._laneCount;
+    const W = CELL * 0.84, H = 0.9;
+    for (let i = 0; i < n; i++) {
+      const mat  = new THREE.MeshBasicMaterial({ map: this._laneBlockTexture(true), transparent: true, depthWrite: false });
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(W, H), mat);
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.set(laneToX(i, n), 0.03, ROAD_Z_NEAR - 0.55);
+      this._group.add(mesh);
+      this._laneBlocks.push({ mesh, mat, intact: true });
+    }
+  }
+
+  /** flags[i] === false: lane i's barrier is gone (stump). Cheap per-frame sync. */
+  setLaneBlocks(flags) {
+    if (!flags || !this._laneBlocks) return;
+    for (let i = 0; i < this._laneBlocks.length; i++) {
+      const b = this._laneBlocks[i];
+      const intact = flags[i] !== false;
+      if (b.intact === intact) continue;
+      b.intact = intact;
+      b.mat.map = this._laneBlockTexture(intact);
+      b.mat.needsUpdate = true;
+    }
+  }
+
+  _laneBlockTexture(intact) {
+    const key = intact ? 'intact' : 'broken';
+    this._laneBlockTex ??= {};
+    const cached = this._laneBlockTex[key];
+    if (cached && cached.image) return cached;
+    const cw = 168, ch = 45;   // plane aspect CELL*0.84 : 0.9
+    const cv = document.createElement('canvas');
+    cv.width = cw; cv.height = ch;
+    const ctx = cv.getContext('2d');
+    const INK = '#1B1B1B';
+    const post = (x) => {
+      ctx.fillStyle = '#4A4A52'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.roundRect(x, 3, 12, ch - 6, 4); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#8A8A96'; ctx.beginPath(); ctx.roundRect(x + 3, 6, 4, ch - 14, 2); ctx.fill();
+    };
+    post(5); post(cw - 17);
+    if (intact) {
+      const bx = 11, by = 11, bw = cw - 22, bh = 23;
+      ctx.save();
+      ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, 6); ctx.clip();
+      ctx.fillStyle = '#FFFFFF'; ctx.fillRect(bx, by, bw, bh);
+      ctx.fillStyle = '#FF3D3D';
+      for (let x = bx - bh; x < bx + bw + bh; x += 36) {
+        ctx.beginPath(); ctx.moveTo(x, by); ctx.lineTo(x + 18, by); ctx.lineTo(x + 18 - bh, by + bh); ctx.lineTo(x - bh, by + bh); ctx.closePath(); ctx.fill();
+      }
+      ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.fillRect(bx, by, bw, 4);   // gloss lip
+      ctx.restore();
+      ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, 6); ctx.stroke();
+    } else {
+      // A few splinters where the beam was.
+      const bits = [[40, 24, 14, 5, -0.4], [76, 30, 10, 5, 0.6], [112, 22, 16, 5, 0.2], [60, 14, 8, 4, 1.1]];
+      for (const [x, y, w, h, r] of bits) {
+        ctx.save(); ctx.translate(x, y); ctx.rotate(r);
+        ctx.fillStyle = (w > 12) ? '#FF3D3D' : '#FFFFFF'; ctx.strokeStyle = INK; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.roundRect(-w / 2, -h / 2, w, h, 1.5); ctx.fill(); ctx.stroke();
+        ctx.restore();
+      }
+    }
+    const tex = new THREE.CanvasTexture(cv);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.minFilter = THREE.LinearFilter;
+    this._laneBlockTex[key] = tex;
+    return tex;
   }
 
   // Single painted construction-tape stripe: diagonal yellow/black bands drawn

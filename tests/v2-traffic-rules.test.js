@@ -2,7 +2,7 @@
 // the pure rules, the shared CombatResolver, and the live GameLoop wiring.
 import { describe, it, expect, vi } from 'vitest';
 import {
-  canTarget, advanceLaneCars, flipChameleons, nextStreak, rollTrait,
+  canTarget, advanceLaneCars, flipChameleons, nextStreak, rollTrait, STREAK_TO_CHARGE,
   TRAIT_TYPES,
 } from '../src/director/TrafficRules.js';
 import { CombatResolver }  from '../src/game/CombatResolver.js';
@@ -67,12 +67,15 @@ describe('Hot Streak supercharged shot', () => {
     expect(combat.resolve({ color: 'Red', damage: 1 }, same(), { power: true }).kills).toBe(2);
   });
 
-  it('streak charges after 3 destroying shots IN A ROW; a shot that destroys nothing breaks the run', () => {
+  it('streak charges after 5 destroying shots IN A ROW; a shot that destroys nothing breaks the run', () => {
     let s = { streak: 0, charged: false };
     s = nextStreak(s.streak, s.charged, 1, false); expect(s).toEqual({ streak: 1, charged: false });
     s = nextStreak(s.streak, s.charged, 2, false); expect(s).toEqual({ streak: 2, charged: false });   // a multi-kill is ONE step
     s = nextStreak(s.streak, s.charged, 0, false); expect(s).toEqual({ streak: 0, charged: false });   // shrink-only hit resets
+    // 2026-10-30 (owner: the supercharge came too often): FIVE destroying shots in a row.
     s = nextStreak(s.streak, s.charged, 1, false); s = nextStreak(s.streak, s.charged, 1, false);
+    s = nextStreak(s.streak, s.charged, 1, false); expect(s).toEqual({ streak: 3, charged: false });
+    s = nextStreak(s.streak, s.charged, 1, false); expect(s).toEqual({ streak: 4, charged: false });
     s = nextStreak(s.streak, s.charged, 1, false); expect(s).toEqual({ streak: 0, charged: true });
     s = nextStreak(s.streak, s.charged, 0, true);  expect(s).toEqual({ streak: 0, charged: false });   // the charge is spent by one shot
   });
@@ -150,14 +153,14 @@ describe('GameLoop V2 wiring', () => {
   const chargeUp = (gs, lanes, loop) => {
     gs.streakEnabled = true;
     for (let c = 0; c < 3; c++) gs.columns[c].shooters = [new Shooter({ color: 'Red', column: c }), new Shooter({ color: 'Red', column: c })];
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < STREAK_TO_CHARGE; i++) {
       put(loop, lanes[0], { color: 'Red', row: 6, hp: 1 });
       loop._resolveShot(new Shooter({ color: 'Red', damage: 2, column: 0 }), 0);
       lanes[0].cars.length = 0; lanes[1].cars.length = 0; lanes[2].cars.length = 0;
     }
   };
 
-  it('three kill shots charge the front row; a charged bomb doubles damage and spends the charge', () => {
+  it('STREAK_TO_CHARGE kill shots charge the front row; a charged bomb doubles damage and spends the charge', () => {
     const { gs, lanes, loop } = buildLoop();
     chargeUp(gs, lanes, loop);
     expect(gs.streakCharged).toBe(true);

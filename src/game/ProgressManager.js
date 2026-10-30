@@ -73,7 +73,6 @@ function defaults() {
     lastSessionMs:       null, // ms timestamp of last app open (for offline reward)
     weeklyClaimedLevels: {},   // { weekKey: [levelId, ...] }
     // v1.3 additions
-    crisisAssistsReceived:    0,  // times CRISIS assist fired (for achievement)
     totalCoinsSpent:          0,  // coins spent in shop (Big Spender achievement)
     totalDailyChallengesDone: 0,  // completed daily challenges (Daily Challenger achievement)
     // v1.4 onboarding — one-time lifetime tutorial hints (see OnboardingHints.js)
@@ -589,14 +588,8 @@ export class ProgressManager {
 
   // ── v1.3 counters ─────────────────────────────────────────────────────────
 
-  get crisisAssistsReceived()    { return this._data.crisisAssistsReceived    ?? 0; }
   get totalCoinsSpent()          { return this._data.totalCoinsSpent          ?? 0; }
   get totalDailyChallengesDone() { return this._data.totalDailyChallengesDone ?? 0; }
-
-  incrementCrisisAssists() {
-    this._data.crisisAssistsReceived = (this._data.crisisAssistsReceived ?? 0) + 1;
-    this._save();
-  }
 
   addCoinsSpent(amount) {
     if (amount > 0) {

@@ -54,7 +54,7 @@ export const CARDS = {
   second_colour:   { title: 'A BLUE CAR!', text: 'A red bomb bounces off it. A bomb only hurts cars of its own color: drag the BLUE one!', target: 'bombs' },
   chain_reaction:  { title: 'CHAIN REACTION', text: 'A car that blows up takes same-color cars beside it with it. Set them up, then take the row!', target: 'road' },
   combo:           { title: 'COMBO!', text: 'Destroy cars quickly, one after another, for bonus coins.', target: 'goal' },
-  supercharge:     { title: 'SUPERCHARGE', text: 'Destroy a car 3 shots in a row to charge the bombs in front. Fire one: it hits twice!', target: 'bombs' },
+  supercharge:     { title: 'SUPERCHARGE', text: 'Destroy a car 5 shots in a row to charge the bombs in front. Fire one: it hits twice!', target: 'bombs' },
   goal_colour:     { title: 'A COLOR GOAL', text: 'Only cars of this color count toward the goal.', target: 'goal' },
   freeze_booster:  { title: 'NEW BOOSTER: FREEZE', text: '3 free! Tap FREEZE: your next shot moves no cars.', target: 'boosterFreeze' },
   colour_change_booster: { title: 'NEW BOOSTER: COLOR SWAP', text: '3 free! Tap COLOR, tap a car, pick a color. All cars of that color change.', target: 'boosterColor' },
@@ -71,6 +71,8 @@ export const CARDS = {
   first_combo:     null,   // taught by the L2 COMBO card
   combo_hint_L2:   null,   // folded into combo
   first_miss:      { title: 'WRONG COLOR',    text: 'No damage! A bomb only hurts cars of its own color.' },
+  barrier_down:    { title: 'BARRIER DOWN!',  text: 'Each lane has one barrier. The next car through this lane ends the level!', target: 'road' },
+  wave_incoming:   { title: 'WAVES!',         text: 'Traffic comes in waves. Keep a FREEZE or a BOMB for the crests!', target: 'road' },
   hp_miss:         null,   // the animated NEW VEHICLE card (L3 car, L5 van) already shows the shrink
   streak_charged:  { title: 'POWER SHOT!',     text: 'Your front bombs are charged. Fire one: it hits twice! The others lose the charge.', target: 'bombs' },
   colorchange_use: null,   // taught by the L9 COLOUR CHANGE card

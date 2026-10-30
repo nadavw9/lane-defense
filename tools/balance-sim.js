@@ -4,13 +4,13 @@
 //   node tools/balance-sim.js --level=5   --runs=500 --skill=average
 //   node tools/balance-sim.js --level=all --runs=500
 //
-// Skills: optimal | beginner | average (default) | skilled
+// Skills: optimal | beginner | average (default) | skilled | human
 //
 // Win = complete every level goal (destroyTotal / destroyColor / destroyType) with no
 // breach. Cars spawn infinitely (no budget win). Reports per level: win rate, avg
 // turns-to-win (grid advances), avg kills/shot, the goal summary, and a flag.
 //
-// Reference profile for the target bands: skill=average (booster-aware, boosterIQ 0.70).
+// Reference profile for the target bands: skill=human (no mis-drops, no cycling, boosterIQ 0.90; 2026-10-30).
 // Bands (2026-07-10, post merge-fix baseline):
 //   Tutorial L1-3: win% exempt (~100% correct) · FTUE L4-9: 85-95% ·
 //   mid L10-26: 70-82% · late L27-40: 60-75% · big waves (every tenth): band minus 10.
@@ -25,9 +25,9 @@ const levelArg = args.find(a => a.startsWith('--level='))?.split('=')[1] ?? '1';
 const runs  = parseInt(args.find(a => a.startsWith('--runs='))?.split('=')[1] ?? '500');
 const skill = args.find(a => a.startsWith('--skill='))?.split('=')[1] ?? 'average';
 
-const VALID_SKILLS = new Set(['optimal', 'beginner', 'average', 'skilled']);
+const VALID_SKILLS = new Set(['optimal', 'beginner', 'average', 'skilled', 'human']);
 if (!VALID_SKILLS.has(skill)) {
-  console.error(`Unknown skill: ${skill}. Valid: optimal | beginner | average | skilled`);
+  console.error(`Unknown skill: ${skill}. Valid: optimal | beginner | average | skilled | human`);
   process.exit(1);
 }
 
@@ -78,7 +78,7 @@ function runOne(levelId) {
 
 // ── Run + table ────────────────────────────────────────────────────────────────
 console.log(`\nBalance sim — ${levelIds.length} level(s) × ${runs} runs  [skill: ${skill}]  (win = all goals met, no breach)`);
-console.log(`Bands @ average+boosterIQ0.70 — tutorial L1-3: exempt · FTUE L4-9: 85-95 · see tools/bands.mjs\n`);
+console.log(`Bands @ human profile (no mis-drops, no cycling, boosterIQ 0.90; lane barriers) — see tools/bands.mjs\n`);
 console.log('Lvl │ Goals                              │ Win%  │ Band  │ AvgTurns │ Kills/Shot │ Flag');
 console.log('────┼────────────────────────────────────┼───────┼───────┼──────────┼────────────┼──────────────────');
 
@@ -103,4 +103,4 @@ if (flagged.length) {
   console.log('Flagged:', flagged.map(r => `L${r.levelId}(${flagFor(r.levelId, r.winPct, r.avgTurns)})`).join('  '));
 }
 const avgWin = results.reduce((s, r) => s + r.winPct, 0) / results.length;
-console.log(`Mean win rate across levels: ${avgWin.toFixed(1)}%  [reference profile: average, booster-aware]`);
+console.log(`Mean win rate across levels: ${avgWin.toFixed(1)}%  [profile: ${skill}; the tuning reference is human]`);

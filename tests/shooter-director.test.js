@@ -6,7 +6,7 @@ import { Lane }    from '../src/models/Lane.js'
 import { Column }  from '../src/models/Column.js'
 import { Car }     from '../src/models/Car.js'
 import { Shooter } from '../src/models/Shooter.js'
-import { COLUMN_DEPTH, CRISIS, DEPTH_BAIT } from '../src/director/DirectorConfig.js'
+import { COLUMN_DEPTH, DEPTH_BAIT } from '../src/director/DirectorConfig.js'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -179,140 +179,6 @@ describe('generateShooter', () => {
 
 // ─── createDepthBait ─────────────────────────────────────────────────────────
 
-describe('triggerCrisis', () => {
-  // Build a state where the car is at 75% of the lane
-  function dangerState(elapsedTime = 30, phase = 'PRESSURE') {
-    const lane = new Lane({ id: 0 })
-    const car  = new Car({ color: 'Red', hp: 10, speed: 5 })
-    car.position = 75 // 75% of 100-unit lane
-    lane.addCar(car)
-    return {
-      lanes:       [lane, makeEmptyLane(1), makeEmptyLane(2), makeEmptyLane(3)],
-      columns:     [makeColWith('Blue', 5, 0), makeColWith('Blue', 5, 1),
-                    makeColWith('Blue', 5, 2), makeColWith('Blue', 5, 3)],
-      colorPalette: PALETTE,
-      elapsedTime, phase,
-    }
-  }
-
-  function setupDeploys(director, time = 30) {
-    director.recordDeploy(time - 5)
-    director.recordDeploy(time - 2)
-  }
-
-  it('returns null when no car is past 70% of the lane', () => {
-    const d     = makeDirector()
-    const state = dangerState()
-    state.lanes[0].frontCar().position = 50 // 50% — not dangerous enough
-    setupDeploys(d)
-    expect(d.triggerCrisis(state)).toBeNull()
-  })
-
-  it('returns null when cooldown has not expired (< 15 s)', () => {
-    const d = makeDirector()
-    setupDeploys(d)
-    const state = dangerState(30)
-    // Manually set last crisis time to simulate recent trigger
-    d._lastCrisisTime = 20 // 30 - 20 = 10s ago, cooldown is 15s
-    expect(d.triggerCrisis(state)).toBeNull()
-  })
-
-  it('returns null when fewer than 2 deploys in last 10 s', () => {
-    const d     = makeDirector(1)
-    const state = dangerState()
-    d.recordDeploy(30 - 5) // only 1 deploy
-    expect(d.triggerCrisis(state)).toBeNull()
-  })
-
-  it('returns null when phase is not eligible (CALM, BUILD)', () => {
-    for (const phase of ['CALM', 'BUILD']) {
-      const d     = makeDirector(1)
-      const state = dangerState(30, phase)
-      setupDeploys(d)
-      expect(d.triggerCrisis(state)).toBeNull()
-    }
-  })
-
-  it('when triggered, shooter color matches the most dangerous front car', () => {
-    let result = null
-    for (let seed = 0; seed < 100 && result === null; seed++) {
-      const d = makeDirector(seed)
-      setupDeploys(d)
-      result = d.triggerCrisis(dangerState())
-    }
-    expect(result).not.toBeNull()
-    expect(result.shooter.color).toBe('Red') // front car color in dangerState
-  })
-
-  it('when triggered, the assist bomb is a normal one-hit bomb', () => {
-    let result = null
-    for (let seed = 0; seed < 100 && result === null; seed++) {
-      const d = makeDirector(seed)
-      setupDeploys(d)
-      result = d.triggerCrisis(dangerState())
-    }
-    expect(result).not.toBeNull()
-    expect(result.shooter.damage).toBe(1)
-  })
-
-  it('when triggered, returns the correct dangerous lane', () => {
-    let result = null
-    for (let seed = 0; seed < 100 && result === null; seed++) {
-      const d = makeDirector(seed)
-      setupDeploys(d)
-      result = d.triggerCrisis(dangerState())
-    }
-    expect(result).not.toBeNull()
-    expect(result.lane).toBeDefined()
-    expect(result.lane.frontCar().distanceRatio()).toBeGreaterThanOrEqual(CRISIS.triggerDistanceRatio)
-  })
-
-  it('triggers roughly 70% of the time when all conditions are met (200 samples)', () => {
-    let triggers = 0
-    for (let seed = 0; seed < 200; seed++) {
-      const d = makeDirector(seed)
-      setupDeploys(d)
-      if (d.triggerCrisis(dangerState()) !== null) triggers++
-    }
-    expect(triggers / 200).toBeCloseTo(0.7, 1) // within ~5%
-  })
-
-  it('enforces 15 s cooldown: second call immediately after a trigger returns null', () => {
-    let result = null
-    let seed = 0
-    while (result === null) {
-      const d = makeDirector(seed++)
-      setupDeploys(d)
-      const state = dangerState(30)
-      result = d.triggerCrisis(state)
-      if (result !== null) {
-        // Same director, same time — cooldown should block second call
-        setupDeploys(d) // keep deploys fresh
-        expect(d.triggerCrisis(state)).toBeNull()
-      }
-    }
-  })
-
-  it('cooldown resets after 15 s: second call at t+15 can trigger again', () => {
-    let firstResult = null
-    let seed = 0
-    while (firstResult === null) {
-      const d = makeDirector(seed++)
-      setupDeploys(d, 30)
-      firstResult = d.triggerCrisis(dangerState(30))
-      if (firstResult !== null) {
-        // Try at t=46 (16s later — cooldown expired)
-        d.recordDeploy(40)
-        d.recordDeploy(44)
-        const state2 = dangerState(46)
-        // Not guaranteed to trigger (70% chance), just verify it CAN
-        // (null is valid here; we just check it doesn't throw)
-        expect(() => d.triggerCrisis(state2)).not.toThrow()
-      }
-    }
-  })
-})
-
 // ─── fillColumns ─────────────────────────────────────────────────────────────
 
 describe('fillColumns', () => {
@@ -370,22 +236,3 @@ describe('fillColumns', () => {
   })
 })
 
-// ─── recordDeploy ────────────────────────────────────────────────────────────
-
-describe('recordDeploy', () => {
-  it('old deploys (> 10 s) are pruned automatically', () => {
-    const d = makeDirector()
-    d.recordDeploy(0)
-    d.recordDeploy(5)
-    d.recordDeploy(20) // this call prunes entries > 10s before 20
-    expect(d._deployLog.length).toBe(1) // only t=20 survives
-  })
-
-  it('multiple recent deploys are retained', () => {
-    const d = makeDirector()
-    d.recordDeploy(10)
-    d.recordDeploy(15)
-    d.recordDeploy(18)
-    expect(d._deployLog.length).toBe(3)
-  })
-})

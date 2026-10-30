@@ -15,7 +15,6 @@ describe('SimulationRunner — runLevel output shape', () => {
     expect(result).toHaveProperty('timeElapsed');
     expect(result).toHaveProperty('carsKilled');
     expect(result).toHaveProperty('carryOvers');
-    expect(result).toHaveProperty('crisisTriggered');
     expect(result).toHaveProperty('fairnessOverrides');
     expect(result).toHaveProperty('totalSpawns');
     expect(result).toHaveProperty('maxCombo');
@@ -133,12 +132,6 @@ describe('SimulationRunner — runBatch output shape', () => {
     const runner = new SimulationRunner(W1);
     const stats  = runner.runBatch(20, 1);
     expect(stats.rescueWinRate).toBeGreaterThanOrEqual(stats.winRate);
-  });
-
-  it('avgCrisisPerLevel is non-negative', () => {
-    const runner = new SimulationRunner(W1);
-    const stats  = runner.runBatch(20, 1);
-    expect(stats.avgCrisisPerLevel).toBeGreaterThanOrEqual(0);
   });
 });
 

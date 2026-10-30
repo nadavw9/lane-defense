@@ -16,7 +16,6 @@ export const ACHIEVEMENTS = [
   // ── v1.3: 10 new achievements ─────────────────────────────────────────────
   { id: 'chain_reaction',   name: 'Chain Reaction',   desc: 'Kill 2 cars with a single shot' },
   { id: 'combo_legend',     name: 'Combo Legend',     desc: 'Reach a 12x combo' },
-  { id: 'crisis_saved',     name: 'Crisis Saved',     desc: 'Benefit from CRISIS assist 3 times' },
   { id: 'weekly_hero',      name: 'Weekly Hero',      desc: 'Win a weekly featured level' },
   { id: 'streak_master',    name: 'Streak Master',    desc: 'Maintain a 7-day login streak' },
   { id: 'survival_rookie',  name: 'Survival Rookie',  desc: 'Reach Wave 5 in Survival mode' },
@@ -83,10 +82,6 @@ export class AchievementManager {
 
       case 'daily_claim':
         if (this._p.totalDailyClaims >= 7) award('dedicated');
-        break;
-
-      case 'crisis_assist':
-        if (this._p.crisisAssistsReceived >= 3) award('crisis_saved');
         break;
 
       case 'weekly_win':

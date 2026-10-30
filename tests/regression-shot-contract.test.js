@@ -175,6 +175,7 @@ describe('regression: shot contracts (real GameLoop)', () => {
       it('E: a car one row from breach lost after a (non-killing) correct shot', () => {
         const { cfg, gs, lanes, loop } = buildLevel(levelId);
         const C = cfg.colors[0];
+        gs.barriers.fill(false);   // barriers off: this contract is about the breach itself (tests/barriers.test.js covers the barrier)
         placeCar(loop, lanes[0], { color: C, hp: 100, row: cfg.gridRows - 1, gridRows: cfg.gridRows });
 
         // Correct colour, low damage → car survives the hit, then advance breaches it.

@@ -33,9 +33,9 @@ import {
   KILLS_PER_BOMB,
 } from '../director/DirectorConfig.js';
 import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
-import { openingRowsForLevel, clampInitialCarsToDepth, streakEnabledFor } from '../game/LevelManager.js';
+import { openingRowsForLevel, clampInitialCarsToDepth, streakEnabledFor, BENCH_FROM_LEVEL } from '../game/LevelManager.js';
 import { spreadAcross, spreadEnabledFor } from '../game/spread.js';
-import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak, laneHeld, pushTrafficBack, rescueRowsBack,
+import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak, laneHeld, pushTrafficBack, rescueRowsBack, resolveBreach, wavesFor,
          revealStagedCars, stepSize, freeSpawnRow, placeArrival } from '../director/TrafficRules.js';
 import { shotPoints, nextChain, POINTS } from '../game/score.js';
 
@@ -108,6 +108,11 @@ const SKILL_PROFILES = {
   beginner: { accuracy: 0.60, useCycle: false, cycleDelay: 0,    boosterIQ: 0.30 },
   average:  { accuracy: 0.82, useCycle: true,  cycleDelay: 3.0,  boosterIQ: 0.70 },
   skilled:  { accuracy: 0.93, useCycle: true,  cycleDelay: 0.75, boosterIQ: 0.95 },
+  // human (2026-10-30, owner): the real player. A mismatched drop bounces back (no wasted
+  // bomb, no reroll), there is no column cycling, and boosters are used when they matter.
+  // useBench: from BENCH_FROM_LEVEL the player parks a useless top bomb (one store per turn, four
+  // slots) and fires a parked bomb at a lane no column can serve — the real move set.
+  human:    { accuracy: 1.00, useCycle: false, cycleDelay: 0,    boosterIQ: 0.90, useBench: true },
 };
 
 // Wraps FairnessArbiter to count the fraction of checks that required a fix.
@@ -175,6 +180,8 @@ export class SimulationRunner {
       // CONTINUES the simulated player takes after a breach (0 = the first breach ends the run).
       // Each one is the live CONTINUE: breaching cars leave, traffic is pushed back.
       continues:          levelConfig.continues          ?? 0,
+      // LANE BARRIERS (TrafficRules.resolveBreach): one free breach per lane. false = probes only.
+      barriers:           levelConfig.barriers           ?? true,
       convoy:             levelConfig.convoy             ?? null,   // motorbike-only lanes
       firstColors:        levelConfig.firstColors        ?? null,   // L1 scripted opening colours (CarDirector.setColorScript)
       spawnScript:        levelConfig.spawnScript        ?? null,   // INFRA-C staged waves
@@ -183,6 +190,8 @@ export class SimulationRunner {
       // the level's own rule (streakEnabledFor); generic probes (no levelId) → off.
       traits:             levelConfig.traits             ?? null,
       streak:             levelConfig.streak             ?? null,
+      // WAVES (TrafficRules.wavesFor): crests keyed on goal progress, same as the live CarDirector.
+      waves:              wavesFor({ id: levelConfig.levelId, milestone: levelConfig.milestone, waves: levelConfig.waves }),
     };
     // Stateless — one instance per runner is fine and keeps runLevel() allocation-free.
     this._combat = new CombatResolver();
@@ -197,7 +206,6 @@ export class SimulationRunner {
   //   timeElapsed        — seconds survived (or full duration on win)
   //   carsKilled         — total cars destroyed
   //   carryOvers         — kills from carry-over overflow damage
-  //   crisisTriggered    — number of CRISIS assists that fired
   //   fairnessOverrides  — number of spawn events where the arbiter had to fix something
   //   totalSpawns        — total cars + shooters checked by the arbiter
   //   maxCombo           — longest consecutive kill streak within COMBO_WINDOW
@@ -217,6 +225,7 @@ export class SimulationRunner {
     const carDir     = new CarDirector({}, rng);
     if (this._cfg.levelId != null) carDir.setLevel(this._cfg.levelId);
     carDir.setSpawnScript(this._cfg.spawnScript);   // §3c INFRA-C (same impl as live game)
+    carDir.setWaves(this._cfg.waves);               // waves (same impl as live game)
     carDir.setTraits(this._cfg.traits, colors);       // V2 special cars (same impl as live game)
     carDir.setConvoy(this._cfg.convoy);               // convoy lanes (same impl as live game)
     carDir.setColorScript(this._cfg.firstColors);     // L1 colour run (same impl as live game)
@@ -248,6 +257,13 @@ export class SimulationRunner {
       cars: [],  // Array of { row: number, hp: number, type: string, color: string }
     }));
     const laneViews = discreteLanes.map(laneView);   // resolver-shaped lanes for spreadAcross
+    const barriers  = discreteLanes.map(() => this._cfg.barriers !== false);   // parity: GameState.barriers
+    let   barriersLost = 0;
+    // BENCH (human profile, BENCH_FROM_LEVEL on): four slots, one store per turn, parity with BenchStorage.
+    const benchOn = !!profile.useBench && typeof this._cfg.levelId === 'number' && this._cfg.levelId >= BENCH_FROM_LEVEL;
+    const BENCH_SIZE = 4;
+    const bench = [];
+    let   benchStores = 0, benchShots = 0;
     // With infinite spawn, we no longer track budget depletion for win. Instead,
     // win comes from goal completion (if goals exist) or legacy targetKills (if no goals).
     // The old budget is kept for opening spawns (prime initial cars) but not as a limit.
@@ -259,7 +275,6 @@ export class SimulationRunner {
     let carsKilled      = 0;
     let carryOvers      = 0;
     let spreadKills     = 0;   // CHAIN REACTION kills in neighbouring lanes (spread.js)
-    let crisisTriggered = 0;
     let currentCombo    = 0;
     let maxCombo        = 0;
     let lastKillTime    = -Infinity;
@@ -369,7 +384,7 @@ export class SimulationRunner {
     // There is NO time pressure and speed.base has NO effect — difficulty falls
     // out of laneTargetCarCount, spawnBudget (now a density knob), car HP, colors, gridRows.
     // A synthetic `elapsed` is derived from TURN PROGRESS (not a clock) purely
-    // so intensity phases (car-type mix / crisis) still ramp CALM → CLIMAX.
+    // so intensity phases (car-type mix) still ramp CALM → CLIMAX.
     const MAX_TURNS    = 3000;   // safety bound; a real level completes in < 100 turns,
                                  // so hitting this means the goal is effectively unreachable → loss
     const CRITICAL_ROW = Math.floor(BREACH_ROW * 0.75);
@@ -424,10 +439,13 @@ export class SimulationRunner {
         surgeOtherLanes(discreteLanes.map(l => l.cars), surgeFrom, STEP);
         surgeFrom = null;
       }
-      if (discreteLanes.some(l => l.cars.length > 0 && l.cars[0].row > BREACH_ROW - 1)) {
-        lostAt = totalAdvances;   // marker (shot index), not a wall-clock time
-        return;
+      // Barriers, then breach — the same TrafficRules.resolveBreach the live GameLoop runs.
+      for (const lane of discreteLanes) {
+        const { crashed, breached } = resolveBreach(lane.cars, BREACH_ROW - 1, barriers[lane.id]);
+        if (crashed) { lane.cars.splice(lane.cars.indexOf(crashed), 1); barriers[lane.id] = false; barriersLost++; }
+        if (breached.length > 0) lostAt = totalAdvances;   // marker (shot index), not a wall-clock time
       }
+      if (lostAt !== null) return;
       _refillLanes(phase);
     };
 
@@ -555,8 +573,13 @@ export class SimulationRunner {
         if (lostAt !== null) return;
         const s = columns[col].top();
         usedCols.add(col);
-        shooterDir.recordDeploy(elapsed);
         columns[col].consume();
+        _fireShooter(s, lane, isCorrect);
+      };
+      // A shot with a bomb already in hand (from a column top or the bench): the same resolution the
+      // live GameLoop runs, including the advance it causes.
+      const _fireShooter = (s, lane, isCorrect = true) => {
+        if (lostAt !== null) return;
         if (this._cfg.onShot) this._cfg.onShot(isCorrect);  // tuning hook (per fired bomb)
         if (!isCorrect) { scoreChain = 0; return; }   // a misplay: bomb wasted, no advance, Hot Streak intact, combo broken (as GameLoop)
         correctShots++;
@@ -641,12 +664,42 @@ export class SimulationRunner {
         return bestCol;
       };
 
-      // Pass A — coverage: best column per urgent lane.
+      // BENCH (L13+): a parked bomb that serves a lane no column top can serve is fired at it; and when
+      // the most threatened lane has no bomb anywhere, a top that serves NO front car is parked
+      // (preferring a column whose next bomb serves that lane) — one store per turn, four slots.
+      const _benchFire = (lane) => {
+        const bi = bench.findIndex(b => canTarget(lane.cars[0], b.color));
+        if (bi === -1) return false;
+        const b = bench.splice(bi, 1)[0];
+        benchShots++;
+        _fireShooter(b, lane, true);
+        return true;
+      };
+      if (benchOn && urgentLanes.length > 0 && lostAt === null) {
+        const urgent = urgentLanes[0];
+        const servedByTop = columns.some((c, i) => !usedCols.has(i) && c.top() && canTarget(urgent.cars[0], c.top().color));
+        if (!servedByTop && !_benchFire(urgent) && bench.length < BENCH_SIZE) {
+          const fronts = discreteLanes.map(l => l.cars[0]).filter(Boolean);
+          let pick = -1, best = 0;
+          for (let c = 0; c < COL_N; c++) {
+            const top = columns[c].top();
+            if (!top || columns[c].shooters.length < 2) continue;
+            if (fronts.some(car => canTarget(car, top.color))) continue;   // a useful top stays
+            const next = columns[c].shooters[1];
+            const score = next && canTarget(urgent.cars[0], next.color) ? 2 : 1;
+            if (score > best) { best = score; pick = c; }
+          }
+          if (pick !== -1) { bench.push(columns[pick].top()); columns[pick].consume(); benchStores++; }
+        }
+      }
+
+      // Pass A — coverage: best column per urgent lane (a parked bomb when no column serves it).
       for (const lane of urgentLanes) {
         if (lostAt !== null) break;
         if (lane.cars.length === 0) continue;
         const bestCol = _pickCol(lane.cars[0]);
         if (bestCol !== -1) _fire(bestCol, lane, _isCorrect());
+        else if (benchOn) _benchFire(lane);
       }
 
       // Pass B — focus-fire on lanes near breach.
@@ -670,12 +723,6 @@ export class SimulationRunner {
           if (columns[c].shooters.length > 1) { columns[c].consume(); didCycle = true; }
         }
       }
-
-      // (No CRISIS assist in the floor model: the FairnessArbiter already
-      // guarantees a viable matching column every turn, so the assist is
-      // redundant here. The old free no-advance kill diverged from the real
-      // game — crisis grants a BOMB the player must fire, not a free kill —
-      // and could empty the board with budget remaining, stalling the loop.)
 
       // Stall guard: a turn with no fire and no cycle would loop forever. Force
       // one column to discard (models the game's viability guard giving the
@@ -702,7 +749,6 @@ export class SimulationRunner {
       carsKilled,
       carryOvers,
       spreadKills,
-      crisisTriggered,
       fairnessOverrides: arbiter.overrideCount,
       totalSpawns:       arbiter.totalCount,
       maxCombo,
@@ -715,10 +761,13 @@ export class SimulationRunner {
       bombsFired,
       bombKills,
       powerShots,
+      benchStores,
+      benchShots,
       score,
       armorBreaks,
       continuesUsed,
       progressAtLoss,
+      barriersLost,
     };
   }
 
@@ -729,7 +778,8 @@ export class SimulationRunner {
       duration: cfg.duration, colors: cfg.colors, worldConfig: cfg.worldConfig,
       levelId: cfg.id, laneCount: cfg.laneCount, colCount: cfg.colCount,
       laneTargetCarCount: cfg.laneTargetCarCount, spawnBudget: cfg.spawnBudget,
-      gridRows: cfg.gridRows, stepsPerRow: cfg.stepsPerRow, goals: cfg.goals ?? [],
+      gridRows: cfg.gridRows, stepsPerRow: cfg.stepsPerRow, goals: cfg.goals ?? [], barriers: cfg.barriers,
+      milestone: cfg.milestone, waves: cfg.waves,
       initialCars: cfg.initialCars ?? null, spawnScript: cfg.spawnScript ?? null,
       shooterColorWeights: cfg.shooterColorWeights ?? null,
       traits: cfg.traits ?? null,
@@ -745,7 +795,6 @@ export class SimulationRunner {
     let rescues         = 0;
     let totalKills      = 0;
     let totalCarryOvers = 0;
-    let totalCrisis     = 0;
     let totalOverrides  = 0;
     let totalChecks     = 0;
 
@@ -755,7 +804,6 @@ export class SimulationRunner {
       if (r.rescueWouldSave) rescues++;
       totalKills      += r.carsKilled;
       totalCarryOvers += r.carryOvers;
-      totalCrisis     += r.crisisTriggered;
       totalOverrides  += r.fairnessOverrides;
       totalChecks     += r.totalSpawns;
     }
@@ -765,7 +813,6 @@ export class SimulationRunner {
       winRate:              wins / count,
       avgCarsKilled:        totalKills / count,
       carryOverRate:        totalKills > 0 ? totalCarryOvers / totalKills : 0,
-      avgCrisisPerLevel:    totalCrisis / count,
       fairnessOverrideRate: totalChecks > 0 ? totalOverrides / totalChecks : 0,
       // rescueWinRate: fraction of levels that end in a win (including rescued losses)
       rescueWinRate:        (wins + rescues) / count,

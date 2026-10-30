@@ -17,7 +17,7 @@
 //   phantom   — colour hidden (a dark silhouette) until it reaches PHANTOM_REVEAL_ROW.
 //               Rules are unchanged; the player must plan with what the deal shows.
 //
-// Hot Streak: destroy at least one car on 3 shots in a row and the next bomb is
+// Hot Streak: destroy at least one car on STREAK_TO_CHARGE shots in a row and the next bomb is
 // SUPERCHARGED — double damage, and its carry-over smashes through cars of ANY
 // colour (armour and the boss still stop it). A shot that hits without destroying
 // a car resets the streak.
@@ -46,7 +46,8 @@ export const TRAIT_TYPES = {
   gift:      new Set(['small', 'big', 'jeep']),
 };
 
-export const STREAK_TO_CHARGE = 3;
+// 2026-10-30 (owner: the supercharge came too often, a 1-hit motorbike counts as a kill): 3 -> 5.
+export const STREAK_TO_CHARGE = 5;
 
 // ── Half-row steps ───────────────────────────────────────────────────────────
 // A car is one ROW long. Every correct shot advances traffic ONE STEP, and a step
@@ -60,22 +61,58 @@ export const STREAK_TO_CHARGE = 3;
 export const STEPS_PER_ROW = 4;
 export const BOARD_ROWS = 5;
 
-// ── Final rush ───────────────────────────────────────────────────────────────
-// A level is calm at the start and builds to a rush at the end: as the goal fills, the spawn
-// mix gets heavier and, from 75% of the goal, two-deep lanes take one more car. Played, it is
-// the level's climax; in numbers, losses move toward the end of the level, where a CONTINUE
-// is worth taking. Levels from FINALE_FROM on (the tutorial stretch stays flat).
+// ── Waves ────────────────────────────────────────────────────────────────────
+// A level from WAVES_FROM on is calm at the start, then crests and lulls keyed on goal progress p
+// (0..1), ending with the heaviest wave (2026-10-30, spec §3.2; it replaces the single final rush).
+// On a crest the spawn mix is heavier and two-deep lanes take one more car. Levels before
+// WAVES_FROM (the tutorial stretch) stay flat. Shared by CarDirector (live game and simulator).
 export const FINALE_FROM = 10;
+export const WAVES_FROM = FINALE_FROM;
 const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-/** Spawn-mix heft at goal progress p (0..1): eased early, heavier late. */
-export function finaleHeft(heft, p) {
-  if (heft == null) return heft;
-  return Math.max(0, Math.min(1, heft - 0.2 + 0.5 * smooth(0.4, 0.85, p ?? 0)));
+// [from, to, heft offset, extra cars per two-deep lane, tag]
+const WAVE_PROFILES = {
+  2: [[0, 0.20, -0.15, 0, null], [0.20, 0.40, 0.10, 1, 'WAVE 1'], [0.40, 0.55, -0.10, 0, null],
+      [0.55, 0.80, 0.25, 1, 'WAVE 2'], [0.80, 0.90, 0, 0, null], [0.90, 1.0, 0.35, 1, 'FINAL WAVE']],
+  3: [[0, 0.15, -0.15, 0, null], [0.15, 0.30, 0.10, 1, 'WAVE 1'], [0.30, 0.40, -0.10, 0, null],
+      [0.40, 0.55, 0.20, 1, 'WAVE 2'], [0.55, 0.65, -0.05, 0, null], [0.65, 0.80, 0.30, 1, 'WAVE 3'],
+      [0.80, 0.88, 0, 0, null], [0.88, 1.0, 0.40, 1, 'FINAL WAVE']],
+};
+const WAVE_BLEND = 0.06;   // the mix eases across a boundary over this much progress
+const clampP = (p) => Math.max(0, Math.min(1, Number.isFinite(p) ? p : 0));
+function waveSegments(waves) { return WAVE_PROFILES[waves] ?? WAVE_PROFILES[2]; }
+function waveSegmentAt(p, waves) {
+  const segs = waveSegments(waves);
+  const i = segs.findIndex(([from, to]) => p >= from && p < to);
+  return i < 0 ? segs.length - 1 : i;
 }
-/** Lane fill target at goal progress p: one more car per lane in the last 30%. */
-// One more car a lane in the last quarter, on levels that run two deep. Dense (three-deep) levels
-// are already full on a 5-row road: measured, +1 there floods it.
-export const finaleLaneTarget = (base, p) => base + (base <= 2 && (p ?? 0) >= 0.75 ? 1 : 0);
+/** How many waves a level config plays: 0 before WAVES_FROM (and for non-numeric ids), 3 on big waves, else 2. */
+export function wavesFor(cfg) {
+  if (Number.isFinite(cfg?.waves)) return cfg.waves;
+  if (typeof cfg?.id !== 'number' || cfg.id < WAVES_FROM) return 0;
+  return cfg.milestone ? 3 : 2;
+}
+/** Spawn-mix heft at goal progress p for a level with `waves` waves (eased across boundaries). */
+export function waveHeft(heft, p, waves = 2) {
+  if (heft == null) return heft;
+  const segs = waveSegments(waves);
+  const x = clampP(p);
+  const i = waveSegmentAt(x, waves);
+  let off = segs[i][2];
+  const half = WAVE_BLEND / 2;
+  if (i > 0 && x < segs[i][0] + half) off = segs[i - 1][2] + (segs[i][2] - segs[i - 1][2]) * smooth(segs[i][0] - half, segs[i][0] + half, x);
+  else if (i < segs.length - 1 && x > segs[i][1] - half) off = segs[i][2] + (segs[i + 1][2] - segs[i][2]) * smooth(segs[i][1] - half, segs[i][1] + half, x);
+  return Math.max(0, Math.min(1, heft + off));
+}
+/** Lane fill target at goal progress p: one more car per two-deep lane on a crest. Dense
+ *  (three-deep) levels are already full on a 5-row road: measured, +1 there floods it. */
+export function waveLaneTarget(base, p, waves = 2) {
+  const seg = waveSegments(waves)[waveSegmentAt(clampP(p), waves)];
+  return base + (base <= 2 ? seg[3] : 0);
+}
+/** The crest the player is in at progress p ('WAVE 1', ..., 'FINAL WAVE'), or null in a lull. */
+export function waveTagAt(p, waves = 2) {
+  return waveSegments(waves)[waveSegmentAt(clampP(p), waves)][4];
+}
 
 // ── Continue (rescue) ────────────────────────────────────────────────────────
 // How far a CONTINUE pushes traffic back, in rows (40% of the road), and the push itself:
@@ -94,6 +131,21 @@ export function pushTrafficBack(cars, rowsBack) {
     keep.push(car);
   }
   return keep;
+}
+
+// ── Lane barriers ────────────────────────────────────────────────────────────
+// Every lane starts a level with ONE barrier at the breach line (2026-10-30, spec
+// docs/superpowers/specs/2026-10-30-lane-barriers-design.md). The first car through a lane
+// crashes into it: car and barrier are both destroyed and NOTHING is credited (no goal, coins,
+// score or streak). The next car through that lane is the loss. A CONTINUE restores no barrier.
+// `cars` is one lane (any order); `maxRow` is the last row a car may stand on. Returns the car
+// that crashed (null if none) and the cars that breached (a loss when non-empty). Shared by
+// GameLoop._advanceGrid and the simulator so both play the same rule.
+export function resolveBreach(cars, maxRow, hasBarrier) {
+  const over = cars.filter(c => c.row > maxRow).sort((a, b) => b.row - a.row);
+  if (over.length === 0) return { crashed: null, breached: [] };
+  if (hasBarrier) return { crashed: over[0], breached: over.slice(1) };
+  return { crashed: null, breached: over };
 }
 
 // ── Traffic lights ───────────────────────────────────────────────────────────
@@ -260,7 +312,7 @@ export function applyTrait(car, trait, rng, palette) {
  */
 export function nextStreak(streak, charged, kills, usedCharge) {
   if (usedCharge) charged = false;
-  // Three shots IN A ROW that each destroy a car charge the next bomb. A shot that
+  // STREAK_TO_CHARGE shots IN A ROW that each destroy a car charge the next bomb. A shot that
   // destroys nothing (wrong colour, or a hit that only shrinks a car) breaks the run.
   // A multi-kill shot still counts as ONE step.
   if (kills > 0) {

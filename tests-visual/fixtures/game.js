@@ -64,7 +64,7 @@ export class GamePage {
           if (localStorage.getItem('__qa_fresh_tutorials')) return;   // tour.spec asks for the real first run
           // Every card key in src/screens/guideContent.js CARDS (tests/intro-schedule.test.js keeps this in sync).
           const keys = ['tour', 'lane_2', 'lane_3', 'second_colour', 'chain_reaction', 'combo', 'supercharge',  'goal_colour',
-            'freeze_booster', 'colour_change_booster','freeze_earned','colour_change_earned', 'rainbow_bomb', 'first_kill', 'first_miss', 'hp_miss',
+            'freeze_booster', 'colour_change_booster','freeze_earned','colour_change_earned', 'rainbow_bomb', 'first_kill', 'first_miss', 'barrier_down', 'wave_incoming', 'hp_miss',
             'streak_charged', 'plate_break', 'armor_break', 'volatile_surge', 'mender_heal', 'gift_car', 'traffic_light', 'convoy'];
           for (let i = 1; i <= 200; i++) keys.push(`hint_L${i}`);
           localStorage.setItem('ftue_banners', JSON.stringify(keys));

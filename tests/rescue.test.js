@@ -56,6 +56,7 @@ function car(color, hp, row) {
 // Set up a board where lane 0's car will breach on the next advance and lane 1's
 // car survives, then trigger the breach.
 function triggerBreach(loop, lanes) {
+  loop._gs.barriers.fill(false);        // barriers off: this contract is about the breach itself (tests/barriers.test.js covers the barrier)
   lanes[0].addCar(car('Red', 5, 10));   // front row → breaches on advance
   lanes[1].addCar(car('Blue', 5, 5));   // survivor
   loop._advanceGrid();

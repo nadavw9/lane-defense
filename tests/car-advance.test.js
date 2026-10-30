@@ -57,6 +57,7 @@ describe('car-advance — breach', () => {
     const onEnd = vi.fn();
     const { gs, lanes } = makeState({ laneCount: 4, spawnBudget: 0 });
     const loop = makeLoop(gs, { onEnd });
+    gs.barriers.fill(false);   // barriers off: this contract is about the breach itself (tests/barriers.test.js covers the barrier)
     lanes[0].addCar(car('Red', 5, 10));   // at the front row; next advance breaches
     loop._advanceGrid();
     expect(gs.isOver).toBe(true);

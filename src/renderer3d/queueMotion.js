@@ -5,9 +5,9 @@
 // fired top made the whole column jump and the refill pop into the last slot. Bombs are
 // tracked by identity (the Shooter object), so the move is read off the arrays:
 //   up     — the bomb was further down (the top was fired): slide up into the slot
-//   down   — the bomb was further up (a crisis bomb was pushed in on top): slide down
+//   down   — the bomb was further up (a bomb was pushed in on top): slide down
 //   enter  — a new bomb at the back of the queue: slide in from below the last slot
-//   drop   — a new bomb at the FRONT (crisis assist): drop in from the road above
+//   drop   — a new bomb at the FRONT: drop in from the road above
 // Offsets are in SLOT units (positive = towards the back); bombSlotZ() is linear in the
 // index, so the caller turns them into world Z with one multiply.
 export const MOTION = {

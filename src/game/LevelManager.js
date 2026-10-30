@@ -107,10 +107,10 @@ const PROGRESSION = [
     hintText: 'BIG WAVE! Traffic is three deep. Keep every lane moving',
     goals: total(22) },
 
-  // L11 "Hot streak" (relief): NEW: supercharge — 3 kills in a row charge a bomb.
+  // L11 "Hot streak" (relief): NEW: supercharge — 5 kills in a row charge a bomb.
   { id: 11, name: 'Hot streak', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(1),
     duration: 100, spawnBudget: 12, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    hintText: 'Destroy 3 cars in a row to SUPERCHARGE a bomb: it hits twice', goals: total(22) },
+    hintText: 'Destroy 5 cars in a row to SUPERCHARGE a bomb: it hits twice', goals: total(22) },
 
   // L12 "Paint job": NEW: a colour goal — only two colours count.
   { id: 12, name: 'Paint job', laneCount: 3, colCount: 3, colors: ['Red', 'Blue', 'Green'], worldConfig: W(0.8),

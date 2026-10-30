@@ -1,25 +1,26 @@
 // Target win-rate bands per level, shared by balance-sim.js and tune-levels.mjs so
-// the two cannot drift. Reference profile: skill=average, boosterIQ 0.70.
-//   tutorial L1-3 exempt · L4-9 74-84 · mid non-boss to L26 66-78 · to L45 60-75
-//   · later worlds step down 2 points each (58-72, 56-70, 54-68, 52-66), never
-//   below that: an average player should still win a late level about half the time.
-//   Big waves (every tenth level): the ordinary band minus 10 points.
+// the two cannot drift. Reference profile (2026-10-30): skill=human — the player's own
+// move set (a mismatched drop bounces back, no column cycling, boosterIQ 0.90), with
+// lane barriers and no crisis assist. Numbers are the owner's first call
+// (docs/superpowers/specs/2026-10-30-lane-barriers-design.md §3.6); refine after device play.
+//   tutorial L1-3 90-100 · L4-9 70-80 · to L26 62-72 · to L45 58-68
+//   · later worlds step down 2 points each (56-66, 54-64, 52-62, 50-60), never below that.
 import { levelDifficulty, isReliefLevel } from '../src/game/LevelManager.js';
 
 export const TUTORIAL_LEVELS = new Set([1, 2, 3]);
 
 function baseBand(levelId) {
-  if (TUTORIAL_LEVELS.has(levelId)) return { lo: 85, hi: 100, tutorial: true };
-  if (levelId <= 9)  return { lo: 74, hi: 84 };   // 2026-10-22: the owner found the start too easy, twice
-  if (levelId <= 26) return { lo: 66, hi: 78 };
-  if (levelId <= 45) return { lo: 60, hi: 75 };
-  const step = Math.min(4, Math.floor((levelId - 46) / 15) + 1);   // worlds 4..7
-  return { lo: 60 - 2 * step, hi: 75 - 2 * step };
+  if (TUTORIAL_LEVELS.has(levelId)) return { lo: 90, hi: 100, tutorial: true };
+  if (levelId <= 9)  return { lo: 70, hi: 80 };
+  if (levelId <= 26) return { lo: 62, hi: 72 };
+  if (levelId <= 45) return { lo: 58, hi: 68 };
+  const step = Math.min(4, Math.floor((levelId - 46) / 15) + 1);   // worlds 4..7 (and the second tour)
+  return { lo: 58 - 2 * step, hi: 68 - 2 * step };
 }
 
 // Sawtooth (2026-10-17), the shape casual puzzle games use: ordinary levels sit in the band
 // above, HARD levels (every x5 from L15, and the L10/L20 big waves) 15 points under it, SUPER HARD
-// big waves (L30 on) 25 under, and the level after a hard one is a RELIEF level 6 points over
+// big waves (L50 on) 25 under, and the level after a hard one is a RELIEF level 6 points over
 // (capped at 95). Failing a hard level is the moment a continue or a booster is worth paying for;
 // the relief level after it gives the win back.
 export function bandFor(levelId) {

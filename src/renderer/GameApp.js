@@ -78,7 +78,7 @@ import { tourSteps, stepsFor } from '../screens/guideContent.js';
 import { streakGift, winsToNextTier, addBundles } from '../game/winStreak.js';
 import { StepRuler } from './StepRuler.js';
 import { TrafficLights } from './TrafficLights.js';
-import { FINALE_FROM, finaleLaneTarget } from '../director/TrafficRules.js';
+import { waveTagAt, wavesFor } from '../director/TrafficRules.js';
 import { ModeHint } from './ModeHint.js';
 import { BoosterSpotlight }      from '../screens/BoosterSpotlight.js';
 import { TransitionOverlay }      from '../screens/TransitionOverlay.js';
@@ -112,6 +112,8 @@ import { AutoTuner }             from '../analytics/AutoTuner.js';
 import { AchievementManager }     from '../game/AchievementManager.js';
 import { DailyChallengeManager }  from '../game/DailyChallengeManager.js';
 import { CarTypeIntroCard, hasIntroCard } from '../screens/CarTypeIntroCard.js';
+import { BarrierIntroCard } from '../screens/BarrierIntroCard.js';
+import { WaveIntroCard } from '../screens/WaveIntroCard.js';
 import { spawnableTypesFor, carHpFor } from '../director/CarTypes.js';
 import { roundButton as premiumRoundButton, ribbon as premiumRibbon } from './PremiumUI.js';
 import { inventorySpentByUse } from '../game/BoosterInventory.js';
@@ -522,7 +524,8 @@ async function main() {
   // ── Per-level booster tracking (for analytics) ───────────────────────────
   let boostersUsedThisLevel = [];
   let giftsThisLevel = 0;   // gift-car payouts this level (alternates FREEZE / COLOR SWAP)
-  let rushShown = false;    // FINAL RUSH announced this level
+  let levelWaves  = 0;      // waves this level plays (TrafficRules.wavesFor)
+  let lastWaveTag = null;   // the last crest announced this level
 
   // ── Per-level tutorial state ───────────────────────────────────────────────
   let firstDeployTooltipShown = false;
@@ -840,6 +843,7 @@ async function main() {
     gs.starTargets    = starTargetsFor(cfg.isDaily ? 'daily' : cfg.id, gs.goals.reduce((a, g) => a + (g.count ?? 0), 0));
     carDir.setLevel(typeof cfg.id === 'number' ? cfg.id : 1);
     carDir.setSpawnScript(cfg.spawnScript ?? null);   // §3c staged boss waves (INFRA-C)
+    carDir.setWaves(wavesFor(cfg));                    // waves: crests keyed on goal progress (same impl as the sim)
     carDir.setTraits(cfg.traits ?? null, cfg.colors);  // V2 special cars (TrafficRules)
     carDir.setConvoy(cfg.convoy ?? null);              // motorbike-only lanes
     carDir.setColorScript(cfg.firstColors ?? null);    // L1: a run of reds, then the first blue
@@ -976,7 +980,8 @@ async function main() {
 
     boostersUsedThisLevel       = [];
     giftsThisLevel              = 0;
-    rushShown                   = false;
+    levelWaves                  = wavesFor(cfg);
+    lastWaveTag                 = null;
     firstDeployTooltipShown     = false;
     firstKillDoneThisLevel      = false;
     popupQueue.clear();
@@ -1252,6 +1257,19 @@ async function main() {
 
   // ── Car type intro (Royal Match "Meet the new blocker!" moment) ──────────
   // Routes through the unified modal queue so it never overlaps another card.
+  // A once-ever ANIMATED intro card for a mechanic (owner, 2026-10-30: every new thing gets a clear
+  // picture the first time, like the vehicle card). Gated by the fixed teaching schedule
+  // (introSchedule.REACTIVE_WINDOW) and the once-ever banner store; shares the vehicle card's
+  // modal slot and ticker. Returns true when it was queued.
+  function _triggerIntroCard(key, Card) {
+    if (currentLevelIsDaily || !reactiveAllowed(key, levelManager.levelNumber) || featureBanners.has(key)) return false;
+    featureBanners.mark(key);
+    _enqueueModal((done) => {
+      carTypeIntroCard = new Card(app.stage, APP_W, APP_H, () => { carTypeIntroCard = null; done(); });
+    });
+    return true;
+  }
+
   function _triggerCarTypeIntro(typeKey) {
     _enqueueModal((done) => {
       carTypeIntroCard = new CarTypeIntroCard(
@@ -2242,26 +2260,6 @@ async function main() {
         pauseBtn.visible = false;   // no pause/restart inside the breach beat
       }
     },
-
-    onCrisis: (colIdx) => {
-      // CRISIS assist fired — a guaranteed-match shooter was injected at the
-      // top of this column. Gold flash + sound cue to signal the cavalry arrived.
-      gameRenderer3D.triggerCrisisGlow(colIdx);
-      shooterRenderer.triggerCrisisFlash(colIdx);
-      audio.play('crisis_assist');
-      haptics.medium();
-      floatingTexts.push(spawnFloatingText(
-        layers.get('particleLayer'),
-        // Above the column that received the assist (2026-09-27). Was hardcoded to a
-        // 4-column X and Y=560 — wrong column at 3 lanes, and inside the queue since
-        // the queue moved. Both now come from the registry, like every other anchor.
-        getColumnScreenX(colIdx), getColumnScreenY() - 40,
-        '⚡ CRISIS ASSIST', 0xffcc00,
-      ));
-      progress.incrementCrisisAssists();
-      const crisisAch = achievementManager.check('crisis_assist');
-      crisisAch.forEach(a => _awardAch(a));
-    },
   });
 
   // ── Bomb system callbacks ─────────────────────────────────────────────────
@@ -2404,6 +2402,18 @@ async function main() {
   // CHAIN REACTION (spread.js): the explosion jumped to same-colour neighbours. Arcs and the
   // neighbours' explosions in 3D; a CHAIN tag over the last car it took. The kill sound, tokens
   // and shake already escalate with the shot's kill count (onHit), which includes these.
+  // LANE BARRIER smashed (TrafficRules.resolveBreach): the car crashed into the lane's barrier and
+  // both are gone; the next car through this lane ends the level. Big moment + the once-ever card.
+  gameLoop._onBarrierSmash = (laneIdx, car) => {
+    gameRenderer3D.onBarrierSmash(laneIdx, car?.color ?? 'Red');
+    floatingTexts.push(spawnFloatingText(
+      layers.get('particleLayer'), getLaneScreenX(laneIdx), posToScreenY(100) - 44, 'BARRIER DOWN!', 0xFF3D3D,
+    ));
+    audio.play('armor_clang');
+    haptics.heavy();
+    _triggerIntroCard('barrier_down', BarrierIntroCard);   // the animated rule, once ever
+  };
+
   gameLoop._onSpread = (hits, laneIdx, srcPos) => {
     const pos = { [laneIdx]: srcPos };
     for (const h of hits) pos[h.lane] = h.car.position;
@@ -2487,7 +2497,7 @@ async function main() {
       onDeploy: (colIdx, laneIdx, release, dragged) => {
         if (colIdx >= gs.activeColCount || laneIdx >= gs.activeLaneCount) return;
         gameRenderer3D.setDropStart(laneIdx, release);   // bomb travels FROM release
-        gameLoop.deploy(colIdx, laneIdx, dragged);
+        return gameLoop.deploy(colIdx, laneIdx, dragged);   // false = refused, DragDrop snaps the bomb back
       },
       onBombPlaced: (x, y, laneIdx) => {
         // BOMB booster clears the tapped car's entire LANE — every car in it, any
@@ -2678,7 +2688,7 @@ async function main() {
     // `gs.bombFreezeUntil` is deliberately NOT passed — the renderer no longer
     // reads it either. See the "DORMANT ON PURPOSE" note in GameRenderer3D's
     // isFrozen; turning that effect on is its own reviewed change.
-    gameRenderer3D.update({ lanes: gs.lanes, boosterState, isBreaching: gs.isOver && !gs.won,
+    gameRenderer3D.update({ lanes: gs.lanes, boosterState, isBreaching: gs.isOver && !gs.won, barriers: gs.barriers,
                              comboFreezeShots: gs.comboFreezeShots,
                              colorBombArmed: gs.colorBombArmed }, fxDt, gs.elapsed);
 
@@ -2694,16 +2704,16 @@ async function main() {
     stepRuler.update(dt, gs);
     trafficLights.update(dt, gs.trafficMoves ?? 0);
 
-    // FINAL RUSH: the moment the level's last stretch gets busier (TrafficRules.finaleLaneTarget),
-    // say so once — the player should read the extra traffic as the climax, not as bad luck.
-    if (!rushShown && !gs.isOver && typeof currentLevelCfg?.id === 'number' && currentLevelCfg.id >= FINALE_FROM) {
-      const base = gs.laneTargetCarCount ?? 2;
-      const p = gameLoop._goalProgressPct();
-      if (finaleLaneTarget(base, p) > base) {
-        rushShown = true;
-        floatingTexts.push(spawnFloatingText(layers.get('particleLayer'), APP_W / 2, 215, 'FINAL RUSH!', 0xFF8A1C));
+    // WAVES: name each crest as it starts (TrafficRules.waveTagAt) — the player should read the
+    // heavier traffic as the level's shape, not as bad luck.
+    if (!gs.isOver && levelWaves > 0) {
+      const tag = waveTagAt(gameLoop._goalProgressPct(), levelWaves);
+      if (tag && tag !== lastWaveTag) {
+        lastWaveTag = tag;
+        floatingTexts.push(spawnFloatingText(layers.get('particleLayer'), APP_W / 2, 215, tag + '!', 0xFF8A1C));
         audio.play('combo_milestone', { combo: 7 });
         haptics.medium();
+        if (tag === 'WAVE 1') _triggerIntroCard('wave_incoming', WaveIntroCard);   // the level's shape, once ever
       }
     }
 

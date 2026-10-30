@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { IntensityPhase } from '../src/director/IntensityPhase.js'
-import { PHASE_CONFIG, PHASE_TRANSITION_DURATION, CRISIS } from '../src/director/DirectorConfig.js'
+import { PHASE_CONFIG, PHASE_TRANSITION_DURATION } from '../src/director/DirectorConfig.js'
 
 // With levelDuration=100 and the proportions [0.16, 0.22, 0.25, 0.18, 0.19]:
 //   CALM:     0  – 16
@@ -115,10 +115,6 @@ describe('getParams — steady state', () => {
     expect(steadyParams(5).damageSkew).toBe('easy')
   })
 
-  it('CALM: crisisEnabled = false', () => {
-    expect(steadyParams(5).crisisEnabled).toBe(false)
-  })
-
   it('BUILD: spawnCooldownMultiplier = 1.0 (baseline)', () => {
     expect(steadyParams(20).spawnCooldownMultiplier).toBeCloseTo(1.0)
   })
@@ -127,20 +123,12 @@ describe('getParams — steady state', () => {
     expect(steadyParams(20).damageSkew).toBe('standard')
   })
 
-  it('BUILD: crisisEnabled = false', () => {
-    expect(steadyParams(20).crisisEnabled).toBe(false)
-  })
-
   it('PRESSURE: hpMultiplier = 1.0', () => {
     expect(steadyParams(45).hpMultiplier).toBeCloseTo(1.0)
   })
 
   it('PRESSURE: spawnCooldownMultiplier = 0.75', () => {
     expect(steadyParams(45).spawnCooldownMultiplier).toBeCloseTo(0.75)
-  })
-
-  it('PRESSURE: crisisEnabled = true', () => {
-    expect(steadyParams(45).crisisEnabled).toBe(true)
   })
 
   it('CLIMAX: spawnCooldownMultiplier = 0.55 (most aggressive)', () => {
@@ -155,10 +143,6 @@ describe('getParams — steady state', () => {
     expect(steadyParams(68).damageSkew).toBe('hard')
   })
 
-  it('CLIMAX: crisisEnabled = true', () => {
-    expect(steadyParams(68).crisisEnabled).toBe(true)
-  })
-
   it('RELIEF: spawnCooldownMultiplier = 1.2', () => {
     expect(steadyParams(90).spawnCooldownMultiplier).toBeCloseTo(1.2)
   })
@@ -169,10 +153,6 @@ describe('getParams — steady state', () => {
 
   it('RELIEF: damageSkew = "easy"', () => {
     expect(steadyParams(90).damageSkew).toBe('easy')
-  })
-
-  it('RELIEF: crisisEnabled = true', () => {
-    expect(steadyParams(90).crisisEnabled).toBe(true)
   })
 
   it('params match PHASE_CONFIG values exactly in steady state', () => {
@@ -257,20 +237,6 @@ describe('Transition interpolation (CALM → BUILD at t=16)', () => {
   })
 })
 
-describe('Transition interpolation (BUILD → PRESSURE at t=38)', () => {
-  it('crisisEnabled becomes true immediately on entering PRESSURE', () => {
-    const ip = make()
-    ip.update(38) // just entered PRESSURE
-    expect(ip.getParams().crisisEnabled).toBe(true)
-  })
-
-  it('crisisEnabled is false just before PRESSURE (t=37.9)', () => {
-    const ip = make()
-    ip.update(37.9)
-    expect(ip.getParams().crisisEnabled).toBe(false)
-  })
-})
-
 describe('Transition interpolation (PRESSURE → CLIMAX at t=63)', () => {
   it('at midpoint damageSkew switches from source to target', () => {
     // PRESSURE=standard, CLIMAX=hard; switch at midpoint (t=63+1.5=64.5)
@@ -300,7 +266,6 @@ describe('getParams return shape', () => {
       'hpMultiplier',
       'speedMultiplier',
       'damageSkew',
-      'crisisEnabled',
     ]
     for (const t of [0, 15, 16, 37, 62, 80, 100]) {
       ip.update(t)
@@ -308,14 +273,6 @@ describe('getParams return shape', () => {
       for (const key of requiredKeys) {
         expect(p).toHaveProperty(key)
       }
-    }
-  })
-
-  it('crisisEnabled is boolean', () => {
-    const ip = make()
-    for (const t of [0, 37, 62, 80]) {
-      ip.update(t)
-      expect(typeof ip.getParams().crisisEnabled).toBe('boolean')
     }
   })
 

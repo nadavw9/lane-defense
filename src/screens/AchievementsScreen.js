@@ -17,7 +17,7 @@ const ICON = {
   first_blood: 'explosion', combo_starter: 'fire', combo_master: 'fire', combo_legend: 'fire', race_champion: 'car',
   bench_warmer: 'hand', sharpshooter: 'target', survivor: 'shield', speed_demon: 'timer',
   collector: 'coin', shopkeeper: 'gift', big_spender: 'coin', dedicated: 'star-filled',
-  streak_master: 'star-filled', chain_reaction: 'lightning', crisis_saved: 'heart',
+  streak_master: 'star-filled', chain_reaction: 'lightning',
   weekly_hero: 'trophy', no_mercy: 'skull', daily_challenger: 'lightning',
 };
 

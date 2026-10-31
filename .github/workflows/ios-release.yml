@@ -163,3 +163,15 @@ jobs:
           test "${PIPESTATUS[0]}" -eq 0
           rm -f "$KEY"
           security delete-keychain "$KEYCHAIN" || true
+
+      # Owner rule (2026-10-31): a build is released to the friends' public link by the pipeline
+      # itself: wait for Apple's processing, add it to the external group, submit it for beta review.
+      # Without the review submission the link keeps serving the last approved build.
+      - name: Release to the Friends group (TestFlight)
+        if: env.UPLOAD == 'testflight'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          TESTFLIGHT_GROUP: ${{ vars.TESTFLIGHT_GROUP || 'f452c867-9057-497d-b682-4ecf7b891f7d' }}
+        run: node scripts/testflight-release.mjs

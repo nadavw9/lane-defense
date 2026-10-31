@@ -17,7 +17,7 @@ import { eligiblePairs } from '../game/bridges.js';
 
 const GOLD = 0xFFC93C, GOLD_DEEP = 0xB8860B, INK = 0x1B1333, WHITE = 0xFFFFFF, GREEN = 0x2FCC55;
 const BEAM_H = 14;
-const SNAP_T = 0.5;
+const SNAP_T = 0.8;
 const INSET  = 0.2;   // the beam starts inside each car body (fraction of the lane gap), not at its centre
 const MADE_T = 0.45;
 const BLAST_T = 0.28;
@@ -138,7 +138,7 @@ export class BridgeLayer {
       const s = this._snaps[i]; s.t += dt;
       const k = s.t / SNAP_T;
       if (k >= 1) { this._snaps.splice(i, 1); continue; }
-      const mx = (s.x1 + s.x2) / 2, my = (s.y1 + s.y2) / 2, drop = 40 * k * k, al = 1 - k;
+      const mx = (s.x1 + s.x2) / 2, my = (s.y1 + s.y2) / 2, drop = 70 * k * k, al = 1 - k * k;
       this._beam(fx, s.x1, s.y1 + drop, mx - 6, my + drop + 8 * k, al, -0.25 * k);
       this._beam(fx, mx + 6, my + drop + 8 * k, s.x2, s.y2 + drop, al, 0.25 * k);
       fx.moveTo(mx - 4, my - 10).lineTo(mx + 3, my - 2).lineTo(mx - 3, my + 3).lineTo(mx + 4, my + 10).stroke({ color: WHITE, width: 2, alpha: al });

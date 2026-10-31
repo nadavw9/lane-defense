@@ -12,6 +12,16 @@ for (const f of readdirSync(out)) if (/\.(png|txt)$/.test(f)) unlinkSync(join(ou
 const labels = [];
 const b = await chromium.launch({ headless: true });
 const p = await b.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+// Every first-time card counted as seen, so no DemoCard covers the board mid-capture.
+await p.addInitScript(() => {
+  try {
+    const keys = ['tour', 'lane_2', 'lane_3', 'second_colour', 'bridge', 'bridge_guide', 'speeder', 'combo', 'supercharge', 'goal_colour',
+      'freeze_booster', 'colour_change_booster', 'freeze_earned', 'colour_change_earned', 'rainbow_bomb', 'first_kill', 'first_miss', 'barrier_down', 'wave_incoming', 'hp_miss',
+      'streak_charged', 'plate_break', 'armor_break', 'volatile_surge', 'mender_heal', 'gift_car', 'traffic_light', 'convoy'];
+    for (let i = 1; i <= 200; i++) keys.push('hint_L' + i);
+    localStorage.setItem('ftue_banners', JSON.stringify(keys));
+  } catch {}
+});
 const errs = [];
 p.on('pageerror', e => errs.push(String(e.message).slice(0, 200)));
 await p.goto(process.env.QA_URL ?? 'http://localhost:5174/', { waitUntil: 'networkidle' });
@@ -129,7 +139,7 @@ console.log(snapSetup);
 await p.waitForTimeout(500);
 await shot('L9 speeder bridged', 'a bridge between a speeder (flame car) and a normal car');
 await inPage(() => { const gl = window._nav.getGameLoop(); gl._advanceGrid(); });
-await p.waitForTimeout(200);
+await p.waitForTimeout(60);
 await shot('L9 snap', 'after the advance the speeder is a row ahead: the beam cracks in the middle and the halves fall');
 
 writeFileSync(join(out, '00-labels.txt'), labels.join('\n') + '\n');

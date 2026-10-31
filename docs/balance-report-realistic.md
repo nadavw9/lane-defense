@@ -218,3 +218,36 @@ Lvl │ Goals                              │ Win%  │ Band  │ AvgTurns │ 
 Flagged: L4(TOO EASY)  L6(TOO EASY)  L33(TOO HARD)  L39(TOO HARD)  L41(TOO HARD)  L49(TOO HARD)  L50(TOO EASY)  L52(TOO HARD)  L57(TOO HARD)  L61(TOO EASY)  L63(TOO EASY)  L68(TOO EASY)  L69(TOO EASY)  L79(TOO HARD)  L86(TOO HARD + TOO LONG)  L87(TOO EASY)  L91(TOO EASY)  L99(TOO EASY)  L100(TOO EASY)  L113(TOO EASY)  L119(TOO LONG)  L124(TOO HARD)  L126(TOO EASY)  L138(TOO HARD)  L141(TOO EASY)  L142(TOO EASY)  L148(TOO EASY)  L157(TOO HARD)  L162(TOO EASY)  L166(TOO EASY)  L169(TOO HARD)  L174(TOO EASY)  L177(TOO EASY)  L179(TOO LONG)  L186(TOO EASY)  L187(TOO EASY)  L189(TOO EASY)  L197(TOO HARD)  L199(TOO EASY)  L200(TOO EASY)
 Mean win rate across levels: 57.1%  [profile: human; the tuning reference is human]
 ```
+
+## The non-bridger (same profile, bridges off) — L6-30, 200 runs each
+
+```
+node tools/balance-sim.js --level=N --runs=200 --skill=human --no-bridges
+  6 │ Total:16                           │  75.0 │ 70-80 │     30.0 │       0.53 │ OK
+  7 │ Total:20                           │  23.5 │ 70-80 │     42.6 │       0.44 │ TOO HARD
+  8 │ Total:29                           │  23.0 │ 70-80 │     65.5 │       0.42 │ TOO HARD
+  9 │ Total:20                           │  58.0 │ 70-80 │     39.6 │       0.49 │ TOO HARD
+ 10 │ Total:22                           │  13.0 │ 54-64 │     35.4 │       0.55 │ TOO HARD
+ 11 │ Total:22                           │  35.5 │ 68-78 │     36.1 │       0.57 │ TOO HARD
+ 12 │ Blue:7, Green:7                    │  47.0 │ 62-72 │     34.9 │       0.65 │ TOO HARD
+ 13 │ Total:22                           │  38.5 │ 62-72 │     35.6 │       0.60 │ TOO HARD
+ 14 │ Total:22                           │  38.5 │ 62-72 │     36.0 │       0.58 │ TOO HARD
+ 15 │ Total:30                           │  26.0 │ 47-57 │     40.6 │       0.70 │ TOO HARD
+ 16 │ Total:22                           │  40.5 │ 68-78 │     33.7 │       0.62 │ TOO HARD
+ 17 │ Total:24                           │  53.5 │ 62-72 │     33.1 │       0.69 │ TOO HARD
+ 18 │ Total:22                           │  37.0 │ 62-72 │     34.3 │       0.61 │ TOO HARD
+ 19 │ Total:22                           │  40.5 │ 62-72 │     32.8 │       0.65 │ TOO HARD
+ 20 │ Total:22                           │   9.0 │ 47-57 │     35.4 │       0.57 │ TOO HARD
+ 21 │ Total:22                           │  46.5 │ 68-78 │     33.8 │       0.63 │ TOO HARD
+ 22 │ Total:19                           │  30.5 │ 62-72 │     31.4 │       0.56 │ TOO HARD
+ 23 │ Total:24                           │  37.0 │ 62-72 │     39.3 │       0.57 │ TOO HARD
+ 24 │ Total:18                           │  31.0 │ 62-72 │     28.5 │       0.58 │ TOO HARD
+ 25 │ Total:20                           │  24.5 │ 47-57 │     32.7 │       0.57 │ TOO HARD
+ 26 │ Total:19                           │  61.5 │ 68-78 │     32.1 │       0.57 │ TOO HARD
+ 27 │ Total:19                           │  27.0 │ 58-68 │     30.6 │       0.57 │ TOO HARD
+ 28 │ Red:4, Yellow:4                    │  35.0 │ 58-68 │     28.4 │       0.56 │ TOO HARD
+ 29 │ Total:19                           │  42.5 │ 58-68 │     31.8 │       0.56 │ TOO HARD
+ 30 │ Total:20                           │  25.5 │ 43-53 │     30.1 │       0.61 │ TOO HARD
+```
+
+Without bridging the same player sits far under every band from L7 on (L10: 13% vs 59%; L20: 9% vs 53%). L6 (the teaching level) stays winnable without a bridge on purpose.

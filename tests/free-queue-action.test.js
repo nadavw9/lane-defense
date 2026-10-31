@@ -1,4 +1,5 @@
-// Free queue action per shot — player gets 1 free queue-management action (reorder/
+// Free queue action per shot — ONE bench→queue RETURN per lane fire (the bench STORE is no longer
+// gated, 2026-10-31: every empty slot takes a bomb; see tests/bench-fills-all-slots.test.js). Was: (reorder/
 // bench-store/bench-return) per lane fire. Once used, further queue actions are
 // rejected (snap back) until the next lane fire resets the flag.
 //

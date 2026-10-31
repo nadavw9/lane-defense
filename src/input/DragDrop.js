@@ -552,12 +552,10 @@ export class DragDrop {
   }
 
   _handleBenchDrop(dropX) {
-    // Queue action: bench store (column→bench). Gate by free action flag.
-    if (this._boosterState?.queueActionUsed) {
-      this._snapBack();
-      return;
-    }
-
+    // Bench store (column→bench). NOT gated by the free queue action any more (owner,
+    // 2026-10-31: "only two bombs go into the slots" — the second store in a turn used to snap
+    // back with no explanation). The bench's only limit is its four slots; a store still marks
+    // the action used so the bench→queue RETURN stays one per turn (no endless shuffling).
     if (!this._benchStorage || !this._benchRenderer) {
       this._snapBack();
       return;
@@ -653,7 +651,7 @@ export class DragDrop {
     // before the overlay gate: a passing banner must not hide the one cue that says where a
     // dropped bomb will go.
     if (this._dragSource === 'column' && this._dragSourceRow === 0 && this._hitTestBenchArea(x, y)) {
-      const refused = !!this._boosterState?.queueActionUsed || !!this._benchStorage?.isFull;
+      const refused = !!this._benchStorage?.isFull;
       const slot = refused ? (this._benchRenderer?.hitTestSlot(x, y) ?? -1) : this._benchTargetSlot(x);
       if (slot !== -1) this._benchRenderer?.setHighlight(slot, !refused);
       return;

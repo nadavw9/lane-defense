@@ -82,14 +82,23 @@ jobs:
         working-directory: android
         run: |
           chmod +x ./gradlew
-          ./gradlew bundleRelease --no-daemon -PversionCode=$((100 + GITHUB_RUN_NUMBER)) -PversionName=1.1.${GITHUB_RUN_NUMBER}
+          ./gradlew bundleRelease assembleRelease --no-daemon -PversionCode=$((100 + GITHUB_RUN_NUMBER)) -PversionName=1.1.${GITHUB_RUN_NUMBER}
           rm -f keystore.properties "$RUNNER_TEMP/release.keystore"
+          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/TrafficBomb-1.1.${GITHUB_RUN_NUMBER}.apk"
 
       - uses: actions/upload-artifact@v4
         with:
           name: TrafficBomb-aab-v${{ github.run_number }}-ads-${{ env.VITE_ADS_MODE }}
           path: android/app/build/outputs/bundle/release/app-release.aab
           retention-days: 30
+
+      # The same build as a signed APK: the file the owner sends friends who install outside Play
+      # (2026-10-31). Same upload key and version code as the bundle, so it is one build, two files.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TrafficBomb-apk-v${{ github.run_number }}-ads-${{ env.VITE_ADS_MODE }}
+          path: ${{ runner.temp }}/TrafficBomb-1.1.${{ github.run_number }}.apk
+          retention-days: 90
 
       - name: Upload to Google Play
         if: ${{ github.event.inputs.track != 'none' }}

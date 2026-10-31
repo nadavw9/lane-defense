@@ -66,7 +66,7 @@ import { WinScreen, calcStars }       from '../screens/WinScreen.js';
 import { LoseScreen }                  from '../screens/LoseScreen.js';
 import { RescueOverlay }              from '../screens/RescueOverlay.js';
 import { isReducedMotion, setReducedMotion } from '../game/MotionPrefs.js';
-import { RESCUE_COIN_COST, KILLS_PER_BOMB } from '../director/DirectorConfig.js';
+import { RESCUE_COIN_COST, KILLS_PER_BOMB, PAIR_P } from '../director/DirectorConfig.js';
 import { ColorPicker }                from '../screens/ColorPicker.js';
 import { PreLevelScreen }             from '../screens/PreLevelScreen.js';
 import { BoosterUnlockScreen }        from '../screens/BoosterUnlockScreen.js';
@@ -845,7 +845,8 @@ async function main() {
     carDir.setLevel(typeof cfg.id === 'number' ? cfg.id : 1);
     carDir.setSpawnScript(cfg.spawnScript ?? null);   // §3c staged boss waves (INFRA-C)
     carDir.setWaves(wavesFor(cfg));                    // waves: crests keyed on goal progress (same impl as the sim)
-    carDir.setTraits(cfg.traits ?? null, cfg.colors);  // V2 special cars (TrafficRules)
+    carDir.setTraits(cfg.traits ?? null, cfg.colors);  // V2 special cars (TrafficRules; speeders boosted for bridges)
+    carDir.setPairBias(bridgesEnabledFor(cfg) ? PAIR_P : 0);   // side-by-side pairs to bridge (bridges.js)
     carDir.setConvoy(cfg.convoy ?? null);              // motorbike-only lanes
     carDir.setColorScript(cfg.firstColors ?? null);    // L1: a run of reds, then the first blue
     gs.firstColors = cfg.firstColors ?? null;

@@ -1,7 +1,7 @@
 // CarDirector — decides which cars to spawn: their HP, speed, color, and timing.
 // Constructor takes the full DirectorConfig and a SeededRandom instance so all
 // randomness is deterministic and testable.
-import { PHASE_CONFIG, HP_MINIMUM } from './DirectorConfig.js';
+import { PHASE_CONFIG, HP_MINIMUM, SPEEDER_BOOST, SPEEDER_CAP } from './DirectorConfig.js';
 import { Car } from '../models/Car.js';
 import { CAR_TYPES, pickCarType, carHpFor } from './CarTypes.js';
 import { rollTrait, waveHeft, waveLaneTarget } from './TrafficRules.js';
@@ -75,10 +75,16 @@ export class CarDirector {
   // HP formula: BASE_HP × worldHpMultiplier × phaseHpMultiplier × variance(0.85–1.15)
   // Result is rounded and clamped to [HP_MINIMUM, HP_BASE.max].
   //
-  generateCar(lane, phase, worldConfig, colorPalette, gridRows) {
+  // neighbourColor (BRIDGES, 2026-10-31): the colour of the car that just arrived in the previous
+  // lane at the same row, or null. With the pair bias on, the new car copies it with probability
+  // PAIR_P (setPairBias), so side-by-side same-colour pairs are there to bridge. A scripted colour
+  // wins; a colour outside the palette is ignored; bias 0 draws nothing extra from the rng.
+  generateCar(lane, phase, worldConfig, colorPalette, gridRows, neighbourColor = null) {
     const laneId = lane.id ?? lane;
 
-    const color = this._scriptedColor(colorPalette) ?? this.assignColor(colorPalette, null);
+    const color = this._scriptedColor(colorPalette)
+      ?? this._pairedColor(colorPalette, neighbourColor)
+      ?? this.assignColor(colorPalette, null);
 
     const availableRows = gridRows !== undefined ? gridRows - 1 : undefined;
     // Convoy lane: a line of motorbikes, one hit each, no special cars.
@@ -90,6 +96,15 @@ export class CarDirector {
 
   // Convoy lanes (lane indices) spawn only motorbikes. null / [] = none.
   setConvoy(lanes) { this._convoy = lanes?.length ? new Set(lanes) : null; }
+
+  // BRIDGES pair bias (DirectorConfig.PAIR_P from BRIDGES_FROM, 0 before). GameApp and the
+  // simulator both set it at level start.
+  setPairBias(p) { this._pairBias = Math.max(0, Math.min(1, Number.isFinite(p) ? p : 0)); }
+  _pairedColor(colorPalette, neighbourColor) {
+    const p = this._pairBias ?? 0;
+    if (!(p > 0) || !neighbourColor || !colorPalette.includes(neighbourColor)) return null;
+    return this._rng.next() < p ? neighbourColor : null;
+  }
 
   // firstColors (L1, 2026-10-27): the first cars generated take these colours in order — a run
   // of reds, then the first blue — so the match rule is taught at a fixed moment (introSchedule
@@ -197,7 +212,11 @@ export class CarDirector {
   // null → no traits and no extra rng draws, so trait-free levels are unchanged.
   setTraits(table, palette) {
     const has = table && Object.values(table).some(p => p > 0);
-    this._traits  = has ? table : null;
+    // Speeders break bridges (2026-10-31): every level's speeder share is boosted, capped.
+    const boosted = has && table.speeder > 0
+      ? { ...table, speeder: Math.min(SPEEDER_CAP, table.speeder * SPEEDER_BOOST) }
+      : table;
+    this._traits  = has ? boosted : null;
     this._palette = palette ?? null;
   }
 

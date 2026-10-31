@@ -791,22 +791,26 @@ export class GameLoop {
       // at a single position (mirrors the opening prime). `Lane.addCar` re-sorts by
       // position, so the front-car invariant is preserved regardless of fill order.
       const ROWS = gs.gridRows ?? 16;
+      let prevArrival = null;   // { row, color } of the car that arrived in the previous lane (BRIDGES pair bias)
       for (let li = 0; li < gs.activeLaneCount; li++) {
         const lane = gs.lanes[li];
         // One arrival per lane per advance: after a lane clear (BOMB booster) the road
         // refills as traffic driving in from the top, not three cars popping in at once.
-        let arrivals = 0;
+        let arrivals = 0, arrived = null;
         while (lane.cars.length < target && arrivals < 1) {
           arrivals++;
           const row = freeSpawnRow(lane.cars, stepSize(gs.stepsPerRow), ROWS);
           if (row < 0) break;   // lane physically full — nothing more to add
-          const car = this._carDir.generateCar(lane, 'CALM', gs.world, gs.colors, gs.gridRows);
+          const neighbour = prevArrival && Math.abs(prevArrival.row - row) < 1e-6 ? prevArrival.color : null;
+          const car = this._carDir.generateCar(lane, 'CALM', gs.world, gs.colors, gs.gridRows, neighbour);
           // The new car takes the back of the lane; cars behind the gap drive forward into it.
           placeArrival(lane.cars, car, row);
           for (const c of lane.cars) c.position = this._rowToPosition(c.row, ROWS);
           car.position = this._rowToPosition(car.row, ROWS);
           lane.addCar(car);
+          arrived = { row: car.row, color: car.color };
         }
+        prevArrival = arrived;
       }
       // Never leave the player an empty-looking road (see revealStagedCars).
       const active = gs.lanes.slice(0, gs.activeLaneCount);
@@ -1089,9 +1093,11 @@ export class GameLoop {
       // see openingRowsForLevel), so every level starts the same and cars enter from
       // the top. laneTargetCarCount controls ongoing refill, not the opening.
       const rows = (gs.openingRows && gs.openingRows.length) ? gs.openingRows : [0];
+      const dealt = new Map();   // row -> colour dealt in the previous lane (BRIDGES pair bias)
       for (let li = 0; li < gs.activeLaneCount; li++) {
         for (const row of rows) {
-          const car    = this._carDir.generateCar(gs.lanes[li], 'CALM', gs.world, gs.colors, ROWS);
+          const car    = this._carDir.generateCar(gs.lanes[li], 'CALM', gs.world, gs.colors, ROWS, dealt.get(row) ?? null);
+          dealt.set(row, car.color);
           car.row      = row;
           car.position = this._rowToPosition(row, ROWS);
           car.isInitial = true;   // see comment above — opening board renders settled

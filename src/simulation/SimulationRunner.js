@@ -30,8 +30,7 @@ import {
   COMBO_WINDOW,
   DEPLOY_DILATION,
   HP_MINIMUM,
-  KILLS_PER_BOMB,
-} from '../director/DirectorConfig.js';
+  KILLS_PER_BOMB, PAIR_P } from '../director/DirectorConfig.js';
 import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { openingRowsForLevel, clampInitialCarsToDepth, streakEnabledFor, BENCH_FROM_LEVEL } from '../game/LevelManager.js';
 import { bridgesEnabledFor, eligiblePairs, addBridge, bridgeHits, pruneBridges } from '../game/bridges.js';
@@ -236,6 +235,7 @@ export class SimulationRunner {
     // drag), so the bands measure a player who uses the mechanic. `bridges: false` (probes) = never.
     const bridgesOn = typeof this._cfg.bridges === 'boolean' ? this._cfg.bridges
       : (this._cfg.levelId != null ? bridgesEnabledFor({ id: this._cfg.levelId }) : false);
+    carDir.setPairBias(bridgesOn ? PAIR_P : 0);   // side-by-side pairs to bridge (same call as GameApp)
     // A car record carries the V2 trait state alongside row/hp/type/color.
     const rec = (car, row) => ({ row, hp: car.hp, maxHp: car.hp, type: car.type, color: car.color,
       trait: car.trait, armor: car.armor, altColor: car.altColor, recentHit: false });
@@ -360,10 +360,12 @@ export class SimulationRunner {
       // (GameApp -> gs.openingRows). Parity pinned by
       // tests/opening-depth-parity.test.js.
       const _openRows = openingRowsForLevel(this._cfg.levelId, this._cfg.gridRows);
+      const dealt = new Map();   // row -> colour dealt in the previous lane (BRIDGES pair bias, parity with GameLoop)
       for (const lane of discreteLanes) {
         // Push FRONT-FIRST (highest row first) so cars[0] stays the front car.
         for (let k = _openRows.length - 1; k >= 0; k--) {
-          const car = carDir.generateCar({ id: lane.id }, 'CALM', worldConfig, colors, this._cfg.gridRows);
+          const car = carDir.generateCar({ id: lane.id }, 'CALM', worldConfig, colors, this._cfg.gridRows, dealt.get(_openRows[k]) ?? null);
+          dealt.set(_openRows[k], car.color);
           // car.hp is already scaled by hpMultiplier in CarDirector._buildCar —
           // re-multiplying here was a live↔sim parity bug (pre-89e7c67 leftover,
           // when the sim was the only place the multiplier applied): the sim
@@ -402,21 +404,25 @@ export class SimulationRunner {
       // §3c INFRA-C rate: the spawnScript stage may override the lane-fill target
       // (L20 surge crests/lulls). Same line as GameLoop._refillLanes — parity.
       const target = carDir.laneTarget(this._cfg.laneTargetCarCount);   // same call as GameLoop (final rush)
+      let prevArrival = null;   // { row, color } of the previous lane's arrival (BRIDGES pair bias, parity with GameLoop)
       for (const lane of discreteLanes) {
-        let added = false;
+        let added = false, arrived = null;
         let arrivals = 0;   // one arrival per lane per advance — parity with GameLoop._refillLanes
         while (lane.cars.length < target && arrivals < 1) {
           arrivals++;
           const row = freeSpawnRow(lane.cars, STEP, this._cfg.gridRows);
           if (row < 0) break;   // lane physically full
-          const car = carDir.generateCar({ id: lane.id }, phase, worldConfig, colors, this._cfg.gridRows);
+          const neighbour = prevArrival && Math.abs(prevArrival.row - row) < 1e-6 ? prevArrival.color : null;
+          const car = carDir.generateCar({ id: lane.id }, phase, worldConfig, colors, this._cfg.gridRows, neighbour);
           // No re-multiplication: car.hp already carries hpMultiplier (see the
           // opening-block parity note). Carry-over bait cars keep their 1-2 hp.
           const r = rec(car, row);
           placeArrival(lane.cars, r, row);   // parity with GameLoop._refillLanes: arrivals take the back
           lane.cars.push(r);
           added = true;
+          arrived = { row: r.row, color: r.color };
         }
+        prevArrival = arrived;
         if (added) lane.cars.sort((a, b) => b.row - a.row);   // cars[0] = front (highest row)
       }
       revealStagedCars(discreteLanes.map(l => l.cars));   // parity with GameLoop._refillLanes

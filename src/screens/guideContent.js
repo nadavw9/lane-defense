@@ -73,6 +73,8 @@ export const CARDS = {
   first_miss:      { title: 'WRONG COLOR',    text: 'No damage! A bomb only hurts cars of its own color.' },
   barrier_down:    { title: 'BARRIER DOWN!',  text: 'Each lane has one barrier. The next car through this lane ends the level!', target: 'road' },
   wave_incoming:   { title: 'WAVES!',         text: 'Traffic comes in waves. Keep a FREEZE or a BOMB for the crests!', target: 'road' },
+  bridge_guide:    { title: 'BRIDGE THEM!',   text: 'Drag one car onto the other.', target: 'road' },   // hand on the REAL pair (TutorialOrchestrator), L6
+  speeder:         { title: 'SPEEDERS',       text: 'A flame car moves two steps a turn and breaks its bridge. Bridge it in front, then shoot!', target: 'road' },
   hp_miss:         null,   // the animated NEW VEHICLE card (L3 car, L5 van) already shows the shrink
   streak_charged:  { title: 'POWER SHOT!',     text: 'Your front bombs are charged. Fire one: it hits twice! The others lose the charge.', target: 'bombs' },
   colorchange_use: null,   // taught by the L9 COLOUR CHANGE card

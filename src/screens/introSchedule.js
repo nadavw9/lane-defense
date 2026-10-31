@@ -48,6 +48,8 @@ export const REACTIVE_WINDOW = {
   first_miss:     [1, 2],
   barrier_down:   [1, 200],   // the first smash IS the moment, on whatever level it happens (2026-10-30)
   wave_incoming:  [10, 10],   // the first WAVE 1 crest (TrafficRules.WAVES_FROM), an animated card
+  bridge_guide:   [6, 6],     // the first bridgeable pair on the bridges level: hand on the real cars (bridges.BRIDGES_FROM)
+  speeder:        [9, 9],     // the first speeder on the road (L9): the "bridge it in front, then shoot" demo
   freeze_earned:  [8, 11],
   colour_change_earned: [21, 24],
   streak_charged: [11, 12],

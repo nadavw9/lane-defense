@@ -151,43 +151,8 @@ export class BridgeLayer {
     }
   }
 
-  // A gold beam: ink shadow, two rails, three rungs. `tilt` (radians) for the falling halves.
-  _beam(g, x1, y1, x2, y2, alpha = 1, tilt = 0) {
-    const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy);
-    if (len < 4) return;
-    const ux = dx / len, uy = dy / len;                 // along
-    const ca = Math.cos(tilt), sa = Math.sin(tilt);
-    const ax = ux * ca - uy * sa, ay = ux * sa + uy * ca;   // tilted along
-    const nx = -ay, ny = ax;                            // normal
-    const h = BEAM_H / 2;
-    const P = (t, n) => [x1 + ax * t + nx * n, y1 + ay * t + ny * n];
-    const rail = (n, col, w) => { const [sx, sy] = P(0, n), [ex, ey] = P(len, n); g.moveTo(sx, sy).lineTo(ex, ey).stroke({ color: col, width: w, alpha }); };
-    rail(0, INK, BEAM_H + 4);
-    rail(-h + 1, GOLD, 3.2); rail(h - 1, GOLD_DEEP, 3.2);
-    rail(0, 0xFFE9A0, 1.6);
-    for (let i = 1; i <= 3; i++) {
-      const t = (len * i) / 4;
-      const [sx, sy] = P(t, -h), [ex, ey] = P(t, h);
-      g.moveTo(sx, sy).lineTo(ex, ey).stroke({ color: INK, width: 3, alpha }).moveTo(sx, sy).lineTo(ex, ey).stroke({ color: GOLD, width: 1.5, alpha });
-    }
-  }
-
-  // Dotted hint link, dots flowing toward the middle from both ends.
-  _dots(g, x1, y1, x2, y2) {
-    const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy);
-    if (len < 4) return;
-    const n = Math.max(4, Math.floor(len / 14));
-    const flow = (this._t * 0.9) % 1;
-    for (let i = 0; i < n; i++) {
-      let k = (i + flow) / n;                           // 0..1 along
-      k = k < 0.5 ? k : 1 - k;                          // mirror: both ends flow to the middle
-      const ends = [k, 1 - k];
-      for (const e of ends) {
-        g.circle(x1 + dx * e, y1 + dy * e, 2.6).fill({ color: INK, alpha: 0.5 });
-        g.circle(x1 + dx * e, y1 + dy * e, 1.8).fill({ color: WHITE, alpha: 0.75 });
-      }
-    }
-  }
+  _beam(g, x1, y1, x2, y2, alpha = 1, tilt = 0) { drawBeam(g, x1, y1, x2, y2, { alpha, tilt, h: BEAM_H }); }
+  _dots(g, x1, y1, x2, y2) { drawDots(g, x1, y1, x2, y2, this._t); }
 
   _pill(i) {
     let c = this._pills[i];
@@ -203,4 +168,44 @@ export class BridgeLayer {
   _recyclePills(used) {
     for (let i = used; i < this._pills.length; i++) this._pills[i].visible = false;
   }
+}
+
+// ── Shared drawing (the DemoCard scenes draw the same bridge the board does) ──────────────
+
+/** A gold beam: ink shadow, two rails, three rungs. `tilt` (radians) for the falling halves. */
+export function drawBeam(g, x1, y1, x2, y2, { alpha = 1, tilt = 0, h: beamH = BEAM_H } = {}) {
+  const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy);
+  if (len < 4) return;
+  const ux = dx / len, uy = dy / len;                 // along
+  const ca = Math.cos(tilt), sa = Math.sin(tilt);
+  const ax = ux * ca - uy * sa, ay = ux * sa + uy * ca;   // tilted along
+  const nx = -ay, ny = ax;                            // normal
+  const h = beamH / 2;
+  const P = (t, n) => [x1 + ax * t + nx * n, y1 + ay * t + ny * n];
+  const rail = (n, col, w) => { const [sx, sy] = P(0, n), [ex, ey] = P(len, n); g.moveTo(sx, sy).lineTo(ex, ey).stroke({ color: col, width: w, alpha }); };
+  rail(0, INK, beamH + 4);
+  rail(-h + 1, GOLD, Math.max(2, beamH * 0.23)); rail(h - 1, GOLD_DEEP, Math.max(2, beamH * 0.23));
+  rail(0, 0xFFE9A0, Math.max(1, beamH * 0.12));
+  for (let i = 1; i <= 3; i++) {
+    const t = (len * i) / 4;
+    const [sx, sy] = P(t, -h), [ex, ey] = P(t, h);
+    g.moveTo(sx, sy).lineTo(ex, ey).stroke({ color: INK, width: 3, alpha }).moveTo(sx, sy).lineTo(ex, ey).stroke({ color: GOLD, width: 1.5, alpha });
+  }
+}
+
+/** Dotted hint link, dots flowing toward the middle from both ends (`time` drives the flow). */
+export function drawDots(g, x1, y1, x2, y2, time = 0) {
+  const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy);
+  if (len < 4) return;
+  const n = Math.max(4, Math.floor(len / 14));
+  const flow = (time * 0.9) % 1;
+  for (let i = 0; i < n; i++) {
+    let k = (i + flow) / n;                           // 0..1 along
+    k = k < 0.5 ? k : 1 - k;                          // mirror: both ends flow to the middle
+    for (const e of [k, 1 - k]) {
+      g.circle(x1 + dx * e, y1 + dy * e, 2.6).fill({ color: INK, alpha: 0.5 });
+      g.circle(x1 + dx * e, y1 + dy * e, 1.8).fill({ color: WHITE, alpha: 0.75 });
+    }
+  }
+
 }

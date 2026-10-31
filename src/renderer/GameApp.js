@@ -78,6 +78,7 @@ import { tourSteps, stepsFor } from '../screens/guideContent.js';
 import { streakGift, winsToNextTier, addBundles } from '../game/winStreak.js';
 import { StepRuler } from './StepRuler.js';
 import { BridgeLayer } from './BridgeLayer.js';
+import { DemoCard, hasDemo } from '../screens/DemoCard.js';
 import { TrafficLights } from './TrafficLights.js';
 import { waveTagAt, wavesFor } from '../director/TrafficRules.js';
 import { ModeHint } from './ModeHint.js';
@@ -638,7 +639,17 @@ async function main() {
     });
   }
   // First-time cards: FeatureBanners calls this once per key.
-  function _presentGuide(key, text) { _showGuide(stepsFor(key, text, guideGeo)); }
+  // Every first-time explanation is a moving picture when a scene exists for it (DemoCard,
+  // src/screens/demoScenes.js); only the cards that ring a REAL board element stay text + hand.
+  function _presentGuide(key, text) {
+    if (hasDemo(key)) {
+      _enqueueModal((done) => {
+        carTypeIntroCard = new DemoCard(app.stage, APP_W, APP_H, key, () => { carTypeIntroCard = null; done(); });
+      });
+      return;
+    }
+    _showGuide(stepsFor(key, text, guideGeo));
+  }
   // The level-1 walkthrough. Marked done only when the player reaches the last card,
   // so quitting half-way does not burn it.
   const _tourDone = () => featureBanners.has('tour');
@@ -2371,7 +2382,39 @@ async function main() {
   gameLoop._onAdvance = () => {
     gameRenderer3D.onAdvance();
     _teachSecondColour();
+    _teachBridge();
+    _noticeSpeeder();
   };
+  // L6 (introSchedule bridge_guide): the first time two same-colour cars sit side by side on the
+  // bridges level, the game pauses with a hand dragging one onto the other on the REAL board
+  // (TutorialOrchestrator, like the bench: input stays open, the real drag completes it through
+  // onBridge -> completeIfActive('bridge')). Once ever.
+  function _teachBridge() {
+    const key = 'bridge_guide';
+    if (!gs.bridgesEnabled || gs.isOver || gs.bridges.length || featureBanners.has(key)) return;
+    if (currentLevelIsDaily || !reactiveAllowed(key, levelManager.levelNumber)) return;
+    const pairs = eligiblePairs(gs.lanes, gs.activeLaneCount);
+    const p = pairs.find(q => gs.lanes[q.a.lane].frontCar() === q.a.car) ?? pairs[0];
+    if (!p) return;
+    featureBanners.mark(key);
+    const A = () => ({ x: getLaneScreenX(p.a.lane), y: posToScreenY(p.a.car.position) });
+    const B = () => ({ x: getLaneScreenX(p.b.lane), y: posToScreenY(p.b.car.position) });
+    setTimeout(() => {
+      if (gs.isOver || !gs.lanes[p.a.lane].cars.includes(p.a.car)) return;
+      tutOrch.start({
+        id: 'bridge', text: 'DRAG ONE CAR ONTO THE OTHER',
+        bounds: () => { const a = A(), b = B(); return { x: Math.min(a.x, b.x) - 46, y: Math.min(a.y, b.y) - 44, w: Math.abs(b.x - a.x) + 92, h: 88 }; },
+        handStart: A(), handEnd: B(), pauseGame: true,
+      });
+    }, 500);
+  }
+  // L9 (introSchedule speeder): the first flame car on the visible road opens the SPEEDERS demo
+  // (two steps a turn, the bridge snaps: bridge it in front, then shoot). Once ever.
+  function _noticeSpeeder() {
+    if (gs.isOver || currentLevelIsDaily || !reactiveAllowed('speeder', levelManager.levelNumber)) return;
+    const seen = gs.lanes.slice(0, gs.activeLaneCount).some(l => l.cars.some(c => c.trait === 'speeder' && c.row >= 1));
+    if (seen) fireReactive('speeder', '');
+  }
   // L1 (introSchedule second_colour): the road opened with a run of the lead colour
   // (LevelManager firstColors); the first time a car of ANOTHER colour reaches the front, stop
   // and show it — ring on that colour's bomb, hand dragging it onto the car. Fired from the
@@ -2956,6 +2999,7 @@ async function main() {
       // BRIDGES (bridges.js): what is bridged, what could be, and make one without the gesture.
       bridges:    () => gs.bridges.map(b => ({ a: { lane: b.a.lane, row: b.a.car.row, color: b.a.car.color }, b: { lane: b.b.lane, row: b.b.car.row, color: b.b.car.color } })),
       bridgeable: () => (gs.bridgesEnabled ? eligiblePairs(gs.lanes, gs.activeLaneCount) : []).map(p => ({ a: { lane: p.a.lane, row: p.a.car.row, color: p.a.car.color }, b: { lane: p.b.lane, row: p.b.car.row, color: p.b.car.color } })),
+      showDemo:   (key) => { if (hasDemo(key)) _presentGuide(key, ''); return hasDemo(key); },   // open a DemoCard by scene key (review captures)
       makeBridge: (laneA, laneB) => {
         const p = (gs.bridgesEnabled ? eligiblePairs(gs.lanes, gs.activeLaneCount) : []).find(q => q.a.lane === Math.min(laneA, laneB) && q.b.lane === Math.max(laneA, laneB));
         return p ? dragDrop._onBridge(p.a.lane, p.a.car, p.b.lane, p.b.car) : false;

@@ -52,7 +52,7 @@ export const CARDS = {
   lane_3:          { title: 'THREE LANES', text: 'Three lanes. Stop the car nearest the red line first!', target: 'road' },
   // In play on L1, when the first blue car reaches the front (GameApp puts the hand on the blue bomb).
   second_colour:   { title: 'A BLUE CAR!', text: 'A red bomb bounces off it. A bomb only hurts cars of its own color: drag the BLUE one!', target: 'bombs' },
-  chain_reaction:  { title: 'CHAIN REACTION', text: 'A car that blows up takes same-color cars beside it with it. Set them up, then take the row!', target: 'road' },
+  bridge:          { title: 'BRIDGES', text: 'Drag a car onto the same-color car beside it to bridge them. One hit takes both!', target: 'road' },
   combo:           { title: 'COMBO!', text: 'Destroy cars quickly, one after another, for bonus coins.', target: 'goal' },
   supercharge:     { title: 'SUPERCHARGE', text: 'Destroy a car 5 shots in a row to charge the bombs in front. Fire one: it hits twice!', target: 'bombs' },
   goal_colour:     { title: 'A COLOR GOAL', text: 'Only cars of this color count toward the goal.', target: 'goal' },

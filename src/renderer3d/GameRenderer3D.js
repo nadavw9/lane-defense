@@ -320,11 +320,11 @@ export class GameRenderer3D {
   }
 
   /**
-   * CHAIN REACTION (spread.js): `steps` in the order they happened, each
+   * BRIDGE BLAST (bridges.js): `steps` in the order they happened, each
    * { fromLane, fromPos, lane, position, color, destroyed }. Lane by lane, 90 ms apart:
    * the arc jumps, the neighbour flashes, and (if it died) explodes a beat later.
    */
-  onSpread(steps = []) {
+  onBridgeBlast(steps = []) {
     steps.forEach((s, i) => {
       this._later(() => {
         this._particles?.spawnArc(s.fromLane, s.fromPos, s.lane, s.position, s.color);

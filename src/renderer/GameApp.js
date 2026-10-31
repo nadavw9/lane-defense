@@ -43,7 +43,7 @@ import { GameState }       from '../game/GameState.js';
 import { GameLoop }        from '../game/GameLoop.js';
 import { CombatResolver }  from '../game/CombatResolver.js';
 import { LevelManager, LEVEL_COUNT, openingRowsForLevel, clampInitialCarsToDepth, streakEnabledFor, BENCH_FROM_LEVEL } from '../game/LevelManager.js';
-import { spreadEnabledFor } from '../game/spread.js';
+import { bridgesEnabledFor } from '../game/bridges.js';
 import { BoosterState }    from '../game/BoosterState.js';
 import { ProgressManager } from '../game/ProgressManager.js';
 import { applyDda }         from '../game/dda.js';
@@ -665,6 +665,7 @@ async function main() {
   // ProgressManager.introducedCarTypes). The old flow re-showed cards mid-level
   // whenever a refill spawned a type (localStorage key + no backfill).
   let carTypeIntroCard    = null;  // active intro card (only one at a time)
+  let bridgeLayer         = null;  // BridgeLayer: LINK hints, beams, snaps over the road (bridges.js)
   let carTypeIntroTimer   = null;  // setTimeout handle for level-start intro delay
   let levelStartCardsTimer = null; // level-start tour / tip cards, shown after the splash
 
@@ -852,7 +853,8 @@ async function main() {
     gs.lights = cfg.lights ?? null;                    // traffic lights (TrafficRules.laneHeld)
     trafficLights.setLights(gs.lights);
     gs.streakEnabled = streakEnabledFor(cfg);           // V2 Hot Streak
-    gs.spreadEnabled = spreadEnabledFor(cfg);           // CHAIN REACTION across lanes (spread.js)
+    gs.bridgesEnabled = bridgesEnabledFor(cfg);         // BRIDGES across lanes (bridges.js)
+    gs.bridges.length = 0;
     streakMeter.setEnabled(gs.streakEnabled);
     streakMeter.reset();
     shooterDir.setColorBias(cfg.shooterColorWeights ?? null);   // §3c L10 v2 supply bias
@@ -2414,23 +2416,31 @@ async function main() {
     _triggerIntroCard('barrier_down', BarrierIntroCard);   // the animated rule, once ever
   };
 
-  gameLoop._onSpread = (hits, laneIdx, srcPos) => {
-    const pos = { [laneIdx]: srcPos };
-    for (const h of hits) pos[h.lane] = h.car.position;
-    gameRenderer3D.onSpread(hits.map(h => ({
-      fromLane: h.from, fromPos: pos[h.from], lane: h.lane, position: h.car.position,
+  // BRIDGES (bridges.js): the hit ran along the player's bridges. Arcs from the hit car to each
+  // bridged car and their flashes/explosions in 3D; a BRIDGE tag over the last car it took. The
+  // kill sound, tokens and shake already escalate with the shot's kill count (onHit).
+  gameLoop._onBridgeBlast = (hits, laneIdx, srcPos) => {
+    gameRenderer3D.onBridgeBlast(hits.map(h => ({
+      fromLane: laneIdx, fromPos: srcPos, lane: h.lane, position: h.car.position,
       color: h.car.color, destroyed: h.destroyed,
     })));
+    bridgeLayer?.onBlast(hits);
     const taken = hits.filter(h => h.destroyed);
     if (!taken.length) return;
     const last = taken[taken.length - 1];
     floatingTexts.push(spawnFloatingText(
       layers.get('particleLayer'),
       getLaneScreenX(last.lane), posToScreenY(last.car.position) - 30,
-      taken.length > 1 ? `CHAIN x${taken.length + 1}!` : 'CHAIN!', 0xffcc44,
+      `BRIDGE x${taken.length + 1}!`, 0xffcc44,
     ));
     audio.play('kill_ding');
     haptics.heavy();
+  };
+  // A bridge broke on its own (a speeder moved on, a chameleon flipped, a crash): the beam snaps.
+  gameLoop._onBridgeSnap = (bridges) => {
+    bridgeLayer?.onSnap(bridges);
+    audio.play('armor_clang');
+    haptics.light?.();
   };
   gameLoop._onColorBomb = (color, killed) => {
     comboFX.triggerColorBomb(color);                 // edge vignette only

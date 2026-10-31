@@ -156,7 +156,7 @@ export class Particles3D {
   }
 
   /**
-   * CHAIN REACTION arc: a jagged line of bright sparks from one car to the next
+   * BRIDGE arc: a jagged line of bright sparks from one car to the next
    * lane's car, rising in a low bow and gone in a quarter second. Positions are
    * road positions (0-100), captured before the cars are removed.
    */

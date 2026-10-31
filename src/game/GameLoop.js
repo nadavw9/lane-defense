@@ -9,7 +9,7 @@ import { PHASE_CONFIG, HP_MINIMUM, KILLS_PER_BOMB } from '../director/DirectorCo
 import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { Shooter } from '../models/Shooter.js';
 import { shotPoints, nextChain, POINTS } from './score.js';
-import { spreadAcross } from './spread.js';
+import { addBridge as addBridgeRule, bridgeHits, pruneBridges } from './bridges.js';
 import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak, STREAK_TO_CHARGE, laneHeld, resolveBreach,
          revealStagedCars, stepSize, freeSpawnRow, placeArrival } from '../director/TrafficRules.js';
 
@@ -66,7 +66,8 @@ export class GameLoop {
     this._onColorBombEarned = null;  // set by GameApp; (colIdx) → color-bomb earned flash + intro card + SFX
     this._onMultiKill       = null;  // set by GameApp; (count, needed) → "MULTI-KILL n/3" notification
     this._onNearMiss        = null;  // set by GameApp; () → near-miss drama (slow-mo + heartbeat + red pulse)
-    this._onSpread          = null;  // set by GameApp; (hits, laneIdx, srcPos) → CHAIN REACTION arcs + neighbour explosions (spread.js)
+    this._onBridgeBlast     = null;  // set by GameApp; (hits, laneIdx, srcPos) → the hit runs along the bridges (bridges.js)
+    this._onBridgeSnap      = null;  // set by GameApp; (bridges[]) → a bridge broke (speeder moved on, chameleon flipped)
     this._onBarrierSmash    = null;  // set by GameApp; (laneIdx, car) → the lane's barrier is gone (TrafficRules.resolveBreach)
 
     // Base level duration — used to reset gs.duration on restart.
@@ -257,6 +258,7 @@ export class GameLoop {
       // Earned rainbows need a frontCar to determine target color.
       if (!targetColor) return;
       const killed = this._fireColorBomb(targetColor);
+      this._pruneBridges(true);   // the rainbow took bridged cars with it
       this._onColorBomb?.(targetColor, killed);
       if (gs.isOver) return;
       // A rainbow that completes the goals wins NOW — the advance would run the
@@ -288,16 +290,19 @@ export class GameLoop {
     const res = this._combat.resolve(shooter, lane, { power });
     let { kills } = res;
     const { carryOverKills, damageDealt, destroyed: destroyedFromCombat } = res;
-    // CHAIN REACTION (spread.js): an explosion passes one hit to same-colour front cars in the
-    // neighbouring lanes. Their kills are part of THIS shot (score, goals, effects).
-    if (kills > 0 && gs.spreadEnabled) {
-      const hits = spreadAcross(gs.lanes, laneIdx, shooter.color, gs.activeLaneCount);
+    // BRIDGES (bridges.js): the hit on the front car lands on every car the player bridged to it,
+    // the same rung(s) off each. Their kills are part of THIS shot (score, goals, effects). A
+    // bridge whose car died is consumed silently; the survivors stay bridged.
+    if (res.hit && !res.armorBroken && gs.bridgesEnabled && gs.bridges.length) {
+      const hits = bridgeHits(gs.lanes, gs.bridges, frontCar, power ? 2 : 1, gs.activeLaneCount);
       for (const h of hits) {
         if (!h.destroyed) continue;
         kills++;
+        gs.bridgeKills++;
         destroyedFromCombat.push({ color: h.car.color, type: h.car.type, trait: h.car.trait ?? null });
       }
-      if (hits.length) this._onSpread?.(hits, laneIdx, carGameX);
+      if (hits.length) this._onBridgeBlast?.(hits, laneIdx, carGameX);
+      this._pruneBridges(true);
     }
     // A destroyed volatile shoves the other lanes' traffic one extra row on the
     // advance this shot causes (see TrafficRules.surgeOtherLanes).
@@ -405,6 +410,31 @@ export class GameLoop {
 
     // Turn-based: advance the grid after every hit — damage-only AND kill shots.
     if (!gs.isOver) this._advanceGrid();
+  }
+
+  // BRIDGES (bridges.js). The player dragged car A onto car B: link them when the rule allows it
+  // (adjacent lanes, same colour, side by side, on the road, bridges on for this level). Free: no
+  // turn passes. Returns true when a new bridge was made.
+  addBridge(laneA, carA, laneB, carB) {
+    const gs = this._gs;
+    if (!gs.bridgesEnabled || gs.isOver) return false;
+    if (!(gs.lanes[laneA]?.cars.includes(carA)) || !(gs.lanes[laneB]?.cars.includes(carB))) return false;
+    if (Math.abs(laneA - laneB) !== 1 || laneA >= gs.activeLaneCount || laneB >= gs.activeLaneCount) return false;
+    if (carA.color !== carB.color || Math.abs(carA.row - carB.row) > 1e-6) return false;
+    if (carA.row < 1 - 1e-6 || (carA.armor ?? 0) > 0 || (carB.armor ?? 0) > 0) return false;
+    if (!addBridgeRule(gs.bridges, laneA, carA, laneB, carB)) return false;
+    gs.bridgesMade++;
+    return true;
+  }
+
+  // Drop every bridge that no longer holds. `silent` after a hit or a clear (the cars died: the
+  // bridge was spent, nothing to show); otherwise the renderer plays the snap (a speeder moved
+  // on, a chameleon flipped).
+  _pruneBridges(silent = false) {
+    const gs = this._gs;
+    if (!gs.bridges.length) return;
+    const gone = pruneBridges(gs.lanes, gs.bridges, gs.activeLaneCount);
+    if (gone.length && !silent) this._onBridgeSnap?.(gone);
   }
 
   // True when this bomb fires as the Hot Streak supercharged shot.
@@ -667,6 +697,9 @@ export class GameLoop {
 
     // 7. Near-miss drama check on the settled post-advance board.
     this._checkNearMiss();
+
+    // 8. Bridges whose cars drifted apart (speeder), flipped (chameleon) or crashed: snap them.
+    this._pruneBridges(false);
   }
 
   // §3d near-miss drama trigger + re-arm state machine. Fires _onNearMiss when the
@@ -710,6 +743,7 @@ export class GameLoop {
   // never registers the win (soft-lock).
   _settleAfterClear() {
     const gs = this._gs;
+    this._pruneBridges(true);   // a cleared lane took its bridged cars with it
     if (gs.isOver) return;
 
     // Win check — mirrors _advanceGrid step 3 (goal-based or legacy kill goal).

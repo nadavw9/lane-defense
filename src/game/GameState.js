@@ -83,9 +83,13 @@ export class GameState {
     // V2 Hot Streak (TrafficRules): consecutive kill shots, and whether the next
     // bomb is supercharged. streakEnabled is set per level by GameApp.
     this.streakEnabled = false;
-    // CHAIN REACTION across lanes (spread.js): an explosion passes to same-colour neighbours.
-    // Set per level by GameApp (spreadEnabledFor); the sim mirrors it.
-    this.spreadEnabled = false;
+    // BRIDGES across lanes (bridges.js): the player links two side-by-side same-colour cars in
+    // adjacent lanes; a hit on one lands on every connected car. Set per level by GameApp
+    // (bridgesEnabledFor); the sim mirrors it. `bridges` holds car OBJECTS (cars have no id).
+    this.bridgesEnabled = false;
+    this.bridges        = [];
+    this.bridgesMade    = 0;
+    this.bridgeKills    = 0;
     this.streak        = 0;
     this.streakCharged = false;
 
@@ -247,6 +251,9 @@ export class GameState {
     this.giftsPending     = 0;
     this.barriers.fill(this.barriersEnabled);
     this.barriersLost     = 0;
+    this.bridges.length   = 0;
+    this.bridgesMade      = 0;
+    this.bridgeKills      = 0;
     this.spawnBudget      = this._initialSpawnBudget;
     this.rescueUsed    = false;
     this.isOver        = false;

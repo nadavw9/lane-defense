@@ -106,9 +106,10 @@ export function bridgeHits(lanes, bridges, hitCar, damage = 1, activeLaneCount =
     if (car === hitCar) continue;
     const l = laneOf(lanes, car, activeLaneCount);
     if (l < 0) continue;
-    car.takeDamage(damage);
+    // Car objects (models/Car) and the simulator's plain records share this path.
+    if (typeof car.takeDamage === 'function') car.takeDamage(damage); else car.hp = Math.max(0, car.hp - damage);
     car.recentHit = true;           // menders skip this turn's repair, as after a bomb
-    const destroyed = car.isDead();
+    const destroyed = car.hp <= 0;
     if (destroyed) lanes[l].cars.splice(lanes[l].cars.indexOf(car), 1);
     hits.push({ lane: l, car, destroyed });
   }

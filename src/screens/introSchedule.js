@@ -16,10 +16,10 @@ export const LEVEL_START_CARDS = {
   // introduced by their animated NEW VEHICLE card, not listed here; the bench (L13) has its own
   // spotlight tutorial. Colours and traits are announced by the level's hint on its card.
   // L1 teaches the colour match in play (second_colour below, LevelManager firstColors), so L2
-  // adds only the lane. L6 chain reaction (spread.SPREAD_FROM): same-colour neighbours explode together.
+  // adds only the lane. L6 bridges (bridges.BRIDGES_FROM): drag car to car, one hit takes both.
   2:  ['lane_2'],
   3:  ['lane_3'],
-  6:  ['chain_reaction'],
+  6:  ['bridge'],
   8:  ['freeze_booster'],
   11: ['supercharge'],
   12: ['goal_colour'],

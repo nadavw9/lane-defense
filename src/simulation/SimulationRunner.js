@@ -34,7 +34,7 @@ import {
 } from '../director/DirectorConfig.js';
 import { CAR_TYPES, carHpFor } from '../director/CarTypes.js';
 import { openingRowsForLevel, clampInitialCarsToDepth, streakEnabledFor, BENCH_FROM_LEVEL } from '../game/LevelManager.js';
-import { spreadAcross, spreadEnabledFor } from '../game/spread.js';
+import { bridgesEnabledFor, eligiblePairs, addBridge, bridgeHits, pruneBridges } from '../game/bridges.js';
 import { canTarget, advanceLaneCars, flipChameleons, healMenders, causesSurge, surgeOtherLanes, nextStreak, laneHeld, pushTrafficBack, rescueRowsBack, resolveBreach, wavesFor,
          revealStagedCars, stepSize, freeSpawnRow, placeArrival } from '../director/TrafficRules.js';
 import { shotPoints, nextChain, POINTS } from '../game/score.js';
@@ -231,9 +231,11 @@ export class SimulationRunner {
     carDir.setColorScript(this._cfg.firstColors);     // L1 colour run (same impl as live game)
     const streakOn = typeof this._cfg.streak === 'boolean' ? this._cfg.streak
       : (this._cfg.levelId != null ? streakEnabledFor({ id: this._cfg.levelId }) : false);
-    // CHAIN REACTION across lanes (spread.js), gated like the Hot Streak.
-    const spreadOn = typeof this._cfg.spread === 'boolean' ? this._cfg.spread
-      : (this._cfg.levelId != null ? spreadEnabledFor({ id: this._cfg.levelId }) : false);
+    // BRIDGES across lanes (bridges.js), gated like the Hot Streak. The bot is the diligent
+    // bridger: every eligible pair is bridged at the start of every turn (free, like the player's
+    // drag), so the bands measure a player who uses the mechanic. `bridges: false` (probes) = never.
+    const bridgesOn = typeof this._cfg.bridges === 'boolean' ? this._cfg.bridges
+      : (this._cfg.levelId != null ? bridgesEnabledFor({ id: this._cfg.levelId }) : false);
     // A car record carries the V2 trait state alongside row/hp/type/color.
     const rec = (car, row) => ({ row, hp: car.hp, maxHp: car.hp, type: car.type, color: car.color,
       trait: car.trait, armor: car.armor, altColor: car.altColor, recentHit: false });
@@ -256,9 +258,10 @@ export class SimulationRunner {
       id,
       cars: [],  // Array of { row: number, hp: number, type: string, color: string }
     }));
-    const laneViews = discreteLanes.map(laneView);   // resolver-shaped lanes for spreadAcross
     const barriers  = discreteLanes.map(() => this._cfg.barriers !== false);   // parity: GameState.barriers
     let   barriersLost = 0;
+    const bridges = [];                       // parity: GameState.bridges (car records by reference)
+    let   bridgesMade = 0, bridgeKills = 0;
     // BENCH (human profile, BENCH_FROM_LEVEL on): four slots, one store per turn, parity with BenchStorage.
     const benchOn = !!profile.useBench && typeof this._cfg.levelId === 'number' && this._cfg.levelId >= BENCH_FROM_LEVEL;
     const BENCH_SIZE = 4;
@@ -274,7 +277,6 @@ export class SimulationRunner {
     // ── Tracking ───────────────────────────────────────────────────────────
     let carsKilled      = 0;
     let carryOvers      = 0;
-    let spreadKills     = 0;   // CHAIN REACTION kills in neighbouring lanes (spread.js)
     let currentCombo    = 0;
     let maxCombo        = 0;
     let lastKillTime    = -Infinity;
@@ -445,6 +447,7 @@ export class SimulationRunner {
         if (crashed) { lane.cars.splice(lane.cars.indexOf(crashed), 1); barriers[lane.id] = false; barriersLost++; }
         if (breached.length > 0) lostAt = totalAdvances;   // marker (shot index), not a wall-clock time
       }
+      pruneBridges(discreteLanes, bridges);   // speeders moved on, chameleons flipped, crashes
       if (lostAt !== null) return;
       _refillLanes(phase);
     };
@@ -497,6 +500,13 @@ export class SimulationRunner {
       const gameState   = this._buildState(lanes, columns, colors, elapsed, phaseMan);
 
       shooterDir.fillColumns(columns, gameState, phaseParams);
+
+      // BRIDGES: the diligent player links every eligible pair before shooting (free action).
+      if (bridgesOn) {
+        for (const pr of eligiblePairs(discreteLanes, LANE_N)) {
+          if (addBridge(bridges, pr.a.lane, pr.a.car, pr.b.lane, pr.b.car)) bridgesMade++;
+        }
+      }
 
       // ── Booster USE (WS3 §3b; skill-gated — optimal boosterIQ 0 skips all of this) ──
       if (boosterIQ > 0) {
@@ -607,17 +617,20 @@ export class SimulationRunner {
           // Shooter colour is the front car's because `isCorrect` already decided this
           // is a matching shot; the resolver's per-car re-check is what stops the chain
           // at the first car of a different colour, exactly as the game does.
+          const frontRec = lane.cars[0];   // the record the bridges hold (resolve may remove it)
           const res = this._combat.resolve({ color: s.color, damage: s.damage }, laneView(lane), { power });
           if (res.armorBroken) armorBreaks++;
-          // CHAIN REACTION (spread.js): same-colour neighbours explode with it, as part of this shot.
+          // BRIDGES (bridges.js): the hit lands on every car bridged to the front car, as part of
+          // this shot — the same block as GameLoop._resolveShot.
           let kills = res.kills;
           const destroyed = res.destroyed;
-          if (kills > 0 && spreadOn) {
-            for (const h of spreadAcross(laneViews, lane.id, s.color)) {
+          if (res.hit && !res.armorBroken && bridgesOn && bridges.length && frontRec) {
+            for (const h of bridgeHits(discreteLanes, bridges, frontRec, power ? 2 : 1, LANE_N)) {
               if (!h.destroyed) continue;
-              kills++; spreadKills++;
+              kills++; bridgeKills++;
               destroyed.push({ color: h.car.color, type: h.car.type, trait: h.car.trait ?? null });
             }
+            pruneBridges(discreteLanes, bridges);
           }
           surgeFrom = causesSurge(destroyed) ? lane.id : null;
           if (streakOn) ({ streak, charged: streakCharged } = nextStreak(streak, streakCharged, kills, power));
@@ -677,19 +690,24 @@ export class SimulationRunner {
       };
       if (benchOn && urgentLanes.length > 0 && lostAt === null) {
         const urgent = urgentLanes[0];
-        const servedByTop = columns.some((c, i) => !usedCols.has(i) && c.top() && canTarget(urgent.cars[0], c.top().color));
-        if (!servedByTop && !_benchFire(urgent) && bench.length < BENCH_SIZE) {
-          const fronts = discreteLanes.map(l => l.cars[0]).filter(Boolean);
-          let pick = -1, best = 0;
-          for (let c = 0; c < COL_N; c++) {
-            const top = columns[c].top();
-            if (!top || columns[c].shooters.length < 2) continue;
-            if (fronts.some(car => canTarget(car, top.color))) continue;   // a useful top stays
-            const next = columns[c].shooters[1];
-            const score = next && canTarget(urgent.cars[0], next.color) ? 2 : 1;
-            if (score > best) { best = score; pick = c; }
+        const servedByTop = () => columns.some((c, i) => !usedCols.has(i) && c.top() && canTarget(urgent.cars[0], c.top().color));
+        if (!servedByTop() && !_benchFire(urgent)) {
+          // Dig for the bomb that serves the urgent lane: park useless tops while there is room
+          // (every empty slot takes a bomb in the same turn, parity with DragDrop since 2026-10-31).
+          for (let dig = 0; dig < BENCH_SIZE && bench.length < BENCH_SIZE && !servedByTop(); dig++) {
+            const fronts = discreteLanes.map(l => l.cars[0]).filter(Boolean);
+            let pick = -1, best = 0;
+            for (let c = 0; c < COL_N; c++) {
+              const top = columns[c].top();
+              if (!top || columns[c].shooters.length < 2) continue;
+              if (fronts.some(car => canTarget(car, top.color))) continue;   // a useful top stays
+              const next = columns[c].shooters[1];
+              const score = next && canTarget(urgent.cars[0], next.color) ? 2 : 1;
+              if (score > best) { best = score; pick = c; }
+            }
+            if (pick === -1) break;
+            bench.push(columns[pick].top()); columns[pick].consume(); benchStores++;
           }
-          if (pick !== -1) { bench.push(columns[pick].top()); columns[pick].consume(); benchStores++; }
         }
       }
 
@@ -748,7 +766,8 @@ export class SimulationRunner {
       timeElapsed,
       carsKilled,
       carryOvers,
-      spreadKills,
+      bridgesMade,
+      bridgeKills,
       fairnessOverrides: arbiter.overrideCount,
       totalSpawns:       arbiter.totalCount,
       maxCombo,

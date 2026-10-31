@@ -43,7 +43,7 @@ import { GameState }       from '../game/GameState.js';
 import { GameLoop }        from '../game/GameLoop.js';
 import { CombatResolver }  from '../game/CombatResolver.js';
 import { LevelManager, LEVEL_COUNT, openingRowsForLevel, clampInitialCarsToDepth, streakEnabledFor, BENCH_FROM_LEVEL } from '../game/LevelManager.js';
-import { bridgesEnabledFor } from '../game/bridges.js';
+import { bridgesEnabledFor, eligiblePairs } from '../game/bridges.js';
 import { BoosterState }    from '../game/BoosterState.js';
 import { ProgressManager } from '../game/ProgressManager.js';
 import { applyDda }         from '../game/dda.js';
@@ -77,6 +77,7 @@ import { GuideCard }           from '../screens/GuideCard.js';
 import { tourSteps, stepsFor } from '../screens/guideContent.js';
 import { streakGift, winsToNextTier, addBundles } from '../game/winStreak.js';
 import { StepRuler } from './StepRuler.js';
+import { BridgeLayer } from './BridgeLayer.js';
 import { TrafficLights } from './TrafficLights.js';
 import { waveTagAt, wavesFor } from '../director/TrafficRules.js';
 import { ModeHint } from './ModeHint.js';
@@ -665,7 +666,8 @@ async function main() {
   // ProgressManager.introducedCarTypes). The old flow re-showed cards mid-level
   // whenever a refill spawned a type (localStorage key + no backfill).
   let carTypeIntroCard    = null;  // active intro card (only one at a time)
-  let bridgeLayer         = null;  // BridgeLayer: LINK hints, beams, snaps over the road (bridges.js)
+  const bridgeLayer       = new BridgeLayer(layers.get('particleLayer'));   // LINK hints, beams, snaps over the road (bridges.js)
+  let _onBridgeMade       = null;  // the guided first bridge (L6) waits on this
   let carTypeIntroTimer   = null;  // setTimeout handle for level-start intro delay
   let levelStartCardsTimer = null; // level-start tour / tip cards, shown after the splash
 
@@ -856,6 +858,7 @@ async function main() {
     gs.streakEnabled = streakEnabledFor(cfg);           // V2 Hot Streak
     gs.bridgesEnabled = bridgesEnabledFor(cfg);         // BRIDGES across lanes (bridges.js)
     gs.bridges.length = 0;
+    bridgeLayer.reset();
     streakMeter.setEnabled(gs.streakEnabled);
     streakMeter.reset();
     shooterDir.setColorBias(cfg.shooterColorWeights ?? null);   // §3c L10 v2 supply bias
@@ -2425,7 +2428,7 @@ async function main() {
       fromLane: laneIdx, fromPos: srcPos, lane: h.lane, position: h.car.position,
       color: h.car.color, destroyed: h.destroyed,
     })));
-    bridgeLayer?.onBlast(hits);
+    bridgeLayer.onBlast(hits, laneIdx, srcPos);
     const taken = hits.filter(h => h.destroyed);
     if (!taken.length) return;
     const last = taken[taken.length - 1];
@@ -2530,6 +2533,19 @@ async function main() {
         _showColorPicker(car.color);
       },
       isShotInFlight: () => gameLoop._shotInFlight(),
+      // BRIDGES (bridges.js): drag car -> same-colour car beside it. Free action.
+      getBridgeable: () => gs.bridgesEnabled && !gs.isOver ? eligiblePairs(gs.lanes, gs.activeLaneCount) : [],
+      onBridge: (laneA, carA, laneB, carB) => {
+        const made = gameLoop.addBridge(laneA, carA, laneB, carB);
+        if (!made) return false;
+        bridgeLayer?.onMade(laneA, carA, laneB, carB);
+        audio.play('tutorial_ding');
+        haptics.light?.();
+        tutOrch.completeIfActive('bridge');
+        _onBridgeMade?.();
+        return true;
+      },
+      onBridgeDrag: (info) => bridgeLayer?.setDrag(info),
       onDeployFromBench: (shooter, laneIdx, release) => {
         if (laneIdx >= gs.activeLaneCount) return false;
         gameRenderer3D.setDropStart(laneIdx, release);   // bomb travels FROM release
@@ -2713,6 +2729,8 @@ async function main() {
     trafficLights.setVisible(!gs.isOver);
     stepRuler.setVisible(!gs.isOver);
     stepRuler.update(dt, gs);
+    bridgeLayer.setVisible(!gs.isOver);
+    bridgeLayer.update(dt, gs);
     trafficLights.update(dt, gs.trafficMoves ?? 0);
 
     // WAVES: name each crest as it starts (TrafficRules.waveTagAt) — the player should read the
@@ -2935,6 +2953,13 @@ async function main() {
         inventory: progress.getInventory(), coins: progress.coins }),
       getBoosterState: () => boosterState,
       getBench: () => Array.from({ length: benchStorage.size }, (_, i) => benchStorage.getSlot(i)?.color ?? null),
+      // BRIDGES (bridges.js): what is bridged, what could be, and make one without the gesture.
+      bridges:    () => gs.bridges.map(b => ({ a: { lane: b.a.lane, row: b.a.car.row, color: b.a.car.color }, b: { lane: b.b.lane, row: b.b.car.row, color: b.b.car.color } })),
+      bridgeable: () => (gs.bridgesEnabled ? eligiblePairs(gs.lanes, gs.activeLaneCount) : []).map(p => ({ a: { lane: p.a.lane, row: p.a.car.row, color: p.a.car.color }, b: { lane: p.b.lane, row: p.b.car.row, color: p.b.car.color } })),
+      makeBridge: (laneA, laneB) => {
+        const p = (gs.bridgesEnabled ? eligiblePairs(gs.lanes, gs.activeLaneCount) : []).find(q => q.a.lane === Math.min(laneA, laneB) && q.b.lane === Math.max(laneA, laneB));
+        return p ? dragDrop._onBridge(p.a.lane, p.a.car, p.b.lane, p.b.car) : false;
+      },
       startDaily: () => { [titleScreen, levelSelectScreen, winScreen].forEach(x => x?.destroy()); titleScreen = levelSelectScreen = winScreen = null; startDailyChallenge(); },
       stageTop: (x, y) => {
         const hit = app.renderer.events.rootBoundary.hitTest(x, y);

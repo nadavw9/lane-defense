@@ -1,5 +1,9 @@
-01=L5 at start: a striped road block on every lane at the hazard stripe (look: one per lane, sits on the stripe, Toy Town outline)
-02=the smash: lane 1 car crossed the line into its barrier (look: explosion + ring + BARRIER DOWN! tag at the lane end, screen shake)
-03=the once-ever BARRIER DOWN card (look: centre card, text names the rule)
-04=after: lane 1 shows only the posts (stump), lanes 0 and 2 still have their beam; level still running
-05=L12 at 28% goal progress: WAVE 1! tag (look: orange tag above the road, same style as FINAL RUSH was)
+01=L6 hints: dotted LINK links between every bridgeable pair (same colour, side by side, adjacent lanes); nothing else changed
+02=L6 drag: the finger left the first car: white rubber band from the car to the finger, gold ring on the source
+03=L6 armed: over the partner: the band turns green and the partner gets a pulsing green ring
+04=L6 made: release: sparks ring at the middle, the gold beam with rungs joins the two cars; its LINK hint is gone
+05=L6 bridge: the bridge at rest, riding with the cars
+06=L6 blast: the shot landed: white flash along the bridge, arc of sparks, both cars explode, BRIDGE x2! tag
+07=L6 after: both cars gone, bridge consumed, traffic advanced one step
+08=L9 speeder bridged: a bridge between a speeder (flame car) and a normal car
+09=L9 snap: after the advance the speeder is a row ahead: the beam cracks in the middle and the halves fall

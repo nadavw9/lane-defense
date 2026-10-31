@@ -27,6 +27,7 @@ import {
   ROAD_TOP_X, ROAD_TOP_W, ROAD_BOTTOM_W,
   LANE_COUNT,
 } from '../renderer/LaneRenderer.js';
+import { posToScreenY } from '../renderer/roadGeometry.js';
 import {
   COL_W, COL_COUNT, TOP_RADIUS, TOP_Y,
   SHOOTER_AREA_Y, SHOOTER_AREA_H,
@@ -163,7 +164,7 @@ export class DragDrop {
     benchRenderer,
     { onDeploy, onDeployFromBench, onBenchStore, onColorMismatch, onBenchFull, onBombPlaced,
       onLaneHover, onLaneClear, getColorBombArmed, onColumnPickup, onColorChangeTap,
-      isShotInFlight } = {},
+      isShotInFlight, onBridge, getBridgeable, onBridgeDrag } = {},
     boosterState = null,
     _unused = null,
     firingSlots = null,
@@ -195,6 +196,14 @@ export class DragDrop {
     // GameLoop also refuses a deploy while a shot waits out its hit-stop (firingSlots is
     // already clear then), so the input guard must ask the loop, not just the slots.
     this._isShotInFlight = isShotInFlight ?? (() => false);
+    // BRIDGES (bridges.js, 2026-10-31): a drag from a car to the same-colour car beside it.
+    // getBridgeable() -> eligible pairs right now (empty before L6); onBridge(laneA, carA, laneB,
+    // carB) -> true when the loop made it; onBridgeDrag({ from, to, pointer } | null) feeds the
+    // rubber band on the BridgeLayer.
+    this._getBridgeable = getBridgeable ?? (() => []);
+    this._onBridge      = onBridge      ?? (() => false);
+    this._onBridgeDrag  = onBridgeDrag  ?? (() => {});
+    this._bridgeFrom = null; this._bridgeTo = null;
     this._benchReturnEnabled = false;   // L5+ bench-return gate
     // Board depth for the current level — drives the BOMB-booster front-row tap
     // margin (frontRowTapMargin), which is half a ROW interval and therefore
@@ -295,6 +304,18 @@ export class DragDrop {
       return;
     }
 
+    // BRIDGE drag: a finger on a car that has a same-colour partner beside it. Cars live above
+    // the bombs, so this never steals a bomb pickup. Free action, but not during a shot.
+    if (!this._isShotInFlight()) {
+      const hit = this._hitTestCar(x, y);
+      if (hit && this._bridgePartnersOf(hit.car).length) {
+        this._state = 'bridging';
+        this._bridgeFrom = hit; this._bridgeTo = null;
+        this._onBridgeDrag({ from: hit, to: null, pointer: { x, y } });
+        return;
+      }
+    }
+
     // Only the TOP bomb of a column can be picked up: the queue cannot be reordered.
     const nearest = this._hitTestQueueSlot(x, y);
 
@@ -318,6 +339,14 @@ export class DragDrop {
 
   onPointerMove(x, y) {
     if (this.inputBlocked) return;
+    if (this._state === 'bridging') {
+      const hit = this._hitTestCar(x, y);
+      const to = hit && hit.car !== this._bridgeFrom.car
+        && this._bridgePartnersOf(this._bridgeFrom.car).some(p => p.car === hit.car) ? hit : null;
+      this._bridgeTo = to;
+      this._onBridgeDrag({ from: this._bridgeFrom, to, pointer: { x, y } });
+      return;
+    }
     if (this._state !== 'dragging') return;
     this._ghost.x = x + this._offsetX;
     this._ghost.y = y + this._offsetY;
@@ -335,6 +364,7 @@ export class DragDrop {
   // The touch was CANCELLED by the system (notification shade, palm rejection, a
   // system gesture) — it is not a release. Visual-only snap-back, no state writes.
   cancel() {
+    if (this._state === 'bridging') { this._endBridgeDrag(); return; }
     if (this._state !== 'dragging') return;
     this._clearHighlights();
     this._benchRenderer?.setHighlight(-1);
@@ -342,6 +372,14 @@ export class DragDrop {
   }
 
   onPointerUp(x, y) {
+    if (this._state === 'bridging') {
+      // Release over the partner makes the bridge; anywhere else (or blocked mid-drag) nothing.
+      const to = this.inputBlocked ? null : this._bridgeTo;
+      const from = this._bridgeFrom;
+      this._endBridgeDrag();
+      if (to) this._onBridge(from.lane, from.car, to.lane, to.car);
+      return;
+    }
     if (this.inputBlocked) {
       // Input got blocked MID-DRAG (a modal/sequence started while holding).
       // The release must still RESOLVE the drag — swallowing it leaves a zombie:
@@ -777,6 +815,42 @@ export class DragDrop {
       }
     }
     return best;
+  }
+
+  // ── Bridges ──────────────────────────────────────────────────────────────────
+  // The car under the finger: nearest lane by x, then the car of that lane whose screen row is
+  // within half a row of y (cars at row < 1 sit behind the goal band and never count). Returns
+  // { lane, car, x, y } with the car's screen centre, or null.
+  _hitTestCar(x, y) {
+    const rows = Math.max(2, this._gridRows ?? 5);
+    const rowPx = (ROAD_BOTTOM_Y - ROAD_TOP_Y) / (rows - 1);
+    if (y < ROAD_TOP_Y - rowPx * 0.5 || y > ROAD_BOTTOM_Y + rowPx * 0.5) return null;
+    const lane = getLaneFromScreenX(x);
+    if (lane < 0 || lane >= getActiveLaneCount()) return null;
+    let best = null, bestD = rowPx * 0.5;
+    for (const car of this._lanes[lane]?.cars ?? []) {
+      if (car.row < 1 - 1e-6) continue;
+      const cy = posToScreenY(car.position);
+      const d = Math.abs(cy - y);
+      if (d < bestD) { bestD = d; best = { lane, car, x: getLaneScreenX(lane), y: cy }; }
+    }
+    return best;
+  }
+
+  // The cars this car could be bridged to right now: [{ lane, car }].
+  _bridgePartnersOf(car) {
+    const out = [];
+    for (const p of this._getBridgeable() ?? []) {
+      if (p.a.car === car) out.push(p.b);
+      else if (p.b.car === car) out.push(p.a);
+    }
+    return out;
+  }
+
+  _endBridgeDrag() {
+    this._state = 'idle';
+    this._bridgeFrom = null; this._bridgeTo = null;
+    this._onBridgeDrag(null);
   }
 
   _hitTestLane(x, y) {

@@ -13,7 +13,7 @@
 
 import * as THREE from 'three';
 import { CELL, posToZ, laneToX } from './Scene3D.js';
-import { ROAD_Z_FAR, POS_NEAR_Z, screenYToZ } from './projection.js';
+import { ROAD_Z_FAR, POS_NEAR_Z, screenYToZ, worldXToScreenX, zToScreenY } from './projection.js';
 import { carEntryStartZ, carEntryProgress } from './carEntry.js';
 import { CAR_SPRITE_GEOMETRY } from './carSpriteGeometry.js';
 import { BOSS_SPRITE_GEOMETRY } from './bossSpriteGeometry.js';
@@ -570,6 +570,15 @@ export class Car3D {
     this._dying.length = 0;
     for (const s of this._shards ?? []) { this._scene.remove(s.mesh); s.mesh.geometry.dispose(); s.mesh.material.dispose(); }
     if (this._shards) this._shards.length = 0;
+  }
+
+  // Where this car is DRAWN right now, in Pixi stage px (the group glides between rows, so an
+  // overlay that reads this rides the car exactly; BridgeLayer). null when the car has no mesh yet.
+  screenPosOf(car) {
+    const entry = this._live.get(car);
+    if (!entry?.group) return null;
+    const g = entry.group;
+    return { x: worldXToScreenX(g.position.x), y: zToScreenY(g.position.z) };
   }
 
   // DEV proof helper: current {x,y} mesh scale of the front car in a lane (or null).

@@ -341,6 +341,9 @@ export class GameRenderer3D {
   /** DEV proof helper: front car's current {x,y} mesh scale in a lane. */
   peekCarScale(laneIdx) { return this._cars?.peekFrontScale(laneIdx) ?? null; }
 
+  /** Stage px where a car is drawn right now (its glide included), or null (BridgeLayer). */
+  carScreenPos(car) { return this._cars?.screenPosOf(car) ?? null; }
+
   /** 3B: highlight the grabbed column's bomb (-1 = none). */
   setSelectedBomb(colIdx) { this._shooters?.setSelectedColumn(colIdx); }
 

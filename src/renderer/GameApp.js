@@ -677,7 +677,9 @@ async function main() {
   // ProgressManager.introducedCarTypes). The old flow re-showed cards mid-level
   // whenever a refill spawned a type (localStorage key + no backfill).
   let carTypeIntroCard    = null;  // active intro card (only one at a time)
-  const bridgeLayer       = new BridgeLayer(layers.get('particleLayer'));   // LINK hints, beams, snaps over the road (bridges.js)
+  // LINK hints, planks, snaps over the road (bridges.js); planks are laid from where the 3D cars
+  // are DRAWN each frame, so they ride the glide.
+  const bridgeLayer       = new BridgeLayer(layers.get('particleLayer'), { posOf: (_lane, car) => gameRenderer3D.carScreenPos(car) });
   let _onBridgeMade       = null;  // the guided first bridge (L6) waits on this
   let carTypeIntroTimer   = null;  // setTimeout handle for level-start intro delay
   let levelStartCardsTimer = null; // level-start tour / tip cards, shown after the splash

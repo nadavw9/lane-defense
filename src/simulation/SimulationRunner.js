@@ -181,6 +181,7 @@ export class SimulationRunner {
       continues:          levelConfig.continues          ?? 0,
       // LANE BARRIERS (TrafficRules.resolveBreach): one free breach per lane. false = probes only.
       barriers:           levelConfig.barriers           ?? true,
+      bridges:            levelConfig.bridges,                       // undefined = by level id (bridgesEnabledFor); false = the non-bridger probe
       convoy:             levelConfig.convoy             ?? null,   // motorbike-only lanes
       firstColors:        levelConfig.firstColors        ?? null,   // L1 scripted opening colours (CarDirector.setColorScript)
       spawnScript:        levelConfig.spawnScript        ?? null,   // INFRA-C staged waves
@@ -804,7 +805,7 @@ export class SimulationRunner {
       levelId: cfg.id, laneCount: cfg.laneCount, colCount: cfg.colCount,
       laneTargetCarCount: cfg.laneTargetCarCount, spawnBudget: cfg.spawnBudget,
       gridRows: cfg.gridRows, stepsPerRow: cfg.stepsPerRow, goals: cfg.goals ?? [], barriers: cfg.barriers,
-      milestone: cfg.milestone, waves: cfg.waves,
+      milestone: cfg.milestone, waves: cfg.waves, bridges: cfg.bridges,
       initialCars: cfg.initialCars ?? null, spawnScript: cfg.spawnScript ?? null,
       shooterColorWeights: cfg.shooterColorWeights ?? null,
       traits: cfg.traits ?? null,

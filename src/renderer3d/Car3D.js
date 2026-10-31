@@ -13,6 +13,7 @@
 
 import * as THREE from 'three';
 import { CELL, posToZ, laneToX } from './Scene3D.js';
+import { PAIR_SPRITE_GEOMETRY, PAIR_ROW, PAIR_RUNGS } from './pairSpriteGeometry.js';
 import { ROAD_Z_FAR, POS_NEAR_Z, screenYToZ, worldXToScreenX, zToScreenY } from './projection.js';
 import { carEntryStartZ, carEntryProgress } from './carEntry.js';
 import { CAR_SPRITE_GEOMETRY } from './carSpriteGeometry.js';
@@ -133,6 +134,10 @@ const WOBBLE_X_AMP   = 0.08;
 const WOBBLE_X_FREQ  = 1.1;
 const WOBBLE_ROT_AMP = 0.015;
 const WOBBLE_ROT_FREQ = 0.9;
+
+// ── Bridged pairs (setPairs) ─────────────────────────────────────────────────
+const PAIR_PULL_RATE = 12;    // exponential approach: ~0.3 s from the lane centre to the pair slot, and back
+const PAIR_SNAP_EPS  = 0.04;  // world units: this close to the slot, the two cars become the pair sprite
 
 // ── Colors ───────────────────────────────────────────────────────────────────
 const COLOR_HEX = {
@@ -541,6 +546,9 @@ export class Car3D {
     this._lanes = lanes;
     this._live  = new Map();
     this._dying = [];
+    this._pairs = [];                 // gs.bridges, set every frame (setPairs)
+    this._pairEntries = new Map();    // left car -> { carA, carB, laneA, laneB, joined, group, mesh, mat, key, popT }
+    this.onPairJoined = null;         // (laneA, carA, laneB, carB): the two cars just became one sprite
     this._emissiveBoost = 0;
     // Active lane count — drives horizontal placement so cars center on the
     // road for low-lane levels (L1-3). Defaults to all lanes; set per level via
@@ -556,6 +564,124 @@ export class Car3D {
   // Match the active lane count so laneToX centers cars on the current road.
   setLaneCount(n) { this._laneCount = n; }
 
+  // BRIDGED PAIRS (bridges.js; owner 2026-10-31: "a new visual of two connected cars as one unit,
+  // not an extra layer on top"). A bridge is drawn as ONE baked sprite of both cars joined by the
+  // yellow coupling clamp (public/sprites/designed/pair-*.png, baked by render-3d-sprites.mjs
+  // pairs; geometry in pairSpriteGeometry.js). The two single cars first slide to the slots they
+  // hold in that sprite (~0.3 s), then they hide and the pair sprite takes over, riding on the
+  // left car's glide, bob, lean and tint. A hit swaps the pair to the smaller combination with the
+  // same pop as a single car. When the bridge goes (snap, a death, a clear) the singles reappear
+  // in their slots and slide back to their lane centres. `list` = gs.bridges, set every frame.
+  setPairs(list) { this._pairs = list ?? []; }
+
+  // Which pair sprite these two cars make right now, or null when a rung has no pair art.
+  _pairGeo(carA, carB) {
+    const tL = shownTypeOf(carA), tR = shownTypeOf(carB);
+    const iL = PAIR_RUNGS.indexOf(tL), iR = PAIR_RUNGS.indexOf(tR);
+    if (iL < 0 || iR < 0) return null;
+    const flip = iL > iR;                                  // baked for small < big < jeep; mirror the other order
+    const key = flip ? `${tR}-${tL}` : `${tL}-${tR}`;
+    const g = PAIR_SPRITE_GEOMETRY[key];
+    if (!g) return null;
+    const bakedLeft = flip ? carB : carA, bakedRight = flip ? carA : carB;
+    const v = bakedLeft.trait === 'speeder' ? '-sl' : bakedRight.trait === 'speeder' ? '-sr' : '';
+    const k = rowPitchWu(this._breachRow + 1) / PAIR_ROW;  // the bake assumed a 5.85-unit row pitch
+    return { key, flip, k, half: g.half, W: g.W, H: g.H, ppu: g.ppu,
+      path: `sprites/designed/pair-${key}-${(carA.color ?? 'red').toLowerCase()}${v}.png` };
+  }
+
+  // Per frame: keep pair entries in step with gs.bridges, join pairs whose cars have arrived at
+  // their slots, dress joined pairs. Returns car -> { shift, phaseLane } for the singles' slide.
+  _syncPairs() {
+    const targets = new Map();
+    const wanted = new Set();
+    for (const br of this._pairs) {
+      const ea = this._live.get(br.a.car), eb = this._live.get(br.b.car);
+      if (!ea || !eb) continue;
+      const geo = this._pairGeo(br.a.car, br.b.car);
+      if (!geo) continue;
+      wanted.add(br.a.car);
+      let pe = this._pairEntries.get(br.a.car);
+      if (!pe || pe.carB !== br.b.car) {
+        if (pe) this._disposePair(pe);
+        pe = { carA: br.a.car, carB: br.b.car, laneA: br.a.lane, laneB: br.b.lane, joined: false, group: null, mesh: null, mat: null, key: null, popT: null };
+        this._pairEntries.set(br.a.car, pe);
+      }
+      const shift = CELL / 2 - geo.half * geo.k;   // each car's slide from its lane centre to its slot in the pair
+      targets.set(br.a.car, { shift: +shift, phaseLane: br.a.lane });
+      targets.set(br.b.car, { shift: -shift, phaseLane: br.a.lane });
+      if (!pe.joined && Math.abs((ea._coupleX ?? 0) - shift) < PAIR_SNAP_EPS && Math.abs((eb._coupleX ?? 0) + shift) < PAIR_SNAP_EPS) {
+        pe.joined = true;
+        ea.group.visible = false; eb.group.visible = false;
+        this.onPairJoined?.(pe.laneA, pe.carA, pe.laneB, pe.carB);
+      }
+      if (pe.joined) this._dressPair(pe, geo);
+    }
+    for (const [carA, pe] of this._pairEntries) {
+      if (!wanted.has(carA)) { this._disposePair(pe); this._pairEntries.delete(carA); }
+    }
+    return targets;
+  }
+
+  // The pair sprite for its current combination (types, colour, speeder side); a change pops.
+  _dressPair(pe, geo) {
+    const texKey = geo.path + (geo.flip ? '|f' : '');
+    if (pe.key === texKey) return;
+    const w = geo.W / geo.ppu * geo.k, h = geo.H / geo.ppu * geo.k;
+    const tex = _getTexByPath(geo.path, import.meta.env.BASE_URL);
+    if (!pe.group) {
+      pe.mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.08, color: new THREE.Color(0xffffff), side: THREE.DoubleSide });
+      pe.mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), pe.mat);
+      pe.mesh.rotation.x = -Math.PI / 2;
+      pe.mesh.position.y = 0.06;
+      pe.group = new THREE.Group();
+      pe.group.add(pe.mesh);
+      this._scene.add(pe.group);
+    } else {
+      pe.mesh.geometry.dispose();
+      pe.mesh.geometry = new THREE.PlaneGeometry(w, h);
+      pe.mat.map = tex; pe.mat.needsUpdate = true;
+      pe.popT = 0;
+    }
+    pe.mesh.scale.x = geo.flip ? -1 : 1;
+    pe.key = texKey;
+  }
+
+  // Joined pairs ride the left car's group (glide, bob, lean, tint) each frame, after the singles moved.
+  _placePairs(dt) {
+    for (const pe of this._pairEntries.values()) {
+      if (!pe.joined || !pe.group) continue;
+      const ea = this._live.get(pe.carA);
+      if (!ea) continue;
+      const ga = ea.group;
+      const wobbleX = ga.position.x - laneToX(pe.laneA, this._laneCount) - (ea._coupleX ?? 0);
+      pe.group.position.set((laneToX(pe.laneA, this._laneCount) + laneToX(pe.laneB, this._laneCount)) / 2 + wobbleX, 0, ga.position.z);
+      pe.group.rotation.z = ga.rotation.z;
+      pe.mat.color.copy(ea.bodyMat.color);
+      if (pe.popT != null) {
+        pe.popT += dt;
+        const p = Math.min(1, pe.popT / 0.22);
+        pe.group.scale.setScalar(1 + 0.24 * Math.sin(Math.PI * p));
+        if (p >= 1) { pe.group.scale.setScalar(1); pe.popT = null; }
+      }
+    }
+  }
+
+  _disposePair(pe) {
+    if (pe.group) {
+      this._scene.remove(pe.group);
+      pe.mesh.geometry.dispose();
+      pe.mat.dispose();             // the texture is cached; never disposed here
+    }
+    if (pe.joined) {
+      // The singles reappear in their slots (their _coupleX still holds the slot) and slide back.
+      const ea = this._live.get(pe.carA), eb = this._live.get(pe.carB);
+      if (ea) ea.group.visible = true;
+      if (eb) eb.group.visible = true;
+    }
+    pe.group = pe.mesh = pe.mat = null; pe.joined = false;
+  }
+
   // Set gridRows so breach row (gridRows-1) is correct for danger aura.
   setGridRows(gridRows) { this._breachRow = gridRows - 1; }
 
@@ -564,6 +690,8 @@ export class Car3D {
   }
 
   clearAll() {
+    for (const pe of this._pairEntries.values()) this._disposePair(pe);
+    this._pairEntries.clear();
     for (const entry of this._live.values()) this._disposeEntry(entry);
     this._live.clear();
     for (const d of this._dying) this._disposeDying(d);
@@ -704,6 +832,7 @@ export class Car3D {
       if (!liveCars.has(car)) {
         this._killSpeedLines(entry);
         this._disposeGhosts(entry);   // clean up any in-flight spawn ghosts
+        entry.group.visible = true;   // a car hidden inside a pair sprite dies in the open
         this._dying.push({
           group: entry.group, bossRing: entry.bossRing,
           bossRingMat: entry.bossRingMat, t: 0,
@@ -715,6 +844,7 @@ export class Car3D {
     }
 
     const now = performance.now() / 1000;
+    const coupled = this._syncPairs();
 
     for (let laneIdx = 0; laneIdx < this._lanes.length; laneIdx++) {
       const _laneCars = this._lanes[laneIdx].cars;
@@ -728,6 +858,8 @@ export class Car3D {
         if (entry.shown !== shownTypeOf(car)) {   // a hit shrank it: swap to the smaller vehicle
           const fresh = this._createEntry(car, laneIdx, entry);
           fresh.group.position.copy(entry.group.position);
+          fresh._coupleX = entry._coupleX;             // a bridged car that shrank keeps its slot in the pair
+          fresh.group.visible = entry.group.visible;   // and stays hidden behind the pair sprite (no one-frame flash)
           entry._speedLines = [];   // handed to the new entry; do not kill them with the old one
           this._disposeGhosts(entry);
           this._disposeGroup(entry.group);
@@ -796,13 +928,18 @@ export class Car3D {
         this._updateSpeedLines(entry, dt);
 
         // ── Wobble ────────────────────────────────────────────────────────────
-        const wobbleX   = Math.sin(now * WOBBLE_X_FREQ   + laneIdx * 0.7) * WOBBLE_X_AMP;
-        const wobbleRot = Math.sin(now * WOBBLE_ROT_FREQ + laneIdx * 1.3) * WOBBLE_ROT_AMP;
+        // A bridged car shares its pair's phase and slides to its slot in the pair sprite (setPairs).
+        const cp        = coupled.get(car);
+        const phaseLane = cp?.phaseLane ?? laneIdx;
+        const cx        = entry._coupleX ?? 0;
+        entry._coupleX  = cx + ((cp?.shift ?? 0) - cx) * Math.min(1, dt * PAIR_PULL_RATE);
+        const wobbleX   = Math.sin(now * WOBBLE_X_FREQ   + phaseLane * 0.7) * WOBBLE_X_AMP;
+        const wobbleRot = Math.sin(now * WOBBLE_ROT_FREQ + phaseLane * 1.3) * WOBBLE_ROT_AMP;
         // 2A: continuous idle bob, phase-offset per lane so they don't bob in sync.
         // Top-down ortho collapses the Y axis, so "up/down" reads on Z (screen-vertical).
-        const bobZ      = Math.sin(now * BOB_FREQ + laneIdx * BOB_PHASE) * BOB_AMP;
+        const bobZ      = Math.sin(now * BOB_FREQ + phaseLane * BOB_PHASE) * BOB_AMP;
 
-        g.position.set(laneToX(laneIdx, this._laneCount) + wobbleX, 0, entry.renderZ + bobZ);
+        g.position.set(laneToX(laneIdx, this._laneCount) + wobbleX + entry._coupleX, 0, entry.renderZ + bobZ);
 
         // 2D: spawn motion-blur trail — fade the ghost frames in behind the car.
         if (entry._ghosts) this._updateSpawnGhosts(entry, dt);
@@ -917,6 +1054,8 @@ export class Car3D {
       }
     }
 
+    this._placePairs(dt);
+
     // ── Death animations ──────────────────────────────────────────────────────
     for (let i = this._dying.length - 1; i >= 0; i--) {
       const d = this._dying[i];
@@ -993,6 +1132,8 @@ export class Car3D {
 
     const spriteScale = spriteScaleFor(st, this._breachRow + 1);
     group.userData.baseScale = spriteScale;
+    // Half the drawn BODY width in world units (padding and baked shadow excluded).
+    group.userData.bodyHalfW = CELL * cfg.wF * spriteScale * (BODY_FRAC[st]?.w ?? 0.9) / 2;
     group.scale.setScalar(spriteScale);
 
     // Colour-blind roof badge — built for every car, shown only while the

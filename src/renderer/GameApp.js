@@ -2395,7 +2395,7 @@ async function main() {
     const key = 'bridge_guide';
     if (!gs.bridgesEnabled || gs.isOver || gs.bridges.length || featureBanners.has(key)) return;
     if (currentLevelIsDaily || !reactiveAllowed(key, levelManager.levelNumber)) return;
-    const pairs = eligiblePairs(gs.lanes, gs.activeLaneCount);
+    const pairs = eligiblePairs(gs.lanes, gs.activeLaneCount, gs.bridges);
     const p = pairs.find(q => gs.lanes[q.a.lane].frontCar() === q.a.car) ?? pairs[0];
     if (!p) return;
     featureBanners.mark(key);
@@ -2486,6 +2486,7 @@ async function main() {
     haptics.heavy();
   };
   // A bridge broke on its own (a speeder moved on, a chameleon flipped, a crash): the beam snaps.
+  gameRenderer3D.onPairJoined = (laneA, carA, laneB, carB) => bridgeLayer?.onJoined(laneA, carA, laneB, carB);
   gameLoop._onBridgeSnap = (bridges) => {
     bridgeLayer?.onSnap(bridges);
     audio.play('armor_clang');
@@ -2579,7 +2580,7 @@ async function main() {
       },
       isShotInFlight: () => gameLoop._shotInFlight(),
       // BRIDGES (bridges.js): drag car -> same-colour car beside it. Free action.
-      getBridgeable: () => gs.bridgesEnabled && !gs.isOver ? eligiblePairs(gs.lanes, gs.activeLaneCount) : [],
+      getBridgeable: () => gs.bridgesEnabled && !gs.isOver ? eligiblePairs(gs.lanes, gs.activeLaneCount, gs.bridges) : [],
       onBridge: (laneA, carA, laneB, carB) => {
         const made = gameLoop.addBridge(laneA, carA, laneB, carB);
         if (!made) return false;
@@ -2776,6 +2777,7 @@ async function main() {
     stepRuler.update(dt, gs);
     bridgeLayer.setVisible(!gs.isOver);
     bridgeLayer.update(dt, gs);
+    gameRenderer3D.setPairs(gs.bridgesEnabled && !gs.isOver ? gs.bridges : []);   // bridged pairs = one vehicle
     trafficLights.update(dt, gs.trafficMoves ?? 0);
 
     // WAVES: name each crest as it starts (TrafficRules.waveTagAt) — the player should read the
@@ -3000,10 +3002,10 @@ async function main() {
       getBench: () => Array.from({ length: benchStorage.size }, (_, i) => benchStorage.getSlot(i)?.color ?? null),
       // BRIDGES (bridges.js): what is bridged, what could be, and make one without the gesture.
       bridges:    () => gs.bridges.map(b => ({ a: { lane: b.a.lane, row: b.a.car.row, color: b.a.car.color }, b: { lane: b.b.lane, row: b.b.car.row, color: b.b.car.color } })),
-      bridgeable: () => (gs.bridgesEnabled ? eligiblePairs(gs.lanes, gs.activeLaneCount) : []).map(p => ({ a: { lane: p.a.lane, row: p.a.car.row, color: p.a.car.color }, b: { lane: p.b.lane, row: p.b.car.row, color: p.b.car.color } })),
+      bridgeable: () => (gs.bridgesEnabled ? eligiblePairs(gs.lanes, gs.activeLaneCount, gs.bridges) : []).map(p => ({ a: { lane: p.a.lane, row: p.a.car.row, color: p.a.car.color }, b: { lane: p.b.lane, row: p.b.car.row, color: p.b.car.color } })),
       showDemo:   (key) => { if (hasDemo(key)) _presentGuide(key, ''); return hasDemo(key); },   // open a DemoCard by scene key (review captures)
       makeBridge: (laneA, laneB) => {
-        const p = (gs.bridgesEnabled ? eligiblePairs(gs.lanes, gs.activeLaneCount) : []).find(q => q.a.lane === Math.min(laneA, laneB) && q.b.lane === Math.max(laneA, laneB));
+        const p = (gs.bridgesEnabled ? eligiblePairs(gs.lanes, gs.activeLaneCount, gs.bridges) : []).find(q => q.a.lane === Math.min(laneA, laneB) && q.b.lane === Math.max(laneA, laneB));
         return p ? dragDrop._onBridge(p.a.lane, p.a.car, p.b.lane, p.b.car) : false;
       },
       startDaily: () => { [titleScreen, levelSelectScreen, winScreen].forEach(x => x?.destroy()); titleScreen = levelSelectScreen = winScreen = null; startDailyChallenge(); },

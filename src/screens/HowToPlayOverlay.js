@@ -9,7 +9,6 @@ import { Container, Graphics, Sprite, Assets } from 'pixi.js';
 import { uiIcon, boosterIcon } from '../renderer/UIIcon.js';
 import { panel, ribbon, button, roundButton, titleText, bodyText, backdrop, card, GOLD, GOLD_DEEP, RIBBON } from '../renderer/PremiumUI.js';
 import { INK, WHITE } from '../renderer/ToyStyle.js';
-import { drawBeam } from '../renderer/BridgeLayer.js';
 
 const _B = import.meta.env.BASE_URL ?? '';
 const PW = 344, PH = 540, ART_H = 210;
@@ -227,24 +226,22 @@ const ART = {
   },
 };
 
-// BRIDGES (2026-10-31, src/game/bridges.js): two same-colour cars side by side joined by the gold
-// beam the board draws (BridgeLayer.drawBeam), a bomb dropping on the left one, both exploding.
+// BRIDGES (2026-10-31, src/game/bridges.js): two same-colour cars side by side, bridged = the pair
+// sprite (one vehicle, coupled by the yellow clamp), a bomb dropping on the left one, both exploding.
+// Lane pitch here is 92 px for the bake's 4 units; the cars sit 1.677 units from the pair centre.
 ART.bridge = function (parent, aw) {
   const g = new Graphics();
   laneStrip(g, -46, 78, -92, 92);
   laneStrip(g, 46, 78, -92, 92);
   g.rect(-92, 84, 184, 5).fill(0xFF3D3D);
   parent.addChild(g);
-  sprite(parent, 'car-blue-processed.png', 74, -46, 22);
-  sprite(parent, 'car-blue-processed.png', 74, 46, 22);
-  const beam = new Graphics();
-  drawBeam(beam, -30, 22, 30, 22, { h: 12 });
-  parent.addChild(beam);
-  sprite(parent, 'powerball-blue.png', 34, -46, -56);
+  const k = 92 / 4, cx = 1.677 * k;
+  sprite(parent, 'pair-big-big-blue.png', 511 / 80 * k, 0, 22);
+  sprite(parent, 'powerball-blue.png', 34, -cx, -56);
   const arr = new Graphics();
-  arr.moveTo(-46, -36).lineTo(-46, -12).stroke({ color: WHITE, width: 4, alpha: 0.9 });
-  arr.poly([-46, -4, -54, -16, -38, -16]).fill(WHITE);
+  arr.moveTo(-cx, -36).lineTo(-cx, -12).stroke({ color: WHITE, width: 4, alpha: 0.9 });
+  arr.poly([-cx, -4, -cx - 8, -16, -cx + 8, -16]).fill(WHITE);
   parent.addChild(arr);
-  sprite(parent, 'explosion.png', 54, -46, 22, { alpha: 0.9 });
-  sprite(parent, 'explosion.png', 54, 46, 22, { alpha: 0.9 });
+  sprite(parent, 'explosion.png', 54, -cx, 22, { alpha: 0.9 });
+  sprite(parent, 'explosion.png', 54, cx, 22, { alpha: 0.9 });
 };

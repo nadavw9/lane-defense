@@ -83,16 +83,17 @@ describe('a shot on a bridged car', () => {
     expect(gs.bridgeKills).toBe(1);
   });
 
-  it('reaches a bridged car behind another car, and a triple goes all the way', () => {
+  it('reaches a bridged car behind another car; a third car cannot join the pair', () => {
     const { gs, loop } = setup();
     const a = mk('Red', 2, 1), b = mk('Red', 2, 1), c = mk('Red', 2, 1), front = mk('Blue', 3, 1);   // row 4 would breach on the advance
     gs.lanes[0].cars = [a]; gs.lanes[1].cars = [front, b]; gs.lanes[2].cars = [c];
-    loop.addBridge(0, a, 1, b); loop.addBridge(1, b, 2, c);
+    expect(loop.addBridge(0, a, 1, b)).toBe(true);
+    expect(loop.addBridge(1, b, 2, c)).toBe(false);            // b is taken: a bridge is a pair
     loop._resolveShot(shot('Red'), 0);
     expect(gs.lanes[1].cars).toContain(front);                 // the blue front car is untouched
     expect(gs.lanes[1].cars).not.toContain(b);
-    expect(gs.lanes[2].cars).not.toContain(c);
-    expect(gs.score).toBe(3 * POINTS.car + 2 * POINTS.multiExtra);
+    expect(gs.lanes[2].cars).toContain(c);
+    expect(gs.score).toBe(2 * POINTS.car + POINTS.multiExtra);
   });
 
   it('a shrinking partner stays bridged; a charged shot passes both hits', () => {

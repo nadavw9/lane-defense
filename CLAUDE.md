@@ -22,17 +22,28 @@ reading; the number at the side is not understood; only two bombs go into the sl
   lanes, SAME colour, SIDE BY SIDE (same row), both on the road (row >= 1), neither armoured; any
   row, not only the front. The player makes it by DRAGGING one car onto the other (`DragDrop`
   state `'bridging'`, `_hitTestCar`, callbacks `getBridgeable / onBridge / onBridgeDrag`); free, no
-  turn passes. Bridges chain (A-B + B-C = a triple). A hit on a bridged FRONT car lands the same
-  rung(s) on every connected car, even a non-front one (`bridgeHits`, in `GameLoop._resolveShot`
+  turn passes. A bridge is a PAIR: a bridged car takes no second bridge (`inBridge`,
+  `eligiblePairs(lanes, n, bridges)`; the pair is one baked vehicle, so no triples). A hit on a
+  bridged FRONT car lands the same rung(s) on its partner, even a non-front one (`bridgeHits`, in `GameLoop._resolveShot`
   right after `CombatResolver.resolve`; kills are part of the shot: score, goals, combo, streak).
   A bridge breaks when rows differ (speeder), colours differ (chameleon) or a car leaves
   (`pruneBridges`: silent after hits/clears, `_onBridgeSnap` after advances). State:
   `gs.bridges[]` (car OBJECTS; cars have no id), `gs.bridgesEnabled`, `bridgesMade`, `bridgeKills`.
-- **On screen** (`src/renderer/BridgeLayer.js`, Pixi particle layer, repositioned per frame): dotted
-  LINK hints with a `PremiumUI.tag` pill on every bridgeable pair (always on), a gold beam with
-  rungs on every bridge, a rubber band during the drag (green over the partner), sparks on make,
-  the beam cracking and falling on a snap, a white flash along the bridge on a blast
-  (`GameRenderer3D.onBridgeBlast` = the old spread arcs). Shared drawing: `drawBeam / drawDots`.
+- **On screen — the pair is ONE vehicle** (owner, same day, after rejecting a beam, a plank and two
+  cars touching with a hitch: "a new visual of two connected cars as one unit, not an extra layer
+  on top; it should just be two cars before"). `render-3d-sprites.mjs pairs` bakes
+  `public/sprites/designed/pair-<l>-<r>-<color>[-sl|-sr].png` (unordered rung pairs small < big <
+  jeep, six colours, speeder flames on the left/right car; the yellow coupling clamp from
+  `JOINT_HD.clamp`, cars pulled half-way together, `studio.pair()`), and GENERATES
+  `src/renderer3d/pairSpriteGeometry.js` (`tests/pair-sprites.test.js` pins coverage). `Car3D.setPairs(gs.bridges)`:
+  the two singles slide to their slots (~0.3 s), hide, and the pair plane takes over (mirrored for
+  the other type order; a hit swaps the combination with a pop; death/snap brings the singles back
+  in their slots and they slide home); `onPairJoined` fires at the swap. NOTHING marks a linkable
+  pair at rest. `BridgeLayer` draws only moments: a one-off pulse when a pair BECOMES linkable
+  (not the opening board), the drag band (green over the partner), gold rings on the drop, sparks
+  at the seam on join, a crack on snap, a flash on blast (`GameRenderer3D.onBridgeBlast`). The
+  DemoCard `bridge` op and the HowToPlay slide use the same pair sprites. Review:
+  `scripts/_pair-shots.mjs`; concept sheets `scripts/_pair-concept.mjs`, `_wide-concept.mjs`.
 - **Spawning for bridges**: `CarDirector.setPairBias(PAIR_P = 0.45)` copies the previous lane's
   arrival colour at the same row (`generateCar(..., neighbourColor)`; GameLoop `_refillLanes` /
   `_primeInitialCars` and the sim pass it); `SPEEDER_BOOST = 1.6` (cap 0.6) in `setTraits`.
@@ -46,7 +57,7 @@ reading; the number at the side is not understood; only two bombs go into the sl
   first bridge stay text + hand. L6 start card `bridge`; `bridge_guide` (REACTIVE [6,6]) pauses
   through `TutorialOrchestrator` (id `'bridge'`) with the hand on the REAL pair, completed by the
   real drag (`onBridge -> completeIfActive`); `speeder` demo (REACTIVE [9,9]) on the first flame
-  car. HowToPlay has a BRIDGES slide. Captures: `scripts/_bridge-shots.mjs`,
+  car. HowToPlay has a BRIDGES slide. Captures: `scripts/_pair-shots.mjs` (replaced `_bridge-shots.mjs`),
   `scripts/_demo-cards-shots.mjs` (+ `_nav.showDemo(key)`, `_nav.bridges/bridgeable/makeBridge`).
 - **Board clarity**: the step ruler's number is gone (a coloured dot rides with the nearest car);
   the L1 tour is GOAL / RED LINE / YOUR BOMBS.

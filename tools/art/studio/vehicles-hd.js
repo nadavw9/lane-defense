@@ -313,6 +313,71 @@ export const BUILD_HD = {
   },
 
   // Battle tank: sloped hull, tracks with road wheels, faceted turret, long gun.
+  // ── WIDE vehicles (2026-10-31): the merged pair of same-colour cars becomes ONE vehicle two
+  // lanes wide (owner: "a car of two lanes, not a stretched one"). Three rungs like the ladder:
+  // hauler (3 hits) -> wide jeep (2) -> wide buggy (1). Width ~6.4 (a sedan is 2.0, a lane ~3.6),
+  // length like a van, so the plan reads as a squat, deliberately wide machine.
+  wide3(c) {
+    const g = new THREE.Group(), p = paintHD(c), pd = paintHD(shade(c, 0.72));
+    for (const [x, z] of [[-3.12, 1.4], [3.12, 1.4], [-3.12, -1.55], [3.12, -1.55]]) g.add(wheelHD(x, z, 0.52, 0.46, { spokes: 6 }));
+    g.add(rbox(6.0, 0.34, 4.3, 0.1, MHD.trim, 0, 0.62, -0.1));                                     // chassis
+    // Full-width cab across the front: a bus-like face with one glass band.
+    g.add(plan(symPlan([[2.6, 2.2], [3.1, 2.0], [3.2, 1.0], [3.14, 0.1], [2.9, -0.2]]), 0.42, 1.7, 0.26, p));
+    g.add(plan(symPlan([[2.5, 2.1], [2.96, 1.86], [2.98, 0.86], [2.6, 0.72]]), 1.3, 2.22, 0.2, MHD.glass));
+    g.add(plan(symPlan([[2.3, 1.56], [2.72, 1.3], [2.74, 0.88], [2.3, 0.78]]), 2.18, 2.3, 0.05, p));
+    for (const sd of [-1, 1]) {
+      g.add(decal(0.9, 0.2, MHD.headRim, sd * 2.1, 1.7, 2.06, 0.08));
+      g.add(decal(0.76, 0.12, MHD.head, sd * 2.1, 1.715, 2.07, 0.05));
+      g.add(rbox(0.26, 0.14, 0.2, 0.06, p, sd * 3.16, 1.6, 1.3));                                  // mirrors
+      g.add(decal(0.9, 0.12, MHD.tail, sd * 2.3, 1.62, -2.1, 0.04));
+    }
+    for (let i = 0; i < 4; i++) g.add(decal(0.3, 0.12, MHD.amber, -1.35 + i * 0.9, 2.33, 1.2, 0.04));   // roof light bar
+    // Cargo bed behind the cab: a bright wide load strapped down.
+    g.add(plan(symPlan([[3.0, -0.3], [3.14, -0.8], [3.1, -2.0], [2.7, -2.2]]), 0.42, 1.1, 0.14, pd));
+    g.add(rbox(5.4, 1.1, 1.5, 0.18, paintHD(shade(c, 1.12)), 0, 1.65, -1.25));                      // the load
+    for (const x of [-1.6, 0, 1.6]) g.add(rbox(0.12, 1.2, 1.62, 0.03, MHD.rubber, x, 1.66, -1.25));   // straps
+    g.add(rbox(5.6, 0.1, 0.1, 0.03, MHD.chrome, 0, 2.24, -0.5));                                     // bed rail
+    g.add(glint(1.6, -0.6, 2.24, 1.4));
+    return g;
+  },
+  wide2(c) {
+    const g = new THREE.Group(), p = paintHD(c), pd = paintHD(shade(c, 0.72));
+    for (const [x, z] of [[-3.02, 1.3], [3.02, 1.3], [-3.02, -1.45], [3.02, -1.45]]) g.add(wheelHD(x, z, 0.54, 0.46, { spokes: 6 }));
+    g.add(plan(symPlan([[2.2, 2.06], [2.9, 1.86], [3.1, 1.0], [3.06, -1.5], [2.7, -2.0]]), 0.5, 1.36, 0.26, p));
+    g.add(plan(symPlan([[2.0, 2.1], [2.7, 1.9], [2.5, 1.74], [1.9, 1.9]]), 0.5, 0.8, 0.08, MHD.trim));   // bumper
+    g.add(plan(symPlan([[2.2, 0.9], [2.7, 0.6], [2.72, -0.5], [2.3, -0.8]]), 1.3, 2.0, 0.18, MHD.glass));  // cabin glass
+    g.add(plan(symPlan([[1.9, 0.5], [2.4, 0.3], [2.42, -0.4], [2.0, -0.6]]), 1.96, 2.08, 0.05, p));      // roof
+    for (const sd of [-1, 1]) {
+      g.add(rbox(0.08, 0.1, 3.2, 0.03, MHD.chrome, sd * 2.1, 2.12, -0.5));                       // roof rails
+      g.add(decal(0.8, 0.18, MHD.headRim, sd * 2.0, 1.36, 1.86, 0.08));
+      g.add(decal(0.66, 0.11, MHD.head, sd * 2.0, 1.375, 1.87, 0.05));
+      g.add(decal(0.7, 0.12, MHD.tail, sd * 2.2, 1.35, -1.9, 0.04));
+      g.add(rbox(0.24, 0.12, 0.18, 0.05, p, sd * 3.08, 1.46, 0.9));                              // mirrors
+    }
+    g.add(rbox(1.2, 0.2, 0.8, 0.08, MHD.rubber, 0, 1.46, -1.6));                                   // spare on the back deck
+    g.add(decal(3.6, 0.1, pd, 0, 1.39, 1.3, 0.04));                                                 // hood stripe
+    g.add(glint(1.3, 0.5, 2.02, 0.2));
+    return g;
+  },
+  wide1(c) {
+    const g = new THREE.Group(), p = paintHD(c), pd = paintHD(shade(c, 0.72));
+    for (const [x, z] of [[-2.5, 1.15], [2.5, 1.15], [-2.5, -1.25], [2.5, -1.25]]) g.add(wheelHD(x, z, 0.56, 0.5, { spokes: 4 }));
+    g.add(rbox(4.4, 0.26, 3.2, 0.08, MHD.trim, 0, 0.6, 0));                                        // frame
+    g.add(plan(symPlan([[1.6, 1.8], [2.3, 1.5], [2.4, 0.2], [2.2, -1.2], [1.6, -1.6]]), 0.62, 1.1, 0.2, p));   // low tub
+    for (const sd of [-1, 1]) {
+      g.add(rbox(0.1, 1.0, 0.1, 0.03, MHD.chrome, sd * 1.5, 1.6, 0.3), rbox(0.1, 1.0, 0.1, 0.03, MHD.chrome, sd * 1.5, 1.6, -1.0));   // roll cage posts
+      g.add(rbox(0.1, 0.1, 1.4, 0.03, MHD.chrome, sd * 1.5, 2.1, -0.35));
+      g.add(rbox(0.7, 0.5, 0.6, 0.14, MHD.leather, sd * 0.7, 1.3, -0.4));                           // seats
+      g.add(decal(0.5, 0.14, MHD.headRim, sd * 1.5, 1.1, 1.62, 0.06));
+      g.add(decal(0.4, 0.09, MHD.head, sd * 1.5, 1.115, 1.63, 0.04));
+    }
+    g.add(rbox(3.1, 0.1, 0.1, 0.03, MHD.chrome, 0, 2.1, 0.3), rbox(3.1, 0.1, 0.1, 0.03, MHD.chrome, 0, 2.1, -1.0));   // cage bars
+    g.add(rbox(1.1, 0.5, 0.9, 0.1, pd, 0, 1.3, -1.25));                                             // engine block
+    g.add(rbox(3.4, 0.1, 0.5, 0.04, p, 0, 1.9, -1.55));                                             // spoiler
+    g.add(glint(0.8, 0.3, 1.14, 1.2));
+    return g;
+  },
+
   tank(c) {
     const g = new THREE.Group(), p = paintHD(c), pd = paintHD(shade(c, 0.72));
     for (const sd of [-1, 1]) {
@@ -353,6 +418,64 @@ export const BUILD_HD = {
 // cargo body carrying the black light panel (the game draws the colour
 // sequence on it), hazard trim, chrome stacks and a hazard ram. `panel` is the
 // panel rectangle in model space so the studio can project it.
+// ── Connected pair joints (2026-10-31) ───────────────────────────────────────
+// A BRIDGE in the game (bridges.js) is drawn as ONE baked sprite of the two cars joined by a
+// physical coupling, so the joint has the same light, shadow and ink line as the cars. Each
+// builder takes the pair geometry (after the cars are scaled and placed): xL/xR = car centres,
+// wL/wR = half widths, eL/eR = the inner body edges (x), zF/zB = the shorter car's front/back z,
+// y = the lower body top.
+const HAZ = new THREE.MeshStandardMaterial({ color: 0xF2C115, roughness: 0.5 });
+const HAZ_DARK = new THREE.MeshStandardMaterial({ color: 0x1B1B22, roughness: 0.6 });
+export const JOINT_HD = {
+  // Yellow coupling clamp: two pads gripping the inner sills, a striped bar across the gap, bolts.
+  clamp(g, { eL, eR, y }) {
+    const gap = eR - eL, cx = (eL + eR) / 2, h = Math.min(0.9, y * 0.8), yc = h / 2 + 0.12;
+    g.add(rbox(0.26, h, 1.25, 0.08, HAZ, eL - 0.02, yc, 0));
+    g.add(rbox(0.26, h, 1.25, 0.08, HAZ, eR + 0.02, yc, 0));
+    g.add(rbox(gap + 0.3, 0.42, 0.62, 0.1, HAZ, cx, yc + h * 0.1, 0));
+    const n = Math.max(2, Math.round((gap + 0.3) / 0.36));
+    for (let i = 0; i < n; i++) if (i % 2 === 0) g.add(rbox(0.18, 0.04, 0.66, 0.01, HAZ_DARK, cx - (gap + 0.3) / 2 + 0.18 + i * 0.36, yc + h * 0.1 + 0.21, 0));
+    for (const x of [eL - 0.02, eR + 0.02]) {
+      const b = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.1, 16), MHD.chrome);
+      b.position.set(x, yc + h / 2 + 0.04, 0);
+      g.add(b);
+    }
+  },
+  // Steel chassis frame under both cars: a dark plate with chrome corner posts, one platform.
+  frame(g, { xL, xR, eL, eR, zF, zB, wL, wR }) {
+    const x0 = xL - wL - 0.18, x1 = xR + wR + 0.18, w = x1 - x0, d = (zF - zB) + 0.5, cx = (x0 + x1) / 2, cz = (zF + zB) / 2;
+    g.add(rbox(w, 0.22, d, 0.08, MHD.trim, cx, 0.2, cz));
+    g.add(rbox(eR - eL + 0.1, 0.3, d - 0.3, 0.06, MHD.steelHD, (eL + eR) / 2, 0.3, cz));            // the spine between the cars
+    for (const x of [x0 + 0.16, x1 - 0.16]) for (const z of [cz - d / 2 + 0.16, cz + d / 2 - 0.16]) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.5, 14), MHD.chrome);
+      post.position.set(x, 0.42, z);
+      g.add(post);
+    }
+  },
+  // Sidecar struts: two steel tubes at sill height, front and back, each ending in a yellow
+  // clamp pad on the car's sill (the way a sidecar hangs off a motorcycle).
+  struts(g, { eL, eR, zF, zB, y }) {
+    const gap = eR - eL, cx = (eL + eR) / 2, len = zF - zB;
+    const yc = Math.min(0.62, y * 0.5);
+    for (const z of [zB + len * 0.28, zF - len * 0.28]) {
+      const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, gap + 0.4, 18), MHD.steelHD);
+      tube.rotation.z = Math.PI / 2;
+      tube.position.set(cx, yc, z);
+      g.add(tube);
+      for (const x of [eL + 0.06, eR - 0.06]) g.add(rbox(0.3, 0.5, 0.56, 0.08, HAZ, x, yc, z));
+      for (const x of [eL + 0.06, eR - 0.06]) {
+        const b = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.08, 14), MHD.chrome);
+        b.position.set(x, yc + 0.28, z);
+        g.add(b);
+      }
+    }
+    // A thin cross brace between the two tubes.
+    g.add(rbox(0.1, 0.1, len * 0.44, 0.03, MHD.steelHD, cx, yc, (zF + zB) / 2));
+  },
+  // Both: the frame underneath and the clamp between.
+  both(g, geo) { JOINT_HD.frame(g, geo); JOINT_HD.clamp(g, geo); },
+};
+
 export const BOSS_PANEL_HD = { x: 0, y: 2.74, z: -0.95, w: 2.3, d: 3.0 };
 export function buildBossHD({ armored = false } = {}) {
   const g = new THREE.Group();

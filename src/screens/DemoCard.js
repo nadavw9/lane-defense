@@ -14,7 +14,7 @@
 //   shrink lane              the front car steps down a rung (van -> car -> bike)
 //   boom lane                the front car explodes and is gone
 //   advance                  every car moves one row toward the line (speeders two)
-//   bridge laneA laneB [row] the hand drags car A onto car B; a gold beam joins them
+//   bridge laneA laneB [row] the hand drags car A onto car B; they slide together into the pair sprite
 //   snap laneA laneB         the beam cracks and falls
 //   hit lane                 impact flash on the front car without a drag (for bridged partners)
 //   tag text [lane]          floating text over the lane's front car (or the middle)
@@ -41,7 +41,7 @@ import { Container, Graphics, Sprite, Assets, Text } from 'pixi.js';
 import { panel, ribbon, titleText, bodyText, backdrop, button, card as uiCard, tag, GOLD_DEEP } from '../renderer/PremiumUI.js';
 import { SUN, INK } from '../renderer/ToyStyle.js';
 import { uiIcon } from '../renderer/UIIcon.js';
-import { drawBeam, drawDots } from '../renderer/BridgeLayer.js';
+import { PAIR_SPRITE_GEOMETRY, PAIR_RUNGS } from '../renderer3d/pairSpriteGeometry.js';
 import { LADDER } from '../director/CarTypes.js';
 import { DEMO_SCENES } from './demoScenes.js';
 
@@ -194,9 +194,7 @@ export class DemoCard {
     sc.addChild(this._beams);
     for (const def of S.cars ?? []) this._addCar(def);
     sc.addChild(this._fx);
-    this._bridges = [];   // { a: car, b: car }
-    this._hints = new Graphics();
-    sc.addChild(this._hints);
+    this._bridges = [];   // { a: car, b: car, c: Container | null (the pair sprite once joined) }
 
     // Bomb tray.
     this._bombs = [];
@@ -270,6 +268,39 @@ export class DemoCard {
     }
   }
 
+  // The pair sprite for a bridge (pairSpriteGeometry): which file, mirrored or not, and the half
+  // distance between the two cars in this board's pixels (the bake used lane pitch 4).
+  _pairGeo(br) {
+    const iL = PAIR_RUNGS.indexOf(br.a.type), iR = PAIR_RUNGS.indexOf(br.b.type);
+    const flip = iL > iR;
+    const key = flip ? `${br.b.type}-${br.a.type}` : `${br.a.type}-${br.b.type}`;
+    const g = PAIR_SPRITE_GEOMETRY[key] ?? PAIR_SPRITE_GEOMETRY['big-big'];
+    const bakedLeft = flip ? br.b : br.a, bakedRight = flip ? br.a : br.b;
+    const v = bakedLeft.trait === 'speeder' ? '-sl' : bakedRight.trait === 'speeder' ? '-sr' : '';
+    const k = this._laneW / 4;
+    return { flip, halfPx: g.half * k, widthPx: g.W / g.ppu * k, path: `sprites/designed/pair-${key}-${br.a.color.toLowerCase()}${v}.png` };
+  }
+  _paintPair(br) {
+    const geo = this._pairGeo(br);
+    if (!br.c) { br.c = new Container(); this._scene.addChildAt(br.c, this._scene.getChildIndex(this._fx)); }
+    br.c.removeChildren().forEach(ch => ch.destroy({ children: true }));
+    br.c.x = (this._laneX[br.a.lane] + this._laneX[br.b.lane]) / 2; br.c.y = br.a.c.y;
+    br.c.scale.set(geo.flip ? -1 : 1, 1);
+    this._load(geo.path, br.c, geo.widthPx);
+  }
+  // The bridge is over: the pair sprite goes, the singles reappear in their slots and slide home.
+  _breakPair(br, dead = false) {
+    this._bridges = this._bridges.filter(b => b !== br);
+    if (br.c) { br.c.destroy({ children: true }); br.c = null; }
+    for (const car of [br.a, br.b]) {
+      if (!car.alive) continue;
+      car.c.visible = true;
+      const from = car.c.x, to = this._laneX[car.lane];
+      this._tween(0.3, (k) => { const e = 1 - Math.pow(1 - k, 3); car.c.x = from + (to - from) * e; });
+    }
+    void dead;
+  }
+
   _front(lane) {
     let best = null;
     for (const c of this._cars) if (c.alive && c.lane === lane && (!best || c.row > best.row)) best = c;
@@ -340,7 +371,11 @@ export class DemoCard {
       case 'shrink': {
         const car = S._carAt(a[0], a[1] ?? -1); if (!car) return;
         const i = LADDER.indexOf(car.type);
-        if (i > 0) { car.type = LADDER[i - 1]; S._paintCar(car); S._tween(0.25, (k) => car.c.scale.set(1.25 - 0.25 * k)); }
+        if (i > 0) {
+          car.type = LADDER[i - 1]; S._paintCar(car); S._tween(0.25, (k) => car.c.scale.set(1.25 - 0.25 * k));
+          const br = S._bridges.find(b => b.a === car || b.b === car);
+          if (br?.c) { S._paintPair(br); S._tween(0.25, (k) => br.c.scale.set(1.25 - 0.25 * k)); }
+        }
         break;
       }
       case 'grow': {
@@ -352,12 +387,15 @@ export class DemoCard {
       case 'boom': {
         const car = S._carAt(a[0], a[1] ?? -1); if (!car) return;
         car.alive = false; S._explode(car.c.x, car.c.y); car.c.visible = false;
-        S._bridges = S._bridges.filter(b => b.a !== car && b.b !== car);
+        const br = S._bridges.find(b => b.a === car || b.b === car);
+        if (br) S._breakPair(br, true);
         if (S._goal && a[2] !== 'nogoal') S._goalTick();
         break;
       }
       case 'plate': { const car = S._front(a[0]); if (car) { car.armor = 0; S._paintCar(car); S._flash(car.c.x, car.c.y, 0xFFFFFF, 24); S._float('PLATE OFF', car.c.x, car.c.y - 18, 0xFFFFFF); } break; }
       case 'advance': {
+        // A speeder pulls away from its partner: the pair comes apart before the move.
+        for (const br of [...S._bridges]) if ((br.a.trait === 'speeder') !== (br.b.trait === 'speeder')) S._breakPair(br);
         for (const car of S._cars) {
           if (!car.alive) continue;
           const from = car.row, to = car.row + (car.trait === 'speeder' ? 2 : 1);
@@ -376,23 +414,32 @@ export class DemoCard {
       }
       case 'bridge': {
         const ca = S._carAt(a[0], a[2] ?? -1), cb = S._carAt(a[1], a[2] ?? -1); if (!ca || !cb) return;
+        const [l, r] = ca.lane < cb.lane ? [ca, cb] : [cb, ca];
         S._dragging = { a: ca, b: cb, k: 0 };
         S._moveHand({ x: ca.c.x, y: ca.c.y + 8 }, { x: cb.c.x, y: cb.c.y + 8 }, 0.7, () => {
           S._hand.visible = false; S._dragging = null;
-          S._bridges.push({ a: ca, b: cb, born: 0 });
-          S._flash((ca.c.x + cb.c.x) / 2, (ca.c.y + cb.c.y) / 2, 0xFFC93C, 26);
+          const br = { a: l, b: r, c: null };
+          S._bridges.push(br);
+          // The two cars slide to their slots in the pair sprite, then become it.
+          const geo = S._pairGeo(br), mid = (S._laneX[l.lane] + S._laneX[r.lane]) / 2;
+          const x0 = l.c.x, x1 = r.c.x, sl = mid - geo.halfPx, sr = mid + geo.halfPx;
+          S._tween(0.3, (k) => { const e = 1 - Math.pow(1 - k, 3); l.c.x = x0 + (sl - x0) * e; r.c.x = x1 + (sr - x1) * e; }, () => {
+            if (!S._bridges.includes(br)) return;
+            l.c.visible = false; r.c.visible = false;
+            S._paintPair(br);
+            S._flash(mid, l.c.y, 0xFFC93C, 26);
+          });
         });
         S._tween(0.7, (k) => { if (S._dragging) S._dragging.k = k; });
         break;
       }
       case 'snap': {
         const ca = S._carAt(a[0], a[2] ?? -1), cb = S._carAt(a[1], a[2] ?? -1);
-        const i = S._bridges.findIndex(b => (b.a === ca && b.b === cb) || (b.a === cb && b.b === ca));
-        if (i < 0) return;
-        const br = S._bridges.splice(i, 1)[0];
-        const x1 = br.a.c.x, y1 = br.a.c.y, x2 = br.b.c.x, y2 = br.b.c.y;
-        S._tween(0.55, (k) => { S._fxList.push({ kind: 'snap', x1, y1, x2, y2, k }); });
-        S._float('SNAP!', (x1 + x2) / 2, (y1 + y2) / 2 - 14, 0xFFFFFF);
+        const br = S._bridges.find(b => (b.a === ca && b.b === cb) || (b.a === cb && b.b === ca));
+        const x = ca && cb ? (S._laneX[ca.lane] + S._laneX[cb.lane]) / 2 : S._laneX[0], y = ca ? ca.c.y : S._rowY(1);
+        if (br) S._breakPair(br);
+        S._tween(0.5, (k) => { S._fxList.push({ kind: 'snap', x, y, k }); });
+        S._float('SNAP!', x, y - 14, 0xFFFFFF);
         break;
       }
       case 'tag': { const car = a[1] != null ? S._front(a[1]) : null; S._float(a[0], car ? car.c.x : S._laneX[Math.floor(S._laneX.length / 2)] || ROAD.x + ROAD.w / 2, car ? car.c.y - 18 : ROAD.y + 50); break; }
@@ -471,20 +518,9 @@ export class DemoCard {
       tw.fn(k);
       if (k >= 1) { this._tweens.splice(i, 1); tw.done?.(); }
     }
-    // Beams, hints, drag band, fx.
-    this._beams.clear(); this._hints.clear(); this._fx.clear();
-    for (const br of this._bridges) {
-      if (!br.a.alive || !br.b.alive) continue;
-      const ix = (br.b.c.x - br.a.c.x) * 0.2;
-      drawBeam(this._beams, br.a.c.x + ix, br.a.c.y, br.b.c.x - ix, br.b.c.y, { alpha: 0.9 + 0.1 * Math.sin(this._t * 5), h: 9 });
-    }
-    // Hints on every side-by-side same-colour pair that is not bridged (the board's own LINK dots).
-    for (const a of this._cars) for (const b of this._cars) {
-      if (!a.alive || !b.alive || b.lane !== a.lane + 1 || a.color !== b.color || Math.abs(a.row - b.row) > 0.01) continue;
-      if (this._bridges.some(br => (br.a === a && br.b === b) || (br.a === b && br.b === a))) continue;
-      if (this._dragging && (this._dragging.a === a || this._dragging.a === b)) continue;
-      drawDots(this._hints, a.c.x, a.c.y, b.c.x, b.c.y, this._t);
-    }
+    // Pair sprites ride their left car; drag band; fx.
+    this._beams.clear(); this._fx.clear();
+    for (const br of this._bridges) if (br.c) br.c.y = br.a.c.y;
     if (this._dragging) {
       const d = this._dragging;
       const hx = this._hand.x, hy = this._hand.y - 8;
@@ -496,9 +532,9 @@ export class DemoCard {
     for (const f of this._fxList) {
       if (f.kind === 'flash') this._fx.circle(f.x, f.y, f.r).stroke({ color: f.color, width: 5 * f.a, alpha: f.a }).circle(f.x, f.y, f.r * 0.5).fill({ color: 0xFFFFFF, alpha: 0.5 * f.a });
       if (f.kind === 'snap') {
-        const mx = (f.x1 + f.x2) / 2, my = (f.y1 + f.y2) / 2, drop = 30 * f.k * f.k, al = 1 - f.k;
-        drawBeam(this._fx, f.x1 + (mx - f.x1) * 0.2, f.y1 + drop, mx - 4, my + drop + 6 * f.k, { alpha: al, tilt: -0.3 * f.k, h: 9 });
-        drawBeam(this._fx, mx + 4, my + drop + 6 * f.k, f.x2 - (f.x2 - mx) * 0.2, f.y2 + drop, { alpha: al, tilt: 0.3 * f.k, h: 9 });
+        const c = 1 - f.k;
+        this._fx.moveTo(f.x - 4, f.y - 12).lineTo(f.x + 3, f.y - 3).lineTo(f.x - 3, f.y + 3).lineTo(f.x + 4, f.y + 12).stroke({ color: 0xFFFFFF, width: 3 * c + 1, alpha: c });
+        for (let j = 0; j < 5; j++) { const ang = -Math.PI / 2 + (j - 2) * 0.5, r = 6 + 18 * f.k; this._fx.circle(f.x + Math.cos(ang) * r, f.y + Math.sin(ang) * r * 0.6, 2 * c).fill({ color: 0xFFFFFF, alpha: c }); }
       }
     }
     // Rings on charged bombs pulse.

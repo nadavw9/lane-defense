@@ -1,14 +1,15 @@
 // BRIDGES across lanes (2026-10-31). Owner: "for two cars to be hit you must CREATE A LINK between
-// them: two adjacent lanes whose cars are the same colour; then hitting one hits the other. A triple
-// bridge is allowed. A speeder on one side breaks it. Without bridges the level should not be
-// passable." Replaces the automatic CHAIN REACTION (spread.js), which nobody understood because it
-// happened without the player doing anything.
+// them: two adjacent lanes whose cars are the same colour; then hitting one hits the other. A
+// speeder on one side breaks it. Without bridges the level should not be passable." Replaces the
+// automatic CHAIN REACTION (spread.js), which nobody understood because it happened without the
+// player doing anything. Later the same day the owner chose the LOOK: the two linked cars are ONE
+// baked vehicle (the pair sprite, coupled by a yellow clamp), so a bridge is strictly a PAIR: a car
+// already in a bridge cannot take a second one (no triples).
 //
 // A bridge joins two cars in ADJACENT lanes, SAME colour, SIDE BY SIDE (same row), both on the
 // visible road (row >= 1), neither armoured at that moment. Any row, not only the front: a bridge
-// made deep in the lanes is a plan that pays when the pair arrives. Bridges share cars, so A-B and
-// B-C make a triple. A hit on any bridged car (queue bomb) lands the same hit on every connected
-// car, even one that is not the front car of its lane. A bridge breaks when either car leaves, when
+// made deep in the lanes is a plan that pays when the pair arrives. A hit on either bridged car
+// (queue bomb) lands the same hit on its partner, even one that is not the front car of its lane. A bridge breaks when either car leaves, when
 // the rows differ (a speeder takes two steps a turn), or when the colours differ (chameleon flip).
 //
 // Pure: shared by GameLoop and SimulationRunner (one rule, like CombatResolver). Cars have no id,
@@ -26,24 +27,31 @@ const onRoad     = (c) => c.row >= 1 - EPS;
 const bare       = (c) => (c.armor ?? 0) === 0;
 const pairOk     = (a, b) => a !== b && a.color === b.color && sideBySide(a, b) && onRoad(a) && onRoad(b) && bare(a) && bare(b);
 
-/** Every pair of cars that could be bridged right now: `[{ a: { lane, car }, b: { lane, car } }]`, lane a < lane b. */
-export function eligiblePairs(lanes, activeLaneCount = lanes.length) {
+/** True when the car is already in one of `bridges`. */
+export function inBridge(bridges, car) { return bridges.some(br => br.a.car === car || br.b.car === car); }
+
+/**
+ * Every pair of cars that could be bridged right now: `[{ a: { lane, car }, b: { lane, car } }]`,
+ * lane a < lane b. Cars already in one of `bridges` are left out (a bridge is a pair).
+ */
+export function eligiblePairs(lanes, activeLaneCount = lanes.length, bridges = []) {
   const out = [];
   for (let l = 0; l + 1 < activeLaneCount; l++) {
     for (const a of lanes[l]?.cars ?? []) {
+      if (inBridge(bridges, a)) continue;
       for (const b of lanes[l + 1]?.cars ?? []) {
-        if (pairOk(a, b)) out.push({ a: { lane: l, car: a }, b: { lane: l + 1, car: b } });
+        if (pairOk(a, b) && !inBridge(bridges, b)) out.push({ a: { lane: l, car: a }, b: { lane: l + 1, car: b } });
       }
     }
   }
   return out;
 }
 
-/** True when these two car objects form an eligible pair (adjacent lanes inside the active ones). */
-export function canBridge(lanes, activeLaneCount, carA, carB) {
+/** True when these two car objects form an eligible pair (adjacent lanes inside the active ones, neither bridged). */
+export function canBridge(lanes, activeLaneCount, carA, carB, bridges = []) {
   const la = laneOf(lanes, carA, activeLaneCount), lb = laneOf(lanes, carB, activeLaneCount);
   if (la < 0 || lb < 0 || Math.abs(la - lb) !== 1) return false;
-  return pairOk(carA, carB);
+  return pairOk(carA, carB) && !inBridge(bridges, carA) && !inBridge(bridges, carB);
 }
 
 export function laneOf(lanes, car, activeLaneCount = lanes.length) {
@@ -56,9 +64,9 @@ export function bridgeBetween(bridges, carA, carB) {
   return bridges.find(br => (br.a.car === carA && br.b.car === carB) || (br.a.car === carB && br.b.car === carA)) ?? null;
 }
 
-/** Adds the bridge (lane a kept lower). Returns false when it already exists. */
+/** Adds the bridge (lane a kept lower). Returns false when it exists or either car is already bridged. */
 export function addBridge(bridges, laneA, carA, laneB, carB) {
-  if (bridgeBetween(bridges, carA, carB)) return false;
+  if (bridgeBetween(bridges, carA, carB) || inBridge(bridges, carA) || inBridge(bridges, carB)) return false;
   bridges.push(laneA < laneB ? { a: { lane: laneA, car: carA }, b: { lane: laneB, car: carB } }
                              : { a: { lane: laneB, car: carB }, b: { lane: laneA, car: carA } });
   return true;

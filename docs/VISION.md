@@ -47,11 +47,14 @@ coin flip; the barrier turns the first breach into information instead.
 
 ## Bridges (owner-directed, 2026-10-31)
 Two cars in ADJACENT lanes, the SAME colour, SIDE BY SIDE: the player DRAGS one onto the
-other and a bridge joins them. A hit on one lands on every car bridged to it (a triple
-bridge takes the row), even a car that is not its lane's front. Bridging is free; what
-costs is the moment: a speeder on one side runs ahead on the next move and the bridge
-snaps, a chameleon flips and it snaps. A level is tuned so the diligent bridger wins and
-the non-bridger does not: the bridge IS the thinking in this game.
+other and they become ONE vehicle: the two cars coupled by a clamp, drawn as a single
+baked sprite (owner, same day: "a new visual of two connected cars as one unit, not an
+extra layer on top"). A bridge is a pair; a bridged car takes no second bridge. A hit on
+either lands on its partner, even a car that is not its lane's front. Nothing marks a
+linkable pair at rest: before the link it is just two cars. Bridging is free; what costs
+is the moment: a speeder on one side runs ahead on the next move and the pair splits, a
+chameleon flips and it splits. A level is tuned so the diligent bridger wins and the
+non-bridger does not: the bridge IS the thinking in this game.
 
 *Superseded:* the automatic CHAIN REACTION (2026-10-27), where an exploding car took
 same-colour front neighbours with it on its own. Nobody read its card, so on the board it

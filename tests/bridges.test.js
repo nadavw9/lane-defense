@@ -1,7 +1,7 @@
 // BRIDGES (src/game/bridges.js). Owner, 2026-10-31: "for two cars to be hit you must create a link
 // between them: two adjacent lanes whose cars are the same colour; then hitting one hits the other;
-// a triple bridge is allowed; a speeder on one side breaks it." Pure rules shared by GameLoop and
-// the simulator. Replaces the automatic chain reaction (spread.js).
+// a speeder on one side breaks it." A bridge is a PAIR (the two cars are drawn as one vehicle), so
+// a bridged car takes no second bridge. Pure rules shared by GameLoop and the simulator.
 import { describe, it, expect } from 'vitest';
 import { Lane } from '../src/models/Lane.js';
 import { Car } from '../src/models/Car.js';
@@ -75,14 +75,16 @@ describe('bridges — making, chaining, breaking', () => {
     expect(bridgeBetween(bridges, b, a)).toBe(bridges[0]);
   });
 
-  it('connected() walks the whole chain (a triple bridge)', () => {
+  it('a bridged car takes no second bridge (pairs only, no triples); eligible pairs skip bridged cars', () => {
     const lanes = [lane(0, ['Red', 1, 2]), lane(1, ['Red', 1, 2]), lane(2, ['Red', 1, 2])];
     const bridges = [];
-    addBridge(bridges, 0, at(lanes, 0, 2), 1, at(lanes, 1, 2));
-    addBridge(bridges, 1, at(lanes, 1, 2), 2, at(lanes, 2, 2));
-    const set = connected(bridges, at(lanes, 2, 2));
-    expect(set.size).toBe(3);
-    expect(set.has(at(lanes, 0, 2))).toBe(true);
+    expect(addBridge(bridges, 0, at(lanes, 0, 2), 1, at(lanes, 1, 2))).toBe(true);
+    expect(addBridge(bridges, 1, at(lanes, 1, 2), 2, at(lanes, 2, 2))).toBe(false);
+    expect(bridges).toHaveLength(1);
+    expect(connected(bridges, at(lanes, 1, 2)).size).toBe(2);
+    expect(eligiblePairs(lanes, 3, bridges)).toHaveLength(0);                    // lane 2's car has no free partner
+    expect(canBridge(lanes, 3, at(lanes, 1, 2), at(lanes, 2, 2), bridges)).toBe(false);
+    expect(eligiblePairs(lanes, 3)).toHaveLength(2);                             // without the bridges, both pairs
   });
 
   it('prune removes a bridge whose cars are no longer side by side (a speeder moved on)', () => {
@@ -96,11 +98,11 @@ describe('bridges — making, chaining, breaking', () => {
   });
 
   it('prune removes a bridge when a car changed colour or left the lane; keeps a healthy one', () => {
-    const lanes = [lane(0, ['Red', 1, 2]), lane(1, ['Red', 1, 2]), lane(2, ['Red', 1, 2])];
+    const lanes = [lane(0, ['Red', 1, 2]), lane(1, ['Red', 1, 2]), lane(2, ['Red', 1, 2]), lane(3, ['Red', 1, 2])];
     const bridges = [];
     addBridge(bridges, 0, at(lanes, 0, 2), 1, at(lanes, 1, 2));
-    addBridge(bridges, 1, at(lanes, 1, 2), 2, at(lanes, 2, 2));
-    at(lanes, 2, 2).color = 'Blue';                                    // chameleon flipped
+    addBridge(bridges, 2, at(lanes, 2, 2), 3, at(lanes, 3, 2));
+    at(lanes, 3, 2).color = 'Blue';                                    // chameleon flipped
     expect(pruneBridges(lanes, bridges)).toHaveLength(1);
     expect(bridges).toHaveLength(1);
     lanes[0].cars = [];                                                 // destroyed by the BOMB booster
@@ -110,17 +112,20 @@ describe('bridges — making, chaining, breaking', () => {
 });
 
 describe('bridges — the shared hit', () => {
-  it('a hit on one bridged car hits every connected car, removing the dead ones from their lanes', () => {
-    const lanes = [lane(0, ['Red', 1, 3]), lane(1, ['Red', 2, 3]), lane(2, ['Red', 1, 3])];
+  it('a hit on one bridged car hits its partner, removing it from its lane when it dies', () => {
+    const lanes = [lane(0, ['Red', 1, 3]), lane(1, ['Red', 2, 3]), lane(2, ['Red', 1, 3]), lane(3, ['Red', 1, 3])];
     const bridges = [];
-    addBridge(bridges, 0, at(lanes, 0, 3), 1, at(lanes, 1, 3));
-    addBridge(bridges, 1, at(lanes, 1, 3), 2, at(lanes, 2, 3));
+    addBridge(bridges, 0, at(lanes, 0, 3), 1, at(lanes, 1, 3));        // bike + van
+    addBridge(bridges, 2, at(lanes, 2, 3), 3, at(lanes, 3, 3));        // bike + bike
     const hits = bridgeHits(lanes, bridges, at(lanes, 0, 3), 1);     // the shot itself hit lane 0
-    expect(hits.map(h => [h.lane, h.destroyed])).toEqual([[1, false], [2, true]]);
+    expect(hits.map(h => [h.lane, h.destroyed])).toEqual([[1, false]]);
     expect(lanes[1].frontCar().hp).toBe(1);                            // the van shrank, still there
-    expect(lanes[2].cars).toHaveLength(0);
+    expect(pruneBridges(lanes, bridges)).toHaveLength(0);              // the shrunk van stays bridged
+    const hits2 = bridgeHits(lanes, bridges, at(lanes, 2, 3), 1);
+    expect(hits2.map(h => [h.lane, h.destroyed])).toEqual([[3, true]]);
+    expect(lanes[3].cars).toHaveLength(0);
     expect(pruneBridges(lanes, bridges)).toHaveLength(1);              // the bridge to the dead car is gone
-    expect(bridges).toHaveLength(1);                                   // the shrunk van stays bridged
+    expect(bridges).toHaveLength(1);
   });
 
   it('reaches a bridged car that is NOT the front car of its lane', () => {

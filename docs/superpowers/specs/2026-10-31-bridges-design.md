@@ -41,8 +41,8 @@ Non-goals: new vehicles, new boosters, map/meta changes, iOS listing work.
   deep in the lanes is a plan that pays when the pair arrives.
 - **Creation:** the player drags from one car of an eligible pair to the other (§4). Free: no turn
   passes, traffic does not move. No limit on the number of bridges.
-- **Chains:** bridges share cars, so A–B and B–C make a triple; a hit anywhere reaches every car
-  connected through bridges (breadth-first over the bridge graph).
+- **Pairs only** (revised the same evening, §14): a bridged car takes no second bridge, because the
+  pair is drawn as one vehicle. `connected()` still walks the bridge graph; it finds two cars.
 - **Effect:** when a bridged car takes a hit from a queue bomb (plain, charged: each of its hits, or
   rainbow: the hit in that lane), every connected car takes the SAME hit at the same moment, through
   `CombatResolver`'s damage path (one rung off, armour rules as usual), even when that car is not the
@@ -205,8 +205,8 @@ advance), `tests/pair-bias.test.js`, `tests/speeder-boost.test.js`, `tests/dragd
 (hit test and state machine with stubbed geometry), `tests/demo-scenes.test.js` (every CARDS key
 that is not hand-guided has a scene; every scene's steps reference existing lanes/bombs; captions
 ≤ 40 chars), `tests/step-ruler.test.js` updated, `tests/no-spread.test.js` (spread stays out),
-intro-schedule and visual-fixture keys updated. `scripts/_bridge-shots.mjs` captures the hint, the
-drag, the bridge, the blast and the snap on L6/L9.
+intro-schedule and visual-fixture keys updated. `scripts/_pair-shots.mjs` (was `_bridge-shots.mjs`) captures the drag, the
+pair forming, the blast and the snap on L6/L9.
 
 ## 12. Rollout
 
@@ -218,3 +218,32 @@ the Hebrew summary; the Math Wolf session gets the build message.
 ## 13. VISION.md amendment (applied with the merge, under the 2026-10-30 approval of "no invisible
 help"): the CHAIN REACTION paragraph is replaced by BRIDGES as described in §3; "nothing on the
 board the player did not do or cannot see".
+
+## 14. Revision, the same evening: the pair is ONE vehicle (owner-directed)
+
+The owner saw the first visuals and rejected them in turn: the gold beam over the gap ("looks very
+bad"), a plank, then the two cars sliding together with a hitch ("the connection itself visually
+doesn't look good... create a new visual of two connected cars as one unit and not try to combine
+them with an extra layer on top... and create this layer for each combination of two cars"; "it
+should just be two cars" before the link, no grey marker). He chose, from a 3D concept sheet, the
+yellow coupling clamp with the cars pulled half-way together. What changed against §3, §5, §9:
+
+- **Rules:** a bridge is a PAIR. `inBridge(bridges, car)`; `eligiblePairs(lanes, n, bridges)` and
+  `canBridge(..., bridges)` skip bridged cars; `addBridge` refuses a second bridge on a car. No
+  triples (the pair sprite has two cars). The sim passes its bridges. Levels and stars retuned.
+- **Art:** `render-3d-sprites.mjs pairs` bakes `pair-<l>-<r>-<color>[-sl|-sr].png` for the
+  unordered rung pairs (small < big < jeep), six colours, speeder flames on the left or right car
+  (`studio.pair()`, `JOINT_HD.clamp`, cars scaled so the projected body length is FIT x row pitch,
+  exactly a single car's size), and GENERATES `src/renderer3d/pairSpriteGeometry.js`
+  (`tests/pair-sprites.test.js` pins the 108 files and the geometry).
+- **Renderer:** `Car3D.setPairs(gs.bridges)`: the two singles slide to their slots in the pair
+  (~0.3 s), hide, and one plane with the pair texture takes over (mirrored for the other type
+  order), riding the left car's glide, bob, lean and tint; a hit swaps the combination with a pop;
+  when the bridge goes the singles reappear in their slots and slide home. `onPairJoined` fires at
+  the swap. `BridgeLayer` draws no hint and no bridge: only a one-off pulse when a pair BECOMES
+  linkable (not the opening board), the drag band, gold rings on the drop, sparks at the seam on
+  join, a crack on snap, the blast flash.
+- **Cards:** the DemoCard `bridge` op slides the two cars together and swaps in the pair sprite;
+  `snap`/`boom`/`advance` split it; `freeze_earned` shows a pair plus a charged shot (no triple).
+  The HowToPlay BRIDGES slide shows the pair sprite.
+- Review captures: `scripts/_pair-shots.mjs`; concept sheets `_pair-concept.mjs`, `_wide-concept.mjs`.

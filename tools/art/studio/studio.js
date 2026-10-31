@@ -13,7 +13,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { BUILD_HD, buildBossHD, BOSS_PANEL_HD } from './vehicles-hd.js';
+import { BUILD_HD, JOINT_HD, buildBossHD, BOSS_PANEL_HD } from './vehicles-hd.js';
 import { renderBackdrop } from './backdrop.js';
 import { renderMapHD, renderRepairHD } from './mapdiorama.js';
 import { renderTitle } from './title.js';
@@ -475,6 +475,7 @@ const CHUNK = {
 const CHUNK_HD = {
   small: [1.5, 1, 1], big: [1.32, 1, 0.95], jeep: [1.26, 1, 0.95],
   truck: [1.26, 1, 0.95], bigrig: [1.24, 1, 0.95], tank: [1.2, 1, 1],
+  wide3: [1, 1, 1], wide2: [1, 1, 1], wide1: [1, 1, 1],   // two-lane vehicles (the merged pair)
 };
 
 // ── Rendering ────────────────────────────────────────────────────────────────
@@ -1039,6 +1040,59 @@ window.studio = {
     return out.toDataURL('image/png');
   },
   variants: Object.keys(VARIANT),
+  // CONNECTED PAIR (bridges.js): two cars in adjacent lanes joined by a physical coupling, baked
+  // as one sprite in GAME proportions: each car is scaled so its body length is FIT x the row
+  // pitch (Car3D.spriteScaleFor) and the two sit one lane (CELL = 4) apart; pull (0..1) draws
+  // them that fraction of the way toward touching. Returns a data URL.
+  // variantL / variantR add a VARIANT deco (speeder) to one car; the canvas is framed on the plain
+  // pair first so every variant of a type pair shares the base sprite's canvas and positions.
+  // Returns { url, W, H, ppu, half }: half = each car centre's distance from the pair centre, in
+  // the same game units the sprite is drawn in (W / ppu wide).
+  pair(typeL, typeR, color, { joint = 'clamp', pull = 0.5, pxPerUnit = 80, outline = 3, variantL = null, variantR = null } = {}) {
+    const FIT = { small: 0.656, big: 0.673, jeep: 0.690, truck: 0.707, tank: 0.724, bigrig: 0.740 };
+    const ROW = 5.85, CELL = 4;
+    const g = new THREE.Group();
+    const cars = [typeL, typeR].map((t) => {
+      const o = BUILD_HD[t](PALETTE[color]);
+      o.scale.set(...(CHUNK_HD[t] ?? [1, 1, 1]));
+      o.updateMatrixWorld(true);
+      // Scale so the PROJECTED body length (what the tilted camera draws, roof included) is
+      // FIT x ROW: that is how Car3D sizes a single car (its alpha bbox height = FIT x row pitch),
+      // so the pair's cars land at exactly the single cars' on-screen size.
+      const b = new THREE.Box3().setFromObject(o);
+      let lo = Infinity, hi = -Infinity;
+      for (const y of [b.min.y, b.max.y]) for (const z of [b.min.z, b.max.z]) { const v = y * Math.sin(TILT) - z * Math.cos(TILT); lo = Math.min(lo, v); hi = Math.max(hi, v); }
+      const k = FIT[t] * ROW / (hi - lo);
+      o.scale.multiplyScalar(k);
+      o.updateMatrixWorld(true);
+      const bb = new THREE.Box3().setFromObject(o);
+      return { o, hw: (bb.max.x - bb.min.x) / 2, zF: bb.max.z, zB: bb.min.z, top: bb.max.y };
+    });
+    const [L, R] = cars;
+    const gap0 = CELL - L.hw - R.hw;                 // body gap at lane centres
+    const half = (CELL - pull * gap0) / 2;           // pull 1 = touching
+    L.o.position.x = -half; R.o.position.x = half;
+    g.add(L.o, R.o);
+    const geo = { xL: -half, xR: half, wL: L.hw, wR: R.hw, eL: -half + L.hw, eR: half - R.hw,
+      zF: Math.min(L.zF, R.zF), zB: Math.max(L.zB, R.zB), y: Math.min(L.top, R.top) };
+    const j = new THREE.Group();
+    JOINT_HD[joint]?.(j, geo);
+    g.add(j);
+    const obj = place(g);
+    const { W, H } = frame(obj, pxPerUnit, outline + 10);
+    renderer.setSize(W * SS, H * SS, false);
+    [[variantL, L, typeL], [variantR, R, typeR]].forEach(([v, car, t]) => {
+      if (!v) return;
+      const deco = new THREE.Group();
+      VARIANT[v](deco, t, PALETTE[color]);
+      deco.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+      car.o.add(deco);
+    });
+    const out = compose(renderPasses(obj, W, H), W, H, outline);
+    clearObj(obj);
+    return { url: out.toDataURL('image/png'), W, H, ppu: pxPerUnit, half };
+  },
+  joints: Object.keys(JOINT_HD),
   // Boss vehicle. Returns { url, panel } — panel is the roof light panel's
   // rectangle as fractions of the image (cx, cy, w, h), for the game's overlay.
   boss({ pxPerUnit = 92, outline = 6, armored = false } = {}) {

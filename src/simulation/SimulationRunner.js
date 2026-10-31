@@ -510,7 +510,7 @@ export class SimulationRunner {
 
       // BRIDGES: the diligent player links every eligible pair before shooting (free action).
       if (bridgesOn) {
-        for (const pr of eligiblePairs(discreteLanes, LANE_N)) {
+        for (const pr of eligiblePairs(discreteLanes, LANE_N, bridges)) {
           if (addBridge(bridges, pr.a.lane, pr.a.car, pr.b.lane, pr.b.car)) bridgesMade++;
         }
       }

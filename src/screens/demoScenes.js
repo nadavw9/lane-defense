@@ -131,9 +131,10 @@ export const DEMO_SCENES = {
     ribbon: 'EARNED!', title: 'FREEZE EARNED', sub: '3 CARS WITH ONE BOMB',
     caption: 'Three cars in one shot earn a FREEZE. Tap it for a free shot',
     scene: {
-      lanes: 3, cars: [{ lane: 0, row: 2, color: 'Red', type: BIKE }, { lane: 1, row: 2, color: 'Red', type: BIKE }, { lane: 2, row: 2, color: 'Red', type: BIKE }],
+      // A bridged pair plus a charged shot that carries into the next car of the lane: three in one.
+      lanes: 2, cars: [{ lane: 0, row: 2, color: 'Red', type: BIKE }, { lane: 1, row: 2, color: 'Red', type: BIKE }, { lane: 0, row: 1, color: 'Red', type: BIKE }],
       bombs: ['Red'], boosters: ['freeze'], loop: 4.4,
-      steps: [[0.3, 'bridge', 0, 1], [1.1, 'bridge', 1, 2], [2.0, 'shot', 0, 1], [2.6, 'hit', 0], [2.6, 'hit', 2], [2.65, 'boom', 0], [2.65, 'boom', 1], [2.65, 'boom', 2], [2.8, 'tag', 'x3!'], [3.3, 'boosterPlus', 'freeze']],
+      steps: [[0.3, 'bridge', 0, 1], [1.0, 'glow', 0], [1.6, 'shot', 0, 0], [2.2, 'hit', 1], [2.25, 'boom', 0, 2], [2.25, 'boom', 1], [2.35, 'boom', 0, 1], [2.6, 'tag', 'x3!'], [3.3, 'boosterPlus', 'freeze']],
     },
   },
   colour_change_earned: {

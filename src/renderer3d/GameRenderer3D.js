@@ -344,6 +344,12 @@ export class GameRenderer3D {
   /** Stage px where a car is drawn right now (its glide included), or null (BridgeLayer). */
   carScreenPos(car) { return this._cars?.screenPosOf(car) ?? null; }
 
+  /** BRIDGED PAIRS: the pairs to draw as one vehicle this frame (Car3D.setPairs). */
+  setPairs(list) { this._cars?.setPairs(list); }
+  /** Set by GameApp: (laneA, carA, laneB, carB) the moment a pair's two cars become one sprite. */
+  set onPairJoined(fn) { this._onPairJoined = fn; if (this._cars) this._cars.onPairJoined = fn; }
+  get onPairJoined() { return this._onPairJoined ?? null; }
+
   /** 3B: highlight the grabbed column's bomb (-1 = none). */
   setSelectedBomb(colIdx) { this._shooters?.setSelectedColumn(colIdx); }
 
@@ -677,6 +683,7 @@ export class GameRenderer3D {
     const scale   = this._renderScale ?? Math.min(window.devicePixelRatio || 1, 2);
     const pxPerWu = (this._height * scale) / (2 * frustum.halfZe);
     this._cars        = new Car3D(scene, this._lanes);
+    this._cars.onPairJoined = this._onPairJoined ?? null;
     this._shooters    = new Shooter3D(scene, this._columns, pxPerWu);
     if (this._zoneTexUrl) this._shooters.setFloorTexture(this._zoneTexUrl);
     this._shooters.setFloorHidden?.(!!this._backdropOn);

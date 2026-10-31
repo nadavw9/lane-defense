@@ -15,8 +15,10 @@
 import { KILLS_PER_BOMB } from '../director/DirectorConfig.js';
 
 export function tourSteps(geo) {
-  // Four cards, then play: what wins, what loses, how close you are, and the one gesture. Top puzzle games teach
-  // with the board, not with reading; the rest arrives as one-line cards on the levels that use it.
+  // Three cards, then play: what wins, what loses, and the one gesture. Top puzzle games teach with
+  // the board, not with reading; the rest arrives as moving-picture cards (DemoCard) on the levels
+  // that use it. The MOVES LEFT card went with the ruler's number (owner, 2026-10-31: "the number
+  // at the side is not understood"): the ruler's dots warm to red by themselves.
   return [
     {
       title: 'THE GOAL',
@@ -27,11 +29,6 @@ export function tourSteps(geo) {
       title: 'THE RED LINE',
       text: 'A car past this line = you LOSE.',
       target: geo.breach,
-    },
-    {
-      title: 'MOVES LEFT',
-      text: 'This number = moves before the nearest car reaches the red line.',
-      target: geo.ruler,
     },
     {
       title: 'YOUR BOMBS',

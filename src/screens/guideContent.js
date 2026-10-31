@@ -15,8 +15,10 @@
 import { KILLS_PER_BOMB } from '../director/DirectorConfig.js';
 
 export function tourSteps(geo) {
-  // Four cards, then play: what wins, what loses, how close you are, and the one gesture. Top puzzle games teach
-  // with the board, not with reading; the rest arrives as one-line cards on the levels that use it.
+  // Three cards, then play: what wins, what loses, and the one gesture. Top puzzle games teach with
+  // the board, not with reading; the rest arrives as moving-picture cards (DemoCard) on the levels
+  // that use it. The MOVES LEFT card went with the ruler's number (owner, 2026-10-31: "the number
+  // at the side is not understood"): the ruler's dots warm to red by themselves.
   return [
     {
       title: 'THE GOAL',
@@ -27,11 +29,6 @@ export function tourSteps(geo) {
       title: 'THE RED LINE',
       text: 'A car past this line = you LOSE.',
       target: geo.breach,
-    },
-    {
-      title: 'MOVES LEFT',
-      text: 'This number = moves before the nearest car reaches the red line.',
-      target: geo.ruler,
     },
     {
       title: 'YOUR BOMBS',
@@ -52,7 +49,7 @@ export const CARDS = {
   lane_3:          { title: 'THREE LANES', text: 'Three lanes. Stop the car nearest the red line first!', target: 'road' },
   // In play on L1, when the first blue car reaches the front (GameApp puts the hand on the blue bomb).
   second_colour:   { title: 'A BLUE CAR!', text: 'A red bomb bounces off it. A bomb only hurts cars of its own color: drag the BLUE one!', target: 'bombs' },
-  chain_reaction:  { title: 'CHAIN REACTION', text: 'A car that blows up takes same-color cars beside it with it. Set them up, then take the row!', target: 'road' },
+  bridge:          { title: 'BRIDGES', text: 'Drag a car onto the same-color car beside it to bridge them. One hit takes both!', target: 'road' },
   combo:           { title: 'COMBO!', text: 'Destroy cars quickly, one after another, for bonus coins.', target: 'goal' },
   supercharge:     { title: 'SUPERCHARGE', text: 'Destroy a car 5 shots in a row to charge the bombs in front. Fire one: it hits twice!', target: 'bombs' },
   goal_colour:     { title: 'A COLOR GOAL', text: 'Only cars of this color count toward the goal.', target: 'goal' },
@@ -73,6 +70,8 @@ export const CARDS = {
   first_miss:      { title: 'WRONG COLOR',    text: 'No damage! A bomb only hurts cars of its own color.' },
   barrier_down:    { title: 'BARRIER DOWN!',  text: 'Each lane has one barrier. The next car through this lane ends the level!', target: 'road' },
   wave_incoming:   { title: 'WAVES!',         text: 'Traffic comes in waves. Keep a FREEZE or a BOMB for the crests!', target: 'road' },
+  bridge_guide:    { title: 'BRIDGE THEM!',   text: 'Drag one car onto the other.', target: 'road' },   // hand on the REAL pair (TutorialOrchestrator), L6
+  speeder:         { title: 'SPEEDERS',       text: 'A flame car moves two steps a turn and breaks its bridge. Bridge it in front, then shoot!', target: 'road' },
   hp_miss:         null,   // the animated NEW VEHICLE card (L3 car, L5 van) already shows the shrink
   streak_charged:  { title: 'POWER SHOT!',     text: 'Your front bombs are charged. Fire one: it hits twice! The others lose the charge.', target: 'bombs' },
   colorchange_use: null,   // taught by the L9 COLOUR CHANGE card

@@ -18,6 +18,8 @@ const SLIDES = [
     body: 'Drag a bomb onto a lane. It hits the front car only if the colors match.' },
   { title: 'EVERY SHOT COUNTS', art: 'advance',
     body: 'After each shot, all cars roll one step closer. Stop them before the red line!' },
+  { title: 'BRIDGES', art: 'bridge',
+    body: 'Same color, side by side? Drag one car onto the other to bridge them. One hit takes both.' },
   { title: 'HOT STREAK', art: 'streak',
     body: 'Destroy 5 cars in a row to charge a POWER SHOT: the next bomb hits twice.' },
   { title: 'BOOSTERS', art: 'boosters',
@@ -222,4 +224,24 @@ const ART = {
       a.addChild(t);
     });
   },
+};
+
+// BRIDGES (2026-10-31, src/game/bridges.js): two same-colour cars side by side, bridged = the pair
+// sprite (one vehicle, coupled by the yellow clamp), a bomb dropping on the left one, both exploding.
+// Lane pitch here is 92 px for the bake's 4 units; the cars sit 1.677 units from the pair centre.
+ART.bridge = function (parent, aw) {
+  const g = new Graphics();
+  laneStrip(g, -46, 78, -92, 92);
+  laneStrip(g, 46, 78, -92, 92);
+  g.rect(-92, 84, 184, 5).fill(0xFF3D3D);
+  parent.addChild(g);
+  const k = 92 / 4, cx = 1.677 * k;
+  sprite(parent, 'pair-big-big-blue.png', 511 / 80 * k, 0, 22);
+  sprite(parent, 'powerball-blue.png', 34, -cx, -56);
+  const arr = new Graphics();
+  arr.moveTo(-cx, -36).lineTo(-cx, -12).stroke({ color: WHITE, width: 4, alpha: 0.9 });
+  arr.poly([-cx, -4, -cx - 8, -16, -cx + 8, -16]).fill(WHITE);
+  parent.addChild(arr);
+  sprite(parent, 'explosion.png', 54, -cx, 22, { alpha: 0.9 });
+  sprite(parent, 'explosion.png', 54, cx, 22, { alpha: 0.9 });
 };

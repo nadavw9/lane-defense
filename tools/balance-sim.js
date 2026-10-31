@@ -24,6 +24,7 @@ const args  = process.argv.slice(2);
 const levelArg = args.find(a => a.startsWith('--level='))?.split('=')[1] ?? '1';
 const runs  = parseInt(args.find(a => a.startsWith('--runs='))?.split('=')[1] ?? '500');
 const skill = args.find(a => a.startsWith('--skill='))?.split('=')[1] ?? 'average';
+const noBridges = args.includes('--no-bridges');   // the NON-bridger's win rate (bridges.js): must sit under the band
 
 const VALID_SKILLS = new Set(['optimal', 'beginner', 'average', 'skilled', 'human']);
 if (!VALID_SKILLS.has(skill)) {
@@ -60,7 +61,7 @@ function runOne(levelId) {
   const lm = new LevelManager();
   lm.goToLevel(levelId);
   const cfg = lm.current;
-  const runner = SimulationRunner.fromLevel(cfg, { skill });
+  const runner = SimulationRunner.fromLevel(noBridges ? { ...cfg, bridges: false } : cfg, { skill });
 
 
   let wins = 0, winTurns = 0, totalKills = 0, totalShots = 0;
@@ -77,7 +78,7 @@ function runOne(levelId) {
 }
 
 // ── Run + table ────────────────────────────────────────────────────────────────
-console.log(`\nBalance sim — ${levelIds.length} level(s) × ${runs} runs  [skill: ${skill}]  (win = all goals met, no breach)`);
+console.log(`\nBalance sim — ${levelIds.length} level(s) × ${runs} runs  [skill: ${skill}${noBridges ? ", NO bridges" : ""}]  (win = all goals met, no breach)`);
 console.log(`Bands @ human profile (no mis-drops, no cycling, boosterIQ 0.90; lane barriers) — see tools/bands.mjs\n`);
 console.log('Lvl │ Goals                              │ Win%  │ Band  │ AvgTurns │ Kills/Shot │ Flag');
 console.log('────┼────────────────────────────────────┼───────┼───────┼──────────┼────────────┼──────────────────');

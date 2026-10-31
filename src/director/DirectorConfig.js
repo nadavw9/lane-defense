@@ -125,6 +125,15 @@ export const HP_BASE = { min: 1, max: 3 }; // absolute clamp range: the one-hit 
 export const HP_VARIANCE = { min: 0.85, max: 1.15 };
 export const HP_MINIMUM = 1; // never below this (one-hit ladder: a motorbike is 1 hit)
 
+// ─── Spawning for BRIDGES (2026-10-31, src/game/bridges.js) ───────────────────
+// A car arriving beside a car that just arrived in the previous lane at the same row copies its
+// colour with this probability (CarDirector.setPairBias; on from BRIDGES_FROM), so side-by-side
+// pairs are there to bridge. SPEEDER_BOOST multiplies every level's speeder share (a speeder on
+// one side of a bridge breaks it on the next advance: the tension of the mechanic), capped.
+export const PAIR_P        = 0.45;
+export const SPEEDER_BOOST = 1.6;
+export const SPEEDER_CAP   = 0.6;
+
 // ─── Lane Config ─────────────────────────────────────────────────────────────
 
 export const LANE_COUNT = 4;

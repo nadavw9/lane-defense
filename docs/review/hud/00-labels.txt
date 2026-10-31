@@ -1,0 +1,2 @@
+01=L13 board after the change: step ruler with a coloured dot and no number, LINK pills on every bridgeable pair, four empty bench slots (+), locked COLOR shows LV 21
+02=L21 board: same, with COLOR unlocked (3), two yellow pairs showing LINK

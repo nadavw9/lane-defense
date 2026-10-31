@@ -19,6 +19,19 @@
 > The difficulty MODEL, design pillars, and per-level design *intent* below are still the
 > reference — it is the specific numbers that go stale.
 
+## Bridges, demonstrations, a bench that fills (2026-10-31)
+
+Spec: `docs/superpowers/specs/2026-10-31-bridges-design.md`. The automatic chain reaction is gone;
+from L6 the player DRAGS one car onto the same-colour car beside it (adjacent lanes, same row, any
+row, neither armoured) to BRIDGE them: the pair is drawn as ONE vehicle (a baked sprite of both
+cars coupled by a clamp; a bridged car takes no second bridge), and a hit on one lands on its
+partner. Bridges snap when a speeder runs ahead or a chameleon flips. Spawning pairs colours
+across neighbouring lanes (PAIR_P 0.45) and speeders are 1.6x more frequent; the simulator bridges
+every pair (the diligent player) and all 200 levels + stars were retuned on that. Every
+first-time explanation is a DemoCard moving picture (`src/screens/demoScenes.js`); the step ruler
+lost its number; the bench takes a bomb into every empty slot. The NON-bridger's win rate (report,
+second block) sits well under the band on L6-30: bridging is the game, not a bonus.
+
 ## Lane barriers, waves, honest difficulty (2026-10-30)
 
 Full design: `docs/superpowers/specs/2026-10-30-lane-barriers-design.md`. In short: every lane has

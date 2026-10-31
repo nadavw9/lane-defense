@@ -230,12 +230,16 @@ describe('GameLoop V2 wiring', () => {
 
 describe('simulator parity', () => {
   it('runs a trait level without throwing and reports V2 instrumentation', () => {
-    const traits = new SimulationRunner({
+    // Summed over a few seeds: one run can end before a streak completes (the pair-bias draw
+    // for bridges, 2026-10-31, re-rolled the single seed this used to rely on).
+    const runner = new SimulationRunner({
       colors: ['Red', 'Blue', 'Green'], laneCount: 3, colCount: 3, gridRows: 8, levelId: 12,
       laneTargetCarCount: 2, worldConfig: { hpMultiplier: 0.7, speed: { base: 5, variance: 0 } },
       traits: { armored: 0.3, speeder: 0.2, chameleon: 0.2 },
       goals: [{ type: 'destroyTotal', count: 25 }],
-    }).runLevel(2);
+    });
+    const traits = { armorBreaks: 0, powerShots: 0 };
+    for (let seed = 1; seed <= 5; seed++) { const r = runner.runLevel(seed); traits.armorBreaks += r.armorBreaks; traits.powerShots += r.powerShots; }
     expect(traits.armorBreaks).toBeGreaterThan(0);
     expect(traits.powerShots).toBeGreaterThan(0);
   });

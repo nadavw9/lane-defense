@@ -16,10 +16,10 @@ export const LEVEL_START_CARDS = {
   // introduced by their animated NEW VEHICLE card, not listed here; the bench (L13) has its own
   // spotlight tutorial. Colours and traits are announced by the level's hint on its card.
   // L1 teaches the colour match in play (second_colour below, LevelManager firstColors), so L2
-  // adds only the lane. L6 chain reaction (spread.SPREAD_FROM): same-colour neighbours explode together.
+  // adds only the lane. L6 bridges (bridges.BRIDGES_FROM): drag car to car, one hit takes both.
   2:  ['lane_2'],
   3:  ['lane_3'],
-  6:  ['chain_reaction'],
+  6:  ['bridge'],
   8:  ['freeze_booster'],
   11: ['supercharge'],
   12: ['goal_colour'],
@@ -48,6 +48,8 @@ export const REACTIVE_WINDOW = {
   first_miss:     [1, 2],
   barrier_down:   [1, 200],   // the first smash IS the moment, on whatever level it happens (2026-10-30)
   wave_incoming:  [10, 10],   // the first WAVE 1 crest (TrafficRules.WAVES_FROM), an animated card
+  bridge_guide:   [6, 6],     // the first bridgeable pair on the bridges level: hand on the real cars (bridges.BRIDGES_FROM)
+  speeder:        [9, 9],     // the first speeder on the road (L9): the "bridge it in front, then shoot" demo
   freeze_earned:  [8, 11],
   colour_change_earned: [21, 24],
   streak_charged: [11, 12],

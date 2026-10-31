@@ -11,7 +11,62 @@ An approved 3-workstream master plan is in progress (WS1 testing DONE → WS2 UI
 Route mechanical spec-execution to cheaper models; reserve Fable/Opus for design judgment
 (playbook §2).
 
-### LANE BARRIERS, WAVES, HONEST DIFFICULTY (2026-10-30, branch `feat/lane-barriers`) — read first
+### BRIDGES, DEMONSTRATIONS, A BENCH THAT FILLS (2026-10-31, branch `feat/bridges`) — read first
+
+Owner (a friend at L10: "easy, repetitive, no thinking"; testers skip every card): "for two cars to
+be hit you must CREATE A LINK between them; assume people forward every explanation without
+reading; the number at the side is not understood; only two bombs go into the slots". Spec:
+`docs/superpowers/specs/2026-10-31-bridges-design.md`. What changed:
+- **BRIDGES replace the automatic chain reaction** (`src/game/bridges.js`, `BRIDGES_FROM = 6`;
+  `spread.js` deleted, `tests/no-spread.test.js` keeps it out). A bridge joins two cars in ADJACENT
+  lanes, SAME colour, SIDE BY SIDE (same row), both on the road (row >= 1), neither armoured; any
+  row, not only the front. The player makes it by DRAGGING one car onto the other (`DragDrop`
+  state `'bridging'`, `_hitTestCar`, callbacks `getBridgeable / onBridge / onBridgeDrag`); free, no
+  turn passes. A bridge is a PAIR: a bridged car takes no second bridge (`inBridge`,
+  `eligiblePairs(lanes, n, bridges)`; the pair is one baked vehicle, so no triples). A hit on a
+  bridged FRONT car lands the same rung(s) on its partner, even a non-front one (`bridgeHits`, in `GameLoop._resolveShot`
+  right after `CombatResolver.resolve`; kills are part of the shot: score, goals, combo, streak).
+  A bridge breaks when rows differ (speeder), colours differ (chameleon) or a car leaves
+  (`pruneBridges`: silent after hits/clears, `_onBridgeSnap` after advances). State:
+  `gs.bridges[]` (car OBJECTS; cars have no id), `gs.bridgesEnabled`, `bridgesMade`, `bridgeKills`.
+- **On screen — the pair is ONE vehicle** (owner, same day, after rejecting a beam, a plank and two
+  cars touching with a hitch: "a new visual of two connected cars as one unit, not an extra layer
+  on top; it should just be two cars before"). `render-3d-sprites.mjs pairs` bakes
+  `public/sprites/designed/pair-<l>-<r>-<color>[-sl|-sr].png` (unordered rung pairs small < big <
+  jeep, six colours, speeder flames on the left/right car; the yellow coupling clamp from
+  `JOINT_HD.clamp`, cars pulled half-way together, `studio.pair()`), and GENERATES
+  `src/renderer3d/pairSpriteGeometry.js` (`tests/pair-sprites.test.js` pins coverage). `Car3D.setPairs(gs.bridges)`:
+  the two singles slide to their slots (~0.3 s), hide, and the pair plane takes over (mirrored for
+  the other type order; a hit swaps the combination with a pop; death/snap brings the singles back
+  in their slots and they slide home); `onPairJoined` fires at the swap. NOTHING marks a linkable
+  pair at rest. `BridgeLayer` draws only moments: a one-off pulse when a pair BECOMES linkable
+  (not the opening board), the drag band (green over the partner), gold rings on the drop, sparks
+  at the seam on join, a crack on snap, a flash on blast (`GameRenderer3D.onBridgeBlast`). The
+  DemoCard `bridge` op and the HowToPlay slide use the same pair sprites. Review:
+  `scripts/_pair-shots.mjs`; concept sheets `scripts/_pair-concept.mjs`, `_wide-concept.mjs`.
+- **Spawning for bridges**: `CarDirector.setPairBias(PAIR_P = 0.45)` copies the previous lane's
+  arrival colour at the same row (`generateCar(..., neighbourColor)`; GameLoop `_refillLanes` /
+  `_primeInitialCars` and the sim pass it); `SPEEDER_BOOST = 1.6` (cap 0.6) in `setTraits`.
+- **The sim is the diligent bridger**: every eligible pair bridged each turn, hits mirrored,
+  `bridgesMade / bridgeKills` in the result; the bench model digs while there is room.
+  Retuned: `tune-levels.mjs 1-200 300 --write`, `tune-stars.mjs`, report regenerated.
+- **Every notice is a demonstration**: `src/screens/DemoCard.js` (one shell + a mini board with the
+  real sprites + a scripted loop) and `src/screens/demoScenes.js` (one scene per guide key, 22 of
+  them; `tests/demo-scenes.test.js` pins coverage and shape). `GameApp._presentGuide` opens a
+  DemoCard when `hasDemo(key)`; only `second_colour` (hand on the real column) and the guided
+  first bridge stay text + hand. L6 start card `bridge`; `bridge_guide` (REACTIVE [6,6]) pauses
+  through `TutorialOrchestrator` (id `'bridge'`) with the hand on the REAL pair, completed by the
+  real drag (`onBridge -> completeIfActive`); `speeder` demo (REACTIVE [9,9]) on the first flame
+  car. HowToPlay has a BRIDGES slide. Captures: `scripts/_pair-shots.mjs` (replaced `_bridge-shots.mjs`),
+  `scripts/_demo-cards-shots.mjs` (+ `_nav.showDemo(key)`, `_nav.bridges/bridgeable/makeBridge`).
+- **Board clarity**: the step ruler's number is gone (a coloured dot rides with the nearest car);
+  the L1 tour is GOAL / RED LINE / YOUR BOMBS.
+- **Bench**: every empty slot takes a bomb in the same turn (`_handleBenchDrop` no longer gated by
+  `queueActionUsed`; the bench->queue return keeps one per turn). Probe: `scripts/_bench-probe.mjs`.
+OWNER RULE (standing): every first-time mechanic gets a clear moving picture; nothing on the board
+that needs reading.
+
+### LANE BARRIERS, WAVES, HONEST DIFFICULTY (2026-10-30, branch `feat/lane-barriers`)
 
 Owner (device play): "levels are too short and too easy, I never failed one; the supercharge is too
 strong". Diagnosis (spec `docs/superpowers/specs/2026-10-30-lane-barriers-design.md` §1): the tuner
@@ -65,7 +120,7 @@ Windows box: `BAKE_HEADED=1 STUDIO_URL=http://localhost:5180/tools/art/studio/st
 Retuned L1-2 (100%), stars regenerated. QA: `scripts/_l1-second-colour-shots.mjs`; `ftue-play.mjs <out> 2`
 wins L1 and L2 with real drags.
 
-### CHAIN REACTION ACROSS LANES (2026-10-27, branch `feat/chain-reaction`) — the thinking mechanic
+### CHAIN REACTION ACROSS LANES (2026-10-27, branch `feat/chain-reaction`) — SUPERSEDED by BRIDGES (2026-10-31, above); provenance only
 
 Owner: "the game feels boring, only 3 lanes, not much room for thinking and creativity, see what makes
 other lane-defence games interesting". Diagnosis: every turn had ONE right answer (match the colour,
@@ -126,7 +181,7 @@ level between new things was dropped and everything was pulled forward. Rules st
 A second pass the same day (owner: until L7 "no thinking, just drag the bombs with 2 available
 options so you always pass") moved the third lane to L3 and the third colour to L5.
 Schedule (LevelManager L1-40 header): L1 bomb + colour match (two colours, one lane; `firstColors`) + BOMB booster · L2 second lane · L3 third lane · L4 car ·
-L5 third color · L6 chain reaction (`spread.js`) · L7 van (`CarTypes.rawBandWeights`) · L8 FREEZE · L9 speeders · L11 supercharge ·
+L5 third color · L6 bridges (`bridges.js`) · L7 van (`CarTypes.rawBandWeights`) · L8 FREEZE · L9 speeders · L11 supercharge ·
 L12 color goal · L13 bench (`BENCH_FROM_LEVEL`) · L14 armor · L16 yellow · L21 COLOR SWAP ·
 L23 gift cars (`levelDsl.GIFT_FROM`) · L26 traffic light (`LIGHT_FROM`) · L33 rainbow bomb ·
 L41 plated · L43 convoy · L46 mender · L48 orange · L51 chameleon · L53 purple. Bands L4-9 74-84,

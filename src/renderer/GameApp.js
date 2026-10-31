@@ -43,7 +43,7 @@ import { GameState }       from '../game/GameState.js';
 import { GameLoop }        from '../game/GameLoop.js';
 import { CombatResolver }  from '../game/CombatResolver.js';
 import { LevelManager, LEVEL_COUNT, openingRowsForLevel, clampInitialCarsToDepth, streakEnabledFor, BENCH_FROM_LEVEL } from '../game/LevelManager.js';
-import { spreadEnabledFor } from '../game/spread.js';
+import { bridgesEnabledFor, eligiblePairs } from '../game/bridges.js';
 import { BoosterState }    from '../game/BoosterState.js';
 import { ProgressManager } from '../game/ProgressManager.js';
 import { applyDda }         from '../game/dda.js';
@@ -66,7 +66,7 @@ import { WinScreen, calcStars }       from '../screens/WinScreen.js';
 import { LoseScreen }                  from '../screens/LoseScreen.js';
 import { RescueOverlay }              from '../screens/RescueOverlay.js';
 import { isReducedMotion, setReducedMotion } from '../game/MotionPrefs.js';
-import { RESCUE_COIN_COST, KILLS_PER_BOMB } from '../director/DirectorConfig.js';
+import { RESCUE_COIN_COST, KILLS_PER_BOMB, PAIR_P } from '../director/DirectorConfig.js';
 import { ColorPicker }                from '../screens/ColorPicker.js';
 import { PreLevelScreen }             from '../screens/PreLevelScreen.js';
 import { BoosterUnlockScreen }        from '../screens/BoosterUnlockScreen.js';
@@ -77,6 +77,8 @@ import { GuideCard }           from '../screens/GuideCard.js';
 import { tourSteps, stepsFor } from '../screens/guideContent.js';
 import { streakGift, winsToNextTier, addBundles } from '../game/winStreak.js';
 import { StepRuler } from './StepRuler.js';
+import { BridgeLayer } from './BridgeLayer.js';
+import { DemoCard, hasDemo } from '../screens/DemoCard.js';
 import { TrafficLights } from './TrafficLights.js';
 import { waveTagAt, wavesFor } from '../director/TrafficRules.js';
 import { ModeHint } from './ModeHint.js';
@@ -637,7 +639,17 @@ async function main() {
     });
   }
   // First-time cards: FeatureBanners calls this once per key.
-  function _presentGuide(key, text) { _showGuide(stepsFor(key, text, guideGeo)); }
+  // Every first-time explanation is a moving picture when a scene exists for it (DemoCard,
+  // src/screens/demoScenes.js); only the cards that ring a REAL board element stay text + hand.
+  function _presentGuide(key, text) {
+    if (hasDemo(key)) {
+      _enqueueModal((done) => {
+        carTypeIntroCard = new DemoCard(app.stage, APP_W, APP_H, key, () => { carTypeIntroCard = null; done(); });
+      });
+      return;
+    }
+    _showGuide(stepsFor(key, text, guideGeo));
+  }
   // The level-1 walkthrough. Marked done only when the player reaches the last card,
   // so quitting half-way does not burn it.
   const _tourDone = () => featureBanners.has('tour');
@@ -665,6 +677,10 @@ async function main() {
   // ProgressManager.introducedCarTypes). The old flow re-showed cards mid-level
   // whenever a refill spawned a type (localStorage key + no backfill).
   let carTypeIntroCard    = null;  // active intro card (only one at a time)
+  // LINK hints, planks, snaps over the road (bridges.js); planks are laid from where the 3D cars
+  // are DRAWN each frame, so they ride the glide.
+  const bridgeLayer       = new BridgeLayer(layers.get('particleLayer'), { posOf: (_lane, car) => gameRenderer3D.carScreenPos(car) });
+  let _onBridgeMade       = null;  // the guided first bridge (L6) waits on this
   let carTypeIntroTimer   = null;  // setTimeout handle for level-start intro delay
   let levelStartCardsTimer = null; // level-start tour / tip cards, shown after the splash
 
@@ -844,7 +860,8 @@ async function main() {
     carDir.setLevel(typeof cfg.id === 'number' ? cfg.id : 1);
     carDir.setSpawnScript(cfg.spawnScript ?? null);   // §3c staged boss waves (INFRA-C)
     carDir.setWaves(wavesFor(cfg));                    // waves: crests keyed on goal progress (same impl as the sim)
-    carDir.setTraits(cfg.traits ?? null, cfg.colors);  // V2 special cars (TrafficRules)
+    carDir.setTraits(cfg.traits ?? null, cfg.colors);  // V2 special cars (TrafficRules; speeders boosted for bridges)
+    carDir.setPairBias(bridgesEnabledFor(cfg) ? PAIR_P : 0);   // side-by-side pairs to bridge (bridges.js)
     carDir.setConvoy(cfg.convoy ?? null);              // motorbike-only lanes
     carDir.setColorScript(cfg.firstColors ?? null);    // L1: a run of reds, then the first blue
     gs.firstColors = cfg.firstColors ?? null;
@@ -852,7 +869,9 @@ async function main() {
     gs.lights = cfg.lights ?? null;                    // traffic lights (TrafficRules.laneHeld)
     trafficLights.setLights(gs.lights);
     gs.streakEnabled = streakEnabledFor(cfg);           // V2 Hot Streak
-    gs.spreadEnabled = spreadEnabledFor(cfg);           // CHAIN REACTION across lanes (spread.js)
+    gs.bridgesEnabled = bridgesEnabledFor(cfg);         // BRIDGES across lanes (bridges.js)
+    gs.bridges.length = 0;
+    bridgeLayer.reset();
     streakMeter.setEnabled(gs.streakEnabled);
     streakMeter.reset();
     shooterDir.setColorBias(cfg.shooterColorWeights ?? null);   // §3c L10 v2 supply bias
@@ -2365,7 +2384,39 @@ async function main() {
   gameLoop._onAdvance = () => {
     gameRenderer3D.onAdvance();
     _teachSecondColour();
+    _teachBridge();
+    _noticeSpeeder();
   };
+  // L6 (introSchedule bridge_guide): the first time two same-colour cars sit side by side on the
+  // bridges level, the game pauses with a hand dragging one onto the other on the REAL board
+  // (TutorialOrchestrator, like the bench: input stays open, the real drag completes it through
+  // onBridge -> completeIfActive('bridge')). Once ever.
+  function _teachBridge() {
+    const key = 'bridge_guide';
+    if (!gs.bridgesEnabled || gs.isOver || gs.bridges.length || featureBanners.has(key)) return;
+    if (currentLevelIsDaily || !reactiveAllowed(key, levelManager.levelNumber)) return;
+    const pairs = eligiblePairs(gs.lanes, gs.activeLaneCount, gs.bridges);
+    const p = pairs.find(q => gs.lanes[q.a.lane].frontCar() === q.a.car) ?? pairs[0];
+    if (!p) return;
+    featureBanners.mark(key);
+    const A = () => ({ x: getLaneScreenX(p.a.lane), y: posToScreenY(p.a.car.position) });
+    const B = () => ({ x: getLaneScreenX(p.b.lane), y: posToScreenY(p.b.car.position) });
+    setTimeout(() => {
+      if (gs.isOver || !gs.lanes[p.a.lane].cars.includes(p.a.car)) return;
+      tutOrch.start({
+        id: 'bridge', text: 'DRAG ONE CAR ONTO THE OTHER',
+        bounds: () => { const a = A(), b = B(); return { x: Math.min(a.x, b.x) - 46, y: Math.min(a.y, b.y) - 44, w: Math.abs(b.x - a.x) + 92, h: 88 }; },
+        handStart: A(), handEnd: B(), pauseGame: true,
+      });
+    }, 500);
+  }
+  // L9 (introSchedule speeder): the first flame car on the visible road opens the SPEEDERS demo
+  // (two steps a turn, the bridge snaps: bridge it in front, then shoot). Once ever.
+  function _noticeSpeeder() {
+    if (gs.isOver || currentLevelIsDaily || !reactiveAllowed('speeder', levelManager.levelNumber)) return;
+    const seen = gs.lanes.slice(0, gs.activeLaneCount).some(l => l.cars.some(c => c.trait === 'speeder' && c.row >= 1));
+    if (seen) fireReactive('speeder', '');
+  }
   // L1 (introSchedule second_colour): the road opened with a run of the lead colour
   // (LevelManager firstColors); the first time a car of ANOTHER colour reaches the front, stop
   // and show it — ring on that colour's bomb, hand dragging it onto the car. Fired from the
@@ -2414,23 +2465,32 @@ async function main() {
     _triggerIntroCard('barrier_down', BarrierIntroCard);   // the animated rule, once ever
   };
 
-  gameLoop._onSpread = (hits, laneIdx, srcPos) => {
-    const pos = { [laneIdx]: srcPos };
-    for (const h of hits) pos[h.lane] = h.car.position;
-    gameRenderer3D.onSpread(hits.map(h => ({
-      fromLane: h.from, fromPos: pos[h.from], lane: h.lane, position: h.car.position,
+  // BRIDGES (bridges.js): the hit ran along the player's bridges. Arcs from the hit car to each
+  // bridged car and their flashes/explosions in 3D; a BRIDGE tag over the last car it took. The
+  // kill sound, tokens and shake already escalate with the shot's kill count (onHit).
+  gameLoop._onBridgeBlast = (hits, laneIdx, srcPos) => {
+    gameRenderer3D.onBridgeBlast(hits.map(h => ({
+      fromLane: laneIdx, fromPos: srcPos, lane: h.lane, position: h.car.position,
       color: h.car.color, destroyed: h.destroyed,
     })));
+    bridgeLayer.onBlast(hits, laneIdx, srcPos);
     const taken = hits.filter(h => h.destroyed);
     if (!taken.length) return;
     const last = taken[taken.length - 1];
     floatingTexts.push(spawnFloatingText(
       layers.get('particleLayer'),
       getLaneScreenX(last.lane), posToScreenY(last.car.position) - 30,
-      taken.length > 1 ? `CHAIN x${taken.length + 1}!` : 'CHAIN!', 0xffcc44,
+      `BRIDGE x${taken.length + 1}!`, 0xffcc44,
     ));
     audio.play('kill_ding');
     haptics.heavy();
+  };
+  // A bridge broke on its own (a speeder moved on, a chameleon flipped, a crash): the beam snaps.
+  gameRenderer3D.onPairJoined = (laneA, carA, laneB, carB) => bridgeLayer?.onJoined(laneA, carA, laneB, carB);
+  gameLoop._onBridgeSnap = (bridges) => {
+    bridgeLayer?.onSnap(bridges);
+    audio.play('armor_clang');
+    haptics.light?.();
   };
   gameLoop._onColorBomb = (color, killed) => {
     comboFX.triggerColorBomb(color);                 // edge vignette only
@@ -2519,6 +2579,19 @@ async function main() {
         _showColorPicker(car.color);
       },
       isShotInFlight: () => gameLoop._shotInFlight(),
+      // BRIDGES (bridges.js): drag car -> same-colour car beside it. Free action.
+      getBridgeable: () => gs.bridgesEnabled && !gs.isOver ? eligiblePairs(gs.lanes, gs.activeLaneCount, gs.bridges) : [],
+      onBridge: (laneA, carA, laneB, carB) => {
+        const made = gameLoop.addBridge(laneA, carA, laneB, carB);
+        if (!made) return false;
+        bridgeLayer?.onMade(laneA, carA, laneB, carB);
+        audio.play('tutorial_ding');
+        haptics.light?.();
+        tutOrch.completeIfActive('bridge');
+        _onBridgeMade?.();
+        return true;
+      },
+      onBridgeDrag: (info) => bridgeLayer?.setDrag(info),
       onDeployFromBench: (shooter, laneIdx, release) => {
         if (laneIdx >= gs.activeLaneCount) return false;
         gameRenderer3D.setDropStart(laneIdx, release);   // bomb travels FROM release
@@ -2702,6 +2775,9 @@ async function main() {
     trafficLights.setVisible(!gs.isOver);
     stepRuler.setVisible(!gs.isOver);
     stepRuler.update(dt, gs);
+    bridgeLayer.setVisible(!gs.isOver);
+    bridgeLayer.update(dt, gs);
+    gameRenderer3D.setPairs(gs.bridgesEnabled && !gs.isOver ? gs.bridges : []);   // bridged pairs = one vehicle
     trafficLights.update(dt, gs.trafficMoves ?? 0);
 
     // WAVES: name each crest as it starts (TrafficRules.waveTagAt) — the player should read the
@@ -2924,6 +3000,14 @@ async function main() {
         inventory: progress.getInventory(), coins: progress.coins }),
       getBoosterState: () => boosterState,
       getBench: () => Array.from({ length: benchStorage.size }, (_, i) => benchStorage.getSlot(i)?.color ?? null),
+      // BRIDGES (bridges.js): what is bridged, what could be, and make one without the gesture.
+      bridges:    () => gs.bridges.map(b => ({ a: { lane: b.a.lane, row: b.a.car.row, color: b.a.car.color }, b: { lane: b.b.lane, row: b.b.car.row, color: b.b.car.color } })),
+      bridgeable: () => (gs.bridgesEnabled ? eligiblePairs(gs.lanes, gs.activeLaneCount, gs.bridges) : []).map(p => ({ a: { lane: p.a.lane, row: p.a.car.row, color: p.a.car.color }, b: { lane: p.b.lane, row: p.b.car.row, color: p.b.car.color } })),
+      showDemo:   (key) => { if (hasDemo(key)) _presentGuide(key, ''); return hasDemo(key); },   // open a DemoCard by scene key (review captures)
+      makeBridge: (laneA, laneB) => {
+        const p = (gs.bridgesEnabled ? eligiblePairs(gs.lanes, gs.activeLaneCount, gs.bridges) : []).find(q => q.a.lane === Math.min(laneA, laneB) && q.b.lane === Math.max(laneA, laneB));
+        return p ? dragDrop._onBridge(p.a.lane, p.a.car, p.b.lane, p.b.car) : false;
+      },
       startDaily: () => { [titleScreen, levelSelectScreen, winScreen].forEach(x => x?.destroy()); titleScreen = levelSelectScreen = winScreen = null; startDailyChallenge(); },
       stageTop: (x, y) => {
         const hit = app.renderer.events.rootBoundary.hitTest(x, y);

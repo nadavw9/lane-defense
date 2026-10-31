@@ -45,6 +45,27 @@ exactly how much room is left in every lane.
 (30-40 shots), so a single breach ending the level made every long level a
 coin flip; the barrier turns the first breach into information instead.
 
+## Bridges (owner-directed, 2026-10-31)
+Two cars in ADJACENT lanes, the SAME colour, SIDE BY SIDE: the player DRAGS one onto the
+other and they become ONE vehicle: the two cars coupled by a clamp, drawn as a single
+baked sprite (owner, same day: "a new visual of two connected cars as one unit, not an
+extra layer on top"). A bridge is a pair; a bridged car takes no second bridge. A hit on
+either lands on its partner, even a car that is not its lane's front. Nothing marks a
+linkable pair at rest: before the link it is just two cars. Bridging is free; what costs
+is the moment: a speeder on one side runs ahead on the next move and the pair splits, a
+chameleon flips and it splits. A level is tuned so the diligent bridger wins and the
+non-bridger does not: the bridge IS the thinking in this game.
+
+*Superseded:* the automatic CHAIN REACTION (2026-10-27), where an exploding car took
+same-colour front neighbours with it on its own. Nobody read its card, so on the board it
+was a car blowing up for no visible reason. A link the player makes and sees is a decision.
+
+## The board explains itself (owner rule, 2026-10-31)
+Assume every explanation is forwarded unread. Anything on the board that needs reading is
+a defect: a bridgeable pair shows its dotted LINK, a bridge is a beam, the step ruler is a
+line of dots that warm to red (no number), and every first-time rule is a short moving
+picture (DemoCard), never a sentence.
+
 ## The Signature Mechanic: Hot Streak (V2 — owner-approved redesign, 2026-09-27)
 Destroy at least one car on **5 shots in a row** (owner amendment, 2026-10-30;
 was 3 — with 3 the supercharge arrived almost every turn and carried levels on

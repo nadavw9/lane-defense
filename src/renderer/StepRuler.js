@@ -3,11 +3,13 @@
 //
 // Redesigned 2026-10-19 (owner: a column of 13 numbers was "crowded and not understandable"):
 // one small dot per step on the kerb left of the road, warming from green to red towards the
-// line, and ONE big glowing marker level with the most advanced car, showing how many moves that
-// car has before it crosses the red line. The answer to "how close is the nearest car?" is the
-// only number on the ruler. It sits OUTSIDE the road, so the Pixi layer (which draws over the 3D
-// cars) never covers a car. The road carries the matching faint step lines (StepGrid3D).
-import { Container, Graphics, Text } from 'pixi.js';
+// line, and ONE glowing marker level with the most advanced car. The marker's NUMBER went on
+// 2026-10-31 (owner: "the number at the side is not understood" — testers forward every
+// explanation unread, so the board may only say things that need no reading): the marker is now
+// a plain dot whose colour, like the dots', says how close the nearest car is. `nearestMovesLeft`
+// still drives its colour and position. It sits OUTSIDE the road, so the Pixi layer (which draws
+// over the 3D cars) never covers a car. The road carries the matching faint step lines (StepGrid3D).
+import { Container, Graphics } from 'pixi.js';
 import { INK, WHITE } from './ToyStyle.js';
 import { getLaneScreenBounds } from './PositionRegistry.js';
 import { posToScreenYProjected } from '../renderer3d/projection.js';
@@ -66,18 +68,17 @@ export class StepRuler {
     }
     this._root.addChild(dots);
 
-    // The one number: a glowing badge that rides to the most advanced car's step.
+    // The marker: a plain glowing dot that rides level with the most advanced car (no number since
+    // 2026-10-31, owner: "the number at the side is not understood"; the colour says how close).
     const m = new Container();
     const glow = new Graphics();
-    glow.circle(0, 0, R + 9).fill({ color: 0xFFFFFF, alpha: 0.18 });
-    glow.circle(0, 0, R + 5).fill({ color: 0xFFFFFF, alpha: 0.22 });
+    glow.circle(0, 0, R + 5).fill({ color: 0xFFFFFF, alpha: 0.18 });
+    glow.circle(0, 0, R + 2).fill({ color: 0xFFFFFF, alpha: 0.22 });
     const badge = new Graphics();
-    const label = new Text({ text: '', style: { fontFamily: '"Lilita One", Fredoka, Arial, sans-serif', fontSize: 16, fill: WHITE, stroke: { color: INK, width: 3.5 } } });
-    label.anchor.set(0.5); label.y = 0.5;
-    m.addChild(glow, badge, label);
+    m.addChild(glow, badge);
     m.x = x; m.visible = false;
     this._root.addChild(m);
-    this._marker = { c: m, glow, badge, label, left: null, y: null };
+    this._marker = { c: m, glow, badge, left: null, y: null };
   }
 
   setVisible(v) { this._root.visible = v; }
@@ -99,10 +100,9 @@ export class StepRuler {
     if (mk.left !== left) {
       mk.left = left;
       const col = colorFor(left);
-      mk.badge.clear().circle(0, 0, R + 3).fill(col).stroke({ color: INK, width: 2.5 });
-      mk.badge.circle(-3, -3, 2.6).fill({ color: WHITE, alpha: 0.55 });
+      mk.badge.clear().circle(0, 0, R - 1).fill(col).stroke({ color: INK, width: 2.5 });
+      mk.badge.circle(-2.5, -2.5, 2.2).fill({ color: WHITE, alpha: 0.55 });
       mk.glow.tint = col;
-      mk.label.text = String(left);
       mk._pop = 0.25;   // a little pop each time the count changes
     }
     // Glide to the step (the car glides too), pulse the glow, pop on change.

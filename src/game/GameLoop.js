@@ -108,8 +108,10 @@ export class GameLoop {
     if (!shooter) return false;
     if (expected && shooter !== expected) return false;
     // Slot occupancy is enforced by DragDrop; guard here defensively.
-    // Turn-based: block new deploy if any shot is still in flight.
-    if (this._shotInFlight()) return false;
+    // Turn-based: block new deploy if any shot is still in flight. A paused loop (tab hidden,
+    // WebGL context lost, a pausing tutorial) takes no deploy either: a PENDING drop (DragDrop)
+    // would otherwise fire into a game that is not running.
+    if (this._shotInFlight() || this._paused) return false;
     col.consume();
     this._lastFiredCol = colIdx;   // the viability guard may only touch this column (see _enforceViableMove)
     this._startFiring(shooter, laneIdx, colIdx);
@@ -126,7 +128,7 @@ export class GameLoop {
   // Turn-based like the queue: a bench shot fired while another shot was still
   // in flight resolved two turns at once (and could change the queue mid-drag).
   deployFromBench(shooter, laneIdx) {
-    if (this._shotInFlight()) return false;
+    if (this._shotInFlight() || this._paused) return false;
     this._gs.benchUsed++;
     this._lastFiredCol = null;     // a bench shot moved no queue column
     this._startFiring(shooter, laneIdx, -1);
@@ -287,26 +289,39 @@ export class GameLoop {
     // only to a same-colour car). Only a bomb that carries the charge is (see _chargeFrontRow);
     // firing one spends the charge on every bomb that had it.
     const power = this._powerShotReady(shooter);
+    // BRIDGES: remember every lane car's hp, so a car the carry-over hits (not only the front car)
+    // can pass its hit to its partner too.
+    const hpBefore = gs.bridgesEnabled && gs.bridges.length ? lane.cars.map(c => [c, c.hp]) : null;
     const res = this._combat.resolve(shooter, lane, { power });
     let { kills } = res;
     const { carryOverKills, damageDealt, destroyed: destroyedFromCombat } = res;
+    const laneKills = res.kills;
+    // A destroyed volatile shoves the other lanes' traffic one extra row on the advance this shot
+    // causes (TrafficRules.surgeOtherLanes): from the lane it was in, which for a volatile that
+    // died through a bridge is its own lane, not the lane that was shot.
+    let surgeLane = causesSurge(destroyedFromCombat) ? laneIdx : null;
     // BRIDGES (bridges.js): the hit on the front car lands on every car the player bridged to it,
-    // the same rung(s) off each. Their kills are part of THIS shot (score, goals, effects). A
-    // bridge whose car died is consumed silently; the survivors stay bridged.
-    if (res.hit && !res.armorBroken && gs.bridgesEnabled && gs.bridges.length) {
+    // the same rung(s) off each; a car behind it that the carry-over damaged passes exactly the
+    // damage it took. Their kills are part of THIS shot (score, goals, effects). A bridge whose car
+    // died is consumed silently; the survivors stay bridged.
+    if (res.hit && !res.armorBroken && hpBefore) {
       const hits = bridgeHits(gs.lanes, gs.bridges, frontCar, power ? 2 : 1, gs.activeLaneCount);
+      for (const [c, hp0] of hpBefore) {
+        if (c === frontCar) continue;
+        const dmg = hp0 - (lane.cars.includes(c) ? Math.max(0, c.hp) : 0);
+        if (dmg > 0) hits.push(...bridgeHits(gs.lanes, gs.bridges, c, dmg, gs.activeLaneCount));
+      }
       for (const h of hits) {
         if (!h.destroyed) continue;
         kills++;
         gs.bridgeKills++;
         destroyedFromCombat.push({ color: h.car.color, type: h.car.type, trait: h.car.trait ?? null });
+        if (surgeLane === null && causesSurge([h.car])) surgeLane = h.lane;
       }
-      if (hits.length) this._onBridgeBlast?.(hits, laneIdx, carGameX);
+      if (hits.length) this._onBridgeBlast?.(hits, laneIdx, carGameX, laneKills);
       this._pruneBridges(true);
     }
-    // A destroyed volatile shoves the other lanes' traffic one extra row on the
-    // advance this shot causes (see TrafficRules.surgeOtherLanes).
-    this._surgeFromLane = causesSurge(destroyedFromCombat) ? laneIdx : null;
+    this._surgeFromLane = surgeLane;
 
     if (!res.hit) {
       gs.scoreChain = 0;                 // a wasted shot breaks the combo (score.js)
@@ -648,6 +663,10 @@ export class GameLoop {
     // 2. Breach check. Each lane has ONE barrier (TrafficRules.resolveBreach, the simulator runs
     //    the same rule): the first car past the last row crashes into it — car and barrier gone,
     //    nothing credited — and the level goes on; the next car through that lane is the loss.
+    //    EVERY lane is resolved before the loss is declared (the simulator does the same): a lane
+    //    behind the breaching one still loses its barrier on this step, so a CONTINUE resumes
+    //    with the board the player saw, not with a car parked past the line.
+    let lostLane = -1;
     for (let li = 0; li < gs.activeLaneCount; li++) {
       const lane = gs.lanes[li];
       const { crashed, breached } = resolveBreach(lane.cars, MAX_ROW, gs.barriers[li]);
@@ -663,10 +682,13 @@ export class GameLoop {
           const idx = lane.cars.indexOf(car);
           if (idx >= 0) lane.cars.splice(idx, 1);
         }
-        gs.endGame(false);
-        this._onEnd(false, li);
-        return;
+        if (lostLane < 0) lostLane = li;
       }
+    }
+    if (lostLane >= 0) {
+      gs.endGame(false);
+      this._onEnd(false, lostLane);
+      return;
     }
 
     // 3. Win check.
@@ -995,6 +1017,7 @@ export class GameLoop {
   prepareForRescue() {
     const gs = this._gs;
     this._surgeFromLane = null;
+    gs.bridges.length = 0;   // BRIDGES: a continue is a reset of the board; nothing to animate
     this._refillLanes();
     const dirState    = gs.asDirectorState();
     const phaseParams = gs.phaseMan.getParams();

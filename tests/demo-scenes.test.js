@@ -49,6 +49,12 @@ describe('every scene is well-formed', () => {
         if (op === 'shot' || op === 'bounce') { expect(S.bombs[args[0]]).toBeTruthy(); expect(args[1]).toBeLessThan(S.lanes); }
         if (op === 'boosterTap' || op === 'boosterPlus') expect(S.boosters).toContain(args[0]);
         if (op === 'bridge' || op === 'snap') { expect(Math.abs(args[0] - args[1])).toBe(1); expect(Math.max(args[0], args[1])).toBeLessThan(S.lanes); }
+        if (op === 'bridge') {   // the rule: both cars on the road (row >= 1); a demo must not teach an illegal bridge
+          const row = args[2];
+          const cars = S.cars.filter(c => (c.lane === args[0] || c.lane === args[1]) && (row == null || c.row === row));
+          expect(cars.length).toBeGreaterThanOrEqual(2);
+          expect(cars.every(c => c.row >= 1)).toBe(true);
+        }
         if (op === 'glow' && typeof args[0] === 'number') expect(S.bombs[args[0]]).toBeTruthy();
       }
     });

@@ -84,6 +84,8 @@ export class TutorialOrchestrator {
 
   // True while a tutorial spotlight is up (the pause menu must not open over it).
   isActive() { return this._active !== null; }
+  // The id of the active tutorial, or null (GameApp releases the guided bridge when its pair goes).
+  activeId() { return this._active?.id ?? null; }
 
   // Dismiss (skip without completing) whatever tutorial is active.
   dismiss() {

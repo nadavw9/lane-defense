@@ -41,9 +41,9 @@ export const DEMO_SCENES = {
     ribbon: 'HEADS UP', title: 'SPEEDERS', sub: 'TWO STEPS A TURN',
     caption: 'A flame car breaks its bridge when it moves. Bridge it in front, then shoot!',
     scene: {
-      lanes: 2, cars: [{ lane: 0, row: 0, color: 'Red', type: BIG, trait: 'speeder' }, { lane: 1, row: 0, color: 'Red', type: BIG }],
+      lanes: 2, cars: [{ lane: 0, row: 1, color: 'Red', type: BIG, trait: 'speeder' }, { lane: 1, row: 1, color: 'Red', type: BIG }],
       bombs: ['Red'], loop: 5.0,
-      steps: [[0.3, 'bridge', 0, 1, 0], [1.4, 'advance'], [1.8, 'snap', 0, 1], [2.9, 'tag', 'IT RAN AHEAD!', 0]],
+      steps: [[0.3, 'bridge', 0, 1, 1], [1.4, 'advance'], [1.8, 'snap', 0, 1], [2.9, 'tag', 'IT RAN AHEAD!', 0]],
     },
   },
   combo: {

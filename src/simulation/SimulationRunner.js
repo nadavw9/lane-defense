@@ -486,6 +486,7 @@ export class SimulationRunner {
           lane.cars = pushTrafficBack(lane.cars.filter(c => c.row <= BREACH_ROW - 1), rescueRowsBack(BREACH_ROW));
         }
         lostAt = null;
+        if (bridgesOn) bridges.length = 0;   // parity: GameLoop.prepareForRescue breaks every bridge
         _refillLanes(phaseMan.getCurrentPhase());
       }
       if (lostAt !== null) {
@@ -548,6 +549,7 @@ export class SimulationRunner {
               carsKilled++; bombKills++; score += POINTS.car; applyKillToGoals(car.color, car.type, car.trait);
             }
             bestLane.cars.length = 0;
+            if (bridgesOn) pruneBridges(discreteLanes, bridges);   // parity: _settleAfterClear prunes silently
             // Parity with GameLoop._settleAfterClear: an empty board refills
             // (fresh spawns, no advance) so nothing can soft-lock.
             if (discreteLanes.every(l => l.cars.length === 0)) _refillLanes(phase);
@@ -625,21 +627,30 @@ export class SimulationRunner {
           // is a matching shot; the resolver's per-car re-check is what stops the chain
           // at the first car of a different colour, exactly as the game does.
           const frontRec = lane.cars[0];   // the record the bridges hold (resolve may remove it)
+          const hpBefore = bridgesOn && bridges.length ? lane.cars.map(r => [r, r.hp]) : null;
           const res = this._combat.resolve({ color: s.color, damage: s.damage }, laneView(lane), { power });
           if (res.armorBroken) armorBreaks++;
-          // BRIDGES (bridges.js): the hit lands on every car bridged to the front car, as part of
-          // this shot — the same block as GameLoop._resolveShot.
+          // BRIDGES (bridges.js): the hit lands on every car bridged to the front car, and a car
+          // the carry-over damaged passes the damage it took — the same block as
+          // GameLoop._resolveShot. A volatile that dies through a bridge surges from ITS lane.
           let kills = res.kills;
           const destroyed = res.destroyed;
-          if (res.hit && !res.armorBroken && bridgesOn && bridges.length && frontRec) {
-            for (const h of bridgeHits(discreteLanes, bridges, frontRec, power ? 2 : 1, LANE_N)) {
+          surgeFrom = causesSurge(destroyed) ? lane.id : null;
+          if (res.hit && !res.armorBroken && hpBefore && frontRec) {
+            const hits = bridgeHits(discreteLanes, bridges, frontRec, power ? 2 : 1, LANE_N);
+            for (const [r, hp0] of hpBefore) {
+              if (r === frontRec) continue;
+              const dmg = hp0 - (lane.cars.includes(r) ? Math.max(0, r.hp) : 0);
+              if (dmg > 0) hits.push(...bridgeHits(discreteLanes, bridges, r, dmg, LANE_N));
+            }
+            for (const h of hits) {
               if (!h.destroyed) continue;
               kills++; bridgeKills++;
               destroyed.push({ color: h.car.color, type: h.car.type, trait: h.car.trait ?? null });
+              if (surgeFrom === null && causesSurge([h.car])) surgeFrom = h.lane;
             }
             pruneBridges(discreteLanes, bridges);
           }
-          surgeFrom = causesSurge(destroyed) ? lane.id : null;
           if (streakOn) ({ streak, charged: streakCharged } = nextStreak(streak, streakCharged, kills, power));
           score += shotPoints(kills, scoreChain, true);   // parity with GameLoop._resolveShot
           scoreChain = nextChain(scoreChain, true);

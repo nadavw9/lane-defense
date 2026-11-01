@@ -1,7 +1,9 @@
 // Economy QA: shop purchase → inventory → carried into a level → spent → debited.
 //   QA_URL=http://localhost:5174/ node scripts/economy-qa.mjs
+import { existsSync } from 'node:fs';
 import { chromium } from 'playwright';
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
+const _linuxChrome = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';   // the cloud runner's browser; locally Playwright's own
+const b = await chromium.launch({ ...(process.env.PW_EXE || existsSync(_linuxChrome) ? { executablePath: process.env.PW_EXE || _linuxChrome } : {}), args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
 const p = await b.newPage({ viewport: { width: 390, height: 844 } });
 const errs = []; p.on('pageerror', e => errs.push(e.message));
 await p.addInitScript(() => { if (!localStorage.getItem('lane-defense-v1')) localStorage.setItem('lane-defense-v1', JSON.stringify({ unlockedLevel: 40, coins: 300 })); });

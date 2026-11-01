@@ -3,6 +3,12 @@
 // anything that looks like a bug instead of a game.
 //
 //   node scripts/autoplay.mjs <outDir> [from=1] [to=40] [--fresh]
+//   BRIDGE=1  the bot also BRIDGES every eligible pair before each shot (src/game/bridges.js) and
+//             checks the bridge invariants: staleBridge (a bridge whose cars moved apart / changed
+//             colour / left), doubleBridge (a car in two bridges), pairNeverJoined (a bridge older
+//             than 2 s not drawn as the pair sprite), hiddenSingle (a car hidden with no pair),
+//             nanPosition (a car mesh at a non-finite position), bridgeHitMiss (a shot on a bridged
+//             front car left its partner unhit).
 //
 // Per level it records: result (win/lose/stall/timeout), turns, kills, console
 // errors, and EVENTS — each one a suspected defect with the board attached:
@@ -49,23 +55,52 @@ for (const lv of levels) {
   await p.evaluate((n) => n > 40 ? window._nav.startDaily() : window._nav.startLevel(n), lv);   // 41 = today's daily challenge
   await p.waitForTimeout(2200);
   const t0 = Date.now();
-  const r = await p.evaluate(playLevel, { capMs: 7 * 60 * 1000 });
+  const r = await p.evaluate(playLevel, { capMs: 7 * 60 * 1000, bridge: !!process.env.BRIDGE });
   r.level = lv; r.wallS = Math.round((Date.now() - t0) / 1000); r.errors = errs.slice(0, 8);
   await p.screenshot({ path: `${out}/L${lv}-end.png` });
   report.push(r);
   const ev = r.events.map(e => e.kind).join(',');
-  console.log(`L${lv} ${r.result} turns=${r.turns} kills=${r.kills} goal=${r.goalLeft} ${r.wallS}s events=[${ev}] errors=${r.errors.length}`);
+  console.log(`L${lv} ${r.result} turns=${r.turns} kills=${r.kills} goal=${r.goalLeft} ${r.wallS}s events=[${ev}] errors=${r.errors.length}${process.env.BRIDGE ? ` bridges=${r.bridgesMade} bridgeKills=${r.bridgeKills}` : ''}`);
   writeFileSync(`${out}/report.json`, JSON.stringify(report, null, 1));
 }
 await b.close();
 
 // ── In-page player ────────────────────────────────────────────────────────────
-async function playLevel({ capMs }) {
+async function playLevel({ capMs, bridge = false }) {
   const nav = window._nav;
   const gs = nav.getGs(), gl = nav.getGameLoop(), dd = nav.getDragDrop();
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const events = [];
-  const stats = { bomb: 0, freeze: 0, rescue: 0 };
+  const stats = { bomb: 0, freeze: 0, rescue: 0, bridges: 0 };
+  const bridgeBorn = new Map();   // bridge object -> time it was made (pairNeverJoined)
+  const checkBridges = () => {
+    if (!gs.bridgesEnabled) return;
+    const seen = new Set();
+    for (const br of gs.bridges) {
+      const a = br.a.car, b = br.b.car;
+      if (seen.has(a) || seen.has(b)) ev('doubleBridge');
+      seen.add(a); seen.add(b);
+      const inA = gs.lanes[br.a.lane]?.cars.includes(a), inB = gs.lanes[br.b.lane]?.cars.includes(b);
+      if (!inA || !inB || a.color !== b.color || Math.abs(a.row - b.row) > 1e-6) ev('staleBridge', { a: a.color + '@' + a.row, b: b.color + '@' + b.row, inA, inB });
+      if (!bridgeBorn.has(br)) bridgeBorn.set(br, performance.now());
+    }
+    for (const k of [...bridgeBorn.keys()]) if (!gs.bridges.includes(k)) bridgeBorn.delete(k);
+    const cars3d = nav.getRenderer3D?.()?._cars;
+    if (!cars3d) return;
+    const joinedCars = new Set();
+    for (const pe of cars3d._pairEntries.values()) if (pe.joined) { joinedCars.add(pe.carA); joinedCars.add(pe.carB); }
+    for (const [car, e] of cars3d._live) {
+      const q = e.group.position;
+      if (![q.x, q.y, q.z].every(Number.isFinite)) ev('nanPosition');
+      if (e.group.visible === false && !joinedCars.has(car)) ev('hiddenSingle', { car: car.color + '@' + car.row });
+    }
+    const RUNG = new Set(['small', 'big', 'jeep']);
+    for (const [br, born] of bridgeBorn) {
+      const pe = cars3d._pairEntries.get(br.a.car);
+      const rungs = [br.a.car, br.b.car].every(c => RUNG.has(c.type));
+      if (performance.now() - born > 2000 && rungs && !(pe && pe.joined)) { ev('pairNeverJoined', { a: br.a.lane, b: br.b.lane }); bridgeBorn.set(br, performance.now() + 1e9); }
+    }
+  };
   const history = [];   // last boards, attached when a level is lost
   const lanesN = gs.activeLaneCount, colsN = gs.activeColCount;
   const board = () => gs.lanes.slice(0, lanesN).map(l => l.cars.map(c =>
@@ -141,6 +176,10 @@ async function playLevel({ capMs }) {
     } else emptySince = null;
 
     const pos = nav.getPositions();
+    if (bridge && gs.bridgesEnabled) {
+      for (const pr of nav.bridgeable()) { if (nav.makeBridge(pr.a.lane, pr.b.lane)) stats.bridges++; }
+      checkBridges();
+    }
     const fronts = gs.lanes.slice(0, lanesN).map(l => l.frontCar?.() ?? null);
     // ── Invariants (a broken state, whatever the player does) ──
     for (let c = 0; c < colsN; c++) if (!gs.columns[c].top()) ev('emptyColumn', { c });
@@ -200,6 +239,12 @@ async function playLevel({ capMs }) {
     if (moves.length) {
       const m = moves[0];
       const turnBefore = gs.turnCount;
+      if (bridge && gs.bridgesEnabled) {
+        const f = fronts[m.l];
+        const br = gs.bridges.find(x => x.a.car === f || x.b.car === f);
+        const shooter = m.src === 'col' ? gs.columns[m.c].top() : benchSlots[m.i];
+        if (br && f && shooter && !shooter.isColorBomb && shooter.color === f.color) { const o = br.a.car === f ? br.b : br.a; m.partner = { car: o.car, hp: o.car.hp, lane: o.lane }; }
+      }
       if (m.src === 'col') drag(pos.colX[m.c], pos.slotY[0], pos.laneX[m.l], laneY);
       else { const sc = dd._benchRenderer.getSlotCenter(m.i); drag(sc.x, sc.y, pos.laneX[m.l], laneY); }
       await sleep(30);
@@ -214,6 +259,12 @@ async function playLevel({ capMs }) {
         await sleep(60);
       }
       if (!gs.isOver && gs.turnCount === turnBefore && performance.now() - w0 >= 12000) ev('turnStuck', { move: m });
+      if (bridge && m.partner && gs.turnCount !== turnBefore) {
+        const { car: pc, hp, lane } = m.partner;
+        const still = gs.lanes[lane]?.cars.includes(pc);
+        if (still && pc.hp >= hp) ev('bridgeHitMiss', { partnerLane: lane, hpBefore: hp, hpAfter: pc.hp });
+        checkBridges();
+      }
       continue;
     }
     // No legal shot: try COLOR CHANGE through the real UI (button → car → swatch),
@@ -255,5 +306,5 @@ async function playLevel({ capMs }) {
   const end = nav.getScreens();
   if (gs.isOver && gs.won && !end.win) ev('noWinScreen');
   if (gs.isOver && gs.won && end.boosters && Object.values(end.inventory).some(v => v < 0)) ev('negativeInventory');
-  return { result: gs.isOver ? (gs.won ? 'win' : 'lose') : 'timeout', turns: gs.turnCount, kills: gs.totalKills, goalLeft, events, stats, rescueUsed: gs.rescueUsed };
+  return { result: gs.isOver ? (gs.won ? 'win' : 'lose') : 'timeout', turns: gs.turnCount, kills: gs.totalKills, goalLeft, events, stats, rescueUsed: gs.rescueUsed, bridgesMade: gs.bridgesMade, bridgeKills: gs.bridgeKills };
 }

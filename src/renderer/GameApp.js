@@ -2391,6 +2391,7 @@ async function main() {
   // bridges level, the game pauses with a hand dragging one onto the other on the REAL board
   // (TutorialOrchestrator, like the bench: input stays open, the real drag completes it through
   // onBridge -> completeIfActive('bridge')). Once ever.
+  let _bridgeTutPair = null;   // the pair the guided first bridge points at (released when it stops being bridgeable)
   function _teachBridge() {
     const key = 'bridge_guide';
     if (!gs.bridgesEnabled || gs.isOver || gs.bridges.length || featureBanners.has(key)) return;
@@ -2398,11 +2399,14 @@ async function main() {
     const pairs = eligiblePairs(gs.lanes, gs.activeLaneCount, gs.bridges);
     const p = pairs.find(q => gs.lanes[q.a.lane].frontCar() === q.a.car) ?? pairs[0];
     if (!p) return;
-    featureBanners.mark(key);
     const A = () => ({ x: getLaneScreenX(p.a.lane), y: posToScreenY(p.a.car.position) });
     const B = () => ({ x: getLaneScreenX(p.b.lane), y: posToScreenY(p.b.car.position) });
+    const stillThere = () => !gs.isOver && gs.bridgesEnabled && !gs.bridges.length
+      && eligiblePairs(gs.lanes, gs.activeLaneCount, gs.bridges).some(q => q.a.car === p.a.car && q.b.car === p.b.car);
     setTimeout(() => {
-      if (gs.isOver || !gs.lanes[p.a.lane].cars.includes(p.a.car)) return;
+      if (!stillThere() || featureBanners.has(key)) return;   // the pair is gone: try again on a later advance
+      featureBanners.mark(key);
+      _bridgeTutPair = { pair: p, stillThere };
       tutOrch.start({
         id: 'bridge', text: 'DRAG ONE CAR ONTO THE OTHER',
         bounds: () => { const a = A(), b = B(); return { x: Math.min(a.x, b.x) - 46, y: Math.min(a.y, b.y) - 44, w: Math.abs(b.x - a.x) + 92, h: 88 }; },
@@ -2468,7 +2472,7 @@ async function main() {
   // BRIDGES (bridges.js): the hit ran along the player's bridges. Arcs from the hit car to each
   // bridged car and their flashes/explosions in 3D; a BRIDGE tag over the last car it took. The
   // kill sound, tokens and shake already escalate with the shot's kill count (onHit).
-  gameLoop._onBridgeBlast = (hits, laneIdx, srcPos) => {
+  gameLoop._onBridgeBlast = (hits, laneIdx, srcPos, laneKills = 1) => {
     gameRenderer3D.onBridgeBlast(hits.map(h => ({
       fromLane: laneIdx, fromPos: srcPos, lane: h.lane, position: h.car.position,
       color: h.car.color, destroyed: h.destroyed,
@@ -2480,7 +2484,7 @@ async function main() {
     floatingTexts.push(spawnFloatingText(
       layers.get('particleLayer'),
       getLaneScreenX(last.lane), posToScreenY(last.car.position) - 30,
-      `BRIDGE x${taken.length + 1}!`, 0xffcc44,
+      `BRIDGE x${taken.length + laneKills}!`, 0xffcc44,
     ));
     audio.play('kill_ding');
     haptics.heavy();
@@ -2777,6 +2781,8 @@ async function main() {
     stepRuler.update(dt, gs);
     bridgeLayer.setVisible(!gs.isOver);
     bridgeLayer.update(dt, gs);
+    if (_bridgeTutPair && tutOrch.activeId() === 'bridge' && !_bridgeTutPair.stillThere()) { tutOrch.dismiss(); _bridgeTutPair = null; }
+    else if (_bridgeTutPair && tutOrch.activeId() !== 'bridge') _bridgeTutPair = null;
     gameRenderer3D.setPairs(gs.bridgesEnabled && !gs.isOver ? gs.bridges : []);   // bridged pairs = one vehicle
     trafficLights.update(dt, gs.trafficMoves ?? 0);
 

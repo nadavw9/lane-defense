@@ -65,6 +65,16 @@ reading; the number at the side is not understood; only two bombs go into the sl
   `queueActionUsed`; the bench->queue return keeps one per turn). Probe: `scripts/_bench-probe.mjs`.
 OWNER RULE (standing): every first-time mechanic gets a clear moving picture; nothing on the board
 that needs reading.
+- **Night QA 2026-11-01** (owner: "a huge run for all the bugs we have not found"): two fresh
+  reviewer subagents + `autoplay.mjs` with `BRIDGE=1` (bridges every eligible pair, checks
+  staleBridge / doubleBridge / pairNeverJoined / hiddenSingle / nanPosition / bridgeHitMiss),
+  autoplay 1-200, ftue 1-20, booster-qa, economy-qa. Fixed (PR #28, `tests/bridges-night-fixes`):
+  carry-over kills pass their hit across the bridge; a volatile through a bridge surges from its
+  own lane; CONTINUE breaks every bridge (the bot showed stale pairs after every rescue); the sim
+  prunes after BOMB; the guided first bridge releases a dead/moved pair; the breach check resolves
+  every lane before the loss; a paused loop refuses deploys. OPEN for the owner: a wrong-colour
+  shot does not break the Hot Streak in code (docs say it does); return + store on the bench in
+  one turn. Run bots only while no src file is being edited (an HMR reload kills every run).
 
 ### LANE BARRIERS, WAVES, HONEST DIFFICULTY (2026-10-30, branch `feat/lane-barriers`)
 

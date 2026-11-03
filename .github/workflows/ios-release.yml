@@ -34,6 +34,10 @@ on:
         description: 'none = compile check only, testflight = signed upload to App Store Connect'
         default: none
         required: true
+      friends:
+        description: 'yes = release the uploaded build to the TestFlight Friends group (beta review); no = App Store build only (live ads stay off the friends link)'
+        default: 'yes'
+        required: false
   push:
     paths:
       - 'ios/**'
@@ -168,7 +172,7 @@ jobs:
       # itself: wait for Apple's processing, add it to the external group, submit it for beta review.
       # Without the review submission the link keeps serving the last approved build.
       - name: Release to the Friends group (TestFlight)
-        if: env.UPLOAD == 'testflight'
+        if: env.UPLOAD == 'testflight' && github.event.inputs.friends != 'no'
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}

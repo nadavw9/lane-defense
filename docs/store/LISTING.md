@@ -13,21 +13,25 @@ HARD / SUPER HARD levels, win streaks. US spelling throughout (the game uses it)
   - A colorful traffic puzzle: every bomb must match its car. 200 levels!
   - Drag, match, boom! Stop the traffic jam in 200 bright puzzle levels.
 
-## Full description (EN, under 4000)
+## Full description (EN, under 4000) — updated 2026-11-03 for bridges, waves, Hot Streak 5
 
 Cars are rolling toward your city and only YOU can stop them!
 
-Drag a color bomb onto a lane: if it matches the car in front, BOOM. Every shot moves the
-traffic closer, so pick your target wisely. Clear the road before a single car crosses the red line.
+Drag a color bomb onto a lane: if it matches the car in front, BOOM. Every shot moves the traffic closer, so pick your target wisely. Clear the road before a single car crosses the red line.
 
 EASY TO PLAY, HARD TO PUT DOWN
 • One finger, one drag, one boom
 • Big cars take more hits: each hit shrinks them down
 • Turn-based: think as long as you like, no timers
 
+BRIDGES: THE CLEVER MOVE
+• Two cars of the same color side by side? Drag one onto the other and they couple into one vehicle
+• One bomb on the pair takes both
+• Watch out for speeders: they break away from a bridge when they move
+
 200 LEVELS: 7 WORLDS, THEN A SECOND TOUR
 • Toy Town, Steel Yards, Neon Nights, Sun Valley, Frost Pass, Harbor Lights and the Starlight Strip
-• HARD and SUPER HARD levels for when you want a real challenge
+• Waves of traffic, lane barriers and HARD and SUPER HARD levels for a real challenge
 • Repair your city one building at a time as you win
 
 TRAFFIC THAT FIGHTS BACK
@@ -36,12 +40,12 @@ TRAFFIC THAT FIGHTS BACK
 • Motorbike convoys, speeders, armored and plated cars, chameleons, menders, volatile fuel trucks and phantoms
 
 POWER UP
-• Hot Streak: three kills in a row charges a super bomb
+• Hot Streak: five kills in a row supercharge your bombs
 • Color Swap, Freeze and lane-clearing Bomb boosters
 • Win streaks start your next level with free boosters
 • Daily rewards, a daily challenge and trophies to collect
 
-Colorblind shapes and a reduce-motion option included.
+Every new rule is shown as a short moving picture, no reading needed. Colorblind shapes and a reduce-motion option included.
 
 Free to play, with ads. Rewarded videos are always your choice. Plays offline.
 

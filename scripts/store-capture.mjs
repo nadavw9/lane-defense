@@ -4,12 +4,12 @@ import { chromium } from 'playwright';
 const OUT = (process.argv[2] || '/tmp/store-raw') + '/';
 const URL = process.env.QA_URL || 'http://localhost:5176/';
 import { mkdirSync } from 'node:fs'; mkdirSync(OUT, { recursive: true });
-const b = await chromium.launch({ executablePath: process.env.CHROME_PATH, args:['--use-gl=swiftshader','--enable-unsafe-swiftshader'] });
+const b = await chromium.launch({ ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}), args:['--use-gl=swiftshader','--enable-unsafe-swiftshader'] });
 const p = await b.newPage({ viewport:{width:390,height:844}, deviceScaleFactor:3 });
 const errs=[]; p.on('pageerror', e=>errs.push(e.message));
 await p.addInitScript(() => {
-  const keys = ['tour','lane_2','lane_3','multi_color','combo','supercharge','goal_colour','freeze_booster','colour_change_booster','freeze_earned','colour_change_earned','rainbow_bomb','first_kill','first_miss','hp_miss','streak_charged','plate_break','armor_break','volatile_surge','mender_heal','gift_car','traffic_light','convoy'];
-  for (let i = 1; i <= 100; i++) keys.push(`hint_L${i}`);
+  const keys = ['tour','lane_2','lane_3','multi_color','second_colour','bridge','bridge_guide','speeder','barrier_down','wave_incoming','combo','supercharge','goal_colour','freeze_booster','colour_change_booster','freeze_earned','colour_change_earned','rainbow_bomb','first_kill','first_miss','hp_miss','streak_charged','plate_break','armor_break','volatile_surge','mender_heal','gift_car','traffic_light','convoy'];
+  for (let i = 1; i <= 200; i++) keys.push(`hint_L${i}`);
   localStorage.setItem('ftue_banners', JSON.stringify(keys));
   const stars = {}; for (let i = 1; i <= 33; i++) stars[i] = i % 4 === 0 ? 2 : 3;   // L23 (gift cars) needs unlockedLevel > 23
   localStorage.setItem('lane-defense-v1', JSON.stringify({ unlockedLevel: 34, coins: 1240, winStreak: 4, stars }));
@@ -37,11 +37,27 @@ const play = (n) => p.evaluate(async (n) => {
   return f;
 }, n);
 const shot = async (n) => { await p.screenshot({ path: OUT + n + '.png' }); console.log('shot', n); };
-for (const [name, L, n, wait] of [['s1-l12', 12, 4, 350], ['s2-l35', 35, 2, 1500], ['s3-l23', 23, 2, 1500], ['s4-l55', 55, 3, 1500], ['s5-l65', 65, 3, 1500], ['s8-l88', 88, 3, 1500]]) {
+for (const [name, L, n, wait] of [['s1-l12', 12, 4, 350], ['s2-l35', 35, 2, 1500], ['s4-l55', 55, 3, 1500], ['s5-l65', 65, 3, 1500], ['s8-l88', 88, 3, 1500]]) {
   await p.evaluate((l)=>{ window._nav.cleanAll(); window._nav.startLevel(l); }, L); await p.waitForTimeout(6000); await clear();
   const f = await play(n); console.log(name, 'fired', f);
   await p.waitForTimeout(wait); await shot(name);
 }
+// BRIDGES (2026-11-01): a linked pair drawn as one vehicle, the store's newest mechanic. L12 has
+// three lanes and three colours; seed a same-colour pair side by side on the front row, link it
+// through the game's own rule, wait for the two cars to slide together into the pair sprite.
+await p.evaluate(()=>{ window._nav.cleanAll(); window._nav.startLevel(12); }); await p.waitForTimeout(6000); await clear();
+await play(1); await p.waitForTimeout(1500);
+const linked = await p.evaluate(() => {
+  const nav = window._nav, gs = nav.getGs();
+  for (let la = 0; la + 1 < gs.activeLaneCount; la++) {
+    const a = gs.lanes[la].frontCar?.(), b = a && gs.lanes[la + 1].cars.find(c => Math.abs(c.row - a.row) < 1e-6);
+    if (!a || !b || a.row < 1) continue;
+    b.color = a.color; b.altColor = a.altColor = null; a.armor = b.armor = 0; b.trait = a.trait = null; a.type = b.type = 'big'; a.hp = b.hp = 2;   // two sedans read best as the pair
+    if (nav.makeBridge(la, la + 1)) return la;
+  }
+  return -1;
+});
+console.log('s3-bridge linked lanes', linked); await p.waitForTimeout(2500); await shot('s3-bridge');
 await p.evaluate(()=>{ window._nav.cleanAll(); window._nav.startLevel(20); }); await p.waitForTimeout(5000); await clear();
 await p.evaluate(()=>{ const gs = window._nav.getGs(); gs.coins += 40; gs.totalKills = 27; gs.score = (gs.starTargets?.[2] ?? 3000) + 85; window._nav.showWin(); }); await p.waitForTimeout(4000);
 for (let i=0;i<5;i++){ await p.evaluate(()=>window._nav.dismissGuides?.()); await p.waitForTimeout(600); }

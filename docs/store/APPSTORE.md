@@ -84,3 +84,13 @@ nadavwolfsonw@gmail.com.
 
 `ITSAppUsesNonExemptEncryption = false` is in Info.plist (HTTPS only), so App Store Connect does
 not ask per build.
+
+## Status 2026-11-03 (filled through the App Store Connect API, `TrafficBomb-owner/ios-signing/tools/fill-appstore.cjs`)
+
+Done: description (the LISTING.md text, with bridges), keywords, promotional text, support + marketing URL,
+subtitle, privacy policy URL, copyright, category Games > Puzzle + Casual, age rating (4+; Advertising yes),
+content rights (no third-party content), review contact + notes, price Free, availability 175 territories,
+8 screenshots 1320x2868 (APP_IPHONE_67; `scripts/store-capture.mjs` + `store-art.mjs ios`; #2 = bridges),
+build 18 attached (export compliance answered by Info.plist).
+Open (owner): AdMob iOS app + Rewarded + Interstitial units -> GitHub variables (then a build with
+ads=live replaces build 18, which serves test ads); App Privacy label on the website. Then the submission.

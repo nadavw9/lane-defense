@@ -21,8 +21,8 @@ const FONTS = `
 // [file, headline (gold words in *stars*), sub line, background top, background bottom]
 const SHOTS = [
   ['s1-l12.png', 'Match the color, *drop the bomb!*', 'One drag. One boom.', '#3B2580', '#160F3A'],
+  ['s3-bridge.png', 'Link two cars, *one bomb takes both!*', 'Drag a car onto its twin next door', '#2E5A1E', '#10240C'],
   ['s2-l35.png', 'Beat the *traffic lights*', 'Red holds a lane. Plan your shots.', '#24124F', '#07051A'],
-  ['s3-l23.png', 'Gift cars drop *free boosters*', 'Destroy the cars with a bow!', '#2E5A1E', '#10240C'],
   ['s4-l55.png', '*200 levels* to beat', 'From Toy Town to the Starlight Strip and back', '#7A4A12', '#2A1606'],
   ['s5-l65.png', 'Special cars *change the rules*', 'Speeders, armor, chameleons and more', '#1E4A7A', '#0A1A30'],
   ['s6-map.png', 'Repair *your city*', 'Every win rebuilds a building', '#2A2458', '#100C2A'],

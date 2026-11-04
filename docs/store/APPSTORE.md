@@ -66,14 +66,23 @@ no web browsing, no gambling, no contests, no in-app purchases, no medical or lo
 The bombs destroy toy cars with no people and no injury, so "Cartoon or Fantasy Violence" is None;
 if review disagrees, "Infrequent/Mild" is the honest fallback.
 
-### App Privacy ("nutrition label")
+### App Privacy ("nutrition label") — as published 2026-11-05
 
-- **Data used to track you:** Identifiers > Device ID (the advertising ID, only if the player allows
-  tracking in Apple's prompt), Usage Data > Advertising Data. Purpose: Third-Party Advertising.
-- **Data not linked to you:** Usage Data > Product Interaction (the gameplay statistics: Analytics,
-  App Functionality), Identifiers > Device ID (Third-Party Advertising).
-- **Data linked to you:** none (no accounts, no names, no email).
-- Collected by Google AdMob and Google Firebase as described in `public/privacy.html`.
+Answers taken from the privacy manifest of the ad SDK actually in the build (GoogleMobileAds 12.14.0,
+`PrivacyInfo.xcprivacy`) plus the game's own anonymous analytics (random install id + gameplay events
+to Firebase Realtime Database: Device ID + Product Interaction, Analytics). Collect data: Yes.
+
+| type | purposes | linked | tracking |
+|---|---|---|---|
+| Device ID | Third-Party Advertising, Developer's Advertising or Marketing, Analytics | yes | **yes** |
+| Coarse Location | same three | yes | no |
+| Advertising Data | same three | yes | no |
+| Product Interaction | same three | yes | no |
+| Performance Data | same three | no | no |
+| Other Diagnostic Data | same three | no | no |
+| Crash Data | Analytics | no | no |
+
+Re-check the SDK manifest when GoogleMobileAds is upgraded.
 
 ### Review notes (App Review Information)
 
@@ -92,5 +101,5 @@ subtitle, privacy policy URL, copyright, category Games > Puzzle + Casual, age r
 content rights (no third-party content), review contact + notes, price Free, availability 175 territories,
 8 screenshots 1320x2868 (APP_IPHONE_67; `scripts/store-capture.mjs` + `store-art.mjs ios`; #2 = bridges),
 build 18 attached (export compliance answered by Info.plist).
-Open (owner): AdMob iOS app + Rewarded + Interstitial units -> GitHub variables (then a build with
+Done 2026-11-04/05: AdMob iOS app ca-app-pub-3810333742263149~6260031759 (units /9118341412 rewarded, /5218412821 interstitial, GitHub variables), build 20 (ads=live, friends=no) attached, privacy label published, SUBMITTED for review 2026-11-05 (`tools/submit-appstore.cjs`). Was open (owner): AdMob iOS app + Rewarded + Interstitial units -> GitHub variables (then a build with
 ads=live replaces build 18, which serves test ads); App Privacy label on the website. Then the submission.

@@ -78,18 +78,25 @@ jobs:
           xcrun simctl install "$UDID" "$APP"
 
       - name: Record the app (launch, then the autopilot plays)
+        timeout-minutes: 12
         run: |
           mkdir -p out
+          # Job control on: a non-interactive shell starts background jobs with SIGINT ignored, and
+          # recordVideo only finalizes the file on SIGINT (the first run hung in wait here).
+          set -m
           xcrun simctl io "$UDID" recordVideo --codec=h264 --force out/review-video.mp4 &
           REC=$!
           sleep 3
           xcrun simctl launch "$UDID" com.nadavw.trafficbomb
           T=$(( ${VITE_DEMO_SECONDS:-170} + 12 ))
           for s in $(seq 20 20 $T); do sleep 20; xcrun simctl io "$UDID" screenshot "out/shot-$(printf %03d $s).png" || true; done
-          kill -INT $REC; wait $REC || true
+          kill -INT $REC
+          for i in $(seq 1 30); do kill -0 $REC 2>/dev/null || break; sleep 1; done
+          kill -0 $REC 2>/dev/null && { echo "::warning::recorder still running, sending TERM"; kill -TERM $REC; sleep 3; }
           ls -la out
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: review-video
           path: out/

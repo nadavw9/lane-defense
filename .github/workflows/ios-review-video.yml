@@ -66,7 +66,10 @@ jobs:
             for x in devs:
               n=x['name']
               if not n.startswith('iPhone'): continue
-              score=(('Pro Max' in n)*3 + ('Pro' in n)*2 + ('Plus' in n), rt)
+              # Run 3: the runner has no GPU for the simulator, so every pixel costs CPU (a 1320x2868
+              # Pro Max starved the runner). Take the SMALLEST screen; App Review needs any iPhone.
+              small=('SE' in n)*4 + ('16e' in n)*3 - ('Pro' in n)*2 - ('Max' in n)*2 - ('Plus' in n)*2 - ('Air' in n)*2
+              score=(small, rt)
               if best is None or score>best[0]: best=(score,x['udid'],n,rt)
           print(best[1]); print(best[2], best[3], file=sys.stderr)")
           echo "UDID=$UDID" >> "$GITHUB_ENV"
@@ -82,7 +85,7 @@ jobs:
       # (perl alarm; macOS has no `timeout`), every line is time-stamped into out/trace.txt, the
       # step never trusts a background job to stop by itself, and the job always ENDS on its own.
       - name: Record the app (launch, then the autopilot plays)
-        timeout-minutes: 12
+        timeout-minutes: 15
         run: |
           set +e
           mkdir -p out
@@ -98,19 +101,21 @@ jobs:
           log "launch ..."
           lim 90 xcrun simctl launch "$UDID" com.nadavw.trafficbomb > out/launch.log 2>&1
           log "launch rc=$? $(tr '\n' ' ' < out/launch.log)"
-          T=$(( ${VITE_DEMO_SECONDS:-170} + 12 ))
-          for s in $(seq 20 20 $T); do
-            sleep 20
-            lim 30 xcrun simctl io "$UDID" screenshot "out/shot-$(printf %03d $s).png" > /dev/null 2>&1
-            log "t=${s}s screenshot rc=$? video=$(stat -f %z out/review-video.mp4 2>/dev/null || echo none)"
+          # Wall clock only (run 3: screenshots took 30 s+ each and starved the game). The autopilot
+          # plays VITE_DEMO_SECONDS of real time from its start; 25 s more covers launch + the title.
+          END=$(( $(date +%s) + ${VITE_DEMO_SECONDS:-170} + 25 ))
+          while [ "$(date +%s)" -lt "$END" ]; do
+            sleep 15
+            log "video=$(stat -f %z out/review-video.mp4 2>/dev/null || echo none) load=$(sysctl -n vm.loadavg)"
           done
           log "stop recorder (SIGINT)"
           kill -INT $REC
           for i in $(seq 1 30); do kill -0 $REC 2>/dev/null || break; sleep 1; done
           if kill -0 $REC 2>/dev/null; then log "recorder ignored SIGINT for 30 s -> TERM"; kill -TERM $REC; sleep 3; kill -9 $REC 2>/dev/null; fi
           log "recorder log: $(tr '\n' ' ' < out/rec.log)"
-          lim 60 xcrun simctl spawn "$UDID" log show --last 6m --style compact --predicate 'process == "App" OR process CONTAINS "WebContent"' > out/app-log.txt 2>&1
-          log "app log rc=$? lines=$(wc -l < out/app-log.txt)"
+          # Free the runner for the upload (run 3: a 323 MB upload crawled beside a running simulator).
+          lim 90 xcrun simctl shutdown "$UDID"
+          log "simulator shutdown rc=$?"
           ls -la out | tee -a out/trace.txt
           test -s out/review-video.mp4
 
@@ -125,8 +130,9 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         if: always()
-        timeout-minutes: 5
+        timeout-minutes: 20
         with:
           name: review-video
           path: out/
+          compression-level: 0
           retention-days: 14

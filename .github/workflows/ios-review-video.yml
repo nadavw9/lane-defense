@@ -77,26 +77,55 @@ jobs:
           sleep 10
           xcrun simctl install "$UDID" "$APP"
 
+      # Runs 1 and 2 (2026-11-05) hung somewhere in this step and their logs were lost (a run
+      # cancelled during the upload keeps no log). So: every simctl call has a HARD time limit
+      # (perl alarm; macOS has no `timeout`), every line is time-stamped into out/trace.txt, the
+      # step never trusts a background job to stop by itself, and the job always ENDS on its own.
       - name: Record the app (launch, then the autopilot plays)
         timeout-minutes: 12
         run: |
+          set +e
           mkdir -p out
-          # Job control on: a non-interactive shell starts background jobs with SIGINT ignored, and
-          # recordVideo only finalizes the file on SIGINT (the first run hung in wait here).
-          set -m
-          xcrun simctl io "$UDID" recordVideo --codec=h264 --force out/review-video.mp4 &
+          log() { echo "[$(date +%H:%M:%S)] $*" | tee -a out/trace.txt; }
+          lim() { local s=$1; shift; perl -e 'alarm shift; exec @ARGV' "$s" "$@"; }
+          log "UDID=$UDID  state: $(xcrun simctl list devices | grep "$UDID")"
+          # recordVideo finalizes the mp4 only on SIGINT; a background job of a non-interactive
+          # shell starts with SIGINT ignored, so perl restores the default before exec.
+          perl -e '$SIG{INT}="DEFAULT"; exec @ARGV' xcrun simctl io "$UDID" recordVideo --codec=h264 --force out/review-video.mp4 > out/rec.log 2>&1 &
           REC=$!
-          sleep 3
-          xcrun simctl launch "$UDID" com.nadavw.trafficbomb
+          for i in $(seq 1 30); do grep -qi "recording started" out/rec.log && break; kill -0 $REC 2>/dev/null || break; sleep 1; done
+          log "recorder pid=$REC alive=$(kill -0 $REC 2>/dev/null && echo yes || echo no) after ${i}s: $(tr '\n' ' ' < out/rec.log)"
+          log "launch ..."
+          lim 90 xcrun simctl launch "$UDID" com.nadavw.trafficbomb > out/launch.log 2>&1
+          log "launch rc=$? $(tr '\n' ' ' < out/launch.log)"
           T=$(( ${VITE_DEMO_SECONDS:-170} + 12 ))
-          for s in $(seq 20 20 $T); do sleep 20; xcrun simctl io "$UDID" screenshot "out/shot-$(printf %03d $s).png" || true; done
+          for s in $(seq 20 20 $T); do
+            sleep 20
+            lim 30 xcrun simctl io "$UDID" screenshot "out/shot-$(printf %03d $s).png" > /dev/null 2>&1
+            log "t=${s}s screenshot rc=$? video=$(stat -f %z out/review-video.mp4 2>/dev/null || echo none)"
+          done
+          log "stop recorder (SIGINT)"
           kill -INT $REC
           for i in $(seq 1 30); do kill -0 $REC 2>/dev/null || break; sleep 1; done
-          kill -0 $REC 2>/dev/null && { echo "::warning::recorder still running, sending TERM"; kill -TERM $REC; sleep 3; }
-          ls -la out
+          if kill -0 $REC 2>/dev/null; then log "recorder ignored SIGINT for 30 s -> TERM"; kill -TERM $REC; sleep 3; kill -9 $REC 2>/dev/null; fi
+          log "recorder log: $(tr '\n' ' ' < out/rec.log)"
+          lim 60 xcrun simctl spawn "$UDID" log show --last 6m --style compact --predicate 'process == "App" OR process CONTAINS "WebContent"' > out/app-log.txt 2>&1
+          log "app log rc=$? lines=$(wc -l < out/app-log.txt)"
+          ls -la out | tee -a out/trace.txt
+          test -s out/review-video.mp4
+
+      - name: Make sure no recorder is still writing
+        if: always()
+        timeout-minutes: 1
+        run: |
+          pkill -INT -f recordVideo || true
+          sleep 5
+          pkill -9 -f recordVideo || true
+          cat out/trace.txt 2>/dev/null | tail -40 || true
 
       - uses: actions/upload-artifact@v4
         if: always()
+        timeout-minutes: 5
         with:
           name: review-video
           path: out/

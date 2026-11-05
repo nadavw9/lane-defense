@@ -1,0 +1,96 @@
+name: iOS App Review video (simulator)
+# App Review (Guideline 2.1, 2026-11-05) asked for a screen recording of the typical flow, starting
+# with the app launch. The owner had no iPhone at hand, so this records the real app on the iOS
+# Simulator: a Debug simulator build whose web bundle is made with VITE_DEMO_AUTOPILOT=true, so the
+# game plays itself through real input (src/input/demoAutopilot.js; store builds never contain it).
+# The raw recording + a screenshot every 20 s are kept as the artifact `review-video`; compress it
+# and attach it with TrafficBomb-owner/ios-signing/tools (appStoreReviewAttachments).
+on:
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: 'How long the autopilot plays (the recording runs ~15 s longer)'
+        default: '170'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  video:
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      VITE_DEMO_AUTOPILOT: 'true'
+      VITE_DEMO_SECONDS: ${{ github.event.inputs.seconds }}
+      VITE_ADS_MODE: test
+      VITE_APP_VERSION: review-video
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use the newest Xcode on the runner
+        run: |
+          XC=$(ls -d /Applications/Xcode_*.app | grep -v beta | sort -V | tail -1)
+          sudo xcode-select -s "$XC"
+          echo "::notice title=Xcode::$(xcodebuild -version | tr '\n' ' ')"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+      - run: npx cap sync ios
+
+      - name: Build for the simulator (Debug, unsigned)
+        run: |
+          GAD_ID="${{ vars.IOS_ADMOB_APP_ID || 'ca-app-pub-3940256099942544~1458002511' }}"
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build \
+            GAD_APPLICATION_ID="$GAD_ID" CODE_SIGNING_ALLOWED=NO build | tail -30
+          test "${PIPESTATUS[0]}" -eq 0
+          APP=$(ls -d build/Build/Products/Debug-iphonesimulator/App.app)
+          echo "APP=$APP" >> "$GITHUB_ENV"
+          echo "::notice title=App::$(du -sh "$APP" | cut -f1)"
+
+      - name: Boot an iPhone simulator
+        run: |
+          xcrun simctl list devices available
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)['devices']
+          best=None
+          for rt,devs in d.items():
+            if 'iOS' not in rt: continue
+            for x in devs:
+              n=x['name']
+              if not n.startswith('iPhone'): continue
+              score=(('Pro Max' in n)*3 + ('Pro' in n)*2 + ('Plus' in n), rt)
+              if best is None or score>best[0]: best=(score,x['udid'],n,rt)
+          print(best[1]); print(best[2], best[3], file=sys.stderr)")
+          echo "UDID=$UDID" >> "$GITHUB_ENV"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl status_bar "$UDID" override --time 9:41 --batteryState charged --batteryLevel 100 --wifiBars 3 --cellularBars 4 || true
+          open -a Simulator || true
+          sleep 10
+          xcrun simctl install "$UDID" "$APP"
+
+      - name: Record the app (launch, then the autopilot plays)
+        run: |
+          mkdir -p out
+          xcrun simctl io "$UDID" recordVideo --codec=h264 --force out/review-video.mp4 &
+          REC=$!
+          sleep 3
+          xcrun simctl launch "$UDID" com.nadavw.trafficbomb
+          T=$(( ${VITE_DEMO_SECONDS:-170} + 12 ))
+          for s in $(seq 20 20 $T); do sleep 20; xcrun simctl io "$UDID" screenshot "out/shot-$(printf %03d $s).png" || true; done
+          kill -INT $REC; wait $REC || true
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: review-video
+          path: out/
+          retention-days: 14

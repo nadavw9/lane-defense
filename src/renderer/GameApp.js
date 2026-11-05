@@ -2952,7 +2952,9 @@ async function main() {
     _dismissColorPicker();
   };
   // ── Dev navigation API ────────────────────────────────────────────────────
-  if (import.meta.env.DEV) {
+  // Also in the App Review demo build (VITE_DEMO_AUTOPILOT=true, ios-review-video workflow): the
+  // autopilot reads the board through it. Store builds have neither, so it is compiled out.
+  if (import.meta.env.DEV || import.meta.env.VITE_DEMO_AUTOPILOT === 'true') {
     window._nav = {
       startLevel: (n) => {
         [titleScreen, levelSelectScreen, winScreen].forEach(s => s?.destroy());
@@ -3167,6 +3169,9 @@ async function main() {
         }),
       },
     };
+  }
+  if (import.meta.env.VITE_DEMO_AUTOPILOT === 'true') {
+    import('../input/demoAutopilot.js').then(m => m.runDemoAutopilot({ seconds: Number(import.meta.env.VITE_DEMO_SECONDS ?? 170) }));
   }
 
   // ── Boot: show title screen (game loop not started yet) ───────────────────

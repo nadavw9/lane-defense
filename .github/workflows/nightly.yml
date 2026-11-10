@@ -7,7 +7,7 @@ on:
 
 jobs:
   full-visual:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # Playwright 1.59 cannot install chromium on ubuntu-latest (26.04) yet
     steps:
       - uses: actions/checkout@v4
 

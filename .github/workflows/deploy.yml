@@ -37,7 +37,7 @@ jobs:
   # regression) and fixed it at the CI timeout budget — proven stable across
   # two full green runs (a push + an unattended nightly sweep).
   visual-smoke:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # Playwright 1.59 cannot install chromium on ubuntu-latest (26.04) yet
     steps:
       - uses: actions/checkout@v4
 

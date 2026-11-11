@@ -61,8 +61,9 @@ reading; the number at the side is not understood; only two bombs go into the sl
   `scripts/_demo-cards-shots.mjs` (+ `_nav.showDemo(key)`, `_nav.bridges/bridgeable/makeBridge`).
 - **Board clarity**: the step ruler's number is gone (a coloured dot rides with the nearest car);
   the L1 tour is GOAL / RED LINE / YOUR BOMBS.
-- **Bench**: every empty slot takes a bomb in the same turn (`_handleBenchDrop` no longer gated by
-  `queueActionUsed`; the bench->queue return keeps one per turn). Probe: `scripts/_bench-probe.mjs`.
+- **Bench**: every empty slot takes a bomb in the same turn (`_handleBenchDrop` neither gated by
+  nor consuming `queueActionUsed`; the bench->queue return keeps one per turn, and a store before
+  it no longer blocks it: `tests/bench-return-after-store.test.js`). Probe: `scripts/_bench-probe.mjs`.
 OWNER RULE (standing): every first-time mechanic gets a clear moving picture; nothing on the board
 that needs reading.
 - **Night QA 2026-11-01** (owner: "a huge run for all the bugs we have not found"): two fresh
@@ -72,9 +73,9 @@ that needs reading.
   carry-over kills pass their hit across the bridge; a volatile through a bridge surges from its
   own lane; CONTINUE breaks every bridge (the bot showed stale pairs after every rescue); the sim
   prunes after BOMB; the guided first bridge releases a dead/moved pair; the breach check resolves
-  every lane before the loss; a paused loop refuses deploys. OPEN for the owner: a wrong-colour
-  shot does not break the Hot Streak in code (docs say it does); return + store on the bench in
-  one turn. Run bots only while no src file is being edited (an HMR reload kills every run).
+  every lane before the loss; a paused loop refuses deploys. Owner answers (2026-11-12): there is
+  no wrong-colour shot (a mismatched drop bounces back to its column before it fires), so the Hot
+  Streak needs no rule for one; return + store on the bench in one turn is allowed. Run bots only while no src file is being edited (an HMR reload kills every run).
 
 ### LANE BARRIERS, WAVES, HONEST DIFFICULTY (2026-10-30, branch `feat/lane-barriers`)
 
@@ -226,7 +227,7 @@ Design + survival math: `docs/superpowers/specs/2026-10-19-race-design.md`. QA: 
 Stars no longer come from how far cars got (`maxCarPosition`, all but impossible on the big board) and a
 continue no longer caps at 1. `src/game/score.js`: 100 per destroyed car + 50 per extra car in one shot +
 a combo bonus on every hit (25 per correct shot in a row, cap 150). The combo is CORRECT SHOTS IN A ROW:
-a hit that only shrinks a car extends it, a wasted (wrong-colour) shot breaks it. It is the "xN COMBO"
+a hit that only shrinks a car extends it, a shot that hits nothing breaks it (a wrong-colour drop never fires: it bounces back). It is the "xN COMBO"
 on screen (HUDRenderer reads `gs.scoreChain`; 2026-10-22: the screen used to show a 2-second kill
 window that paid nothing, so stars felt unrelated to combos). `GameLoop._onCombo` updates the display
 on shrink shots and breaks; `onKill` stays kill-only. GameLoop and

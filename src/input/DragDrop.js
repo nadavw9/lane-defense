@@ -592,8 +592,9 @@ export class DragDrop {
   _handleBenchDrop(dropX) {
     // Bench store (column→bench). NOT gated by the free queue action any more (owner,
     // 2026-10-31: "only two bombs go into the slots" — the second store in a turn used to snap
-    // back with no explanation). The bench's only limit is its four slots; a store still marks
-    // the action used so the bench→queue RETURN stays one per turn (no endless shuffling).
+    // back with no explanation). The bench's only limit is its four slots. A store does not use
+    // up the turn's bench→queue RETURN either (owner, 2026-11-12): the return alone is one per
+    // turn (no endless shuffling).
     if (!this._benchStorage || !this._benchRenderer) {
       this._snapBack();
       return;
@@ -621,8 +622,6 @@ export class DragDrop {
       FLY_DURATION, () => this._destroyGhost(),
     );
     this._state = 'flying';
-    // Consume the free queue action.
-    if (this._boosterState) this._boosterState.queueActionUsed = true;
   }
 
   _handleBenchToQueueReturn(benchSlotIdx, targetColIdx) {

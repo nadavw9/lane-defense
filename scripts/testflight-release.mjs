@@ -65,7 +65,10 @@ if (!build) { console.error(`build ${BUILD} was not VALID within ${WAIT_MIN} min
 console.log(`build ${BUILD} VALID (${build.id})`);
 
 // 2. Into the external group.
-const add = await call('POST', `/v1/betaGroups/${GROUP}/relationships/builds`, { data: [{ type: 'builds', id: build.id }] });
+// The group-side link answered 404 for build 21 (12 Nov 2026) while the build-side one worked, so
+// the build-side link goes first and the group-side one is the fallback.
+let add = await call('POST', `/v1/builds/${build.id}/relationships/betaGroups`, { data: [{ type: 'betaGroups', id: GROUP }] });
+if (add.status === 404) add = await call('POST', `/v1/betaGroups/${GROUP}/relationships/builds`, { data: [{ type: 'builds', id: build.id }] });
 if (add.status === 204) console.log('added to the group', GROUP);
 else if (add.status === 409 || /already/i.test(errText(add))) console.log('already in the group');
 else { console.error('adding to the group failed:', add.status, errText(add)); process.exit(1); }

@@ -1,5 +1,2 @@
-- BRIDGES: drag a car onto the same-color car beside it and they couple into one vehicle. One hit takes both!
-- Every new rule is now shown as a short moving picture instead of text
-- Speeders are more common: a speeder breaks its bridge when it moves, so bridge it in front and shoot
-- The bench takes a bomb into every empty slot
-- Levels rebalanced for bridges; fixes to continues, charged shots on bridged cars and the first-bridge guide
+- The bench is friendlier: after you park a bomb on the bench you can still bring a bench bomb back to a lane in the same turn
+- One bench return per turn, as before

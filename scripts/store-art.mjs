@@ -26,7 +26,8 @@ const SHOTS = [
   ['s4-l55.png', '*200 levels* to beat', 'From Toy Town to the Starlight Strip and back', '#7A4A12', '#2A1606'],
   ['s5-l65.png', 'Special cars *change the rules*', 'Speeders, armor, chameleons and more', '#1E4A7A', '#0A1A30'],
   ['s6-map.png', 'Repair *your city*', 'Every win rebuilds a building', '#2A2458', '#100C2A'],
-  ['s7-win.png', 'Win streaks = *free boosters*', 'Daily rewards and trophies too', '#5A1E6E', '#1E0A28'],
+  // No price words in captions ("free" included): App Review rejected 'Win streaks = free boosters' (2.3.7, 13 Nov 2026).
+  ['s7-win.png', 'Keep your *win streak* going', 'Earn boosters, daily rewards and trophies', '#5A1E6E', '#1E0A28'],
   ['s8-l88.png', 'Stop the jam *before it breaks through*', 'No timers. Think as long as you like.', '#123E4A', '#05161C'],
 ];
 
@@ -95,17 +96,18 @@ function featurePage() {
 
 const b = await chromium.launch({ executablePath: process.env.CHROME_PATH });
 const page = await b.newPage({ viewport: { width: 1080, height: L.h }, deviceScaleFactor: L.scale });
-let n = 0;
-for (const s of SHOTS) {
+// Files keep their slot number even when other raws are missing, so one shot can be re-rendered alone.
+for (const [i, s] of SHOTS.entries()) {
+  const n = i + 1;
   if (!existsSync(resolve(rawDir, s[0]))) { console.log('missing', s[0]); continue; }
   await page.setContent(shotPage(s), { waitUntil: 'load' });
   await page.evaluate(() => document.fonts.ready);
   if (MODE === 'ios') {
     // Apple wants exactly 1320x2868 (the DPR rounding can land a pixel off), opaque.
     const buf = await page.screenshot();
-    await sharp(buf).resize(1320, 2868, { fit: 'fill' }).removeAlpha().png().toFile(resolve(outDir, `appstore-iphone-${++n}.png`));
+    await sharp(buf).resize(1320, 2868, { fit: 'fill' }).removeAlpha().png().toFile(resolve(outDir, `appstore-iphone-${n}.png`));
   } else {
-    await page.screenshot({ path: resolve(outDir, `screenshot-${++n}.png`) });
+    await page.screenshot({ path: resolve(outDir, `screenshot-${n}.png`) });
   }
   console.log('screenshot', n, s[0]);
 }

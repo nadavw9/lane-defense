@@ -7,6 +7,8 @@
 // a native wrapper.
 //
 import { Capacitor } from '@capacitor/core';
+import { App as CapApp } from '@capacitor/app';
+import { askTracking } from './tracking.js';
 import { interstitialWindowOpen, isInterstitialTurn, useTestAds } from './adPolicy.js';
 import { AdMob, RewardAdPluginEvents, InterstitialAdPluginEvents, AdmobConsentStatus } from '@capacitor-community/admob';
 import { logEvent } from '../analytics/Analytics.js';
@@ -142,13 +144,26 @@ export class AdManager {
     }
   }
 
+  // iOS drops an ATT request made before the app is active (App Review never saw the prompt on
+  // build 20); askTracking waits for an active app and retries on the first tap. See tracking.js.
   async _requestTracking() {
-    try {
-      const { status } = await AdMob.trackingAuthorizationStatus();
-      if (status === 'notDetermined') await AdMob.requestTrackingAuthorization();
-    } catch (e) {
-      console.warn('[AdManager] tracking authorization failed:', e);
-    }
+    await askTracking({
+      status: () => AdMob.trackingAuthorizationStatus(),
+      request: () => AdMob.requestTrackingAuthorization(),
+      isActive: async () => {
+        try { return (await CapApp.getState()).isActive; } catch { return document.visibilityState === 'visible'; }
+      },
+      onActive: (cb) => {
+        let h = null;
+        CapApp.addListener('appStateChange', ({ isActive }) => {
+          if (!isActive) return;
+          h?.remove?.();
+          cb();
+        }).then((x) => { h = x; }).catch(() => cb());
+      },
+      onFirstTap: (cb) => window.addEventListener('pointerdown', () => cb(), { once: true, capture: true }),
+      settle: () => new Promise((r) => setTimeout(r, 800)),
+    });
   }
 
   /** True when the player may be measured: web (no consent regime) or UMP allows it. */

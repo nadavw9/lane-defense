@@ -192,6 +192,8 @@ export class SimulationRunner {
       streak:             levelConfig.streak             ?? null,
       // WAVES (TrafficRules.wavesFor): crests keyed on goal progress, same as the live CarDirector.
       waves:              wavesFor({ id: levelConfig.levelId, milestone: levelConfig.milestone, waves: levelConfig.waves }),
+      // 'threat' (closest car first, every profile) or 'random' (tuning: a careless player).
+      laneOrder:          levelConfig.laneOrder          ?? 'threat',
     };
     // Stateless — one instance per runner is fine and keeps runLevel() allocation-free.
     this._combat = new CombatResolver();
@@ -581,6 +583,17 @@ export class SimulationRunner {
         // Threat order: nearest the breach first; a speeder counts as closer than
         // its row (it closes two rows a turn). Trait-free boards sort as before.
         .sort((a, b) => _threat(b.cars[0]) - _threat(a.cars[0]));
+      // laneOrder 'random' (tuning only): a careless player who shoots any lane its bombs fit, not
+      // the closest car first. Comparing it with the default measures whether lane order matters
+      // on a level (owner 2026-11-14: L1-3 "no thinking at all"; tools/think-probe.mjs).
+      // One shot per turn at a random lane its bombs can serve (it may pick the same lane again),
+      // instead of one shot at every lane in threat order.
+      if (this._cfg.laneOrder === 'random') {
+        const servable = urgentLanes.filter(l => columns.some(c => { const s = c.top(); return s && canTarget(l.cars[0], s.color); }));
+        const pick = servable.length ? servable[Math.floor(rng.next() * servable.length)] : urgentLanes[0];
+        urgentLanes.length = 0;
+        if (pick) urgentLanes.push(pick);
+      }
 
       const usedCols  = new Set();
       const advBefore = totalAdvances;

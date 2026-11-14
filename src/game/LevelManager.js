@@ -60,14 +60,19 @@ const PROGRESSION = [
     hintText: 'Drag the matching bomb to the lane', goals: total(10) },
 
   // L2 "Second lane": NEW: a second lane (the colours were taught on L1).
+  // 2026-11-14 (owner: L1-3 "no thinking at all"; chose "which lane first"): three cars queue per
+  // lane (was two), so the lanes' front cars sit at different distances and the closest one
+  // matters. tools/think-probe.mjs: closest-first 100% win, 0% barriers; careless 100%, 7%.
   { id: 2, name: 'Second lane', laneCount: 2, colCount: 2, colors: ['Red', 'Blue'], worldConfig: W(1),
-    duration: 70, spawnBudget: 8, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
-    hintText: 'Two lanes now. Each bomb goes to a car of its own color', goals: total(14) },
+    duration: 70, spawnBudget: 8, laneTargetCarCount: 3, gridRows: BOARD_ROWS,
+    hintText: 'Two lanes now. Hit the car closest to the red line first!', goals: total(14) },
 
   // L3 "Three lanes": NEW: a third lane (2026-10-22, owner: until L7 "you need to do no thinking,
   // just drag the bombs with 2 available options"). Three columns, so choosing a bomb is a choice.
+  // 2026-11-14: three cars queue per lane (was two), the same "which lane first" pass as L2.
+  // think-probe: closest-first 100% win, 7% lose a barrier; careless 93% win, 58% lose a barrier.
   { id: 3, name: 'Three lanes', laneCount: 3, colCount: 3, colors: ['Red', 'Blue'], worldConfig: W(1),
-    duration: 90, spawnBudget: 10, laneTargetCarCount: 2, gridRows: BOARD_ROWS,
+    duration: 90, spawnBudget: 10, laneTargetCarCount: 3, gridRows: BOARD_ROWS,
     hintText: 'Every hit moves ALL traffic one step. Stop the closest car first!', showAreaLabels: true,
     goals: total(14) },
 

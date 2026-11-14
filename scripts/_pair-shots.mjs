@@ -15,6 +15,8 @@ for (const f of readdirSync(out)) if (/\.(png|txt)$/.test(f)) unlinkSync(join(ou
 const labels = [];
 const b = await chromium.launch({ headless: true });
 const p = await b.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+// CB=1: colour-blind shapes on (PrimeTestLab 10454 M-02: bridged pairs must keep their shapes).
+if (process.env.CB === '1') await p.addInitScript(() => { try { const k = 'lane-defense-v1'; localStorage.setItem(k, JSON.stringify({ ...JSON.parse(localStorage.getItem(k) || '{}'), colorblindMode: true })); } catch {} });
 await p.addInitScript(() => {
   try {
     const keys = ['tour', 'lane_2', 'lane_3', 'second_colour', 'bridge', 'bridge_guide', 'speeder', 'combo', 'supercharge', 'goal_colour',

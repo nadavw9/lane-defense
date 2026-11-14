@@ -13,11 +13,12 @@ import { uiIcon } from '../renderer/UIIcon.js';
 import { ribbon, roundButton, button, bodyText, titleText, screenBg, card, GOLD } from '../renderer/PremiumUI.js';
 import { INK } from '../renderer/ToyStyle.js';
 import { Capacitor } from '@capacitor/core';
+import { App as CapApp } from '@capacitor/app';
+import { versionLabel } from '../game/appVersion.js';
 import { adManager } from '../ads/AdManager.js';
 import { getInstallId } from '../analytics/Analytics.js';
 
 const PRIVACY_URL = 'https://nadavw9.github.io/lane-defense/privacy.html';
-const VERSION = 'v1.1.0';
 
 const MX = 16;              // card side margin
 const CW = 390 - MX * 2;    // card width
@@ -184,9 +185,14 @@ export class SettingsScreen {
       b.x = MX + PADX + bw / 2 + i * (bw + 12); b.y = ry + 28;
       this._container.addChild(b);
     });
-    const v = bodyText(`Traffic Bomb ${VERSION}  ·  Made by Nadav`, 13, 0xA9A3D6, { outline: false, weight: '700' });
+    const aboutLine = (label) => `Traffic Bomb ${label}  ·  Made by Nadav`;
+    const v = bodyText(aboutLine(versionLabel(import.meta.env)), 13, 0xA9A3D6, { outline: false, weight: '700' });
     v.anchor.set(0.5); v.x = this._appW / 2; v.y = ry + 72;
     this._container.addChild(v);
+    // The installed app knows its real version and build (the store's, not the web bundle's).
+    if (Capacitor.isNativePlatform()) {
+      CapApp.getInfo().then((info) => { if (!v.destroyed) v.text = aboutLine(versionLabel(import.meta.env, info)); }).catch(() => {});
+    }
     // Install ID: quoted in a data-deletion email (see the privacy policy). Tap copies it.
     const id = getInstallId();
     const idText = bodyText(`Data ID (tap to copy)\n${id}`, 11, 0xA9A3D6, { outline: false, weight: '700', align: 'center' });

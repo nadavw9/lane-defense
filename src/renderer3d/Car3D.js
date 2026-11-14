@@ -636,6 +636,20 @@ export class Car3D {
       pe.mesh.position.y = 0.06;
       pe.group = new THREE.Group();
       pe.group.add(pe.mesh);
+      // Colour-blind roof badges, one per car: the singles (and their badges) hide while the pair
+      // shows, so without these a bridged pair lost its shape (PrimeTestLab report 10454, M-02).
+      pe.badges = [pe.carA, pe.carB].map((car) => {
+        const b = new THREE.Mesh(
+          new THREE.PlaneGeometry(SHAPE_BADGE_WU, SHAPE_BADGE_WU),
+          new THREE.MeshBasicMaterial({ map: _getShapeTex(car.color), transparent: true, depthWrite: false, toneMapped: false }),
+        );
+        b.rotation.x = -Math.PI / 2;
+        b.position.y = 0.12;
+        b.renderOrder = 2;
+        b.visible = isColorblind();
+        pe.group.add(b);
+        return b;
+      });
       this._scene.add(pe.group);
     } else {
       pe.mesh.geometry.dispose();
@@ -658,6 +672,15 @@ export class Car3D {
       pe.group.position.set((laneToX(pe.laneA, this._laneCount) + laneToX(pe.laneB, this._laneCount)) / 2 + wobbleX, 0, ga.position.z);
       pe.group.rotation.z = ga.rotation.z;
       pe.mat.color.copy(ea.bodyMat.color);
+      // Each badge sits over its own car's slot (the hidden singles keep their slot positions).
+      const eb = this._live.get(pe.carB);
+      const cb = isColorblind();
+      [[ea, pe.carA], [eb, pe.carB]].forEach(([e, car], i) => {
+        const b = pe.badges?.[i];
+        if (!b) return;
+        b.visible = cb && !!e && !isHiddenPhantom(car);
+        if (e) b.position.x = e.group.position.x - pe.group.position.x;
+      });
       if (pe.popT != null) {
         pe.popT += dt;
         const p = Math.min(1, pe.popT / 0.22);
@@ -672,7 +695,9 @@ export class Car3D {
       this._scene.remove(pe.group);
       pe.mesh.geometry.dispose();
       pe.mat.dispose();             // the texture is cached; never disposed here
+      for (const b of pe.badges ?? []) { b.geometry.dispose(); b.material.dispose(); }
     }
+    pe.badges = null;
     if (pe.joined) {
       // The singles reappear in their slots (their _coupleX still holds the slot) and slide back.
       const ea = this._live.get(pe.carA), eb = this._live.get(pe.carB);

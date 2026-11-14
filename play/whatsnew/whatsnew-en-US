@@ -1,2 +1,5 @@
-- The bench is friendlier: after you park a bomb on the bench you can still bring a bench bomb back to a lane in the same turn
-- One bench return per turn, as before
+- Levels 2 and 3 make you think: stop the car closest to the red line first
+- Colorblind shapes now stay on linked (bridged) cars
+- Settings shows the real version number
+- The win screen says what score the next star needs
+- Friendlier words: FIRST BOOM! and multi-blast

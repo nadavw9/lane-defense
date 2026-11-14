@@ -3,7 +3,7 @@
 // and the check() dispatch logic.
 export const ACHIEVEMENTS = [
   // ── Original 10 ──────────────────────────────────────────────────────────
-  { id: 'first_blood',   name: 'First Blood',      desc: 'Kill your first car' },
+  { id: 'first_blood',   name: 'First Boom',       desc: 'Destroy your first car' },
   { id: 'combo_starter', name: 'Combo Starter',     desc: 'Reach a 3x combo' },
   { id: 'combo_master',  name: 'Combo Master',      desc: 'Reach an 8x combo' },
   { id: 'bench_warmer',  name: 'Bench Warmer',      desc: 'Deploy from bench 10 times' },
@@ -14,7 +14,7 @@ export const ACHIEVEMENTS = [
   { id: 'shopkeeper',    name: 'Shopkeeper',         desc: 'Buy 5 boosters from the shop' },
   { id: 'dedicated',     name: 'Dedicated',          desc: 'Claim 7 daily rewards' },
   // ── v1.3: 10 new achievements ─────────────────────────────────────────────
-  { id: 'chain_reaction',   name: 'Chain Reaction',   desc: 'Kill 2 cars with a single shot' },
+  { id: 'chain_reaction',   name: 'Chain Reaction',   desc: 'Destroy 2 cars with a single shot' },
   { id: 'combo_legend',     name: 'Combo Legend',     desc: 'Reach a 12x combo' },
   { id: 'weekly_hero',      name: 'Weekly Hero',      desc: 'Win a weekly featured level' },
   { id: 'streak_master',    name: 'Streak Master',    desc: 'Maintain a 7-day login streak' },

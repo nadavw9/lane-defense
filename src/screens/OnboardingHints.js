@@ -136,7 +136,7 @@ export class OnboardingHints {
     const accent = 0x8B4FE0;
     const { panel, vx, vy } = this._buildShell(
       accent, 'COLOR BOMB!',
-      'Get 3 multi-kill shots to earn a Color Bomb!\nDestroy 2+ cars in one shot to score a multi-kill.',
+      'Get 3 multi-blast shots to earn a Color Bomb!\nDestroy 2+ cars in one shot to score a multi-blast.',
       onDismiss,
     );
     const RB = [0xff4477, 0xffaa22, 0xffe14a, 0x44dd66, 0x4aa8ff, 0xb066ff];

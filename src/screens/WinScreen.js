@@ -14,7 +14,7 @@ import { RACE_GOAL } from '../game/race.js';
 import { worldForLevel } from './levelMapLayout.js';
 import { LEVEL_COUNT } from '../game/LevelManager.js';
 import { panel as premiumPanel, ribbon, button as premiumButton, bodyText, titleText, well, pill as premiumPill } from '../renderer/PremiumUI.js';
-import { starsFor, starTargetsFor } from '../game/score.js';
+import { starsFor, starTargetsFor, scoreRow } from '../game/score.js';
 import { ConfettiSystem, CONFETTI_COLORS } from '../renderer/Confetti.js';
 export { ConfettiSystem } from '../renderer/Confetti.js';
 
@@ -357,15 +357,14 @@ export class WinScreen {
     y += ROW_H + ROW_GAP;
     // A multi-kill of 0 or 1 is not a stat worth celebrating — show shots instead.
     if ((gs.maxSingleShotKills ?? 0) >= 2) {
-      this._statRow(px + 22, y, panelW - 44, ROW_H, 'BEST MULTI-KILL', `×${gs.maxSingleShotKills}`, 0xff8844, { name: 'lightning', emoji: '⚡' });
+      this._statRow(px + 22, y, panelW - 44, ROW_H, 'BEST MULTI-BLAST', `×${gs.maxSingleShotKills}`, 0xff8844, { name: 'lightning', emoji: '⚡' });
     } else {
       this._statRow(px + 22, y, panelW - 44, ROW_H, 'CARS DESTROYED', String(gs.totalKills ?? 0), 0xff8844, { name: 'explosion', emoji: '💥' });
     }
     // The points the stars came from (src/game/score.js), and the next star's target when short of three.
     y += ROW_H + ROW_GAP;
-    const tg = gs.starTargets ?? null;
-    const scoreTxt = `${(gs.score ?? 0).toLocaleString('en-US')}${tg && stars < 3 ? ` / ${tg[stars].toLocaleString('en-US')}` : ''}`;
-    this._statRow(px + 22, y, panelW - 44, ROW_H, 'SCORE', scoreTxt, 0xffcc00, { name: 'star-filled', emoji: '★' });
+    const sr = scoreRow(gs.score ?? 0, gs.starTargets ?? null, stars);
+    this._statRow(px + 22, y, panelW - 44, ROW_H, sr.label, sr.value, 0xffcc00, { name: 'star-filled', emoji: '★' });
     if (showStreak) {
       y += ROW_H + ROW_GAP;
       this._statRow(px + 22, y, panelW - 44, ROW_H, 'WIN STREAK', `×${this._winStreak}`, 0xFF9A3C, { name: 'fire', emoji: '🔥' });

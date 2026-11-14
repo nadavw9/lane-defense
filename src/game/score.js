@@ -53,3 +53,14 @@ export function starBarFill(score, [one, two, three]) {
   if (s >= one) return 1 / 3 + (s - one) / (two - one) / 3;
   return s / one / 3;
 }
+
+/**
+ * The win screen's SCORE row. Short of three stars it names the next star's target in the label
+ * ("SCORE · 3★ AT 7,275"): "6,725 / 7,275" alone did not say what the second number was
+ * (PrimeTestLab report 10454, S-02).
+ */
+export function scoreRow(score, targets, stars) {
+  const n = (x) => Math.round(x ?? 0).toLocaleString('en-US');
+  const next = targets && stars < 3 ? targets[stars] : null;
+  return { label: next != null ? `SCORE · ${stars + 1}★ AT ${n(next)}` : 'SCORE', value: n(score) };
+}

@@ -120,7 +120,7 @@ export const DEMO_SCENES = {
   },
   rainbow_bomb: {
     ribbon: 'NEW!', title: 'RAINBOW BOMB', sub: 'ONE COLOR, EVERY LANE',
-    caption: '3 multi-kills in a row earn it. It hits its color in every lane',
+    caption: '3 multi-blasts in a row earn it. It hits its color in every lane',
     scene: {
       lanes: 3, cars: [{ lane: 0, row: 2, color: 'Red', type: BIKE }, { lane: 1, row: 2, color: 'Blue', type: BIKE }, { lane: 2, row: 2, color: 'Red', type: BIKE }, { lane: 1, row: 1, color: 'Red', type: BIKE }],
       bombs: ['Red'], counter: 'x3', loop: 4.0,
@@ -138,8 +138,8 @@ export const DEMO_SCENES = {
     },
   },
   colour_change_earned: {
-    ribbon: 'EARNED!', title: 'COLOR SWAP EARNED', sub: '2 MULTI-KILLS IN A ROW',
-    caption: 'Two multi-kill shots in a row earn a COLOR SWAP',
+    ribbon: 'EARNED!', title: 'COLOR SWAP EARNED', sub: '2 MULTI-BLASTS IN A ROW',
+    caption: 'Two multi-blast shots in a row earn a COLOR SWAP',
     scene: {
       lanes: 2, cars: [{ lane: 0, row: 2, color: 'Red', type: BIKE }, { lane: 1, row: 2, color: 'Red', type: BIKE }, { lane: 0, row: 1, color: 'Blue', type: BIKE }, { lane: 1, row: 1, color: 'Blue', type: BIKE }],
       bombs: ['Red', 'Blue'], boosters: ['swap'], counter: 'x0', loop: 5.0,
@@ -147,7 +147,7 @@ export const DEMO_SCENES = {
     },
   },
   first_kill: {
-    ribbon: 'FIRST KILL!', title: 'BOOM!', sub: '10 CARS = A BOMB BOOSTER',
+    ribbon: 'FIRST BOOM!', title: 'BOOM!', sub: '10 CARS = A BOMB BOOSTER',
     caption: 'Every 10 cars you destroy earn a BOMB booster',
     scene: {
       lanes: 2, cars: [{ lane: 0, row: 2, color: 'Red', type: BIKE }, { lane: 1, row: 2, color: 'Blue', type: BIKE }, { lane: 0, row: 1, color: 'Red', type: BIKE }],

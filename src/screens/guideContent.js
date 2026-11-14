@@ -58,13 +58,13 @@ export const CARDS = {
   gift_car:        { title: 'GIFT CARS', text: 'Cars with a bow carry a gift. Destroy one for a free booster!', target: 'road' },
   traffic_light:   { title: 'TRAFFIC LIGHT', text: 'On red, this lane stands still. The number shows the shots left.', target: 'light' },
   convoy:          { title: 'CONVOY', text: 'One lane is all motorbikes. One hit each: clear them fast!', target: 'road' },
-  rainbow_bomb:    { title: 'RAINBOW BOMB', text: '3 multi-kill shots in a row earn a RAINBOW bomb. It hits one color in every lane.', target: 'bombs' },
+  rainbow_bomb:    { title: 'RAINBOW BOMB', text: '3 multi-blast shots in a row earn a RAINBOW bomb. It hits one color in every lane.', target: 'bombs' },
 
   freeze_earned:   { title: 'FREEZE EARNED!', text: '3+ cars with one bomb earned a FREEZE. Tap it for a free shot.', target: 'boosterFreeze' },
-  colour_change_earned: { title: 'COLOR SWAP EARNED!', text: '2 multi-kill shots in a row earned a COLOR SWAP. Tap COLOR to use it.', target: 'boosterColor' },
+  colour_change_earned: { title: 'COLOR SWAP EARNED!', text: '2 multi-blast shots in a row earned a COLOR SWAP. Tap COLOR to use it.', target: 'boosterColor' },
 
   // ── In-play moments (only inside their window, see introSchedule.js) ──
-  first_kill:      { title: 'FIRST KILL!',     text: `Destroy ${KILLS_PER_BOMB} cars to earn a BOMB booster.`, target: 'goal' },
+  first_kill:      { title: 'FIRST BOOM!',     text: `Destroy ${KILLS_PER_BOMB} cars to earn a BOMB booster.`, target: 'goal' },
   first_combo:     null,   // taught by the L2 COMBO card
   combo_hint_L2:   null,   // folded into combo
   first_miss:      { title: 'WRONG COLOR',    text: 'No damage! A bomb only hurts cars of its own color.' },

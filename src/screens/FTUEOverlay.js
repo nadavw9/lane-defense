@@ -310,7 +310,7 @@ export class FTUEOverlay {
     grp.addChild(bg);
 
     const txt = new Text({
-      text: 'COMBO! Chain kills quickly for bonus coins\nand faster fire speed!',
+      text: 'COMBO! Chain blasts quickly for bonus coins\nand faster fire speed!',
       style: {
         fontSize: 14, fontWeight: 'bold', fill: 0xffee88, align: 'center',
         wordWrap: true, wordWrapWidth: w - 60,

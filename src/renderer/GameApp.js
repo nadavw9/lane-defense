@@ -2544,7 +2544,7 @@ async function main() {
 
   gameLoop._onColorBombEarned = () => {
     comboFX.triggerColorBomb('Rainbow');
-    popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildFlashText(w, '3 MULTI-KILLS!', 0xffe14a), 1.6);
+    popupQueue.enqueue(PRIORITY.COMBO, (w) => _buildFlashText(w, '3 MULTI-BLASTS!', 0xffe14a), 1.6);
     audio.play('color_bomb', { color: 'Rainbow' });
     haptics.heavy();
     // Explained once, inside its window (L4-10); the L10 start card covers everyone else.
@@ -3275,7 +3275,7 @@ function _buildMultiKillPopup(w, killCount) {
 
   // ── Label above the number ──
   const label = new Text({
-    text: 'MULTI-KILL!',
+    text: 'MULTI-BLAST!',
     style: { fontSize: 16, fontWeight: '900', fill: 0xffffff, letterSpacing: 2,
       stroke: { color: tierCol, width: 3 },
       dropShadow: { color: 0x000000, blur: 5, distance: 0, alpha: 0.9 } },

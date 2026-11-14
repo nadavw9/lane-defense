@@ -12,6 +12,10 @@ on:
         description: 'How long the autopilot plays (the recording runs ~15 s longer)'
         default: '170'
         required: true
+      att:
+        description: 'yes = the build shows the real App Tracking Transparency prompt and the run taps Allow (App Review 13 Nov 2026 asked to see it)'
+        default: 'yes'
+        required: true
 
 permissions:
   contents: read
@@ -23,6 +27,7 @@ jobs:
     env:
       VITE_DEMO_AUTOPILOT: 'true'
       VITE_DEMO_SECONDS: ${{ github.event.inputs.seconds }}
+      VITE_DEMO_ATT: ${{ github.event.inputs.att == 'yes' && 'true' || 'false' }}
       VITE_ADS_MODE: test
       VITE_APP_VERSION: review-video
     steps:
@@ -53,6 +58,17 @@ jobs:
           APP=$(ls -d build/Build/Products/Debug-iphonesimulator/App.app)
           echo "APP=$APP" >> "$GITHUB_ENV"
           echo "::notice title=App::$(du -sh "$APP" | cut -f1)"
+
+      # Tapping the ATT system alert: macOS accessibility (osascript on the Simulator window) first,
+      # idb (taps through CoreSimulator, needs no accessibility permission) as the fallback.
+      - name: Tools to tap the tracking prompt
+        if: env.VITE_DEMO_ATT == 'true'
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          brew tap facebook/fb >/dev/null && brew install facebook/fb/idb-companion >/dev/null || echo "idb-companion not installed"
+          pip3 install --quiet --break-system-packages fb-idb || pip3 install --quiet fb-idb || echo "fb-idb not installed"
+          command -v idb && echo "::notice title=idb::ready" || true
 
       - name: Boot an iPhone simulator
         run: |
@@ -101,6 +117,20 @@ jobs:
           log "launch ..."
           lim 90 xcrun simctl launch "$UDID" com.nadavw.trafficbomb > out/launch.log 2>&1
           log "launch rc=$? $(tr '\n' ' ' < out/launch.log)"
+          if [ "$VITE_DEMO_ATT" = "true" ]; then
+            # The app asks once it is active (src/ads/tracking.js). Look for the alert's Allow button
+            # for up to ~2 minutes; stop at the first successful tap. scripts/ci/att-tap.sh does the work.
+            ATT=none
+            for i in $(seq 1 24); do
+              sleep 5
+              r=$(bash scripts/ci/att-tap.sh "$UDID" 2>&1)
+              log "ATT try $i: $(echo "$r" | tr '\n' ' ' | head -c 300)"
+              case "$r" in *CLICKED*) ATT=$(echo "$r" | grep -o 'CLICKED-[a-z]*'); break;; esac
+            done
+            log "ATT result: $ATT"
+            echo "::notice title=Tracking prompt::$ATT"
+            echo "$ATT" > out/att-result.txt
+          fi
           # Wall clock only (run 3: screenshots took 30 s+ each and starved the game). The autopilot
           # plays VITE_DEMO_SECONDS of real time from its start; 25 s more covers launch + the title.
           END=$(( $(date +%s) + ${VITE_DEMO_SECONDS:-170} + 25 ))

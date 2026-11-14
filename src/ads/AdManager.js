@@ -119,7 +119,13 @@ export class AdManager {
     if (!Capacitor.isNativePlatform()) return;
     // App Review demo build (simulator recording): no consent form, no tracking prompt (system
     // alerts nothing could tap there); the web-style mock ads stand in. Store builds never set it.
-    if (import.meta.env.VITE_DEMO_AUTOPILOT === 'true') { this._consent = true; return; }
+    // VITE_DEMO_ATT=true keeps the real tracking prompt in that build: App Review (13 Nov 2026) asked
+    // to SEE it, and the review-video workflow taps "Allow" on the simulator.
+    if (import.meta.env.VITE_DEMO_AUTOPILOT === 'true') {
+      if (import.meta.env.VITE_DEMO_ATT === 'true' && PLATFORM === 'ios') await this._requestTracking();
+      this._consent = true;
+      return;
+    }
     try {
       // Live ads require VITE_ADS_MODE=live at build time; anything else (missing,
       // misspelt, or a dev build) is test mode: test ads, no revenue. Fail-safe by

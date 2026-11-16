@@ -3,7 +3,7 @@
 // preloaded via UI_ICON_URLS in assetManifest.js), or a centered Text fallback
 // showing the emoji when the texture hasn't loaded — a missing icon never
 // blocks a screen.
-import { Sprite, Text, Assets, NineSliceSprite } from 'pixi.js';
+import { Sprite, Text, Assets, NineSliceSprite, Container } from 'pixi.js';
 
 const _B = import.meta.env.BASE_URL;
 function iconUrl(name) { return `${_B}sprites/ui/icon-${name}.png`; }
@@ -37,17 +37,34 @@ export function uiIcon(name, size, fallbackEmoji, opts = {}) {
 }
 
 // uiPlate(name, w, h) — a 9-slice button plate (public/sprites/ui/<name>.png,
-// preloaded via BUTTON_PLATE_URLS). Corner insets are clamped to the target
-// height/width so a short 40px pill never overlaps its own corners. Returns null
-// when the texture isn't loaded, so callers keep their Graphics fallback.
+// preloaded via BUTTON_PLATE_URLS). The plate is sliced at the ART's own scale
+// and then shrunk evenly to the target height, so the rounded corners keep their
+// drawn shape at any size. (It used to slice at screen scale: a 58px-tall card
+// button kept 27px of a 180px-tall corner and squeezed the rest into 4px, which
+// drew pointed ends with spikes — PrimeTestLab report 10510, M-01.)
+// PLATE_CORNER is the corner radius in the art (both plates measure ~60px).
+// Returns a Container w x h with its top-left at (0, 0), or null when the
+// texture isn't loaded, so callers keep their Graphics fallback.
+export const PLATE_CORNER = 64;
+export function plateSlices(texW, texH, w, h) {
+  const s = h / texH;
+  const inset = Math.min(PLATE_CORNER, Math.floor(texH / 2) - 1);
+  const geoW = w / s;
+  // A plate narrower than its two corners keeps what fits (never overlaps).
+  const side = Math.max(1, Math.min(inset, Math.floor(geoW / 2) - 1, Math.floor(texW / 2) - 1));
+  return { s, geoW, geoH: texH, side, inset };
+}
+
 export function uiPlate(name, w, h) {
   const tex = Assets.get(`${_B}sprites/ui/${name}.png`);
   if (!tex) return null;
-  const lw = Math.max(6, Math.min(58, Math.round(w * 0.4)));
-  const th = Math.max(6, Math.min(Math.round(tex.height * 0.42), Math.round(h * 0.46)));
-  const ns = new NineSliceSprite({ texture: tex, leftWidth: lw, rightWidth: lw, topHeight: th, bottomHeight: th });
-  ns.width = w; ns.height = h;
-  return ns;
+  const k = plateSlices(tex.width, tex.height, w, h);
+  const ns = new NineSliceSprite({ texture: tex, leftWidth: k.side, rightWidth: k.side, topHeight: k.inset, bottomHeight: k.inset });
+  ns.setSize(k.geoW, k.geoH);
+  ns.scale.set(k.s);
+  const c = new Container();
+  c.addChild(ns);
+  return c;
 }
 
 // boosterIcon(name, size, fallbackEmoji) — same contract as uiIcon but for the

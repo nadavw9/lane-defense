@@ -5,7 +5,7 @@ export const LATE_TUNING = {
   2: { heft: 1, ts: 1, gs: 1.6 },
   3: { heft: 1, ts: 1, gs: 1.6 },
   4: { heft: 1, ts: 1, gs: 1.6 },
-  5: { heft: 0.87, ts: 1, gs: 1 },
+  5: { heft: 0.64, ts: 1, gs: 1 },
   6: { heft: 1, ts: 1, gs: 1.6 },
   7: { heft: 0.69, ts: 1, gs: 0.98 },
   8: { heft: 1, ts: 1, gs: 1.22 },

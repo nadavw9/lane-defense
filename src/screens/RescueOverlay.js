@@ -14,6 +14,7 @@ import { uiIcon } from '../renderer/UIIcon.js';
 import { panel, ribbon, button, titleText, bodyText, backdrop, GOLD } from '../renderer/PremiumUI.js';
 import { INK, WHITE } from '../renderer/ToyStyle.js';
 import { RESCUE_COIN_COST } from '../director/DirectorConfig.js';
+import { breachLine } from './breachLine.js';
 
 const FLASH_DURATION = 0.45;   // seconds for the red screen flash
 
@@ -118,10 +119,7 @@ export class RescueOverlay {
     head.x = PW / 2; head.y = 180;
     card.addChild(head);
     const goalTotal = gs?.goals?.reduce((a, g) => a + g.count, 0) ?? 0;
-    const close = goalTotal > 0 && goalLeft <= goalTotal * 0.3;
-    const sub = bodyText(goalLeft <= 0 ? 'Keep going from right here?'
-      : goalLeft === 1 ? 'Just ONE car left to win!'
-      : close ? `Only ${goalLeft} cars left to win!` : 'Keep going from right here?', 16, GOLD, { outline: false });
+    const sub = bodyText(breachLine(goalLeft, goalTotal), 16, GOLD, { outline: false });
     sub.x = PW / 2; sub.y = 212;
     card.addChild(sub);
     // A live win streak is lost on RETRY / give up: say so, it is what a continue protects.

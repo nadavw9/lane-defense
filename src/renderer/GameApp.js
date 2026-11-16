@@ -2783,6 +2783,7 @@ async function main() {
     bridgeLayer.update(dt, gs);
     if (_bridgeTutPair && tutOrch.activeId() === 'bridge' && !_bridgeTutPair.stillThere()) { tutOrch.dismiss(); _bridgeTutPair = null; }
     else if (_bridgeTutPair && tutOrch.activeId() !== 'bridge') _bridgeTutPair = null;
+    hudRenderer.comboHeld = tutOrch.activeId() !== null;   // the combo never covers a hint's cars (PrimeTestLab S-01)
     gameRenderer3D.setPairs(gs.bridgesEnabled && !gs.isOver ? gs.bridges : []);   // bridged pairs = one vehicle
     trafficLights.update(dt, gs.trafficMoves ?? 0);
 

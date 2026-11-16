@@ -16,6 +16,7 @@ import { Graphics, Text } from 'pixi.js';
 import { INK, SUN, toyPanel } from './ToyStyle.js';
 import { BAR_Y } from './BoosterBar.js';
 import { uiIcon } from './UIIcon.js';
+import { comboVisible } from './comboVisibility.js';
 
 // ── Booster-row flank geometry ──────────────────────────────────────────────────
 // Everything lives on ONE row with the booster buttons (BoosterBar draws a
@@ -52,6 +53,8 @@ export class HUDRenderer {
     this._elapsed       = 0;
     this._lastCoins     = -1;
     this._lastCombo     = 0;
+    // Set by GameApp while a tutorial hint is up: the combo never covers what it points at.
+    this.comboHeld      = false;
     this._bounceT       = 0;
     this._prevComboTier  = -1;
     this._tierFlashT     = 0;
@@ -237,7 +240,7 @@ export class HUDRenderer {
 
   _refreshComboText() {
     const combo = this._gs.scoreChain ?? 0;   // correct shots in a row: the combo that pays (score.js)
-    if (combo < 2) {
+    if (!comboVisible(combo, this.comboHeld)) {
       this._comboText.text  = '';
       this._comboText.alpha = 0;
       this._lastCombo = combo;
@@ -268,7 +271,7 @@ export class HUDRenderer {
     const g     = this._comboGlowBg;
     const combo = this._gs.combo;
     g.clear();
-    if (combo < 2) return;
+    if (!comboVisible(combo, this.comboHeld)) return;
 
     const glowW = 200;
     const glowH = COMBO_PILL_H;

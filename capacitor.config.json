@@ -6,5 +6,10 @@
     "contentInset": "never",
     "scrollEnabled": false,
     "backgroundColor": "#7ED957"
+  },
+  "plugins": {
+    "SystemBars": {
+      "hidden": true
+    }
   }
 }

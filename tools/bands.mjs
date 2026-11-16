@@ -23,7 +23,13 @@ function baseBand(levelId) {
 // big waves (L50 on) 25 under, and the level after a hard one is a RELIEF level 6 points over
 // (capped at 95). Failing a hard level is the moment a continue or a booster is worth paying for;
 // the relief level after it gives the win back.
+// Level 5 brings the third colour. PrimeTestLab report 10510 (S-02, 2026-11-16): L4 and L6
+// sat near 92-98% but L5 near 75%, so the first breach came out of nowhere on the level that
+// adds a colour. It gets a softer band of its own, between its neighbours.
+const SOFT_INTRO = new Map([[5, { lo: 85, hi: 92 }]]);
+
 export function bandFor(levelId) {
+  if (SOFT_INTRO.has(levelId)) return { ...SOFT_INTRO.get(levelId), tier: 'intro' };
   const b = baseBand(levelId);
   if (b.tutorial) return b;
   const d = levelDifficulty(levelId);

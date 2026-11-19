@@ -1,5 +1,5 @@
-- Levels 2 and 3 make you think: stop the car closest to the red line first
-- Colorblind shapes now stay on linked (bridged) cars
-- Settings shows the real version number
-- The win screen says what score the next star needs
-- Friendlier words: FIRST BOOM! and multi-blast
+- The game now fills the whole screen: no more purple strips down the sides
+- Rounded green buttons on every card
+- The combo counter no longer covers the cars during a tutorial hint
+- The breach screen says how many cars were left to win
+- Level 5 (the third color) is a little easier

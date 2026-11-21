@@ -38,6 +38,10 @@ on:
         description: 'yes = release the uploaded build to the TestFlight Friends group (beta review); no = App Store build only (live ads stay off the friends link)'
         default: 'yes'
         required: false
+      version:
+        description: 'App Store version stamped on the build (e.g. 1.1.27); empty keeps the project version. A build attaches only to the App Store version with the same number.'
+        default: ''
+        required: false
   push:
     paths:
       - 'ios/**'
@@ -56,6 +60,7 @@ jobs:
       VITE_IOS_INTERSTITIAL_AD_ID: ${{ vars.VITE_IOS_INTERSTITIAL_AD_ID }}
       UPLOAD: ${{ github.event.inputs.upload || 'none' }}
       BUILD_NUMBER: ${{ github.run_number }}
+      MARKETING: ${{ github.event.inputs.version || '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -158,6 +163,7 @@ jobs:
             -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/App.xcarchive" \
             DEVELOPMENT_TEAM="$TEAM" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             GAD_APPLICATION_ID="$GAD_ID" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            ${MARKETING:+MARKETING_VERSION=$MARKETING} \
             archive | tail -40
           test "${PIPESTATUS[0]}" -eq 0
           sed -e "s/__TEAM_ID__/$TEAM/" -e "s/__PROFILE_NAME__/$PROFILE_NAME/" ios/ExportOptions.plist > "$RUNNER_TEMP/ExportOptions.plist"

@@ -49,8 +49,6 @@
 	     Traffic Bomb iOS app exists in AdMob; the release workflow passes the real one. -->
 	<key>GADApplicationIdentifier</key>
 	<string>$(GAD_APPLICATION_ID)</string>
-	<key>NSUserTrackingUsageDescription</key>
-	<string>This lets us show you ads that are more relevant to you. Traffic Bomb stays free either way.</string>
 	<key>SKAdNetworkItems</key>
 	<array>
 		<dict>

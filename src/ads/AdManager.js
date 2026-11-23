@@ -7,8 +7,6 @@
 // a native wrapper.
 //
 import { Capacitor } from '@capacitor/core';
-import { App as CapApp } from '@capacitor/app';
-import { askTracking } from './tracking.js';
 import { interstitialWindowOpen, isInterstitialTurn, useTestAds } from './adPolicy.js';
 import { AdMob, RewardAdPluginEvents, InterstitialAdPluginEvents, AdmobConsentStatus } from '@capacitor-community/admob';
 import { logEvent } from '../analytics/Analytics.js';
@@ -45,9 +43,13 @@ const TEST_ADS = testAdsFor(import.meta.env, PLATFORM);
  * test unit instead of ours, so a tester build never shows (or earns from) a real ad.
  * Before 2026-10-20 this flag was missing and test builds served live ads.
  */
-export function adOptions(adId, testAds = TEST_ADS) {
+export function adOptions(adId, testAds = TEST_ADS, platform = PLATFORM) {
   // A test request ignores adId (the plugin loads Google's test unit), but must still carry one.
-  return { adId: adId ?? REWARDED_AD_ID, isTesting: testAds };
+  const o = { adId: adId ?? REWARDED_AD_ID, isTesting: testAds };
+  // iOS does not track (owner, 23 Nov 2026, after App Review twice could not find the tracking
+  // prompt): no App Tracking Transparency request, non-personalised ads only.
+  if (platform === 'ios') o.npa = true;
+  return o;
 }
 // ── Booster costs (ads required to unlock) ─────────────────────────────────
 export const AD_COSTS = {
@@ -117,12 +119,9 @@ export class AdManager {
   // Register AdMob on native. No-op on web. Call once at app startup.
   async init() {
     if (!Capacitor.isNativePlatform()) return;
-    // App Review demo build (simulator recording): no consent form, no tracking prompt (system
-    // alerts nothing could tap there); the web-style mock ads stand in. Store builds never set it.
-    // VITE_DEMO_ATT=true keeps the real tracking prompt in that build: App Review (13 Nov 2026) asked
-    // to SEE it, and the review-video workflow taps "Allow" on the simulator.
+    // App Review demo build (simulator recording): no consent form (a system alert nothing could
+    // tap there); the web-style mock ads stand in. Store builds never set it.
     if (import.meta.env.VITE_DEMO_AUTOPILOT === 'true') {
-      if (import.meta.env.VITE_DEMO_ATT === 'true' && PLATFORM === 'ios') await this._requestTracking();
       this._consent = true;
       return;
     }
@@ -138,38 +137,12 @@ export class AdManager {
       // status comes back NOT_REQUIRED and nothing is shown. The form itself is
       // the GDPR message configured in the AdMob console (Privacy & messaging).
       const info = await this._resolveConsent();
-      // iOS 14.5+: Apple's App Tracking Transparency prompt, after the consent form and before
-      // the first ad request (Info.plist NSUserTrackingUsageDescription). A refusal still
-      // gets ads, just not personalised by the device's ad ID.
-      if (PLATFORM === 'ios') await this._requestTracking();
       this._native = info.canRequestAds;
       this._consent = info.canRequestAds;
     } catch (e) {
       console.warn('[AdManager] AdMob init failed:', e);
       this._consent = false;
     }
-  }
-
-  // iOS drops an ATT request made before the app is active (App Review never saw the prompt on
-  // build 20); askTracking waits for an active app and retries on the first tap. See tracking.js.
-  async _requestTracking() {
-    await askTracking({
-      status: () => AdMob.trackingAuthorizationStatus(),
-      request: () => AdMob.requestTrackingAuthorization(),
-      isActive: async () => {
-        try { return (await CapApp.getState()).isActive; } catch { return document.visibilityState === 'visible'; }
-      },
-      onActive: (cb) => {
-        let h = null;
-        CapApp.addListener('appStateChange', ({ isActive }) => {
-          if (!isActive) return;
-          h?.remove?.();
-          cb();
-        }).then((x) => { h = x; }).catch(() => cb());
-      },
-      onFirstTap: (cb) => window.addEventListener('pointerdown', () => cb(), { once: true, capture: true }),
-      settle: () => new Promise((r) => setTimeout(r, 800)),
-    });
   }
 
   /** True when the player may be measured: web (no consent regime) or UMP allows it. */

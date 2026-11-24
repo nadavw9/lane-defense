@@ -90,7 +90,9 @@ jobs:
         with:
           name: TrafficBomb-aab-v${{ github.run_number }}-ads-${{ env.VITE_ADS_MODE }}
           path: android/app/build/outputs/bundle/release/app-release.aab
-          retention-days: 30
+          # A signed (possibly live-ads) build in a public repo: keep it only long enough to
+          # download (security review, 24 Nov 2026).
+          retention-days: 3
 
       # The same build as a signed APK: the file the owner sends friends who install outside Play
       # (2026-10-31). Same upload key and version code as the bundle, so it is one build, two files.
@@ -98,7 +100,7 @@ jobs:
         with:
           name: TrafficBomb-apk-v${{ github.run_number }}-ads-${{ env.VITE_ADS_MODE }}
           path: ${{ runner.temp }}/TrafficBomb-1.1.${{ github.run_number }}.apk
-          retention-days: 90
+          retention-days: 3
 
       - name: Upload to Google Play
         if: ${{ github.event.inputs.track != 'none' }}
@@ -107,7 +109,9 @@ jobs:
         run: |
           if [ -z "$SA" ]; then echo "::error::PLAY_SERVICE_ACCOUNT_JSON is not set (bundle is still in the artifacts)"; exit 1; fi
 
-      - uses: r0adkll/upload-google-play@v1
+      # Pinned to the commit behind v1 / v1.1.5 (security review, 24 Nov 2026): this third-party
+      # action receives the Play service-account secret, so a moved tag must not change its code.
+      - uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
         if: ${{ github.event.inputs.track != 'none' }}
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}

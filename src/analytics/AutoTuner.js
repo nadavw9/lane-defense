@@ -1,19 +1,16 @@
 // AutoTuner — passive difficulty adjustment driven by real win-rate data.
 //
-// On startup it fetches the 50 most-recent sessions from Firebase (fire-and-
-// forget).  For each level with ≥ 5 sessions it computes a win rate and
-// nudges a per-level modifier stored in localStorage:
+// It used to fetch the 50 most-recent sessions from the shared Firebase database on startup.
+// That remote read is gone (security review, 25 Nov 2026): rows anyone can write must never
+// change difficulty for every player. Only modifiers already cached in localStorage apply.
+// For each level with ≥ 5 sessions _computeModifiers nudges a per-level modifier:
 //
 //   win rate < 60%  → speed × 0.90, HP × 0.90  (capped at 0.50 / 0.40)
 //   win rate > 95%  → speed × 1.05             (capped at 2.0)
 //
-// Modifiers compound on repeated runs (each fetch applies one increment).
+// Modifiers compound: each _computeModifiers run applies one increment.
 // LevelManager reads getModifier(levelId) when building a level config.
-//
-// Never blocks game startup — if the fetch fails, cached localStorage
-// values are used unchanged.
 
-const DB_URL = 'https://lanedefense-analytics-default-rtdb.firebaseio.com/sessions.json';
 const LS_KEY = 'lanedefense_autotuner_v1';
 
 const MIN_SAMPLES    = 5;
@@ -37,30 +34,7 @@ export class AutoTuner {
     return this._modifiers[levelId] ?? { speedFactor: 1.0, hpFactor: 1.0 };
   }
 
-  // Kick off the async fetch.  Returns immediately — never awaited by caller.
-  startFetch() {
-    this._fetchAndUpdate().catch(() => {
-      // Silently keep existing localStorage modifiers.
-    });
-  }
-
   // ── Private ──────────────────────────────────────────────────────────────────
-
-  async _fetchAndUpdate() {
-    // Firebase REST: orderBy="$key" + limitToLast gives ~chronological 50 newest.
-    const url = `${DB_URL}?orderBy=%22%24key%22&limitToLast=50`;
-    const res  = await fetch(url);
-    if (!res.ok) return;
-
-    const raw = await res.json();
-    if (!raw || typeof raw !== 'object') return;
-
-    const sessions = Object.values(raw).filter(Boolean);
-    if (sessions.length === 0) return;
-
-    this._computeModifiers(sessions);
-    this._save();
-  }
 
   _computeModifiers(sessions) {
     // Group by level id.

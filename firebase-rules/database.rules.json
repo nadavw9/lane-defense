@@ -1,6 +1,16 @@
 {
   "rules": {
     ".read": false,
-    ".write": false
+    ".write": false,
+    "events": {
+      "$id": {
+        ".write": "!data.exists() && newData.hasChildren(['event', 'playerId']) && newData.child('event').isString() && newData.child('event').val().length <= 48 && newData.child('playerId').isString() && newData.child('playerId').val().length <= 64 && ((newData.child('ts').isNumber() && newData.child('ts').val() > now - 86400000 && newData.child('ts').val() < now + 86400000) || (newData.child('timestamp').isNumber() && newData.child('timestamp').val() > now - 86400000 && newData.child('timestamp').val() < now + 86400000))"
+      }
+    },
+    "sessions": {
+      "$id": {
+        ".write": "!data.exists() && newData.hasChildren(['playerId', 'levelId', 'result', 'timestamp']) && newData.child('playerId').isString() && newData.child('playerId').val().length <= 64 && newData.child('levelId').isNumber() && newData.child('levelId').val() >= 0 && newData.child('levelId').val() <= 1000 && newData.child('result').isString() && newData.child('result').val().length <= 16 && newData.child('timestamp').isNumber() && newData.child('timestamp').val() > now - 86400000 && newData.child('timestamp').val() < now + 86400000"
+      }
+    }
   }
 }

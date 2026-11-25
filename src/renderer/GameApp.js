@@ -402,11 +402,9 @@ async function main() {
   // ── Level manager ─────────────────────────────────────────────────────────
   const levelManager = new LevelManager();
 
-  // AutoTuner: load cached modifiers from localStorage, then fetch fresh data
-  // from Firebase in the background.  Never blocks startup.
+  // AutoTuner: cached localStorage modifiers only (no remote read since 25 Nov 2026).
   const autoTuner = new AutoTuner();
   levelManager.setAutoTuner(autoTuner);
-  autoTuner.startFetch();
 
   const initialCfg = levelManager.current;
 

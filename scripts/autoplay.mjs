@@ -60,7 +60,7 @@ for (const lv of levels) {
   await p.screenshot({ path: `${out}/L${lv}-end.png` });
   report.push(r);
   const ev = r.events.map(e => e.kind).join(',');
-  console.log(`L${lv} ${r.result} turns=${r.turns} kills=${r.kills} goal=${r.goalLeft} ${r.wallS}s events=[${ev}] errors=${r.errors.length} score=${r.score} stars@${(r.starTargets ?? []).join("/")}${process.env.BRIDGE ? ` bridges=${r.bridgesMade} bridgeKills=${r.bridgeKills}` : ''}`);
+  console.log(`L${lv} ${r.result} turns=${r.turns} kills=${r.kills} goal=${r.goalLeft} ${r.wallS}s events=[${ev}] errors=${r.errors.length} score=${r.score} stars@${(r.starTargets ?? []).join("/")} combo=${r.maxCombo} shots=${r.shotLog?.shots} combo-breaks=${r.shotLog?.misses} boosters=${JSON.stringify(r.stats)} types=${JSON.stringify(r.types)}${process.env.BRIDGE ? ` bridges=${r.bridgesMade} bridgeKills=${r.bridgeKills}` : ''}`);
   writeFileSync(`${out}/report.json`, JSON.stringify(report, null, 1));
 }
 await b.close();
@@ -133,7 +133,13 @@ async function playLevel({ capMs, bridge = false }) {
 
   const t0 = performance.now();
   let emptySince = null, lastTurnAt = performance.now(), lastTurn = gs.turnCount;
+  const shotLog = { shots: 0, misses: 0 };   // every resolved shot and every one that hit nothing (breaks the combo)
+  const _origResolve = gl._resolveShot.bind(gl);
+  gl._resolveShot = (...a) => { shotLog.shots++; const before = gs.scoreChain; const r = _origResolve(...a); if (gs.scoreChain === 0 && before > 0) shotLog.misses++; return r; };
+  const seenCars = new WeakSet(), types = {};   // every car that appeared, by type (score parity checks)
+  const trackTypes = () => { for (const l of gs.lanes) for (const c of l.cars) if (!seenCars.has(c)) { seenCars.add(c); types[c.type] = (types[c.type] ?? 0) + 1; } };
   while (performance.now() - t0 < capMs) {
+    trackTypes();
     if (gs.isOver) {
       if (gs.won) break;
       if (!events.some(e => e.kind === 'lost')) events.push({ kind: 'lost', turn: gs.turnCount, history: history.slice(), after: board() });
@@ -306,5 +312,5 @@ async function playLevel({ capMs, bridge = false }) {
   const end = nav.getScreens();
   if (gs.isOver && gs.won && !end.win) ev('noWinScreen');
   if (gs.isOver && gs.won && end.boosters && Object.values(end.inventory).some(v => v < 0)) ev('negativeInventory');
-  return { result: gs.isOver ? (gs.won ? 'win' : 'lose') : 'timeout', turns: gs.turnCount, kills: gs.totalKills, goalLeft, events, stats, rescueUsed: gs.rescueUsed, bridgesMade: gs.bridgesMade, bridgeKills: gs.bridgeKills, score: gs.score, starTargets: gs.starTargets };
+  return { result: gs.isOver ? (gs.won ? 'win' : 'lose') : 'timeout', turns: gs.turnCount, kills: gs.totalKills, goalLeft, events, stats, rescueUsed: gs.rescueUsed, bridgesMade: gs.bridgesMade, bridgeKills: gs.bridgeKills, score: gs.score, starTargets: gs.starTargets, maxCombo: gs.maxCombo, types, shotLog };
 }

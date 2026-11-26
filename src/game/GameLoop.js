@@ -813,7 +813,7 @@ export class GameLoop {
           const row = freeSpawnRow(lane.cars, stepSize(gs.stepsPerRow), ROWS);
           if (row < 0) break;   // lane physically full — nothing more to add
           const neighbour = prevArrival && Math.abs(prevArrival.row - row) < 1e-6 ? prevArrival.color : null;
-          const car = this._carDir.generateCar(lane, 'CALM', gs.world, gs.colors, gs.gridRows, neighbour);
+          const car = this._carDir.generateCar(lane, gs.phaseMan.getCurrentPhase(), gs.world, gs.colors, gs.gridRows, neighbour);   // progress phase (parity with the sim)
           // The new car takes the back of the lane; cars behind the gap drive forward into it.
           placeArrival(lane.cars, car, row);
           for (const c of lane.cars) c.position = this._rowToPosition(c.row, ROWS);
@@ -886,7 +886,10 @@ export class GameLoop {
 
     gs.elapsed += dt;
 
-    gs.phaseMan.update(gs.elapsed);
+    // The intensity phase (car mix, column supply) runs on GOAL PROGRESS, never the clock — the
+    // simulator's rule (SimulationRunner: elapsed = duration x progress), so a fast player and a slow
+    // one see the same traffic and the tuned bands hold (tests/spawn-phase-parity.test.js).
+    gs.phaseMan.update(gs.phaseMan.levelDuration * this._goalProgressPct());
     const phaseParams = gs.phaseMan.getParams();
     const dirState    = gs.asDirectorState();
 

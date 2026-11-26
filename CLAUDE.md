@@ -11,6 +11,27 @@ An approved 3-workstream master plan is in progress (WS1 testing DONE → WS2 UI
 Route mechanical spec-execution to cheaper models; reserve Fable/Opus for design judgment
 (playbook §2).
 
+### FIRST BREACH LOSES + REACHABLE STARS (2026-11-26, branch `feat/no-barriers`) — read first
+
+Owner (device play): "a first car passing the finish doesn't fail the level, that seems weird and not
+clear ... I thought I was going to lose"; and "3 stars is unreachable, I always get 1". Research: the
+rule is PvZ's lawnmower, but there the mower is visible; the owner chose to REMOVE it (not make it
+clearer). Now:
+- **No lane barriers.** `TrafficRules.resolveBreach(cars, maxRow)` returns `{ breached }`; the first car
+  past the line is the loss (GameLoop and the sim). Barrier state, `Road3D` lane blocks,
+  `BarrierIntroCard`, the `barrier_down` card and `_barrier-shots.mjs` are gone;
+  `tests/no-barriers.test.js` keeps them out. CONTINUE is the only second chance. Captures:
+  `scripts/_breach-shots.mjs` (works on any build: before/after pairs).
+- **Tuner levers** (`tools/tune-levels.mjs`): `levelDsl.tuneTraits(traits, goals, ts, gb)` — `ts`
+  thins only traits NO goal asks for, `gb` (new field in `lateTuning.js`) boosts a trait goal's own
+  cars (thinning them made trait-goal levels drag on: L124 23% -> 7%); the tuner keeps the boost that
+  wins most (volatile/mender goals are hazards). `GS_LO` 0.5 -> 0.3. Result: 197/200 in band,
+  average goal scale 0.60 (was 0.81 with barriers): levels are ~25% shorter. Below band, flagged for
+  device play: L86 (42%), L119 (25%), L169 (44%); lights are not the cause (probed).
+- **Stars** (`tools/tune-stars.mjs`): two/three = 10th/35th percentile of the `human` profile's
+  winning scores (were 35th/75th: a perfect game earned three in only a quarter of its wins).
+  `tests/stars-reachable.test.js` pins >= 50% three-star wins, out of sample, on 11 levels.
+
 ### BRIDGES, DEMONSTRATIONS, A BENCH THAT FILLS (2026-10-31, branch `feat/bridges`) — read first
 
 Owner (a friend at L10: "easy, repetitive, no thinking"; testers skip every card): "for two cars to
@@ -77,7 +98,7 @@ that needs reading.
   no wrong-colour shot (a mismatched drop bounces back to its column before it fires), so the Hot
   Streak needs no rule for one; return + store on the bench in one turn is allowed. Run bots only while no src file is being edited (an HMR reload kills every run).
 
-### LANE BARRIERS, WAVES, HONEST DIFFICULTY (2026-10-30, branch `feat/lane-barriers`)
+### LANE BARRIERS, WAVES, HONEST DIFFICULTY (2026-10-30, branch `feat/lane-barriers`) — barriers REMOVED 2026-11-26 (above); waves and the rest stand
 
 Owner (device play): "levels are too short and too easy, I never failed one; the supercharge is too
 strong". Diagnosis (spec `docs/superpowers/specs/2026-10-30-lane-barriers-design.md` §1): the tuner

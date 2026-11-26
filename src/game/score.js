@@ -1,27 +1,27 @@
 // Score and stars (2026-10-19, owner: "it should be a factor of points ... a bar with 1, 2 and 3
 // stars per level that progresses with each point you get for car shooting and combos").
 //
-// Points: every destroyed car pays POINTS.car; a shot that destroys several pays each extra car a
-// bonus; and correct shots IN A ROW build the COMBO (any shot that hits a car of its colour,
-// including one that only shrinks a big car; a wasted shot breaks it), which adds a growing,
-// capped bonus to every hit. It is the "xN COMBO" on screen (2026-10-22, owner: the stars must
-// come from points "where combos bring extra"; the screen used to show a 2-second kill window that
-// paid nothing). The combo is shot-based, so the simulator scores exactly as the game does. Booster kills (lane clear, rainbow) pay the
-// car value only. Stars: a win is one star; the per-level targets give two and three. Targets come
-// from simulated winning runs (tools/tune-stars.mjs -> starTargets.js), so three stars is always
-// reachable by a good game; a level missing from the table derives them from its goal.
-import { STAR_TARGETS } from './starTargets.js';
-
+// Points: every destroyed car pays POINTS.car plus the COMBO bonus; a shot that destroys several
+// pays each extra car a bonus too. Correct shots IN A ROW build the combo (any shot that hits a car
+// of its colour, including one that only shrinks a big car; a wasted shot breaks it). It is the
+// "xN COMBO" on screen. Since 2026-11-26 (owner: "3 stars is unreachable, I always get 1") the bonus
+// is paid per car DESTROYED, never on a shrink hit: paid per hit, chipping at big cars out-scored
+// picking cars off, so the smarter game scored less. Booster kills (lane clear, rainbow) pay the car
+// value only. The simulator calls the same functions.
+//
+// Stars: a win is one star; two and three come from the goal (starTargetsFor): a CLEAN game (the
+// goal's cars destroyed, the combo never broken) is three stars with room to spare.
 export const POINTS = { car: 100, multiExtra: 50, chainStep: 25, chainCap: 150 };
 
-/** Points for one shot that hit (`hit`) and destroyed `kills` cars, with `chain` correct shots in a row before it. */
+/** Points for one shot that hit (`hit`) and destroyed `kills` cars, with `chain` correct shots in a row
+ *  before it. Every car destroyed earns the combo bonus, so a bridged pair pays at least what two shots
+ *  would; a hit that only shrinks a car pays nothing but still extends the combo (nextChain). */
 export function shotPoints(kills, chain, hit = kills > 0) {
-  if (!hit) return 0;
   const k = Math.max(0, kills);
-  return k * POINTS.car + Math.max(0, k - 1) * POINTS.multiExtra + Math.min(POINTS.chainCap, chain * POINTS.chainStep);
+  if (!hit || k === 0) return 0;
+  return k * (POINTS.car + Math.min(POINTS.chainCap, chain * POINTS.chainStep)) + (k - 1) * POINTS.multiExtra;
 }
 
-/** The chain after a shot: one more for any kill (a multi-kill is one step), else broken. */
 /** The combo after a shot: one longer if it hit, broken if it was wasted. */
 export function nextChain(chain, hit) { return hit ? chain + 1 : 0; }
 
@@ -30,12 +30,21 @@ export function starsFor(score, [, two, three]) {
   return score >= three ? 3 : score >= two ? 2 : 1;
 }
 
-/** [one, two, three] targets for a level; `goalCars` = total cars its goals ask for. */
-export function starTargetsFor(levelId, goalCars) {
-  const t = STAR_TARGETS[levelId];
-  if (t) return [...t];
-  const one = Math.max(1, goalCars) * POINTS.car;
-  return [one, Math.round(one * 1.25 / 10) * 10, Math.round(one * 1.5 / 10) * 10];
+/** Points of a CLEAN game: `goalCars` cars destroyed one per shot, the combo never broken. */
+export function cleanGamePoints(goalCars) {
+  let pts = 0;
+  for (let i = 0; i < goalCars; i++) pts += shotPoints(1, i);
+  return pts;
+}
+
+/** [one, two, three] targets from the cars the goals ask for: one = their points (every win has
+ *  them), two = 70% and three = 90% of a clean game, on 25s and strictly rising. A clean game is
+ *  always three stars; a booster kill, a broken combo or a CONTINUE's lost shots cost points. */
+export function starTargetsFor(goalCars) {
+  const g = Math.max(1, goalCars), clean = cleanGamePoints(g), r25 = (x) => Math.floor(x / 25) * 25;
+  const one = g * POINTS.car;
+  const two = Math.max(one + 25, r25(clean * 0.7));
+  return [one, two, Math.max(two + 25, r25(clean * 0.9))];
 }
 
 /** Stars reached so far in play (0 before the first target). */

@@ -50,14 +50,15 @@ describe('the game keeps score per shot', () => {
     expect(gs.score).toBe(2 * POINTS.car + POINTS.chainStep);
   });
 
-  it('a hit that only shrinks a car keeps the combo and pays its bonus (owner 2026-10-22)', () => {
+  // 2026-11-26 (owner): the combo bonus is paid on kills only; a shrink hit keeps the combo, pays nothing.
+  it('a hit that only shrinks a car keeps the combo but pays nothing', () => {
     const { gs, loop } = setup();
     gs.lanes[0].cars = [bike(1, 'Red', 3)];
     loop._resolveShot(new Shooter({ color: 'Red', damage: 1, column: 0 }), 0);
     gs.lanes[0].cars = [mk('Red', 3, 2, 'big')];
     loop._resolveShot(new Shooter({ color: 'Red', damage: 1, column: 0 }), 0);   // shrinks, no kill
     expect(gs.scoreChain).toBe(2);
-    expect(gs.score).toBe(POINTS.car + POINTS.chainStep);
+    expect(gs.score).toBe(POINTS.car);
   });
 
   it('a wrong-colour shot breaks the combo', () => {

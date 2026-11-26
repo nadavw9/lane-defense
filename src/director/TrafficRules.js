@@ -133,19 +133,14 @@ export function pushTrafficBack(cars, rowsBack) {
   return keep;
 }
 
-// ── Lane barriers ────────────────────────────────────────────────────────────
-// Every lane starts a level with ONE barrier at the breach line (2026-10-30, spec
-// docs/superpowers/specs/2026-10-30-lane-barriers-design.md). The first car through a lane
-// crashes into it: car and barrier are both destroyed and NOTHING is credited (no goal, coins,
-// score or streak). The next car through that lane is the loss. A CONTINUE restores no barrier.
-// `cars` is one lane (any order); `maxRow` is the last row a car may stand on. Returns the car
-// that crashed (null if none) and the cars that breached (a loss when non-empty). Shared by
-// GameLoop._advanceGrid and the simulator so both play the same rule.
-export function resolveBreach(cars, maxRow, hasBarrier) {
-  const over = cars.filter(c => c.row > maxRow).sort((a, b) => b.row - a.row);
-  if (over.length === 0) return { crashed: null, breached: [] };
-  if (hasBarrier) return { crashed: over[0], breached: over.slice(1) };
-  return { crashed: null, breached: over };
+// ── Breach ───────────────────────────────────────────────────────────────────
+// The first car past the breach line ends the level (2026-11-26, owner: the one free crash per
+// lane, 2026-10-30, read as a loss that was not one; it is gone, tests/no-barriers.test.js).
+// `cars` is one lane (any order); `maxRow` is the last row a car may stand on. Returns the cars
+// that breached (a loss when non-empty), farthest first. Shared by GameLoop._advanceGrid and the
+// simulator so both play the same rule.
+export function resolveBreach(cars, maxRow) {
+  return { breached: cars.filter(c => c.row > maxRow).sort((a, b) => b.row - a.row) };
 }
 
 // ── Traffic lights ───────────────────────────────────────────────────────────

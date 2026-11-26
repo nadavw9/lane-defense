@@ -34,6 +34,9 @@ export class IntensityPhase {
     }
   }
 
+  /** The level length this timeline spans (the progress-driven phase maps progress 0..1 onto it). */
+  get levelDuration() { return this._levelDuration; }
+
   // Advance the state machine to the given elapsed time.
   update(elapsedTime) {
     this._elapsed = Math.max(0, Math.min(elapsedTime, this._levelDuration));

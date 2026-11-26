@@ -65,7 +65,7 @@ async function _shareWin(levelId, stars, combo) {
 // cars got, which the big board made all but impossible (owner, 2026-10-19).
 export function calcStars(gs) {
   const goal = (gs.goals ?? []).reduce((a, g) => a + (g.count ?? 0), 0);
-  return starsFor(gs.score ?? 0, gs.starTargets ?? starTargetsFor(gs.levelId, goal));
+  return starsFor(gs.score ?? 0, gs.starTargets ?? starTargetsFor(goal));
 }
 
 // ── WinScreen ──────────────────────────────────────────────────────────────────

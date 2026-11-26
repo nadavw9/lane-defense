@@ -853,7 +853,7 @@ async function main() {
     gs._initialGoals  = cfg.goals ? JSON.parse(JSON.stringify(cfg.goals)) : [];
     gs.goalProgress   = gs.goals.map(g => g.count);
     // Stars come from points (src/game/score.js); the targets are this level's, the daily derives them.
-    gs.starTargets    = starTargetsFor(cfg.isDaily ? 'daily' : cfg.id, gs.goals.reduce((a, g) => a + (g.count ?? 0), 0));
+    gs.starTargets    = starTargetsFor(gs.goals.reduce((a, g) => a + (g.count ?? 0), 0));
     carDir.setLevel(typeof cfg.id === 'number' ? cfg.id : 1);
     carDir.setSpawnScript(cfg.spawnScript ?? null);   // §3c staged boss waves (INFRA-C)
     carDir.setWaves(wavesFor(cfg));                    // waves: crests keyed on goal progress (same impl as the sim)

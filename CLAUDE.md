@@ -28,9 +28,18 @@ clearer). Now:
   wins most (volatile/mender goals are hazards). `GS_LO` 0.5 -> 0.3. Result: 197/200 in band,
   average goal scale 0.60 (was 0.81 with barriers): levels are ~25% shorter. Below band, flagged for
   device play: L86 (42%), L119 (25%), L169 (44%); lights are not the cause (probed).
-- **Stars** (`tools/tune-stars.mjs`): two/three = 10th/35th percentile of the `human` profile's
-  winning scores (were 35th/75th: a perfect game earned three in only a quarter of its wins).
-  `tests/stars-reachable.test.js` pins >= 50% three-star wins, out of sample, on 11 levels.
+- **Live car mix ramps with goal progress** (was: every live car spawned with phase `CALM`, while the
+  sim ramped CALM -> CLIMAX, so real levels were far lighter than tuned and scored below the sim's
+  lowest win). `GameLoop._step` drives `phaseMan` by `levelDuration x _goalProgressPct()`, never the
+  clock; `tests/spawn-phase-parity.test.js`.
+- **Scoring** (owner chose "bonus only on kills"): the combo bonus is paid per car DESTROYED
+  (`shotPoints`: k x (car + combo) + (k-1) x multiExtra); a shrink hit pays nothing but extends the
+  combo. Paid per hit, chipping at big cars out-scored picking cars off (real bot: 87% kill shots vs
+  the sim's 65%, scored below the 2-star line).
+- **Stars from the goal, not percentiles**: `starTargetsFor(goalCars)` = [goal x 100, 70%, 90% of
+  `cleanGamePoints(goal)`] (the goal's cars destroyed with the combo never broken). `starTargets.js`
+  and `tools/tune-stars.mjs` are deleted; nothing to regenerate after a retune.
+  `tests/stars-reachable.test.js` pins >= 50% three-star careful wins on 11 sampled levels.
 
 ### BRIDGES, DEMONSTRATIONS, A BENCH THAT FILLS (2026-10-31, branch `feat/bridges`) — read first
 
@@ -252,10 +261,8 @@ a hit that only shrinks a car extends it, a shot that hits nothing breaks it (a 
 on screen (HUDRenderer reads `gs.scoreChain`; 2026-10-22: the screen used to show a 2-second kill
 window that paid nothing, so stars felt unrelated to combos). `GameLoop._onCombo` updates the display
 on shrink shots and breaks; `onKill` stays kill-only. GameLoop and
-SimulationRunner score the same way. Per-level `[one, two, three]` targets are GENERATED into
-`src/game/starTargets.js` by `node tools/tune-stars.mjs 1-200 300 --write` (one = goal cars x 100, so a win
-always lights the first star; two/three = 35th/75th percentile of simulated winning scores; tutorial levels
-softer). Re-run it after any retune. In play the goal plaque's bar is a gold STAR BAR (stars evenly spaced,
+SimulationRunner score the same way. (SUPERSEDED 2026-11-26: the combo bonus is paid per car destroyed and
+the targets come from the goal, `starTargetsFor(goalCars)`; see FIRST BREACH LOSES at the top.) In play the goal plaque's bar is a gold STAR BAR (stars evenly spaced,
 `starBarFill`); the win screen shows a SCORE row. Level card says the goal in words (`src/screens/goalText.js`);
 the L1 tour has a MOVES LEFT card on the step ruler.
 

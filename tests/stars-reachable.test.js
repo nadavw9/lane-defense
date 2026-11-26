@@ -17,7 +17,7 @@ describe('three stars are reachable by playing well', () => {
     for (const id of SAMPLE) {
       const lm = new LevelManager(); lm.goToLevel(id);
       const goal = (lm.current.goals ?? []).reduce((a, g) => a + g.count, 0);
-      const targets = starTargetsFor(id, goal);
+      const targets = starTargetsFor(goal);
       const runner = SimulationRunner.fromLevel(lm.current, { skill: 'human' });
       let wins = 0, three = 0;
       for (let s = 1001; s < 1001 + RUNS; s++) {

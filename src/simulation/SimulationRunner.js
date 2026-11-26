@@ -179,8 +179,6 @@ export class SimulationRunner {
       // CONTINUES the simulated player takes after a breach (0 = the first breach ends the run).
       // Each one is the live CONTINUE: breaching cars leave, traffic is pushed back.
       continues:          levelConfig.continues          ?? 0,
-      // LANE BARRIERS (TrafficRules.resolveBreach): one free breach per lane. false = probes only.
-      barriers:           levelConfig.barriers           ?? true,
       bridges:            levelConfig.bridges,                       // undefined = by level id (bridgesEnabledFor); false = the non-bridger probe
       convoy:             levelConfig.convoy             ?? null,   // motorbike-only lanes
       firstColors:        levelConfig.firstColors        ?? null,   // L1 scripted opening colours (CarDirector.setColorScript)
@@ -261,8 +259,6 @@ export class SimulationRunner {
       id,
       cars: [],  // Array of { row: number, hp: number, type: string, color: string }
     }));
-    const barriers  = discreteLanes.map(() => this._cfg.barriers !== false);   // parity: GameState.barriers
-    let   barriersLost = 0;
     const bridges = [];                       // parity: GameState.bridges (car records by reference)
     let   bridgesMade = 0, bridgeKills = 0;
     // BENCH (human profile, BENCH_FROM_LEVEL on): four slots, one store per turn, parity with BenchStorage.
@@ -450,10 +446,9 @@ export class SimulationRunner {
         surgeOtherLanes(discreteLanes.map(l => l.cars), surgeFrom, STEP);
         surgeFrom = null;
       }
-      // Barriers, then breach — the same TrafficRules.resolveBreach the live GameLoop runs.
+      // Breach — the same TrafficRules.resolveBreach the live GameLoop runs.
       for (const lane of discreteLanes) {
-        const { crashed, breached } = resolveBreach(lane.cars, BREACH_ROW - 1, barriers[lane.id]);
-        if (crashed) { lane.cars.splice(lane.cars.indexOf(crashed), 1); barriers[lane.id] = false; barriersLost++; }
+        const { breached } = resolveBreach(lane.cars, BREACH_ROW - 1);
         if (breached.length > 0) lostAt = totalAdvances;   // marker (shot index), not a wall-clock time
       }
       pruneBridges(discreteLanes, bridges);   // speeders moved on, chameleons flipped, crashes
@@ -817,7 +812,6 @@ export class SimulationRunner {
       armorBreaks,
       continuesUsed,
       progressAtLoss,
-      barriersLost,
     };
   }
 
@@ -828,7 +822,7 @@ export class SimulationRunner {
       duration: cfg.duration, colors: cfg.colors, worldConfig: cfg.worldConfig,
       levelId: cfg.id, laneCount: cfg.laneCount, colCount: cfg.colCount,
       laneTargetCarCount: cfg.laneTargetCarCount, spawnBudget: cfg.spawnBudget,
-      gridRows: cfg.gridRows, stepsPerRow: cfg.stepsPerRow, goals: cfg.goals ?? [], barriers: cfg.barriers,
+      gridRows: cfg.gridRows, stepsPerRow: cfg.stepsPerRow, goals: cfg.goals ?? [],
       milestone: cfg.milestone, waves: cfg.waves, bridges: cfg.bridges,
       initialCars: cfg.initialCars ?? null, spawnScript: cfg.spawnScript ?? null,
       shooterColorWeights: cfg.shooterColorWeights ?? null,

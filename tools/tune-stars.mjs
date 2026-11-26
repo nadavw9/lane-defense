@@ -1,11 +1,13 @@
 // Star targets per level from simulated WINNING runs (human skill, the tuning reference profile):
 //   one   = the goal's own points (goal cars x POINTS.car): every win has at least that, so the
 //           bar's first star is always lit by the time the level is won
-//   two   = 35th percentile
+//   two   = 10th percentile
 //   (levels won 95%+ of the time, the tutorial: three = halfway from the goal's points to the 20th
 //    percentile, two = a quarter of the way, so a first-time player's win is three stars)
-//   three = 75th percentile  -> about a quarter of an average player's wins earn three stars,
-//                               more for a good player, so three stars is always reachable.
+//   three = 35th percentile  -> about two in three careful wins earn three stars (2026-11-26,
+//                               owner: "3 stars is unreachable, I always get 1"; it was the 75th
+//                               percentile, so even a perfect game got three in a quarter of its
+//                               wins). tests/stars-reachable.test.js pins it out of sample.
 // Rounded to 25 points and kept strictly rising.
 //   node tools/tune-stars.mjs 1-200 [runs=300] [--write]   (writes src/game/starTargets.js)
 import { LevelManager, LEVEL_COUNT } from '../src/game/LevelManager.js';
@@ -34,7 +36,7 @@ for (let id = lo; id <= hi; id++) {
                  // broken combo or two is still three stars
     const typical = q(0.2), base = goal * POINTS.car;
     three = r25(base + (typical - base) * 0.5); two = r25(base + (typical - base) * 0.25);
-  } else if (wins.length >= 20) { two = r25(q(0.35)); three = r25(q(0.75)); }
+  } else if (wins.length >= 20) { two = r25(q(0.10)); three = r25(q(0.35)); }
   else {   // too few wins to read percentiles: derive from the goal, like starTargetsFor's fallback
     two = r25(goal * POINTS.car * 1.25); three = r25(goal * POINTS.car * 1.5);
   }

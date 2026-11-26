@@ -36,7 +36,6 @@ export const LEVEL_START_CARDS = {
 //   second_colour             L1 (the first blue car reaches the front after a run of reds —
 //                             GameApp fires it from the advance, hand on the blue bomb)
 //   first_miss                L1-2 (a wrong colour is possible from the first blue car)
-//   barrier_down              any level: the first time a lane's barrier is smashed (lane barriers)
 //   wave_incoming             L10: the first WAVE 1 crest (waves start on WAVES_FROM)
 //   streak_charged            L11-12 (Hot Streak starts at L11)
 //   freeze / swap / rainbow earned  from the level each one arrives (boosterUnlocks.js)
@@ -46,7 +45,6 @@ export const REACTIVE_WINDOW = {
   bomb_earned:    [1, 1],
   second_colour:  [1, 1],
   first_miss:     [1, 2],
-  barrier_down:   [1, 200],   // the first smash IS the moment, on whatever level it happens (2026-10-30)
   wave_incoming:  [10, 10],   // the first WAVE 1 crest (TrafficRules.WAVES_FROM), an animated card
   bridge_guide:   [6, 6],     // the first bridgeable pair on the bridges level: hand on the real cars (bridges.BRIDGES_FROM)
   speeder:        [9, 9],     // the first speeder on the road (L9): the "bridge it in front, then shoot" demo

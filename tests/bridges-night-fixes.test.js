@@ -27,7 +27,6 @@ function setup() {
   });
   gs.goals = [{ type: 'destroyTotal', count: 50 }]; gs.goalProgress = [50];
   gs.bridgesEnabled = true;
-  gs.barriers.fill(false);
   const rng = new SeededRandom(3);
   const loop = new GameLoop({
     app: mockApp, gameState: gs, carDir: new CarDirector({}, rng),
@@ -87,17 +86,14 @@ describe('bridges — CONTINUE after a loss', () => {
 });
 
 describe('breach check resolves every lane (second reviewer)', () => {
-  it('a lane behind the breaching lane still crashes into its barrier on the same advance', () => {
+  it('a lane behind the breaching lane is cleared on the same advance (a CONTINUE sees no car past the line)', () => {
     const { gs, loop } = setup();
     const MAX = gs.gridRows - 1;
-    gs.barriers[0] = false; gs.barriers[1] = true;
     const a = mk('Red', MAX, 1), b = mk('Blue', MAX, 1);
     gs.lanes[0].cars = [a]; gs.lanes[1].cars = [b];
-    const smash = vi.fn(); loop._onBarrierSmash = smash;
     loop._advanceGrid();
-    expect(gs.isOver).toBe(true);                              // lane 0 had no barrier left: the loss
-    expect(gs.barriers[1]).toBe(false);                        // lane 1's car hit its barrier on the same step
-    expect(smash).toHaveBeenCalledWith(1, b);
+    expect(gs.isOver).toBe(true);                              // the first car past the line is the loss
+    expect(gs.lanes[0].cars.some(c => c.row > MAX)).toBe(false);
     expect(gs.lanes[1].cars.some(c => c.row > MAX)).toBe(false);
   });
 });

@@ -114,7 +114,6 @@ import { AutoTuner }             from '../analytics/AutoTuner.js';
 import { AchievementManager }     from '../game/AchievementManager.js';
 import { DailyChallengeManager }  from '../game/DailyChallengeManager.js';
 import { CarTypeIntroCard, hasIntroCard } from '../screens/CarTypeIntroCard.js';
-import { BarrierIntroCard } from '../screens/BarrierIntroCard.js';
 import { WaveIntroCard } from '../screens/WaveIntroCard.js';
 import { spawnableTypesFor, carHpFor } from '../director/CarTypes.js';
 import { roundButton as premiumRoundButton, ribbon as premiumRibbon } from './PremiumUI.js';
@@ -2455,17 +2454,6 @@ async function main() {
   // CHAIN REACTION (spread.js): the explosion jumped to same-colour neighbours. Arcs and the
   // neighbours' explosions in 3D; a CHAIN tag over the last car it took. The kill sound, tokens
   // and shake already escalate with the shot's kill count (onHit), which includes these.
-  // LANE BARRIER smashed (TrafficRules.resolveBreach): the car crashed into the lane's barrier and
-  // both are gone; the next car through this lane ends the level. Big moment + the once-ever card.
-  gameLoop._onBarrierSmash = (laneIdx, car) => {
-    gameRenderer3D.onBarrierSmash(laneIdx, car?.color ?? 'Red');
-    floatingTexts.push(spawnFloatingText(
-      layers.get('particleLayer'), getLaneScreenX(laneIdx), posToScreenY(100) - 44, 'BARRIER DOWN!', 0xFF3D3D,
-    ));
-    audio.play('armor_clang');
-    haptics.heavy();
-    _triggerIntroCard('barrier_down', BarrierIntroCard);   // the animated rule, once ever
-  };
 
   // BRIDGES (bridges.js): the hit ran along the player's bridges. Arcs from the hit car to each
   // bridged car and their flashes/explosions in 3D; a BRIDGE tag over the last car it took. The
@@ -2763,7 +2751,7 @@ async function main() {
     // `gs.bombFreezeUntil` is deliberately NOT passed — the renderer no longer
     // reads it either. See the "DORMANT ON PURPOSE" note in GameRenderer3D's
     // isFrozen; turning that effect on is its own reviewed change.
-    gameRenderer3D.update({ lanes: gs.lanes, boosterState, isBreaching: gs.isOver && !gs.won, barriers: gs.barriers,
+    gameRenderer3D.update({ lanes: gs.lanes, boosterState, isBreaching: gs.isOver && !gs.won,
                              comboFreezeShots: gs.comboFreezeShots,
                              colorBombArmed: gs.colorBombArmed }, fxDt, gs.elapsed);
 

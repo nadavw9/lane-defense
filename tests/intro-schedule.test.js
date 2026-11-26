@@ -112,7 +112,6 @@ describe('in-play teaching windows', () => {
   });
   it('each in-play window is short and starts where its mechanic starts', () => {
     for (const [k, [a, b]] of Object.entries(REACTIVE_WINDOW)) {
-      if (k === 'barrier_down') { expect([a, b]).toEqual([1, 200]); continue; }   // the first smash is the moment, any level
       if (k === 'wave_incoming') { expect([a, b]).toEqual([WAVES_FROM, WAVES_FROM]); continue; }
       expect(b - a, k).toBeLessThanOrEqual(3);
     }

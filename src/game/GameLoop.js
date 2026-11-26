@@ -68,7 +68,6 @@ export class GameLoop {
     this._onNearMiss        = null;  // set by GameApp; () → near-miss drama (slow-mo + heartbeat + red pulse)
     this._onBridgeBlast     = null;  // set by GameApp; (hits, laneIdx, srcPos) → the hit runs along the bridges (bridges.js)
     this._onBridgeSnap      = null;  // set by GameApp; (bridges[]) → a bridge broke (speeder moved on, chameleon flipped)
-    this._onBarrierSmash    = null;  // set by GameApp; (laneIdx, car) → the lane's barrier is gone (TrafficRules.resolveBreach)
 
     // Base level duration — used to reset gs.duration on restart.
     this._baseDuration = gameState.duration;
@@ -660,23 +659,13 @@ export class GameLoop {
     // and never reach here, so no beat fires when nothing moved.
     this._onAdvance?.();
 
-    // 2. Breach check. Each lane has ONE barrier (TrafficRules.resolveBreach, the simulator runs
-    //    the same rule): the first car past the last row crashes into it — car and barrier gone,
-    //    nothing credited — and the level goes on; the next car through that lane is the loss.
-    //    EVERY lane is resolved before the loss is declared (the simulator does the same): a lane
-    //    behind the breaching one still loses its barrier on this step, so a CONTINUE resumes
-    //    with the board the player saw, not with a car parked past the line.
+    // 2. Breach check (TrafficRules.resolveBreach, the simulator runs the same rule): the first car
+    //    past the last row is the loss. EVERY lane is resolved before the loss is declared (the
+    //    simulator does the same), so a CONTINUE resumes with no car parked past the line.
     let lostLane = -1;
     for (let li = 0; li < gs.activeLaneCount; li++) {
       const lane = gs.lanes[li];
-      const { crashed, breached } = resolveBreach(lane.cars, MAX_ROW, gs.barriers[li]);
-      if (crashed) {
-        const idx = lane.cars.indexOf(crashed);
-        if (idx >= 0) lane.cars.splice(idx, 1);
-        gs.barriers[li] = false;
-        gs.barriersLost++;
-        this._onBarrierSmash?.(li, crashed);
-      }
+      const { breached } = resolveBreach(lane.cars, MAX_ROW);
       if (breached.length > 0) {
         for (const car of breached) {
           const idx = lane.cars.indexOf(car);

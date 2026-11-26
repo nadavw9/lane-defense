@@ -18,10 +18,19 @@ export const goalTrait = (trait, count) => ({ type: 'destroyTrait', trait, count
  *  a colour / type / trait side-goal never under 2, so a scaled level keeps its idea. */
 // A goal at scale k (the tuner's lever). Floors keep a level from collapsing into a handful of
 // kills; there is no ceiling — a level that is too easy at the authored count gets longer
-// (2026-10-30, lane barriers; it used to cap at the authored count).
+// (2026-10-30, honest difficulty; it used to cap at the authored count).
 export function scaleGoal(g, k) {
   const floor = g.type === 'destroyTotal' ? 6 : 2;
   return { ...g, count: Math.max(floor, Math.round(g.count * k)) };
+}
+
+/** The tuner's special-car lever (tests/tune-traits.test.js): `ts` thins the traits no goal asks
+ *  for, `gb` boosts the ones a goal asks for. Thinning a goal's own trait made its cars rarer and
+ *  the level longer, so it is never thinned (2026-11-26). */
+export function tuneTraits(traits, goals, ts = 1, gb = 1) {
+  if (!traits) return traits;
+  const wanted = new Set((goals ?? []).filter(g => g.type === 'destroyTrait').map(g => g.trait));
+  return Object.fromEntries(Object.entries(traits).map(([n, p]) => [n, +(p * (wanted.has(n) ? gb : ts)).toFixed(4)]));
 }
 
 export const COLOR = { R: 'Red', B: 'Blue', G: 'Green', Y: 'Yellow', P: 'Purple', O: 'Orange' };
@@ -36,13 +45,12 @@ export const pal = (letters) => [...letters].map(c => COLOR[c]);
 export function lv(id, name, letters, o = {}) {
   const ramp = Math.floor((Math.min(id, 100) - 40) / 6);   // the second tour (L101+) holds L100's budget
   const t = tuning?.[id];                       // sim-tuned numbers (lateTuning.js)
-  const scaleTraits = (tr, k) => Object.fromEntries(Object.entries(tr).map(([n, p]) => [n, +(p * k).toFixed(4)]));
   const goals = (o.goals ?? total(o.total ?? 26)).map(g => scaleGoal(g, t?.gs ?? 1));
   return {
     id, name, laneCount: 3, colCount: 3, colors: pal(letters),
     worldConfig: W(o.heft ?? t?.heft ?? 0.3),
     duration: o.duration ?? 110, spawnBudget: o.budget ?? 24 + ramp, laneTargetCarCount: o.dense ? 3 : 2, gridRows: BOARD_ROWS,
-    ...(o.traits ? { traits: t?.ts ? scaleTraits(o.traits, t.ts) : o.traits, baseTraits: o.traits } : {}),
+    ...(o.traits ? { traits: tuneTraits(o.traits, o.goals ?? total(o.total ?? 26), t?.ts ?? 1, t?.gb ?? 1), baseTraits: o.traits } : {}),
     ...(o.hint ? { hintText: o.hint } : {}),
     ...(o.milestone ? { milestone: true } : {}),
     ...(o.initialCars ? { initialCars: o.initialCars } : {}),

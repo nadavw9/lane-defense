@@ -8,7 +8,7 @@ import { CARDS } from '../src/screens/guideContent.js';
 // Cards that stay a GuideCard on purpose: they ring a REAL board element and animate a hand there,
 // or have their own bespoke animated card.
 const HAND_GUIDED = new Set(['second_colour', 'bridge_guide']);
-const BESPOKE = new Set(['barrier_down', 'wave_incoming']);
+const BESPOKE = new Set(['wave_incoming']);
 const OPS = new Set(['shot', 'bounce', 'shrink', 'grow', 'boom', 'advance', 'bridge', 'snap', 'hit', 'tag', 'counter', 'glow', 'unglow',
   'light', 'freeze', 'boosterTap', 'boosterPlus', 'recolor', 'plate', 'gift', 'surge', 'goalTick', 'wait']);
 

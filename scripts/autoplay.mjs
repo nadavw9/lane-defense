@@ -60,7 +60,7 @@ for (const lv of levels) {
   await p.screenshot({ path: `${out}/L${lv}-end.png` });
   report.push(r);
   const ev = r.events.map(e => e.kind).join(',');
-  console.log(`L${lv} ${r.result} turns=${r.turns} kills=${r.kills} goal=${r.goalLeft} ${r.wallS}s events=[${ev}] errors=${r.errors.length}${process.env.BRIDGE ? ` bridges=${r.bridgesMade} bridgeKills=${r.bridgeKills}` : ''}`);
+  console.log(`L${lv} ${r.result} turns=${r.turns} kills=${r.kills} goal=${r.goalLeft} ${r.wallS}s events=[${ev}] errors=${r.errors.length} score=${r.score} stars@${(r.starTargets ?? []).join("/")}${process.env.BRIDGE ? ` bridges=${r.bridgesMade} bridgeKills=${r.bridgeKills}` : ''}`);
   writeFileSync(`${out}/report.json`, JSON.stringify(report, null, 1));
 }
 await b.close();
@@ -306,5 +306,5 @@ async function playLevel({ capMs, bridge = false }) {
   const end = nav.getScreens();
   if (gs.isOver && gs.won && !end.win) ev('noWinScreen');
   if (gs.isOver && gs.won && end.boosters && Object.values(end.inventory).some(v => v < 0)) ev('negativeInventory');
-  return { result: gs.isOver ? (gs.won ? 'win' : 'lose') : 'timeout', turns: gs.turnCount, kills: gs.totalKills, goalLeft, events, stats, rescueUsed: gs.rescueUsed, bridgesMade: gs.bridgesMade, bridgeKills: gs.bridgeKills };
+  return { result: gs.isOver ? (gs.won ? 'win' : 'lose') : 'timeout', turns: gs.turnCount, kills: gs.totalKills, goalLeft, events, stats, rescueUsed: gs.rescueUsed, bridgesMade: gs.bridgesMade, bridgeKills: gs.bridgeKills, score: gs.score, starTargets: gs.starTargets };
 }

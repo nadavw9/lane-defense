@@ -29,7 +29,7 @@
 // turn-based game; it is kept only because the config shape requires it.
 
 import { LATE_TUNING } from './lateTuning.js';
-import { W, total, scaleGoal, identityFor } from './levelDsl.js';
+import { W, total, scaleGoal, identityFor, tuneTraits } from './levelDsl.js';
 import { LATE_LEVELS } from './LateLevels.js';
 import { TOUR_LEVELS } from './TourLevels.js';
 import { STEPS_PER_ROW, BOARD_ROWS } from '../director/TrafficRules.js';
@@ -299,8 +299,8 @@ for (const cfg of PROGRESSION) {
   if (!t) continue;
   cfg.baseGoals = cfg.goals;
   cfg.tuneHeft = cfg.worldConfig?.heft;
+  if (cfg.traits && ((t.ts ?? 1) !== 1 || (t.gb ?? 1) !== 1)) { cfg.baseTraits = cfg.traits; cfg.traits = tuneTraits(cfg.traits, cfg.goals, t.ts ?? 1, t.gb ?? 1); }
   cfg.goals = cfg.goals.map(g => scaleGoal(g, t.gs ?? 1));
-  if (t.ts && t.ts !== 1 && cfg.traits) { cfg.baseTraits = cfg.traits; cfg.traits = Object.fromEntries(Object.entries(cfg.traits).map(([n, p]) => [n, +(p * t.ts).toFixed(4)])); }
   if (t.heft != null) cfg.worldConfig = { ...cfg.worldConfig, heft: t.heft };
 }
 

@@ -28,7 +28,6 @@ function setup() {
   });
   gs.goals = [{ type: 'destroyTotal', count: 50 }]; gs.goalProgress = [50];
   gs.bridgesEnabled = true;
-  gs.barriers.fill(false);   // breach tests are elsewhere; keep the board simple
   const rng = new SeededRandom(3);
   const loop = new GameLoop({
     app: mockApp, gameState: gs, carDir: new CarDirector({}, rng),

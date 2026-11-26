@@ -1,7 +1,7 @@
 // The CRISIS assist is gone (2026-10-30, docs/superpowers/specs/2026-10-30-lane-barriers-design.md
 // §3.4). It injected a matching bomb whenever a car passed 70% of its lane, invisibly, and the
 // simulator never modelled it — which is how "never lost a level" and "74-84% in band" were
-// both true at once. Lane barriers are the visible replacement. This test keeps it gone.
+// both true at once. The honest floor is the viability guard. This test keeps it gone.
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';

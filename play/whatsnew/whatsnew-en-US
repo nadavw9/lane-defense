@@ -1,5 +1,4 @@
-- The game now fills the whole screen: no more purple strips down the sides
-- Rounded green buttons on every card
-- The combo counter no longer covers the cars during a tutorial hint
-- The breach screen says how many cars were left to win
-- Level 5 (the third color) is a little easier
+- Clearer rule: the first car past the finish line ends the level. Continue with a video or try again
+- Fairer stars: every car you destroy in a combo earns bonus points. Play clean and get 3 stars
+- Traffic builds up as you get close to the goal
+- All 200 levels rebalanced

@@ -14,6 +14,7 @@
 import { test as base, expect } from '@playwright/test';
 import sharp from 'sharp';
 import { posToScreenYProjected, setActiveLaneCount } from '../../src/renderer3d/projection.js';
+import { BENCH_FROM_LEVEL } from '../../src/game/LevelManager.js';
 
 // Requests that are allowed to fail without failing the test:
 //  - favicon (browser noise)
@@ -59,7 +60,7 @@ export class GamePage {
     // taps. Mark every first-time card as seen up front; the tour spec boots with
     // { tutorials: true } to get the real first-run experience instead.
     if (!opts.tutorials) {
-      await this.page.addInitScript(() => {
+      await this.page.addInitScript((benchLevel) => {
         try {
           if (localStorage.getItem('__qa_fresh_tutorials')) return;   // tour.spec asks for the real first run
           // Every card key in src/screens/guideContent.js CARDS (tests/intro-schedule.test.js keeps this in sync).
@@ -68,8 +69,15 @@ export class GamePage {
             'streak_charged', 'plate_break', 'armor_break', 'volatile_surge', 'mender_heal', 'gift_car', 'traffic_light', 'convoy'];
           for (let i = 1; i <= 200; i++) keys.push(`hint_L${i}`);
           localStorage.setItem('ftue_banners', JSON.stringify(keys));
+          // The bench tutorial (the one booster unlock) is a spotlight that dims the whole board
+          // except the bench, so pixel checks on that level read navy instead of cars (nightly
+          // 2026-11-27: L13 failed once its retuned opening had no car bright enough to show
+          // through). It lives in the save, not in ftue_banners.
+          const save = JSON.parse(localStorage.getItem('lane-defense-v1') || '{}');
+          save.seenUnlocks = { ...(save.seenUnlocks ?? {}), [String(benchLevel)]: true };
+          localStorage.setItem('lane-defense-v1', JSON.stringify(save));
         } catch { /* storage blocked */ }
-      });
+      }, BENCH_FROM_LEVEL);
     }
     await this.page.goto('/', { waitUntil: 'domcontentloaded' });
     await this.page.waitForFunction(() => !!window._nav, null, { timeout: BOOT_TIMEOUT_MS });
